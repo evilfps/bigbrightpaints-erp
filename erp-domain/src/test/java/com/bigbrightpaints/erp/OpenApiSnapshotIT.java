@@ -67,8 +67,7 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
                 "#/components/schemas/SystemSettingsUpdateRequest", "200", "#/components/schemas/ApiResponseSystemSettingsDto");
         assertOperationContract(root, "/api/v1/admin/tenant-runtime/metrics", "get",
                 null, "200", "#/components/schemas/ApiResponseTenantRuntimeMetricsDto");
-        assertOperationContract(root, "/api/v1/admin/tenant-runtime/policy", "put",
-                "#/components/schemas/TenantRuntimePolicyUpdateRequest", "200", "#/components/schemas/ApiResponseTenantRuntimeMetricsDto");
+        assertOperationMissing(root, "/api/v1/admin/tenant-runtime/policy", "put");
         assertOperationContract(root, "/api/v1/admin/users/{userId}/force-reset-password", "post",
                 null, "200", "#/components/schemas/ApiResponseString");
         assertOperationContract(root, "/api/v1/admin/users/{userId}/status", "put",
@@ -321,5 +320,12 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         assertThat(schema.path("$ref").asText())
                 .withFailMessage("Unexpected response contract for %s %s %s", expectedResponseCode, method.toUpperCase(), path)
                 .isEqualTo(expectedResponseRef);
+    }
+
+    private void assertOperationMissing(JsonNode root, String path, String method) {
+        JsonNode operation = root.path("paths").path(path).path(method);
+        assertThat(operation.isMissingNode())
+                .withFailMessage("Did not expect %s %s in generated OpenAPI spec", method.toUpperCase(), path)
+                .isTrue();
     }
 }

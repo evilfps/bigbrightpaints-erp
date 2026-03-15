@@ -3,8 +3,9 @@ package com.bigbrightpaints.erp.modules.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
+import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
-import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService.TenantRuntimeSnapshot;
+import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -26,23 +27,29 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
 
     private static final String PASSWORD = "Passw0rd!";
+    private static final String ROOT_COMPANY_CODE = "ROOT";
 
     @Autowired
     private TestRestTemplate rest;
 
     @Autowired
-    private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+    private UserAccountRepository userAccountRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private SystemSettingsRepository systemSettingsRepository;
+
+    @Autowired
+    private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+
     @Test
     void heldTenantBlocksLogin_andEmitsAuditChain() throws InterruptedException {
         Scenario scenario = seedScenario("HOLD");
-        TenantRuntimeSnapshot snapshot = tenantRuntimeEnforcementService.holdTenant(
+        Map<String, Object> snapshot = updateRuntimePolicy(
                 scenario.companyCode(),
-                "COMPLIANCE_REVIEW",
-                "ops@bbp.com");
+                Map.of("holdState", "HOLD", "reasonCode", "COMPLIANCE_REVIEW"));
 
         ResponseEntity<Map> loginResponse = rest.postForEntity(
                 "/api/v1/auth/login",
@@ -51,18 +58,19 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
 
         assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.LOCKED);
         assertControlledRuntimeError(loginResponse, "TENANT_ON_HOLD", "Tenant is currently on hold");
-        Map<String, String> metadata = awaitAccessDeniedMetadata(snapshot.auditChainId(), "TENANT_ON_HOLD");
+        Map<String, String> metadata = awaitAccessDeniedMetadata(String.valueOf(snapshot.get("auditChainId")), "TENANT_ON_HOLD");
         assertThat(metadata).containsEntry("tenantReasonCode", "COMPLIANCE_REVIEW");
     }
 
     @Test
-    void blockedTenantBlocksAuthenticatedRuntimeRequest_withAuditChain() throws InterruptedException {
+    void blockedTenantBlocksAuthenticatedRuntimeRequest_andRecoveryReallowsImmediately() throws InterruptedException {
         Scenario scenario = seedScenario("BLOCK");
-        String token = login(scenario.email(), scenario.companyCode());
-        TenantRuntimeSnapshot snapshot = tenantRuntimeEnforcementService.blockTenant(
+        Map<String, Object> tokens = loginTokens(scenario.email(), scenario.companyCode());
+        String token = (String) tokens.get("accessToken");
+        String refreshToken = (String) tokens.get("refreshToken");
+        Map<String, Object> blockedSnapshot = updateRuntimePolicy(
                 scenario.companyCode(),
-                "ABUSE_INCIDENT",
-                "ops@bbp.com");
+                Map.of("holdState", "BLOCKED", "reasonCode", "ABUSE_INCIDENT"));
 
         ResponseEntity<Map> meResponse = rest.exchange(
                 "/api/v1/auth/me",
@@ -72,8 +80,26 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
 
         assertThat(meResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertControlledRuntimeError(meResponse, "TENANT_BLOCKED", "Tenant is currently blocked");
-        Map<String, String> metadata = awaitAccessDeniedMetadata(snapshot.auditChainId(), "TENANT_BLOCKED");
+        Map<String, String> metadata = awaitAccessDeniedMetadata(String.valueOf(blockedSnapshot.get("auditChainId")), "TENANT_BLOCKED");
         assertThat(metadata).containsEntry("tenantReasonCode", "ABUSE_INCIDENT");
+
+        ResponseEntity<Map> refreshResponse = rest.postForEntity(
+                "/api/v1/auth/refresh-token",
+                Map.of("refreshToken", refreshToken, "companyCode", scenario.companyCode()),
+                Map.class);
+        assertThat(refreshResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertControlledRuntimeError(refreshResponse, "TENANT_BLOCKED", "Tenant is currently blocked");
+
+        updateRuntimePolicy(
+                scenario.companyCode(),
+                Map.of("holdState", "ACTIVE", "reasonCode", "RECOVERY_COMPLETE"));
+
+        ResponseEntity<Map> recoveredMeResponse = rest.exchange(
+                "/api/v1/auth/me",
+                HttpMethod.GET,
+                new HttpEntity<>(authenticatedHeaders(token, scenario.companyCode())),
+                Map.class);
+        assertThat(recoveredMeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test
@@ -86,13 +112,9 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
         dataSeeder.ensureUser(firstUser, PASSWORD, "Quota A", companyCode, List.of("ROLE_ADMIN"));
         dataSeeder.ensureUser(secondUser, PASSWORD, "Quota B", companyCode, List.of("ROLE_ADMIN"));
 
-        TenantRuntimeSnapshot snapshot = tenantRuntimeEnforcementService.updateQuotas(
+        Map<String, Object> snapshot = updateRuntimePolicy(
                 companyCode,
-                null,
-                null,
-                1,
-                "MAX_USERS_TEST",
-                "ops@bbp.com");
+                Map.of("maxActiveUsers", 1, "reasonCode", "MAX_USERS_TEST"));
 
         ResponseEntity<Map> loginResponse = rest.postForEntity(
                 "/api/v1/auth/login",
@@ -104,7 +126,9 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
                 loginResponse,
                 "TENANT_ACTIVE_USER_QUOTA_EXCEEDED",
                 "Tenant active-user quota exceeded");
-        Map<String, String> metadata = awaitAccessDeniedMetadata(snapshot.auditChainId(), "TENANT_ACTIVE_USER_QUOTA_EXCEEDED");
+        Map<String, String> metadata = awaitAccessDeniedMetadata(
+                String.valueOf(snapshot.get("auditChainId")),
+                "TENANT_ACTIVE_USER_QUOTA_EXCEEDED");
         assertThat(metadata).containsEntry("limitType", "MAX_ACTIVE_USERS");
     }
 
@@ -114,13 +138,13 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
         String token = login(scenario.email(), scenario.companyCode());
         avoidMinuteBoundaryRace();
 
-        TenantRuntimeSnapshot snapshot = tenantRuntimeEnforcementService.updateQuotas(
+        Map<String, Object> snapshot = updateRuntimePolicy(
                 scenario.companyCode(),
-                50,
-                1,
-                500,
-                "RATE_TEST",
-                "ops@bbp.com");
+                Map.of(
+                        "maxConcurrentRequests", 50,
+                        "maxRequestsPerMinute", 1,
+                        "maxActiveUsers", 500,
+                        "reasonCode", "RATE_TEST"));
 
         ResponseEntity<Map> firstCall = rest.exchange(
                 "/api/v1/auth/me",
@@ -139,7 +163,9 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
                 secondCall,
                 "TENANT_REQUEST_RATE_EXCEEDED",
                 "Tenant request rate quota exceeded");
-        Map<String, String> metadata = awaitAccessDeniedMetadata(snapshot.auditChainId(), "TENANT_REQUEST_RATE_EXCEEDED");
+        Map<String, String> metadata = awaitAccessDeniedMetadata(
+                String.valueOf(snapshot.get("auditChainId")),
+                "TENANT_REQUEST_RATE_EXCEEDED");
         assertThat(metadata).containsEntry("limitType", "MAX_REQUESTS_PER_MINUTE");
     }
 
@@ -162,18 +188,82 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
         String suffix = suffix();
         String companyCode = (prefix + "-" + suffix).toUpperCase(Locale.ROOT);
         String email = prefix.toLowerCase(Locale.ROOT) + "-" + suffix.toLowerCase(Locale.ROOT) + "@bbp.com";
+        Long companyId = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd").getId();
         dataSeeder.ensureUser(email, PASSWORD, prefix + " User", companyCode, List.of("ROLE_ADMIN"));
+        userAccountRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
+            user.setMustChangePassword(false);
+            user.setEnabled(true);
+            userAccountRepository.save(user);
+        });
+        resetTenantRuntimePolicy(companyId, companyCode);
         return new Scenario(companyCode, email);
     }
 
     private String login(String email, String companyCode) {
-        ResponseEntity<Map> loginResponse = rest.postForEntity(
+        return (String) loginTokens(email, companyCode).get("accessToken");
+    }
+
+    private Map<String, Object> updateRuntimePolicy(String targetCompanyCode, Map<String, Object> payload) {
+        String superAdminEmail = "runtime-super-admin-"
+                + targetCompanyCode.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "")
+                + "@bbp.com";
+        dataSeeder.ensureUser(
+                superAdminEmail,
+                PASSWORD,
+                "Runtime Company Super Admin",
+                ROOT_COMPANY_CODE,
+                List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+        dataSeeder.ensureUser(
+                superAdminEmail,
+                PASSWORD,
+                "Runtime Company Super Admin",
+                targetCompanyCode,
+                List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+        userAccountRepository.findByEmailIgnoreCase(superAdminEmail).ifPresent(user -> {
+            user.setMustChangePassword(false);
+            user.setEnabled(true);
+            userAccountRepository.save(user);
+        });
+        Long companyId = dataSeeder.ensureCompany(targetCompanyCode, targetCompanyCode + " Ltd").getId();
+        String rootToken = login(superAdminEmail, ROOT_COMPANY_CODE);
+        HttpHeaders headers = authenticatedHeaders(rootToken, ROOT_COMPANY_CODE);
+        headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(payload, headers),
+                Map.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+        assertThat(data).isNotNull();
+        return data;
+    }
+
+    private void resetTenantRuntimePolicy(Long companyId, String companyCode) {
+        if (companyId == null) {
+            return;
+        }
+        systemSettingsRepository.deleteById("tenant.runtime.hold-state." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.hold-reason." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.max-active-users." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.max-requests-per-minute." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.max-concurrent-requests." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.policy-reference." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.policy-updated-at." + companyId);
+        tenantRuntimeEnforcementService.invalidatePolicyCache(companyCode);
+    }
+
+    private Map<String, Object> loginTokens(String email, String companyCode) {
+        ResponseEntity<Map> response = rest.postForEntity(
                 "/api/v1/auth/login",
                 loginPayload(email, companyCode),
                 Map.class);
-        assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(loginResponse.getBody()).isNotNull();
-        return (String) loginResponse.getBody().get("accessToken");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        return response.getBody();
     }
 
     private Map<String, Object> loginPayload(String email, String companyCode) {

@@ -49,3 +49,11 @@ Each module follows: `domain/` (entities + repos), `service/`, `controller/`, `d
 - O2C dispatch posting has one allowed accounting path: `SalesCoreEngine.confirmDispatch -> AccountingFacade.postCogsJournal/postSalesJournal`. Orchestrator batch-dispatch and fulfillment endpoints must fail closed or redirect callers to the canonical sales dispatch confirm endpoint; they must never mint `DISPATCH-*` journals.
 - The mission normalizes linked business references across order or proforma, production requirement, packaging slip, dispatch, invoice, journal, settlement, return, note, and reversal artifacts.
 - Flyway `migration_v2` is the only valid migration track for this mission.
+
+## Lane 01 Tenant Runtime Canonicalization Notes
+- Canonical tenant/runtime policy writer: `PUT /api/v1/companies/{id}/tenant-runtime/policy`.
+- Canonical persistence/enforcement source for this slice: `modules.company.service.TenantRuntimeEnforcementService`.
+- The stale admin-side writer (`PUT /api/v1/admin/tenant-runtime/policy`) and any separate privileged-path recognition must be retired or collapsed in the same packet when touched.
+- Admin runtime metrics remain an in-scope tenant-scoped reader, but they must map canonical `auditChainId`/`updatedAt` to `policyReference`/`policyUpdatedAt` and align defaults with the canonical source.
+- `CompanyContextFilter`, `TenantRuntimeEnforcementService`, `AuthService`, and `TenantRuntimeEnforcementInterceptor` are the critical code surfaces for this packet.
+- See `.factory/library/tenant-runtime-control-plane.md` for the worker-facing packet contract and catching-lane notes.

@@ -179,6 +179,7 @@ jobs:
           bash scripts/run_test_manifest.sh \
             --profile pr-fast \
             --label auth-tenant \
+            --maven-arg -Dtest.groups= \
             --manifest ci/pr_manifests/pr_auth_tenant.txt
 
       - name: Upload shard coverage

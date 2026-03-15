@@ -35,6 +35,7 @@ ROUTED_SHARDS = (
         "label": "auth-tenant",
         "manifest": "ci/pr_manifests/pr_auth_tenant.txt",
         "artifact": "pr-jacoco-auth-tenant",
+        "maven_args": ["-Dtest.groups="],
     },
     {
         "job": "pr-accounting",

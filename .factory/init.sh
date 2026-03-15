@@ -45,5 +45,13 @@ Capture backend contract impact for frontend consumers.
 EOF
 fi
 
+if [ ! -f "$LIB_DIR/tenant-runtime-control-plane.md" ]; then
+  cat > "$LIB_DIR/tenant-runtime-control-plane.md" <<'EOF'
+# Tenant Runtime Control Plane
+
+Mission notes for canonical tenant/runtime policy behavior, stale-path retirement, and the exact PR catching lane for Lane 01 packets.
+EOF
+fi
+
 cd "$ERP_DIR"
 mvn -q -DskipTests -Djacoco.skip=true compile >/dev/null 2>&1 || true

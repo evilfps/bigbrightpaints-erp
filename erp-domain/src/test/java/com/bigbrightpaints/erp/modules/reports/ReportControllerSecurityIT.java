@@ -2,6 +2,9 @@ package com.bigbrightpaints.erp.modules.reports;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
+import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
@@ -33,6 +36,7 @@ class ReportControllerSecurityIT extends AbstractIntegrationTest {
     private static final String ACCOUNTING_A_EMAIL = "reports-acc-a@bbp.com";
     private static final String FACTORY_A_EMAIL = "reports-factory-a@bbp.com";
     private static final String ACCOUNTING_B_EMAIL = "reports-acc-b@bbp.com";
+    private static final String SUPER_ADMIN_EMAIL = "reports-root-super@bbp.com";
     private static final String PASSWORD = "ReportSec123!";
 
     @Autowired
@@ -50,6 +54,15 @@ class ReportControllerSecurityIT extends AbstractIntegrationTest {
     @Autowired
     private ProductionLogRepository productionLogRepository;
 
+    @Autowired
+    private UserAccountRepository userAccountRepository;
+
+    @Autowired
+    private SystemSettingsRepository systemSettingsRepository;
+
+    @Autowired
+    private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+
     private Long companyAProductionLogId;
 
     @BeforeEach
@@ -60,8 +73,17 @@ class ReportControllerSecurityIT extends AbstractIntegrationTest {
                 FACTORY_A_EMAIL, PASSWORD, "Reports Factory A", COMPANY_A_CODE, List.of("ROLE_FACTORY"));
         dataSeeder.ensureUser(
                 ACCOUNTING_B_EMAIL, PASSWORD, "Reports Accounting B", COMPANY_B_CODE, List.of("ROLE_ACCOUNTING"));
+        dataSeeder.ensureUser(
+                SUPER_ADMIN_EMAIL, PASSWORD, "Reports Root Super", COMPANY_A_CODE,
+                List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+        userAccountRepository.findByEmailIgnoreCase(SUPER_ADMIN_EMAIL).ifPresent(user -> {
+            user.setMustChangePassword(false);
+            user.setEnabled(true);
+            userAccountRepository.save(user);
+        });
 
         Company companyA = companyRepository.findByCodeIgnoreCase(COMPANY_A_CODE).orElseThrow();
+        resetTenantRuntimePolicy(companyA.getId(), companyA.getCode());
         companyAProductionLogId = seedProductionLog(companyA).getId();
     }
 
@@ -104,6 +126,47 @@ class ReportControllerSecurityIT extends AbstractIntegrationTest {
         );
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void costBreakdown_followsCanonicalRuntimeBlockAndRecovery() {
+        Company companyA = companyRepository.findByCodeIgnoreCase(COMPANY_A_CODE).orElseThrow();
+        HttpHeaders superAdminHeaders = authHeaders(SUPER_ADMIN_EMAIL, COMPANY_A_CODE);
+        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_A_EMAIL, COMPANY_A_CODE);
+
+        ResponseEntity<Map> blockResponse = rest.exchange(
+                "/api/v1/companies/" + companyA.getId() + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("holdState", "BLOCKED", "reasonCode", "REPORT_LOCKDOWN"), superAdminHeaders),
+                Map.class
+        );
+        assertThat(blockResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> denied = rest.exchange(
+                "/api/v1/reports/production-logs/" + companyAProductionLogId + "/cost-breakdown",
+                HttpMethod.GET,
+                new HttpEntity<>(accountingHeaders),
+                Map.class
+        );
+        assertThat(denied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(denied.getBody()).isNotNull();
+        assertThat(((Map<?, ?>) denied.getBody().get("data")).get("reason")).isEqualTo("TENANT_BLOCKED");
+
+        ResponseEntity<Map> recoveryResponse = rest.exchange(
+                "/api/v1/companies/" + companyA.getId() + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("holdState", "ACTIVE", "reasonCode", "REPORT_RECOVERY"), superAdminHeaders),
+                Map.class
+        );
+        assertThat(recoveryResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> recovered = rest.exchange(
+                "/api/v1/reports/production-logs/" + companyAProductionLogId + "/cost-breakdown",
+                HttpMethod.GET,
+                new HttpEntity<>(accountingHeaders),
+                Map.class
+        );
+        assertThat(recovered.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     private HttpHeaders authHeaders(String email, String companyCode) {
@@ -160,5 +223,19 @@ class ReportControllerSecurityIT extends AbstractIntegrationTest {
         log.setUnitCost(new BigDecimal("13.00"));
         log.setProducedAt(Instant.parse("2026-02-13T00:00:00Z"));
         return productionLogRepository.saveAndFlush(log);
+    }
+
+    private void resetTenantRuntimePolicy(Long companyId, String companyCode) {
+        if (companyId == null) {
+            return;
+        }
+        systemSettingsRepository.deleteById("tenant.runtime.hold-state." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.hold-reason." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.max-active-users." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.max-requests-per-minute." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.max-concurrent-requests." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.policy-reference." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.policy-updated-at." + companyId);
+        tenantRuntimeEnforcementService.invalidatePolicyCache(companyCode);
     }
 }

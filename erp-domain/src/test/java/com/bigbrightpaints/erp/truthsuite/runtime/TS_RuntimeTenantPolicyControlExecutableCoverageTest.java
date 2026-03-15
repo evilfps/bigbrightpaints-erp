@@ -268,19 +268,22 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         assertThat(traceAllowed.isAdmitted()).isTrue();
         service.completeRequest(traceAllowed, 200);
 
-        // Privileged policy control path bypasses hold/rate checks.
-        TenantRuntimeEnforcementService.TenantRequestAdmission policyControl =
+        TenantRuntimeEnforcementService.TenantRequestAdmission retiredAdminPolicyControl =
                 service.beginRequest("ACME", "/api/v1/admin/tenant-runtime/policy", "PUT", "super", true);
+        assertThat(retiredAdminPolicyControl.isAdmitted()).isFalse();
+        // Privileged canonical policy control path bypasses hold/rate checks.
+        TenantRuntimeEnforcementService.TenantRequestAdmission policyControl =
+                service.beginRequest("ACME", "/api/v1/companies/21/tenant-runtime/policy", "PUT", "super", true);
         assertThat(policyControl.isAdmitted()).isTrue();
         service.completeRequest(policyControl, 500);
         TenantRuntimeEnforcementService.TenantRequestAdmission nonPutPolicyControl =
-                service.beginRequest("ACME", "/api/v1/admin/tenant-runtime/policy", "PATCH", "super", true);
+                service.beginRequest("ACME", "/api/v1/companies/21/tenant-runtime/policy", "PATCH", "super", true);
         assertThat(nonPutPolicyControl.isAdmitted()).isFalse();
         TenantRuntimeEnforcementService.TenantRequestAdmission nullPathPolicyControl =
                 service.beginRequest("ACME", null, "PUT", "super", true);
         assertThat(nullPathPolicyControl.isAdmitted()).isFalse();
         TenantRuntimeEnforcementService.TenantRequestAdmission blankMethodPolicyControl =
-                service.beginRequest("ACME", "/api/v1/admin/tenant-runtime/policy", "   ", "super", true);
+                service.beginRequest("ACME", "/api/v1/companies/21/tenant-runtime/policy", "   ", "super", true);
         assertThat(blankMethodPolicyControl.isAdmitted()).isFalse();
         TenantRuntimeEnforcementService.TenantRequestAdmission wrongPrefixPolicyControl =
                 service.beginRequest("ACME", "/api/v1/company/21/tenant-runtime/policy", "PUT", "super", true);
@@ -581,6 +584,6 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
                 10,
                 100,
                 50,
-                new TenantRuntimeEnforcementService.TenantRuntimeMetrics(0, 0, 0, 0, 0, 0));
+                new TenantRuntimeEnforcementService.TenantRuntimeMetrics(0, 0, 0, 0, 0, 0, 0));
     }
 }

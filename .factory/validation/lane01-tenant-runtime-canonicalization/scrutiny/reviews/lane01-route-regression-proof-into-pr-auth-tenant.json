@@ -1,0 +1,26 @@
+{
+  "featureId": "lane01-route-regression-proof-into-pr-auth-tenant",
+  "reviewedAt": "2026-03-15T08:37:15+05:30",
+  "commitId": "8d37f53e5e1d122b9dea1fd819e49fbc5a282ad0",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The packet stays tightly scoped to CI surfaces and covers the feature contract. `ci/pr_manifests/pr_auth_tenant.txt` now includes the canonical company-path HTTP regression, auth/runtime parity proof, stale admin-writer retirement proof, and OpenAPI contract proof; `scripts/ci_risk_router.py` routes both `openapi.json` and `OpenApiSnapshotIT` into `run_auth_tenant=true` without widening unrelated shards; and `testing/ci/test_pr_review_ci_packet.py` locks the company/admin/core-security routing cases plus the required auth-tenant manifest bundle. I did not find blocking correctness or contract-alignment issues in the reviewed diff.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The shared auth-hardening notes still describe `/api/v1/admin/tenant-runtime/policy` as an active peer in runtime-policy control tracking, even though Lane 01 retired that public writer. That stale note can mislead future workers reviewing auth/runtime behavior.",
+      "evidence": ".factory/library/auth-hardening.md:39 still says canonical company-path updates participate in the same policy-control tracking as `/api/v1/admin/tenant-runtime/policy`; `.factory/library/tenant-runtime-control-plane.md:18-21` documents that admin path as the stale writer that must stay retired."
+    },
+    {
+      "area": "skills",
+      "observation": "`security-backend-worker` still treats a red-phase characterization failure as mandatory even for CI-only lane-routing packets. This review's handoff shows a justified deviation: manifest/router contract assertions plus shard execution were the realistic characterization path here.",
+      "evidence": ".factory/skills/security-backend-worker/SKILL.md:33-39 requires characterization tests first; the handoff at /home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/handoffs/2026-03-15T02-57-21-668Z__lane01-route-regression-proof-into-pr-auth-tenant__3b4d917b-6464-4da4-84a2-a0433967df89.json:67-76 records `followedProcedure=false` and suggests explicitly allowing CI-only lane-routing packets to use router/manifest contract tests plus lane execution."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The auth-tenant catching lane now includes the lane01 canonical runtime-policy regression bundle and the router/tests backstop that coverage without widening unrelated PR shards; I found no blocking implementation issues in this feature diff."
+}

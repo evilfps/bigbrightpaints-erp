@@ -2,23 +2,29 @@ package com.bigbrightpaints.erp.truthsuite.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
-import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
+import com.bigbrightpaints.erp.core.security.TenantRuntimeRequestAttributes;
 import com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
 import com.bigbrightpaints.erp.modules.portal.service.TenantRuntimeEnforcementInterceptor;
 import com.bigbrightpaints.erp.modules.sales.controller.DealerPortalController;
 import com.bigbrightpaints.erp.modules.sales.service.DealerPortalService;
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @Tag("critical")
@@ -67,38 +73,51 @@ class TS_RuntimeDealerPortalControllerExportCoverageTest {
     }
 
     @Test
-    void tenantRuntimePolicyService_normalizeHoldState_failClosed_forMalformedValues() {
+    void tenantRuntimePolicyService_metrics_reflects_canonical_active_reason() {
+        CompanyContextService companyContextService = org.mockito.Mockito.mock(CompanyContextService.class);
+        UserAccountRepository userAccountRepository = org.mockito.Mockito.mock(UserAccountRepository.class);
+        TenantRuntimeEnforcementService tenantRuntimeEnforcementService =
+                org.mockito.Mockito.mock(TenantRuntimeEnforcementService.class);
+        AuditService auditService = org.mockito.Mockito.mock(AuditService.class);
         TenantRuntimePolicyService service = new TenantRuntimePolicyService(
-                org.mockito.Mockito.mock(CompanyContextService.class),
-                org.mockito.Mockito.mock(SystemSettingsRepository.class),
-                org.mockito.Mockito.mock(UserAccountRepository.class),
-                org.mockito.Mockito.mock(AuditService.class));
+                companyContextService,
+                userAccountRepository,
+                auditService,
+                tenantRuntimeEnforcementService);
+        com.bigbrightpaints.erp.modules.company.domain.Company company =
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.company.domain.Company.class);
+        when(company.getId()).thenReturn(42L);
+        when(company.getCode()).thenReturn("ACME");
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(userAccountRepository.findDistinctByCompanies_Id(42L)).thenReturn(List.of());
+        when(tenantRuntimeEnforcementService.snapshot("ACME")).thenReturn(
+                new TenantRuntimeEnforcementService.TenantRuntimeSnapshot(
+                        "ACME",
+                        TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE,
+                        "POLICY_ACTIVE",
+                        "bootstrap",
+                        null,
+                        200,
+                        5000,
+                        500,
+                        new TenantRuntimeEnforcementService.TenantRuntimeMetrics(0, 0, 0, 0, 0, 0, 0L)));
 
-        String normalizedNull = (String) ReflectionTestUtils.invokeMethod(service, "normalizeHoldState", (String) null);
-        String normalizedActive = (String) ReflectionTestUtils.invokeMethod(service, "normalizeHoldState", "ACTIVE");
-        String normalizedPaused = (String) ReflectionTestUtils.invokeMethod(service, "normalizeHoldState", "PAUSED");
-
-        assertThat(normalizedNull).isEqualTo("ACTIVE");
-        assertThat(normalizedActive).isEqualTo("ACTIVE");
-        assertThat(normalizedPaused).isEqualTo("BLOCKED");
+        assertThat(service.metrics().holdReason()).isEqualTo("POLICY_ACTIVE");
     }
 
     @Test
-    void tenantRuntimeInterceptor_normalizeHoldState_failClosed_forMalformedValues() {
+    void tenantRuntimeInterceptor_skipsLegacyChecks_whenCanonicalAdmissionAlreadyApplied() throws Exception {
+        TenantRuntimeEnforcementService tenantRuntimeEnforcementService =
+                org.mockito.Mockito.mock(TenantRuntimeEnforcementService.class);
         TenantRuntimeEnforcementInterceptor interceptor = new TenantRuntimeEnforcementInterceptor(
                 org.mockito.Mockito.mock(CompanyContextService.class),
-                org.mockito.Mockito.mock(SystemSettingsRepository.class),
-                org.mockito.Mockito.mock(AuditService.class));
+                tenantRuntimeEnforcementService);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
+        request.setAttribute(TenantRuntimeRequestAttributes.CANONICAL_ADMISSION_APPLIED, Boolean.TRUE);
 
-        String normalizedNull =
-                (String) ReflectionTestUtils.invokeMethod(interceptor, "normalizeHoldState", (String) null);
-        String normalizedActive =
-                (String) ReflectionTestUtils.invokeMethod(interceptor, "normalizeHoldState", "ACTIVE");
-        String normalizedPaused =
-                (String) ReflectionTestUtils.invokeMethod(interceptor, "normalizeHoldState", "PAUSED");
+        boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
 
-        assertThat(normalizedNull).isEqualTo("ACTIVE");
-        assertThat(normalizedActive).isEqualTo("ACTIVE");
-        assertThat(normalizedPaused).isEqualTo("BLOCKED");
+        assertThat(allowed).isTrue();
+        verifyNoInteractions(tenantRuntimeEnforcementService);
     }
 }

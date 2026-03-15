@@ -3,7 +3,10 @@ package com.bigbrightpaints.erp.modules.portal;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
+import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTask;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTaskRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionBatch;
@@ -86,6 +89,12 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
     private DealerRepository dealerRepository;
     @Autowired
     private InvoiceRepository invoiceRepository;
+    @Autowired
+    private SystemSettingsRepository systemSettingsRepository;
+    @Autowired
+    private UserAccountRepository userAccountRepository;
+    @Autowired
+    private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
 
     private Company company;
 
@@ -98,6 +107,17 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
         company = dataSeeder.ensureCompany(COMPANY_CODE, "Acme Corp");
         dataSeeder.ensureUser(ADMIN_EMAIL, ADMIN_PASSWORD, "Admin", COMPANY_CODE, List.of("ROLE_ADMIN"));
         dataSeeder.ensureUser(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, "Super Admin", COMPANY_CODE, List.of("ROLE_SUPER_ADMIN"));
+        userAccountRepository.findByEmailIgnoreCase(ADMIN_EMAIL).ifPresent(user -> {
+            user.setMustChangePassword(false);
+            user.setEnabled(true);
+            userAccountRepository.save(user);
+        });
+        userAccountRepository.findByEmailIgnoreCase(SUPER_ADMIN_EMAIL).ifPresent(user -> {
+            user.setMustChangePassword(false);
+            user.setEnabled(true);
+            userAccountRepository.save(user);
+        });
+        resetTenantRuntimePolicy(company.getId(), company.getCode());
 
         SalesOrder order = new SalesOrder();
         order.setCompany(company);
@@ -267,17 +287,16 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void portalEndpoints_areRuntimeBlockedWhenTenantHoldStateIsBlocked() {
+    void portalEndpoints_followCanonicalRuntimePolicy_forBlockAndRecovery() {
         HttpHeaders headers = authenticatedHeaders();
         HttpHeaders superAdminHeaders = superAdminHeaders();
 
         ResponseEntity<Map> policyResponse = rest.exchange(
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/" + company.getId() + "/tenant-runtime/policy",
                 HttpMethod.PUT,
                 new HttpEntity<>(Map.of(
                         "holdState", "BLOCKED",
-                        "holdReason", "Incident containment",
-                        "changeReason", "Security drill"
+                        "reasonCode", "INCIDENT_CONTAINMENT"
                 ), superAdminHeaders),
                 Map.class
         );
@@ -286,8 +305,8 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
         assertThat(policyBody).isNotNull();
         Map<?, ?> policyData = (Map<?, ?>) policyBody.get("data");
         assertThat(policyData).isNotNull();
-        assertThat(policyData.get("holdState")).isEqualTo("BLOCKED");
-        String policyReference = String.valueOf(policyData.get("policyReference"));
+        assertThat(policyData.get("state")).isEqualTo("BLOCKED");
+        String policyReference = String.valueOf(policyData.get("auditChainId"));
         assertThat(policyReference).isNotBlank();
 
         ResponseEntity<Map> dashboard = rest.exchange(
@@ -297,19 +316,45 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
                 Map.class
         );
         assertThat(dashboard.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(dashboard.getBody()).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> errorData = (Map<String, Object>) dashboard.getBody().get("data");
+        assertThat(errorData).isNotNull();
+        assertThat(errorData.get("reason")).isEqualTo("TENANT_BLOCKED");
+        assertThat(errorData.get("auditChainId")).isEqualTo(policyReference);
 
-        // Reset runtime policy to avoid leaking blocked tenant state into other IT classes.
         ResponseEntity<Map> resetResponse = rest.exchange(
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/" + company.getId() + "/tenant-runtime/policy",
                 HttpMethod.PUT,
                 new HttpEntity<>(Map.of(
                         "holdState", "ACTIVE",
-                        "holdReason", "Incident resolved",
-                        "changeReason", "Test cleanup"
+                        "reasonCode", "INCIDENT_RESOLVED"
                 ), superAdminHeaders),
                 Map.class
         );
         assertThat(resetResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> recoveredDashboard = rest.exchange(
+                "/api/v1/portal/dashboard",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class
+        );
+        assertThat(recoveredDashboard.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    private void resetTenantRuntimePolicy(Long companyId, String companyCode) {
+        if (companyId == null) {
+            return;
+        }
+        systemSettingsRepository.deleteById("tenant.runtime.hold-state." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.hold-reason." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.max-active-users." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.max-requests-per-minute." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.max-concurrent-requests." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.policy-reference." + companyId);
+        systemSettingsRepository.deleteById("tenant.runtime.policy-updated-at." + companyId);
+        tenantRuntimeEnforcementService.invalidatePolicyCache(companyCode);
     }
 
     private SalesOrder saveSalesOrder(String orderNumber, String status, BigDecimal totalAmount) {

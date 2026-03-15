@@ -64,6 +64,37 @@ class CiRiskRouterTest(unittest.TestCase):
         self.assertEqual("false", flags["run_business_slice"])
         self.assertEqual("false", flags["run_codered_finance"])
 
+    def test_company_admin_and_core_security_sources_route_auth_tenant(self):
+        for path in [
+            "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/CompanyService.java",
+            "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/controller/AdminSettingsController.java",
+            "erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java",
+        ]:
+            with self.subTest(path=path):
+                flags = ci_risk_router.compute_flags([path])
+
+                self.assertEqual("true", flags["run_auth_tenant"])
+                self.assertEqual("true", flags["run_persistence_smoke"])
+                self.assertEqual("true", flags["run_codered_access"])
+                self.assertEqual("true", flags["run_changed_coverage"])
+
+    def test_openapi_contract_proof_changes_route_auth_tenant_without_widening_other_lanes(self):
+        for path in [
+            "openapi.json",
+            "erp-domain/src/test/java/com/bigbrightpaints/erp/OpenApiSnapshotIT.java",
+        ]:
+            with self.subTest(path=path):
+                flags = ci_risk_router.compute_flags([path])
+
+                self.assertEqual("true", flags["run_auth_tenant"])
+                self.assertEqual("false", flags["run_accounting"])
+                self.assertEqual("false", flags["run_idempotency_outbox"])
+                self.assertEqual("false", flags["run_business_slice"])
+                self.assertEqual("false", flags["run_persistence_smoke"])
+                self.assertEqual("false", flags["run_codered_access"])
+                self.assertEqual("false", flags["run_codered_finance"])
+                self.assertEqual("false", flags["run_changed_coverage"])
+
     def test_ci_infra_change_runs_core_pr_shards_but_not_codered_or_changed_coverage(self):
         flags = ci_risk_router.compute_flags([".github/workflows/ci.yml"])
 
@@ -360,6 +391,32 @@ class RuntimeProbeContractTest(unittest.TestCase):
         self.assertIn('[ "$status" = "401" ]', services_text)
         self.assertIn('[ "$status" = "403" ]', services_text)
         self.assertNotIn('echo "$status"', services_text)
+
+
+class PrAuthTenantManifestContractTest(unittest.TestCase):
+    def test_manifest_includes_lane01_runtime_regression_bundle(self):
+        manifest_lines = {
+            line.strip()
+            for line in (REPO_ROOT / "ci" / "pr_manifests" / "pr_auth_tenant.txt").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        }
+
+        self.assertTrue(
+            {
+                "com.bigbrightpaints.erp.modules.company.CompanyControllerIT",
+                "com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementServiceTest",
+                "com.bigbrightpaints.erp.modules.auth.TenantRuntimeEnforcementAuthIT",
+                "com.bigbrightpaints.erp.modules.auth.CompanyContextFilterControlPlaneBindingTest",
+                "com.bigbrightpaints.erp.OpenApiSnapshotIT",
+                "com.bigbrightpaints.erp.modules.admin.controller.AdminSettingsControllerTenantRuntimeContractTest",
+                "com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyServiceTest",
+                "com.bigbrightpaints.erp.modules.portal.service.TenantRuntimeEnforcementInterceptorTest",
+                "com.bigbrightpaints.erp.modules.portal.PortalInsightsControllerIT",
+                "com.bigbrightpaints.erp.modules.reports.ReportControllerSecurityIT",
+                "com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeTenantPolicyControlExecutableCoverageTest",
+                "com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeTenantRuntimeEnforcementTest",
+            }.issubset(manifest_lines)
+        )
 
 
 if __name__ == "__main__":

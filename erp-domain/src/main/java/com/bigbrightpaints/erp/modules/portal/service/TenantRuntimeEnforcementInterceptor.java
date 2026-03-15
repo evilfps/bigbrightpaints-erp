@@ -1,23 +1,15 @@
 package com.bigbrightpaints.erp.modules.portal.service;
 
-import com.bigbrightpaints.erp.core.audit.AuditEvent;
-import com.bigbrightpaints.erp.core.audit.AuditService;
-import com.bigbrightpaints.erp.core.config.SystemSetting;
-import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
-import com.bigbrightpaints.erp.core.util.CompanyTime;
+import com.bigbrightpaints.erp.core.security.TenantRuntimeRequestAttributes;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -25,30 +17,13 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class TenantRuntimeEnforcementInterceptor implements HandlerInterceptor {
 
-    private static final Logger log = LoggerFactory.getLogger(TenantRuntimeEnforcementInterceptor.class);
-
-    private static final String HOLD_STATE_ACTIVE = "ACTIVE";
-    private static final String HOLD_STATE_HOLD = "HOLD";
-    private static final String HOLD_STATE_BLOCKED = "BLOCKED";
-    private static final int DEFAULT_MAX_REQUESTS_PER_MINUTE = 1200;
-    private static final int DEFAULT_MAX_CONCURRENT_REQUESTS = 40;
-
-    private static final String ATTR_ENFORCED = TenantRuntimeEnforcementInterceptor.class.getName() + ".enforced";
-    private static final String ATTR_COMPANY_ID = TenantRuntimeEnforcementInterceptor.class.getName() + ".companyId";
-
     private final CompanyContextService companyContextService;
-    private final SystemSettingsRepository systemSettingsRepository;
-    private final AuditService auditService;
-
-    private final ConcurrentMap<Long, AtomicInteger> inFlightByCompany = new ConcurrentHashMap<>();
-    private final ConcurrentMap<Long, MinuteWindowCounter> minuteCountersByCompany = new ConcurrentHashMap<>();
+    private final TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
 
     public TenantRuntimeEnforcementInterceptor(CompanyContextService companyContextService,
-                                               SystemSettingsRepository systemSettingsRepository,
-                                               AuditService auditService) {
+                                               TenantRuntimeEnforcementService tenantRuntimeEnforcementService) {
         this.companyContextService = companyContextService;
-        this.systemSettingsRepository = systemSettingsRepository;
-        this.auditService = auditService;
+        this.tenantRuntimeEnforcementService = tenantRuntimeEnforcementService;
     }
 
     @Override
@@ -57,109 +32,30 @@ public class TenantRuntimeEnforcementInterceptor implements HandlerInterceptor {
         if (!isEnforcedPath(path)) {
             return true;
         }
-
-        Company company = companyContextService.requireCurrentCompany();
-        Long companyId = company.getId();
-        RuntimePolicy policy = loadPolicy(companyId);
-        long minuteEpoch = currentMinute();
-
-        boolean holdBlocksThisRequest = HOLD_STATE_BLOCKED.equals(policy.holdState())
-                || (HOLD_STATE_HOLD.equals(policy.holdState()) && isMutatingMethod(request.getMethod()));
-        if (holdBlocksThisRequest) {
-            int blockedCount = blockedCounter(companyId).incrementBlocked(minuteEpoch);
-            persistMetricSnapshot(companyId, minuteEpoch, 0, blockedCount, inFlightCount(companyId));
-            String failureReason = "Tenant runtime state is " + policy.holdState();
-            auditDenied(company, request, policy, "TENANT_RUNTIME_STATE_DENIED", failureReason, Map.of(
-                    "holdState", policy.holdState(),
-                    "holdReason", safe(policy.holdReason())
-            ));
-            throw tenantStateException(company, policy, path);
-        }
-
-        MinuteWindowCounter minuteWindowCounter = blockedCounter(companyId);
-        int requestsThisMinute = minuteWindowCounter.incrementRequests(minuteEpoch);
-        if (requestsThisMinute > policy.maxRequestsPerMinute()) {
-            int blockedCount = minuteWindowCounter.incrementBlocked(minuteEpoch);
-            persistMetricSnapshot(companyId, minuteEpoch, requestsThisMinute, blockedCount, inFlightCount(companyId));
-            String failureReason = "Requests per minute exceeded";
-            auditDenied(company, request, policy, "TENANT_RUNTIME_RATE_LIMIT_DENIED", failureReason, Map.of(
-                    "quotaType", "REQUESTS_PER_MINUTE",
-                    "quotaValue", Integer.toString(policy.maxRequestsPerMinute()),
-                    "observed", Integer.toString(requestsThisMinute)
-            ));
-            throw quotaException(
-                    company,
-                    policy,
-                    path,
-                    "REQUESTS_PER_MINUTE",
-                    policy.maxRequestsPerMinute(),
-                    requestsThisMinute
-            );
-        }
-
-        AtomicInteger inFlightCounter = inFlightByCompany.computeIfAbsent(companyId, ignored -> new AtomicInteger());
-        int inFlight = inFlightCounter.incrementAndGet();
-        if (inFlight > policy.maxConcurrentRequests()) {
-            inFlightCounter.decrementAndGet();
-            int blockedCount = minuteWindowCounter.incrementBlocked(minuteEpoch);
-            persistMetricSnapshot(companyId, minuteEpoch, requestsThisMinute, blockedCount, inFlightCount(companyId));
-            String failureReason = "Concurrent request limit exceeded";
-            auditDenied(company, request, policy, "TENANT_RUNTIME_CONCURRENCY_DENIED", failureReason, Map.of(
-                    "quotaType", "CONCURRENT_REQUESTS",
-                    "quotaValue", Integer.toString(policy.maxConcurrentRequests()),
-                    "observed", Integer.toString(inFlight)
-            ));
-            throw quotaException(
-                    company,
-                    policy,
-                    path,
-                    "CONCURRENT_REQUESTS",
-                    policy.maxConcurrentRequests(),
-                    inFlight
-            );
-        }
-
-        persistMetricSnapshot(companyId, minuteEpoch, requestsThisMinute, minuteWindowCounter.blocked(minuteEpoch), inFlight);
-        request.setAttribute(ATTR_ENFORCED, Boolean.TRUE);
-        request.setAttribute(ATTR_COMPANY_ID, companyId);
-        return true;
-    }
-
-    private boolean isMutatingMethod(String method) {
-        if (!StringUtils.hasText(method)) {
+        if (Boolean.TRUE.equals(request.getAttribute(TenantRuntimeRequestAttributes.CANONICAL_ADMISSION_APPLIED))) {
             return true;
         }
-        String normalized = method.trim().toUpperCase(Locale.ROOT);
-        return !"GET".equals(normalized) && !"HEAD".equals(normalized) && !"OPTIONS".equals(normalized);
+
+        Company company = companyContextService.requireCurrentCompany();
+        TenantRuntimeEnforcementService.TenantRequestAdmission admission = tenantRuntimeEnforcementService.beginRequest(
+                company.getCode(),
+                path,
+                request.getMethod(),
+                resolveCurrentActor(),
+                false);
+        if (admission == null || !admission.isAdmitted()) {
+            throw admissionException(company.getCode(), path, admission);
+        }
+        request.setAttribute(TenantRuntimeRequestAttributes.INTERCEPTOR_FALLBACK_ADMISSION, admission);
+        return true;
     }
 
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
-        if (!Boolean.TRUE.equals(request.getAttribute(ATTR_ENFORCED))) {
-            return;
+        Object admission = request.getAttribute(TenantRuntimeRequestAttributes.INTERCEPTOR_FALLBACK_ADMISSION);
+        if (admission instanceof TenantRuntimeEnforcementService.TenantRequestAdmission trackedAdmission) {
+            tenantRuntimeEnforcementService.completeRequest(trackedAdmission, response.getStatus());
         }
-        Object companyIdAttr = request.getAttribute(ATTR_COMPANY_ID);
-        if (!(companyIdAttr instanceof Long companyId)) {
-            return;
-        }
-        AtomicInteger inFlightCounter = inFlightByCompany.get(companyId);
-        if (inFlightCounter == null) {
-            return;
-        }
-        int inFlight = inFlightCounter.decrementAndGet();
-        if (inFlight < 0) {
-            inFlightCounter.set(0);
-            inFlight = 0;
-        }
-        MinuteWindowCounter minuteWindowCounter = blockedCounter(companyId);
-        long minuteEpoch = currentMinute();
-        persistMetricSnapshot(
-                companyId,
-                minuteEpoch,
-                minuteWindowCounter.requests(minuteEpoch),
-                minuteWindowCounter.blocked(minuteEpoch),
-                inFlight
-        );
     }
 
     private boolean isEnforcedPath(String path) {
@@ -172,231 +68,116 @@ public class TenantRuntimeEnforcementInterceptor implements HandlerInterceptor {
                 || path.startsWith("/api/v1/demo/");
     }
 
-    private void persistMetricSnapshot(Long companyId,
-                                       long minuteEpoch,
-                                       int requestsThisMinute,
-                                       int blockedThisMinute,
-                                       int inFlightRequests) {
-        persistSetting(keyMetricMinuteEpoch(companyId), Long.toString(minuteEpoch));
-        persistSetting(keyMetricRequestsMinute(companyId), Integer.toString(Math.max(requestsThisMinute, 0)));
-        persistSetting(keyMetricBlockedMinute(companyId), Integer.toString(Math.max(blockedThisMinute, 0)));
-        persistSetting(keyMetricInFlight(companyId), Integer.toString(Math.max(inFlightRequests, 0)));
-    }
-
-    private void persistSetting(String key, String value) {
-        try {
-            systemSettingsRepository.save(new SystemSetting(key, value));
-        } catch (RuntimeException ex) {
-            log.debug("Unable to persist tenant runtime metric key {}", key, ex);
-        }
-    }
-
-    private RuntimePolicy loadPolicy(Long companyId) {
-        String holdState = normalizeHoldState(readSetting(keyHoldState(companyId), HOLD_STATE_ACTIVE));
-        String holdReason = trimToNull(readSetting(keyHoldReason(companyId), null));
-        if (HOLD_STATE_ACTIVE.equals(holdState)) {
-            holdReason = null;
-        }
-        int maxRequestsPerMinute = parsePositiveInt(
-                readSetting(keyMaxRequestsPerMinute(companyId), null),
-                DEFAULT_MAX_REQUESTS_PER_MINUTE
-        );
-        int maxConcurrentRequests = parsePositiveInt(
-                readSetting(keyMaxConcurrentRequests(companyId), null),
-                DEFAULT_MAX_CONCURRENT_REQUESTS
-        );
-        String policyReference = readSetting(keyPolicyReference(companyId), "bootstrap");
-        return new RuntimePolicy(holdState, holdReason, maxRequestsPerMinute, maxConcurrentRequests, policyReference);
-    }
-
-    private String readSetting(String key, String fallback) {
-        return systemSettingsRepository.findById(key)
-                .map(SystemSetting::getValue)
-                .orElse(fallback);
-    }
-
-    private String normalizeHoldState(String raw) {
-        if (raw == null) {
-            return HOLD_STATE_ACTIVE;
-        }
-        String normalized = raw.trim().toUpperCase(Locale.ROOT);
-        return switch (normalized) {
-            case HOLD_STATE_ACTIVE, HOLD_STATE_HOLD, HOLD_STATE_BLOCKED -> normalized;
-            default -> HOLD_STATE_BLOCKED;
-        };
-    }
-
-    private int parsePositiveInt(String raw, int fallback) {
-        if (!StringUtils.hasText(raw)) {
-            return fallback;
-        }
-        try {
-            int parsed = Integer.parseInt(raw.trim());
-            return parsed > 0 ? parsed : fallback;
-        } catch (NumberFormatException ex) {
-            return fallback;
-        }
-    }
-
-    private void auditDenied(Company company,
-                             HttpServletRequest request,
-                             RuntimePolicy policy,
-                             String action,
-                             String failureReason,
-                             Map<String, String> details) {
-        Map<String, String> metadata = new java.util.HashMap<>();
-        metadata.put("companyCode", safe(company.getCode()));
-        metadata.put("policyReference", safe(policy.policyReference()));
-        metadata.put("action", safe(action));
-        metadata.put("reason", safe(failureReason));
-        metadata.put("holdState", safe(policy.holdState()));
-        metadata.put("holdReason", safe(policy.holdReason()));
-        metadata.put("requestPath", safe(request.getRequestURI()));
-        metadata.put("requestMethod", safe(request.getMethod()));
-        metadata.put("remoteAddr", safe(request.getRemoteAddr()));
-        metadata.put("requestId", safe(headerValue(request, "X-Request-Id")));
-        metadata.put("traceId", safe(headerValue(request, "X-Trace-Id")));
-        metadata.put("userAgent", safe(headerValue(request, "User-Agent")));
-        metadata.putAll(details);
-        metadata.put("occurredAt", CompanyTime.now().toString());
-        auditService.logFailure(AuditEvent.ACCESS_DENIED, metadata);
-    }
-
-    private String headerValue(HttpServletRequest request, String headerName) {
-        if (request == null || !StringUtils.hasText(headerName)) {
-            return null;
-        }
-        return trimToNull(request.getHeader(headerName));
-    }
-
-    private int inFlightCount(Long companyId) {
-        AtomicInteger counter = inFlightByCompany.get(companyId);
-        return counter != null ? Math.max(counter.get(), 0) : 0;
-    }
-
-    private MinuteWindowCounter blockedCounter(Long companyId) {
-        return minuteCountersByCompany.computeIfAbsent(companyId, ignored -> new MinuteWindowCounter());
-    }
-
-    private ApplicationException tenantStateException(Company company, RuntimePolicy policy, String path) {
-        String message = "Tenant runtime is " + policy.holdState() + "; access denied";
-        return new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE, message)
-                .withDetail("companyCode", company.getCode())
-                .withDetail("holdState", policy.holdState())
-                .withDetail("holdReason", policy.holdReason())
-                .withDetail("policyReference", policy.policyReference())
-                .withDetail("path", path);
-    }
-
-    private ApplicationException quotaException(Company company,
-                                                RuntimePolicy policy,
+    private RuntimeException admissionException(String companyCode,
                                                 String path,
-                                                String quotaType,
-                                                int quotaValue,
-                                                int observedValue) {
-        String message = "Tenant runtime quota exceeded: " + quotaType;
-        return new ApplicationException(ErrorCode.BUSINESS_LIMIT_EXCEEDED, message)
-                .withDetail("companyCode", company.getCode())
-                .withDetail("quotaType", quotaType)
-                .withDetail("quotaValue", quotaValue)
-                .withDetail("observed", observedValue)
-                .withDetail("policyReference", policy.policyReference())
-                .withDetail("path", path);
+                                                TenantRuntimeEnforcementService.TenantRequestAdmission admission) {
+        String normalizedCompanyCode = StringUtils.hasText(companyCode) ? companyCode.trim() : null;
+        String normalizedPath = StringUtils.hasText(path) ? path.trim() : null;
+        if (admission == null) {
+            return new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE, "Tenant runtime admission is unavailable")
+                    .withDetail("companyCode", normalizedCompanyCode)
+                    .withDetail("path", normalizedPath);
+        }
+        if (!StringUtils.hasText(normalizedCompanyCode) && StringUtils.hasText(admission.companyCode())) {
+            normalizedCompanyCode = admission.companyCode().trim();
+        }
+        if (isQuotaRejection(admission)) {
+            TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot = requiresQuotaSnapshot(admission)
+                    ? snapshotOrNull(normalizedCompanyCode)
+                    : null;
+            return new ApplicationException(ErrorCode.BUSINESS_LIMIT_EXCEEDED, admission.message())
+                    .withDetail("companyCode", normalizedCompanyCode)
+                    .withDetail("quotaType", admission.limitType())
+                    .withDetail("quotaValue", parseIntOrZero(admission.limitValue()))
+                    .withDetail("observed", parseIntOrZero(admission.observedValue()))
+                    .withDetail("policyReference", policyReference(snapshot, admission))
+                    .withDetail("path", normalizedPath);
+        }
+        TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot = requiresStateSnapshot(admission)
+                ? snapshotOrNull(normalizedCompanyCode)
+                : null;
+        return new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE, admission.message())
+                .withDetail("companyCode", normalizedCompanyCode)
+                .withDetail("holdState", holdState(snapshot, admission))
+                .withDetail("holdReason", holdReason(snapshot, admission))
+                .withDetail("policyReference", policyReference(snapshot, admission))
+                .withDetail("path", normalizedPath);
     }
 
-    private String trimToNull(String value) {
-        if (!StringUtils.hasText(value)) {
+    private boolean isQuotaRejection(TenantRuntimeEnforcementService.TenantRequestAdmission admission) {
+        return StringUtils.hasText(admission.limitType()) && !"TENANT_STATE".equalsIgnoreCase(admission.limitType().trim());
+    }
+
+    private boolean requiresQuotaSnapshot(TenantRuntimeEnforcementService.TenantRequestAdmission admission) {
+        return !StringUtils.hasText(admission.auditChainId());
+    }
+
+    private boolean requiresStateSnapshot(TenantRuntimeEnforcementService.TenantRequestAdmission admission) {
+        return !StringUtils.hasText(admission.observedValue())
+                || !StringUtils.hasText(admission.tenantReasonCode())
+                || !StringUtils.hasText(admission.auditChainId());
+    }
+
+    private TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshotOrNull(String companyCode) {
+        if (!StringUtils.hasText(companyCode)) {
             return null;
         }
-        return value.trim();
-    }
-
-    private String safe(String value) {
-        return value == null ? "" : value;
-    }
-
-    private long currentMinute() {
-        return CompanyTime.now().getEpochSecond() / 60;
-    }
-
-    private String keyHoldState(Long companyId) {
-        return "tenant.runtime.hold-state." + companyId;
-    }
-
-    private String keyHoldReason(Long companyId) {
-        return "tenant.runtime.hold-reason." + companyId;
-    }
-
-    private String keyMaxRequestsPerMinute(Long companyId) {
-        return "tenant.runtime.max-requests-per-minute." + companyId;
-    }
-
-    private String keyMaxConcurrentRequests(Long companyId) {
-        return "tenant.runtime.max-concurrent-requests." + companyId;
-    }
-
-    private String keyPolicyReference(Long companyId) {
-        return "tenant.runtime.policy-reference." + companyId;
-    }
-
-    private String keyMetricMinuteEpoch(Long companyId) {
-        return "tenant.runtime.metrics.minute-epoch." + companyId;
-    }
-
-    private String keyMetricRequestsMinute(Long companyId) {
-        return "tenant.runtime.metrics.requests-minute." + companyId;
-    }
-
-    private String keyMetricBlockedMinute(Long companyId) {
-        return "tenant.runtime.metrics.blocked-minute." + companyId;
-    }
-
-    private String keyMetricInFlight(Long companyId) {
-        return "tenant.runtime.metrics.inflight." + companyId;
-    }
-
-    private record RuntimePolicy(
-            String holdState,
-            String holdReason,
-            int maxRequestsPerMinute,
-            int maxConcurrentRequests,
-            String policyReference
-    ) {
-    }
-
-    private static final class MinuteWindowCounter {
-        private long minuteEpoch = -1L;
-        private int requests;
-        private int blocked;
-
-        synchronized int incrementRequests(long targetMinute) {
-            rollIfNeeded(targetMinute);
-            requests++;
-            return requests;
+        try {
+            return tenantRuntimeEnforcementService.snapshot(companyCode);
+        } catch (RuntimeException ex) {
+            return null;
         }
+    }
 
-        synchronized int incrementBlocked(long targetMinute) {
-            rollIfNeeded(targetMinute);
-            blocked++;
-            return blocked;
+    private String holdState(TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot,
+                             TenantRuntimeEnforcementService.TenantRequestAdmission admission) {
+        if (StringUtils.hasText(admission.observedValue())) {
+            return admission.observedValue().trim();
         }
+        if (snapshot != null && snapshot.state() != null) {
+            return snapshot.state().name();
+        }
+        return null;
+    }
 
-        synchronized int requests(long targetMinute) {
-            rollIfNeeded(targetMinute);
-            return requests;
+    private String holdReason(TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot,
+                              TenantRuntimeEnforcementService.TenantRequestAdmission admission) {
+        if (StringUtils.hasText(admission.tenantReasonCode())) {
+            return admission.tenantReasonCode().trim();
         }
+        if (snapshot != null) {
+            return snapshot.reasonCode();
+        }
+        return null;
+    }
 
-        synchronized int blocked(long targetMinute) {
-            rollIfNeeded(targetMinute);
-            return blocked;
+    private String policyReference(TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot,
+                                   TenantRuntimeEnforcementService.TenantRequestAdmission admission) {
+        if (StringUtils.hasText(admission.auditChainId())) {
+            return admission.auditChainId().trim();
         }
+        if (snapshot != null) {
+            return snapshot.auditChainId();
+        }
+        return null;
+    }
 
-        private void rollIfNeeded(long targetMinute) {
-            if (targetMinute != minuteEpoch) {
-                minuteEpoch = targetMinute;
-                requests = 0;
-                blocked = 0;
-            }
+    private int parseIntOrZero(String value) {
+        if (!StringUtils.hasText(value)) {
+            return 0;
         }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
+    }
+
+    private String resolveCurrentActor() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !StringUtils.hasText(authentication.getName())) {
+            return null;
+        }
+        return authentication.getName().trim();
     }
 }

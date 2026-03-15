@@ -4,7 +4,16 @@ com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeTenantControlPlaneEnforceme
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimePortalBoundaryDelegatedCoverageTest
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeTenantPolicyControlExecutableCoverageTest
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeTenantRuntimeEnforcementTest
+com.bigbrightpaints.erp.modules.company.CompanyControllerIT
+com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementServiceTest
+com.bigbrightpaints.erp.modules.auth.TenantRuntimeEnforcementAuthIT
 com.bigbrightpaints.erp.modules.auth.CompanyContextFilterControlPlaneBindingTest
+com.bigbrightpaints.erp.OpenApiSnapshotIT
+com.bigbrightpaints.erp.modules.admin.controller.AdminSettingsControllerTenantRuntimeContractTest
+com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyServiceTest
+com.bigbrightpaints.erp.modules.portal.service.TenantRuntimeEnforcementInterceptorTest
+com.bigbrightpaints.erp.modules.portal.PortalInsightsControllerIT
+com.bigbrightpaints.erp.modules.reports.ReportControllerSecurityIT
 com.bigbrightpaints.erp.core.exception.CoreFallbackExceptionHandlerTest
 com.bigbrightpaints.erp.core.security.PortalRoleActionMatrixTest
 com.bigbrightpaints.erp.modules.rbac.config.RbacSynchronizationConfigTest

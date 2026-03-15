@@ -8,6 +8,16 @@ commands:
     cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 compile -q
   test: >-
     cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true
+  pr-auth-tenant: >-
+    cd /home/realnigga/Desktop/Mission-control && bash scripts/run_test_manifest.sh --profile pr-fast --label auth-tenant --manifest ci/pr_manifests/pr_auth_tenant.txt
+  gate-fast: >-
+    cd /home/realnigga/Desktop/Mission-control && bash scripts/gate_fast.sh
+  gate-core: >-
+    cd /home/realnigga/Desktop/Mission-control && bash scripts/gate_core.sh
+  lane01-targeted: >-
+    cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=CompanyControllerIT,CompanyContextFilterControlPlaneBindingTest,OpenApiSnapshotIT,AdminSettingsControllerTenantRuntimeContractTest,TenantRuntimeEnforcementServiceTest,TenantRuntimeEnforcementAuthIT,TenantRuntimePolicyServiceTest,PortalInsightsControllerIT,ReportControllerSecurityIT,TS_RuntimeTenantPolicyControlExecutableCoverageTest,TS_RuntimeTenantRuntimeEnforcementTest,TS_RuntimeTenantRuntimeEnforcementInterceptorExecutableCoverageTest test
+  lane01-router-check: >-
+    cd /home/realnigga/Desktop/Mission-control && python3 scripts/ci_risk_router.py --base 7118c9eaa754220e30ac9c41e47408ee9f52387c --head "$(git rev-parse HEAD)"
   pr-ci-parity: >-
     ROOT=$(git rev-parse --show-toplevel) && python3 "$ROOT/scripts/pr_ci_parity.py" --base "${PR_CI_BASE:?set PR_CI_BASE to the PR base sha/ref}"
   smoke: >-
@@ -62,6 +72,6 @@ services:
     stop: >-
       DB_PORT=5433 docker compose -f /home/realnigga/Desktop/Mission-control/docker-compose.yml stop app
     healthcheck: >-
-      status=$(curl -s -o /tmp/factory-backend-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true) && { [ "$status" = "200" ] || [ "$status" = "401" ] || [ "$status" = "403" ]; }
+      curl -sf http://localhost:9090/actuator/health >/tmp/factory-backend-health.out || { status=$(curl -s -o /tmp/factory-backend-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true) && { [ "$status" = "200" ] || [ "$status" = "401" ] || [ "$status" = "403" ]; }; }
     port: 8081
     depends_on: [postgres-v2, rabbitmq, mailhog]

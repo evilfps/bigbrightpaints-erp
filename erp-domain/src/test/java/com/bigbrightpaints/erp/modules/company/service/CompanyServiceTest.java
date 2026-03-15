@@ -855,7 +855,7 @@ class CompanyServiceTest {
                         20,
                         100,
                         80,
-                        new TenantRuntimeEnforcementService.TenantRuntimeMetrics(1, 0, 0, 0, 1, 5));
+                        new TenantRuntimeEnforcementService.TenantRuntimeMetrics(1, 0, 0, 0, 1, 0, 5));
         when(tenantRuntimeEnforcementService.updatePolicy(
                 eq("ACME"),
                 eq(TenantRuntimeEnforcementService.TenantRuntimeState.HOLD),

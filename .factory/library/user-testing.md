@@ -78,6 +78,56 @@ Testing surface: tools, URLs, setup steps, isolation notes, known quirks.
 - For shared-role mutation guard validation on `POST /api/v1/admin/roles`, use a system role name such as `ROLE_ADMIN` or `ROLE_SUPER_ADMIN`; arbitrary role names bypass the controller guard and fail later with `400 Unknown platform role ...`, which does not validate the intended authz boundary.
 - For unknown stored tenant-lifecycle validation, protected endpoints such as `GET /api/v1/auth/me` and `GET /api/v1/admin/users` reflect the fail-closed behavior once the stored lifecycle is corrupted locally; restore both the row value and the `chk_companies_lifecycle_state` constraint after the probe.
 
+## Lane 01 Tenant Runtime Canonicalization Packet Guidance
+
+### Validation Surface
+- **Primary:** targeted Maven suites plus the exact PR catching lane `pr-auth-tenant`
+- **Secondary:** `gate-fast` and `gate-core`
+- **Optional runtime proof:** `curl` against the compose-backed backend on `8081/9090` when a validator needs canonical company write -> auth or portal/report evidence
+
+### Validation Concurrency
+- **CLI validators:** max 3 concurrent validators
+- **Runtime validators:** max 1 concurrent validator (fixed ports `5433/8081/9090`)
+
+### Key Commands
+- `.factory/services.yaml -> commands.lane01-targeted`
+- `.factory/services.yaml -> commands.pr-auth-tenant`
+- `.factory/services.yaml -> commands.gate-fast`
+- `.factory/services.yaml -> commands.gate-core`
+- `.factory/services.yaml -> commands.lane01-router-check`
+
+### High-Signal Proof For This Packet
+- Canonical writer / control-plane binding:
+  - `CompanyControllerIT`
+  - `CompanyContextFilterControlPlaneBindingTest`
+  - `OpenApiSnapshotIT`
+- Same-node invalidation / recovery:
+  - `TenantRuntimeEnforcementServiceTest`
+  - `TS_RuntimeTenantRuntimeEnforcementTest`
+  - `TS_RuntimeTenantPolicyControlExecutableCoverageTest`
+- Canonical-write-driven auth/runtime proof:
+  - `TenantRuntimeEnforcementAuthIT`
+- Canonical-write-driven tenant-scoped read parity:
+  - `TenantRuntimePolicyServiceTest`
+  - `AdminSettingsControllerTenantRuntimeContractTest`
+- Canonical-write-driven portal/report proof:
+  - `PortalInsightsControllerIT`
+  - `ReportControllerSecurityIT`
+
+### Runtime Probe Guidance
+- Prefer `http://localhost:9090/actuator/health` for runtime readiness; if it is degraded, verify the target API endpoints on `8081` directly before treating the runtime as unavailable.
+- For manual API proof in this packet, start from a canonical company-path write and then probe:
+  - `GET /api/v1/auth/me` for immediate deny/re-allow
+  - a runtime-intercepted endpoint such as `GET /api/v1/portal/dashboard`
+  - `GET /api/v1/admin/tenant-runtime/metrics` for tenant-scoped read parity
+- `GET /api/v1/admin/tenant-runtime/metrics` is itself runtime-gated for blocked tenants in the seeded lane01 runtime. If a tenant is BLOCKED, expect `403 TENANT_BLOCKED`; verify the blocked state with auth/login denial first, then recover the tenant before reading metrics again.
+
+## Flow Validator Guidance: cli
+- Lane 01 CLI validators are read-only with respect to repository contents: run manifest/router or targeted Maven commands, but do not edit source files or validation artifacts.
+- Reuse the already-prepared repo root `/home/realnigga/Desktop/Mission-control`; do not create alternate clones or reset the shared runtime.
+- It is safe to run CLI validation in parallel with a single runtime/API validator, but do not start additional compose services or a second backend instance on `5433/8081/9090`.
+- Capture the exact command lines, whether the manifest includes the expected runtime-policy classes, and any router output proving `run_auth_tenant=true` for lane01-relevant changes.
+
 ## O2C Dispatch Canonicalization Packet Guidance
 
 ### Validation Surface

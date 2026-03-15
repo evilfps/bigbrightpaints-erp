@@ -35,6 +35,11 @@ ACCESS_PATTERNS = (
     "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/",
 )
 
+AUTH_TENANT_PROOF_PATTERNS = (
+    "openapi.json",
+    "erp-domain/src/test/java/com/bigbrightpaints/erp/OpenApiSnapshotIT.java",
+)
+
 FINANCE_PATTERNS = (
     "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/",
     "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/",
@@ -130,7 +135,10 @@ def compute_flags(paths: list[str]) -> dict[str, str]:
     run_ci_infra_validation = any(matches_prefix(path, CI_INFRA_PATTERNS) for path in paths)
     changed_runtime_source_count = sum(1 for path in paths if path.startswith(JAVA_SOURCE_ROOT))
 
-    run_auth_tenant = run_ci_infra_validation or any(matches_prefix(path, ACCESS_PATTERNS) for path in paths)
+    run_auth_tenant = run_ci_infra_validation or any(
+        matches_prefix(path, ACCESS_PATTERNS) or matches_prefix(path, AUTH_TENANT_PROOF_PATTERNS)
+        for path in paths
+    )
     run_accounting = run_ci_infra_validation or any(matches_prefix(path, FINANCE_PATTERNS) for path in paths)
     run_idempotency_outbox = run_ci_infra_validation or any(
         matches_prefix(path, IDEMPOTENCY_PATTERNS) for path in paths

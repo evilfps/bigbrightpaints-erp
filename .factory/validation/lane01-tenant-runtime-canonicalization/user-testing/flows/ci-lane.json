@@ -1,0 +1,42 @@
+{
+  "groupId": "ci-lane",
+  "surface": "cli",
+  "testedAt": "2026-03-15T03:22:22.772604+00:00",
+  "status": "pass",
+  "toolsUsed": [
+    "bash",
+    "python3"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-CROSS-002",
+      "status": "pass",
+      "summary": "The exact pr-auth-tenant catching lane completed successfully (exit code 0); the manifest includes the expected lane01 runtime-policy regression coverage, and ci_risk_router routed the packet to run_auth_tenant=true.",
+      "steps": [
+        {
+          "action": "Run bash scripts/run_test_manifest.sh --profile pr-fast --label auth-tenant --manifest ci/pr_manifests/pr_auth_tenant.txt",
+          "expected": "The exact catching lane executes the auth-tenant shard and exits 0.",
+          "observed": "The command ran 18 selectors, Maven reported BUILD SUCCESS, and the wrapper recorded exit code 0."
+        },
+        {
+          "action": "Inspect ci/pr_manifests/pr_auth_tenant.txt for lane01 runtime-policy regression coverage",
+          "expected": "The manifest includes canonical writer/control-plane, same-node runtime enforcement, auth/runtime, and stale-writer/public-contract proof.",
+          "observed": "The manifest contains TS_RuntimeTenantPolicyControlExecutableCoverageTest, TS_RuntimeTenantRuntimeEnforcementTest, CompanyControllerIT, TenantRuntimeEnforcementAuthIT, CompanyContextFilterControlPlaneBindingTest, OpenApiSnapshotIT, and AdminSettingsControllerTenantRuntimeContractTest."
+        },
+        {
+          "action": "Run python3 scripts/ci_risk_router.py --base 7118c9eaa754220e30ac9c41e47408ee9f52387c --head 9e3080db284bb8239e3922defa63dffc3b0b9d06",
+          "expected": "Relevant lane01 changes route to run_auth_tenant=true.",
+          "observed": "The router output set run_auth_tenant=true for head 9e3080db284bb8239e3922defa63dffc3b0b9d06."
+        }
+      ],
+      "evidence": [
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/ci-lane/pr-auth-tenant-command.txt",
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/ci-lane/manifest-inspection.json",
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/ci-lane/ci-risk-router.txt"
+      ]
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "VAL-CROSS-002 passed: the exact pr-auth-tenant lane succeeded, manifest coverage matches the lane01 runtime-policy regression bundle, and ci_risk_router routed the packet to auth-tenant."
+}

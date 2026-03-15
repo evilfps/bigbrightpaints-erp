@@ -316,6 +316,7 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
     void admin_user_create_is_blocked_when_active_user_quota_reached() {
         String token = login(ADMIN_EMAIL, ADMIN_PASSWORD, COMPANY);
         String superAdminToken = login(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, COMPANY);
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY).orElseThrow().getId();
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -326,7 +327,7 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
         superAdminHeaders.set("X-Company-Code", COMPANY);
 
         ResponseEntity<Map> policyResponse = rest.exchange(
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
                 HttpMethod.PUT,
                 new HttpEntity<>(Map.of(
                         "maxActiveUsers", 3,
@@ -360,13 +361,14 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
     @Test
     void tenant_runtime_policy_update_requires_super_admin_role() {
         String token = login(ADMIN_EMAIL, ADMIN_PASSWORD, COMPANY);
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY).orElseThrow().getId();
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("X-Company-Code", COMPANY);
 
         ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
                 HttpMethod.PUT,
                 new HttpEntity<>(Map.of(
                         "maxActiveUsers", 200,

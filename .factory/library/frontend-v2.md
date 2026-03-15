@@ -4,7 +4,7 @@ Final backend-facing handoff for frontend-v2 consumers after the merged `truth-r
 
 ## Status
 
-- Updated: `2026-03-08`
+- Updated: `2026-03-15`
 - Detailed API/reference source: `.factory/library/frontend-handoff.md`
 - Mission scope source: `.factory/library/erp-definition-of-done.md`
 - Cleanup/provenance source: `.factory/library/remediation-log.md`
@@ -63,6 +63,7 @@ Final backend-facing handoff for frontend-v2 consumers after the merged `truth-r
 - Surface backend blocker text verbatim for dispatch/portal denials; the mission normalized these messages into business-language guidance.
 - Treat factory dispatch preview/confirm as redacted operational data, not a finance summary.
 - Use accounting/admin dispatch-posting responses for invoice/journal linkage, not the factory dispatch response.
+- Tenant runtime policy writes now belong only on `PUT /api/v1/companies/{id}/tenant-runtime/policy`; remove any frontend or operator tooling that still targets `PUT /api/v1/admin/tenant-runtime/policy`. Tenant admins still read runtime state from `GET /api/v1/admin/tenant-runtime/metrics`.
 - Remove any frontend CTA or retry logic that targets `/api/v1/orchestrator/factory/dispatch/{batchId}`; route those users to the factory operational dispatch flow at `POST /api/v1/dispatch/confirm`. Orchestrator fulfillment status bumps for shipment completion should also be removed in favor of the canonical dispatch surfaces.
 - Keep non-active suppliers visible but disable mutation CTAs when the current supplier state is already known client-side.
 - Keep dealer portal screens read-only even if a compatibility endpoint still exists on the backend.

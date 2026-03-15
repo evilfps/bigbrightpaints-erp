@@ -6,7 +6,6 @@ import com.bigbrightpaints.erp.modules.admin.dto.AdminNotifyRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsDto;
 import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsUpdateRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.TenantRuntimeMetricsDto;
-import com.bigbrightpaints.erp.modules.admin.dto.TenantRuntimePolicyUpdateRequest;
 import com.bigbrightpaints.erp.modules.admin.service.ExportApprovalService;
 import com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyService;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -14,13 +13,13 @@ import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.CreditLimitOverrideRequestRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.CreditRequestRepository;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
+import java.util.Arrays;
 import java.lang.reflect.Method;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,6 +44,13 @@ class AdminSettingsControllerTenantRuntimeContractTest {
 
         assertThat(annotation).isNotNull();
         assertThat(annotation.value()).isEqualTo("hasAuthority('ROLE_ADMIN')");
+    }
+
+    @Test
+    void tenantRuntimePolicy_writer_is_not_exposed_from_admin_settings_controller() {
+        assertThat(Arrays.stream(AdminSettingsController.class.getDeclaredMethods())
+                .map(Method::getName))
+                .doesNotContain("updateTenantRuntimePolicy");
     }
 
     @Test
@@ -186,64 +192,6 @@ class AdminSettingsControllerTenantRuntimeContractTest {
         assertThat(response.message()).isEqualTo("Tenant runtime metrics");
         assertThat(response.data()).isEqualTo(snapshot);
         verify(tenantRuntimePolicyService).metrics();
-    }
-
-    @Test
-    void updateTenantRuntimePolicy_delegatesToService() {
-        TenantRuntimePolicyService tenantRuntimePolicyService = mock(TenantRuntimePolicyService.class);
-        AdminSettingsController controller = newController(tenantRuntimePolicyService);
-        TenantRuntimePolicyUpdateRequest request = new TenantRuntimePolicyUpdateRequest(
-                200,
-                1000,
-                35,
-                "HOLD",
-                "Fraud investigation",
-                "Risk-control update"
-        );
-        TenantRuntimeMetricsDto updated = new TenantRuntimeMetricsDto(
-                "ACME",
-                "HOLD",
-                "Fraud investigation",
-                200,
-                1000,
-                35,
-                12,
-                15,
-                0,
-                0,
-                0,
-                "policy-ref-2",
-                Instant.parse("2026-02-18T01:15:00Z")
-        );
-        when(tenantRuntimePolicyService.updatePolicy(request)).thenReturn(updated);
-
-        ApiResponse<TenantRuntimeMetricsDto> response = controller.updateTenantRuntimePolicy(request);
-
-        assertThat(response.success()).isTrue();
-        assertThat(response.message()).isEqualTo("Tenant runtime policy updated");
-        assertThat(response.data()).isEqualTo(updated);
-        verify(tenantRuntimePolicyService).updatePolicy(request);
-    }
-
-    @Test
-    void updateTenantRuntimePolicy_propagatesServiceFailureContract() {
-        TenantRuntimePolicyService tenantRuntimePolicyService = mock(TenantRuntimePolicyService.class);
-        AdminSettingsController controller = newController(tenantRuntimePolicyService);
-        TenantRuntimePolicyUpdateRequest request = new TenantRuntimePolicyUpdateRequest(
-                200,
-                1000,
-                35,
-                "HOLD",
-                "Fraud investigation",
-                "Risk-control update"
-        );
-        when(tenantRuntimePolicyService.updatePolicy(request))
-                .thenThrow(new IllegalArgumentException("Unsupported holdState: PAUSED"));
-
-        assertThatThrownBy(() -> controller.updateTenantRuntimePolicy(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Unsupported holdState: PAUSED");
-        verify(tenantRuntimePolicyService).updatePolicy(request);
     }
 
     private AdminSettingsController newController(TenantRuntimePolicyService tenantRuntimePolicyService) {

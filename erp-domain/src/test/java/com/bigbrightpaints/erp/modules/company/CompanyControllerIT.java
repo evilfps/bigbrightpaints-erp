@@ -88,6 +88,12 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
         tenantRuntimeEnforcementService.invalidatePolicyCache(companyCode);
     }
 
+    private String runtimeSetting(Long companyId, String suffix) {
+        return systemSettingsRepository.findById("tenant.runtime." + suffix + "." + companyId)
+                .map(setting -> setting.getValue())
+                .orElse(null);
+    }
+
     private String loginToken() {
         return loginToken(ADMIN_EMAIL, COMPANY_CODE);
     }
@@ -106,6 +112,34 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         return response.getBody();
+    }
+
+    @Test
+    void tenant_runtime_metrics_defaults_match_canonical_runtime_defaults() {
+        String token = loginToken();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.set("X-Company-Code", COMPANY_CODE);
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/admin/tenant-runtime/metrics",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("companyCode")).isEqualTo(COMPANY_CODE);
+        assertThat(data.get("holdState")).isEqualTo("ACTIVE");
+        assertThat(data.get("holdReason")).isEqualTo("POLICY_ACTIVE");
+        assertThat(data.get("maxActiveUsers")).isEqualTo(500);
+        assertThat(data.get("maxRequestsPerMinute")).isEqualTo(5000);
+        assertThat(data.get("maxConcurrentRequests")).isEqualTo(200);
+        assertThat(data.get("policyReference")).isEqualTo("bootstrap");
+        assertThat(data.get("policyUpdatedAt")).isNull();
     }
 
     @Test
@@ -447,6 +481,176 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
                 new HttpEntity<>(updateRequest, superAdminHeaders),
                 Map.class);
         assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(superAdminResponse.getBody()).isNotNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) superAdminResponse.getBody().get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("companyCode")).isEqualTo(COMPANY_CODE);
+        assertThat(data.get("state")).isEqualTo("ACTIVE");
+        assertThat(data.get("reasonCode")).isEqualTo("POLICY-REFRESH");
+        assertThat(data.get("auditChainId")).isInstanceOf(String.class);
+        assertThat(data.get("updatedAt")).isNotNull();
+        assertThat(data.get("maxConcurrentRequests")).isEqualTo(15);
+        assertThat(data.get("maxRequestsPerMinute")).isEqualTo(120);
+        assertThat(data.get("maxActiveUsers")).isEqualTo(45);
+    }
+
+    @Test
+    void tenant_runtime_policy_update_rejects_invalid_payloads_without_persisting_policy() {
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
+        String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, COMPANY_CODE);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(superAdminToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Company-Code", COMPANY_CODE);
+
+        ResponseEntity<Map> baselineResponse = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of(
+                        "holdState", "HOLD",
+                        "reasonCode", "baseline-hold",
+                        "maxConcurrentRequests", 9,
+                        "maxRequestsPerMinute", 90,
+                        "maxActiveUsers", 19
+                ), headers),
+                Map.class);
+        assertThat(baselineResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        String baselineReference = runtimeSetting(companyId, "policy-reference");
+        String baselineState = runtimeSetting(companyId, "hold-state");
+        String baselineReason = runtimeSetting(companyId, "hold-reason");
+
+        ResponseEntity<Map> emptyPayload = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of(), headers),
+                Map.class);
+        ResponseEntity<Map> reasonOnlyPayload = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("reasonCode", "reason-only"), headers),
+                Map.class);
+        ResponseEntity<Map> invalidHoldState = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("holdState", "PAUSED"), headers),
+                Map.class);
+        ResponseEntity<Map> zeroConcurrent = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("maxConcurrentRequests", 0), headers),
+                Map.class);
+        ResponseEntity<Map> zeroPerMinute = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("maxRequestsPerMinute", 0), headers),
+                Map.class);
+        ResponseEntity<Map> zeroActiveUsers = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("maxActiveUsers", 0), headers),
+                Map.class);
+
+        assertThat(emptyPayload.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(reasonOnlyPayload.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(invalidHoldState.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(zeroConcurrent.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(zeroPerMinute.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(zeroActiveUsers.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(runtimeSetting(companyId, "policy-reference")).isEqualTo(baselineReference);
+        assertThat(runtimeSetting(companyId, "hold-state")).isEqualTo(baselineState);
+        assertThat(runtimeSetting(companyId, "hold-reason")).isEqualTo(baselineReason);
+    }
+
+    @Test
+    void tenant_runtime_policy_update_rejects_foreign_and_unknown_targets_without_persisting_policy() {
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
+        String rootAdminEmail = "root-admin-runtime@bbp.com";
+        dataSeeder.ensureUser(rootAdminEmail, ADMIN_PASSWORD, "Root Admin", ROOT_COMPANY_CODE,
+                java.util.List.of("ROLE_ADMIN"));
+
+        String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, COMPANY_CODE);
+        HttpHeaders baselineHeaders = new HttpHeaders();
+        baselineHeaders.setBearerAuth(superAdminToken);
+        baselineHeaders.setContentType(MediaType.APPLICATION_JSON);
+        baselineHeaders.set("X-Company-Code", COMPANY_CODE);
+        ResponseEntity<Map> baselineResponse = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of(
+                        "holdState", "ACTIVE",
+                        "reasonCode", "baseline-active",
+                        "maxConcurrentRequests", 13,
+                        "maxRequestsPerMinute", 113,
+                        "maxActiveUsers", 23
+                ), baselineHeaders),
+                Map.class);
+        assertThat(baselineResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        String baselineReference = runtimeSetting(companyId, "policy-reference");
+
+        String rootAdminToken = loginToken(rootAdminEmail, ROOT_COMPANY_CODE);
+        HttpHeaders rootAdminHeaders = new HttpHeaders();
+        rootAdminHeaders.setBearerAuth(rootAdminToken);
+        rootAdminHeaders.setContentType(MediaType.APPLICATION_JSON);
+        rootAdminHeaders.set("X-Company-Code", ROOT_COMPANY_CODE);
+
+        ResponseEntity<Map> foreignTarget = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("holdState", "BLOCKED", "reasonCode", "foreign-target"), rootAdminHeaders),
+                Map.class);
+        ResponseEntity<Map> unknownTarget = rest.exchange(
+                "/api/v1/companies/999999/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("holdState", "BLOCKED", "reasonCode", "unknown-target"), rootAdminHeaders),
+                Map.class);
+
+        assertThat(foreignTarget.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(unknownTarget.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(foreignTarget.getBody()).isNotNull();
+        assertThat(unknownTarget.getBody()).isNotNull();
+        assertThat(((Map<?, ?>) foreignTarget.getBody().get("data")).get("reason"))
+                .isEqualTo(((Map<?, ?>) unknownTarget.getBody().get("data")).get("reason"));
+        assertThat(runtimeSetting(companyId, "policy-reference")).isEqualTo(baselineReference);
+        assertThat(runtimeSetting(companyId, "hold-state")).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void retired_admin_tenant_runtime_policy_writer_is_not_found_and_does_not_persist() {
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
+        String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, COMPANY_CODE);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(superAdminToken);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Company-Code", COMPANY_CODE);
+
+        ResponseEntity<Map> baselineResponse = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of(
+                        "holdState", "ACTIVE",
+                        "reasonCode", "baseline-active",
+                        "maxConcurrentRequests", 17,
+                        "maxRequestsPerMinute", 117,
+                        "maxActiveUsers", 27
+                ), headers),
+                Map.class);
+        assertThat(baselineResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        String baselineReference = runtimeSetting(companyId, "policy-reference");
+
+        ResponseEntity<Map> retiredWriterResponse = rest.exchange(
+                "/api/v1/admin/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of(
+                        "holdState", "BLOCKED",
+                        "holdReason", "retired-writer",
+                        "changeReason", "retirement-check"
+                ), headers),
+                Map.class);
+
+        assertThat(retiredWriterResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(runtimeSetting(companyId, "policy-reference")).isEqualTo(baselineReference);
+        assertThat(runtimeSetting(companyId, "hold-state")).isEqualTo("ACTIVE");
     }
 
     @Test
@@ -473,6 +677,70 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
                 Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void root_only_super_admin_can_recover_blocked_tenant_while_non_super_admin_cannot() {
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
+        String rootOnlySuperAdminEmail = "root-recovery-super-admin@bbp.com";
+        String rootTenantAdminEmail = "root-tenant-admin@bbp.com";
+        dataSeeder.ensureUser(rootOnlySuperAdminEmail, ADMIN_PASSWORD, "Root Recovery Super Admin", ROOT_COMPANY_CODE,
+                java.util.List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+        dataSeeder.ensureUser(rootTenantAdminEmail, ADMIN_PASSWORD, "Root Tenant Admin", ROOT_COMPANY_CODE,
+                java.util.List.of("ROLE_ADMIN"));
+
+        String companyAdminToken = loginToken(ADMIN_EMAIL, COMPANY_CODE);
+        HttpHeaders companyAdminHeaders = new HttpHeaders();
+        companyAdminHeaders.setBearerAuth(companyAdminToken);
+        companyAdminHeaders.set("X-Company-Code", COMPANY_CODE);
+
+        String superAdminToken = loginToken(rootOnlySuperAdminEmail, ROOT_COMPANY_CODE);
+        HttpHeaders superAdminHeaders = new HttpHeaders();
+        superAdminHeaders.setBearerAuth(superAdminToken);
+        superAdminHeaders.setContentType(MediaType.APPLICATION_JSON);
+        superAdminHeaders.set("X-Company-Code", ROOT_COMPANY_CODE);
+
+        ResponseEntity<Map> blockResponse = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("holdState", "BLOCKED", "reasonCode", "RECOVERY_DRILL_BLOCK"), superAdminHeaders),
+                Map.class);
+        assertThat(blockResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> blockedMe = rest.exchange(
+                "/api/v1/auth/me",
+                HttpMethod.GET,
+                new HttpEntity<>(companyAdminHeaders),
+                Map.class);
+        assertThat(blockedMe.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        String rootAdminToken = loginToken(rootTenantAdminEmail, ROOT_COMPANY_CODE);
+        HttpHeaders rootAdminHeaders = new HttpHeaders();
+        rootAdminHeaders.setBearerAuth(rootAdminToken);
+        rootAdminHeaders.setContentType(MediaType.APPLICATION_JSON);
+        rootAdminHeaders.set("X-Company-Code", ROOT_COMPANY_CODE);
+        ResponseEntity<Map> deniedRecovery = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("holdState", "ACTIVE", "reasonCode", "UNAUTHORIZED_RECOVERY"), rootAdminHeaders),
+                Map.class);
+        assertThat(deniedRecovery.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(runtimeSetting(companyId, "hold-state")).isEqualTo("BLOCKED");
+
+        ResponseEntity<Map> recoveryResponse = rest.exchange(
+                "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of("holdState", "ACTIVE", "reasonCode", "RECOVERY_COMPLETE"), superAdminHeaders),
+                Map.class);
+        assertThat(recoveryResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(runtimeSetting(companyId, "hold-state")).isEqualTo("ACTIVE");
+
+        ResponseEntity<Map> recoveredMe = rest.exchange(
+                "/api/v1/auth/me",
+                HttpMethod.GET,
+                new HttpEntity<>(companyAdminHeaders),
+                Map.class);
+        assertThat(recoveredMe.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test
