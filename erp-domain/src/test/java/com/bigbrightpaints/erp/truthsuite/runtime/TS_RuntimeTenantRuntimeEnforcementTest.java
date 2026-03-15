@@ -314,19 +314,20 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
 
     @Test
     void contextPathRequest_withEmptyServletPath_usesContextStrippedPath_forRuntimeAdmission() throws Exception {
-        authenticateForCompany("actor@bbp.com", "ACME");
+        authenticateForCompanyWithAuthorities("actor@bbp.com", "ACME", "ROLE_SUPER_ADMIN");
+        when(companyService.resolveCompanyCodeById(42L)).thenReturn("ACME");
         when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.ACTIVE);
         TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
                 admission(true, "ACME", 200, null);
         when(tenantRuntimeEnforcementService.beginRequest(
                 "ACME",
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/42/tenant-runtime/policy",
                 "PUT",
                 "actor@bbp.com",
-                false))
+                true))
                 .thenReturn(admittedAdmission);
 
-        MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/erp/api/v1/admin/tenant-runtime/policy");
+        MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/erp/api/v1/companies/42/tenant-runtime/policy");
         request.setContextPath("/erp");
         request.setServletPath("");
         request.setAttribute("jwtClaims", claims("ACME", null));
@@ -338,30 +339,31 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
         assertThat(chain.getRequest()).isNotNull();
         verify(tenantRuntimeEnforcementService).beginRequest(
                 "ACME",
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/42/tenant-runtime/policy",
                 "PUT",
                 "actor@bbp.com",
-                false);
+                true);
         verify(tenantRuntimeEnforcementService).completeRequest(eq(admittedAdmission), eq(200));
     }
 
     @Test
     void contextPathRequest_usesServletPath_forRuntimeAdmission() throws Exception {
-        authenticateForCompany("actor@bbp.com", "ACME");
+        authenticateForCompanyWithAuthorities("actor@bbp.com", "ACME", "ROLE_SUPER_ADMIN");
+        when(companyService.resolveCompanyCodeById(42L)).thenReturn("ACME");
         when(companyService.resolveLifecycleStateByCode("ACME")).thenReturn(CompanyLifecycleState.ACTIVE);
         TenantRuntimeEnforcementService.TenantRequestAdmission admittedAdmission =
                 admission(true, "ACME", 200, null);
         when(tenantRuntimeEnforcementService.beginRequest(
                 "ACME",
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/42/tenant-runtime/policy",
                 "PUT",
                 "actor@bbp.com",
-                false))
+                true))
                 .thenReturn(admittedAdmission);
 
-        MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/erp/api/v1/admin/tenant-runtime/policy");
+        MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/erp/api/v1/companies/42/tenant-runtime/policy");
         request.setContextPath("/erp");
-        request.setServletPath("/api/v1/admin/tenant-runtime/policy");
+        request.setServletPath("/api/v1/companies/42/tenant-runtime/policy");
         request.setAttribute("jwtClaims", claims("ACME", null));
         MockHttpServletResponse response = new MockHttpServletResponse();
         MockFilterChain chain = new MockFilterChain();
@@ -371,10 +373,10 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
         assertThat(chain.getRequest()).isNotNull();
         verify(tenantRuntimeEnforcementService).beginRequest(
                 "ACME",
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/42/tenant-runtime/policy",
                 "PUT",
                 "actor@bbp.com",
-                false);
+                true);
         verify(tenantRuntimeEnforcementService).completeRequest(eq(admittedAdmission), eq(200));
     }
 
@@ -533,7 +535,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
                 filter,
                 "hasTenantRuntimePolicyControlAuthority",
                 "/api/v1/admin/tenant-runtime/policy/",
-                "PUT")).isTrue();
+                "PUT")).isFalse();
         assertThat((Boolean) ReflectionTestUtils.invokeMethod(
                 filter,
                 "hasTenantRuntimePolicyControlAuthority",

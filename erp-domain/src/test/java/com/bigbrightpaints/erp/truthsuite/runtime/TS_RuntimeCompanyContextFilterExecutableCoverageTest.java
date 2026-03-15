@@ -214,7 +214,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         authenticate("root@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of());
         assertThat(invokeHasSuperAdminAuthority()).isTrue();
         assertThat(invokeHasTenantRuntimePolicyControlAuthority("/api/v1/admin/tenant-runtime/policy", "PUT"))
-                .isTrue();
+                .isFalse();
         assertThat(invokeHasTenantRuntimePolicyControlAuthority("/api/v1/companies/77/tenant-runtime/policy", "PUT"))
                 .isTrue();
         assertThat(invokeHasTenantRuntimePolicyControlAuthority("/api/v1/admin/tenant-runtime/policy", "GET"))

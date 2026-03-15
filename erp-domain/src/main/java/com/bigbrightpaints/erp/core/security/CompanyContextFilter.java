@@ -291,9 +291,6 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         while (normalizedPath.endsWith("/") && normalizedPath.length() > 1) {
             normalizedPath = normalizedPath.substring(0, normalizedPath.length() - 1);
         }
-        if ("/api/v1/admin/tenant-runtime/policy".equals(normalizedPath)) {
-            return hasAuthority(auth, "ROLE_SUPER_ADMIN");
-        }
         if (isCanonicalCompanyRuntimePolicyPath(normalizedPath)) {
             return hasAuthority(auth, "ROLE_SUPER_ADMIN");
         }

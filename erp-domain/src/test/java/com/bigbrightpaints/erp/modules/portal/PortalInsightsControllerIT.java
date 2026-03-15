@@ -272,7 +272,7 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
         HttpHeaders superAdminHeaders = superAdminHeaders();
 
         ResponseEntity<Map> policyResponse = rest.exchange(
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/" + company.getId() + "/tenant-runtime/policy",
                 HttpMethod.PUT,
                 new HttpEntity<>(Map.of(
                         "holdState", "BLOCKED",
@@ -300,7 +300,7 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
 
         // Reset runtime policy to avoid leaking blocked tenant state into other IT classes.
         ResponseEntity<Map> resetResponse = rest.exchange(
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/" + company.getId() + "/tenant-runtime/policy",
                 HttpMethod.PUT,
                 new HttpEntity<>(Map.of(
                         "holdState", "ACTIVE",

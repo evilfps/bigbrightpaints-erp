@@ -152,13 +152,6 @@ public class AdminSettingsController {
         return ApiResponse.success("Tenant runtime metrics", tenantRuntimePolicyService.metrics());
     }
 
-    @PutMapping("/tenant-runtime/policy")
-    @PreAuthorize(PortalRoleActionMatrix.SUPER_ADMIN_ONLY)
-    public ApiResponse<TenantRuntimeMetricsDto> updateTenantRuntimePolicy(
-            @Valid @RequestBody TenantRuntimePolicyUpdateRequest request) {
-        return ApiResponse.success("Tenant runtime policy updated", tenantRuntimePolicyService.updatePolicy(request));
-    }
-
     @PostMapping("/notify")
     @PreAuthorize(PortalRoleActionMatrix.ADMIN_ONLY)
     public ApiResponse<String> notifyUser(@Valid @RequestBody AdminNotifyRequest request) {

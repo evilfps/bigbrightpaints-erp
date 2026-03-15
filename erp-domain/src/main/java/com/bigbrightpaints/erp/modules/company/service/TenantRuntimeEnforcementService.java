@@ -32,7 +32,6 @@ public class TenantRuntimeEnforcementService {
     private static final String DEFAULT_REASON = "POLICY_ACTIVE";
     private static final String DEFAULT_POLICY_REFERENCE = "bootstrap";
     private static final String UNKNOWN_ACTOR = "UNKNOWN_AUTH_ACTOR";
-    private static final String TENANT_RUNTIME_POLICY_PATH = "/api/v1/admin/tenant-runtime/policy";
     private static final String CANONICAL_COMPANY_RUNTIME_POLICY_PREFIX = "/api/v1/companies/";
     private static final String CANONICAL_COMPANY_RUNTIME_POLICY_SUFFIX = "/tenant-runtime/policy";
 
@@ -468,9 +467,6 @@ public class TenantRuntimeEnforcementService {
         String normalizedPath = requestPath.trim();
         while (normalizedPath.endsWith("/") && normalizedPath.length() > 1) {
             normalizedPath = normalizedPath.substring(0, normalizedPath.length() - 1);
-        }
-        if (TENANT_RUNTIME_POLICY_PATH.equals(normalizedPath)) {
-            return true;
         }
         return isCanonicalCompanyRuntimePolicyPath(normalizedPath);
     }

@@ -118,6 +118,14 @@ Track cleanup, duplicate-truth removals, dead-code retirement, and production-re
 - **Evidence:** updated docs cited against `PortalRoleActionMatrix`, `DealerPortalController`, `DealerPortalControllerSecurityIT`, `DealerPortalControllerExportAuditTest`, `DispatchOperationalBoundaryIT`, `SalesControllerIT`, `SuperAdminTenantWorkflowIsolationIT`, `.factory/library/environment.md`, and `.factory/services.yaml`.
 - **Follow-up:** the `final-hardening` milestone should add runtime/adversarial evidence, but frontend-facing contract docs should remain on the merged backend truth captured here unless a later code packet changes them.
 
+## 2026-03-15 — `lane01-canonicalize-company-runtime-writer`
+
+- **Area:** tenant runtime policy control-plane mutation boundary
+- **Risk addressed:** the backend still exposed two independent public writer contracts for the same tenant runtime policy state, which risked contract drift, inconsistent privileged-path handling, and stale admin clients continuing to mutate policy through a non-canonical route.
+- **Cleanup/remediation performed:** retired the admin writer endpoint `PUT /api/v1/admin/tenant-runtime/policy`, removed its privileged-path recognition from company-context/runtime-enforcement helpers, refreshed the OpenAPI snapshot, and redirected touched tests/integration coverage to the canonical company-scoped writer `PUT /api/v1/companies/{id}/tenant-runtime/policy`.
+- **Duplicate-truth or dead-code impact:** removed the duplicate public mutation surface and its dead helper-path recognition so tenant runtime policy writes now flow through one authoritative controller contract instead of parallel admin/company writers.
+- **Evidence:** `AdminSettingsControllerTenantRuntimeContractTest`, `CompanyControllerIT`, `CompanyContextFilterControlPlaneBindingTest`, `TenantRuntimeEnforcementServiceTest`, `TS_RuntimeCompanyContextFilterExecutableCoverageTest`, `TS_RuntimeTenantPolicyControlExecutableCoverageTest`, `TS_RuntimeTenantRuntimeEnforcementTest`, and `OpenApiSnapshotIT` pass with the admin writer absent from `openapi.json`.
+- **Follow-up:** keep downstream admin/operator tooling on the company-scoped runtime-policy write path only; `GET /api/v1/admin/tenant-runtime/metrics` remains the read-only admin visibility surface.
 ## Mission Roll-Up (as of 2026-03-08)
 
 - **O2C stabilized:** dealer provisioning, explicit payment modes, commercial-only pre-dispatch behavior, dispatch-owned invoicing, delivery challan output, replay safety, and batch-actual plus packaging cost carry-forward are documented and merged.

@@ -8,7 +8,6 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.admin.dto.TenantRuntimeMetricsDto;
-import com.bigbrightpaints.erp.modules.admin.dto.TenantRuntimePolicyUpdateRequest;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -17,7 +16,6 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -53,36 +51,6 @@ public class TenantRuntimePolicyService {
     @Transactional(readOnly = true)
     public TenantRuntimeMetricsDto metrics() {
         Company company = companyContextService.requireCurrentCompany();
-        return snapshot(company);
-    }
-
-    @Transactional
-    public TenantRuntimeMetricsDto updatePolicy(TenantRuntimePolicyUpdateRequest request) {
-        Company company = companyContextService.requireCurrentCompany();
-        RuntimePolicy previous = loadPolicy(company.getId());
-        RuntimePolicy updated = merge(previous, request);
-
-        String policyReference = UUID.randomUUID().toString();
-        Instant updatedAt = CompanyTime.now();
-
-        persistSetting(keyHoldState(company.getId()), updated.holdState());
-        persistSetting(keyHoldReason(company.getId()), updated.holdReason());
-        persistSetting(keyMaxActiveUsers(company.getId()), Integer.toString(updated.maxActiveUsers()));
-        persistSetting(keyMaxRequestsPerMinute(company.getId()), Integer.toString(updated.maxRequestsPerMinute()));
-        persistSetting(keyMaxConcurrentRequests(company.getId()), Integer.toString(updated.maxConcurrentRequests()));
-        persistSetting(keyPolicyReference(company.getId()), policyReference);
-        persistSetting(keyPolicyUpdatedAt(company.getId()), updatedAt.toString());
-
-        RuntimePolicy latest = new RuntimePolicy(
-                updated.holdState(),
-                updated.holdReason(),
-                updated.maxActiveUsers(),
-                updated.maxRequestsPerMinute(),
-                updated.maxConcurrentRequests(),
-                policyReference,
-                updatedAt
-        );
-        auditPolicyUpdate(company, previous, latest, request != null ? request.changeReason() : null);
         return snapshot(company);
     }
 
@@ -126,38 +94,6 @@ public class TenantRuntimePolicyService {
         );
     }
 
-    private RuntimePolicy merge(RuntimePolicy previous, TenantRuntimePolicyUpdateRequest request) {
-        if (request == null) {
-            return previous;
-        }
-        String holdState = StringUtils.hasText(request.holdState())
-                ? normalizeHoldState(request.holdState())
-                : previous.holdState();
-        String holdReason = request.holdReason() != null ? trimToNull(request.holdReason()) : previous.holdReason();
-        if (HOLD_STATE_ACTIVE.equals(holdState)) {
-            holdReason = null;
-        } else if (!StringUtils.hasText(holdReason)) {
-            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("holdReason is required when holdState is HOLD or BLOCKED");
-        }
-        int maxActiveUsers = request.maxActiveUsers() != null ? request.maxActiveUsers() : previous.maxActiveUsers();
-        int maxRequestsPerMinute = request.maxRequestsPerMinute() != null
-                ? request.maxRequestsPerMinute() : previous.maxRequestsPerMinute();
-        int maxConcurrentRequests = request.maxConcurrentRequests() != null
-                ? request.maxConcurrentRequests() : previous.maxConcurrentRequests();
-        if (maxActiveUsers < 1 || maxRequestsPerMinute < 1 || maxConcurrentRequests < 1) {
-            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Quota values must be at least 1");
-        }
-        return new RuntimePolicy(
-                holdState,
-                holdReason,
-                maxActiveUsers,
-                maxRequestsPerMinute,
-                maxConcurrentRequests,
-                previous.policyReference(),
-                previous.policyUpdatedAt()
-        );
-    }
-
     private RuntimePolicy loadPolicy(Long companyId) {
         String holdState = normalizeHoldState(readSetting(keyHoldState(companyId), HOLD_STATE_ACTIVE));
         String holdReason = trimToNull(readSetting(keyHoldReason(companyId), null));
@@ -193,30 +129,6 @@ public class TenantRuntimePolicyService {
         }
         int inFlightRequests = parseNonNegativeInt(readSetting(keyMetricInFlight(companyId), null));
         return new MetricSnapshot(requestsThisMinute, blockedThisMinute, inFlightRequests);
-    }
-
-    private void auditPolicyUpdate(Company company,
-                                   RuntimePolicy previous,
-                                   RuntimePolicy updated,
-                                   String changeReason) {
-        Map<String, String> metadata = new HashMap<>();
-        metadata.put("companyCode", safe(company.getCode()));
-        metadata.put("policyReference", safe(updated.policyReference()));
-        metadata.put("oldHoldState", safe(previous.holdState()));
-        metadata.put("newHoldState", safe(updated.holdState()));
-        metadata.put("oldMaxActiveUsers", Integer.toString(previous.maxActiveUsers()));
-        metadata.put("newMaxActiveUsers", Integer.toString(updated.maxActiveUsers()));
-        metadata.put("oldMaxRequestsPerMinute", Integer.toString(previous.maxRequestsPerMinute()));
-        metadata.put("newMaxRequestsPerMinute", Integer.toString(updated.maxRequestsPerMinute()));
-        metadata.put("oldMaxConcurrentRequests", Integer.toString(previous.maxConcurrentRequests()));
-        metadata.put("newMaxConcurrentRequests", Integer.toString(updated.maxConcurrentRequests()));
-        metadata.put("holdReason", safe(updated.holdReason()));
-        metadata.put("changeReason", safe(changeReason));
-        metadata.put("requestId", safe(currentRequestId()));
-        metadata.put("traceId", safe(currentTraceId()));
-        metadata.put("ipAddress", safe(currentClientIp()));
-        metadata.put("userAgent", safe(currentUserAgent()));
-        auditService.logSuccess(AuditEvent.CONFIGURATION_CHANGED, metadata);
     }
 
     private void auditUserQuotaDenied(Company company,

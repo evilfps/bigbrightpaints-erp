@@ -193,18 +193,18 @@ class CompanyContextFilterControlPlaneBindingTest {
     }
 
     @Test
-    void controlPlaneRequest_returnsUniformForbiddenMessageForForeignAndUnknownTargets()
+    void canonicalRuntimePolicyRequest_returnsUniformForbiddenMessageForForeignAndUnknownTargets()
             throws ServletException, IOException {
         authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ROOT"));
         when(companyService.resolveCompanyCodeById(42L)).thenReturn("TENANT-A");
         when(companyService.resolveCompanyCodeById(404L)).thenReturn(null);
 
-        MockHttpServletRequest foreignTenantRequest = request("PUT", "/api/v1/companies/42");
+        MockHttpServletRequest foreignTenantRequest = request("PUT", "/api/v1/companies/42/tenant-runtime/policy");
         foreignTenantRequest.setAttribute("jwtClaims", claimsFor("ROOT"));
         MockHttpServletResponse foreignTenantResponse = new MockHttpServletResponse();
         filter.doFilter(foreignTenantRequest, foreignTenantResponse, filterChain);
 
-        MockHttpServletRequest unknownTenantRequest = request("PUT", "/api/v1/companies/404");
+        MockHttpServletRequest unknownTenantRequest = request("PUT", "/api/v1/companies/404/tenant-runtime/policy");
         unknownTenantRequest.setAttribute("jwtClaims", claimsFor("ROOT"));
         MockHttpServletResponse unknownTenantResponse = new MockHttpServletResponse();
         filter.doFilter(unknownTenantRequest, unknownTenantResponse, filterChain);
