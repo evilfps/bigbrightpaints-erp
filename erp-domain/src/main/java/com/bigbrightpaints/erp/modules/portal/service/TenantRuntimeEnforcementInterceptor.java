@@ -107,26 +107,35 @@ public class TenantRuntimeEnforcementInterceptor implements HandlerInterceptor {
 
     private String holdState(TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot,
                              TenantRuntimeEnforcementService.TenantRequestAdmission admission) {
+        if (StringUtils.hasText(admission.observedValue())) {
+            return admission.observedValue().trim();
+        }
         if (snapshot != null && snapshot.state() != null) {
             return snapshot.state().name();
         }
-        return StringUtils.hasText(admission.observedValue()) ? admission.observedValue().trim() : null;
+        return null;
     }
 
     private String holdReason(TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot,
                               TenantRuntimeEnforcementService.TenantRequestAdmission admission) {
+        if (StringUtils.hasText(admission.tenantReasonCode())) {
+            return admission.tenantReasonCode().trim();
+        }
         if (snapshot != null) {
             return snapshot.reasonCode();
         }
-        return StringUtils.hasText(admission.tenantReasonCode()) ? admission.tenantReasonCode().trim() : null;
+        return null;
     }
 
     private String policyReference(TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot,
                                    TenantRuntimeEnforcementService.TenantRequestAdmission admission) {
+        if (StringUtils.hasText(admission.auditChainId())) {
+            return admission.auditChainId().trim();
+        }
         if (snapshot != null) {
             return snapshot.auditChainId();
         }
-        return StringUtils.hasText(admission.auditChainId()) ? admission.auditChainId().trim() : null;
+        return null;
     }
 
     private int parseIntOrZero(String value) {
