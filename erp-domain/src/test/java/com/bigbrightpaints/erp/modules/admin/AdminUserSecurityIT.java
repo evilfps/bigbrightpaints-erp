@@ -15,8 +15,19 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,6 +47,9 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
 
     @Autowired
     private CompanyRepository companyRepository;
+
+    @Autowired
+    private DataSource dataSource;
 
     private UserAccount otherCompanyUser;
 
@@ -222,6 +236,64 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
                 new HttpEntity<>(Map.of("enabled", false), headers),
                 Map.class);
         assertMaskedMissingUserContractPair(foreignStatus, missingStatus);
+    }
+
+    @Test
+    void tenant_admin_foreign_row_lock_does_not_block_masked_user_operations() throws Exception {
+        String token = login(ADMIN_EMAIL, ADMIN_PASSWORD, COMPANY);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        try (UserRowWriteLock ignored = holdUserRowWriteLock(otherCompanyUser.getId())) {
+            assertMaskedMissingUserContract(executeWithTimeout(
+                    () -> rest.exchange(
+                            "/api/v1/admin/users/" + otherCompanyUser.getId() + "/suspend",
+                            HttpMethod.PATCH,
+                            new HttpEntity<>(headers),
+                            Map.class),
+                    Duration.ofSeconds(2)));
+
+            assertMaskedMissingUserContract(executeWithTimeout(
+                    () -> rest.exchange(
+                            "/api/v1/admin/users/" + otherCompanyUser.getId() + "/unsuspend",
+                            HttpMethod.PATCH,
+                            new HttpEntity<>(headers),
+                            Map.class),
+                    Duration.ofSeconds(2)));
+
+            assertMaskedMissingUserContract(executeWithTimeout(
+                    () -> rest.exchange(
+                            "/api/v1/admin/users/" + otherCompanyUser.getId() + "/mfa/disable",
+                            HttpMethod.PATCH,
+                            new HttpEntity<>(headers),
+                            Map.class),
+                    Duration.ofSeconds(2)));
+
+            assertMaskedMissingUserContract(executeWithTimeout(
+                    () -> rest.exchange(
+                            "/api/v1/admin/users/" + otherCompanyUser.getId(),
+                            HttpMethod.DELETE,
+                            new HttpEntity<>(headers),
+                            Map.class),
+                    Duration.ofSeconds(2)));
+
+            assertMaskedMissingUserContract(executeWithTimeout(
+                    () -> rest.exchange(
+                            "/api/v1/admin/users/" + otherCompanyUser.getId() + "/force-reset-password",
+                            HttpMethod.POST,
+                            new HttpEntity<>(headers),
+                            Map.class),
+                    Duration.ofSeconds(2)));
+
+            assertMaskedMissingUserContract(executeWithTimeout(
+                    () -> rest.exchange(
+                            "/api/v1/admin/users/" + otherCompanyUser.getId() + "/status",
+                            HttpMethod.PUT,
+                            new HttpEntity<>(Map.of("enabled", false), headers),
+                            Map.class),
+                    Duration.ofSeconds(2)));
+        }
     }
 
     @Test
@@ -470,5 +542,46 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
         assertThat(error.get("reason")).isEqualTo("SUPER_ADMIN_PLATFORM_ONLY");
         assertThat(error.get("reasonDetail")).isEqualTo(
                 "Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
+    }
+
+    private ResponseEntity<Map> executeWithTimeout(Callable<ResponseEntity<Map>> operation,
+                                                   Duration timeout) throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<ResponseEntity<Map>> future = executor.submit(operation);
+        try {
+            return future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException ex) {
+            throw new AssertionError("Request timed out while foreign row lock was held", ex);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private UserRowWriteLock holdUserRowWriteLock(Long userId) throws SQLException {
+        Connection connection = dataSource.getConnection();
+        connection.setAutoCommit(false);
+        try (PreparedStatement statement = connection.prepareStatement(
+                "select id from app_users where id = ? for update")) {
+            statement.setLong(1, userId);
+            statement.executeQuery();
+        }
+        return new UserRowWriteLock(connection);
+    }
+
+    private static final class UserRowWriteLock implements AutoCloseable {
+        private final Connection connection;
+
+        private UserRowWriteLock(Connection connection) {
+            this.connection = connection;
+        }
+
+        @Override
+        public void close() throws SQLException {
+            try {
+                connection.rollback();
+            } finally {
+                connection.close();
+            }
+        }
     }
 }

@@ -403,6 +403,60 @@ class AdminUserServiceTest {
     }
 
     @Test
+    void forceResetPassword_crossTenantUser_forTenantAdmin_masksTargetAsMissingWithoutLocking() {
+        Company foreignCompany = new Company();
+        ReflectionTestUtils.setField(foreignCompany, "id", 21L);
+        foreignCompany.setCode("FOREIGN");
+
+        UserAccount foreignUser = new UserAccount("foreign-user@example.com", "hash", "Foreign User");
+        ReflectionTestUtils.setField(foreignUser, "id", 311L);
+        foreignUser.addCompany(foreignCompany);
+
+        when(userRepository.findById(311L)).thenReturn(Optional.of(foreignUser));
+
+        assertThatThrownBy(() -> service.forceResetPassword(311L))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("User not found");
+
+        verify(userRepository).findById(311L);
+        verify(userRepository, never()).lockById(311L);
+        verify(userRepository, never()).lockByIdAndCompanyId(311L, 1L);
+        verify(passwordResetService, never()).requestResetByAdmin(any(UserAccount.class));
+        verify(auditService).logAuthFailure(
+                eq(AuditEvent.ACCESS_DENIED),
+                eq("UNKNOWN_AUTH_ACTOR"),
+                eq("TEST"),
+                any(Map.class));
+    }
+
+    @Test
+    void updateUserStatus_crossTenantUser_forTenantAdmin_masksTargetAsMissingWithoutLocking() {
+        Company foreignCompany = new Company();
+        ReflectionTestUtils.setField(foreignCompany, "id", 21L);
+        foreignCompany.setCode("FOREIGN");
+
+        UserAccount foreignUser = new UserAccount("foreign-user@example.com", "hash", "Foreign User");
+        ReflectionTestUtils.setField(foreignUser, "id", 312L);
+        foreignUser.addCompany(foreignCompany);
+
+        when(userRepository.findById(312L)).thenReturn(Optional.of(foreignUser));
+
+        assertThatThrownBy(() -> service.updateUserStatus(312L, false))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("User not found");
+
+        verify(userRepository).findById(312L);
+        verify(userRepository, never()).lockById(312L);
+        verify(userRepository, never()).lockByIdAndCompanyId(312L, 1L);
+        verify(userRepository, never()).save(any(UserAccount.class));
+        verify(auditService).logAuthFailure(
+                eq(AuditEvent.ACCESS_DENIED),
+                eq("UNKNOWN_AUTH_ACTOR"),
+                eq("TEST"),
+                any(Map.class));
+    }
+
+    @Test
     void updateUser_allowsSuperAdminToTargetForeignTenantUser() {
         Company foreignCompany = new Company();
         ReflectionTestUtils.setField(foreignCompany, "id", 21L);
