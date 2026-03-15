@@ -1,0 +1,22 @@
+{
+  "featureId": "auth-forgot-cleanup-failure-preservation",
+  "reviewedAt": "2026-03-15T22:27:42.112092+00:00",
+  "commitId": "51c62ce445bfa0da2fdfdef7e7fffe76e503f983",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The fix resolves the original blocking defect from auth-forgot-persistence-failure-hardening: a dispatch failure plus cleanup failure no longer deletes the prior valid token or leaves an undispatched replacement row persisted, and the new regression coverage proves that branch. However, the public forgot flow now sends the reset email from inside the token transaction before superseded-token cleanup and before commit. If cleanup or commit fails after that send, the request still escalates as a controlled 503/SYS_003 persistence failure, but the new raw token has already been emailed, so VAL-AUTH-003 remains unsatisfied.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/service/PasswordResetService.java",
+        "line": 309,
+        "severity": "blocking",
+        "description": "`dispatchResetEmailMaskedPublic()` calls `emailService.sendPasswordResetEmailRequired(...)` inside `tokenLifecycleTransactionTemplate.execute(...)` before `cleanupSupersededPublicResetTokensWithinActiveTransaction(...)` and before the transaction commits. Any persistence failure after that point (for example `deleteByUserAndIdNot(...)` / `findTopByUserOrderByCreatedAtDescIdDesc(...)` failure or commit-time rollback) still returns the controlled persistence-failure contract, but the new reset token has already been dispatched to the user. That means the fix closes the prior token-loss bug yet still leaves a VAL-AUTH-003 violation: persistence failures can email a new reset link."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/auth-merge-gate-hardening/scrutiny/reviews/auth-forgot-persistence-failure-hardening.json",
+  "summary": "FAIL. The previous cleanup-failure token-loss defect is resolved, but the revised transaction flow can still email a new reset token before post-dispatch persistence succeeds, so the overall AUTH-09 / VAL-AUTH-003 fix remains blocking."
+}

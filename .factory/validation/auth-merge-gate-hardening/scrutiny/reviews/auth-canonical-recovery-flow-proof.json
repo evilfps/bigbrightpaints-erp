@@ -1,0 +1,26 @@
+{
+  "featureId": "auth-canonical-recovery-flow-proof",
+  "reviewedAt": "2026-03-15T22:27:11.479801+00:00",
+  "commitId": "5a126de56d5a793f8d838043c62ad92beba7d0ee",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Pass. The original compatibility commit already removed the raw-token reset fallback and canonicalized company binding, but its recovery proof was blocking because `AuthPasswordResetPublicContractIT` manually inserted a digest row after calling forgot-password. The fix commit resolves that gap: `canonicalRecoveryFlow_forgotResetLoginRefreshAndMe_succeeds_withDigestBackedResetToken()` now captures the real forgot-issued token from `EmailService` (`AuthPasswordResetPublicContractIT.java:301-309`), proves the forgot flow persisted it as digest-only with `token_digest` set and `token` null (`AuthPasswordResetPublicContractIT.java:311-324`), and then drives reset -> login -> refresh -> `/auth/me` with canonical `companyCode` / `X-Company-Code`. Combined with the class's explicit legacy raw-row rejection test (`AuthPasswordResetPublicContractIT.java:274-287`), digest-only reset lookup in `PasswordResetService` (`PasswordResetService.java:162`), and the existing canonical company-context assertions in `AuthControllerIT` (`AuthControllerIT.java:92,111`) plus `CompanyContextFilter` (`CompanyContextFilter.java:114,130-139`), the prior VAL-CROSS-001 blocking gap is resolved and the related canonical auth compatibility assertions remain covered.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The shared auth hardening note still describes digest backfill and raw-token fallback as active rollout behavior even though the reviewed canonicalization work retired both paths.",
+      "evidence": ".factory/library/auth-hardening.md:27-28 still says `AuthSecretStorageBackfillRunner` backfills legacy plaintext rows and runtime lookup/revoke/reset flows fall back to raw-token columns, while current code now performs digest-only reset lookup in `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/service/PasswordResetService.java:162` and digest-only issuance in `.../PasswordResetService.java:364-368`."
+    },
+    {
+      "area": "knowledge",
+      "observation": "The shared frontend auth handoff still documents a legacy `cid` JWT claim that the canonicalization feature removed.",
+      "evidence": ".factory/library/frontend-handoff.md:104 says access tokens contain `cid`, but `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/AuthControllerIT.java:92` asserts newly issued tokens do not contain that claim and `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java:130-139` treats `companyCode` as the required canonical claim."
+    }
+  ],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/auth-merge-gate-hardening/scrutiny/reviews/auth-compatibility-canonicalization.json",
+  "summary": "PASS. The previous blocking review is resolved: commit 5a126de5 replaces the manual reset-token row insertion with real forgot-issued token capture and digest-only persistence assertions, so the canonical forgot -> reset -> login -> refresh -> /auth/me proof now exercises the intended production path end-to-end. No new blocking or non-blocking code defects were found in the fix."
+}

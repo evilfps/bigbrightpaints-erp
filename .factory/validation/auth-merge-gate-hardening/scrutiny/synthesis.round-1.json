@@ -1,6 +1,6 @@
 {
   "milestone": "auth-merge-gate-hardening",
-  "round": 2,
+  "round": 1,
   "status": "fail",
   "validatorsRun": {
     "test": {
@@ -21,17 +21,23 @@
   },
   "reviewsSummary": {
     "total": 4,
-    "passed": 3,
-    "failed": 1,
+    "passed": 2,
+    "failed": 2,
     "failedFeatures": [
-      "auth-forgot-cleanup-failure-preservation"
+      "auth-forgot-persistence-failure-hardening",
+      "auth-compatibility-canonicalization"
     ]
   },
   "blockingIssues": [
     {
-      "featureId": "auth-forgot-cleanup-failure-preservation",
+      "featureId": "auth-forgot-persistence-failure-hardening",
       "severity": "blocking",
-      "description": "The cleanup-failure fix resolves the prior token-loss bug, but PasswordResetService.dispatchResetEmailMaskedPublic() now sends the forgot-password email inside the token transaction before superseded-token cleanup and commit. A later persistence failure can still return the controlled 503/SYS_003 contract after the new reset token was already emailed, so VAL-AUTH-003 remains unmet."
+      "description": "PasswordResetService.issueResetToken() deletes any existing reset token before saving the replacement, and if email dispatch later fails plus deleteByTokenDigest cleanup also fails, the prior token remains deleted while the undispatched replacement stays persisted. That still violates VAL-AUTH-003's requirement to avoid stranding the user or leaving a usable token side effect after a failed reissue."
+    },
+    {
+      "featureId": "auth-compatibility-canonicalization",
+      "severity": "blocking",
+      "description": "AuthPasswordResetPublicContractIT.canonicalRecoveryFlow_forgotResetLoginRefreshAndMe_succeeds_withDigestBackedResetToken() manually inserts a digest-backed reset token after calling forgot-password, so it does not prove the forgot endpoint still produces a usable digest-backed token. VAL-CROSS-001 remains unproven."
     }
   ],
   "appliedUpdates": [],
@@ -52,16 +58,16 @@
   "rejectedObservations": [
     {
       "observation": "Update .factory/library/auth-hardening.md to say the forgot-password persistence-failure hardening is complete.",
-      "reason": "rejected because the underlying AUTH-09 fix track still has a blocking persistence-ordering defect; shared knowledge should not be refreshed until the product defect is fully closed."
+      "reason": "rejected because the underlying feature still has a blocking cleanup-failure gap; shared knowledge should not be refreshed until the product defect is fixed."
     },
     {
       "observation": "Update .factory/library/auth-hardening.md to remove the retired backfill/raw-token fallback rollout notes.",
-      "reason": "rejected for this run because the observation is factual but would require a documentation-only shared-knowledge edit outside the requested scrutiny-validation scope."
+      "reason": "rejected for this run because library edits are documentation-only changes outside the requested scrutiny-validation scope."
     },
     {
       "observation": "Update .factory/library/frontend-handoff.md to remove the legacy cid JWT claim from the documented token shape.",
-      "reason": "rejected for this run because the observation is factual but would require a documentation-only shared-knowledge edit outside the requested scrutiny-validation scope."
+      "reason": "rejected for this run because library edits are documentation-only changes outside the requested scrutiny-validation scope."
     }
   ],
-  "previousRound": ".factory/validation/auth-merge-gate-hardening/scrutiny/synthesis.round-1.json"
+  "previousRound": null
 }
