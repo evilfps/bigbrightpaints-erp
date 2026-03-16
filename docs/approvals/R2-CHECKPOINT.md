@@ -46,4 +46,4 @@
   - `bash ci/check-enterprise-policy.sh`: passed on 2026-03-17 with `[enterprise-policy] OK`.
   - `bash ci/check-orchestrator-layer.sh`: passed on 2026-03-17 with `[orchestrator-layer] OK` plus compatibility-mode warning for missing legacy orchestrator-layer contract files.
 - Artifacts/links:
-  - Current merged-branch validation was executed locally in `/Users/anas/Documents/Factory/symphony-workspaces/ERP-5/erp-domain` on `packet/lane02-auth-merge-gate-hardening` after resolving the `origin/main` merge conflicts and replaying the narrow PR 116 remediation.
+  - Current merged-branch validation was executed from the `erp-domain` module on `packet/lane02-auth-merge-gate-hardening` after resolving the `origin/main` merge conflicts and replaying the narrow PR 116 remediation.

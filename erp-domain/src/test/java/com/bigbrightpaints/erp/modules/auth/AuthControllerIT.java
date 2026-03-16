@@ -108,6 +108,22 @@ public class AuthControllerIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void decodeJwtClaims_acceptsUnpaddedPayloadSegment() {
+        String headerSegment = Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString("{\"alg\":\"none\"}".getBytes(StandardCharsets.UTF_8));
+        String payloadSegment = Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString("{\"companyCode\":\"ACME\",\"sub\":\"1\"}".getBytes(StandardCharsets.UTF_8));
+        assertThat(payloadSegment.length() % 4).isNotZero();
+
+        Map<String, Object> claims = decodeJwtClaims(headerSegment + "." + payloadSegment + ".signature");
+
+        assertThat(claims).containsEntry("companyCode", "ACME");
+        assertThat(claims).containsEntry("sub", "1");
+    }
+
+    @Test
     void legacyCompanyIdHeader_doesNotEstablishAuthenticatedContext() {
         String accessToken = login(ADMIN_EMAIL, ADMIN_PASSWORD).get("accessToken").toString();
 
@@ -424,12 +440,20 @@ public class AuthControllerIT extends AbstractIntegrationTest {
     private Map<String, Object> decodeJwtClaims(String jwt) {
         String[] parts = jwt.split("\\.");
         assertThat(parts).hasSize(3);
-        byte[] decoded = Base64.getUrlDecoder().decode(parts[1]);
+        byte[] decoded = Base64.getUrlDecoder().decode(padBase64UrlSegment(parts[1]));
         try {
             return OBJECT_MAPPER.readValue(new String(decoded, StandardCharsets.UTF_8), Map.class);
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to decode JWT payload", ex);
         }
+    }
+
+    private String padBase64UrlSegment(String segment) {
+        int remainder = segment.length() % 4;
+        if (remainder == 0) {
+            return segment;
+        }
+        return segment + "=".repeat(4 - remainder);
     }
 
     private String passwordResetDigest(String token) {
