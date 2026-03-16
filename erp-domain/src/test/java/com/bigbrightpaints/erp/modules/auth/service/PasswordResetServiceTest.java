@@ -372,6 +372,27 @@ class PasswordResetServiceTest {
     }
 
     @Test
+    void requestResetKeepsIssuedTokenDuringCleanup() {
+        UserAccount user = new UserAccount("user@example.com", "hash", "User");
+        user.setEnabled(true);
+        ReflectionTestUtils.setField(user, "id", 101L);
+        when(userAccountRepository.findByEmailIgnoreCase("user@example.com"))
+                .thenReturn(Optional.of(user));
+        when(userAccountRepository.lockById(101L)).thenReturn(Optional.of(user));
+        when(tokenRepository.saveAndFlush(any(PasswordResetToken.class))).thenAnswer(invocation -> {
+            PasswordResetToken token = invocation.getArgument(0);
+            ReflectionTestUtils.setField(token, "id", 41L);
+            return token;
+        });
+
+        passwordResetService.requestReset("user@example.com");
+
+        verify(tokenRepository).deleteByUserAndIdNot(user, 41L);
+        verify(tokenRepository, never()).findTopByUserOrderByCreatedAtDescIdDesc(any(UserAccount.class));
+        verify(emailService).sendPasswordResetEmailRequired(eq("user@example.com"), eq("User"), anyString());
+    }
+
+    @Test
     void requestResetRestoresPriorTokenWhenDispatchCleanupFailsAfterCommit() {
         UserAccount user = new UserAccount("user@example.com", "hash", "User");
         user.setEnabled(true);
@@ -441,12 +462,9 @@ class PasswordResetServiceTest {
 
         ConcurrentResetTokenState tokenState = new ConcurrentResetTokenState();
         tokenState.stub(tokenRepository, issuanceLock);
-        CountDownLatch bothEmailsIssued = new CountDownLatch(2);
         List<String> dispatchedTokens = Collections.synchronizedList(new ArrayList<>());
         doAnswer(invocation -> {
             dispatchedTokens.add(invocation.getArgument(2));
-            bothEmailsIssued.countDown();
-            assertTrue(bothEmailsIssued.await(5, TimeUnit.SECONDS));
             return null;
         }).when(emailService).sendPasswordResetEmailRequired(eq("user@example.com"), eq("User"), anyString());
 
@@ -488,12 +506,9 @@ class PasswordResetServiceTest {
 
         ConcurrentResetTokenState tokenState = new ConcurrentResetTokenState();
         tokenState.stub(tokenRepository, issuanceLock);
-        CountDownLatch bothEmailsIssued = new CountDownLatch(2);
         List<String> dispatchedTokens = Collections.synchronizedList(new ArrayList<>());
         doAnswer(invocation -> {
             dispatchedTokens.add(invocation.getArgument(2));
-            bothEmailsIssued.countDown();
-            assertTrue(bothEmailsIssued.await(5, TimeUnit.SECONDS));
             return null;
         }).when(emailService).sendPasswordResetEmailRequired(eq("user@example.com"), eq("User"), anyString());
 
@@ -1251,24 +1266,20 @@ class PasswordResetServiceTest {
                 ReflectionTestUtils.setField(token, "id", id);
                 activeTokenDigests.put(id, token.getTokenDigest());
                 dispatchOrderByTokenId.putIfAbsent(id, dispatchSequence.incrementAndGet());
-                if (issuanceLock != null && issuanceLock.isHeldByCurrentThread()) {
-                    issuanceLock.unlock();
-                }
                 return token;
             }).when(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
 
             lenient().doAnswer(invocation -> {
                 activeTokenDigests.clear();
                 dispatchOrderByTokenId.clear();
+                releaseLock(issuanceLock);
                 return null;
             }).when(tokenRepository).deleteByUser(any(UserAccount.class));
 
             doAnswer(invocation -> {
                 Long keepId = invocation.getArgument(1);
                 activeTokenDigests.entrySet().removeIf(entry -> !entry.getKey().equals(keepId));
-                if (issuanceLock != null && issuanceLock.isHeldByCurrentThread()) {
-                    issuanceLock.unlock();
-                }
+                releaseLock(issuanceLock);
                 return 1;
             }).when(tokenRepository).deleteByUserAndIdNot(any(UserAccount.class), anyLong());
 
@@ -1325,6 +1336,15 @@ class PasswordResetServiceTest {
 
         Set<String> activeTokenDigests() {
             return Set.copyOf(activeTokenDigests.values());
+        }
+
+        private void releaseLock(ReentrantLock issuanceLock) {
+            if (issuanceLock == null) {
+                return;
+            }
+            while (issuanceLock.isHeldByCurrentThread()) {
+                issuanceLock.unlock();
+            }
         }
     }
 }

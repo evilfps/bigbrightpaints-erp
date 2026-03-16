@@ -419,7 +419,7 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
         String token = (String) loginResponse.getBody().get("accessToken");
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
-        headers.set("X-Company-Id", COMPANY_CODE);
+        headers.set("X-Company-Code", COMPANY_CODE);
         return headers;
     }
 }

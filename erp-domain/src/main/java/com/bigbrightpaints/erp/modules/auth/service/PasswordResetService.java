@@ -439,13 +439,14 @@ public class PasswordResetService {
                                                                            String correlationId,
                                                                            String maskedEmail) {
         assertTokenLifecycleTransactionActive("issue", correlationId, maskedEmail);
-        if (user == null || !user.isEnabled()) {
+        UserAccount lockedUser = lockUserForResetIssuance(user);
+        if (lockedUser == null) {
             return null;
         }
         String token = generateToken();
         Instant expiresAt = Instant.now().plusSeconds(RESET_TOKEN_TTL_SECONDS);
         PasswordResetToken resetToken = PasswordResetToken.digestOnly(
-                user,
+                lockedUser,
                 AuthTokenDigests.passwordResetTokenDigest(token),
                 expiresAt);
         PasswordResetToken saved = tokenRepository.saveAndFlush(resetToken);
@@ -464,14 +465,8 @@ public class PasswordResetService {
         if (lockedUser == null) {
             return null;
         }
-        PasswordResetToken latestToken = tokenRepository.findTopByUserOrderByCreatedAtDescIdDesc(lockedUser)
-                .orElse(null);
-        Long effectiveKeepTokenId = latestToken != null ? latestToken.getId() : keepTokenId;
-        if (effectiveKeepTokenId == null) {
-            return null;
-        }
-        PriorResetTokenSnapshot priorTokenSnapshot = capturePriorResetTokenSnapshot(lockedUser, effectiveKeepTokenId);
-        tokenRepository.deleteByUserAndIdNot(lockedUser, effectiveKeepTokenId);
+        PriorResetTokenSnapshot priorTokenSnapshot = capturePriorResetTokenSnapshot(lockedUser, keepTokenId);
+        tokenRepository.deleteByUserAndIdNot(lockedUser, keepTokenId);
         return priorTokenSnapshot;
     }
 
