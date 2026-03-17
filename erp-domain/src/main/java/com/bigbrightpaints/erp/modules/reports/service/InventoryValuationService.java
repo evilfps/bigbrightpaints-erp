@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.reports.service;
 
 import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
@@ -410,7 +411,7 @@ public class InventoryValuationService {
         if (company == null) {
             return new CostingMethodContext(null, "WEIGHTED_AVERAGE");
         }
-        LocalDate referenceDate = asOfDate != null ? asOfDate : LocalDate.now(resolveZone(company));
+        LocalDate referenceDate = asOfDate != null ? asOfDate : CompanyTime.today(company);
         AccountingPeriod period = accountingPeriodRepository
                 .findByCompanyAndYearAndMonth(company, referenceDate.getYear(), referenceDate.getMonthValue())
                 .orElse(null);

@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -760,6 +761,41 @@ class AccountingFacadeTest {
                         && "MANUAL".equals(journalRequest.sourceModule())
                         && "MANUAL-XYZ".equals(journalRequest.sourceReference())
                         && journalRequest.amount().compareTo(new BigDecimal("75.00")) == 0
+        ));
+    }
+
+    @Test
+    void createManualJournalEntry_defaultsNullEntryDateFromCurrentCompanyClockForGeneratedManualReference() {
+        new CompanyTime(companyClock);
+        company.setTimezone("Pacific/Auckland");
+        LocalDate tenantToday = LocalDate.of(2026, 3, 1);
+        when(companyClock.today(company)).thenReturn(tenantToday);
+        lenient().when(companyClock.today((Company) null)).thenReturn(tenantToday.minusDays(1));
+
+        JournalEntryRequest request = new JournalEntryRequest(
+                null,
+                null,
+                "Tenant-aware manual",
+                null,
+                null,
+                false,
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(11L, "Dr", new BigDecimal("30.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(22L, "Cr", BigDecimal.ZERO, new BigDecimal("30.00"))
+                ),
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        accountingFacade.createManualJournalEntry(request, null);
+
+        verify(accountingService).createStandardJournal(argThat(journalRequest ->
+                journalRequest != null
+                        && tenantToday.equals(journalRequest.entryDate())
+                        && ("MANUAL-" + tenantToday).equals(journalRequest.sourceReference())
         ));
     }
 

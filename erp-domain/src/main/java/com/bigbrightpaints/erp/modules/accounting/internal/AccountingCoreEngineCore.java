@@ -343,7 +343,9 @@ public abstract class AccountingCoreEngineCore {
                     .withDetail("totalCredit", totalCredit);
         }
 
-        LocalDate entryDate = request.entryDate() != null ? request.entryDate() : LocalDate.now();
+        LocalDate entryDate = request.entryDate() != null
+                ? request.entryDate()
+                : companyClock.today(companyContextService.requireCurrentCompany());
         String narration = request.narration().trim();
         String sourceModule = request.sourceModule().trim();
         String sourceReference = request.sourceReference().trim();
@@ -413,7 +415,9 @@ public abstract class AccountingCoreEngineCore {
                     .withDetail("totalCredit", totalCredit);
         }
 
-        LocalDate entryDate = request.entryDate() != null ? request.entryDate() : LocalDate.now();
+        LocalDate entryDate = request.entryDate() != null
+                ? request.entryDate()
+                : companyClock.today(companyContextService.requireCurrentCompany());
         if (!StringUtils.hasText(request.narration())) {
             throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
                     "Manual journal reason is required");

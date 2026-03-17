@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.admin.service;
 import com.bigbrightpaints.erp.core.config.GitHubProperties;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
@@ -69,7 +70,7 @@ public class GitHubIssueClient {
             }
             String issueUrl = root.path("html_url").asText(null);
             String state = normalizeState(root.path("state").asText(null));
-            return new GitHubIssueCreateResult(number, issueUrl, state, Instant.now());
+            return new GitHubIssueCreateResult(number, issueUrl, state, CompanyTime.now());
         } catch (HttpStatusCodeException ex) {
             throw mapHttpException("create GitHub issue", ex);
         } catch (RestClientException ex) {
@@ -94,7 +95,7 @@ public class GitHubIssueClient {
             JsonNode root = requireBody(response.getBody(), "fetch_issue_response");
             String state = normalizeState(root.path("state").asText(null));
             String issueUrl = root.path("html_url").asText(null);
-            return new GitHubIssueStateResult(issueNumber, issueUrl, state, Instant.now());
+            return new GitHubIssueStateResult(issueNumber, issueUrl, state, CompanyTime.now());
         } catch (HttpStatusCodeException ex) {
             throw mapHttpException("fetch GitHub issue state", ex);
         } catch (RestClientException ex) {
