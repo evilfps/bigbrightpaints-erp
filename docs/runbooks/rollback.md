@@ -2,7 +2,7 @@
 
 ## 2026-03-17 — `auth-merge-gate-hardening.password-reset-delivery-tracking`
 
-- **Scope:** revert `V158__password_reset_token_delivery_tracking.sql`, `migration_v2/V162__password_reset_token_delivery_tracking.sql`, and the delivered-only password-reset rollback flow that depends on `password_reset_tokens.delivered_at`.
+- **Scope:** revert `migration_v2/V162__password_reset_token_delivery_tracking.sql` and the delivered-only password-reset rollback flow that depends on `password_reset_tokens.delivered_at`.
 - **Application rollback:** redeploy the previous backend build before reopening traffic so runtime code stops reading or writing delivery-state markers on password-reset tokens.
 - **Database rollback:** after the reverted build is live, execute `DELETE FROM public.password_reset_tokens; ALTER TABLE public.password_reset_tokens DROP COLUMN IF EXISTS delivered_at;` so the old code resumes from a clean canonical token state instead of inheriting mixed delivery-state rows.
 - **Verification:** rerun `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -Dtest='PasswordResetServiceTest,AuthPasswordResetPublicContractIT,TS_RuntimePasswordResetServiceExecutableCoverageTest' test` and `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp test -Pgate-fast -Djacoco.skip=true` against the reverted packet to confirm forgot-password masking and reset-token issuance still behave correctly without the delivery marker column.

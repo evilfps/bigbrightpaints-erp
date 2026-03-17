@@ -1,6 +1,6 @@
 # Migration Runbook
 
-## 2026-03-17 — `V158__password_reset_token_delivery_tracking.sql` and `migration_v2/V162__password_reset_token_delivery_tracking.sql`
+## 2026-03-17 — `migration_v2/V162__password_reset_token_delivery_tracking.sql`
 
 - **Purpose:** track whether a password-reset token was actually delivered so the forgot-password fallback path can restore only the last delivered token after dispatch or marker failures.
 - **Forward plan:** hard-cut invalidate legacy reset-token rows with unknown delivery state by deleting `password_reset_tokens`, add nullable `delivered_at`, then enable the delivered-only restore and delivery-marker rollback flow in `PasswordResetService`.
