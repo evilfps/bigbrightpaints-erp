@@ -800,6 +800,36 @@ class AccountingFacadeTest {
     }
 
     @Test
+    void createManualJournalEntry_keepsExplicitEntryDateForGeneratedManualReference() {
+        LocalDate explicitDate = LocalDate.of(2026, 3, 6);
+        JournalEntryRequest request = new JournalEntryRequest(
+                null,
+                explicitDate,
+                "Explicit manual",
+                null,
+                null,
+                false,
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(11L, "Dr", new BigDecimal("30.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(22L, "Cr", BigDecimal.ZERO, new BigDecimal("30.00"))
+                ),
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        accountingFacade.createManualJournalEntry(request, null);
+
+        verify(accountingService).createStandardJournal(argThat(journalRequest ->
+                journalRequest != null
+                        && explicitDate.equals(journalRequest.entryDate())
+                        && ("MANUAL-" + explicitDate).equals(journalRequest.sourceReference())
+        ));
+    }
+
+    @Test
     void recordPayrollPayment_delegatesToAccountingService() {
         PayrollPaymentRequest request = new PayrollPaymentRequest(9L, 2L, 1L, new BigDecimal("800.00"), "PAYROLL-PAY-9", "Payroll clear");
         JournalEntryDto expected = new JournalEntryDto(

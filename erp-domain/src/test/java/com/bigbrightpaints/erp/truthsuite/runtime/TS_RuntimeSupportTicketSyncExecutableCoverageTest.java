@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.config.GitHubProperties;
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.admin.domain.SupportTicket;
 import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketCategory;
 import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketRepository;
@@ -30,6 +32,13 @@ import org.thymeleaf.context.Context;
 
 @Tag("critical")
 class TS_RuntimeSupportTicketSyncExecutableCoverageTest {
+
+    private static void installCompanyTime(Instant now) {
+        CompanyClock companyClock = org.mockito.Mockito.mock(CompanyClock.class);
+        when(companyClock.now(any())).thenReturn(now);
+        when(companyClock.now(null)).thenReturn(now);
+        new CompanyTime(companyClock);
+    }
 
     @Test
     void submitGitHubIssueAsync_mapsSupportCategoryToSupportLabel() {
@@ -152,6 +161,7 @@ class TS_RuntimeSupportTicketSyncExecutableCoverageTest {
 
     @Test
     void createIssuePayload_containsMappedLabels() {
+        installCompanyTime(Instant.parse("2026-03-04T05:00:00Z"));
         GitHubProperties gitHubProperties = new GitHubProperties();
         gitHubProperties.setEnabled(true);
         gitHubProperties.setToken("token");
@@ -197,6 +207,7 @@ class TS_RuntimeSupportTicketSyncExecutableCoverageTest {
 
     @Test
     void syncGithubStatus_closedIssue_marksResolvedAndSendsNotification() {
+        installCompanyTime(Instant.parse("2026-03-04T05:00:00Z"));
         SupportTicketRepository supportTicketRepository = org.mockito.Mockito.mock(SupportTicketRepository.class);
         UserAccountRepository userAccountRepository = org.mockito.Mockito.mock(UserAccountRepository.class);
         GitHubIssueClient gitHubIssueClient = org.mockito.Mockito.mock(GitHubIssueClient.class);

@@ -9,7 +9,9 @@ import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.Employee;
@@ -54,6 +56,7 @@ class LeaveServiceTest {
     @Mock
     private LeaveBalanceRepository leaveBalanceRepository;
 
+    private CompanyClock companyClock;
     private LeaveService leaveService;
     private Company company;
     private Employee employee;
@@ -68,6 +71,8 @@ class LeaveServiceTest {
                 companyEntityLookup,
                 leaveTypePolicyRepository,
                 leaveBalanceRepository);
+        companyClock = mock(CompanyClock.class);
+        new CompanyTime(companyClock);
 
         company = new Company();
         ReflectionTestUtils.setField(company, "id", 77L);
@@ -77,6 +82,46 @@ class LeaveServiceTest {
         ReflectionTestUtils.setField(employee, "id", 10L);
         employee.setFirstName("Asha");
         employee.setLastName("Patel");
+    }
+
+    @Test
+    void getLeaveBalances_defaultsMissingYearFromCompanyClock() {
+        LocalDate tenantToday = LocalDate.of(2026, 4, 2);
+        LeaveTypePolicy policy = activePolicy("CASUAL", "Casual leave");
+        LeaveBalance balance = balanceForYear(tenantToday.getYear());
+
+        when(companyClock.today(company)).thenReturn(tenantToday);
+        when(companyEntityLookup.requireEmployee(company, 10L)).thenReturn(employee);
+        when(leaveTypePolicyRepository.findByCompanyAndActiveTrueOrderByDisplayNameAsc(company))
+                .thenReturn(java.util.List.of(policy));
+        when(leaveBalanceRepository.findByCompanyAndEmployeeAndLeaveTypeAndBalanceYear(
+                company, employee, "CASUAL", tenantToday.getYear()))
+                .thenReturn(Optional.of(balance));
+
+        assertThat(leaveService.getLeaveBalances(10L, null))
+                .singleElement()
+                .satisfies(dto -> {
+                    assertThat(dto.employeeId()).isEqualTo(10L);
+                    assertThat(dto.leaveType()).isEqualTo("CASUAL");
+                    assertThat(dto.year()).isEqualTo(2026);
+                });
+    }
+
+    @Test
+    void getLeaveBalances_usesExplicitYearWithoutCompanyClockFallback() {
+        LeaveTypePolicy policy = activePolicy("CASUAL", "Casual leave");
+        LeaveBalance balance = balanceForYear(2024);
+
+        when(companyEntityLookup.requireEmployee(company, 10L)).thenReturn(employee);
+        when(leaveTypePolicyRepository.findByCompanyAndActiveTrueOrderByDisplayNameAsc(company))
+                .thenReturn(java.util.List.of(policy));
+        when(leaveBalanceRepository.findByCompanyAndEmployeeAndLeaveTypeAndBalanceYear(
+                company, employee, "CASUAL", 2024))
+                .thenReturn(Optional.of(balance));
+
+        assertThat(leaveService.getLeaveBalances(10L, 2024))
+                .singleElement()
+                .satisfies(dto -> assertThat(dto.year()).isEqualTo(2024));
     }
 
     @Test
@@ -232,5 +277,29 @@ class LeaveServiceTest {
                 .isInstanceOf(ApplicationException.class)
                 .satisfies(ex -> assertThat(((ApplicationException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.BUSINESS_INVALID_STATE));
+    }
+
+    private LeaveTypePolicy activePolicy(String leaveType, String displayName) {
+        LeaveTypePolicy policy = new LeaveTypePolicy();
+        policy.setLeaveType(leaveType);
+        policy.setDisplayName(displayName);
+        policy.setAnnualEntitlement(new BigDecimal("12.00"));
+        policy.setCarryForwardLimit(new BigDecimal("5.00"));
+        policy.setActive(true);
+        return policy;
+    }
+
+    private LeaveBalance balanceForYear(int year) {
+        LeaveBalance balance = new LeaveBalance();
+        balance.setCompany(company);
+        balance.setEmployee(employee);
+        balance.setLeaveType("CASUAL");
+        balance.setBalanceYear(year);
+        balance.setOpeningBalance(BigDecimal.ZERO);
+        balance.setAccrued(new BigDecimal("12.00"));
+        balance.setUsed(new BigDecimal("2.00"));
+        balance.setRemaining(new BigDecimal("10.00"));
+        balance.setCarryForwardApplied(BigDecimal.ZERO);
+        return balance;
     }
 }

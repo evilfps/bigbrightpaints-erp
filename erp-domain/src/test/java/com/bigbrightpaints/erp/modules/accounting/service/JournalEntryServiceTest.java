@@ -30,6 +30,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -52,6 +53,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class JournalEntryServiceTest {
 
     @Mock private CompanyContextService companyContextService;
@@ -189,6 +191,76 @@ class JournalEntryServiceTest {
         assertThat(result.referenceNumber()).isEqualTo("JRN-4401");
         assertThat(savedEntry.get()).isNotNull();
         assertThat(savedEntry.get().getSourceReference()).isEqualTo("manual-local-ref");
+    }
+
+    @Test
+    void createStandardJournal_manualSourceKeepsExplicitEntryDate() {
+        LocalDate explicitDate = LocalDate.of(2026, 3, 5);
+        AccountingPeriod postingPeriod = new AccountingPeriod();
+        postingPeriod.setYear(explicitDate.getYear());
+        postingPeriod.setMonth(explicitDate.getMonthValue());
+        JournalReferenceMapping mapping = new JournalReferenceMapping();
+        Account debitAccount = account(11L, "CASH-11", AccountType.ASSET);
+        Account creditAccount = account(22L, "REV-22", AccountType.REVENUE);
+        AtomicReference<com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry> savedEntry = new AtomicReference<>();
+
+        when(companyClock.today(company)).thenReturn(explicitDate);
+        lenient().when(companyClock.today((Company) null)).thenReturn(explicitDate);
+        when(referenceNumberService.nextJournalReference(company)).thenReturn("JRN-4402");
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(company, "manual-explicit-ref"))
+                .thenReturn(Optional.empty());
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(company, "JRN-4402"))
+                .thenReturn(Optional.empty());
+        when(journalReferenceResolver.findExistingEntry(company, "manual-explicit-ref"))
+                .thenReturn(Optional.empty());
+        when(journalReferenceMappingRepository.reserveManualReference(eq(44L), anyString(), anyString(), eq("JOURNAL_ENTRY"), any()))
+                .thenReturn(1);
+        when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(company, "manual-explicit-ref"))
+                .thenReturn(List.of(mapping));
+        when(systemSettingsService.isPeriodLockEnforced()).thenReturn(true);
+        when(accountingPeriodService.requirePostablePeriod(eq(company), eq(explicitDate), eq("MANUAL"), eq("manual-explicit-ref"), eq("Explicit date manual"), eq(false)))
+                .thenReturn(postingPeriod);
+        when(accountRepository.lockByCompanyAndId(company, 11L)).thenReturn(Optional.of(debitAccount));
+        when(accountRepository.lockByCompanyAndId(company, 22L)).thenReturn(Optional.of(creditAccount));
+        when(accountRepository.updateBalanceAtomic(eq(company), eq(11L), eq(new BigDecimal("25.00")))).thenReturn(1);
+        when(accountRepository.updateBalanceAtomic(eq(company), eq(22L), eq(new BigDecimal("-25.00")))).thenReturn(1);
+        when(journalEntryRepository.save(any())).thenAnswer(invocation -> {
+            com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry entry = invocation.getArgument(0);
+            savedEntry.set(entry);
+            ReflectionTestUtils.setField(entry, "id", 4402L);
+            return entry;
+        });
+
+        JournalEntryDto result = journalEntryService.createStandardJournal(new JournalCreationRequest(
+                new BigDecimal("25.00"),
+                11L,
+                22L,
+                "Explicit date manual",
+                "MANUAL",
+                "manual-explicit-ref",
+                null,
+                List.of(
+                        new JournalCreationRequest.LineRequest(11L, new BigDecimal("25.00"), BigDecimal.ZERO, "Debit"),
+                        new JournalCreationRequest.LineRequest(22L, BigDecimal.ZERO, new BigDecimal("25.00"), "Credit")
+                ),
+                explicitDate,
+                null,
+                null,
+                false
+        ));
+
+        assertThat(result).isNotNull();
+        assertThat(result.entryDate()).isEqualTo(explicitDate);
+        assertThat(savedEntry.get()).isNotNull();
+        assertThat(savedEntry.get().getEntryDate()).isEqualTo(explicitDate);
+    }
+
+    @Test
+    void compatibilityConstructorLeavesCompanyDependenciesUnset() {
+        JournalEntryService service = new JournalEntryService((AccountingCoreEngine) null, accountingIdempotencyService);
+
+        assertThat(ReflectionTestUtils.getField(service, "companyContextService")).isNull();
+        assertThat(ReflectionTestUtils.getField(service, "companyClock")).isNull();
     }
 
     private Account account(Long id, String code, AccountType type) {

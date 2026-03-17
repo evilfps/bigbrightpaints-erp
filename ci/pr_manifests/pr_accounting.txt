@@ -14,6 +14,8 @@ com.bigbrightpaints.erp.codered.CR_DealerReceiptSettlementAuditTrailTest
 com.bigbrightpaints.erp.codered.CR_PeriodCloseAtomicityTest
 com.bigbrightpaints.erp.codered.CR_PeriodCloseDriftScansTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingFacadeTest
+com.bigbrightpaints.erp.modules.accounting.service.JournalEntryServiceTest
+com.bigbrightpaints.erp.modules.accounting.service.ReconciliationServiceTest
 com.bigbrightpaints.erp.modules.accounting.controller.AccountingControllerIdempotencyHeaderParityTest
 com.bigbrightpaints.erp.modules.accounting.controller.AccountingControllerJournalEndpointsTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodServicePolicyTest

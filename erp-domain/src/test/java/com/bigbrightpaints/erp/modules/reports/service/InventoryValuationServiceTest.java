@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.reports.service;
 
+import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
@@ -14,6 +16,7 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionProductReposi
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +31,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,8 +49,15 @@ class InventoryValuationServiceTest {
     @Mock private RawMaterialMovementRepository rawMaterialMovementRepository;
     @Mock private ProductionProductRepository productionProductRepository;
     @Mock private AccountingPeriodRepository accountingPeriodRepository;
+    @Mock private CompanyClock companyClock;
 
     @InjectMocks private InventoryValuationService inventoryValuationService;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(companyClock.today(any())).thenReturn(LocalDate.of(2026, 3, 18));
+        new CompanyTime(companyClock);
+    }
 
     @Test
     void currentSnapshot_fifoUsesAvailableBatchQuantityWhenAvailableIsLower() {

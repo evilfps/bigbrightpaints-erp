@@ -17,6 +17,7 @@ FinishedGoodsDispatchEngineCoverageTest
 FinishedGoodsReservationEngineTest
 FinishedGoodsServiceTest
 InventoryValuationServiceTest
+com.bigbrightpaints.erp.modules.hr.service.LeaveServiceTest
 InvoiceServiceTest
 LegacyDispatchInvoiceLinkMatcherTest
 PackagingSlipEntityTest

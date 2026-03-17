@@ -1,6 +1,9 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
+import com.bigbrightpaints.erp.core.config.GitHubProperties;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -29,9 +32,11 @@ import com.bigbrightpaints.erp.modules.accounting.dto.ReconciliationDiscrepancyD
 import com.bigbrightpaints.erp.modules.accounting.dto.ReconciliationDiscrepancyListResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.ReconciliationDiscrepancyResolveRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierBalanceView;
+import com.bigbrightpaints.erp.modules.admin.service.GitHubIssueClient;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
@@ -44,6 +49,7 @@ import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -66,6 +72,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class ReconciliationServiceTest {
 
     @Mock private CompanyContextService companyContextService;
@@ -82,6 +89,7 @@ class ReconciliationServiceTest {
     @Mock private AccountingPeriodRepository accountingPeriodRepository;
     @Mock private TaxService taxService;
     @Mock private ReportService reportService;
+    @Mock private CompanyClock companyClock;
 
     private ReconciliationService reconciliationService;
     private Company company;
@@ -118,6 +126,8 @@ class ReconciliationServiceTest {
         company.setCode("ACME");
         company.setTimezone("Asia/Kolkata");
         ReflectionTestUtils.setField(company, "id", 1L);
+        new CompanyTime(companyClock);
+        lenient().when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 3, 18));
         lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
     }
 
@@ -608,7 +618,83 @@ class ReconciliationServiceTest {
         assertThat(resolved.resolutionJournalId()).isEqualTo(9001L);
         assertThat(resolved.resolvedBy()).isEqualTo("UNKNOWN_AUTH_ACTOR");
 
-        verify(accountingFacade).createStandardJournal(any(JournalCreationRequest.class));
+        ArgumentCaptor<JournalCreationRequest> requestCaptor = ArgumentCaptor.forClass(JournalCreationRequest.class);
+        verify(accountingFacade).createStandardJournal(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().entryDate()).isEqualTo(LocalDate.of(2026, 3, 18));
+    }
+
+    @Test
+    void gitHubIssueClient_fetchIssueState_usesCompanyTimeForSyncTimestamp() {
+        Instant syncedAt = Instant.parse("2026-03-18T01:00:00Z");
+        when(companyClock.now((Company) null)).thenReturn(syncedAt);
+
+        GitHubProperties gitHubProperties = new GitHubProperties();
+        gitHubProperties.setEnabled(true);
+        gitHubProperties.setToken("token");
+        gitHubProperties.setRepoOwner("acme");
+        gitHubProperties.setRepoName("repo");
+
+        org.springframework.boot.web.client.RestTemplateBuilder restTemplateBuilder =
+                mock(org.springframework.boot.web.client.RestTemplateBuilder.class);
+        org.springframework.web.client.RestTemplate restTemplate =
+                mock(org.springframework.web.client.RestTemplate.class);
+        when(restTemplateBuilder.build()).thenReturn(restTemplate);
+        when(restTemplate.exchange(
+                eq("https://api.github.com/repos/acme/repo/issues/55"),
+                eq(org.springframework.http.HttpMethod.GET),
+                any(org.springframework.http.HttpEntity.class),
+                eq(String.class)))
+                .thenReturn(org.springframework.http.ResponseEntity.ok(
+                        "{\"html_url\":\"https://github.com/acme/repo/issues/55\",\"state\":\"closed\"}"));
+
+        GitHubIssueClient client = new GitHubIssueClient(
+                gitHubProperties,
+                restTemplateBuilder,
+                new ObjectMapper());
+
+        GitHubIssueClient.GitHubIssueStateResult result = client.fetchIssueState(55L);
+
+        assertThat(result.issueNumber()).isEqualTo(55L);
+        assertThat(result.issueUrl()).isEqualTo("https://github.com/acme/repo/issues/55");
+        assertThat(result.issueState()).isEqualTo("CLOSED");
+        assertThat(result.syncedAt()).isEqualTo(syncedAt);
+    }
+
+    @Test
+    void gitHubIssueClient_createIssue_usesCompanyTimeForSyncTimestamp() {
+        Instant syncedAt = Instant.parse("2026-03-18T01:05:00Z");
+        when(companyClock.now((Company) null)).thenReturn(syncedAt);
+
+        GitHubProperties gitHubProperties = new GitHubProperties();
+        gitHubProperties.setEnabled(true);
+        gitHubProperties.setToken("token");
+        gitHubProperties.setRepoOwner("acme");
+        gitHubProperties.setRepoName("repo");
+
+        org.springframework.boot.web.client.RestTemplateBuilder restTemplateBuilder =
+                mock(org.springframework.boot.web.client.RestTemplateBuilder.class);
+        org.springframework.web.client.RestTemplate restTemplate =
+                mock(org.springframework.web.client.RestTemplate.class);
+        when(restTemplateBuilder.build()).thenReturn(restTemplate);
+        when(restTemplate.exchange(
+                eq("https://api.github.com/repos/acme/repo/issues"),
+                eq(org.springframework.http.HttpMethod.POST),
+                any(org.springframework.http.HttpEntity.class),
+                eq(String.class)))
+                .thenReturn(org.springframework.http.ResponseEntity.ok(
+                        "{\"number\":99,\"html_url\":\"https://github.com/acme/repo/issues/99\",\"state\":\"open\"}"));
+
+        GitHubIssueClient client = new GitHubIssueClient(
+                gitHubProperties,
+                restTemplateBuilder,
+                new ObjectMapper());
+
+        GitHubIssueClient.GitHubIssueCreateResult result = client.createIssue("Title", "Body", List.of("bug"));
+
+        assertThat(result.issueNumber()).isEqualTo(99L);
+        assertThat(result.issueUrl()).isEqualTo("https://github.com/acme/repo/issues/99");
+        assertThat(result.issueState()).isEqualTo("OPEN");
+        assertThat(result.syncedAt()).isEqualTo(syncedAt);
     }
 
     @Test

@@ -3,9 +3,11 @@ package com.bigbrightpaints.erp.modules.company.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -16,6 +18,8 @@ import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningService;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyAdminCredentialResetDto;
@@ -68,12 +72,17 @@ class CompanyServiceTest {
     @Mock
     private TenantAdminProvisioningService tenantAdminProvisioningService;
 
+    @Mock
+    private CompanyClock companyClock;
+
     private TenantLifecycleService tenantLifecycleService;
 
     private CompanyService companyService;
 
     @BeforeEach
     void setUp() {
+        lenient().when(companyClock.now(any())).thenReturn(Instant.parse("2026-03-18T06:30:00Z"));
+        new CompanyTime(companyClock);
         tenantLifecycleService = new TenantLifecycleService(auditService);
         companyService = new CompanyService(
                 repository,

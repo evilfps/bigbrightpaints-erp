@@ -49,6 +49,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -274,6 +275,63 @@ class AccountingServiceStandardJournalTest {
     }
 
     @Test
+    void createStandardJournal_defaultsMissingEntryDateFromCompanyClock() {
+        AccountingService serviceSpy = spy(accountingService);
+        Company company = new Company();
+        JournalEntryDto expected = new JournalEntryDto(
+                103L,
+                null,
+                "AUTO-103",
+                LocalDate.of(2026, 3, 2),
+                "Clock fallback",
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.<JournalLineDto>of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        ArgumentCaptor<JournalEntryRequest> requestCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
+        doReturn(expected).when(serviceSpy).createJournalEntry(requestCaptor.capture());
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 3, 2));
+
+        serviceSpy.createStandardJournal(new JournalCreationRequest(
+                new BigDecimal("100.00"),
+                11L,
+                22L,
+                "Clock fallback",
+                "SALES",
+                "INV-103",
+                null,
+                List.of(
+                        new JournalCreationRequest.LineRequest(11L, new BigDecimal("100.00"), BigDecimal.ZERO, "Debit"),
+                        new JournalCreationRequest.LineRequest(22L, BigDecimal.ZERO, new BigDecimal("100.00"), "Credit")
+                ),
+                null,
+                null,
+                null,
+                false
+        ));
+
+        assertThat(requestCaptor.getValue().entryDate()).isEqualTo(LocalDate.of(2026, 3, 2));
+    }
+
+    @Test
     void createStandardJournal_propagatesMissingAccountValidation() {
         AccountingService serviceSpy = spy(accountingService);
         doThrow(new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Account not found"))
@@ -407,6 +465,56 @@ class AccountingServiceStandardJournalTest {
         JournalEntryDto actual = accountingService.createManualJournal(request);
 
         assertThat(actual).isSameAs(expected);
+    }
+
+    @Test
+    void createManualJournal_defaultsMissingEntryDateFromCompanyClock() {
+        AccountingService serviceSpy = spy(accountingService);
+        Company company = new Company();
+        JournalEntryDto expected = new JournalEntryDto(
+                302L,
+                null,
+                "JRN-302",
+                LocalDate.of(2026, 3, 3),
+                "Manual clock fallback",
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.<JournalLineDto>of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        ArgumentCaptor<JournalEntryRequest> requestCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
+        doReturn(expected).when(serviceSpy).createManualJournalEntry(requestCaptor.capture(), eq("manual-clock"));
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 3, 3));
+
+        serviceSpy.createManualJournal(new ManualJournalRequest(
+                null,
+                "Manual clock fallback",
+                "manual-clock",
+                false,
+                List.of(
+                        new ManualJournalRequest.LineRequest(11L, new BigDecimal("80.00"), "Debit line", ManualJournalRequest.EntryType.DEBIT),
+                        new ManualJournalRequest.LineRequest(22L, new BigDecimal("80.00"), "Credit line", ManualJournalRequest.EntryType.CREDIT)
+                )
+        ));
+
+        assertThat(requestCaptor.getValue().entryDate()).isEqualTo(LocalDate.of(2026, 3, 3));
     }
 
     @Test
