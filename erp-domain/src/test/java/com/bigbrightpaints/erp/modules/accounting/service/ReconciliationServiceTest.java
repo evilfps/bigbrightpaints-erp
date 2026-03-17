@@ -48,6 +48,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -99,6 +101,7 @@ class ReconciliationServiceTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.clearContext();
         @SuppressWarnings("unchecked")
         ObjectProvider<AccountingFacade> provider = mock(ObjectProvider.class);
         accountingFacadeProvider = provider;
@@ -129,6 +132,11 @@ class ReconciliationServiceTest {
         new CompanyTime(companyClock);
         lenient().when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 3, 18));
         lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
