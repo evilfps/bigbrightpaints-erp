@@ -77,7 +77,7 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
   - `GET /api/v1/accounting/audit/transactions`
   - `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
   - `GET /api/v1/accounting/date-context`
-- Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snapshot and should be treated as deprecated for new UI flows.
+- Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snapshot as admin-only deprecated exports and must not be treated as required APIs for new accountant-owned UI flows.
 
 ## Task 2: Frontend API Inventory (Grouped by Domain)
 
@@ -461,24 +461,26 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 
 ### `/accounting/ar/invoices`
 - Purpose: Invoice tracking, invoice PDF/email delivery, dealer invoice views.
-- Required API calls: `salesListDealersForAccounting`, `salesSearchDealersForAccounting`, `invoiceListInvoices`, `invoiceGetInvoice`, `invoiceDownloadInvoicePdf`, `invoiceSendInvoiceEmail`, `invoiceDealerInvoices`
+- Required API calls (shared accountant/sales/admin views): `salesListDealersForAccounting`, `salesSearchDealersForAccounting`, `invoiceListInvoices`, `invoiceGetInvoice`, `invoiceSendInvoiceEmail`, `invoiceDealerInvoices`
+- Admin-only APIs (do not expose to accounting/sales roles): `invoiceDownloadInvoicePdf`
 - Backend expectation: invoice creation/issuance is not exposed in this controller; accounting portal handles invoice visibility/distribution while issuance is upstream in sales/dispatch workflows.
 - Loading state: list/detail loading; empty no-invoices state; PDF download progress; email send toast.
 - Empty state: no rows / no open items / no period data for selected filters.
 - Error state: inline widget errors + page-level retry + action-level toast; preserve user filters and unsaved inputs.
 - Suggested table columns: From `InvoiceDto`: invoiceNo, invoiceDate, dealerName, grossAmount, taxAmount, netAmount, status, dueDate.
 - Suggested form fields: Email invoice form (recipient, subject/body template controls).
-- Role/permission gate: `ROLE_ADMIN or ROLE_ACCOUNTING or ROLE_SALES` (exact backend)
+- Role/permission gate: Mixed by endpoint: list/detail/email/dealer views inherit `ROLE_ADMIN|ROLE_ACCOUNTING|ROLE_SALES`; `invoiceDownloadInvoicePdf` is `ROLE_ADMIN` only.
 
 ### `/accounting/ar/collections-settlements`
 - Purpose: Receipts, settlements, sales returns, aging/statements for receivables.
-- Required API calls: `acctRecordDealerReceipt`, `acctRecordDealerHybridReceipt`, `acctSettleDealer`, `acctGetDealerAging`, `acctGetDealerAgingDetailed`, `acctDealerStatement`, `acctDealerStatementPdf`, `acctListSalesReturns`, `acctRecordSalesReturn`, `acctPostCreditNote`, `acctWriteOffBadDebt`
+- Required API calls (shared accountant-owned path): `acctRecordDealerReceipt`, `acctRecordDealerHybridReceipt`, `acctSettleDealer`, `acctGetDealerAging`, `acctGetDealerAgingDetailed`, `acctDealerStatement`, `acctListSalesReturns`, `acctRecordSalesReturn`, `acctPostCreditNote`, `acctWriteOffBadDebt`
+- Admin-only exports (keep off accounting/sales action menus): `acctDealerStatementPdf`
 - Loading state: aging panel loaders; no-open-items empty states; settlement action queues; document generation progress.
 - Empty state: no rows / no open items / no period data for selected filters.
 - Error state: inline widget errors + page-level retry + action-level toast; preserve user filters and unsaved inputs.
 - Suggested table columns: Aging columns: bucket(0-30/31-60/61-90/90+), outstanding, overdueDays, latestReceiptDate.
 - Suggested form fields: Receipt/settlement forms from `DealerReceiptRequest`/`DealerSettlementRequest` (amount, mode, allocation lines, reference).
-- Role/permission gate: `ROLE_ADMIN or ROLE_ACCOUNTING` (exact backend). Note: `GET /api/v1/accounting/sales/returns` also permits `ROLE_SALES`.
+- Role/permission gate: Mixed by endpoint: receipts/settlements/aging/statement reads use `ROLE_ADMIN|ROLE_ACCOUNTING`; `GET /api/v1/accounting/sales/returns` also permits `ROLE_SALES`; `acctDealerStatementPdf` is `ROLE_ADMIN` only.
 
 ### `/accounting/ap/suppliers-purchases`
 - Purpose: Supplier master, PO/GRN, raw-material purchase lifecycle, AP settlement/payment.
@@ -563,13 +565,15 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 
 ### `/accounting/reports/financial`
 - Purpose: Trial balance, P&L, balance sheet, cash flow, inventory valuation/reconciliation, aged debtors, wastage.
-- Required API calls: `reportTrialBalance`, `acctGetTrialBalanceAsOf`, `reportProfitLoss`, `reportBalanceSheet`, `reportCashFlow`, `reportInventoryValuation`, `reportInventoryReconciliation`, `reportAgedDebtors`, `reportWastageReport`, `reportReconciliationDashboard`, `acctGenerateGstReturn`, `acctAuditDigest`, `acctAuditDigestCsv`
+- Required API calls: `reportTrialBalance`, `acctGetTrialBalanceAsOf`, `reportProfitLoss`, `reportBalanceSheet`, `reportCashFlow`, `reportInventoryValuation`, `reportInventoryReconciliation`, `reportAgedDebtors`, `reportWastageReport`, `reportReconciliationDashboard`, `acctGenerateGstReturn`
+- Admin-only legacy exports (do not treat as required for this route): `acctAuditDigest`, `acctAuditDigestCsv`
+- Audit-trail route dependency: use `/accounting/audit-trail` with `acctAuditTransactions` and `acctAuditTransactionDetail` for new transaction-audit UX.
 - Loading state: report loader with parameter panel; no-data period state; export/download progress + failure details.
 - Empty state: no rows / no open items / no period data for selected filters.
 - Error state: inline widget errors + page-level retry + action-level toast; preserve user filters and unsaved inputs.
 - Suggested table columns: Report dependent; enforce standard grid controls: sticky totals row, drill-through links, export columns metadata.
 - Suggested form fields: Filter controls: fromDate, toDate, asOfDate, dealer/supplier/account selectors, grouping granularity.
-- Role/permission gate: `ROLE_ADMIN or ROLE_ACCOUNTING` (exact backend)
+- Role/permission gate: Mixed by endpoint: financial reports and GST return use `ROLE_ADMIN|ROLE_ACCOUNTING`; deprecated digest exports are `ROLE_ADMIN` only.
 
 ## Accountant-Grade UX/Logic Controls (Must-Have)
 
@@ -590,7 +594,7 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
   - Returns paged `AccountingTransactionAuditListItemDto` rows.
 - `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
   - Returns `AccountingTransactionAuditDetailDto` with linked documents, settlement allocations, and event trail.
-- Legacy digest endpoints remain but are deprecated:
+- Legacy digest endpoints remain admin-only and are deprecated; keep them out of new accountant-owned routes:
   - `GET /api/v1/accounting/audit/digest`
   - `GET /api/v1/accounting/audit/digest.csv`
 

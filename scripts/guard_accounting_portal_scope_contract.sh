@@ -51,6 +51,60 @@ require_literal() {
   grep -Fq -- "$text" "$file" || fail "$message"
 }
 
+section_contains_literal() {
+  local heading="$1"
+  local needle="$2"
+  local file="$3"
+  awk -v heading="$heading" -v needle="$needle" '
+    $0 == heading { in_section = 1; next }
+    in_section && /^### / { exit(found ? 0 : 1) }
+    in_section && index($0, needle) { found = 1 }
+    END { exit(found ? 0 : 1) }
+  ' "$file"
+}
+
+section_line_contains_literals() {
+  local heading="$1"
+  local first="$2"
+  local second="$3"
+  local file="$4"
+  awk -v heading="$heading" -v first="$first" -v second="$second" '
+    $0 == heading { in_section = 1; next }
+    in_section && /^### / { exit(found ? 0 : 1) }
+    in_section && index($0, first) && index($0, second) { found = 1 }
+    END { exit(found ? 0 : 1) }
+  ' "$file"
+}
+
+require_section_literal() {
+  local heading="$1"
+  local needle="$2"
+  local file="$3"
+  local message="$4"
+  section_contains_literal "$heading" "$needle" "$file" || fail "$message"
+}
+
+forbid_section_literal() {
+  local heading="$1"
+  local needle="$2"
+  local file="$3"
+  local message="$4"
+  if section_contains_literal "$heading" "$needle" "$file"; then
+    fail "$message"
+  fi
+}
+
+forbid_section_line_literals() {
+  local heading="$1"
+  local first="$2"
+  local second="$3"
+  local file="$4"
+  local message="$5"
+  if section_line_contains_literals "$heading" "$first" "$second" "$file"; then
+    fail "$message"
+  fi
+}
+
 assert_endpoint_contract() {
   local module="$1"
   local endpoint="$2"
@@ -127,5 +181,33 @@ require_literal "Updated portal endpoint map and frontend handoff docs" "$GUARDR
   "scope guardrail doc must require portal-map + handoff updates for scope changes"
 require_regex_match 'Updated `?docs/endpoint-inventory\.md`? module mapping and examples' "$GUARDRAIL_DOC" \
   "scope guardrail doc must require endpoint inventory updates for scope changes"
+
+require_literal "admin-only deprecated exports and must not be treated as required APIs for new accountant-owned UI flows" "$HANDOFF_DOC" \
+  "handoff must explicitly classify legacy audit digest endpoints as admin-only deprecated exports"
+
+forbid_section_line_literals "### \`/accounting/ar/invoices\`" "- Required API calls" "invoiceDownloadInvoicePdf" "$HANDOFF_DOC" \
+  "invoice route must not list admin-only PDF export as a shared required API"
+require_section_literal "### \`/accounting/ar/invoices\`" "Admin-only APIs (do not expose to accounting/sales roles): \`invoiceDownloadInvoicePdf\`" "$HANDOFF_DOC" \
+  "invoice route must document invoice PDF as admin-only"
+require_section_literal "### \`/accounting/ar/invoices\`" "Role/permission gate: Mixed by endpoint:" "$HANDOFF_DOC" \
+  "invoice route must document mixed RBAC truth"
+
+forbid_section_line_literals "### \`/accounting/ar/collections-settlements\`" "- Required API calls" "acctDealerStatementPdf" "$HANDOFF_DOC" \
+  "collections route must not list dealer statement PDF as a shared accountant-required API"
+require_section_literal "### \`/accounting/ar/collections-settlements\`" "Admin-only exports (keep off accounting/sales action menus): \`acctDealerStatementPdf\`" "$HANDOFF_DOC" \
+  "collections route must document dealer statement PDF as admin-only"
+require_section_literal "### \`/accounting/ar/collections-settlements\`" "Role/permission gate: Mixed by endpoint:" "$HANDOFF_DOC" \
+  "collections route must document mixed RBAC truth"
+
+forbid_section_line_literals "### \`/accounting/reports/financial\`" "- Required API calls" "acctAuditDigest" "$HANDOFF_DOC" \
+  "financial reports route must not list deprecated digest endpoints as required APIs"
+forbid_section_line_literals "### \`/accounting/reports/financial\`" "- Required API calls" "acctAuditDigestCsv" "$HANDOFF_DOC" \
+  "financial reports route must not list deprecated digest CSV as a required API"
+require_section_literal "### \`/accounting/reports/financial\`" "Admin-only legacy exports (do not treat as required for this route): \`acctAuditDigest\`, \`acctAuditDigestCsv\`" "$HANDOFF_DOC" \
+  "financial reports route must classify digest exports as admin-only legacy"
+require_section_literal "### \`/accounting/reports/financial\`" "Audit-trail route dependency: use \`/accounting/audit-trail\` with \`acctAuditTransactions\` and \`acctAuditTransactionDetail\` for new transaction-audit UX." "$HANDOFF_DOC" \
+  "financial reports route must point new audit UX to transaction audit route"
+require_section_literal "### \`/accounting/reports/financial\`" "Role/permission gate: Mixed by endpoint:" "$HANDOFF_DOC" \
+  "financial reports route must document mixed RBAC truth"
 
 echo "[guard_accounting_portal_scope_contract] OK"
