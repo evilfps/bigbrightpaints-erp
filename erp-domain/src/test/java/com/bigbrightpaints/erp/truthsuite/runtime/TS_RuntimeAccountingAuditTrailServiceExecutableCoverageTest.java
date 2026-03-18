@@ -3,8 +3,11 @@ package com.bigbrightpaints.erp.truthsuite.runtime;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
@@ -25,7 +28,9 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepo
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,6 +86,11 @@ class TS_RuntimeAccountingAuditTrailServiceExecutableCoverageTest {
 
     @Test
     void listTransactions_classifiesSupplierJournalAndTotals() {
+        Instant fixedNow = Instant.parse("2026-02-18T00:00:00Z");
+        installCompanyTime(fixedNow);
+        assertThat(CompanyTime.now()).isEqualTo(fixedNow);
+        assertThat(CompanyTime.today()).isEqualTo(LocalDate.of(2026, 2, 18));
+
         JournalEntry entry = new JournalEntry();
         setField(entry, "id", 71L);
         entry.setReferenceNumber("RMP-2026-0001");
@@ -163,6 +173,16 @@ class TS_RuntimeAccountingAuditTrailServiceExecutableCoverageTest {
         assertThat(detail.module()).isEqualTo("SETTLEMENT");
         assertThat(detail.consistencyStatus()).isEqualTo("WARNING");
         assertThat(detail.consistencyNotes()).anyMatch(note -> note.contains("Settlement-like reference"));
+    }
+
+    private static void installCompanyTime(Instant now) {
+        CompanyClock companyClock = mock(CompanyClock.class);
+        LocalDate today = LocalDate.ofInstant(now, ZoneOffset.UTC);
+        when(companyClock.now(any())).thenReturn(now);
+        when(companyClock.now(null)).thenReturn(now);
+        when(companyClock.today(any())).thenReturn(today);
+        when(companyClock.today(null)).thenReturn(today);
+        new CompanyTime(companyClock);
     }
 
     private static void setField(Object target, String fieldName, Object value) {

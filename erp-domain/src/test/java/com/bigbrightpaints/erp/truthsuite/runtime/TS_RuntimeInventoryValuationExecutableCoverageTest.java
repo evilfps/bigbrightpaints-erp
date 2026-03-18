@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
@@ -18,6 +20,8 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodReposit
 import com.bigbrightpaints.erp.modules.reports.service.InventoryValuationService;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -29,6 +33,11 @@ class TS_RuntimeInventoryValuationExecutableCoverageTest {
 
     @Test
     void fifoFinishedGoodValuation_usesQuantityAvailable_notQuantityTotal() {
+        Instant fixedNow = Instant.parse("2026-03-18T00:00:00Z");
+        installCompanyTime(fixedNow);
+        assertThat(CompanyTime.now()).isEqualTo(fixedNow);
+        assertThat(CompanyTime.today()).isEqualTo(LocalDate.of(2026, 3, 18));
+
         RawMaterialRepository rawMaterialRepository = mock(RawMaterialRepository.class);
         RawMaterialBatchRepository rawMaterialBatchRepository = mock(RawMaterialBatchRepository.class);
         FinishedGoodRepository finishedGoodRepository = mock(FinishedGoodRepository.class);
@@ -83,5 +92,15 @@ class TS_RuntimeInventoryValuationExecutableCoverageTest {
 
         assertThat(snapshot.totalValue()).isEqualByComparingTo("150.00");
         assertThat(snapshot.lowStockItems()).isEqualTo(0L);
+    }
+
+    private static void installCompanyTime(Instant now) {
+        CompanyClock companyClock = mock(CompanyClock.class);
+        LocalDate today = LocalDate.ofInstant(now, ZoneOffset.UTC);
+        when(companyClock.now(org.mockito.ArgumentMatchers.any())).thenReturn(now);
+        when(companyClock.now(null)).thenReturn(now);
+        when(companyClock.today(org.mockito.ArgumentMatchers.any())).thenReturn(today);
+        when(companyClock.today(null)).thenReturn(today);
+        new CompanyTime(companyClock);
     }
 }

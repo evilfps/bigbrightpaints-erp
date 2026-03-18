@@ -4,9 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
@@ -38,6 +41,10 @@ class TS_RuntimeChangelogServiceExecutableCoverageTest {
 
     @Test
     void createUpdateSoftDeleteAndQueries_coverChangelogLifecycle() {
+        Instant fixedNow = Instant.parse("2026-03-04T00:00:00Z");
+        installCompanyTime(fixedNow);
+        assertThat(CompanyTime.now()).isEqualTo(fixedNow);
+        assertThat(CompanyTime.today()).isEqualTo(java.time.LocalDate.of(2026, 3, 4));
         ChangelogService service = new ChangelogService(changelogEntryRepository, auditService);
 
         when(changelogEntryRepository.save(any(ChangelogEntry.class))).thenAnswer(invocation -> {
@@ -112,6 +119,16 @@ class TS_RuntimeChangelogServiceExecutableCoverageTest {
         assertThat(response.totalElements()).isEqualTo(2);
         assertThat(response.content()).hasSize(2);
         assertThat(response.content().get(0).version()).isEqualTo("2.0.0");
+    }
+
+    private static void installCompanyTime(Instant now) {
+        CompanyClock companyClock = mock(CompanyClock.class);
+        java.time.LocalDate today = java.time.LocalDate.ofInstant(now, java.time.ZoneOffset.UTC);
+        when(companyClock.now(any())).thenReturn(now);
+        when(companyClock.now(null)).thenReturn(now);
+        when(companyClock.today(any())).thenReturn(today);
+        when(companyClock.today(null)).thenReturn(today);
+        new CompanyTime(companyClock);
     }
 
     private ChangelogEntry buildEntry(Long id,

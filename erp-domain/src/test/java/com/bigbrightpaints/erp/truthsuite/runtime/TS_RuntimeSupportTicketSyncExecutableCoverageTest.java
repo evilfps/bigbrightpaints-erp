@@ -21,6 +21,8 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -35,8 +37,11 @@ class TS_RuntimeSupportTicketSyncExecutableCoverageTest {
 
     private static void installCompanyTime(Instant now) {
         CompanyClock companyClock = org.mockito.Mockito.mock(CompanyClock.class);
+        LocalDate today = LocalDate.ofInstant(now, ZoneOffset.UTC);
         when(companyClock.now(any())).thenReturn(now);
         when(companyClock.now(null)).thenReturn(now);
+        when(companyClock.today(any())).thenReturn(today);
+        when(companyClock.today(null)).thenReturn(today);
         new CompanyTime(companyClock);
     }
 
