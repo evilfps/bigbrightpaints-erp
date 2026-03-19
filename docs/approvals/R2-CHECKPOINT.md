@@ -3,10 +3,10 @@
 ## Scope
 - Feature: `ERP-19 Packet 2: admin and tenant control-plane cleanup`
 - PR: `#123`
-- Review candidate SHA: `f5e4df70b93a3f4cdd3beacc426484230e017ab5`
+- Review candidate SHA: `ea5a81ddb2f77811082ca7299c878e1051ce3ede`
 - PR branch: `feature/erp-stabilization-program--erp-19`
 - Rebuild branch: `feature/erp-stabilization-program--erp-19-rebuild`
-- Why this is R2: this packet hard-cuts approval and tenant-bootstrap control-plane contract cleanup on admin and super-admin surfaces, removes retired public aliases, restores machine-readable export scope in the single approval inbox, refreshes the frontend/backend handoff docs, and updates the canonical OpenAPI snapshot on a review candidate that required fresh proof after a real tenant-admin provisioning defect was found.
+- Why this is R2: this packet hard-cuts approval and tenant-bootstrap control-plane contract cleanup on admin and super-admin surfaces, removes retired public aliases, restores machine-readable export scope in the single approval inbox, refreshes the frontend/backend handoff docs, and updates the canonical OpenAPI snapshot on a review candidate that required fresh proof after a real tenant-admin `ROLE_ADMIN` synchronization defect was found and fixed.
 
 ## Risk Trigger
 - Triggered by control-plane contract cleanup on privileged admin and super-admin routes where stale aliases or missing typed fields would cause deterministic frontend/operator drift.
@@ -17,7 +17,7 @@
 - Mode: human
 - Approver: `Anas ibn Anwar`
 - Approval status: `pending PR review and merge approval`
-- Basis: the bounded packet proof is green on review candidate `f5e4df70b93a3f4cdd3beacc426484230e017ab5`, but the PR branch still needs the rebuilt head pushed and reviewed on GitHub before merge.
+- Basis: the bounded packet proof is green on review candidate `ea5a81ddb2f77811082ca7299c878e1051ce3ede`, the live PR branch now points at that runtime-bearing candidate, and the remaining gate is GitHub review/CI completion plus explicit human merge approval.
 
 ## Escalation Decision
 - Human escalation required: yes
@@ -34,7 +34,7 @@
 
 ## Expiry
 - Valid until: `2026-03-27`
-- Re-evaluate if: any runtime-bearing change lands beyond review candidate `f5e4df70b93a3f4cdd3beacc426484230e017ab5`, the focused control-plane/OpenAPI proof is re-run on a different candidate SHA, or the bounded packet grows beyond approval/bootstrap contract cleanup.
+- Re-evaluate if: any runtime-bearing change lands beyond review candidate `ea5a81ddb2f77811082ca7299c878e1051ce3ede`, the focused control-plane/OpenAPI proof is re-run on a different candidate SHA, or the bounded packet grows beyond approval/bootstrap contract cleanup.
 
 ## Residual Follow-up
 - Explicit follow-up ticket: `ERP-30`
@@ -42,21 +42,26 @@
 - Why excluded here: that lifecycle/create-update route convergence remains outside the bounded ERP-19 packet and was intentionally not merged into this PR.
 
 ## Verification Evidence
-- Focused packet suite on review candidate `f5e4df70b93a3f4cdd3beacc426484230e017ab5`:
-  - `cd erp-domain && mvn -B -ntp -Dtest=CompanyControllerIT,SuperAdminControllerIT,AdminSettingsControllerApprovalsContractTest,AdminApprovalRbacIT,TenantOnboardingControllerTest,ReportExportApprovalIT test`
+- Focused packet suite on review candidate `ea5a81ddb2f77811082ca7299c878e1051ce3ede`:
+  - `cd erp-domain && mvn -B -ntp -Dtest=CompanyControllerIT,SuperAdminControllerIT,AdminSettingsControllerApprovalsContractTest,AdminApprovalRbacIT,TenantOnboardingControllerTest,TenantOnboardingServiceTest,TenantAdminProvisioningServiceTest,ReportExportApprovalIT test`
   - result: `BUILD SUCCESS`
-  - tests: `41 run, 0 failures, 0 errors, 0 skipped`
-  - completed: `2026-03-20 02:04:09 +05:30`
-- OpenAPI snapshot proof on review candidate `f5e4df70b93a3f4cdd3beacc426484230e017ab5`:
+  - tests: `58 run, 0 failures, 0 errors, 0 skipped`
+  - completed: `2026-03-20 02:47:58 +05:30`
+- Changed-files coverage proof on review candidate `ea5a81ddb2f77811082ca7299c878e1051ce3ede`:
+  - `python3 scripts/changed_files_coverage.py --jacoco erp-domain/target/site/jacoco/jacoco.xml --diff-base 49d97114c80a05189976d3d392c8749e2a05bc27 --src-root erp-domain/src/main/java --threshold-line 0.95 --threshold-branch 0.90 --fail-on-vacuous --output /tmp/erp19-postfix-coverage-5.json`
+  - result: `PASS`
+  - summary: `line_ratio=1.0`, `branch_ratio=1.0`, `files_with_unmapped_lines=[]`
+  - completed: `2026-03-20 02:49:21 +05:30`
+- OpenAPI snapshot proof on review candidate `ea5a81ddb2f77811082ca7299c878e1051ce3ede`:
   - `cd erp-domain && mvn -Djacoco.skip=true -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true -Dtest=OpenApiSnapshotIT test`
   - result: `BUILD SUCCESS`
   - tests: `2 run, 0 failures, 0 errors, 0 skipped`
-  - completed: `2026-03-20 02:05:00 +05:30`
+  - completed: `2026-03-20 02:50:49 +05:30`
 - Non-mutating OpenAPI verification on the refreshed snapshot:
   - `cd erp-domain && mvn -Djacoco.skip=true -Derp.openapi.snapshot.verify=true -Dtest=OpenApiSnapshotIT test`
   - result: `BUILD SUCCESS`
   - tests: `2 run, 0 failures, 0 errors, 0 skipped`
-  - completed: `2026-03-20 02:11:48 +05:30`
+  - completed: `2026-03-20 02:52:39 +05:30`
 - Hygiene proof:
   - `git diff --check`
   - `git diff --cached --check`
@@ -75,8 +80,8 @@
   - `TenantOnboardingResponse` exposes `bootstrapMode`, `seededChartOfAccounts`, `defaultAccountingPeriodCreated`, and `tenantAdminProvisioned`
 
 ## Reviewer Notes
-- The tenant-admin provisioning fix in this packet is behaviorally small but important: the packet now reattaches `ROLE_ADMIN` from `RoleRepository` before persisting bootstrap admins so the join row is written durably on both tenant bootstrap paths.
+- The tenant-admin provisioning fix in this packet is behaviorally small but important: the packet now explicitly runs `RoleService.ensureRoleExists("ROLE_ADMIN")` to synchronize default permissions, then loads the persisted shared role from `RoleRepository` before persisting bootstrap admins on both tenant bootstrap paths.
 - The approval inbox now retains export scope as structured fields so approvers do not have to parse `summary` to inspect report type, raw parameters, or requester identity.
-- Current head may include docs-only proof-artifact commits above the review candidate; `f5e4df70b93a3f4cdd3beacc426484230e017ab5` is the last runtime-bearing SHA covered by the proof listed above.
+- Current head may include docs-only checkpoint/workflow-note commits above the review candidate; `ea5a81ddb2f77811082ca7299c878e1051ce3ede` is the last runtime-bearing SHA covered by the proof listed above.
 - Route-family hard-cut work was intentionally left out of this packet. Review should block any attempt to smuggle `/api/v1/superadmin/tenants/**` create/update migration or `CompanyContextFilter` rebinding into this PR.
 - Review should use committed sources plus the rerunnable commands above; older dirty ERP-19 worktrees are source material only and are not branch truth.
