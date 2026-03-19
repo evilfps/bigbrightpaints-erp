@@ -120,6 +120,10 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
         assertThat(creditApproval.get("ownerType")).isEqualTo("SALES");
         assertThat(creditApproval.containsKey("type")).isFalse();
         assertThat(creditApproval.containsKey("sourcePortal")).isFalse();
+        assertThat(creditApproval.containsKey("reportType")).isFalse();
+        assertThat(creditApproval.containsKey("parameters")).isFalse();
+        assertThat(creditApproval.containsKey("requesterUserId")).isFalse();
+        assertThat(creditApproval.containsKey("requesterEmail")).isFalse();
 
         List<?> exportApprovals = (List<?>) approvalsData.get("exportRequests");
         assertThat(exportApprovals).isNotEmpty();
@@ -132,6 +136,10 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
         assertThat(exportApproval.get("ownerType")).isEqualTo("REPORTS");
         assertThat(exportApproval.containsKey("type")).isFalse();
         assertThat(exportApproval.containsKey("sourcePortal")).isFalse();
+        assertThat(exportApproval.get("reportType")).isEqualTo("SALES_SUMMARY");
+        assertThat(exportApproval.get("parameters")).isEqualTo("periodId=7");
+        assertThat(exportApproval.get("requesterEmail")).isEqualTo(ACCOUNTING_EMAIL);
+        assertThat(exportApproval.get("requesterUserId")).isNotNull();
     }
 
     @Test

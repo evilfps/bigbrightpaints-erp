@@ -216,6 +216,10 @@ public class AdminSettingsController {
                 reference,
                 status,
                 summary,
+                null,
+                null,
+                null,
+                null,
                 actionType,
                 actionLabel,
                 approveEndpoint,
@@ -340,7 +344,7 @@ public class AdminSettingsController {
         String summary = "Approve export request " + reference
                 + " for report " + request.reportType()
                 + " requested by " + (StringUtils.hasText(request.userEmail()) ? request.userEmail() : "unknown user");
-        return approvalItem(
+        return new AdminApprovalItemDto(
                 AdminApprovalItemDto.OriginType.EXPORT_REQUEST,
                 AdminApprovalItemDto.OwnerType.REPORTS,
                 request.id(),
@@ -348,6 +352,10 @@ public class AdminSettingsController {
                 reference,
                 normalizeStatus(request.status() != null ? request.status().name() : null),
                 summary,
+                request.reportType(),
+                request.parameters(),
+                request.userId(),
+                request.userEmail(),
                 EXPORT_REQUEST_APPROVAL_ACTION,
                 "Approve data export",
                 EXPORT_REQUEST_APPROVE_ENDPOINT,

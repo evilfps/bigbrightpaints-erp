@@ -642,9 +642,15 @@ Accounting role users (`ROLE_ACCOUNTING`) can operate approvals via:
   - `rejectEndpoint` (nullable for payroll)
 
 Queue payload fields to render directly:
-- `type`, `reference`, `status`, `summary`,
-- `actionType`, `actionLabel`, `sourcePortal`,
+- `originType`, `ownerType`, `reference`, `status`, `summary`,
+- `actionType`, `actionLabel`,
 - `approveEndpoint`, `rejectEndpoint`, `createdAt`.
+
+Export approval rows additionally expose:
+- `reportType`
+- `parameters`
+- `requesterUserId`
+- `requesterEmail`
 
 Action semantics:
 - Credit request approvals: `/api/v1/sales/credit-requests/{id}/approve|reject`

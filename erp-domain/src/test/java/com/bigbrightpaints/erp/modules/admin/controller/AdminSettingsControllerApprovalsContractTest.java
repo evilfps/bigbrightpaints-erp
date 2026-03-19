@@ -347,6 +347,10 @@ class AdminSettingsControllerApprovalsContractTest {
         assertThat(exportApproval.status()).isEqualTo("PENDING");
         assertThat(exportApproval.summary()).contains("report SALES_SUMMARY");
         assertThat(exportApproval.summary()).contains("ops.reports@bbp.com");
+        assertThat(exportApproval.reportType()).isEqualTo("SALES_SUMMARY");
+        assertThat(exportApproval.parameters()).isEqualTo("{\"range\":\"MTD\"}");
+        assertThat(exportApproval.requesterUserId()).isEqualTo(7001L);
+        assertThat(exportApproval.requesterEmail()).isEqualTo("ops.reports@bbp.com");
         assertThat(exportApproval.actionType()).isEqualTo("APPROVE_EXPORT_REQUEST");
         assertThat(exportApproval.actionLabel()).isEqualTo("Approve data export");
         assertThat(exportApproval.approveEndpoint()).isEqualTo("/api/v1/admin/exports/{id}/approve");

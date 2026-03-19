@@ -188,7 +188,7 @@ Request path:
 
 Decision path:
 
-- `GET /api/v1/admin/approvals` is the single approval inbox. Export requests appear there with typed `originType=EXPORT_REQUEST` and `ownerType=REPORTS`.
+- `GET /api/v1/admin/approvals` is the single approval inbox for tenant-scoped admin/accounting users. Export requests appear there with typed `originType=EXPORT_REQUEST`, `ownerType=REPORTS`, plus machine-readable `reportType`, `parameters`, `requesterUserId`, and `requesterEmail`.
 - `GET /api/v1/admin/exports/pending` is retired and no longer part of the live contract.
 - `PUT /api/v1/admin/exports/{requestId}/approve` changes state to `APPROVED` and records `approvedBy`/`approvedAt`.
 - `PUT /api/v1/admin/exports/{requestId}/reject` changes state to `REJECTED` and stores a rejection reason.
@@ -210,7 +210,7 @@ This means export approval is a soft gate rather than a durable decision. The sc
 - accounting period close requests,
 - export approvals.
 
-The method is explicitly `@Transactional(readOnly = true)` and converts each pending item into an `AdminApprovalItemDto` with typed `originType` / `ownerType`, action labels, and approve/reject endpoint templates. This is valuable operationally because it gives the governance UI a unified queue, but it is only a synthesizer: it does not own the actual approval rules.
+The method is explicitly `@Transactional(readOnly = true)` and converts each pending item into an `AdminApprovalItemDto` with typed `originType` / `ownerType`, action labels, approve/reject endpoint templates, and export-specific machine-readable detail when `originType=EXPORT_REQUEST`. This is valuable operationally because it gives the governance UI a unified queue, but it is only a synthesizer: it does not own the actual approval rules.
 
 `POST /api/v1/admin/notify` is a smaller but still sensitive control. It lets any tenant admin send an arbitrary SMTP email through `EmailService.sendSimpleEmail(...)` using the platform-wide mail configuration. The method does not write an audit event of its own.
 

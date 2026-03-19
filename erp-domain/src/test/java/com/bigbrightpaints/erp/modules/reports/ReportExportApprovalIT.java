@@ -99,6 +99,9 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
         assertThat(exportRequests)
                 .anySatisfy(row -> {
                     assertThat(row.get("originType")).isEqualTo("EXPORT_REQUEST");
+                    assertThat(row.get("reportType")).isEqualTo("TRIAL-BALANCE");
+                    assertThat(row.get("parameters")).isEqualTo("periodId=10");
+                    assertThat(row.get("requesterEmail")).isEqualTo(ACCOUNTING_EMAIL);
                     assertThat(String.valueOf(row.get("reference"))).startsWith("EXP-");
                 });
 
@@ -213,6 +216,9 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
                 .anySatisfy(row -> {
                     assertThat(row.get("originType")).isEqualTo("EXPORT_REQUEST");
                     assertThat(row.get("ownerType")).isEqualTo("REPORTS");
+                    assertThat(row.get("reportType")).isEqualTo("AGED-DEBTORS");
+                    assertThat(row.get("parameters")).isEqualTo("periodId=5");
+                    assertThat(row.get("requesterEmail")).isEqualTo(ACCOUNTING_EMAIL);
                     assertThat(String.valueOf(row.get("reference"))).startsWith("EXP-");
                 });
     }

@@ -4,8 +4,8 @@ This handoff covers the bounded ERP-19 contract cleanup that landed with the adm
 
 ## Included now
 
-- `GET /api/v1/admin/approvals` remains the single approval inbox.
-- `AdminApprovalItemDto` now exposes typed `originType` and `ownerType` fields.
+- `GET /api/v1/admin/approvals` remains the single tenant-scoped approval inbox.
+- `AdminApprovalItemDto` now exposes typed `originType` and `ownerType` fields, and export approval rows retain machine-readable export detail.
 - `GET /api/v1/admin/exports/pending` is retired.
 - `POST /api/v1/superadmin/tenants/onboard` now returns explicit bootstrap confirmation fields.
 - `GET /api/v1/companies/superadmin/dashboard` is retired.
@@ -21,6 +21,12 @@ Changed payload fields for each approval item:
 - added `ownerType`
 - removed `type`
 - removed `sourcePortal`
+
+Export approval rows (`originType=EXPORT_REQUEST`) additionally expose:
+- `reportType`
+- `parameters`
+- `requesterUserId`
+- `requesterEmail`
 
 Current emitted `originType` values:
 - `CREDIT_REQUEST`
@@ -48,7 +54,9 @@ Unchanged approval item fields:
 
 Frontend action:
 - switch approval queue rendering, filtering, and badge logic to `originType` and `ownerType`
+- render export approval detail from `reportType`, `parameters`, `requesterUserId`, and `requesterEmail` instead of parsing `summary`
 - stop reading `type` and `sourcePortal`
+- keep `GET /api/v1/admin/approvals` limited to tenant-scoped admin/accounting callers; do not point platform super-admin tooling at that prefix
 
 ## Tenant onboarding success contract
 
@@ -88,7 +96,7 @@ Frontend action:
 
 - do not call `GET /api/v1/admin/exports/pending`
 - do not call `GET /api/v1/companies/superadmin/dashboard`
-- use `GET /api/v1/admin/approvals` for approval queue access
+- use `GET /api/v1/admin/approvals` for tenant-scoped admin/accounting approval queue access only
 - use `GET /api/v1/superadmin/dashboard` for the super-admin dashboard
 
 ## Out of scope follow-up
