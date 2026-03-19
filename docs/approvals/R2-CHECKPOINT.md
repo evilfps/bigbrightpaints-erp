@@ -1,80 +1,71 @@
 # R2 Checkpoint
 
 ## Scope
-- Feature: `pr119-canary-readiness`
-- Runtime candidate SHA: `2fba82e91748f60872727c8f530369e66d95c0a8`
-- Readiness packet SHA: `80aab18d04c65c4195868d2c0f42c96fc0d3eb7c`
-- Branch: `feature/pr119-canary-readiness-clean`
-- Why this is R2: this packet closes the post-merge deploy-readiness gap on live `main`, fixes accounting-portal handoff RBAC/readiness drift, and records the canary ownership/rollback decision on the exact proved runtime SHA.
+- Feature: `ERP-19 Packet 2: admin and tenant control-plane cleanup`
+- PR: `#123`
+- Review candidate SHA: `5ee48e594f0dbdbb6dd5cf81bbf40ec3915a3933`
+- PR branch: `feature/erp-stabilization-program--erp-19`
+- Rebuild branch: `feature/erp-stabilization-program--erp-19-rebuild`
+- Why this is R2: this packet hard-cuts approval and tenant-bootstrap control-plane contract cleanup on admin and super-admin surfaces, removes retired public aliases, refreshes the frontend/backend handoff docs, and updates the canonical OpenAPI snapshot on a review candidate that required fresh proof after a real tenant-admin provisioning defect was found.
 
 ## Risk Trigger
-- Triggered by post-merge deploy-readiness closure on live `main`, where incorrect portal handoff scope could have exposed accountant or sales users to deterministic `403` failures on admin-only exports during canary.
-- Contract surfaces affected: accounting portal route ownership, portal/frontend handoff RBAC truth, audit-trail route guidance, release gate documentation, and canary operator ownership.
-- Failure mode if wrong: canary proceeds without a named owner/rollback decision, or frontend/operator handoff treats admin-only exports as accountant-required flows and hits deterministic authorization failures under live traffic.
+- Triggered by control-plane contract cleanup on privileged admin and super-admin routes where stale aliases or missing typed fields would cause deterministic frontend/operator drift.
+- Contract surfaces affected: `GET /api/v1/admin/approvals`, `AdminApprovalItemDto`, `POST /api/v1/superadmin/tenants/onboard`, `GET /api/v1/superadmin/dashboard`, and the retired aliases `GET /api/v1/admin/exports/pending` and `GET /api/v1/companies/superadmin/dashboard`.
+- Failure mode if wrong: approval consumers read removed payload fields, frontend/operator flows keep calling dead aliases, or tenant bootstrap returns a false-success contract while provisioning a tenant admin without `ROLE_ADMIN`.
 
 ## Approval Authority
 - Mode: human
 - Approver: `Anas ibn Anwar`
-- Approval status: `approved for merge handoff; canary entry remains pending canonical-lane merge plus post-merge gate re-proof`
-- Basis: runtime and staging proof are green on the exact merged runtime SHA, the docs/readiness packet is corrected through `80aab18d04c65c4195868d2c0f42c96fc0d3eb7c`, and canary may proceed only after the merged canonical-lane head re-proves the release gates listed below.
+- Approval status: `pending PR review and merge approval`
+- Basis: the bounded packet proof is green on review candidate `5ee48e594f0dbdbb6dd5cf81bbf40ec3915a3933`, but the PR branch still needs the rebuilt head pushed and reviewed on GitHub before merge.
 
 ## Escalation Decision
-- Human escalation required: no additional human approval after the packet is merged to the canonical lane and the post-merge gate sequence re-proves green on that merged head
-- Reason: explicit canary owner and rollback owner are recorded here, but this file does not authorize canary from a local-only readiness branch. Canary remains blocked until merge/publication and fresh gate proof on the merged head.
-
-## Canary Owner
-- Lane owner: `Anas ibn Anwar`
-- Lane-owner acknowledgement: `Anas ibn Anwar approved canary entry for runtime candidate 2fba82e91748f60872727c8f530369e66d95c0a8 only after this packet is merged to the canonical lane and scripts/gate_core.sh, scripts/gate_release.sh, and scripts/verify_local.sh are re-proved green on that merged head.`
+- Human escalation required: yes
+- Reason: this packet changes privileged control-plane routes and approval/bootstrap contracts, and the default release gate for R2 remains explicit human approval on the GitHub PR after proof is replayable from committed sources.
 
 ## Rollback Owner
 - Owner: `Anas ibn Anwar`
-- Rollback method: stop canary expansion, revert to the previous backend artifact, then rerun `scripts/gate_release.sh` and `scripts/verify_local.sh` on the rollback target before resuming traffic expansion.
+- Rollback method: revert the ERP-19 packet commit(s), refresh `openapi.json`, and rerun the focused control-plane proof plus OpenAPI snapshot verification before restoring the prior PR head.
 - Rollback trigger:
-  - actuator readiness goes `DOWN`
-  - auth or tenant-isolation probe fails
-  - minimum O2C probe fails
-  - minimum P2P/accounting probe fails
-  - sustained unexpected `5xx` or authorization anomaly on canary traffic
+  - approval inbox consumers fail on typed `originType` / `ownerType`
+  - retired alias callers hit unexpected live traffic after merge
+  - seeded tenant onboarding returns success while tenant-admin provisioning is not durable
+  - OpenAPI snapshot or frontend handoff docs drift from the merged route surface
 
-## Telemetry Signals
-- Actuator readiness and liveness
-- Application `5xx` rate on canary slice
-- Auth/authorization anomalies, including unexpected `403` on intended canary flows
-- O2C dispatch-confirm, invoice visibility, and dealer receipt outcomes
-- P2P goods-receipt, raw-material purchase, and supplier-payment outcomes
-- Database migration/connection errors and rollback readiness posture
-
-## Minimum Canary Probes
-- O2C:
-  - `POST /api/v1/sales/dispatch/confirm`
-  - verify downstream invoice/journal truth
-  - `POST /api/v1/accounting/receipts/dealer`
-- P2P/accounting:
-  - `POST /api/v1/purchasing/goods-receipts`
-  - `POST /api/v1/purchasing/raw-material-purchases`
-  - `POST /api/v1/accounting/suppliers/payments`
-
-## Expiry
-- Valid until: `2026-03-25`
-- Re-evaluate if: runtime candidate SHA changes, release proof is superseded, rollback procedure changes, or canary scope expands beyond the narrow probes above.
+## Residual Follow-up
+- Explicit follow-up ticket: `ERP-30`
+- Follow-up scope: `CompanyContextFilter` target-tenant rebinding plus the hard-cut route-family migration onto `/api/v1/superadmin/tenants/**`
+- Why excluded here: that lifecycle/create-update route convergence remains outside the bounded ERP-19 packet and was intentionally not merged into this PR.
 
 ## Verification Evidence
-- Exact-main proof on live runtime SHA `2fba82e91748f60872727c8f530369e66d95c0a8`:
-  - `scripts/gate_core.sh` passed at `2026-03-18 17:45:54 +05:30`
-  - `scripts/gate_release.sh` passed at `2026-03-18 17:47:32 +05:30`
-  - `scripts/verify_local.sh` passed at `2026-03-18 17:49:01 +05:30`
-- Current readiness packet proof inherited by `80aab18d04c65c4195868d2c0f42c96fc0d3eb7c`:
-  - `scripts/gate_core.sh` passed on packet ancestor `ef2e56284aa38dc0799144765d8b91ba610c0ab5` at `2026-03-18T13:33:28Z`
-  - `scripts/gate_release.sh` passed on packet ancestor `ef2e56284aa38dc0799144765d8b91ba610c0ab5` at `2026-03-18T13:35:03Z`
-  - standalone `scripts/verify_local.sh` passed on packet ancestor `ef2e56284aa38dc0799144765d8b91ba610c0ab5` at `2026-03-18T19:06:19+05:30` with `439` tests, `0` failures, `0` errors
-- Docs/readiness closure:
-  - `docs/accounting-portal-frontend-engineer-handoff.md` corrected for RBAC and legacy audit-export scope
-  - `scripts/guard_accounting_portal_scope_contract.sh` hardened to fail on those contradictions
-- Reviewable replay contract:
-  - reviewers must validate this packet from a clean checkout with rerunnable commands, not repo-local `artifacts/`
-  - required replay commands: `scripts/gate_core.sh`, `scripts/gate_release.sh`, `scripts/verify_local.sh`, `scripts/guard_accounting_portal_scope_contract.sh`, `scripts/guard_audit_trail_ownership_contract.sh`
-  - canary remains blocked until those commands are re-proved on the merged canonical-lane head for the runtime candidate above
+- Focused packet suite on review candidate `5ee48e594f0dbdbb6dd5cf81bbf40ec3915a3933`:
+  - `cd erp-domain && mvn -B -ntp -Dtest=CompanyControllerIT,SuperAdminControllerIT,AdminSettingsControllerApprovalsContractTest,AdminApprovalRbacIT,TenantOnboardingControllerTest,ReportExportApprovalIT test`
+  - result: `BUILD SUCCESS`
+  - tests: `41 run, 0 failures, 0 errors, 0 skipped`
+  - completed: `2026-03-20 01:45:08 +05:30`
+- OpenAPI snapshot proof on review candidate `5ee48e594f0dbdbb6dd5cf81bbf40ec3915a3933`:
+  - `cd erp-domain && mvn -Djacoco.skip=true -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true -Dtest=OpenApiSnapshotIT test`
+  - result: `BUILD SUCCESS`
+  - tests: `2 run, 0 failures, 0 errors, 0 skipped`
+  - completed: `2026-03-20 01:46:04 +05:30`
+- Hygiene proof:
+  - `git diff --check`
+  - `git diff --cached --check`
+  - result: clean before packet commit
+- Contract spot checks against refreshed `openapi.json`:
+  - sha256: `4783914d8ca2c925d259ddbe4671e55a940006ecabc7f95c06147069cd2d810a`
+  - total paths: `309`
+  - total operations: `370`
+  - admin path count: `17`
+  - companies path count: `9`
+  - `/api/v1/admin/exports/pending` absent
+  - `/api/v1/admin/approvals` present as the single inbox
+  - `AdminApprovalItemDto` exposes `originType` and `ownerType` and no longer exposes `type` or `sourcePortal`
+  - `/api/v1/companies/superadmin/dashboard` absent
+  - `/api/v1/superadmin/dashboard` present
+  - `TenantOnboardingResponse` exposes `bootstrapMode`, `seededChartOfAccounts`, `defaultAccountingPeriodCreated`, and `tenantAdminProvisioned`
 
 ## Reviewer Notes
-- Local run outputs under `artifacts/` are non-canonical and intentionally excluded from this readiness packet.
-- Merge/readiness review must rely on committed docs plus the rerunnable commands above.
+- The tenant-admin provisioning fix in this packet is behaviorally small but important: the packet now reattaches `ROLE_ADMIN` from `RoleRepository` before persisting bootstrap admins so the join row is written durably on both tenant bootstrap paths.
+- Route-family hard-cut work was intentionally left out of this packet. Review should block any attempt to smuggle `/api/v1/superadmin/tenants/**` create/update migration or `CompanyContextFilter` rebinding into this PR.
+- Review should use committed sources plus the rerunnable commands above; older dirty ERP-19 worktrees are source material only and are not branch truth.
