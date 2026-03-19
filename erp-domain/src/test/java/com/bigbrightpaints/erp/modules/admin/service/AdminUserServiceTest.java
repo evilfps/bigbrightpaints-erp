@@ -109,7 +109,7 @@ class AdminUserServiceTest {
         company = new Company();
         ReflectionTestUtils.setField(company, "id", 1L);
         company.setCode("TEST");
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
         lenient().when(passwordEncoder.encode(any())).thenReturn("encoded");
         lenient().when(userRepository.save(any(UserAccount.class))).thenAnswer(invocation -> {
             UserAccount user = invocation.getArgument(0);
@@ -435,6 +435,58 @@ class AdminUserServiceTest {
     }
 
     @Test
+    void listUsers_exposesOnlyFixedSystemRolesOnAdminFacingDtos() {
+        UserAccount user = new UserAccount("mixed-role-user@example.com", "hash", "Mixed Role User");
+        ReflectionTestUtils.setField(user, "id", 321L);
+        user.addCompany(company);
+        Role adminRole = new Role();
+        adminRole.setName("ROLE_ADMIN");
+        user.addRole(adminRole);
+        Role legacyRole = new Role();
+        legacyRole.setName("ROLE_LEGACY_FINANCE");
+        user.addRole(legacyRole);
+
+        when(userRepository.findDistinctByCompanies_Id(company.getId())).thenReturn(List.of(user));
+        when(auditLogRepository.findLatestTimestampByEventTypeAndUsernameIn(
+                AuditEvent.LOGIN_SUCCESS,
+                java.util.Set.of("mixed-role-user@example.com")))
+                .thenReturn(List.of());
+        when(roleService.isSystemRole("ROLE_ADMIN")).thenReturn(true);
+        when(roleService.isSystemRole("ROLE_LEGACY_FINANCE")).thenReturn(false);
+
+        var results = service.listUsers();
+
+        assertThat(results).hasSize(1);
+        assertThat(results.getFirst().roles()).containsExactly("ROLE_ADMIN");
+    }
+
+    @Test
+    void hasRole_returnsFalseWhenUserOrRoleMetadataIsMissing() {
+        UserAccount userWithNullRoles = new UserAccount("null-roles@example.com", "hash", "Null Roles");
+        ReflectionTestUtils.setField(userWithNullRoles, "roles", null);
+        UserAccount userWithRole = new UserAccount("blank-role@example.com", "hash", "Blank Role");
+        Role adminRole = new Role();
+        adminRole.setName("ROLE_ADMIN");
+        userWithRole.addRole(adminRole);
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "hasRole", null, "ROLE_ADMIN")).isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "hasRole", userWithNullRoles, "ROLE_ADMIN")).isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "hasRole", userWithRole, "  ")).isFalse();
+    }
+
+    @Test
+    void attachRoles_resolvesAdminSurfaceAssignmentsBeforeBinding() {
+        UserAccount user = new UserAccount("attach-roles@example.com", "hash", "Attach Roles");
+        Role adminRole = new Role();
+        adminRole.setName("ROLE_ADMIN");
+        when(roleService.requireAdminSurfaceAssignmentRole("ROLE_ADMIN")).thenReturn(adminRole);
+
+        ReflectionTestUtils.invokeMethod(service, "attachRoles", user, List.of("ROLE_ADMIN"));
+
+        assertThat(user.getRoles()).extracting(Role::getName).containsExactly("ROLE_ADMIN");
+    }
+
+    @Test
     void updateUserStatus_disablingUserRevokesTokensSendsNotificationAndAudits() {
         UserAccount user = new UserAccount("status-user@example.com", "hash", "Status User");
         ReflectionTestUtils.setField(user, "id", 302L);
@@ -534,6 +586,35 @@ class AdminUserServiceTest {
         verify(userRepository).findById(311L);
         verify(userRepository, never()).lockById(311L);
         verify(userRepository, never()).lockByIdAndCompanyId(311L, 1L);
+        verify(passwordResetService, never()).requestResetByAdmin(any(UserAccount.class));
+        verify(auditService).logAuthFailure(
+                eq(AuditEvent.ACCESS_DENIED),
+                eq("UNKNOWN_AUTH_ACTOR"),
+                eq("TEST"),
+                any(Map.class));
+    }
+
+    @Test
+    void forceResetPassword_platformOwnerTarget_masksAsMissingWithoutLocking() {
+        UserAccount platformOwner = new UserAccount("platform-owner@example.com", "hash", "Platform Owner");
+        ReflectionTestUtils.setField(platformOwner, "id", 313L);
+        platformOwner.addCompany(company);
+        Role superAdminRole = new Role();
+        superAdminRole.setName("ROLE_SUPER_ADMIN");
+        platformOwner.addRole(superAdminRole);
+        Role adminRole = new Role();
+        adminRole.setName("ROLE_ADMIN");
+        platformOwner.addRole(adminRole);
+
+        when(userRepository.findById(313L)).thenReturn(Optional.of(platformOwner));
+
+        assertThatThrownBy(() -> service.forceResetPassword(313L))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("User not found");
+
+        verify(userRepository).findById(313L);
+        verify(userRepository, never()).lockById(313L);
+        verify(userRepository, never()).lockByIdAndCompanyId(313L, 1L);
         verify(passwordResetService, never()).requestResetByAdmin(any(UserAccount.class));
         verify(auditService).logAuthFailure(
                 eq(AuditEvent.ACCESS_DENIED),

@@ -23,7 +23,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.never;
@@ -49,24 +48,19 @@ class RoleServiceRbacTenantIsolationTest {
     }
 
     @Test
-    void tenant_admin_cannot_mutate_shared_role_permissions() {
+    void tenant_admin_can_assign_fixed_admin_role() {
         RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
         setAuthentication("tenant-admin@bbp.com", "ROLE_ADMIN");
         CompanyContextHolder.setCompanyCode("AUTH-TENANT-A");
+        Role adminRole = new Role();
+        adminRole.setName("ROLE_ADMIN");
+        when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(adminRole));
 
-        assertThatThrownBy(() -> service.requireAdminSurfaceAssignmentRole("ROLE_ADMIN"))
-                .isInstanceOf(AccessDeniedException.class)
-                .hasMessageContaining("SUPER_ADMIN authority required for role: ROLE_ADMIN");
+        Role ensured = service.requireAdminSurfaceAssignmentRole("ROLE_ADMIN");
 
-        verify(auditService).logFailure(
-                eq(AuditEvent.ACCESS_DENIED),
-                argThat((Map<String, String> metadata) ->
-                        "tenant-admin@bbp.com".equals(metadata.get("actor"))
-                                && "AUTH-TENANT-A".equals(metadata.get("tenantScope"))
-                                && "ROLE_ADMIN".equals(metadata.get("targetRole"))
-                                && "tenant-admin-role-management-requires-super-admin"
-                                .equals(metadata.get("reason"))));
-        verify(roleRepository, never()).findByName("ROLE_ADMIN");
+        assertThat(ensured.getName()).isEqualTo("ROLE_ADMIN");
+        verify(roleRepository).findByName("ROLE_ADMIN");
+        verify(auditService, never()).logFailure(eq(AuditEvent.ACCESS_DENIED), any(Map.class));
     }
 
     @Test

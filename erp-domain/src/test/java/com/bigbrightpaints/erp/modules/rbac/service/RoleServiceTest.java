@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
@@ -25,7 +24,6 @@ import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
@@ -97,6 +95,30 @@ class RoleServiceTest {
     }
 
     @Test
+    void synchronizeSystemRolePermissions_returnsZeroWhenExistingRoleAlreadyAligned() {
+        Role accounting = role(
+                "ROLE_ACCOUNTING",
+                SystemRole.ACCOUNTING.getDefaultPermissions().stream()
+                        .map(this::permission)
+                        .toArray(Permission[]::new));
+        accounting.setDescription(SystemRole.ACCOUNTING.getDescription());
+        when(roleRepository.findByNameIn(List.of(
+                "ROLE_SUPER_ADMIN",
+                "ROLE_ADMIN",
+                "ROLE_ACCOUNTING",
+                "ROLE_FACTORY",
+                "ROLE_SALES",
+                "ROLE_DEALER"))).thenReturn(List.of(accounting));
+
+        RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
+
+        int updatedRoles = service.synchronizeSystemRolePermissions();
+
+        assertThat(updatedRoles).isZero();
+        verify(roleRepository, never()).save(accounting);
+    }
+
+    @Test
     void listRolesForCurrentActor_hidesSuperAdminRoleFromNonSuperAdminActors() {
         authenticate("tenant-admin@bbp.com", "ROLE_ADMIN");
         when(roleRepository.findByNameIn(SystemRole.roleNames())).thenReturn(List.of());
@@ -152,28 +174,9 @@ class RoleServiceTest {
     }
 
     @Test
-    void requireAdminSurfaceAssignmentRole_requiresSuperAdminForAdminRole() {
+    void requireAdminSurfaceAssignmentRole_allowsFixedAdminRoleForTenantAdmin() {
         authenticate("tenant-admin@bbp.com", "ROLE_ADMIN");
         CompanyContextHolder.setCompanyCode("TENANT-A");
-        RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
-
-        assertThatThrownBy(() -> service.requireAdminSurfaceAssignmentRole("ROLE_ADMIN"))
-                .isInstanceOf(AccessDeniedException.class)
-                .hasMessageContaining("SUPER_ADMIN authority required for role: ROLE_ADMIN");
-
-        ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(auditService).logFailure(eq(AuditEvent.ACCESS_DENIED), metadataCaptor.capture());
-        assertThat(metadataCaptor.getValue())
-                .containsEntry("actor", "tenant-admin@bbp.com")
-                .containsEntry("reason", "tenant-admin-role-management-requires-super-admin")
-                .containsEntry("tenantScope", "TENANT-A")
-                .containsEntry("targetRole", "ROLE_ADMIN");
-    }
-
-    @Test
-    void requireAdminSurfaceAssignmentRole_allowsAdminRoleForSuperAdmin() {
-        authenticate("platform-owner@bbp.com", "ROLE_SUPER_ADMIN");
-        CompanyContextHolder.setCompanyCode("AUTH-ROOT");
         Role adminRole = role("ROLE_ADMIN", permission("portal:admin"));
         when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(adminRole));
         RoleService service = new RoleService(roleRepository, permissionRepository, auditService);

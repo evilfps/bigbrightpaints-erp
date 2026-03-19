@@ -100,9 +100,6 @@ public class RoleService {
         if (SUPER_ADMIN_ROLE.equalsIgnoreCase(normalizedName)) {
             throw new AccessDeniedException("ROLE_SUPER_ADMIN is reserved for platform-owner internal use");
         }
-        if (ADMIN_ROLE.equalsIgnoreCase(normalizedName)) {
-            enforceSuperAdminForPrivilegedRoles(normalizedName, "tenant-admin-role-management");
-        }
         return requireFixedSystemRole(normalizedName);
     }
 

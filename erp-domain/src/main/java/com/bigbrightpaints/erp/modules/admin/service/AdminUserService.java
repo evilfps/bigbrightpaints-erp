@@ -628,6 +628,7 @@ public class AdminUserService {
                 .filter(Objects::nonNull)
                 .map(Role::getName)
                 .filter(StringUtils::hasText)
+                .filter(roleService::isSystemRole)
                 .filter(roleName -> !SUPER_ADMIN_ROLE.equalsIgnoreCase(roleName))
                 .toList();
         return new UserDto(user.getId(), user.getPublicId(), user.getEmail(), user.getDisplayName(),

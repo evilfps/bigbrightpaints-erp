@@ -369,7 +369,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void admin_cannot_create_tenant_admin_user() throws InterruptedException {
+    void admin_can_create_tenant_admin_user() {
         String token = login(ADMIN_EMAIL, TENANT_A);
         Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
         String candidateEmail = "candidate-" + System.nanoTime() + "@bbp.com";
@@ -386,14 +386,15 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 ), jsonHeaders(token, TENANT_A)),
                 Map.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-
-        AuditLog denied = awaitAuditEvent(AuditEvent.ACCESS_DENIED, log ->
-                ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
-                        && "tenant-admin-role-management-requires-super-admin".equals(log.getMetadata().get("reason"))
-                        && "ROLE_ADMIN".equalsIgnoreCase(log.getMetadata().get("targetRole")));
-        assertThat(denied.getMetadata()).containsEntry("actor", ADMIN_EMAIL);
-        assertThat(denied.getMetadata().get("tenantScope")).contains(TENANT_A);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        UserAccount createdUser = userAccountRepository.findByEmailIgnoreCase(candidateEmail).orElseThrow();
+        assertThat(createdUser.getCompanies())
+                .extracting(Company::getCode)
+                .contains(TENANT_A);
+        assertThat(createdUser.getRoles())
+                .extracting(Role::getName)
+                .contains("ROLE_ADMIN")
+                .doesNotContain("ROLE_SUPER_ADMIN");
     }
 
     @Test
