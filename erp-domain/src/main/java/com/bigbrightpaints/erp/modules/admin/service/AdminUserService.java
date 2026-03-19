@@ -98,6 +98,7 @@ public class AdminUserService {
         List<UserAccount> users = userRepository.findDistinctByCompanies_Id(company.getId());
         Map<String, Instant> lastLoginByEmail = resolveLastLoginByEmail(users);
         return users.stream()
+                .filter(user -> !hasRole(user, SUPER_ADMIN_ROLE))
                 .map(user -> toDto(user, lastLoginByEmail.get(normalizeEmailKey(user.getEmail()))))
                 .toList();
     }
@@ -339,6 +340,9 @@ public class AdminUserService {
             }
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(USER_NOT_FOUND_MESSAGE);
         }
+        if (hasRole(user, SUPER_ADMIN_ROLE)) {
+            return handleOutOfScopeAdminAction(user, activeCompany, denialReason, outOfScopeResponseMode);
+        }
         if (superAdmin) {
             return user;
         }
@@ -453,6 +457,17 @@ public class AdminUserService {
         }
         return authentication.getAuthorities().stream()
                 .anyMatch(authority -> SUPER_ADMIN_ROLE.equalsIgnoreCase(authority.getAuthority()));
+    }
+
+    private boolean hasRole(UserAccount user, String roleName) {
+        if (user == null || user.getRoles() == null || !StringUtils.hasText(roleName)) {
+            return false;
+        }
+        return user.getRoles().stream()
+                .filter(Objects::nonNull)
+                .map(Role::getName)
+                .filter(StringUtils::hasText)
+                .anyMatch(role -> roleName.equalsIgnoreCase(role));
     }
 
     private void attachRoles(UserAccount user, List<String> roles) {

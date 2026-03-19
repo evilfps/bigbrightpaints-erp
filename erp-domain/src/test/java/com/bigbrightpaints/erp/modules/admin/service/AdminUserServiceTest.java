@@ -412,7 +412,7 @@ class AdminUserServiceTest {
     }
 
     @Test
-    void listUsers_hidesSuperAdminRoleFromAdminFacingDtos() {
+    void listUsers_excludesPlatformOwnerAccountsFromAdminFacingDtos() {
         UserAccount user = new UserAccount("platform-owner@example.com", "hash", "Platform Owner");
         ReflectionTestUtils.setField(user, "id", 320L);
         user.addCompany(company);
@@ -431,8 +431,7 @@ class AdminUserServiceTest {
 
         var results = service.listUsers();
 
-        assertThat(results).hasSize(1);
-        assertThat(results.getFirst().roles()).containsExactly("ROLE_SALES");
+        assertThat(results).isEmpty();
     }
 
     @Test
@@ -605,6 +604,35 @@ class AdminUserServiceTest {
 
         verify(userRepository).findById(305L);
         verify(userRepository, never()).findByIdAndCompanies_Id(eq(305L), any());
+    }
+
+    @Test
+    void updateUser_rejectsPlatformOwnerTargetOnAdminSurface() {
+        UserAccount platformOwner = new UserAccount("platform-owner@example.com", "hash", "Platform Owner");
+        ReflectionTestUtils.setField(platformOwner, "id", 321L);
+        platformOwner.addCompany(company);
+        Role superAdminRole = new Role();
+        superAdminRole.setName("ROLE_SUPER_ADMIN");
+        platformOwner.addRole(superAdminRole);
+        Role adminRole = new Role();
+        adminRole.setName("ROLE_ADMIN");
+        platformOwner.addRole(adminRole);
+
+        when(userRepository.findById(321L)).thenReturn(Optional.of(platformOwner));
+
+        assertThatThrownBy(() -> service.updateUser(
+                321L,
+                new UpdateUserRequest("Platform Owner Updated", List.of(1L), List.of("ROLE_ADMIN"), true)))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Target user is out of scope");
+
+        verify(userRepository).findById(321L);
+        verify(userRepository, never()).save(any(UserAccount.class));
+        verify(auditService).logAuthFailure(
+                eq(AuditEvent.ACCESS_DENIED),
+                eq("UNKNOWN_AUTH_ACTOR"),
+                eq("TEST"),
+                any(Map.class));
     }
 
     @Test
