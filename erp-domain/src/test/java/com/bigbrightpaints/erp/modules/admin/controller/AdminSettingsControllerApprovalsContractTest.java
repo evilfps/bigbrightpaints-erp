@@ -531,6 +531,65 @@ class AdminSettingsControllerApprovalsContractTest {
     }
 
     @Test
+    void sensitiveExportApprovalDetails_allowSuperAdminView() {
+        AdminSettingsController controller = new AdminSettingsController(
+                mock(SystemSettingsService.class),
+                mock(EmailService.class),
+                mock(CompanyContextService.class),
+                mock(TenantRuntimePolicyService.class),
+                mock(ExportApprovalService.class),
+                mock(CreditRequestRepository.class),
+                mock(CreditLimitOverrideRequestRepository.class),
+                mock(PeriodCloseRequestRepository.class),
+                mock(PayrollRunRepository.class),
+                null
+        );
+
+        authenticateAs("ROLE_SUPER_ADMIN");
+        try {
+            Boolean includeSensitiveDetails = ReflectionTestUtils.invokeMethod(
+                    controller,
+                    "canViewSensitiveExportApprovalDetails"
+            );
+            assertThat(includeSensitiveDetails).isTrue();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void sensitiveExportApprovalDetails_rejectWhenAuthenticationAuthoritiesMissing() {
+        AdminSettingsController controller = new AdminSettingsController(
+                mock(SystemSettingsService.class),
+                mock(EmailService.class),
+                mock(CompanyContextService.class),
+                mock(TenantRuntimePolicyService.class),
+                mock(ExportApprovalService.class),
+                mock(CreditRequestRepository.class),
+                mock(CreditLimitOverrideRequestRepository.class),
+                mock(PeriodCloseRequestRepository.class),
+                mock(PayrollRunRepository.class),
+                null
+        );
+
+        var authentication = mock(org.springframework.security.core.Authentication.class);
+        when(authentication.getAuthorities()).thenReturn(null);
+        var context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        SecurityContextHolder.setContext(context);
+
+        try {
+            Boolean includeSensitiveDetails = ReflectionTestUtils.invokeMethod(
+                    controller,
+                    "canViewSensitiveExportApprovalDetails"
+            );
+            assertThat(includeSensitiveDetails).isFalse();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
     void approvals_appliesUnknownFallbacksForStatusDealerAndAmounts() {
         SystemSettingsService systemSettingsService = mock(SystemSettingsService.class);
         EmailService emailService = mock(EmailService.class);
