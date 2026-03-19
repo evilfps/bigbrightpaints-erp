@@ -57,7 +57,7 @@ Supporting runtime evidence was limited: `curl -i -s http://localhost:8081/actua
 2. If the actor is not `ROLE_SUPER_ADMIN`, force every requested `companyId` to equal the active company. A super admin may instead create the user directly inside another tenant without switching sessions.
 3. Call `TenantRuntimePolicyService.assertCanAddEnabledUser(...)` for each target tenant before persisting, so admin user creation is quota-governed.
 4. Generate a temporary password when none is provided and set `mustChangePassword=true`.
-5. Attach companies and roles via the fixed system-role catalog. Admin-surface assignment resolves only persisted platform roles, rejects unknown role names, rejects `ROLE_SUPER_ADMIN` outright, and requires super-admin authority before assigning `ROLE_ADMIN`.
+5. Attach companies and roles via the fixed system-role catalog. Admin-surface assignment resolves only persisted platform roles, rejects unknown role names, rejects `ROLE_SUPER_ADMIN` outright, and allows tenant admins to assign the fixed client-facing roles, including `ROLE_ADMIN`.
 6. Persist `UserAccount`.
 7. If one of the requested roles is `ROLE_DEALER`, auto-create or relink a `Dealer`, assign the portal user, and create or reactivate the dealer receivable account.
 8. Send credentials email (best-effort, not required) and write an audit event.
@@ -262,7 +262,7 @@ The method is explicitly `@Transactional(readOnly = true)` and converts each pen
 - `TenantRuntimePolicyService` is mostly fail-closed: malformed hold states normalize to `BLOCKED`, quota values must stay positive, and quota denials are audited with request metadata.
 - CORS origin validation rejects wildcards and rejects non-HTTPS origins in prod profile.
 - Support ticket visibility is role-sensitive and hides foreign-tenant tickets from tenant admins and ordinary users.
-- Admin-user role assignment is hard-cut to the fixed six-role model: admin surfaces resolve persisted system roles only, `ROLE_SUPER_ADMIN` is platform-owner only, and tenant admins cannot self-escalate into `ROLE_ADMIN`.
+- Admin-user role assignment is hard-cut to the fixed six-role model: admin surfaces resolve persisted system roles only, `ROLE_SUPER_ADMIN` is platform-owner only, and tenant admin workflows can assign only the client-facing fixed roles that already exist in the canonical catalog.
 
 ### Bad patterns and hotspots
 
