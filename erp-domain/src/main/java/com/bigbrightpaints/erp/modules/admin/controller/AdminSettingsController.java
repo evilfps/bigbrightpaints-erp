@@ -125,13 +125,6 @@ public class AdminSettingsController {
         return ApiResponse.success("Settings updated", dto);
     }
 
-    @GetMapping("/exports/pending")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
-    @Transactional(readOnly = true)
-    public ApiResponse<List<ExportRequestDto>> pendingExportRequests() {
-        return ApiResponse.success("Pending export requests", exportApprovalService.listPending());
-    }
-
     @PutMapping("/exports/{requestId}/approve")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public ApiResponse<ExportRequestDto> approveExportRequest(@PathVariable Long requestId) {
@@ -208,13 +201,16 @@ public class AdminSettingsController {
         return ApiResponse.success("Approvals fetched", response);
     }
 
-    private AdminApprovalItemDto approvalItem(String type, Long id, UUID publicId, String reference,
+    private AdminApprovalItemDto approvalItem(AdminApprovalItemDto.OriginType originType,
+                                              AdminApprovalItemDto.OwnerType ownerType,
+                                              Long id, UUID publicId, String reference,
                                               String status, String summary, String actionType,
-                                              String actionLabel, String sourcePortal,
+                                              String actionLabel,
                                               String approveEndpoint, String rejectEndpoint,
                                               Instant createdAt) {
         return new AdminApprovalItemDto(
-                type,
+                originType,
+                ownerType,
                 id,
                 publicId,
                 reference,
@@ -222,7 +218,6 @@ public class AdminSettingsController {
                 summary,
                 actionType,
                 actionLabel,
-                sourcePortal,
                 approveEndpoint,
                 rejectEndpoint,
                 createdAt
@@ -240,7 +235,8 @@ public class AdminSettingsController {
             summary = summary + " (reason: " + request.getReason().trim() + ")";
         }
         return approvalItem(
-                "CREDIT_REQUEST",
+                AdminApprovalItemDto.OriginType.CREDIT_REQUEST,
+                AdminApprovalItemDto.OwnerType.SALES,
                 request.getId(),
                 request.getPublicId(),
                 reference,
@@ -248,7 +244,6 @@ public class AdminSettingsController {
                 summary,
                 CREDIT_REQUEST_APPROVAL_ACTION,
                 "Approve dealer credit-limit increase",
-                "DEALER_PORTAL",
                 CREDIT_REQUEST_APPROVE_ENDPOINT,
                 CREDIT_REQUEST_REJECT_ENDPOINT,
                 request.getCreatedAt()
@@ -269,7 +264,8 @@ public class AdminSettingsController {
             summary = summary + " (requested by " + request.getRequestedBy().trim() + ")";
         }
         return approvalItem(
-                "CREDIT_LIMIT_OVERRIDE_REQUEST",
+                AdminApprovalItemDto.OriginType.CREDIT_LIMIT_OVERRIDE_REQUEST,
+                overrideOwnerType(request),
                 request.getId(),
                 request.getPublicId(),
                 reference,
@@ -277,7 +273,6 @@ public class AdminSettingsController {
                 summary,
                 CREDIT_OVERRIDE_APPROVAL_ACTION,
                 "Approve dispatch credit override",
-                overrideSourcePortal(request),
                 CREDIT_OVERRIDE_APPROVE_ENDPOINT,
                 CREDIT_OVERRIDE_REJECT_ENDPOINT,
                 request.getCreatedAt()
@@ -291,7 +286,8 @@ public class AdminSettingsController {
         String summary = "Approve payroll run " + reference
                 + " (" + run.getRunType().name() + " " + run.getPeriodStart() + " - " + run.getPeriodEnd() + ")";
         return approvalItem(
-                "PAYROLL_RUN",
+                AdminApprovalItemDto.OriginType.PAYROLL_RUN,
+                AdminApprovalItemDto.OwnerType.HR,
                 run.getId(),
                 run.getPublicId(),
                 reference,
@@ -299,7 +295,6 @@ public class AdminSettingsController {
                 summary,
                 PAYROLL_APPROVAL_ACTION,
                 "Approve payroll run",
-                "HR_PORTAL",
                 PAYROLL_APPROVE_ENDPOINT,
                 null,
                 run.getCreatedAt()
@@ -325,7 +320,8 @@ public class AdminSettingsController {
             summary = summary + " (note: " + request.getRequestNote().trim() + ")";
         }
         return approvalItem(
-                "PERIOD_CLOSE_REQUEST",
+                AdminApprovalItemDto.OriginType.PERIOD_CLOSE_REQUEST,
+                AdminApprovalItemDto.OwnerType.ACCOUNTING,
                 request != null ? request.getId() : null,
                 request != null ? request.getPublicId() : null,
                 reference,
@@ -333,7 +329,6 @@ public class AdminSettingsController {
                 summary,
                 PERIOD_CLOSE_APPROVAL_ACTION,
                 "Approve accounting period close",
-                "ACCOUNTING",
                 PERIOD_CLOSE_APPROVE_ENDPOINT,
                 PERIOD_CLOSE_REJECT_ENDPOINT,
                 request != null ? request.getRequestedAt() : null
@@ -346,7 +341,8 @@ public class AdminSettingsController {
                 + " for report " + request.reportType()
                 + " requested by " + (StringUtils.hasText(request.userEmail()) ? request.userEmail() : "unknown user");
         return approvalItem(
-                "EXPORT_REQUEST",
+                AdminApprovalItemDto.OriginType.EXPORT_REQUEST,
+                AdminApprovalItemDto.OwnerType.REPORTS,
                 request.id(),
                 null,
                 reference,
@@ -354,7 +350,6 @@ public class AdminSettingsController {
                 summary,
                 EXPORT_REQUEST_APPROVAL_ACTION,
                 "Approve data export",
-                "REPORTS",
                 EXPORT_REQUEST_APPROVE_ENDPOINT,
                 EXPORT_REQUEST_REJECT_ENDPOINT,
                 request.createdAt()
@@ -379,14 +374,14 @@ public class AdminSettingsController {
         return "CLO-" + request.getId();
     }
 
-    private String overrideSourcePortal(CreditLimitOverrideRequest request) {
+    private AdminApprovalItemDto.OwnerType overrideOwnerType(CreditLimitOverrideRequest request) {
         if (request.getPackagingSlip() != null) {
-            return "FACTORY_PORTAL";
+            return AdminApprovalItemDto.OwnerType.FACTORY;
         }
         if (request.getSalesOrder() != null) {
-            return "SALES_PORTAL";
+            return AdminApprovalItemDto.OwnerType.SALES;
         }
-        return "SALES_PORTAL";
+        return AdminApprovalItemDto.OwnerType.SALES;
     }
 
     private String toAmountString(BigDecimal amount) {

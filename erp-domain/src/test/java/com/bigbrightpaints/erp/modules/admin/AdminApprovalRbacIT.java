@@ -84,6 +84,35 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void adminApprovalsPayloadUsesTypedOriginAndOwnerFields() {
+        HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, PASSWORD);
+        HttpHeaders salesHeaders = authHeaders(SALES_EMAIL, PASSWORD);
+
+        long dealerId = createDealer("APPROVAL-CONTRACT-" + System.nanoTime(), new BigDecimal("5000"));
+        createCreditRequest(salesHeaders, dealerId, "1500", "Typed approval payload");
+
+        ResponseEntity<Map> approvalsResponse = rest.exchange(
+                "/api/v1/admin/approvals",
+                HttpMethod.GET,
+                new HttpEntity<>(adminHeaders),
+                Map.class);
+        assertThat(approvalsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Map<?, ?> approvalsBody = approvalsResponse.getBody();
+        assertThat(approvalsBody).isNotNull();
+        Map<?, ?> approvalsData = (Map<?, ?>) approvalsBody.get("data");
+        assertThat(approvalsData).isNotNull();
+        List<?> creditApprovals = (List<?>) approvalsData.get("creditRequests");
+        assertThat(creditApprovals).isNotEmpty();
+
+        Map<?, ?> creditApproval = (Map<?, ?>) creditApprovals.get(0);
+        assertThat(creditApproval.get("originType")).isEqualTo("CREDIT_REQUEST");
+        assertThat(creditApproval.get("ownerType")).isEqualTo("SALES");
+        assertThat(creditApproval.containsKey("type")).isFalse();
+        assertThat(creditApproval.containsKey("sourcePortal")).isFalse();
+    }
+
+    @Test
     void creditRequestApprovalActionsAllowOnlyAdminOrAccounting() {
         HttpHeaders salesHeaders = authHeaders(SALES_EMAIL, PASSWORD);
         HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD);

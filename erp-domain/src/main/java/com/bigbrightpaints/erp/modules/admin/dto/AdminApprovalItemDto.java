@@ -4,7 +4,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record AdminApprovalItemDto(
-        String type,
+        OriginType originType,
+        OwnerType ownerType,
         Long id,
         UUID publicId,
         String reference,
@@ -12,8 +13,23 @@ public record AdminApprovalItemDto(
         String summary,
         String actionType,
         String actionLabel,
-        String sourcePortal,
         String approveEndpoint,
         String rejectEndpoint,
         Instant createdAt
-) {}
+) {
+    public enum OriginType {
+        CREDIT_REQUEST,
+        CREDIT_LIMIT_OVERRIDE_REQUEST,
+        PAYROLL_RUN,
+        PERIOD_CLOSE_REQUEST,
+        EXPORT_REQUEST
+    }
+
+    public enum OwnerType {
+        SALES,
+        FACTORY,
+        HR,
+        ACCOUNTING,
+        REPORTS
+    }
+}

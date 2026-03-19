@@ -85,12 +85,22 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
         assertThat(requestId).isNotNull();
 
         ResponseEntity<Map> pendingResponse = rest.exchange(
-                "/api/v1/admin/exports/pending",
+                "/api/v1/admin/approvals",
                 HttpMethod.GET,
                 new HttpEntity<>(adminHeaders),
                 Map.class
         );
         assertThat(pendingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(pendingResponse.getBody()).isNotNull();
+        Map<?, ?> pendingData = (Map<?, ?>) pendingResponse.getBody().get("data");
+        assertThat(pendingData).isNotNull();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportRequests = (List<Map<String, Object>>) pendingData.get("exportRequests");
+        assertThat(exportRequests)
+                .anySatisfy(row -> {
+                    assertThat(row.get("originType")).isEqualTo("EXPORT_REQUEST");
+                    assertThat(String.valueOf(row.get("reference"))).startsWith("EXP-");
+                });
 
         ResponseEntity<Map> downloadBeforeApproval = rest.exchange(
                 "/api/v1/exports/" + requestId.longValue() + "/download",
@@ -201,9 +211,24 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
         List<Map<String, Object>> rows = (List<Map<String, Object>>) exportRequests;
         assertThat(rows)
                 .anySatisfy(row -> {
-                    assertThat(row.get("type")).isEqualTo("EXPORT_REQUEST");
+                    assertThat(row.get("originType")).isEqualTo("EXPORT_REQUEST");
+                    assertThat(row.get("ownerType")).isEqualTo("REPORTS");
                     assertThat(String.valueOf(row.get("reference"))).startsWith("EXP-");
                 });
+    }
+
+    @Test
+    void retired_export_pending_alias_is_not_exposed() {
+        HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL);
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/admin/exports/pending",
+                HttpMethod.GET,
+                new HttpEntity<>(adminHeaders),
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     private HttpHeaders authHeaders(String email) {

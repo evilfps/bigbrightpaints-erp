@@ -203,49 +203,46 @@ class AdminSettingsControllerApprovalsContractTest {
         assertThat(response.data().creditRequests()).hasSize(5);
 
         AdminApprovalItemDto overrideApproval = response.data().creditRequests().get(0);
-        assertThat(overrideApproval.type()).isEqualTo("CREDIT_LIMIT_OVERRIDE_REQUEST");
+        assertThat(overrideApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.CREDIT_LIMIT_OVERRIDE_REQUEST);
+        assertThat(overrideApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.SALES);
         assertThat(overrideApproval.reference()).isEqualTo("CLO-22");
         assertThat(overrideApproval.summary()).contains("request CLO-22");
         assertThat(overrideApproval.summary()).contains("Dealer Delta");
         assertThat(overrideApproval.summary()).contains("requested by ops.user@bbp.com");
         assertThat(overrideApproval.actionType()).isEqualTo("APPROVE_DISPATCH_CREDIT_OVERRIDE");
         assertThat(overrideApproval.actionLabel()).isEqualTo("Approve dispatch credit override");
-        assertThat(overrideApproval.sourcePortal()).isEqualTo("SALES_PORTAL");
         assertThat(overrideApproval.approveEndpoint()).isEqualTo("/api/v1/credit/override-requests/{id}/approve");
         assertThat(overrideApproval.rejectEndpoint()).isEqualTo("/api/v1/credit/override-requests/{id}/reject");
 
         AdminApprovalItemDto orderOverrideApproval = response.data().creditRequests().get(1);
-        assertThat(orderOverrideApproval.type()).isEqualTo("CREDIT_LIMIT_OVERRIDE_REQUEST");
+        assertThat(orderOverrideApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.CREDIT_LIMIT_OVERRIDE_REQUEST);
+        assertThat(orderOverrideApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.SALES);
         assertThat(orderOverrideApproval.reference()).isEqualTo("SO-55");
         assertThat(orderOverrideApproval.summary()).contains("request SO-55");
         assertThat(orderOverrideApproval.summary()).contains("Dealer Gamma");
         assertThat(orderOverrideApproval.summary()).contains("requested by factory.user@bbp.com");
-        assertThat(orderOverrideApproval.sourcePortal()).isEqualTo("SALES_PORTAL");
-
         AdminApprovalItemDto slipOverrideApproval = response.data().creditRequests().get(2);
-        assertThat(slipOverrideApproval.type()).isEqualTo("CREDIT_LIMIT_OVERRIDE_REQUEST");
+        assertThat(slipOverrideApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.CREDIT_LIMIT_OVERRIDE_REQUEST);
+        assertThat(slipOverrideApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.FACTORY);
         assertThat(slipOverrideApproval.reference()).isEqualTo("PS-66");
         assertThat(slipOverrideApproval.summary()).contains("request PS-66");
         assertThat(slipOverrideApproval.summary()).contains("Dealer Epsilon");
         assertThat(slipOverrideApproval.summary()).contains("requested by sales.manager@bbp.com");
-        assertThat(slipOverrideApproval.sourcePortal()).isEqualTo("FACTORY_PORTAL");
-
         AdminApprovalItemDto slipOnlyOverrideApproval = response.data().creditRequests().get(3);
-        assertThat(slipOnlyOverrideApproval.type()).isEqualTo("CREDIT_LIMIT_OVERRIDE_REQUEST");
+        assertThat(slipOnlyOverrideApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.CREDIT_LIMIT_OVERRIDE_REQUEST);
+        assertThat(slipOnlyOverrideApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.FACTORY);
         assertThat(slipOnlyOverrideApproval.reference()).isEqualTo("PS-44");
         assertThat(slipOnlyOverrideApproval.summary()).contains("Approve dispatch credit override");
         assertThat(slipOnlyOverrideApproval.summary()).contains("Dealer Beta");
         assertThat(slipOnlyOverrideApproval.summary()).contains("dispatch 300");
         assertThat(slipOnlyOverrideApproval.summary()).contains("requested by sales.user@bbp.com");
-        assertThat(slipOnlyOverrideApproval.sourcePortal()).isEqualTo("FACTORY_PORTAL");
-
         AdminApprovalItemDto creditApproval = response.data().creditRequests().get(4);
-        assertThat(creditApproval.type()).isEqualTo("CREDIT_REQUEST");
+        assertThat(creditApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.CREDIT_REQUEST);
+        assertThat(creditApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.SALES);
         assertThat(creditApproval.reference()).isEqualTo("CR-10");
         assertThat(creditApproval.summary()).contains("Approve dealer credit-limit increase request CR-10 for Dealer Alpha");
         assertThat(creditApproval.actionType()).isEqualTo("APPROVE_DEALER_CREDIT_REQUEST");
         assertThat(creditApproval.actionLabel()).isEqualTo("Approve dealer credit-limit increase");
-        assertThat(creditApproval.sourcePortal()).isEqualTo("DEALER_PORTAL");
         assertThat(creditApproval.approveEndpoint()).isEqualTo("/api/v1/sales/credit-requests/{id}/approve");
         assertThat(creditApproval.rejectEndpoint()).isEqualTo("/api/v1/sales/credit-requests/{id}/reject");
 
@@ -261,18 +258,19 @@ class AdminSettingsControllerApprovalsContractTest {
 
         assertThat(response.data().payrollRuns()).hasSize(1);
         AdminApprovalItemDto payrollApproval = response.data().payrollRuns().get(0);
-        assertThat(payrollApproval.type()).isEqualTo("PAYROLL_RUN");
+        assertThat(payrollApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.PAYROLL_RUN);
+        assertThat(payrollApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.HR);
         assertThat(payrollApproval.reference()).isEqualTo("PR-2026-02");
         assertThat(payrollApproval.summary()).contains("Approve payroll run PR-2026-02");
         assertThat(payrollApproval.actionType()).isEqualTo("APPROVE_PAYROLL_RUN");
         assertThat(payrollApproval.actionLabel()).isEqualTo("Approve payroll run");
-        assertThat(payrollApproval.sourcePortal()).isEqualTo("HR_PORTAL");
         assertThat(payrollApproval.approveEndpoint()).isEqualTo("/api/v1/payroll/runs/{id}/approve");
         assertThat(payrollApproval.rejectEndpoint()).isNull();
 
         assertThat(response.data().periodCloseRequests()).hasSize(1);
         AdminApprovalItemDto periodCloseApproval = response.data().periodCloseRequests().get(0);
-        assertThat(periodCloseApproval.type()).isEqualTo("PERIOD_CLOSE_REQUEST");
+        assertThat(periodCloseApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.PERIOD_CLOSE_REQUEST);
+        assertThat(periodCloseApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.ACCOUNTING);
         assertThat(periodCloseApproval.reference()).isEqualTo("February 2026");
         assertThat(periodCloseApproval.status()).isEqualTo("PENDING");
         assertThat(periodCloseApproval.summary()).contains("Approve accounting period close request for February 2026");
@@ -282,7 +280,6 @@ class AdminSettingsControllerApprovalsContractTest {
         assertThat(periodCloseApproval.summary()).contains("note: Close after reconciliation");
         assertThat(periodCloseApproval.actionType()).isEqualTo("APPROVE_ACCOUNTING_PERIOD_CLOSE");
         assertThat(periodCloseApproval.actionLabel()).isEqualTo("Approve accounting period close");
-        assertThat(periodCloseApproval.sourcePortal()).isEqualTo("ACCOUNTING");
         assertThat(periodCloseApproval.approveEndpoint()).isEqualTo("/api/v1/accounting/periods/{id}/approve-close");
         assertThat(periodCloseApproval.rejectEndpoint()).isEqualTo("/api/v1/accounting/periods/{id}/reject-close");
         assertThat(periodCloseApproval.createdAt()).isEqualTo(Instant.parse("2026-02-12T13:15:00Z"));
@@ -376,29 +373,32 @@ class AdminSettingsControllerApprovalsContractTest {
         assertThat(response.data().creditRequests()).hasSize(2);
 
         AdminApprovalItemDto creditApproval = response.data().creditRequests().stream()
-                .filter(item -> "CREDIT_REQUEST".equals(item.type()))
+                .filter(item -> item.originType() == AdminApprovalItemDto.OriginType.CREDIT_REQUEST)
                 .findFirst()
                 .orElseThrow();
         assertThat(creditApproval.reference()).isEqualTo("CR-40");
         assertThat(creditApproval.status()).isEqualTo("UNKNOWN");
+        assertThat(creditApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.SALES);
         assertThat(creditApproval.summary()).contains("for Unknown dealer amount 0");
         assertThat(creditApproval.summary()).contains("(reason: Need urgent raw material)");
 
         AdminApprovalItemDto overrideApproval = response.data().creditRequests().stream()
-                .filter(item -> "CREDIT_LIMIT_OVERRIDE_REQUEST".equals(item.type()))
+                .filter(item -> item.originType() == AdminApprovalItemDto.OriginType.CREDIT_LIMIT_OVERRIDE_REQUEST)
                 .findFirst()
                 .orElseThrow();
         assertThat(overrideApproval.reference()).isEqualTo("CLO-41");
         assertThat(overrideApproval.status()).isEqualTo("UNKNOWN");
+        assertThat(overrideApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.FACTORY);
         assertThat(overrideApproval.summary()).contains("for Unknown dealer");
         assertThat(overrideApproval.summary()).contains("dispatch 0");
         assertThat(overrideApproval.summary()).doesNotContain("requested by");
-        assertThat(overrideApproval.sourcePortal()).isEqualTo("FACTORY_PORTAL");
 
         assertThat(response.data().payrollRuns()).hasSize(1);
         AdminApprovalItemDto payrollApproval = response.data().payrollRuns().get(0);
         assertThat(payrollApproval.reference()).isEqualTo("PR-NULL-STATUS");
         assertThat(payrollApproval.status()).isEqualTo("UNKNOWN");
+        assertThat(payrollApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.PAYROLL_RUN);
+        assertThat(payrollApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.HR);
         assertThat(response.data().periodCloseRequests()).isEmpty();
     }
 
@@ -460,11 +460,11 @@ class AdminSettingsControllerApprovalsContractTest {
         assertThat(response.data().payrollRuns()).hasSize(1);
 
         AdminApprovalItemDto payrollApproval = response.data().payrollRuns().get(0);
-        assertThat(payrollApproval.type()).isEqualTo("PAYROLL_RUN");
+        assertThat(payrollApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.PAYROLL_RUN);
+        assertThat(payrollApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.HR);
         assertThat(payrollApproval.reference()).isEqualTo("PR-31");
         assertThat(payrollApproval.summary()).contains("Approve payroll run PR-31");
         assertThat(payrollApproval.actionType()).isEqualTo("APPROVE_PAYROLL_RUN");
-        assertThat(payrollApproval.sourcePortal()).isEqualTo("HR_PORTAL");
         assertThat(response.data().periodCloseRequests()).isEmpty();
     }
 
