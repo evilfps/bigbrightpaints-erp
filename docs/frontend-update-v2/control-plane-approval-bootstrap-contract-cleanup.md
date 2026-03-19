@@ -9,7 +9,7 @@ This handoff covers the bounded ERP-19 contract cleanup that landed with the adm
 - `GET /api/v1/admin/exports/pending` is retired.
 - `POST /api/v1/superadmin/tenants/onboard` now returns explicit bootstrap confirmation fields.
 - `GET /api/v1/companies/superadmin/dashboard` is retired.
-- `GET /api/v1/superadmin/dashboard` remains the live dashboard route.
+- `GET /api/v1/superadmin/dashboard` remains the live aggregate-count dashboard route.
 
 ## Approval inbox contract
 
@@ -97,7 +97,7 @@ Frontend action:
 - do not call `GET /api/v1/admin/exports/pending`
 - do not call `GET /api/v1/companies/superadmin/dashboard`
 - use `GET /api/v1/admin/approvals` for tenant-scoped admin/accounting approval queue access only
-- use `GET /api/v1/superadmin/dashboard` for the super-admin dashboard
+- use `GET /api/v1/superadmin/dashboard` only for aggregate platform dashboard counts; it does not replace the retired detailed tenant payload
 
 ## Out of scope follow-up
 

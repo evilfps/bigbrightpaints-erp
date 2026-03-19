@@ -7,7 +7,7 @@ This folder is the dedicated review surface for frontend follow-up from the `sec
 - `GET /api/v1/admin/approvals` now returns typed approval items with `originType` and `ownerType`; the legacy `type` and `sourcePortal` fields are removed, and export approval rows keep machine-readable `reportType`, `parameters`, `requesterUserId`, and `requesterEmail`.
 - `GET /api/v1/admin/exports/pending` is retired. Tenant-scoped admin/accounting approval consumers should use `GET /api/v1/admin/approvals` as the single inbox; platform super-admins remain blocked from that tenant-admin prefix.
 - `POST /api/v1/superadmin/tenants/onboard` now makes seeded bootstrap explicit via `bootstrapMode`, `seededChartOfAccounts`, `defaultAccountingPeriodCreated`, and `tenantAdminProvisioned`.
-- `GET /api/v1/companies/superadmin/dashboard` is retired; `GET /api/v1/superadmin/dashboard` remains the public dashboard route.
+- `GET /api/v1/companies/superadmin/dashboard` is retired; `GET /api/v1/superadmin/dashboard` remains the public aggregate-count dashboard route and is not a drop-in replacement for the retired detailed tenant payload.
 - Supported mission request bodies are unchanged; this packet is a response-contract and route-surface cleanup.
 - The only request/response contract delta that may require endpoint migration is the retired compatibility alias `POST /api/v1/auth/password/forgot/superadmin`, which now returns `410 Gone` with canonical migration pointers.
 - `POST /api/v1/auth/password/forgot` still uses the same request body and generic success payload where masking is intended, but reset-token persistence failures now return a controlled non-success response instead of `200 OK`.
