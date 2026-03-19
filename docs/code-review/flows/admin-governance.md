@@ -64,7 +64,7 @@ Supporting runtime evidence was limited: `curl -i -s http://localhost:8081/actua
 
 Update and recovery flows are similarly side-effect heavy:
 
-- `updateUser(...)` can change display name, enabled state, company membership, and roles. Any role/company change revokes all access and refresh tokens.
+- `updateUser(...)` can change display name, enabled state, company membership, and roles. Any role/company change revokes all access and refresh tokens. `roles=null` preserves current role bindings; `roles=[]` is an explicit scrub that clears all persisted roles, which keeps hidden pre-packet authorities revocable without re-exposing them in admin DTOs.
 - `forceResetPassword(...)` delegates to `PasswordResetService.requestResetByAdmin(...)`, which reuses the public reset-link machinery rather than a hard password rewrite.
 - `updateUserStatus(...)` uses quota checks when re-enabling a user, revokes all tokens on disablement, sends suspension email, and audits the action.
 - `disableMfa(...)` clears the MFA secret and recovery codes, then revokes all tokens.

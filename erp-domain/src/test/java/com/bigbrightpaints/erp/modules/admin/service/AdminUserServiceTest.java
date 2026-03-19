@@ -688,6 +688,32 @@ class AdminUserServiceTest {
     }
 
     @Test
+    void updateUser_emptyRoleList_clearsHiddenLegacyAuthorities() {
+        UserAccount user = new UserAccount("legacy-only@example.com", "hash", "Legacy Only");
+        ReflectionTestUtils.setField(user, "id", 314L);
+        user.addCompany(company);
+        Role legacyRole = new Role();
+        legacyRole.setName("dispatch.confirm");
+        user.addRole(legacyRole);
+
+        when(userRepository.findById(314L)).thenReturn(Optional.of(user));
+        when(auditLogRepository.findFirstByEventTypeAndUsernameIgnoreCaseOrderByTimestampDesc(
+                AuditEvent.LOGIN_SUCCESS,
+                "legacy-only@example.com"))
+                .thenReturn(Optional.empty());
+
+        var response = service.updateUser(
+                314L,
+                new UpdateUserRequest("Legacy Only", null, List.of(), null));
+
+        assertThat(response.roles()).isEmpty();
+        assertThat(user.getRoles()).isEmpty();
+        verify(tokenBlacklistService).revokeAllUserTokens("legacy-only@example.com");
+        verify(refreshTokenService).revokeAllForUser("legacy-only@example.com");
+        verify(userRepository, never()).save(any(UserAccount.class));
+    }
+
+    @Test
     void updateUser_rejectsPlatformOwnerTargetOnAdminSurface() {
         UserAccount platformOwner = new UserAccount("platform-owner@example.com", "hash", "Platform Owner");
         ReflectionTestUtils.setField(platformOwner, "id", 321L);

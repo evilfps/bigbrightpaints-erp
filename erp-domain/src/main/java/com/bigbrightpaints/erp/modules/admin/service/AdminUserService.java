@@ -201,9 +201,8 @@ public class AdminUserService {
             attachCompanies(user, company, request.companyIds());
             requiresReauth = true; // Company access changed
         }
-        if (request.roles() != null && !request.roles().isEmpty()) {
-            user.getRoles().clear();
-            attachRoles(user, request.roles());
+        if (request.roles() != null) {
+            replaceAdminSurfaceRoles(user, request.roles());
             requiresReauth = true; // Roles changed
         }
         // Revoke tokens if permissions changed to force re-authentication
@@ -471,6 +470,14 @@ public class AdminUserService {
     }
 
     private void attachRoles(UserAccount user, List<String> roles) {
+        attachResolvedRoles(user, resolveAdminSurfaceAssignmentRoles(roles));
+    }
+
+    private void replaceAdminSurfaceRoles(UserAccount user, List<String> roles) {
+        user.getRoles().clear();
+        if (roles == null || roles.isEmpty()) {
+            return;
+        }
         attachResolvedRoles(user, resolveAdminSurfaceAssignmentRoles(roles));
     }
 
