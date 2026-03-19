@@ -21,11 +21,11 @@ Primary evidence:
 
 | Surface | Entrypoints | Controller | Notes |
 | --- | --- | --- | --- |
-| Tenant bootstrap | `GET /api/v1/superadmin/tenants/coa-templates`, `POST /api/v1/superadmin/tenants/onboard` | `SuperAdminTenantOnboardingController` | Creates tenant shell, chart of accounts, first admin, default period, and some global settings. |
+| Tenant bootstrap | `GET /api/v1/superadmin/tenants/coa-templates`, `POST /api/v1/superadmin/tenants/onboard` | `SuperAdminTenantOnboardingController` | Creates tenant shell, chart of accounts, first admin, default period, and some global settings; the response now explicitly confirms seeded bootstrap outcomes. |
 | Generic company CRUD | `GET /api/v1/companies`, `POST /api/v1/companies`, `PUT /api/v1/companies/{id}`, `DELETE /api/v1/companies/{id}` | `CompanyController` | List/create/update are real; delete is intentionally hard-denied in code. |
-| Canonical super-admin company controls | `GET /api/v1/companies/superadmin/dashboard`, `POST /api/v1/companies/{id}/lifecycle-state`, `GET /api/v1/companies/{id}/tenant-metrics`, `PUT /api/v1/companies/{id}/tenant-runtime/policy`, `POST /api/v1/companies/{id}/support/admin-password-reset`, `POST /api/v1/companies/{id}/support/warnings` | `CompanyController` | This family is the only company-id path family that `CompanyContextFilter` explicitly recognizes as target-tenant control traffic. |
+| Canonical super-admin company controls | `POST /api/v1/companies/{id}/lifecycle-state`, `GET /api/v1/companies/{id}/tenant-metrics`, `PUT /api/v1/companies/{id}/tenant-runtime/policy`, `POST /api/v1/companies/{id}/support/admin-password-reset`, `POST /api/v1/companies/{id}/support/warnings` | `CompanyController` | This family is the only company-id path family that `CompanyContextFilter` explicitly recognizes as target-tenant control traffic. The retired `GET /api/v1/companies/superadmin/dashboard` alias is removed from the live contract. |
 | Alias super-admin CRUD | `POST /api/v1/companies/superadmin/tenants`, `PUT /api/v1/companies/superadmin/tenants/{id}` | `CompanyController` | OpenAPI exposes these aliases, but they do not participate in the same target-company rebinding logic as `PUT /api/v1/companies/{id}`. |
-| Super-admin operations hub | `GET /api/v1/superadmin/dashboard`, `GET /api/v1/superadmin/tenants`, `POST /api/v1/superadmin/tenants/{id}/{suspend|activate|deactivate}`, `POST /api/v1/superadmin/tenants/{id}/lifecycle-state`, `PUT /api/v1/superadmin/tenants/{id}/modules`, `GET /api/v1/superadmin/tenants/{id}/usage` | `SuperAdminController` | A second control plane for the same tenant state, module, and metrics concerns. |
+| Super-admin operations hub | `GET /api/v1/superadmin/dashboard`, `GET /api/v1/superadmin/tenants`, `POST /api/v1/superadmin/tenants/{id}/{suspend|activate|deactivate}`, `POST /api/v1/superadmin/tenants/{id}/lifecycle-state`, `PUT /api/v1/superadmin/tenants/{id}/modules`, `GET /api/v1/superadmin/tenants/{id}/usage` | `SuperAdminController` | The live public dashboard route remains here while lifecycle, module, and usage concerns still span a second control plane. |
 | Multi-company switching | `POST /api/v1/multi-company/companies/switch` | `MultiCompanyController` | Validates membership and returns a `CompanyDto`, but does not mint a new JWT. |
 | Tenant-self runtime policy | `GET /api/v1/admin/tenant-runtime/metrics`, `PUT /api/v1/admin/tenant-runtime/policy` | `AdminSettingsController` | Reads and mutates tenant runtime settings for the current company context. |
 
@@ -55,7 +55,7 @@ Narrative chain:
 5. Persist the template accounts, wire default account ids back onto the `Company`, and create an open accounting period.
 6. Provision a first admin user with `ROLE_ADMIN`, add `user_companies` membership, generate a temporary password, and try to send credentials email.
 7. Seed global system settings (`auto-approval.enabled`, `period-lock.enforced`) if missing.
-8. Return `TenantOnboardingResponse`, including the temporary password.
+8. Return `TenantOnboardingResponse`, including the temporary password plus explicit `bootstrapMode`, `seededChartOfAccounts`, `defaultAccountingPeriodCreated`, and `tenantAdminProvisioned` fields.
 
 Important invariants:
 

@@ -7,6 +7,7 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
+import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ public class TenantAdminProvisioningService {
 
     private final UserAccountRepository userAccountRepository;
     private final RoleService roleService;
+    private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final TokenBlacklistService tokenBlacklistService;
@@ -27,12 +29,14 @@ public class TenantAdminProvisioningService {
 
     public TenantAdminProvisioningService(UserAccountRepository userAccountRepository,
                                           RoleService roleService,
+                                          RoleRepository roleRepository,
                                           PasswordEncoder passwordEncoder,
                                           EmailService emailService,
                                           TokenBlacklistService tokenBlacklistService,
                                           RefreshTokenService refreshTokenService) {
         this.userAccountRepository = userAccountRepository;
         this.roleService = roleService;
+        this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
         this.tokenBlacklistService = tokenBlacklistService;
@@ -52,7 +56,7 @@ public class TenantAdminProvisioningService {
         if (userAccountRepository.findByEmailIgnoreCase(normalizedEmail).isPresent()) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("First admin email already exists: " + normalizedEmail);
         }
-        Role adminRole = roleService.ensureRoleExists("ROLE_ADMIN");
+        Role adminRole = requireAdminRole();
         String temporaryPassword = PasswordUtils.generateTemporaryPassword(14);
         UserAccount firstAdmin = new UserAccount(
                 normalizedEmail,
@@ -135,5 +139,14 @@ public class TenantAdminProvisioningService {
             }
         }
         return false;
+    }
+
+    private Role requireAdminRole() {
+        Role ensuredRole = roleRepository.findByName("ROLE_ADMIN")
+                .orElseGet(() -> roleService.ensureRoleExists("ROLE_ADMIN"));
+        if (ensuredRole.getId() == null) {
+            return roleService.ensureRoleExists("ROLE_ADMIN");
+        }
+        return roleRepository.findById(ensuredRole.getId()).orElse(ensuredRole);
     }
 }

@@ -1,5 +1,8 @@
 package com.bigbrightpaints.erp.modules.admin;
 
+import com.bigbrightpaints.erp.modules.admin.domain.ExportRequest;
+import com.bigbrightpaints.erp.modules.admin.domain.ExportRequestRepository;
+import com.bigbrightpaints.erp.modules.admin.dto.ExportApprovalStatus;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -44,6 +47,8 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
     private UserAccountRepository userAccountRepository;
     @Autowired
     private DealerRepository dealerRepository;
+    @Autowired
+    private ExportRequestRepository exportRequestRepository;
 
     @BeforeEach
     void setupUsers() {
@@ -90,6 +95,7 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
 
         long dealerId = createDealer("APPROVAL-CONTRACT-" + System.nanoTime(), new BigDecimal("5000"));
         long requestId = createCreditRequest(salesHeaders, dealerId, "1500", "Typed approval payload");
+        long exportRequestId = createPendingExportRequest("SALES_SUMMARY", "periodId=7");
 
         ResponseEntity<Map> approvalsResponse = rest.exchange(
                 "/api/v1/admin/approvals",
@@ -114,6 +120,18 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
         assertThat(creditApproval.get("ownerType")).isEqualTo("SALES");
         assertThat(creditApproval.containsKey("type")).isFalse();
         assertThat(creditApproval.containsKey("sourcePortal")).isFalse();
+
+        List<?> exportApprovals = (List<?>) approvalsData.get("exportRequests");
+        assertThat(exportApprovals).isNotEmpty();
+        Map<?, ?> exportApproval = exportApprovals.stream()
+                .map(Map.class::cast)
+                .filter(item -> ("EXP-" + exportRequestId).equals(item.get("reference")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(exportApproval.get("originType")).isEqualTo("EXPORT_REQUEST");
+        assertThat(exportApproval.get("ownerType")).isEqualTo("REPORTS");
+        assertThat(exportApproval.containsKey("type")).isFalse();
+        assertThat(exportApproval.containsKey("sourcePortal")).isFalse();
     }
 
     @Test
@@ -369,6 +387,19 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
         dealer.setStatus("ACTIVE");
         dealer.setCreditLimit(creditLimit);
         return dealerRepository.save(dealer).getId();
+    }
+
+    private long createPendingExportRequest(String reportType, String parameters) {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        UserAccount accountingUser = userAccountRepository.findByEmailIgnoreCase(ACCOUNTING_EMAIL).orElseThrow();
+
+        ExportRequest request = new ExportRequest();
+        request.setCompany(company);
+        request.setUserId(accountingUser.getId());
+        request.setReportType(reportType);
+        request.setParameters(parameters);
+        request.setStatus(ExportApprovalStatus.PENDING);
+        return exportRequestRepository.save(request).getId();
     }
 
     private String extractStatus(ResponseEntity<Map> response) {

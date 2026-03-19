@@ -18,6 +18,7 @@ import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.dto.TenantOnboardingRequest;
 import com.bigbrightpaints.erp.modules.company.dto.TenantOnboardingResponse;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
+import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -41,6 +42,7 @@ public class TenantOnboardingService {
     private final CompanyRepository companyRepository;
     private final UserAccountRepository userAccountRepository;
     private final RoleService roleService;
+    private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AccountRepository accountRepository;
     private final AccountingPeriodService accountingPeriodService;
@@ -51,6 +53,7 @@ public class TenantOnboardingService {
     public TenantOnboardingService(CompanyRepository companyRepository,
                                    UserAccountRepository userAccountRepository,
                                    RoleService roleService,
+                                   RoleRepository roleRepository,
                                    PasswordEncoder passwordEncoder,
                                    AccountRepository accountRepository,
                                    AccountingPeriodService accountingPeriodService,
@@ -60,6 +63,7 @@ public class TenantOnboardingService {
         this.companyRepository = companyRepository;
         this.userAccountRepository = userAccountRepository;
         this.roleService = roleService;
+        this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.accountRepository = accountRepository;
         this.accountingPeriodService = accountingPeriodService;
@@ -197,7 +201,7 @@ public class TenantOnboardingService {
     }
 
     private AdminProvisioningResult createTenantAdmin(Company company, String adminEmail, String adminDisplayName) {
-        Role adminRole = roleService.ensureRoleExists("ROLE_ADMIN");
+        Role adminRole = requireAdminRole();
         String temporaryPassword = PasswordUtils.generateTemporaryPassword(14);
         UserAccount admin = new UserAccount(
                 adminEmail,
@@ -214,6 +218,15 @@ public class TenantOnboardingService {
                 temporaryPassword,
                 company.getCode());
         return new AdminProvisioningResult(temporaryPassword, emailService.isCredentialEmailDeliveryEnabled());
+    }
+
+    private Role requireAdminRole() {
+        Role ensuredRole = roleRepository.findByName("ROLE_ADMIN")
+                .orElseGet(() -> roleService.ensureRoleExists("ROLE_ADMIN"));
+        if (ensuredRole.getId() == null) {
+            return roleService.ensureRoleExists("ROLE_ADMIN");
+        }
+        return roleRepository.findById(ensuredRole.getId()).orElse(ensuredRole);
     }
 
     private String resolveAdminDisplayName(String requestedDisplayName, Company company) {

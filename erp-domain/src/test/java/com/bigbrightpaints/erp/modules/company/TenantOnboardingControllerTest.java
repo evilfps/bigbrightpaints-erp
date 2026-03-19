@@ -11,6 +11,7 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import java.math.BigDecimal;
 import java.util.List;
@@ -123,6 +124,9 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
             assertThat(admin.getCompanies())
                     .extracting(Company::getCode)
                     .contains(companyCode);
+            assertThat(admin.getRoles())
+                    .extracting(Role::getName)
+                    .contains("ROLE_ADMIN");
             assertThat(admin.isMustChangePassword()).isTrue();
         }
 

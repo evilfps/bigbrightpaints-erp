@@ -8,6 +8,7 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
+import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +38,9 @@ class TenantAdminProvisioningServiceTest {
     private RoleService roleService;
 
     @Mock
+    private RoleRepository roleRepository;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @Mock
@@ -53,6 +57,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -61,7 +66,7 @@ class TenantAdminProvisioningServiceTest {
         Role adminRole = new Role();
         adminRole.setName("ROLE_ADMIN");
         when(userAccountRepository.findByEmailIgnoreCase("new-admin@ske.com")).thenReturn(Optional.empty());
-        when(roleService.ensureRoleExists("ROLE_ADMIN")).thenReturn(adminRole);
+        when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(adminRole));
         when(passwordEncoder.encode(any())).thenReturn("encoded");
         when(userAccountRepository.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -81,6 +86,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -89,7 +95,7 @@ class TenantAdminProvisioningServiceTest {
         Role adminRole = new Role();
         adminRole.setName("ROLE_ADMIN");
         when(userAccountRepository.findByEmailIgnoreCase("new-admin@ske.com")).thenReturn(Optional.empty());
-        when(roleService.ensureRoleExists("ROLE_ADMIN")).thenReturn(adminRole);
+        when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(adminRole));
         when(passwordEncoder.encode(any())).thenReturn("encoded");
         when(userAccountRepository.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -108,6 +114,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -124,6 +131,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -143,6 +151,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -159,6 +168,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -182,6 +192,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -205,6 +216,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -232,6 +244,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -252,6 +265,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -280,6 +294,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -312,6 +327,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
