@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.company.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
@@ -9,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
@@ -90,7 +92,7 @@ class TenantOnboardingServiceTest {
     }
 
     @Test
-    void requireAdminRole_ensuresRoleWhenRepositoryReturnsTransientRole() {
+    void requireAdminRole_synchronizesBeforeLoadingPersistedRole() {
         TenantOnboardingService service = new TenantOnboardingService(
                 companyRepository,
                 userAccountRepository,
@@ -102,17 +104,36 @@ class TenantOnboardingServiceTest {
                 coATemplateService,
                 emailService,
                 systemSettingsRepository);
-        Role transientRole = new Role();
-        transientRole.setName("ROLE_ADMIN");
         Role persistedRole = new Role();
         persistedRole.setName("ROLE_ADMIN");
-        ReflectionTestUtils.setField(persistedRole, "id", 91L);
-        when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(transientRole));
-        when(roleService.ensureRoleExists("ROLE_ADMIN")).thenReturn(persistedRole);
+        when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(persistedRole));
 
         Role resolved = ReflectionTestUtils.invokeMethod(service, "requireAdminRole");
 
         assertThat(resolved).isSameAs(persistedRole);
         verify(roleService).ensureRoleExists("ROLE_ADMIN");
+        verify(roleRepository).findByName("ROLE_ADMIN");
+    }
+
+    @Test
+    void requireAdminRole_failsFastWhenAdminRoleMissingAfterSynchronization() {
+        TenantOnboardingService service = new TenantOnboardingService(
+                companyRepository,
+                userAccountRepository,
+                roleService,
+                roleRepository,
+                passwordEncoder,
+                accountRepository,
+                accountingPeriodService,
+                coATemplateService,
+                emailService,
+                systemSettingsRepository);
+        when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "requireAdminRole"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("ROLE_ADMIN must exist before tenant onboarding");
+        verify(roleService).ensureRoleExists("ROLE_ADMIN");
+        verify(roleRepository).findByName("ROLE_ADMIN");
     }
 }

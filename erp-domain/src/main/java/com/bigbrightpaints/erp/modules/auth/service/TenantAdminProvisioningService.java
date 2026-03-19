@@ -142,11 +142,9 @@ public class TenantAdminProvisioningService {
     }
 
     private Role requireAdminRole() {
-        Role ensuredRole = roleRepository.findByName("ROLE_ADMIN")
-                .orElseGet(() -> roleService.ensureRoleExists("ROLE_ADMIN"));
-        if (ensuredRole.getId() == null) {
-            return roleService.ensureRoleExists("ROLE_ADMIN");
-        }
-        return roleRepository.findById(ensuredRole.getId()).orElse(ensuredRole);
+        roleService.ensureRoleExists("ROLE_ADMIN");
+        return roleRepository.findByName("ROLE_ADMIN")
+                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+                        "ROLE_ADMIN must exist before tenant admin provisioning"));
     }
 }

@@ -111,7 +111,7 @@ class TenantAdminProvisioningServiceTest {
     }
 
     @Test
-    void provisionInitialAdmin_reusesPersistedAdminRoleWhenAlreadySeeded() {
+    void provisionInitialAdmin_reloadsPersistedAdminRoleAfterSynchronization() {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
@@ -126,15 +126,34 @@ class TenantAdminProvisioningServiceTest {
         persistedRole.setName("ROLE_ADMIN");
         when(userAccountRepository.findByEmailIgnoreCase("new-admin@ske.com")).thenReturn(Optional.empty());
         when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(persistedRole));
-        when(roleRepository.findById(42L)).thenReturn(Optional.of(persistedRole));
         when(passwordEncoder.encode(any())).thenReturn("encoded");
         when(userAccountRepository.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         String email = service.provisionInitialAdmin(company, "new-admin@ske.com", "New Admin");
 
         assertThat(email).isEqualTo("new-admin@ske.com");
-        verify(roleRepository).findById(42L);
-        verify(roleService, never()).ensureRoleExists("ROLE_ADMIN");
+        verify(roleRepository).findByName("ROLE_ADMIN");
+        verify(roleService).ensureRoleExists("ROLE_ADMIN");
+    }
+
+    @Test
+    void provisionInitialAdmin_failsFastWhenAdminRoleMissingAfterSynchronization() {
+        TenantAdminProvisioningService service = new TenantAdminProvisioningService(
+                userAccountRepository,
+                roleService,
+                roleRepository,
+                passwordEncoder,
+                emailService,
+                tokenBlacklistService,
+                refreshTokenService);
+        Company company = company(10L, "SKE", "SKE");
+        when(userAccountRepository.findByEmailIgnoreCase("new-admin@ske.com")).thenReturn(Optional.empty());
+        when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.provisionInitialAdmin(company, "new-admin@ske.com", "New Admin"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("ROLE_ADMIN must exist before tenant admin provisioning");
+        verify(roleService).ensureRoleExists("ROLE_ADMIN");
     }
 
     @Test
