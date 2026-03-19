@@ -13,6 +13,7 @@ import com.bigbrightpaints.erp.modules.rbac.dto.RoleDto;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -57,10 +58,11 @@ public class RoleService {
 
     @Transactional
     public int synchronizeSystemRolePermissions() {
+        Map<String, Permission> permissionCache = new HashMap<>();
         int updatedRoles = 0;
         for (Role role : roleRepository.findByNameIn(SystemRole.roleNames())) {
             SystemRole definition = SystemRole.fromName(role.getName()).orElse(null);
-            if (definition != null && synchronizeSystemRolePermissions(role, definition)) {
+            if (definition != null && synchronizeSystemRolePermissions(role, definition, permissionCache)) {
                 roleRepository.save(role);
                 updatedRoles++;
             }
@@ -89,7 +91,7 @@ public class RoleService {
                 .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                         "Unknown platform role: " + normalizedName));
         return roleRepository.findByName(normalizedName)
-                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
                         "Required platform role is missing: " + normalizedName));
     }
 
@@ -132,24 +134,16 @@ public class RoleService {
     private boolean synchronizeSystemRole(SystemRole definition, Map<String, Permission> permissionCache) {
         Role role = roleRepository.lockByName(definition.getRoleName()).orElseGet(Role::new);
         boolean dirty = role.getId() == null;
-        if (!StringUtils.hasText(role.getName())) {
+        if (!definition.getRoleName().equals(role.getName())) {
             role.setName(definition.getRoleName());
             dirty = true;
         }
-        if (!StringUtils.hasText(role.getDescription())) {
+        if (!definition.getDescription().equals(role.getDescription())) {
             role.setDescription(definition.getDescription());
             dirty = true;
         }
-        Set<String> existingPermissionCodes = role.getPermissions().stream()
-                .map(Permission::getCode)
-                .filter(StringUtils::hasText)
-                .collect(Collectors.toSet());
-        for (String permissionCode : definition.getDefaultPermissions()) {
-            if (existingPermissionCodes.add(permissionCode)) {
-                Permission permission = permissionCache.computeIfAbsent(permissionCode, this::ensurePermissionExists);
-                role.getPermissions().add(permission);
-                dirty = true;
-            }
+        if (replacePermissionsIfDrifted(role, definition, permissionCache)) {
+            dirty = true;
         }
         if (!dirty) {
             return false;
@@ -165,22 +159,32 @@ public class RoleService {
         return roleName.trim().toUpperCase(Locale.ROOT);
     }
 
-    private boolean synchronizeSystemRolePermissions(Role role, SystemRole definition) {
+    private boolean synchronizeSystemRolePermissions(Role role, SystemRole definition, Map<String, Permission> permissionCache) {
         boolean changed = false;
-        if (!StringUtils.hasText(role.getDescription())) {
+        if (!definition.getDescription().equals(role.getDescription())) {
             role.setDescription(definition.getDescription());
             changed = true;
         }
-        HashSet<String> existingCodes = role.getPermissions().stream()
-                .map(Permission::getCode)
-                .collect(Collectors.toCollection(HashSet::new));
-        for (String code : definition.getDefaultPermissions()) {
-            if (existingCodes.add(code)) {
-                role.getPermissions().add(ensurePermissionExists(code));
-                changed = true;
-            }
+        if (replacePermissionsIfDrifted(role, definition, permissionCache)) {
+            changed = true;
         }
         return changed;
+    }
+
+    private boolean replacePermissionsIfDrifted(Role role, SystemRole definition, Map<String, Permission> permissionCache) {
+        Set<String> existingCodes = role.getPermissions().stream()
+                .map(Permission::getCode)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toCollection(HashSet::new));
+        LinkedHashSet<String> expectedCodes = new LinkedHashSet<>(definition.getDefaultPermissions());
+        if (existingCodes.equals(expectedCodes)) {
+            return false;
+        }
+        role.getPermissions().clear();
+        for (String code : definition.getDefaultPermissions()) {
+            role.getPermissions().add(permissionCache.computeIfAbsent(code, this::ensurePermissionExists));
+        }
+        return true;
     }
 
     private RoleDto toDto(Role role) {

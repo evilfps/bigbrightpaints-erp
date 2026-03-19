@@ -38,6 +38,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -47,6 +48,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -125,7 +127,7 @@ class AdminUserServiceTest {
         });
         lenient().when(roleService.requireAdminSurfaceAssignmentRole(anyString())).thenAnswer(invocation -> {
             Role role = new Role();
-            role.setName(invocation.getArgument(0));
+            role.setName(invocation.getArgument(0, String.class).trim().toUpperCase(Locale.ROOT));
             return role;
         });
         lenient().when(dealerRepository.save(any(Dealer.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -170,6 +172,27 @@ class AdminUserServiceTest {
         assertThat(savedDealer.getPortalUser().getEmail()).isEqualTo("dealer@example.com");
         assertThat(receivable.isActive()).isTrue();
         verify(accountRepository).save(receivable);
+    }
+
+    @Test
+    void createUser_usesResolvedDealerRoleForProvisioning() {
+        when(dealerRepository.findByCompanyAndPortalUserEmail(company, "dealer-trimmed@example.com"))
+                .thenReturn(Optional.empty());
+        when(dealerRepository.findByCompanyAndEmailIgnoreCase(company, "dealer-trimmed@example.com"))
+                .thenReturn(Optional.empty());
+
+        service.createUser(new CreateUserRequest(
+                "dealer-trimmed@example.com",
+                "Password@123",
+                "Dealer Trimmed",
+                List.of(1L),
+                List.of(" ROLE_DEALER ")
+        ));
+
+        ArgumentCaptor<Dealer> dealerCaptor = ArgumentCaptor.forClass(Dealer.class);
+        verify(dealerRepository, atLeastOnce()).save(dealerCaptor.capture());
+        assertThat(dealerCaptor.getAllValues())
+                .anySatisfy(savedDealer -> assertThat(savedDealer.getPortalUser()).isNotNull());
     }
 
     @Test

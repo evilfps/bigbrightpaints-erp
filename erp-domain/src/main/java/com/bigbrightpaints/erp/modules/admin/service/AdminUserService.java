@@ -122,9 +122,9 @@ public class AdminUserService {
         attachResolvedRoles(user, requestedRoles);
         UserAccount saved = userRepository.save(user);
         
-        // Auto-create Dealer entity if user has ROLE_DEALER
-        boolean isDealerUser = request.roles().stream()
-                .anyMatch(r -> r.equalsIgnoreCase("ROLE_DEALER") || r.equalsIgnoreCase("DEALER"));
+        boolean isDealerUser = requestedRoles.stream()
+                .map(Role::getName)
+                .anyMatch("ROLE_DEALER"::equalsIgnoreCase);
         if (isDealerUser && !targetCompanies.isEmpty()) {
             createDealerForUser(saved, targetCompanies.getFirst());
         }

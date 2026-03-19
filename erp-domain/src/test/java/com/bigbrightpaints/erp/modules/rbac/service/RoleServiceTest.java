@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.rbac.domain.Permission;
 import com.bigbrightpaints.erp.modules.rbac.domain.PermissionRepository;
@@ -50,8 +52,9 @@ class RoleServiceTest {
     }
 
     @Test
-    void synchronizeSystemRolePermissions_backfillsMissingDispatchConfirmForExistingAccountingRole() {
-        Role accounting = role("ROLE_ACCOUNTING", permission("portal:accounting"));
+    void synchronizeSystemRolePermissions_reconcilesExistingRoleToCanonicalPermissionSet() {
+        Role accounting = role("ROLE_ACCOUNTING", permission("portal:accounting"), permission("portal:rogue"));
+        accounting.setDescription("Legacy accounting");
         when(roleRepository.findByNameIn(List.of(
                 "ROLE_SUPER_ADMIN",
                 "ROLE_ADMIN",
@@ -59,8 +62,8 @@ class RoleServiceTest {
                 "ROLE_FACTORY",
                 "ROLE_SALES",
                 "ROLE_DEALER"))).thenReturn(List.of(accounting));
-        when(permissionRepository.findByCode("dispatch.confirm")).thenReturn(Optional.of(permission("dispatch.confirm")));
-        when(permissionRepository.findByCode("payroll.run")).thenReturn(Optional.of(permission("payroll.run")));
+        when(permissionRepository.findByCode(any())).thenAnswer(invocation ->
+                Optional.of(permission(invocation.getArgument(0, String.class))));
         when(roleRepository.save(any(Role.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
@@ -68,9 +71,10 @@ class RoleServiceTest {
         int updatedRoles = service.synchronizeSystemRolePermissions();
 
         assertThat(updatedRoles).isEqualTo(1);
+        assertThat(accounting.getDescription()).isEqualTo(SystemRole.ACCOUNTING.getDescription());
         assertThat(accounting.getPermissions())
                 .extracting(Permission::getCode)
-                .contains("portal:accounting", "dispatch.confirm", "payroll.run");
+                .containsExactlyInAnyOrderElementsOf(SystemRole.ACCOUNTING.getDefaultPermissions());
         verify(roleRepository).save(accounting);
     }
 
@@ -140,7 +144,9 @@ class RoleServiceTest {
         RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
 
         assertThatThrownBy(() -> service.requireFixedSystemRole("ROLE_ACCOUNTING"))
-                .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> assertThat(((ApplicationException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.VALIDATION_INVALID_STATE))
                 .hasMessageContaining("Required platform role is missing: ROLE_ACCOUNTING");
     }
 
