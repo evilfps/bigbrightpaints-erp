@@ -41,20 +41,21 @@ Current emitted `ownerType` values:
 - `ACCOUNTING`
 - `REPORTS`
 
-Unchanged approval item fields:
+Stable approval item fields:
 - `reference`
 - `status`
 - `summary`
-- `actionType`
-- `actionLabel`
-- `approveEndpoint`
-- `rejectEndpoint`
 - `createdAt`
+
+Conditional action fields:
+- tenant admin viewers keep `actionType`, `actionLabel`, `approveEndpoint`, and `rejectEndpoint` on export approval rows
+- accounting-only viewers receive export approval rows with those action fields as `null`
 
 Frontend action:
 - switch approval queue rendering, filtering, and badge logic to `originType` and `ownerType`
 - render export approval detail from `reportType`
-- only render `parameters`, `requesterUserId`, and `requesterEmail` when the caller is a tenant admin or super-admin
+- only render `parameters`, `requesterUserId`, and `requesterEmail` when the caller is a tenant admin
+- treat `actionType`, `actionLabel`, `approveEndpoint`, and `rejectEndpoint` as nullable on accounting export rows; do not render export decision controls when they are `null`
 - stop reading `type` and `sourcePortal`
 - keep `GET /api/v1/admin/approvals` limited to tenant-scoped admin/accounting callers; do not point platform super-admin tooling at that prefix
 

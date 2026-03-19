@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.admin.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -19,9 +21,13 @@ public record AdminApprovalItemDto(
         Long requesterUserId,
         @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
         String requesterEmail,
+        @Schema(nullable = true)
         String actionType,
+        @Schema(nullable = true)
         String actionLabel,
+        @Schema(nullable = true)
         String approveEndpoint,
+        @Schema(nullable = true)
         String rejectEndpoint,
         Instant createdAt
 ) {

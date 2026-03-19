@@ -341,7 +341,13 @@ class AdminSettingsControllerApprovalsContractTest {
                         null)
         ));
 
-        ApiResponse<AdminApprovalsResponse> response = controller.approvals();
+        authenticateAs("ROLE_ADMIN");
+        ApiResponse<AdminApprovalsResponse> response;
+        try {
+            response = controller.approvals();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
 
         assertThat(response.success()).isTrue();
         assertThat(response.data()).isNotNull();
@@ -430,6 +436,10 @@ class AdminSettingsControllerApprovalsContractTest {
         assertThat(exportApproval.parameters()).isNull();
         assertThat(exportApproval.requesterUserId()).isNull();
         assertThat(exportApproval.requesterEmail()).isNull();
+        assertThat(exportApproval.actionType()).isNull();
+        assertThat(exportApproval.actionLabel()).isNull();
+        assertThat(exportApproval.approveEndpoint()).isNull();
+        assertThat(exportApproval.rejectEndpoint()).isNull();
     }
 
     @Test
@@ -621,6 +631,45 @@ class AdminSettingsControllerApprovalsContractTest {
         assertThat(json.has("parameters")).isFalse();
         assertThat(json.has("requesterUserId")).isFalse();
         assertThat(json.has("requesterEmail")).isFalse();
+    }
+
+    @Test
+    void adminApprovalItemSerialization_keepsNullExportActionFieldsForAccountingRows() throws Exception {
+        var mapper = JsonMapper.builder().findAndAddModules().build();
+        AdminApprovalItemDto exportApproval = new AdminApprovalItemDto(
+                AdminApprovalItemDto.OriginType.EXPORT_REQUEST,
+                AdminApprovalItemDto.OwnerType.REPORTS,
+                51L,
+                UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+                "EXP-51",
+                ExportApprovalStatus.PENDING.name(),
+                "Review export request EXP-51 for report SALES_SUMMARY",
+                "SALES_SUMMARY",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Instant.parse("2026-02-13T12:00:00Z")
+        );
+
+        var json = mapper.readTree(mapper.writeValueAsString(exportApproval));
+
+        assertThat(json.has("reportType")).isTrue();
+        assertThat(json.get("reportType").asText()).isEqualTo("SALES_SUMMARY");
+        assertThat(json.has("parameters")).isFalse();
+        assertThat(json.has("requesterUserId")).isFalse();
+        assertThat(json.has("requesterEmail")).isFalse();
+        assertThat(json.has("actionType")).isTrue();
+        assertThat(json.get("actionType").isNull()).isTrue();
+        assertThat(json.has("actionLabel")).isTrue();
+        assertThat(json.get("actionLabel").isNull()).isTrue();
+        assertThat(json.has("approveEndpoint")).isTrue();
+        assertThat(json.get("approveEndpoint").isNull()).isTrue();
+        assertThat(json.has("rejectEndpoint")).isTrue();
+        assertThat(json.get("rejectEndpoint").isNull()).isTrue();
     }
 
     @Test

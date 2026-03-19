@@ -635,9 +635,9 @@ UX rule:
 
 ### Approval Flow Contract For Accounting Approvers
 
-Accounting role users (`ROLE_ACCOUNTING`) can operate approvals via:
+Accounting role users (`ROLE_ACCOUNTING`) can read the tenant approval queue via:
 - Queue: `GET /api/v1/admin/approvals`
-- Action endpoints from queue payload fields:
+- Action endpoints only when the queue row actually emits them:
   - `approveEndpoint`
   - `rejectEndpoint` (nullable for payroll)
 
@@ -648,8 +648,12 @@ Queue payload fields to render directly:
 
 Export approval rows additionally expose:
 - `reportType` for all accounting inbox viewers
+- `actionType`, `actionLabel`, `approveEndpoint`, and `rejectEndpoint` as `null` for accounting-only viewers
 - redacted `parameters`, `requesterUserId`, and `requesterEmail` for accounting-only viewers
-- full `parameters`, `requesterUserId`, and `requesterEmail` only when the same queue is rendered for tenant admin or super-admin users
+- full `parameters`, `requesterUserId`, and `requesterEmail` only when the same queue is rendered for tenant admin users
+
+Frontend rule:
+- For export approval rows shown to accounting users, treat the row as inbox-only. Do not synthesize approve/reject controls when the action fields are `null`.
 
 Action semantics:
 - Credit request approvals: `/api/v1/sales/credit-requests/{id}/approve|reject`

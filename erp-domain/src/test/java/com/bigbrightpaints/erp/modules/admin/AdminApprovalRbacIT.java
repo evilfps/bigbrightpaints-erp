@@ -143,6 +143,10 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
         assertThat(exportApproval.get("parameters")).isEqualTo("periodId=7");
         assertThat(exportApproval.get("requesterEmail")).isEqualTo(ACCOUNTING_EMAIL);
         assertThat(exportApproval.get("requesterUserId")).isNotNull();
+        assertThat(exportApproval.get("actionType")).isEqualTo("APPROVE_EXPORT_REQUEST");
+        assertThat(exportApproval.get("actionLabel")).isEqualTo("Approve data export");
+        assertThat(exportApproval.get("approveEndpoint")).isEqualTo("/api/v1/admin/exports/{id}/approve");
+        assertThat(exportApproval.get("rejectEndpoint")).isEqualTo("/api/v1/admin/exports/{id}/reject");
 
         ResponseEntity<Map> accountingApprovalsResponse = rest.exchange(
                 "/api/v1/admin/approvals",
@@ -171,6 +175,14 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
         assertThat(accountingExportApproval.containsKey("parameters")).isFalse();
         assertThat(accountingExportApproval.containsKey("requesterEmail")).isFalse();
         assertThat(accountingExportApproval.containsKey("requesterUserId")).isFalse();
+        assertThat(accountingExportApproval.containsKey("actionType")).isTrue();
+        assertThat(accountingExportApproval.containsKey("actionLabel")).isTrue();
+        assertThat(accountingExportApproval.containsKey("approveEndpoint")).isTrue();
+        assertThat(accountingExportApproval.containsKey("rejectEndpoint")).isTrue();
+        assertThat(accountingExportApproval.get("actionType")).isNull();
+        assertThat(accountingExportApproval.get("actionLabel")).isNull();
+        assertThat(accountingExportApproval.get("approveEndpoint")).isNull();
+        assertThat(accountingExportApproval.get("rejectEndpoint")).isNull();
     }
 
     @Test

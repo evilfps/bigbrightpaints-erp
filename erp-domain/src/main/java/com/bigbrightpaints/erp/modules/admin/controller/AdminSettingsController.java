@@ -347,6 +347,10 @@ public class AdminSettingsController {
         String requesterEmail = includeSensitiveDetails && StringUtils.hasText(request.userEmail())
                 ? request.userEmail()
                 : null;
+        String actionType = includeSensitiveDetails ? EXPORT_REQUEST_APPROVAL_ACTION : null;
+        String actionLabel = includeSensitiveDetails ? "Approve data export" : null;
+        String approveEndpoint = includeSensitiveDetails ? EXPORT_REQUEST_APPROVE_ENDPOINT : null;
+        String rejectEndpoint = includeSensitiveDetails ? EXPORT_REQUEST_REJECT_ENDPOINT : null;
         if (requesterEmail != null) {
             summary = summary + " requested by " + requesterEmail;
         }
@@ -362,10 +366,10 @@ public class AdminSettingsController {
                 includeSensitiveDetails ? request.parameters() : null,
                 includeSensitiveDetails ? request.userId() : null,
                 requesterEmail,
-                EXPORT_REQUEST_APPROVAL_ACTION,
-                "Approve data export",
-                EXPORT_REQUEST_APPROVE_ENDPOINT,
-                EXPORT_REQUEST_REJECT_ENDPOINT,
+                actionType,
+                actionLabel,
+                approveEndpoint,
+                rejectEndpoint,
                 request.createdAt()
         );
     }
