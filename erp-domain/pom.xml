@@ -556,6 +556,8 @@
                                 <include>**/smoke/**/*Test.java</include>
                                 <include>**/core/util/BusinessDocumentTruthsTest.java</include>
                                 <include>**/modules/admin/AdminUserSecurityIT.java</include>
+                                <include>**/modules/admin/AdminApprovalRbacIT.java</include>
+                                <include>**/modules/admin/controller/AdminSettingsControllerApprovalsContractTest.java</include>
                                 <include>**/modules/accounting/service/AccountingAuditTrailServiceTest.java</include>
                                 <include>**/modules/auth/AuthPasswordResetPublicContractIT.java</include>
                                 <include>**/modules/inventory/controller/DispatchControllerTest.java</include>
@@ -579,6 +581,7 @@
                                 <include>**/modules/sales/service/SalesCoreEngineCoverageTest.java</include>
                                 <include>**/modules/sales/service/SalesFulfillmentServiceTest.java</include>
                                 <include>**/modules/sales/service/SalesProformaBoundaryServiceTest.java</include>
+                                <include>**/modules/reports/ReportExportApprovalIT.java</include>
                                 <include>**/regression/InventoryAccountingEventListenerIT.java</include>
                                 <include>**/shared/dto/TruthRailsSharedDtoContractTest.java</include>
                             </includes>

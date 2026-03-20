@@ -1,7 +1,7 @@
 # Endpoint Inventory (OpenAPI)
 
 Source: `openapi.json`
-Updated: 2026-03-18
+Updated: 2026-03-20
 
 Related behavior contract:
 - `docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md`
@@ -15,9 +15,9 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `de938952c64c98f2018a0843712a58a52b9d70d359f40252272ec07b95018581`)
-- OpenAPI total paths: `311`
-- OpenAPI total operations: `372`
+- OpenAPI snapshot: `openapi.json` (sha256 `602c45d8f90acd2b4a2f4faa208f8bae4ef36169bdf837fca7d6b80243556990`)
+- OpenAPI total paths: `309`
+- OpenAPI total operations: `370`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
 
 ## Summary by module
@@ -25,12 +25,12 @@ Portal scope guardrail:
 | Module | Path count | Examples |
 |---|---:|---|
 | `accounting` | 82 | /api/v1/accounting/accounts, /api/v1/accounting/accounts/tree, /api/v1/accounting/accounts/tree/{type} |
-| `admin` | 18 | /api/v1/admin/approvals, /api/v1/admin/changelog, /api/v1/admin/changelog/{id} |
+| `admin` | 17 | /api/v1/admin/approvals, /api/v1/admin/changelog, /api/v1/admin/changelog/{id} |
 | `audit` | 2 | /api/v1/audit/business-events, /api/v1/audit/ml-events |
 | `auth` | 12 | /api/v1/auth/login, /api/v1/auth/logout, /api/v1/auth/me |
 | `catalog` | 5 | /api/v1/catalog/brands, /api/v1/catalog/brands/{brandId}, /api/v1/catalog/products |
 | `changelog` | 2 | /api/v1/changelog, /api/v1/changelog/latest-highlighted |
-| `companies` | 10 | /api/v1/companies, /api/v1/companies/superadmin/dashboard, /api/v1/companies/superadmin/tenants |
+| `companies` | 9 | /api/v1/companies, /api/v1/companies/superadmin/tenants, /api/v1/companies/{id}/tenant-runtime/policy |
 | `credit` | 3 | /api/v1/credit/override-requests, /api/v1/credit/override-requests/{id}/approve, /api/v1/credit/override-requests/{id}/reject |
 | `dealer-portal` | 7 | /api/v1/dealer-portal/aging, /api/v1/dealer-portal/credit-requests, /api/v1/dealer-portal/dashboard |
 | `dealers` | 8 | /api/v1/dealers, /api/v1/dealers/search, /api/v1/dealers/{dealerId} |
@@ -148,7 +148,6 @@ Portal scope guardrail:
 - `GET` `/api/v1/admin/approvals`
 - `POST` `/api/v1/admin/changelog`
 - `DELETE, PUT` `/api/v1/admin/changelog/{id}`
-- `GET` `/api/v1/admin/exports/pending`
 - `PUT` `/api/v1/admin/exports/{requestId}/approve`
 - `PUT` `/api/v1/admin/exports/{requestId}/reject`
 - `POST` `/api/v1/admin/notify`
@@ -200,7 +199,6 @@ Portal scope guardrail:
 ## `companies`
 
 - `GET, POST` `/api/v1/companies`
-- `GET` `/api/v1/companies/superadmin/dashboard`
 - `POST` `/api/v1/companies/superadmin/tenants`
 - `PUT` `/api/v1/companies/superadmin/tenants/{id}`
 - `DELETE, PUT` `/api/v1/companies/{id}`

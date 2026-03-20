@@ -8,13 +8,16 @@ com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimePasswordResetServiceExecuta
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeRefreshTokenServiceExecutableCoverageTest
 com.bigbrightpaints.erp.modules.company.service.TS_RuntimeCompanyServiceExecutableCoverageTest
 com.bigbrightpaints.erp.modules.company.CompanyControllerIT
+com.bigbrightpaints.erp.modules.company.TenantOnboardingControllerTest
 com.bigbrightpaints.erp.modules.company.domain.CoATemplateTest
+com.bigbrightpaints.erp.modules.company.service.TenantOnboardingServiceTest
 com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingServiceStandardJournalTest
 com.bigbrightpaints.erp.modules.auth.TenantRuntimeEnforcementAuthIT
 com.bigbrightpaints.erp.modules.auth.AuthPasswordResetPublicContractIT
 com.bigbrightpaints.erp.modules.auth.CompanyContextFilterControlPlaneBindingTest
 com.bigbrightpaints.erp.modules.auth.service.PasswordResetServiceTest
+com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningServiceTest
 com.bigbrightpaints.erp.OpenApiSnapshotIT
 com.bigbrightpaints.erp.modules.admin.controller.AdminSettingsControllerTenantRuntimeContractTest
 com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyServiceTest

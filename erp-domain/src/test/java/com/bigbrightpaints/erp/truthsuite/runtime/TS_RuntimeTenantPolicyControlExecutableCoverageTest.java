@@ -28,6 +28,7 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
+import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import java.math.BigDecimal;
@@ -399,6 +400,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     void tenantAdminProvisioningService_provisionInitialAdmin_covers_guards_and_fallback_display() {
         UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
         RoleService roleService = mock(RoleService.class);
+        RoleRepository roleRepository = mock(RoleRepository.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         EmailService emailService = mock(EmailService.class);
         TokenBlacklistService tokenBlacklistService = mock(TokenBlacklistService.class);
@@ -406,6 +408,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -414,7 +417,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         Role adminRole = new Role();
         adminRole.setName("ROLE_ADMIN");
         when(userAccountRepository.findByEmailIgnoreCase("new-admin@ske.com")).thenReturn(Optional.empty());
-        when(roleService.ensureRoleExists("ROLE_ADMIN")).thenReturn(adminRole);
+        when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(adminRole));
         when(passwordEncoder.encode(any())).thenReturn("encoded");
         when(userAccountRepository.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -447,6 +450,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     void tenantAdminProvisioningService_resetTenantAdminPassword_covers_authority_and_recovery_paths() {
         UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
         RoleService roleService = mock(RoleService.class);
+        RoleRepository roleRepository = mock(RoleRepository.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         EmailService emailService = mock(EmailService.class);
         TokenBlacklistService tokenBlacklistService = mock(TokenBlacklistService.class);
@@ -454,6 +458,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -516,6 +521,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     void tenantAdminProvisioningService_reportsCredentialEmailDeliveryReadiness() {
         UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
         RoleService roleService = mock(RoleService.class);
+        RoleRepository roleRepository = mock(RoleRepository.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         EmailService emailService = mock(EmailService.class);
         TokenBlacklistService tokenBlacklistService = mock(TokenBlacklistService.class);
@@ -523,6 +529,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,

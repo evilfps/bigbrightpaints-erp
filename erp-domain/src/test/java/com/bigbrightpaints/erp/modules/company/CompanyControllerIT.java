@@ -190,19 +190,7 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void superadmin_dashboard_requires_super_admin_authority() {
-        String adminToken = loginToken(ADMIN_EMAIL, COMPANY_CODE);
-        HttpHeaders adminHeaders = new HttpHeaders();
-        adminHeaders.setBearerAuth(adminToken);
-        adminHeaders.setContentType(MediaType.APPLICATION_JSON);
-        adminHeaders.set("X-Company-Code", COMPANY_CODE);
-        ResponseEntity<Map> adminResponse = rest.exchange(
-                "/api/v1/companies/superadmin/dashboard",
-                HttpMethod.GET,
-                new HttpEntity<>(adminHeaders),
-                Map.class);
-        assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-
+    void retired_company_superadmin_dashboard_alias_is_not_exposed() {
         String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
         HttpHeaders superAdminHeaders = new HttpHeaders();
         superAdminHeaders.setBearerAuth(superAdminToken);
@@ -213,9 +201,7 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
                 HttpMethod.GET,
                 new HttpEntity<>(superAdminHeaders),
                 Map.class);
-        assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(superAdminResponse.getBody()).isNotNull();
-        assertThat(superAdminResponse.getBody()).containsKey("data");
+        assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test

@@ -12,6 +12,7 @@ import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -22,6 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+@Tag("critical")
 class ReportExportApprovalIT extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE = "EXPORT-APPROVAL";
@@ -85,12 +87,49 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
         assertThat(requestId).isNotNull();
 
         ResponseEntity<Map> pendingResponse = rest.exchange(
-                "/api/v1/admin/exports/pending",
+                "/api/v1/admin/approvals",
                 HttpMethod.GET,
                 new HttpEntity<>(adminHeaders),
                 Map.class
         );
         assertThat(pendingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(pendingResponse.getBody()).isNotNull();
+        Map<?, ?> pendingData = (Map<?, ?>) pendingResponse.getBody().get("data");
+        assertThat(pendingData).isNotNull();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exportRequests = (List<Map<String, Object>>) pendingData.get("exportRequests");
+        assertThat(exportRequests)
+                .anySatisfy(row -> {
+                    assertThat(row.get("originType")).isEqualTo("EXPORT_REQUEST");
+                    assertThat(row.get("reportType")).isEqualTo("TRIAL-BALANCE");
+                    assertThat(row.get("parameters")).isEqualTo("periodId=10");
+                    assertThat(row.get("requesterEmail")).isEqualTo(ACCOUNTING_EMAIL);
+                    assertThat(String.valueOf(row.get("reference"))).startsWith("EXP-");
+                });
+
+        ResponseEntity<Map> accountingInboxResponse = rest.exchange(
+                "/api/v1/admin/approvals",
+                HttpMethod.GET,
+                new HttpEntity<>(accountingHeaders),
+                Map.class
+        );
+        assertThat(accountingInboxResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(accountingInboxResponse.getBody()).isNotNull();
+        Map<?, ?> accountingInboxData = (Map<?, ?>) accountingInboxResponse.getBody().get("data");
+        assertThat(accountingInboxData).isNotNull();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> accountingExportRequests =
+                (List<Map<String, Object>>) accountingInboxData.get("exportRequests");
+        assertThat(accountingExportRequests)
+                .anySatisfy(row -> {
+                    assertThat(row.get("originType")).isEqualTo("EXPORT_REQUEST");
+                    assertThat(row.get("reportType")).isEqualTo("TRIAL-BALANCE");
+                    assertThat(String.valueOf(row.get("summary"))).contains("report TRIAL-BALANCE");
+                    assertThat(String.valueOf(row.get("summary"))).doesNotContain(ACCOUNTING_EMAIL);
+                    assertThat(row.containsKey("parameters")).isFalse();
+                    assertThat(row.containsKey("requesterEmail")).isFalse();
+                    assertThat(row.containsKey("requesterUserId")).isFalse();
+                });
 
         ResponseEntity<Map> downloadBeforeApproval = rest.exchange(
                 "/api/v1/exports/" + requestId.longValue() + "/download",
@@ -201,9 +240,27 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
         List<Map<String, Object>> rows = (List<Map<String, Object>>) exportRequests;
         assertThat(rows)
                 .anySatisfy(row -> {
-                    assertThat(row.get("type")).isEqualTo("EXPORT_REQUEST");
+                    assertThat(row.get("originType")).isEqualTo("EXPORT_REQUEST");
+                    assertThat(row.get("ownerType")).isEqualTo("REPORTS");
+                    assertThat(row.get("reportType")).isEqualTo("AGED-DEBTORS");
+                    assertThat(row.get("parameters")).isEqualTo("periodId=5");
+                    assertThat(row.get("requesterEmail")).isEqualTo(ACCOUNTING_EMAIL);
                     assertThat(String.valueOf(row.get("reference"))).startsWith("EXP-");
                 });
+    }
+
+    @Test
+    void retired_export_pending_alias_is_not_exposed() {
+        HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL);
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/admin/exports/pending",
+                HttpMethod.GET,
+                new HttpEntity<>(adminHeaders),
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     private HttpHeaders authHeaders(String email) {
