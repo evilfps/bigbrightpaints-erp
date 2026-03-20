@@ -550,8 +550,7 @@ public class ReportService {
                 : "unknown";
         throw new ApplicationException(
                 ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
-                "Posted invoice line is missing taxable amount for GST reporting: " + invoiceReference
-        );
+                "Posted invoice line is missing taxable amount for GST reporting: " + invoiceReference);
     }
 
     private boolean isIncludedInvoiceStatus(String status) {
@@ -707,8 +706,7 @@ public class ReportService {
 
     private FinancialReportQueryRequest requireFinancialReportRequest(FinancialReportQueryRequest request) {
         if (request == null) {
-            throw new ApplicationException(
-                    ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
                     "Financial report query request is required");
         }
         return request;

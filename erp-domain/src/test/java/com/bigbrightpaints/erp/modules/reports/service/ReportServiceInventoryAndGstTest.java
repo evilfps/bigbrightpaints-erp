@@ -491,6 +491,116 @@ class ReportServiceInventoryAndGstTest {
     }
 
     @Test
+    void gstReturn_rejectsTaxedInvoiceLinesWithNegativeTaxableAmount() {
+        AccountingPeriod period = new AccountingPeriod();
+        ReflectionTestUtils.setField(period, "id", 26L);
+        period.setYear(2026);
+        period.setMonth(2);
+        period.setStartDate(LocalDate.of(2026, 2, 1));
+        period.setEndDate(LocalDate.of(2026, 2, 28));
+        period.setStatus(AccountingPeriodStatus.CLOSED);
+
+        when(accountingPeriodRepository.findByCompanyAndId(company, 26L)).thenReturn(Optional.of(period));
+
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer Two");
+        dealer.setStateCode("27");
+
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 102L);
+        invoice.setInvoiceNumber("INV-102");
+        invoice.setIssueDate(LocalDate.of(2026, 2, 11));
+        invoice.setStatus("POSTED");
+        invoice.setDealer(dealer);
+
+        InvoiceLine invoiceLine = new InvoiceLine();
+        invoiceLine.setQuantity(BigDecimal.ONE);
+        invoiceLine.setUnitPrice(new BigDecimal("100"));
+        invoiceLine.setTaxRate(new BigDecimal("18"));
+        invoiceLine.setTaxableAmount(new BigDecimal("-1"));
+        invoiceLine.setLineTotal(new BigDecimal("118"));
+        invoiceLine.setTaxAmount(new BigDecimal("18"));
+        invoiceLine.setCgstAmount(new BigDecimal("9"));
+        invoiceLine.setSgstAmount(new BigDecimal("9"));
+        invoiceLine.setIgstAmount(BigDecimal.ZERO);
+        invoice.getLines().add(invoiceLine);
+
+        when(invoiceRepository.findByCompanyAndIssueDateBetweenOrderByIssueDateAsc(
+                company,
+                LocalDate.of(2026, 2, 1),
+                LocalDate.of(2026, 2, 28)
+        )).thenReturn(List.of(invoice));
+        when(rawMaterialPurchaseRepository.findByCompanyAndInvoiceDateBetweenOrderByInvoiceDateAsc(
+                company,
+                LocalDate.of(2026, 2, 1),
+                LocalDate.of(2026, 2, 28)
+        )).thenReturn(List.of());
+
+        assertThatThrownBy(() -> reportService.gstReturn(26L))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> {
+                    ApplicationException applicationException = (ApplicationException) ex;
+                    assertThat(applicationException.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION);
+                    assertThat(applicationException.getMessage()).contains("INV-102");
+                    assertThat(applicationException.getMessage()).contains("missing taxable amount");
+                });
+    }
+
+    @Test
+    void gstReturn_rejectsTaxedInvoiceLinesMissingTaxableAmountWithoutInvoiceNumber() {
+        AccountingPeriod period = new AccountingPeriod();
+        ReflectionTestUtils.setField(period, "id", 27L);
+        period.setYear(2026);
+        period.setMonth(2);
+        period.setStartDate(LocalDate.of(2026, 2, 1));
+        period.setEndDate(LocalDate.of(2026, 2, 28));
+        period.setStatus(AccountingPeriodStatus.CLOSED);
+
+        when(accountingPeriodRepository.findByCompanyAndId(company, 27L)).thenReturn(Optional.of(period));
+
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer Three");
+        dealer.setStateCode("27");
+
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 103L);
+        invoice.setIssueDate(LocalDate.of(2026, 2, 12));
+        invoice.setStatus("POSTED");
+        invoice.setDealer(dealer);
+
+        InvoiceLine invoiceLine = new InvoiceLine();
+        invoiceLine.setQuantity(BigDecimal.ONE);
+        invoiceLine.setUnitPrice(new BigDecimal("100"));
+        invoiceLine.setTaxRate(new BigDecimal("18"));
+        invoiceLine.setLineTotal(new BigDecimal("118"));
+        invoiceLine.setTaxAmount(new BigDecimal("18"));
+        invoiceLine.setCgstAmount(new BigDecimal("9"));
+        invoiceLine.setSgstAmount(new BigDecimal("9"));
+        invoiceLine.setIgstAmount(BigDecimal.ZERO);
+        invoice.getLines().add(invoiceLine);
+
+        when(invoiceRepository.findByCompanyAndIssueDateBetweenOrderByIssueDateAsc(
+                company,
+                LocalDate.of(2026, 2, 1),
+                LocalDate.of(2026, 2, 28)
+        )).thenReturn(List.of(invoice));
+        when(rawMaterialPurchaseRepository.findByCompanyAndInvoiceDateBetweenOrderByInvoiceDateAsc(
+                company,
+                LocalDate.of(2026, 2, 1),
+                LocalDate.of(2026, 2, 28)
+        )).thenReturn(List.of());
+
+        assertThatThrownBy(() -> reportService.gstReturn(27L))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> {
+                    ApplicationException applicationException = (ApplicationException) ex;
+                    assertThat(applicationException.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION);
+                    assertThat(applicationException.getMessage()).contains("unknown");
+                    assertThat(applicationException.getMessage()).contains("missing taxable amount");
+                });
+    }
+
+    @Test
     void gstReturn_withoutPeriodIdFallsBackToCurrentMonthPeriod() {
         stubToday();
         AccountingPeriod period = new AccountingPeriod();

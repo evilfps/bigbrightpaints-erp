@@ -128,8 +128,7 @@ public class BalanceSheetReportQueryService {
                         null,
                         CURRENT_EARNINGS_CODE,
                         CURRENT_EARNINGS_NAME,
-                        currentEarnings
-                ));
+                        currentEarnings));
             }
         }
 
