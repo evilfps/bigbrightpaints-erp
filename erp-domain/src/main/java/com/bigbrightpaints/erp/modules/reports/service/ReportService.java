@@ -550,7 +550,8 @@ public class ReportService {
                 : "unknown";
         throw new ApplicationException(
                 ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
-                "Posted invoice line is missing taxable amount for GST reporting: " + invoiceReference);
+                "Invoice line taxable amount is required and must be non-negative for GST reporting. Invoice: "
+                        + invoiceReference);
     }
 
     private boolean isIncludedInvoiceStatus(String status) {

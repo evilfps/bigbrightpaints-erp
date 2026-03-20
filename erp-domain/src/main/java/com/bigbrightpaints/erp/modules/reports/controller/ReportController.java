@@ -194,10 +194,10 @@ public class ReportController {
     @GetMapping("/reports/aging/receivables")
     public ResponseEntity<ApiResponse<AgingReportService.AgedReceivablesReport>> agedReceivables(
             @RequestParam(required = false) String asOfDate) {
-        if (asOfDate != null) {
+        if (asOfDate != null && !asOfDate.isBlank()) {
             return ResponseEntity.ok(ApiResponse.success(
                     "Aged receivables report",
-                    agingReportService.getAgedReceivablesReport(java.time.LocalDate.parse(asOfDate))));
+                    agingReportService.getAgedReceivablesReport(java.time.LocalDate.parse(asOfDate.trim()))));
         }
         return ResponseEntity.ok(ApiResponse.success(
                 "Aged receivables report",

@@ -486,7 +486,8 @@ class ReportServiceInventoryAndGstTest {
                     ApplicationException applicationException = (ApplicationException) ex;
                     assertThat(applicationException.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION);
                     assertThat(applicationException.getMessage()).contains("INV-101");
-                    assertThat(applicationException.getMessage()).contains("missing taxable amount");
+                    assertThat(applicationException.getMessage())
+                            .contains("taxable amount is required and must be non-negative");
                 });
     }
 
@@ -542,7 +543,8 @@ class ReportServiceInventoryAndGstTest {
                     ApplicationException applicationException = (ApplicationException) ex;
                     assertThat(applicationException.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION);
                     assertThat(applicationException.getMessage()).contains("INV-102");
-                    assertThat(applicationException.getMessage()).contains("missing taxable amount");
+                    assertThat(applicationException.getMessage())
+                            .contains("taxable amount is required and must be non-negative");
                 });
     }
 
@@ -596,7 +598,8 @@ class ReportServiceInventoryAndGstTest {
                     ApplicationException applicationException = (ApplicationException) ex;
                     assertThat(applicationException.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION);
                     assertThat(applicationException.getMessage()).contains("unknown");
-                    assertThat(applicationException.getMessage()).contains("missing taxable amount");
+                    assertThat(applicationException.getMessage())
+                            .contains("taxable amount is required and must be non-negative");
                 });
     }
 

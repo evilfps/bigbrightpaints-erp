@@ -333,6 +333,33 @@ class ReportControllerContractTest {
     }
 
     @Test
+    void agedReceivables_blankAsOfDateUsesDefaultServiceDate() {
+        ReportService reportService = mock(ReportService.class);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        AgingReportService agingReportService = mock(AgingReportService.class);
+        ReportController controller = new ReportController(
+                reportService,
+                mock(AccountHierarchyService.class),
+                agingReportService,
+                exportApprovalService);
+        AgingReportService.AgedReceivablesReport expected = new AgingReportService.AgedReceivablesReport(
+                LocalDate.of(2026, 3, 20),
+                List.of(),
+                new AgingReportService.AgingBuckets(),
+                BigDecimal.ZERO
+        );
+        when(agingReportService.getAgedReceivablesReport()).thenReturn(expected);
+
+        ResponseEntity<ApiResponse<AgingReportService.AgedReceivablesReport>> response =
+                controller.agedReceivables("  ");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().data()).isEqualTo(expected);
+        verify(agingReportService).getAgedReceivablesReport();
+    }
+
+    @Test
     void dealerAging_delegatesToCanonicalAgingService() {
         ReportService reportService = mock(ReportService.class);
         ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
