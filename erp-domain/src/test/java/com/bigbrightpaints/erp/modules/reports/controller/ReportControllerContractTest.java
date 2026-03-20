@@ -1,5 +1,17 @@
 package com.bigbrightpaints.erp.modules.reports.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.exception.GlobalExceptionHandler;
 import com.bigbrightpaints.erp.modules.admin.service.ExportApprovalService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountHierarchyService;
 import com.bigbrightpaints.erp.modules.accounting.service.AgingReportService;
@@ -16,16 +28,12 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @Tag("critical")
 class ReportControllerContractTest {
@@ -446,6 +454,42 @@ class ReportControllerContractTest {
         verify(agingReportService).getDealerDSO(77L);
     }
 
+    @Test
+    void dealerAging_unknownDealerUsesGlobalNotFoundContractOnCanonicalReportHost() throws Exception {
+        AgingReportService agingReportService = mock(AgingReportService.class);
+        when(agingReportService.getDealerAging(404L)).thenThrow(new ApplicationException(
+                ErrorCode.BUSINESS_ENTITY_NOT_FOUND,
+                "Dealer not found"));
+
+        reportControllerMvc(agingReportService)
+                .perform(get("/api/v1/reports/aging/dealer/{dealerId}", 404L))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Dealer not found"))
+                .andExpect(jsonPath("$.data.code").value(ErrorCode.BUSINESS_ENTITY_NOT_FOUND.getCode()))
+                .andExpect(jsonPath("$.data.reason").value("Dealer not found"))
+                .andExpect(jsonPath("$.data.path").value("/api/v1/reports/aging/dealer/404"))
+                .andExpect(jsonPath("$.data.traceId").isNotEmpty());
+    }
+
+    @Test
+    void agedReceivables_moduleDisabledUsesGlobalForbiddenContractOnCanonicalReportHost() throws Exception {
+        AgingReportService agingReportService = mock(AgingReportService.class);
+        when(agingReportService.getAgedReceivablesReport()).thenThrow(new ApplicationException(
+                ErrorCode.MODULE_DISABLED,
+                "Module REPORTS_ADVANCED is disabled for the current tenant"));
+
+        reportControllerMvc(agingReportService)
+                .perform(get("/api/v1/reports/aging/receivables"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Module REPORTS_ADVANCED is disabled for the current tenant"))
+                .andExpect(jsonPath("$.data.code").value(ErrorCode.MODULE_DISABLED.getCode()))
+                .andExpect(jsonPath("$.data.reason").value("Module REPORTS_ADVANCED is disabled for the current tenant"))
+                .andExpect(jsonPath("$.data.path").value("/api/v1/reports/aging/receivables"))
+                .andExpect(jsonPath("$.data.traceId").isNotEmpty());
+    }
+
     private ReportController controller(ReportService reportService,
                                         ExportApprovalService exportApprovalService) {
         return new ReportController(
@@ -453,5 +497,16 @@ class ReportControllerContractTest {
                 mock(AccountHierarchyService.class),
                 mock(AgingReportService.class),
                 exportApprovalService);
+    }
+
+    private MockMvc reportControllerMvc(AgingReportService agingReportService) {
+        ReportController controller = new ReportController(
+                mock(ReportService.class),
+                mock(AccountHierarchyService.class),
+                agingReportService,
+                mock(ExportApprovalService.class));
+        return MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
     }
 }

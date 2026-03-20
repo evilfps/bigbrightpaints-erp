@@ -149,6 +149,8 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 | `acctRecordSupplierPayment` | POST | `/api/v1/accounting/suppliers/payments` | allocations (body), allocations[].appliedAmount (body), amount (body), cashAccountId (body), supplierId (body) | Idempotency-Key (header), allocations[].discountAmount (body), allocations[].fxAdjustment (body), allocations[].invoiceId (body), allocations[].memo (body), allocations[].purchaseId (body), allocations[].writeOffAmount (body), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
 | `acctGetTrialBalanceAsOf` | GET | `/api/v1/accounting/trial-balance/as-of` | date (query) | - | Yes | No | Yes |
 
+Canonical `/api/v1/reports/**` accounting endpoints in the table above run through `ReportController` and the shared `GlobalExceptionHandler`, not `AccountingController`'s retired always-400 handler. Frontend callers must branch on HTTP status plus `data.code` and `data.reason` instead of assuming every application failure is `400`. Current mapping for these routes is: validation `400`, `MODULE_DISABLED` `403`, `BUSINESS_ENTITY_NOT_FOUND` `404`, and business/concurrency/data conflicts `409`.
+
 ### Accounting Core Workflow Supplements (Code-Verified, Outside Parity Lock)
 
 These rows are required for the period-close maker-checker UX, but they live outside the curated 143-row endpoint-map parity lock.
