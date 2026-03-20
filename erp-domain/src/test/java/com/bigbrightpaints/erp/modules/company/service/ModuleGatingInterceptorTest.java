@@ -75,4 +75,5 @@ class ModuleGatingInterceptorTest {
         assertThat(allowed).isTrue();
         verify(moduleGatingService, never()).isEnabledForCurrentCompany(CompanyModule.REPORTS_ADVANCED);
     }
+
 }

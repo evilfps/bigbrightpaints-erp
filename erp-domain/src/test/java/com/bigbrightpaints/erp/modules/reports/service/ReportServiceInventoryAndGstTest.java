@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.reports.service;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -31,6 +33,7 @@ import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationDto;
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationGroupDto;
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationItemDto;
 import com.bigbrightpaints.erp.modules.reports.dto.ReportSource;
+import com.bigbrightpaints.erp.modules.reports.dto.TrialBalanceDto;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +50,10 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -139,7 +145,7 @@ class ReportServiceInventoryAndGstTest {
         company.setStateCode("27");
         company.setTimezone("UTC");
 
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
     }
 
     private void stubToday() {
@@ -214,6 +220,132 @@ class ReportServiceInventoryAndGstTest {
         assertThat(byBrand.get("Raw Materials").lowStockItems()).isEqualTo(1);
         assertThat(byBrand.get("Shield").itemCount()).isEqualTo(1);
         assertThat(response.metadata().source()).isEqualTo(ReportSource.LIVE);
+    }
+
+    @Test
+    void balanceSheet_requiresExplicitQueryRequest() {
+        assertThatThrownBy(() -> reportService.balanceSheet((FinancialReportQueryRequest) null))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Financial report query request is required");
+    }
+
+    @Test
+    void profitLoss_requiresExplicitQueryRequest() {
+        assertThatThrownBy(() -> reportService.profitLoss((FinancialReportQueryRequest) null))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Financial report query request is required");
+    }
+
+    @Test
+    void agedDebtors_requiresExplicitQueryRequest() {
+        assertThatThrownBy(() -> reportService.agedDebtors(null))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Financial report query request is required");
+    }
+
+    @Test
+    void trialBalance_requiresExplicitQueryRequest() {
+        assertThatThrownBy(() -> reportService.trialBalance((FinancialReportQueryRequest) null))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Financial report query request is required");
+    }
+
+    @Test
+    void balanceSheet_delegatesExplicitQueryRequestToQueryService() {
+        FinancialReportQueryRequest request = new FinancialReportQueryRequest(
+                null,
+                LocalDate.of(2026, 3, 1),
+                LocalDate.of(2026, 3, 31),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        var expected = new com.bigbrightpaints.erp.modules.reports.dto.BalanceSheetDto(
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null
+        );
+        when(balanceSheetReportQueryService.generate(request)).thenReturn(expected);
+
+        assertThat(reportService.balanceSheet(request)).isEqualTo(expected);
+        verify(balanceSheetReportQueryService).generate(request);
+    }
+
+    @Test
+    void profitLoss_delegatesExplicitQueryRequestToQueryService() {
+        FinancialReportQueryRequest request = new FinancialReportQueryRequest(
+                null,
+                LocalDate.of(2026, 3, 1),
+                LocalDate.of(2026, 3, 31),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        var expected = new com.bigbrightpaints.erp.modules.reports.dto.ProfitLossDto(
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null
+        );
+        when(profitLossReportQueryService.generate(request)).thenReturn(expected);
+
+        assertThat(reportService.profitLoss(request)).isEqualTo(expected);
+        verify(profitLossReportQueryService).generate(request);
+    }
+
+    @Test
+    void agedDebtors_delegatesExplicitQueryRequestToQueryService() {
+        FinancialReportQueryRequest request = new FinancialReportQueryRequest(
+                null,
+                LocalDate.of(2026, 3, 1),
+                LocalDate.of(2026, 3, 31),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        when(agedDebtorsReportQueryService.generate(request)).thenReturn(List.of());
+
+        assertThat(reportService.agedDebtors(request)).isEmpty();
+        verify(agedDebtorsReportQueryService).generate(request);
+    }
+
+    @Test
+    void trialBalance_delegatesExplicitQueryRequestToQueryService() {
+        FinancialReportQueryRequest request = new FinancialReportQueryRequest(
+                null,
+                LocalDate.of(2026, 3, 1),
+                LocalDate.of(2026, 3, 31),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+        var expected = new com.bigbrightpaints.erp.modules.reports.dto.TrialBalanceDto(
+                List.of(),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                true,
+                null,
+                null
+        );
+        when(trialBalanceReportQueryService.generate(request)).thenReturn(expected);
+
+        assertThat(reportService.trialBalance(request)).isEqualTo(expected);
+        verify(trialBalanceReportQueryService).generate(request);
     }
 
     @Test
@@ -301,6 +433,61 @@ class ReportServiceInventoryAndGstTest {
         assertThat(report.transactionDetails()).extracting(GstReturnReportDto.GstTransactionDetail::direction)
                 .containsExactly("OUTPUT", "INPUT");
         assertThat(report.metadata().source()).isEqualTo(ReportSource.SNAPSHOT);
+    }
+
+    @Test
+    void gstReturn_rejectsTaxedInvoiceLinesMissingCanonicalTaxableAmount() {
+        AccountingPeriod period = new AccountingPeriod();
+        ReflectionTestUtils.setField(period, "id", 25L);
+        period.setYear(2026);
+        period.setMonth(2);
+        period.setStartDate(LocalDate.of(2026, 2, 1));
+        period.setEndDate(LocalDate.of(2026, 2, 28));
+        period.setStatus(AccountingPeriodStatus.CLOSED);
+
+        when(accountingPeriodRepository.findByCompanyAndId(company, 25L)).thenReturn(Optional.of(period));
+
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer One");
+        dealer.setStateCode("27");
+
+        Invoice invoice = new Invoice();
+        ReflectionTestUtils.setField(invoice, "id", 101L);
+        invoice.setInvoiceNumber("INV-101");
+        invoice.setIssueDate(LocalDate.of(2026, 2, 10));
+        invoice.setStatus("POSTED");
+        invoice.setDealer(dealer);
+
+        InvoiceLine invoiceLine = new InvoiceLine();
+        invoiceLine.setQuantity(BigDecimal.ONE);
+        invoiceLine.setUnitPrice(new BigDecimal("100"));
+        invoiceLine.setTaxRate(new BigDecimal("18"));
+        invoiceLine.setLineTotal(new BigDecimal("118"));
+        invoiceLine.setTaxAmount(new BigDecimal("18"));
+        invoiceLine.setCgstAmount(new BigDecimal("9"));
+        invoiceLine.setSgstAmount(new BigDecimal("9"));
+        invoiceLine.setIgstAmount(BigDecimal.ZERO);
+        invoice.getLines().add(invoiceLine);
+
+        when(invoiceRepository.findByCompanyAndIssueDateBetweenOrderByIssueDateAsc(
+                company,
+                LocalDate.of(2026, 2, 1),
+                LocalDate.of(2026, 2, 28)
+        )).thenReturn(List.of(invoice));
+        when(rawMaterialPurchaseRepository.findByCompanyAndInvoiceDateBetweenOrderByInvoiceDateAsc(
+                company,
+                LocalDate.of(2026, 2, 1),
+                LocalDate.of(2026, 2, 28)
+        )).thenReturn(List.of());
+
+        assertThatThrownBy(() -> reportService.gstReturn(25L))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> {
+                    ApplicationException applicationException = (ApplicationException) ex;
+                    assertThat(applicationException.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION);
+                    assertThat(applicationException.getMessage()).contains("INV-101");
+                    assertThat(applicationException.getMessage()).contains("missing taxable amount");
+                });
     }
 
     @Test

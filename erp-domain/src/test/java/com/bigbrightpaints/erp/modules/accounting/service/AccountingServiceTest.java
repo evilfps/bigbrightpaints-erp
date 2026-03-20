@@ -739,6 +739,24 @@ class AccountingServiceTest {
     }
 
     @Test
+    void createManualJournal_requiresAccountingFacade() {
+        when(accountingFacadeProvider.getIfAvailable()).thenReturn(null);
+
+        assertThatThrownBy(() -> accountingService.createManualJournal(new ManualJournalRequest(
+                LocalDate.of(2026, 3, 6),
+                "Manual reason",
+                "MAN-KEY-NULL",
+                false,
+                List.of(
+                        new ManualJournalRequest.LineRequest(601L, new BigDecimal("50.00"), null, ManualJournalRequest.EntryType.DEBIT),
+                        new ManualJournalRequest.LineRequest(602L, new BigDecimal("50.00"), null, ManualJournalRequest.EntryType.CREDIT)
+                )
+        )))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("AccountingFacade is required");
+    }
+
+    @Test
     void createManualJournalEntry_returnsExistingWhenIdempotencyReferenceAlreadyExists() {
         JournalEntry existing = new JournalEntry();
         ReflectionTestUtils.setField(existing, "id", 701L);

@@ -448,7 +448,7 @@ public class ReportService {
             return LineTaxBreakdown.zero();
         }
 
-        BigDecimal taxable = taxableAmount(line.getTaxableAmount());
+        BigDecimal taxable = requireInvoiceTaxableAmount(invoice, line);
         BigDecimal cgst = safe(line.getCgstAmount());
         BigDecimal sgst = safe(line.getSgstAmount());
         BigDecimal igst = safe(line.getIgstAmount());
@@ -540,11 +540,18 @@ public class ReportService {
         return retained.divide(totalQuantity, 12, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal taxableAmount(BigDecimal explicitTaxable) {
+    private BigDecimal requireInvoiceTaxableAmount(Invoice invoice, InvoiceLine line) {
+        BigDecimal explicitTaxable = line.getTaxableAmount();
         if (explicitTaxable != null && explicitTaxable.compareTo(BigDecimal.ZERO) >= 0) {
             return roundCurrency(explicitTaxable);
         }
-        return BigDecimal.ZERO;
+        String invoiceReference = invoice != null && invoice.getInvoiceNumber() != null
+                ? invoice.getInvoiceNumber()
+                : "unknown";
+        throw new ApplicationException(
+                ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                "Posted invoice line is missing taxable amount for GST reporting: " + invoiceReference
+        );
     }
 
     private boolean isIncludedInvoiceStatus(String status) {

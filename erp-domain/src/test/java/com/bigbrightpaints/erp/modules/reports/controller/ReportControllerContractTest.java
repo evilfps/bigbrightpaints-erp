@@ -4,7 +4,9 @@ import com.bigbrightpaints.erp.modules.admin.service.ExportApprovalService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountHierarchyService;
 import com.bigbrightpaints.erp.modules.accounting.service.AgingReportService;
 import com.bigbrightpaints.erp.modules.reports.dto.AccountStatementEntryDto;
+import com.bigbrightpaints.erp.modules.reports.dto.BalanceSheetDto;
 import com.bigbrightpaints.erp.modules.reports.dto.GstReturnReportDto;
+import com.bigbrightpaints.erp.modules.reports.dto.ProfitLossDto;
 import com.bigbrightpaints.erp.modules.reports.dto.TrialBalanceDto;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
@@ -25,6 +27,68 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ReportControllerContractTest {
+
+    @Test
+    void balanceSheet_withAsOfDateDelegatesToQueryRequestBuilder() {
+        ReportService reportService = mock(ReportService.class);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        ReportController controller = controller(reportService, exportApprovalService);
+        BalanceSheetDto expected = new BalanceSheetDto(
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null
+        );
+        when(reportService.balanceSheet(any(com.bigbrightpaints.erp.modules.reports.service.FinancialReportQueryRequest.class)))
+                .thenReturn(expected);
+
+        ResponseEntity<ApiResponse<BalanceSheetDto>> response = controller.balanceSheet(
+                "2026-03-31",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().data()).isEqualTo(expected);
+        verify(reportService).balanceSheet(any(com.bigbrightpaints.erp.modules.reports.service.FinancialReportQueryRequest.class));
+    }
+
+    @Test
+    void profitLoss_withAsOfDateDelegatesToQueryRequestBuilder() {
+        ReportService reportService = mock(ReportService.class);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        ReportController controller = controller(reportService, exportApprovalService);
+        ProfitLossDto expected = new ProfitLossDto(
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null
+        );
+        when(reportService.profitLoss(any(com.bigbrightpaints.erp.modules.reports.service.FinancialReportQueryRequest.class)))
+                .thenReturn(expected);
+
+        ResponseEntity<ApiResponse<ProfitLossDto>> response = controller.profitLoss(
+                "2026-03-31",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().data()).isEqualTo(expected);
+        verify(reportService).profitLoss(any(com.bigbrightpaints.erp.modules.reports.service.FinancialReportQueryRequest.class));
+    }
 
     @Test
     void trialBalance_withDateRangeAndComparativeParametersDelegatesToQueryRequestBuilder() {
@@ -184,6 +248,37 @@ class ReportControllerContractTest {
     }
 
     @Test
+    void incomeStatementHierarchy_delegatesToCanonicalReportHost() {
+        ReportService reportService = mock(ReportService.class);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        AccountHierarchyService accountHierarchyService = mock(AccountHierarchyService.class);
+        ReportController controller = new ReportController(
+                reportService,
+                accountHierarchyService,
+                mock(AgingReportService.class),
+                exportApprovalService);
+        AccountHierarchyService.IncomeStatementHierarchy expected = new AccountHierarchyService.IncomeStatementHierarchy(
+                List.of(),
+                BigDecimal.ZERO,
+                List.of(),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                List.of(),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO
+        );
+        when(accountHierarchyService.getIncomeStatementHierarchy()).thenReturn(expected);
+
+        ResponseEntity<ApiResponse<AccountHierarchyService.IncomeStatementHierarchy>> response =
+                controller.incomeStatementHierarchy();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().data()).isEqualTo(expected);
+        verify(accountHierarchyService).getIncomeStatementHierarchy();
+    }
+
+    @Test
     void agedReceivables_parsesAsOfDateForCanonicalReportHost() {
         ReportService reportService = mock(ReportService.class);
         ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
@@ -208,6 +303,118 @@ class ReportControllerContractTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().data()).isEqualTo(expected);
         verify(agingReportService).getAgedReceivablesReport(LocalDate.of(2026, 2, 28));
+    }
+
+    @Test
+    void agedReceivables_withoutAsOfDateUsesDefaultServiceDate() {
+        ReportService reportService = mock(ReportService.class);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        AgingReportService agingReportService = mock(AgingReportService.class);
+        ReportController controller = new ReportController(
+                reportService,
+                mock(AccountHierarchyService.class),
+                agingReportService,
+                exportApprovalService);
+        AgingReportService.AgedReceivablesReport expected = new AgingReportService.AgedReceivablesReport(
+                LocalDate.of(2026, 3, 20),
+                List.of(),
+                new AgingReportService.AgingBuckets(),
+                BigDecimal.ZERO
+        );
+        when(agingReportService.getAgedReceivablesReport()).thenReturn(expected);
+
+        ResponseEntity<ApiResponse<AgingReportService.AgedReceivablesReport>> response =
+                controller.agedReceivables(null);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().data()).isEqualTo(expected);
+        verify(agingReportService).getAgedReceivablesReport();
+    }
+
+    @Test
+    void dealerAging_delegatesToCanonicalAgingService() {
+        ReportService reportService = mock(ReportService.class);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        AgingReportService agingReportService = mock(AgingReportService.class);
+        ReportController controller = new ReportController(
+                reportService,
+                mock(AccountHierarchyService.class),
+                agingReportService,
+                exportApprovalService);
+        AgingReportService.DealerAgingDetail expected = new AgingReportService.DealerAgingDetail(
+                77L,
+                "DLR-77",
+                "Dealer 77",
+                new AgingReportService.AgingBuckets(),
+                BigDecimal.ZERO
+        );
+        when(agingReportService.getDealerAging(77L)).thenReturn(expected);
+
+        ResponseEntity<ApiResponse<AgingReportService.DealerAgingDetail>> response = controller.dealerAging(77L);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().data()).isEqualTo(expected);
+        verify(agingReportService).getDealerAging(77L);
+    }
+
+    @Test
+    void dealerAgingDetailed_delegatesToCanonicalAgingService() {
+        ReportService reportService = mock(ReportService.class);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        AgingReportService agingReportService = mock(AgingReportService.class);
+        ReportController controller = new ReportController(
+                reportService,
+                mock(AccountHierarchyService.class),
+                agingReportService,
+                exportApprovalService);
+        AgingReportService.DealerAgingDetailedReport expected = new AgingReportService.DealerAgingDetailedReport(
+                77L,
+                "DLR-77",
+                "Dealer 77",
+                List.of(),
+                new AgingReportService.AgingBuckets(),
+                BigDecimal.ZERO,
+                0.0
+        );
+        when(agingReportService.getDealerAgingDetailed(77L)).thenReturn(expected);
+
+        ResponseEntity<ApiResponse<AgingReportService.DealerAgingDetailedReport>> response =
+                controller.dealerAgingDetailed(77L);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().data()).isEqualTo(expected);
+        verify(agingReportService).getDealerAgingDetailed(77L);
+    }
+
+    @Test
+    void dealerDso_delegatesToCanonicalAgingService() {
+        ReportService reportService = mock(ReportService.class);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        AgingReportService agingReportService = mock(AgingReportService.class);
+        ReportController controller = new ReportController(
+                reportService,
+                mock(AccountHierarchyService.class),
+                agingReportService,
+                exportApprovalService);
+        AgingReportService.DSOReport expected = new AgingReportService.DSOReport(
+                77L,
+                "Dealer 77",
+                12.5,
+                BigDecimal.ZERO,
+                0,
+                0L
+        );
+        when(agingReportService.getDealerDSO(77L)).thenReturn(expected);
+
+        ResponseEntity<ApiResponse<AgingReportService.DSOReport>> response = controller.dealerDso(77L);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().data()).isEqualTo(expected);
+        verify(agingReportService).getDealerDSO(77L);
     }
 
     private ReportController controller(ReportService reportService,

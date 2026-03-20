@@ -83,6 +83,34 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void report_contract_paths_use_canonical_namespace_only() throws IOException {
+        JsonNode root = fetchCurrentSpecNode();
+
+        assertOperationContract(root, "/api/v1/reports/aged-debtors", "get",
+                null, "200", "#/components/schemas/ApiResponseListAgedDebtorDto");
+        assertOperationContract(root, "/api/v1/reports/balance-sheet/hierarchy", "get",
+                null, "200", "#/components/schemas/ApiResponseBalanceSheetHierarchy");
+        assertOperationContract(root, "/api/v1/reports/income-statement/hierarchy", "get",
+                null, "200", "#/components/schemas/ApiResponseIncomeStatementHierarchy");
+        assertOperationContract(root, "/api/v1/reports/aging/receivables", "get",
+                null, "200", "#/components/schemas/ApiResponseAgedReceivablesReport");
+        assertOperationContract(root, "/api/v1/reports/aging/dealer/{dealerId}", "get",
+                null, "200", "#/components/schemas/ApiResponseDealerAgingDetail");
+        assertOperationContract(root, "/api/v1/reports/aging/dealer/{dealerId}/detailed", "get",
+                null, "200", "#/components/schemas/ApiResponseDealerAgingDetailedReport");
+        assertOperationContract(root, "/api/v1/reports/dso/dealer/{dealerId}", "get",
+                null, "200", "#/components/schemas/ApiResponseDSOReport");
+
+        assertOperationMissing(root, "/api/v1/accounting/reports/aged-debtors", "get");
+        assertOperationMissing(root, "/api/v1/accounting/reports/balance-sheet/hierarchy", "get");
+        assertOperationMissing(root, "/api/v1/accounting/reports/income-statement/hierarchy", "get");
+        assertOperationMissing(root, "/api/v1/accounting/reports/aging/receivables", "get");
+        assertOperationMissing(root, "/api/v1/accounting/reports/aging/dealer/{dealerId}", "get");
+        assertOperationMissing(root, "/api/v1/accounting/reports/aging/dealer/{dealerId}/detailed", "get");
+        assertOperationMissing(root, "/api/v1/accounting/reports/dso/dealer/{dealerId}", "get");
+    }
+
+    @Test
     void openapi_snapshot_matches_repository_contract() throws IOException {
         Path openApiSnapshotPath = resolveRepoRoot().resolve("openapi.json");
         String currentSpec = canonicalizeJson(fetchCurrentSpecNode().toString());

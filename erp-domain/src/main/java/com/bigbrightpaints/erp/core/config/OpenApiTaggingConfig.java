@@ -9,7 +9,6 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class OpenApiTaggingConfig {
-
     @Bean
     public OpenApiCustomizer moduleTagCustomizer() {
         return openApi -> {
