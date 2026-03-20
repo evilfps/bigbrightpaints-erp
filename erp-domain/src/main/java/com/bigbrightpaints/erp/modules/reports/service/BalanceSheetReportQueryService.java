@@ -25,7 +25,6 @@ public class BalanceSheetReportQueryService {
     private static final BigDecimal BALANCE_TOLERANCE = new BigDecimal("0.01");
     private static final String CURRENT_EARNINGS_CODE = "CURRENT-EARNINGS";
     private static final String CURRENT_EARNINGS_NAME = "Current Earnings";
-    private static final String PERIOD_CLOSE_REFERENCE_PREFIX = "PERIOD-CLOSE-";
 
     private final ReportQuerySupport reportQuerySupport;
     private final AccountingPeriodTrialBalanceLineRepository snapshotLineRepository;
@@ -176,20 +175,22 @@ public class BalanceSheetReportQueryService {
         List<Account> accounts = accountRepository.findByCompanyOrderByCodeAsc(window.company());
         Map<Long, BigDecimal> debitByAccount = new HashMap<>();
         Map<Long, BigDecimal> creditByAccount = new HashMap<>();
-        List<Object[]> rows = journalLineRepository.summarizeByAccountWithinExcludingReferencePrefix(
-                window.company(),
-                window.startDate(),
-                window.endDate(),
-                PERIOD_CLOSE_REFERENCE_PREFIX);
-        for (Object[] row : rows) {
-            if (row == null || row.length < 3 || row[0] == null) {
-                continue;
-            }
-            Long accountId = (Long) row[0];
-            debitByAccount.put(accountId, safe((BigDecimal) row[1]));
-            creditByAccount.put(accountId, safe((BigDecimal) row[2]));
-        }
-
+        mergeSummaryRows(
+                debitByAccount,
+                creditByAccount,
+                journalLineRepository.summarizeByAccountWithin(
+                        window.company(),
+                        window.startDate(),
+                        window.endDate()),
+                false);
+        mergeSummaryRows(
+                debitByAccount,
+                creditByAccount,
+                journalLineRepository.summarizePostedPeriodCloseSystemJournalsByAccountWithin(
+                        window.company(),
+                        window.startDate(),
+                        window.endDate()),
+                true);
         List<BalanceLine> lines = new ArrayList<>();
         for (Account account : accounts) {
             if (!isBalanceSheetType(account.getType())) {
@@ -206,6 +207,24 @@ public class BalanceSheetReportQueryService {
             ));
         }
         return lines;
+    }
+
+    private void mergeSummaryRows(Map<Long, BigDecimal> debitByAccount,
+                                  Map<Long, BigDecimal> creditByAccount,
+                                  List<Object[]> rows,
+                                  boolean subtract) {
+        if (rows == null || rows.isEmpty()) {
+            return;
+        }
+        BigDecimal multiplier = subtract ? BigDecimal.valueOf(-1) : BigDecimal.ONE;
+        for (Object[] row : rows) {
+            if (row == null || row.length < 3 || row[0] == null) {
+                continue;
+            }
+            Long accountId = (Long) row[0];
+            debitByAccount.merge(accountId, safe((BigDecimal) row[1]).multiply(multiplier), BigDecimal::add);
+            creditByAccount.merge(accountId, safe((BigDecimal) row[2]).multiply(multiplier), BigDecimal::add);
+        }
     }
 
     private BigDecimal currentPeriodEarnings(ReportQuerySupport.FinancialQueryWindow window) {

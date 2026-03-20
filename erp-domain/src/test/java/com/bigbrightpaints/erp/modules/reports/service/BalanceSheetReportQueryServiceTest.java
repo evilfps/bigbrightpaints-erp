@@ -85,8 +85,8 @@ class BalanceSheetReportQueryServiceTest {
         Account equity = account(5L, "RETAINED-EARNINGS", "Retained Earnings", AccountType.EQUITY);
         when(accountRepository.findByCompanyOrderByCodeAsc(primary.company())).thenReturn(List.of(cash, machinery, payable, loan, equity));
 
-        when(journalLineRepository.summarizeByAccountWithinExcludingReferencePrefix(
-                primary.company(), primary.startDate(), primary.endDate(), "PERIOD-CLOSE-"))
+        when(journalLineRepository.summarizeByAccountWithin(
+                primary.company(), primary.startDate(), primary.endDate()))
                 .thenReturn(List.of(
                         row(1L, "1200.00", "0.00"),
                         row(2L, "800.00", "0.00"),
@@ -160,12 +160,15 @@ class BalanceSheetReportQueryServiceTest {
         Account payable = account(2L, "LOAN", "Loan", AccountType.LIABILITY);
         when(accountRepository.findByCompanyOrderByCodeAsc(primary.company())).thenReturn(List.of(cash, payable));
 
-        when(journalLineRepository.summarizeByAccountWithinExcludingReferencePrefix(
-                primary.company(), primary.startDate(), primary.endDate(), "PERIOD-CLOSE-"))
+        when(journalLineRepository.summarizeByAccountWithin(
+                primary.company(), primary.startDate(), primary.endDate()))
                 .thenReturn(List.of(
                         row(1L, "90.00", "0.00"),
                         row(2L, "0.00", "30.00")
                 ));
+        when(journalLineRepository.summarizePostedPeriodCloseSystemJournalsByAccountWithin(
+                primary.company(), primary.startDate(), primary.endDate()))
+                .thenReturn(null);
         when(journalLineRepository.summarizeByAccountType(primary.company(), primary.startDate(), primary.endDate()))
                 .thenReturn(List.of(
                         typeRow(AccountType.REVENUE, "0.00", "100.00"),
@@ -307,15 +310,20 @@ class BalanceSheetReportQueryServiceTest {
         Account cash = account(1L, "CASH", "Cash", AccountType.ASSET);
         Account payable = account(2L, "AP", "Accounts Payable", AccountType.LIABILITY);
         when(accountRepository.findByCompanyOrderByCodeAsc(primary.company())).thenReturn(List.of(cash, payable));
-        when(journalLineRepository.summarizeByAccountWithinExcludingReferencePrefix(
+        when(journalLineRepository.summarizeByAccountWithin(
                 primary.company(),
                 primary.startDate(),
-                primary.endDate(),
-                "PERIOD-CLOSE-"))
+                primary.endDate()))
                 .thenReturn(List.of(
                         row(1L, "100.00", "0.00"),
-                        row(2L, "0.00", "40.00")
+                        row(2L, "0.00", "40.00"),
+                        row(3L, "0.00", "60.00")
                 ));
+        when(journalLineRepository.summarizePostedPeriodCloseSystemJournalsByAccountWithin(
+                primary.company(),
+                primary.startDate(),
+                primary.endDate()))
+                .thenReturn(List.<Object[]>of(row(3L, "0.00", "60.00")));
         when(journalLineRepository.summarizeByAccountType(primary.company(), primary.startDate(), primary.endDate()))
                 .thenReturn(List.of(
                         typeRow(AccountType.REVENUE, "0.00", "100.00"),
@@ -330,12 +338,11 @@ class BalanceSheetReportQueryServiceTest {
         assertThat(dto.balanced()).isTrue();
         assertThat(dto.equityLines()).extracting(BalanceSheetDto.SectionLine::accountCode)
                 .containsExactly("CURRENT-EARNINGS");
-        verify(journalLineRepository).summarizeByAccountWithinExcludingReferencePrefix(
+        verify(journalLineRepository).summarizeByAccountWithin(
                 primary.company(),
                 primary.startDate(),
-                primary.endDate(),
-                "PERIOD-CLOSE-");
-        verify(journalLineRepository, never()).summarizeByAccountWithin(
+                primary.endDate());
+        verify(journalLineRepository).summarizePostedPeriodCloseSystemJournalsByAccountWithin(
                 primary.company(),
                 primary.startDate(),
                 primary.endDate());
@@ -386,13 +393,20 @@ class BalanceSheetReportQueryServiceTest {
         Account cash = account(1L, "CASH", "Cash", AccountType.ASSET);
         Account retained = account(2L, "RETAINED-EARNINGS", "Retained Earnings", AccountType.EQUITY);
         when(accountRepository.findByCompanyOrderByCodeAsc(primary.company())).thenReturn(List.of(cash, retained));
-        when(journalLineRepository.summarizeByAccountWithinExcludingReferencePrefix(
+        when(journalLineRepository.summarizeByAccountWithin(
                 primary.company(),
                 primary.startDate(),
-                primary.endDate(),
-                "PERIOD-CLOSE-"))
+                primary.endDate()))
                 .thenReturn(java.util.List.<Object[]>of(
-                        row(1L, "120.00", "0.00")
+                        row(1L, "120.00", "0.00"),
+                        row(2L, "0.00", "120.00")
+                ));
+        when(journalLineRepository.summarizePostedPeriodCloseSystemJournalsByAccountWithin(
+                primary.company(),
+                primary.startDate(),
+                primary.endDate()))
+                .thenReturn(java.util.List.<Object[]>of(
+                        row(2L, "0.00", "120.00")
                 ));
         when(journalLineRepository.summarizeByAccountType(primary.company(), primary.startDate(), primary.endDate()))
                 .thenReturn(java.util.List.<Object[]>of(
@@ -405,17 +419,94 @@ class BalanceSheetReportQueryServiceTest {
         assertThat(dto.totalAssets()).isEqualByComparingTo("120.00");
         assertThat(dto.totalEquity()).isEqualByComparingTo("120.00");
         assertThat(dto.balanced()).isTrue();
-        assertThat(dto.equityLines()).extracting(BalanceSheetDto.SectionLine::accountCode)
-                .containsExactly("RETAINED-EARNINGS", "CURRENT-EARNINGS");
-        verify(journalLineRepository).summarizeByAccountWithinExcludingReferencePrefix(
-                primary.company(),
-                primary.startDate(),
-                primary.endDate(),
-                "PERIOD-CLOSE-");
-        verify(journalLineRepository, never()).summarizeByAccountWithin(
+        assertThat(dto.equityLines()).hasSize(2);
+        assertThat(dto.equityLines().get(0).accountCode()).isEqualTo("RETAINED-EARNINGS");
+        assertThat(dto.equityLines().get(0).amount()).isEqualByComparingTo("0.00");
+        assertThat(dto.equityLines().get(1).accountCode()).isEqualTo("CURRENT-EARNINGS");
+        assertThat(dto.equityLines().get(1).amount()).isEqualByComparingTo("120.00");
+        verify(journalLineRepository).summarizeByAccountWithin(
                 primary.company(),
                 primary.startDate(),
                 primary.endDate());
+        verify(journalLineRepository).summarizePostedPeriodCloseSystemJournalsByAccountWithin(
+                primary.company(),
+                primary.startDate(),
+                primary.endDate());
+    }
+
+    @Test
+    void generate_preservesNonSystemPeriodClosePrefixedJournalsInLiveRangeSummary() {
+        BalanceSheetReportQueryService service = new BalanceSheetReportQueryService(
+                reportQuerySupport,
+                snapshotLineRepository,
+                accountRepository,
+                journalLineRepository
+        );
+
+        ReportQuerySupport.FinancialQueryWindow primary = ReportFixtures.window(
+                LocalDate.of(2026, 1, 1),
+                LocalDate.of(2026, 3, 31),
+                LocalDate.of(2026, 3, 31)
+        );
+
+        FinancialReportQueryRequest request = new FinancialReportQueryRequest(
+                null,
+                primary.startDate(),
+                primary.endDate(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        when(reportQuerySupport.resolveWindow(request)).thenReturn(primary);
+        when(reportQuerySupport.resolveComparison(request)).thenReturn(null);
+        when(reportQuerySupport.metadata(primary)).thenReturn(new ReportMetadata(
+                primary.asOfDate(),
+                primary.startDate(),
+                primary.endDate(),
+                primary.source(),
+                null,
+                null,
+                null,
+                true,
+                true,
+                null
+        ));
+
+        Account cash = account(1L, "CASH", "Cash", AccountType.ASSET);
+        Account retained = account(2L, "RETAINED-EARNINGS", "Retained Earnings", AccountType.EQUITY);
+        when(accountRepository.findByCompanyOrderByCodeAsc(primary.company())).thenReturn(List.of(cash, retained));
+        when(journalLineRepository.summarizeByAccountWithin(
+                primary.company(),
+                primary.startDate(),
+                primary.endDate()))
+                .thenReturn(java.util.List.<Object[]>of(
+                        row(1L, "100.00", "0.00"),
+                        row(2L, "0.00", "140.00")
+                ));
+        when(journalLineRepository.summarizePostedPeriodCloseSystemJournalsByAccountWithin(
+                primary.company(),
+                primary.startDate(),
+                primary.endDate()))
+                .thenReturn(java.util.Arrays.asList(
+                        null,
+                        new Object[]{2L, BigDecimal.ZERO},
+                        new Object[]{null, BigDecimal.ZERO, BigDecimal.ZERO},
+                        row(2L, "0.00", "40.00")
+                ));
+        when(journalLineRepository.summarizeByAccountType(primary.company(), primary.startDate(), primary.endDate()))
+                .thenReturn(List.of());
+
+        BalanceSheetDto dto = service.generate(request);
+
+        assertThat(dto.totalAssets()).isEqualByComparingTo("100.00");
+        assertThat(dto.totalEquity()).isEqualByComparingTo("100.00");
+        assertThat(dto.balanced()).isTrue();
+        assertThat(dto.equityLines()).extracting(BalanceSheetDto.SectionLine::accountCode)
+                .containsExactly("RETAINED-EARNINGS");
     }
 
     @Test
@@ -463,8 +554,8 @@ class BalanceSheetReportQueryServiceTest {
         Account cash = account(1L, "CASH", "Cash", AccountType.ASSET);
         Account equity = account(2L, "RETAINED-EARNINGS", "Retained Earnings", AccountType.EQUITY);
         when(accountRepository.findByCompanyOrderByCodeAsc(primary.company())).thenReturn(List.of(cash, equity));
-        when(journalLineRepository.summarizeByAccountWithinExcludingReferencePrefix(
-                primary.company(), primary.startDate(), primary.endDate(), "PERIOD-CLOSE-"))
+        when(journalLineRepository.summarizeByAccountWithin(
+                primary.company(), primary.startDate(), primary.endDate()))
                 .thenReturn(java.util.Arrays.asList(
                         null,
                         new Object[]{1L, new BigDecimal("999.99")},
@@ -539,8 +630,8 @@ class BalanceSheetReportQueryServiceTest {
         Account revenue = account(4L, "SALES", "Sales", AccountType.REVENUE);
         when(accountRepository.findByCompanyOrderByCodeAsc(primary.company()))
                 .thenReturn(List.of(cash, payable, equity, revenue));
-        when(journalLineRepository.summarizeByAccountWithinExcludingReferencePrefix(
-                primary.company(), primary.startDate(), primary.endDate(), "PERIOD-CLOSE-"))
+        when(journalLineRepository.summarizeByAccountWithin(
+                primary.company(), primary.startDate(), primary.endDate()))
                 .thenReturn(List.of(
                         row(1L, "40.00", "0.00"),
                         row(2L, "0.00", "20.00"),
