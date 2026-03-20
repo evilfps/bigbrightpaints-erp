@@ -210,4 +210,41 @@ require_section_literal "### \`/accounting/reports/financial\`" "Audit-trail rou
 require_section_literal "### \`/accounting/reports/financial\`" "Role/permission gate: Mixed by endpoint:" "$HANDOFF_DOC" \
   "financial reports route must document mixed RBAC truth"
 
+require_section_literal "### \`/accounting/period-close\`" "requestPeriodClose" "$HANDOFF_DOC" \
+  "period-close route must document maker request-close workflow"
+require_section_literal "### \`/accounting/period-close\`" "approvePeriodClose" "$HANDOFF_DOC" \
+  "period-close route must document approve-close workflow"
+require_section_literal "### \`/accounting/period-close\`" "rejectPeriodClose" "$HANDOFF_DOC" \
+  "period-close route must document reject-close workflow"
+require_section_literal "### \`/accounting/period-close\`" "do not wire \`acctClosePeriod\` as a frontend action" "$HANDOFF_DOC" \
+  "period-close route must warn that direct close is disabled for frontend flows"
+require_section_literal "### \`/accounting/period-close\`" "Period grid from \`AccountingPeriodDto\`" "$HANDOFF_DOC" \
+  "period-close route must keep grid fields tied to AccountingPeriodDto truth"
+require_section_literal "### \`/accounting/period-close\`" "derive it by joining \`PeriodCloseRequestDto\` / \`approvals\` data" "$HANDOFF_DOC" \
+  "period-close route must treat pending review state as derived from request or queue payloads"
+require_section_literal "### \`/accounting/period-close\`" "Role/permission gate: Mixed by endpoint." "$HANDOFF_DOC" \
+  "period-close route must document mixed RBAC truth for maker-checker close"
+require_section_literal "### \`/accounting/period-close\`" "\`acctReopenPeriod\` is \`ROLE_SUPER_ADMIN\` only" "$HANDOFF_DOC" \
+  "period-close route must keep reopen restricted to superadmin-only UX"
+require_literal "### Accounting Core Workflow Supplements (Code-Verified, Outside Parity Lock)" "$HANDOFF_DOC" \
+  "handoff must keep explicit supplement rows for maker-checker period-close workflow"
+require_literal '| `approvals` | GET | `/api/v1/admin/approvals` |' "$HANDOFF_DOC" \
+  "handoff must include approvals queue inventory row"
+require_literal '| `requestPeriodClose` | POST | `/api/v1/accounting/periods/{periodId}/request-close` |' "$HANDOFF_DOC" \
+  "handoff must include request-close inventory row"
+require_literal '| `approvePeriodClose` | POST | `/api/v1/accounting/periods/{periodId}/approve-close` |' "$HANDOFF_DOC" \
+  "handoff must include approve-close inventory row"
+require_literal '| `rejectPeriodClose` | POST | `/api/v1/accounting/periods/{periodId}/reject-close` |' "$HANDOFF_DOC" \
+  "handoff must include reject-close inventory row"
+require_literal "Maker-checker period-close note:" "$ENDPOINT_MAP_DOC" \
+  "endpoint map must include maker-checker period-close note"
+require_literal 'GET /api/v1/admin/approvals' "$ENDPOINT_MAP_DOC" \
+  "endpoint map must reference approvals queue visibility for period close workflow"
+require_literal 'POST /api/v1/accounting/periods/{periodId}/request-close' "$ENDPOINT_MAP_DOC" \
+  "endpoint map must reference request-close for period close workflow"
+require_literal 'POST /api/v1/accounting/periods/{periodId}/approve-close' "$ENDPOINT_MAP_DOC" \
+  "endpoint map must reference approve-close for period close workflow"
+require_literal 'POST /api/v1/accounting/periods/{periodId}/reject-close' "$ENDPOINT_MAP_DOC" \
+  "endpoint map must reference reject-close for period close workflow"
+
 echo "[guard_accounting_portal_scope_contract] OK"

@@ -67,12 +67,17 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 ### M18-S9A Parity Closure (Do Not Drift)
 
 - M17-S1 canonical API contract source-of-truth is `openapi.json`; parity checks are non-mutating and fail on drift instead of rewriting docs.
-- M17-S2 handoff parity expectation is the curated **143**-row baseline from `docs/accounting-portal-endpoint-map.md`, with only the documented `+9` dependency rows allowed beyond that set.
+- M17-S2 handoff parity expectation is the curated **143**-row baseline from `docs/accounting-portal-endpoint-map.md`, with only the documented `+9` dependency rows and `+4` code-verified period-close workflow supplement rows allowed beyond that set.
 - Endpoint-map parity lock in this handoff is the same curated **143** baseline (it does not claim full accounting-portal OpenAPI coverage).
-- Current handoff inventory total is **152** unique `METHOD /api/v1/...` rows = `143` portal-owned + `9` intentional dependencies.
+- Current handoff inventory total is **156** unique `METHOD /api/v1/...` rows = `143` portal-owned parity rows + `9` intentional dependencies + `4` code-verified period-close workflow supplement rows.
 - Intentional dependency-only rows (`+9` vs endpoint map):
   - Shared foundation APIs (7): `GET /api/v1/auth/me`, `GET /api/v1/auth/profile`, `PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/multi-company/companies/switch`, `POST /api/v1/auth/logout`
   - Dealer support APIs (2): `GET /api/v1/sales/dealers`, `GET /api/v1/sales/dealers/search`
+- Code-verified period-close workflow supplement rows (`+4` vs endpoint map parity lock):
+  - `GET /api/v1/admin/approvals`
+  - `POST /api/v1/accounting/periods/{periodId}/request-close`
+  - `POST /api/v1/accounting/periods/{periodId}/approve-close`
+  - `POST /api/v1/accounting/periods/{periodId}/reject-close`
 - Explicit outside-lock ledger (present in `docs/endpoint-inventory.md` and `openapi.json`):
   - `GET /api/v1/accounting/audit/transactions`
   - `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
@@ -143,6 +148,17 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 | `acctSupplierStatementPdf` | GET | `/api/v1/accounting/statements/suppliers/{supplierId}/pdf` | supplierId (path) | from (query), to (query) | Yes | No | Yes |
 | `acctRecordSupplierPayment` | POST | `/api/v1/accounting/suppliers/payments` | allocations (body), allocations[].appliedAmount (body), amount (body), cashAccountId (body), supplierId (body) | Idempotency-Key (header), allocations[].discountAmount (body), allocations[].fxAdjustment (body), allocations[].invoiceId (body), allocations[].memo (body), allocations[].purchaseId (body), allocations[].writeOffAmount (body), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
 | `acctGetTrialBalanceAsOf` | GET | `/api/v1/accounting/trial-balance/as-of` | date (query) | - | Yes | No | Yes |
+
+### Accounting Core Workflow Supplements (Code-Verified, Outside Parity Lock)
+
+These rows are required for the period-close maker-checker UX, but they live outside the curated 143-row endpoint-map parity lock.
+
+| Function | Method | Path | Required params | Optional params | Cache | Debounce | Idempotent |
+|---|---|---|---|---|---|---|---|
+| `approvals` | GET | `/api/v1/admin/approvals` | - | - | Yes | No | Yes |
+| `requestPeriodClose` | POST | `/api/v1/accounting/periods/{periodId}/request-close` | periodId (path), note (body) | force (body) | No | No | No |
+| `approvePeriodClose` | POST | `/api/v1/accounting/periods/{periodId}/approve-close` | periodId (path), note (body) | force (body) | No | No | No |
+| `rejectPeriodClose` | POST | `/api/v1/accounting/periods/{periodId}/reject-close` | periodId (path), note (body) | - | No | No | No |
 
 ### Invoice & Receivables
 
@@ -450,14 +466,16 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 - Role/permission gate: `ROLE_ADMIN or ROLE_ACCOUNTING` (exact backend)
 
 ### `/accounting/period-close`
-- Purpose: Period lifecycle controls (checklist, close, lock, reopen).
-- Required API calls: `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, `acctClosePeriod`, `acctLockPeriod`, `acctReopenPeriod`
-- Loading state: timeline loader; lock/close actions blocked until checklist passes; explicit warning banners for reopen.
+- Purpose: Period lifecycle controls with maker-checker close approval (checklist, request-close, approve/reject, lock, reopen).
+- Required API calls: `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, `acctLockPeriod`, `requestPeriodClose`, `approvePeriodClose`, `rejectPeriodClose`, `acctReopenPeriod`
+- Backend workflow note: do not wire `acctClosePeriod` as a frontend action. `AccountingPeriodService.closePeriod(...)` hard-fails direct close with `Direct close is disabled; submit /request-close and approve via maker-checker workflow`.
+- Approval queue dependency: `approvals` (`GET /api/v1/admin/approvals`) for pending close-request visibility and approve/reject actions; queue visibility is `ROLE_ADMIN or ROLE_ACCOUNTING` in portal flows and backend also permits `ROLE_SUPER_ADMIN`.
+- Loading state: timeline loader; lock/request-close actions blocked until checklist passes; derived pending-review state after maker submission from `PeriodCloseRequestDto.status` / approval queue payload; warning banners for reject/reopen flows.
 - Empty state: no rows / no open items / no period data for selected filters.
 - Error state: inline widget errors + page-level retry + action-level toast; preserve user filters and unsaved inputs.
-- Suggested table columns: Period grid: periodId, startDate, endDate, status(open/closed/locked), closedAt, lockedAt.
-- Suggested form fields: Checklist form items + override reason fields for close/reopen workflows.
-- Role/permission gate: `ROLE_ADMIN or ROLE_ACCOUNTING` (exact backend)
+- Suggested table columns: Period grid from `AccountingPeriodDto`: periodId, startDate, endDate, status(OPEN/CLOSED/LOCKED), closedAt, lockedAt. If product needs a pending-review badge or requester label, derive it by joining `PeriodCloseRequestDto` / `approvals` data instead of waiting for extra fields on `acctListPeriods`.
+- Suggested form fields: Checklist form items, maker note for `request-close`, checker approval/rejection note, reopen reason.
+- Role/permission gate: Mixed by endpoint. `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, `acctLockPeriod`, `requestPeriodClose`, `approvePeriodClose`, and `rejectPeriodClose` allow `ROLE_ADMIN or ROLE_ACCOUNTING`; `approvals` visibility is `ROLE_ADMIN or ROLE_ACCOUNTING` (backend also allows `ROLE_SUPER_ADMIN`); `acctReopenPeriod` is `ROLE_SUPER_ADMIN` only. Do not hardcode admin-only checker gating for this workflow, and do not surface reopen outside superadmin UX.
 
 ### `/accounting/ar/invoices`
 - Purpose: Invoice tracking, invoice PDF/email delivery, dealer invoice views.
@@ -635,7 +653,7 @@ UX rule:
 
 ### Approval Flow Contract For Accounting Approvers
 
-Accounting role users (`ROLE_ACCOUNTING`) can read the tenant approval queue via:
+Tenant-scoped accounting and admin users can read the approval queue via:
 - Queue: `GET /api/v1/admin/approvals`
 - Action endpoints only when the queue row actually emits them:
   - `approveEndpoint`
@@ -659,3 +677,4 @@ Action semantics:
 - Credit request approvals: `/api/v1/sales/credit-requests/{id}/approve|reject`
 - Dispatch override approvals: `/api/v1/credit/override-requests/{id}/approve|reject`
 - Payroll approvals: `/api/v1/payroll/runs/{id}/approve` (no reject endpoint in queue payload)
+- Period close approvals: `/api/v1/accounting/periods/{id}/approve-close|reject-close`; this tenant-scoped queue is readable by `ROLE_ADMIN|ROLE_ACCOUNTING`, the controller currently allows `ROLE_ADMIN|ROLE_ACCOUNTING` for approve/reject, and platform `ROLE_SUPER_ADMIN` remains blocked from `/api/v1/admin/approvals` by `CompanyContextFilter`. Keep the UX tied to the approval-queue payload and maker-checker boundary instead of an admin-only assumption.
