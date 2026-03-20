@@ -188,7 +188,7 @@ Request path:
 
 Decision path:
 
-- `GET /api/v1/admin/approvals` is the single approval inbox for tenant-scoped admin/accounting users. Export requests appear there with typed `originType=EXPORT_REQUEST`, `ownerType=REPORTS`, and `reportType` for all inbox viewers. The raw `parameters`, `requesterUserId`, and `requesterEmail` fields are reserved for tenant admin or super-admin viewers and are redacted from accounting-only responses.
+- `GET /api/v1/admin/approvals` is the single approval inbox for tenant-scoped admin/accounting users. Export requests appear there with typed `originType=EXPORT_REQUEST`, `ownerType=REPORTS`, and `reportType` for all inbox viewers. The raw `parameters`, `requesterUserId`, and `requesterEmail` fields are reserved for tenant-admin viewers and are redacted from accounting-only responses. Platform `ROLE_SUPER_ADMIN` callers remain blocked from this tenant-admin workflow prefix by `CompanyContextFilter`.
 - `GET /api/v1/admin/exports/pending` is retired and no longer part of the live contract.
 - `PUT /api/v1/admin/exports/{requestId}/approve` changes state to `APPROVED` and records `approvedBy`/`approvedAt`.
 - `PUT /api/v1/admin/exports/{requestId}/reject` changes state to `REJECTED` and stores a rejection reason.

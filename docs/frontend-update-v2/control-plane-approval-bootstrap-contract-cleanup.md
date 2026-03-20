@@ -24,7 +24,7 @@ Changed payload fields for each approval item:
 
 Export approval rows (`originType=EXPORT_REQUEST`) additionally expose:
 - `reportType` for all tenant-scoped inbox viewers
-- `parameters`, `requesterUserId`, and `requesterEmail` only for tenant admin or super-admin viewers
+- `parameters`, `requesterUserId`, and `requesterEmail` only for tenant-admin viewers
 - accounting viewers receive the export row with those sensitive fields redacted
 
 Current emitted `originType` values:
