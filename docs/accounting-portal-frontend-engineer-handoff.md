@@ -422,7 +422,7 @@ These rows are required for the period-close maker-checker UX, but they live out
 | `/accounting/dashboard` | Accountant cockpit (trial balance, P&L/BS summary, reconciliation warnings, period status). | `ROLE_ADMIN or ROLE_ACCOUNTING` |
 | `/accounting/gl/chart-of-accounts` | COA browsing, account creation, default account mapping. | `ROLE_ADMIN or ROLE_ACCOUNTING` |
 | `/accounting/gl/journals` | Journal listing, posting, reversing, cascade reversing. | `ROLE_ADMIN or ROLE_ACCOUNTING` |
-| `/accounting/period-close` | Period lifecycle controls (checklist, close, lock, reopen). | `ROLE_ADMIN or ROLE_ACCOUNTING` |
+| `/accounting/period-close` | Period lifecycle controls (checklist, close, lock, reopen). | Mixed: checklist/request-close/queue read use `ROLE_ADMIN or ROLE_ACCOUNTING`; `approvePeriodClose`/`rejectPeriodClose` are `ROLE_ADMIN` only; `acctReopenPeriod` is `ROLE_SUPER_ADMIN` only |
 | `/accounting/ar/invoices` | Invoice tracking, invoice PDF/email delivery, dealer invoice views. | `ROLE_ADMIN or ROLE_ACCOUNTING or ROLE_SALES` |
 | `/accounting/ar/collections-settlements` | Receipts, settlements, sales returns, aging/statements for receivables. | `ROLE_ADMIN or ROLE_ACCOUNTING` (plus `GET /accounting/sales/returns` also allows `ROLE_SALES`) |
 | `/accounting/ap/suppliers-purchases` | Supplier master, PO/GRN, raw-material purchase lifecycle, AP settlement/payment. | `ROLE_ADMIN or ROLE_ACCOUNTING` (supplier list/get additionally allow `ROLE_FACTORY`) |
@@ -469,13 +469,13 @@ These rows are required for the period-close maker-checker UX, but they live out
 - Purpose: Period lifecycle controls with maker-checker close approval (checklist, request-close, approve/reject, lock, reopen).
 - Required API calls: `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, `acctLockPeriod`, `requestPeriodClose`, `approvePeriodClose`, `rejectPeriodClose`, `acctReopenPeriod`
 - Backend workflow note: do not wire `acctClosePeriod` as a frontend action. `AccountingPeriodService.closePeriod(...)` hard-fails direct close with `Direct close is disabled; submit /request-close and approve via maker-checker workflow`.
-- Approval queue dependency: `approvals` (`GET /api/v1/admin/approvals`) for pending close-request visibility and approve/reject actions; queue visibility is `ROLE_ADMIN or ROLE_ACCOUNTING` in portal flows and backend also permits `ROLE_SUPER_ADMIN`.
+- Approval queue dependency: `approvals` (`GET /api/v1/admin/approvals`) for pending close-request visibility. Queue visibility is `ROLE_ADMIN or ROLE_ACCOUNTING`; platform `ROLE_SUPER_ADMIN` is blocked from this queue by `CompanyContextFilter`.
 - Loading state: timeline loader; lock/request-close actions blocked until checklist passes; derived pending-review state after maker submission from `PeriodCloseRequestDto.status` / approval queue payload; warning banners for reject/reopen flows.
 - Empty state: no rows / no open items / no period data for selected filters.
 - Error state: inline widget errors + page-level retry + action-level toast; preserve user filters and unsaved inputs.
 - Suggested table columns: Period grid from `AccountingPeriodDto`: periodId, startDate, endDate, status(OPEN/CLOSED/LOCKED), closedAt, lockedAt. If product needs a pending-review badge or requester label, derive it by joining `PeriodCloseRequestDto` / `approvals` data instead of waiting for extra fields on `acctListPeriods`.
 - Suggested form fields: Checklist form items, maker note for `request-close`, checker approval/rejection note, reopen reason.
-- Role/permission gate: Mixed by endpoint. `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, `acctLockPeriod`, `requestPeriodClose`, `approvePeriodClose`, and `rejectPeriodClose` allow `ROLE_ADMIN or ROLE_ACCOUNTING`; `approvals` visibility is `ROLE_ADMIN or ROLE_ACCOUNTING` (backend also allows `ROLE_SUPER_ADMIN`); `acctReopenPeriod` is `ROLE_SUPER_ADMIN` only. Do not hardcode admin-only checker gating for this workflow, and do not surface reopen outside superadmin UX.
+- Role/permission gate: Mixed by endpoint. `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, `acctLockPeriod`, and `requestPeriodClose` allow `ROLE_ADMIN or ROLE_ACCOUNTING`; `approvePeriodClose` and `rejectPeriodClose` are `ROLE_ADMIN` only; `approvals` visibility is `ROLE_ADMIN or ROLE_ACCOUNTING`; `acctReopenPeriod` is `ROLE_SUPER_ADMIN` only. Do not surface checker actions to accounting-only users, and do not surface reopen outside superadmin UX.
 
 ### `/accounting/ar/invoices`
 - Purpose: Invoice tracking, invoice PDF/email delivery, dealer invoice views.
