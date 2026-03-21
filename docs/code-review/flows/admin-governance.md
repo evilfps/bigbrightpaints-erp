@@ -26,8 +26,8 @@ Supporting runtime evidence was limited: `curl -i -s http://localhost:8081/actua
 | Changelog publishing | `POST /api/v1/admin/changelog`, `PUT/DELETE /api/v1/admin/changelog/{id}`, public `GET /api/v1/changelog`, `GET /api/v1/changelog/latest-highlighted` | `ChangelogController` | Private writers, public readers. |
 | Support desk | `POST /api/v1/support/tickets`, `GET /api/v1/support/tickets`, `GET /api/v1/support/tickets/{ticketId}` | `SupportTicketController` | Authenticated users can create tickets; read visibility depends on role scope. |
 | System settings / runtime flags | `GET/PUT /api/v1/admin/settings`, `GET /api/v1/admin/tenant-runtime/metrics`, `PUT /api/v1/admin/tenant-runtime/policy` | `AdminSettingsController` | Combines global platform settings with tenant runtime quota controls. |
-| Export approvals | `POST /api/v1/exports/request`, `GET /api/v1/exports/{requestId}/download`, `GET /api/v1/admin/exports/pending`, `PUT /api/v1/admin/exports/{requestId}/{approve|reject}` | `ReportController`, `AdminSettingsController` | Report export is requested in reports space and approved in admin space. |
-| Governance cockpit / operator comms | `GET /api/v1/admin/approvals`, `POST /api/v1/admin/notify` | `AdminSettingsController` | Aggregates pending approval work across modules and allows direct email dispatch. |
+| Export approvals | `POST /api/v1/exports/request`, `GET /api/v1/exports/{requestId}/download`, `PUT /api/v1/admin/exports/{requestId}/{approve|reject}` | `ReportController`, `AdminSettingsController` | Report export is requested in reports space and surfaced through the single admin approval inbox. |
+| Governance cockpit / operator comms | `GET /api/v1/admin/approvals`, `POST /api/v1/admin/notify` | `AdminSettingsController` | The single approval inbox aggregates pending work across modules and exposes typed `originType` / `ownerType` metadata alongside direct email dispatch. |
 
 ## Data path and schema touchpoints
 
@@ -188,7 +188,8 @@ Request path:
 
 Decision path:
 
-- `GET /api/v1/admin/exports/pending` lists pending rows for the current company.
+- `GET /api/v1/admin/approvals` is the single approval inbox for tenant-scoped admin/accounting users. Export requests appear there with typed `originType=EXPORT_REQUEST`, `ownerType=REPORTS`, and `reportType` for all inbox viewers. The raw `parameters`, `requesterUserId`, and `requesterEmail` fields are reserved for tenant-admin viewers and are redacted from accounting-only responses. Platform `ROLE_SUPER_ADMIN` callers remain blocked from this tenant-admin workflow prefix by `CompanyContextFilter`.
+- `GET /api/v1/admin/exports/pending` is retired and no longer part of the live contract.
 - `PUT /api/v1/admin/exports/{requestId}/approve` changes state to `APPROVED` and records `approvedBy`/`approvedAt`.
 - `PUT /api/v1/admin/exports/{requestId}/reject` changes state to `REJECTED` and stores a rejection reason.
 
@@ -209,7 +210,7 @@ This means export approval is a soft gate rather than a durable decision. The sc
 - accounting period close requests,
 - export approvals.
 
-The method is explicitly `@Transactional(readOnly = true)` and converts each pending item into an `AdminApprovalItemDto` with action labels, source portals, and approve/reject endpoint templates. This is valuable operationally because it gives the governance UI a unified queue, but it is only a synthesizer: it does not own the actual approval rules.
+The method is explicitly `@Transactional(readOnly = true)` and converts each pending item into an `AdminApprovalItemDto` with typed `originType` / `ownerType`, action labels, approve/reject endpoint templates, and export-specific machine-readable detail when `originType=EXPORT_REQUEST`. This is valuable operationally because it gives the governance UI a unified queue, but it is only a synthesizer: it does not own the actual approval rules.
 
 `POST /api/v1/admin/notify` is a smaller but still sensitive control. It lets any tenant admin send an arbitrary SMTP email through `EmailService.sendSimpleEmail(...)` using the platform-wide mail configuration. The method does not write an audit event of its own.
 

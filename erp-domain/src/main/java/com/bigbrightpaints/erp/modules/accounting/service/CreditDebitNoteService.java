@@ -92,12 +92,6 @@ public class CreditDebitNoteService extends AccountingCoreEngine {
                 accountingEventStore);
     }
 
-    // Compatibility constructor used by controller bridge delegates.
-    public CreditDebitNoteService(AccountingCoreEngine ignored) {
-        super(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null);
-    }
-
     public JournalEntryDto postCreditNote(CreditNoteRequest request) {
         CreditNoteRequest normalized = normalizeCreditNoteRequest(request);
         return super.postCreditNote(normalized);

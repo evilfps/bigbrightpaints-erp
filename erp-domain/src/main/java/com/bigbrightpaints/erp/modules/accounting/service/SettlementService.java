@@ -101,13 +101,6 @@ public class SettlementService extends AccountingCoreEngine {
         this.accountingIdempotencyService = accountingIdempotencyService;
     }
 
-    // Compatibility constructor used by controller bridge delegates.
-    public SettlementService(AccountingIdempotencyService accountingIdempotencyService) {
-        super(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null);
-        this.accountingIdempotencyService = accountingIdempotencyService;
-    }
-
     public JournalEntryDto recordSupplierPayment(SupplierPaymentRequest request) {
         SupplierPaymentRequest normalized = normalizeSupplierPaymentRequest(request);
         return accountingIdempotencyService.recordSupplierPayment(normalized);
@@ -235,9 +228,6 @@ public class SettlementService extends AccountingCoreEngine {
     }
 
     private SettlementAllocationApplication normalizeUnappliedApplication(SettlementAllocationApplication value) {
-        if (value == null || value == SettlementAllocationApplication.DOCUMENT) {
-            return null;
-        }
         return value;
     }
 }

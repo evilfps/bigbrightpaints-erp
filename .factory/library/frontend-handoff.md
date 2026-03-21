@@ -408,8 +408,9 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
 
 - `TenantOnboardingResponse`
   - `companyId`, `companyCode`, `templateCode`
-  - `accountsCreated`, `accountingPeriodId`
-  - `adminEmail`, `adminTemporaryPassword`
+  - `bootstrapMode`, `seededChartOfAccounts`
+  - `accountsCreated`, `accountingPeriodId`, `defaultAccountingPeriodCreated`
+  - `adminEmail`, `adminTemporaryPassword`, `tenantAdminProvisioned`
   - `credentialsEmailSent`, `systemSettingsInitialized`
 
 - `CreateUserRequest`
@@ -3218,10 +3219,9 @@ Export readiness is surfaced via metadata/hints, not separate export-only endpoi
 |---|---|---|---|---|
 | `POST` | `/api/v1/exports/request` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `ExportRequestCreateRequest` | `ExportRequestDto` |
 | `GET` | `/api/v1/exports/{requestId}/download` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | none | `ExportRequestDownloadResponse` |
-| `GET` | `/api/v1/admin/exports/pending` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | none | `List<ExportRequestDto>` |
 | `PUT` | `/api/v1/admin/exports/{requestId}/approve` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | none | `ExportRequestDto` |
 | `PUT` | `/api/v1/admin/exports/{requestId}/reject` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | `ExportRequestDecisionRequest` (optional body) | `ExportRequestDto` |
-| `GET` | `/api/v1/admin/approvals` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | none | `AdminApprovalsResponse` (now includes `exportRequests[]`) |
+| `GET` | `/api/v1/admin/approvals` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | none | `AdminApprovalsResponse` (single tenant-scoped inbox including `exportRequests[]`) |
 | `GET` | `/api/v1/admin/settings` | `ROLE_ADMIN` | none | `SystemSettingsDto` (now includes `exportApprovalRequired`) |
 | `PUT` | `/api/v1/admin/settings` | `ROLE_ADMIN` | `SystemSettingsUpdateRequest` (now accepts `exportApprovalRequired`) | `SystemSettingsDto` |
 
@@ -3233,8 +3233,9 @@ Export readiness is surfaced via metadata/hints, not separate export-only endpoi
    3. Persist returned `ExportRequestDto.id` and show status chip from `status` (`PENDING` initially).
 
 2. **Admin review queue**
-   1. Admin opens approvals center and calls `GET /api/v1/admin/exports/pending` or unified `GET /api/v1/admin/approvals`.
-   2. For each queued row, use `type="EXPORT_REQUEST"`, `reference="EXP-{id}"`, `approveEndpoint`, and `rejectEndpoint` for action wiring.
+   1. Tenant-scoped admin or accounting user opens approvals center and calls unified `GET /api/v1/admin/approvals`.
+   2. For each export row in `exportRequests[]`, use `originType="EXPORT_REQUEST"`, `ownerType="REPORTS"`, `reference`, `reportType`, `approveEndpoint`, and `rejectEndpoint` from the payload.
+   3. Treat export rows as inbox-only when `actionType`, `actionLabel`, `approveEndpoint`, and `rejectEndpoint` are `null`.
 
 3. **Approve export**
    1. Admin clicks approve.
@@ -3305,12 +3306,13 @@ Export readiness is surfaced via metadata/hints, not separate export-only endpoi
 
 - `AdminApprovalsResponse` addition
   - `exportRequests: AdminApprovalItemDto[]` (same shape/pattern as other approval queues)
+  - export approval rows now use typed `originType` / `ownerType`; do not read legacy `type` or `sourcePortal`
 
 ##### UI hints
 
 - Add **Export approval required** toggle in admin settings, bound to `exportApprovalRequired`.
 - In report export modals, switch from immediate file download to request lifecycle UI (`Requested` / `Approved` / `Rejected`).
-- In unified approvals screen, render export rows alongside credit/payroll using `type === "EXPORT_REQUEST"` and action endpoints supplied by payload.
+- In unified approvals screen, render export rows alongside credit/payroll using `originType === "EXPORT_REQUEST"` and `ownerType === "REPORTS"`, and only show decision controls when the action endpoints are non-null.
 - Keep polling/refresh affordance for request status after submission and after admin actions.
 
 ### Cross-module flow playbooks for report-driven frontend guidance
@@ -3420,4 +3422,3 @@ Frontend orchestration notes:
   - `Input tax credit` -> `inputTaxCredit.cgst`, `inputTaxCredit.sgst`, `inputTaxCredit.igst`, `inputTaxCredit.total`
   - `Net tax liability` -> `netLiability.cgst`, `netLiability.sgst`, `netLiability.igst`, `netLiability.total`
   Then render rate-wise table from `rateSummaries[]` and invoice-level annexure from `transactionDetails[]` for reconciliation.
-

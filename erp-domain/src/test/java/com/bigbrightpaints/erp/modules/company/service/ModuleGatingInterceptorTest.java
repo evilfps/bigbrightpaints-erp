@@ -75,4 +75,13 @@ class ModuleGatingInterceptorTest {
         assertThat(allowed).isTrue();
         verify(moduleGatingService, never()).isEnabledForCurrentCompany(CompanyModule.REPORTS_ADVANCED);
     }
+
+    @Test
+    void resolveTargetModule_routesCanonicalAccountingReportsThroughReportsAdvanced() {
+        assertThat(interceptor.resolveTargetModule("/api/v1/reports/aging/dealer/77"))
+                .isEqualTo(CompanyModule.REPORTS_ADVANCED);
+        assertThat(interceptor.resolveTargetModule("/api/v1/reports/balance-sheet/hierarchy"))
+                .isEqualTo(CompanyModule.REPORTS_ADVANCED);
+    }
+
 }

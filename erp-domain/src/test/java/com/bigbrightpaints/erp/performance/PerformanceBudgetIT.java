@@ -93,7 +93,7 @@ class PerformanceBudgetIT extends AbstractIntegrationTest {
 
         long start = System.nanoTime();
         ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/accounting/reports/balance-sheet/hierarchy",
+                "/api/v1/reports/balance-sheet/hierarchy",
                 HttpMethod.GET,
                 new HttpEntity<>(headers),
                 Map.class);

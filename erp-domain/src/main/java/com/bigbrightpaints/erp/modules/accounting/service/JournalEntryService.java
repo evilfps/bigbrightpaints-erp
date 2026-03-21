@@ -111,16 +111,6 @@ public class JournalEntryService extends AccountingCoreEngine {
         this.companyClock = companyClock;
     }
 
-    // Compatibility constructor used by controller bridge delegates.
-    public JournalEntryService(AccountingCoreEngine ignored,
-                               AccountingIdempotencyService accountingIdempotencyService) {
-        super(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null);
-        this.accountingIdempotencyService = accountingIdempotencyService;
-        this.companyContextService = null;
-        this.companyClock = null;
-    }
-
     public List<JournalEntryDto> listJournalEntries(Long dealerId, Long supplierId, int page, int size) {
         return super.listJournalEntries(dealerId, supplierId, page, size);
     }
@@ -210,7 +200,8 @@ public class JournalEntryService extends AccountingCoreEngine {
                 null,
                 sourceModule,
                 sourceReference,
-                manualSource ? JournalEntryType.MANUAL.name() : JournalEntryType.AUTOMATED.name()
+                manualSource ? JournalEntryType.MANUAL.name() : JournalEntryType.AUTOMATED.name(),
+                request.attachmentReferences()
         );
         if (manualSource) {
             return super.createManualJournalEntry(journalRequest, sourceReference);

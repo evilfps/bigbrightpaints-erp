@@ -8,6 +8,7 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.AccountDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
@@ -18,6 +19,9 @@ import com.bigbrightpaints.erp.modules.hr.service.HrService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryReservationResult;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryShortage;
+import com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto;
+import com.bigbrightpaints.erp.modules.reports.dto.CashFlowDto;
+import com.bigbrightpaints.erp.modules.reports.service.ReportQueryRequestBuilder;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
@@ -30,6 +34,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -220,6 +225,29 @@ class IntegrationCoordinatorTest {
         assertThat(result.orderStatus()).isEqualTo("PROCESSING");
         assertThat(result.awaitingProduction()).isFalse();
         verify(salesService).updateOrchestratorWorkflowStatus(ORDER_ID, "PROCESSING");
+    }
+
+    @Test
+    void fetchFinanceDashboard_usesExplicitEmptyReportQueryRequest() {
+        when(reportService.cashFlow()).thenReturn(new CashFlowDto(
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null));
+        when(reportService.agedDebtors(ReportQueryRequestBuilder.empty())).thenReturn(List.of());
+        when(reportService.inventoryReconciliation()).thenReturn(
+                new ReconciliationSummaryDto(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO));
+        when(accountingService.listAccounts()).thenReturn(List.of(
+                new AccountDto(1L, null, "CASH", "Cash", null, BigDecimal.ZERO)));
+
+        Map<String, Object> dashboard = integrationCoordinator.fetchFinanceDashboard(COMPANY_ID);
+
+        assertThat(dashboard).containsKeys("cashflow", "agedDebtors", "ledger", "reconciliation");
+        verify(reportService).cashFlow();
+        verify(reportService).agedDebtors(ReportQueryRequestBuilder.empty());
+        verify(accountingService).listAccounts();
+        verify(reportService).inventoryReconciliation();
     }
 
     @Test

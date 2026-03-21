@@ -28,6 +28,7 @@ import com.bigbrightpaints.erp.modules.hr.service.HrService;
 import com.bigbrightpaints.erp.modules.reports.dto.AgedDebtorDto;
 import com.bigbrightpaints.erp.modules.reports.dto.CashFlowDto;
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationDto;
+import com.bigbrightpaints.erp.modules.reports.service.ReportQueryRequestBuilder;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerDto;
@@ -428,7 +429,7 @@ public class IntegrationCoordinator {
         return withCompanyContext(companyId, () -> {
             Map<String, Object> snapshot = new HashMap<>();
             snapshot.put("cashflow", fetchCashflowSnapshot());
-            snapshot.put("agedDebtors", reportService.agedDebtors());
+            snapshot.put("agedDebtors", reportService.agedDebtors(ReportQueryRequestBuilder.empty()));
             snapshot.put("ledger", fetchAccountingSnapshot());
             snapshot.put("reconciliation", reportService.inventoryReconciliation());
             return snapshot;

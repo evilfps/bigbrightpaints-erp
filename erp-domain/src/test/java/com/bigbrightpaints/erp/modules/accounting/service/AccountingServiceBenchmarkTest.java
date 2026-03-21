@@ -43,6 +43,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
@@ -145,7 +146,14 @@ class AccountingServiceBenchmarkTest {
                 entityManager,
                 systemSettingsService,
                 auditService,
-                accountingEventStore
+                accountingEventStore,
+                mock(JournalEntryService.class),
+                mock(DealerReceiptService.class),
+                mock(SettlementService.class),
+                mock(CreditDebitNoteService.class),
+                mock(AccountingAuditService.class),
+                mock(InventoryAccountingService.class),
+                mock(org.springframework.beans.factory.ObjectProvider.class)
         );
 
         company = new Company();

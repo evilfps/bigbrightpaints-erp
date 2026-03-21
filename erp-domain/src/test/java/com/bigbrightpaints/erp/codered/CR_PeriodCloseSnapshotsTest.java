@@ -6,7 +6,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
-import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
@@ -19,6 +19,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.reports.dto.BalanceSheetDto;
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationDto;
 import com.bigbrightpaints.erp.modules.reports.dto.ReportSource;
+import com.bigbrightpaints.erp.modules.reports.service.ReportQueryRequestBuilder;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import com.bigbrightpaints.erp.test.support.TestDateUtils;
@@ -26,6 +27,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -49,6 +52,7 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
     @AfterEach
     void clearCompanyContext() {
         CompanyContextHolder.clear();
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -68,7 +72,7 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
                     line(revenue.getId(), BigDecimal.ZERO, new BigDecimal("100.00"))
             ));
 
-            accountingPeriodService.closePeriod(period.getId(), new AccountingPeriodCloseRequest(true, "snapshot close"));
+            forceClosePeriod(period.getId(), "snapshot close request", "snapshot close approval");
 
             TemporalBalanceService.TrialBalanceSnapshot before =
                     temporalBalanceService.getTrialBalanceAsOf(period.getEndDate());
@@ -105,7 +109,7 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
                     line(revenue.getId(), BigDecimal.ZERO, new BigDecimal("100.00"))
             ));
 
-            accountingPeriodService.closePeriod(period.getId(), new AccountingPeriodCloseRequest(true, "snapshot close"));
+            forceClosePeriod(period.getId(), "snapshot close request", "snapshot close approval");
 
             BigDecimal cashBalance = temporalBalanceService.getBalanceAsOfDate(cash.getId(), period.getEndDate());
             BigDecimal revenueBalance = temporalBalanceService.getBalanceAsOfDate(revenue.getId(), period.getEndDate());
@@ -133,7 +137,7 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
                     line(cash.getId(), new BigDecimal("100.00"), BigDecimal.ZERO),
                     line(revenue.getId(), BigDecimal.ZERO, new BigDecimal("100.00"))
             ));
-            accountingPeriodService.closePeriod(period.getId(), new AccountingPeriodCloseRequest(true, "snapshot close"));
+            forceClosePeriod(period.getId(), "snapshot close request", "snapshot close approval");
 
             LocalDate closedDate = period.getEndDate();
             LocalDate nextOpenDate = closedDate.plusDays(1);
@@ -167,7 +171,7 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
                     line(revenue.getId(), BigDecimal.ZERO, new BigDecimal("120.00"))
             ));
 
-            accountingPeriodService.closePeriod(period.getId(), new AccountingPeriodCloseRequest(true, "snapshot close"));
+            forceClosePeriod(period.getId(), "snapshot close request", "snapshot close approval");
 
             BalanceSheetDto before = reportService.balanceSheet(period.getEndDate());
 
@@ -177,13 +181,13 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
             ));
 
             BalanceSheetDto after = reportService.balanceSheet(period.getEndDate());
-            BalanceSheetDto live = reportService.balanceSheet();
+            BalanceSheetDto live = reportService.balanceSheet(ReportQueryRequestBuilder.empty());
 
             assertThat(after.totalAssets()).isEqualByComparingTo(before.totalAssets());
             assertThat(after.metadata().source()).isEqualTo(ReportSource.SNAPSHOT);
             assertThat(after.metadata().snapshotId()).isNotNull();
             assertThat(live.metadata().source()).isEqualTo(ReportSource.LIVE);
-            assertThat(live.totalAssets()).isGreaterThan(after.totalAssets());
+            assertThat(live.totalAssets()).isEqualByComparingTo(new BigDecimal("30.00"));
         } finally {
             CompanyContextHolder.clear();
         }
@@ -206,7 +210,7 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
                     line(revenue.getId(), BigDecimal.ZERO, new BigDecimal("80.00"))
             ));
 
-            accountingPeriodService.closePeriod(period.getId(), new AccountingPeriodCloseRequest(true, "snapshot close"));
+            forceClosePeriod(period.getId(), "snapshot close request", "snapshot close approval");
 
             com.bigbrightpaints.erp.modules.reports.dto.TrialBalanceDto report =
                     reportService.trialBalance(period.getEndDate());
@@ -247,7 +251,7 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
             batch.setReceivedAt(CompanyTime.now(company));
             rawMaterialBatchRepository.save(batch);
 
-            accountingPeriodService.closePeriod(period.getId(), new AccountingPeriodCloseRequest(true, "snapshot close"));
+            forceClosePeriod(period.getId(), "snapshot close request", "snapshot close approval");
 
             InventoryValuationDto before = reportService.inventoryValuationAsOf(period.getEndDate());
 
@@ -285,6 +289,25 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
 
     private JournalEntryRequest.JournalLineRequest line(Long accountId, BigDecimal debit, BigDecimal credit) {
         return new JournalEntryRequest.JournalLineRequest(accountId, "line", debit, credit);
+    }
+
+    private void forceClosePeriod(Long periodId, String requestNote, String approvalNote) {
+        authenticate("maker.user", "ROLE_ACCOUNTING");
+        accountingPeriodService.requestPeriodClose(periodId, new PeriodCloseRequestActionRequest(requestNote, true));
+        authenticate("checker.user", "ROLE_ADMIN");
+        accountingPeriodService.approvePeriodClose(periodId, new PeriodCloseRequestActionRequest(approvalNote, true));
+    }
+
+    private void authenticate(String username, String... roles) {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        username,
+                        "N/A",
+                        java.util.Arrays.stream(roles)
+                                .map(org.springframework.security.core.authority.SimpleGrantedAuthority::new)
+                                .toList()
+                )
+        );
     }
 
     private Account ensureAccount(Company company, String code, String name, AccountType type) {

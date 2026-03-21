@@ -31,7 +31,36 @@ class SettlementServiceTest {
 
     @BeforeEach
     void setUp() {
-        settlementService = new SettlementService(accountingIdempotencyService);
+        settlementService = new SettlementService(
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.company.service.CompanyContextService.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.accounting.service.SupplierLedgerService.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService.class),
+                org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.core.util.CompanyClock.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.core.util.CompanyEntityLookup.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.sales.domain.DealerRepository.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.accounting.service.JournalReferenceResolver.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository.class),
+                org.mockito.Mockito.mock(jakarta.persistence.EntityManager.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.core.config.SystemSettingsService.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.core.audit.AuditService.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore.class),
+                accountingIdempotencyService
+        );
     }
 
     @Test
@@ -111,7 +140,7 @@ class SettlementServiceTest {
         verify(accountingIdempotencyService).settleSupplierInvoices(supplierCaptor.capture());
 
         assertThat(dealerCaptor.getValue().amount()).isEqualByComparingTo("25.00");
-        assertThat(dealerCaptor.getValue().unappliedAmountApplication()).isNull();
+        assertThat(dealerCaptor.getValue().unappliedAmountApplication()).isEqualTo(SettlementAllocationApplication.DOCUMENT);
         assertThat(dealerCaptor.getValue().adminOverride()).isFalse();
         assertThat(dealerCaptor.getValue().referenceNumber()).isEqualTo("DEALER-SET-1");
         assertThat(supplierCaptor.getValue().unappliedAmountApplication()).isEqualTo(SettlementAllocationApplication.FUTURE_APPLICATION);

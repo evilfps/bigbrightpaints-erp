@@ -38,6 +38,7 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandReposito
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
+import com.bigbrightpaints.erp.modules.reports.service.ReportQueryRequestBuilder;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
@@ -660,11 +661,11 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
             }
         }
 
-        TrialBalanceDto tb = reportService.trialBalance();
+        TrialBalanceDto tb = reportService.trialBalance(ReportQueryRequestBuilder.empty());
         assertThat(tb.balanced()).isTrue();
         assertThat(tb.totalDebit()).isEqualByComparingTo(tb.totalCredit());
 
-        ProfitLossDto pl = reportService.profitLoss();
+        ProfitLossDto pl = reportService.profitLoss(ReportQueryRequestBuilder.empty());
         BigDecimal cogsFromJournals = journalLineRepository.findAll().stream()
                 .filter(line -> line.getAccount().getId().equals(accounts.get("COGS").getId()))
                 .map(line -> line.getDebit().subtract(line.getCredit()))

@@ -98,13 +98,6 @@ public class DealerReceiptService extends AccountingCoreEngine {
         this.accountingIdempotencyService = accountingIdempotencyService;
     }
 
-    // Compatibility constructor used by controller bridge delegates.
-    public DealerReceiptService(AccountingIdempotencyService accountingIdempotencyService) {
-        super(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null);
-        this.accountingIdempotencyService = accountingIdempotencyService;
-    }
-
     public JournalEntryDto recordDealerReceipt(DealerReceiptRequest request) {
         DealerReceiptRequest normalized = normalizeDealerReceiptRequest(request);
         return accountingIdempotencyService.recordDealerReceipt(normalized);

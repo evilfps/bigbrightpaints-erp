@@ -1,5 +1,8 @@
 package com.bigbrightpaints.erp.modules.admin;
 
+import com.bigbrightpaints.erp.modules.admin.domain.ExportRequest;
+import com.bigbrightpaints.erp.modules.admin.domain.ExportRequestRepository;
+import com.bigbrightpaints.erp.modules.admin.dto.ExportApprovalStatus;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -8,6 +11,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -25,6 +29,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Tag("critical")
 class AdminApprovalRbacIT extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE = "APPROVAL-RBAC";
@@ -44,6 +49,8 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
     private UserAccountRepository userAccountRepository;
     @Autowired
     private DealerRepository dealerRepository;
+    @Autowired
+    private ExportRequestRepository exportRequestRepository;
 
     @BeforeEach
     void setupUsers() {
@@ -81,6 +88,101 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
                 new HttpEntity<>(salesHeaders),
                 Map.class);
         assertThat(salesResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void adminApprovalsPayloadUsesTypedOriginAndOwnerFields() {
+        HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, PASSWORD);
+        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD);
+        HttpHeaders salesHeaders = authHeaders(SALES_EMAIL, PASSWORD);
+
+        long dealerId = createDealer("APPROVAL-CONTRACT-" + System.nanoTime(), new BigDecimal("5000"));
+        long requestId = createCreditRequest(salesHeaders, dealerId, "1500", "Typed approval payload");
+        long exportRequestId = createPendingExportRequest("SALES_SUMMARY", "periodId=7");
+
+        ResponseEntity<Map> approvalsResponse = rest.exchange(
+                "/api/v1/admin/approvals",
+                HttpMethod.GET,
+                new HttpEntity<>(adminHeaders),
+                Map.class);
+        assertThat(approvalsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Map<?, ?> approvalsBody = approvalsResponse.getBody();
+        assertThat(approvalsBody).isNotNull();
+        Map<?, ?> approvalsData = (Map<?, ?>) approvalsBody.get("data");
+        assertThat(approvalsData).isNotNull();
+        List<?> creditApprovals = (List<?>) approvalsData.get("creditRequests");
+        assertThat(creditApprovals).isNotEmpty();
+
+        Map<?, ?> creditApproval = creditApprovals.stream()
+                .map(Map.class::cast)
+                .filter(item -> ("CR-" + requestId).equals(item.get("reference")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(creditApproval.get("originType")).isEqualTo("CREDIT_REQUEST");
+        assertThat(creditApproval.get("ownerType")).isEqualTo("SALES");
+        assertThat(creditApproval.containsKey("type")).isFalse();
+        assertThat(creditApproval.containsKey("sourcePortal")).isFalse();
+        assertThat(creditApproval.containsKey("reportType")).isFalse();
+        assertThat(creditApproval.containsKey("parameters")).isFalse();
+        assertThat(creditApproval.containsKey("requesterUserId")).isFalse();
+        assertThat(creditApproval.containsKey("requesterEmail")).isFalse();
+
+        List<?> exportApprovals = (List<?>) approvalsData.get("exportRequests");
+        assertThat(exportApprovals).isNotEmpty();
+        Map<?, ?> exportApproval = exportApprovals.stream()
+                .map(Map.class::cast)
+                .filter(item -> ("EXP-" + exportRequestId).equals(item.get("reference")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(exportApproval.get("originType")).isEqualTo("EXPORT_REQUEST");
+        assertThat(exportApproval.get("ownerType")).isEqualTo("REPORTS");
+        assertThat(exportApproval.containsKey("type")).isFalse();
+        assertThat(exportApproval.containsKey("sourcePortal")).isFalse();
+        assertThat(exportApproval.get("reportType")).isEqualTo("SALES_SUMMARY");
+        assertThat(exportApproval.get("parameters")).isEqualTo("periodId=7");
+        assertThat(exportApproval.get("requesterEmail")).isEqualTo(ACCOUNTING_EMAIL);
+        assertThat(exportApproval.get("requesterUserId")).isNotNull();
+        assertThat(exportApproval.get("actionType")).isEqualTo("APPROVE_EXPORT_REQUEST");
+        assertThat(exportApproval.get("actionLabel")).isEqualTo("Approve data export");
+        assertThat(exportApproval.get("approveEndpoint")).isEqualTo("/api/v1/admin/exports/{id}/approve");
+        assertThat(exportApproval.get("rejectEndpoint")).isEqualTo("/api/v1/admin/exports/{id}/reject");
+
+        ResponseEntity<Map> accountingApprovalsResponse = rest.exchange(
+                "/api/v1/admin/approvals",
+                HttpMethod.GET,
+                new HttpEntity<>(accountingHeaders),
+                Map.class);
+        assertThat(accountingApprovalsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Map<?, ?> accountingApprovalsBody = accountingApprovalsResponse.getBody();
+        assertThat(accountingApprovalsBody).isNotNull();
+        Map<?, ?> accountingApprovalsData = (Map<?, ?>) accountingApprovalsBody.get("data");
+        assertThat(accountingApprovalsData).isNotNull();
+        List<?> accountingExportApprovals = (List<?>) accountingApprovalsData.get("exportRequests");
+        assertThat(accountingExportApprovals).isNotEmpty();
+
+        Map<?, ?> accountingExportApproval = accountingExportApprovals.stream()
+                .map(Map.class::cast)
+                .filter(item -> ("EXP-" + exportRequestId).equals(item.get("reference")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(accountingExportApproval.get("originType")).isEqualTo("EXPORT_REQUEST");
+        assertThat(accountingExportApproval.get("ownerType")).isEqualTo("REPORTS");
+        assertThat(accountingExportApproval.get("reportType")).isEqualTo("SALES_SUMMARY");
+        assertThat(String.valueOf(accountingExportApproval.get("summary"))).contains("report SALES_SUMMARY");
+        assertThat(String.valueOf(accountingExportApproval.get("summary"))).doesNotContain(ACCOUNTING_EMAIL);
+        assertThat(accountingExportApproval.containsKey("parameters")).isFalse();
+        assertThat(accountingExportApproval.containsKey("requesterEmail")).isFalse();
+        assertThat(accountingExportApproval.containsKey("requesterUserId")).isFalse();
+        assertThat(accountingExportApproval.containsKey("actionType")).isTrue();
+        assertThat(accountingExportApproval.containsKey("actionLabel")).isTrue();
+        assertThat(accountingExportApproval.containsKey("approveEndpoint")).isTrue();
+        assertThat(accountingExportApproval.containsKey("rejectEndpoint")).isTrue();
+        assertThat(accountingExportApproval.get("actionType")).isNull();
+        assertThat(accountingExportApproval.get("actionLabel")).isNull();
+        assertThat(accountingExportApproval.get("approveEndpoint")).isNull();
+        assertThat(accountingExportApproval.get("rejectEndpoint")).isNull();
     }
 
     @Test
@@ -336,6 +438,19 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
         dealer.setStatus("ACTIVE");
         dealer.setCreditLimit(creditLimit);
         return dealerRepository.save(dealer).getId();
+    }
+
+    private long createPendingExportRequest(String reportType, String parameters) {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        UserAccount accountingUser = userAccountRepository.findByEmailIgnoreCase(ACCOUNTING_EMAIL).orElseThrow();
+
+        ExportRequest request = new ExportRequest();
+        request.setCompany(company);
+        request.setUserId(accountingUser.getId());
+        request.setReportType(reportType);
+        request.setParameters(parameters);
+        request.setStatus(ExportApprovalStatus.PENDING);
+        return exportRequestRepository.save(request).getId();
     }
 
     private String extractStatus(ResponseEntity<Map> response) {

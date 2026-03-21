@@ -145,23 +145,13 @@ public class ReportService {
     }
 
     @Transactional(readOnly = true)
-    public BalanceSheetDto balanceSheet() {
-        return balanceSheet(defaultRequest());
-    }
-
-    @Transactional(readOnly = true)
     public BalanceSheetDto balanceSheet(LocalDate asOfDate) {
         return balanceSheet(ReportQueryRequestBuilder.fromAsOfDate(asOfDate));
     }
 
     @Transactional(readOnly = true)
     public BalanceSheetDto balanceSheet(FinancialReportQueryRequest request) {
-        return balanceSheetReportQueryService.generate(request != null ? request : defaultRequest());
-    }
-
-    @Transactional(readOnly = true)
-    public ProfitLossDto profitLoss() {
-        return profitLoss(defaultRequest());
+        return balanceSheetReportQueryService.generate(requireFinancialReportRequest(request));
     }
 
     @Transactional(readOnly = true)
@@ -171,7 +161,7 @@ public class ReportService {
 
     @Transactional(readOnly = true)
     public ProfitLossDto profitLoss(FinancialReportQueryRequest request) {
-        return profitLossReportQueryService.generate(request != null ? request : defaultRequest());
+        return profitLossReportQueryService.generate(requireFinancialReportRequest(request));
     }
 
     @Transactional(readOnly = true)
@@ -458,7 +448,7 @@ public class ReportService {
             return LineTaxBreakdown.zero();
         }
 
-        BigDecimal taxable = taxableAmount(line.getTaxableAmount(), line.getLineTotal(), taxAmount);
+        BigDecimal taxable = requireInvoiceTaxableAmount(invoice, line);
         BigDecimal cgst = safe(line.getCgstAmount());
         BigDecimal sgst = safe(line.getSgstAmount());
         BigDecimal igst = safe(line.getIgstAmount());
@@ -501,7 +491,7 @@ public class ReportService {
             return LineTaxBreakdown.zero();
         }
 
-        BigDecimal taxable = taxableAmount(null, line.getLineTotal(), taxAmount);
+        BigDecimal taxable = roundCurrency(safe(line.getCostPerUnit()).multiply(safe(line.getQuantity())));
         BigDecimal netTax = roundCurrency(taxAmount.multiply(retainedRatio));
         BigDecimal netTaxable = roundCurrency(taxable.multiply(retainedRatio));
 
@@ -550,15 +540,18 @@ public class ReportService {
         return retained.divide(totalQuantity, 12, RoundingMode.HALF_UP);
     }
 
-    private BigDecimal taxableAmount(BigDecimal explicitTaxable, BigDecimal lineTotal, BigDecimal taxAmount) {
+    private BigDecimal requireInvoiceTaxableAmount(Invoice invoice, InvoiceLine line) {
+        BigDecimal explicitTaxable = line.getTaxableAmount();
         if (explicitTaxable != null && explicitTaxable.compareTo(BigDecimal.ZERO) >= 0) {
             return roundCurrency(explicitTaxable);
         }
-        BigDecimal fallback = safe(lineTotal).subtract(safe(taxAmount));
-        if (fallback.compareTo(BigDecimal.ZERO) < 0) {
-            return BigDecimal.ZERO;
-        }
-        return roundCurrency(fallback);
+        String invoiceReference = invoice != null && invoice.getInvoiceNumber() != null
+                ? invoice.getInvoiceNumber()
+                : "unknown";
+        throw new ApplicationException(
+                ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                "Invoice line taxable amount is required and must be non-negative for GST reporting. Invoice: "
+                        + invoiceReference);
     }
 
     private boolean isIncludedInvoiceStatus(String status) {
@@ -634,13 +627,8 @@ public class ReportService {
     }
 
     @Transactional(readOnly = true)
-    public List<AgedDebtorDto> agedDebtors() {
-        return agedDebtors(defaultRequest());
-    }
-
-    @Transactional(readOnly = true)
     public List<AgedDebtorDto> agedDebtors(FinancialReportQueryRequest request) {
-        return agedDebtorsReportQueryService.generate(request != null ? request : defaultRequest());
+        return agedDebtorsReportQueryService.generate(requireFinancialReportRequest(request));
     }
 
     @Transactional(readOnly = true)
@@ -708,32 +696,21 @@ public class ReportService {
     }
 
     @Transactional(readOnly = true)
-    public TrialBalanceDto trialBalance() {
-        return trialBalance(defaultRequest());
-    }
-
-    @Transactional(readOnly = true)
     public TrialBalanceDto trialBalance(LocalDate asOfDate) {
         return trialBalance(ReportQueryRequestBuilder.fromAsOfDate(asOfDate));
     }
 
     @Transactional(readOnly = true)
     public TrialBalanceDto trialBalance(FinancialReportQueryRequest request) {
-        return trialBalanceReportQueryService.generate(request != null ? request : defaultRequest());
+        return trialBalanceReportQueryService.generate(requireFinancialReportRequest(request));
     }
 
-    private FinancialReportQueryRequest defaultRequest() {
-        return new FinancialReportQueryRequest(
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-        );
+    private FinancialReportQueryRequest requireFinancialReportRequest(FinancialReportQueryRequest request) {
+        if (request == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Financial report query request is required");
+        }
+        return request;
     }
 
     private ReportContext resolveReportContext(LocalDate asOfDate) {

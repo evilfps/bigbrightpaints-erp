@@ -48,6 +48,7 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionProductReposi
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationDto;
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationItemDto;
 import com.bigbrightpaints.erp.modules.reports.dto.ProfitLossDto;
+import com.bigbrightpaints.erp.modules.reports.service.ReportQueryRequestBuilder;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
@@ -294,7 +295,7 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
         assertThat(fgValuation.quantityOnHand()).isEqualByComparingTo(new BigDecimal("80.00"));
         assertThat(fgValuation.totalValue()).isEqualByComparingTo(new BigDecimal("5250.00"));
 
-        ProfitLossDto profitLoss = reportService.profitLoss();
+        ProfitLossDto profitLoss = reportService.profitLoss(ReportQueryRequestBuilder.empty());
         assertThat(profitLoss.costOfGoodsSold()).isEqualByComparingTo(new BigDecimal("2300.00"));
         assertThat(profitLoss.grossProfit()).isEqualByComparingTo(new BigDecimal("57700.00"));
     }

@@ -11,6 +11,7 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import java.math.BigDecimal;
 import java.util.List;
@@ -59,7 +60,7 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void onboardTenant_createsTenantAdminChartOfAccountsAndDefaultPeriod_forEachTemplate() {
+    void onboardTenant_returns_explicit_seeded_bootstrap_contract_for_each_template() {
         String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
         List<String> templateCodes = List.of("GENERIC", "INDIAN_STANDARD", "MANUFACTURING");
 
@@ -82,12 +83,18 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
 
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(response.getBody()).isNotNull();
+            assertThat(response.getBody().get("message"))
+                    .isEqualTo("Tenant onboarded with seeded chart of accounts, tenant admin, and default accounting period");
             @SuppressWarnings("unchecked")
             Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
             assertThat(data).isNotNull();
             assertThat(data.get("templateCode").toString()).isEqualTo(templateCode);
+            assertThat(data.get("bootstrapMode")).isEqualTo("SEEDED");
+            assertThat(data.get("seededChartOfAccounts")).isEqualTo(true);
             assertThat(data.get("companyCode").toString()).isEqualTo(companyCode);
+            assertThat(data.get("defaultAccountingPeriodCreated")).isEqualTo(true);
             assertThat(data.get("adminEmail").toString()).isEqualTo(adminEmail);
+            assertThat(data.get("tenantAdminProvisioned")).isEqualTo(true);
             assertThat(data.get("adminTemporaryPassword").toString()).isNotBlank();
 
             Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
@@ -111,14 +118,16 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
             assertThat(accountingPeriodRepository
                     .findFirstByCompanyAndStatusOrderByStartDateDesc(company, AccountingPeriodStatus.OPEN))
                     .isPresent();
+            assertThat(data.get("accountingPeriodId")).isNotNull();
 
             UserAccount admin = userAccountRepository.findByEmailIgnoreCase(adminEmail).orElseThrow();
             assertThat(admin.getCompanies())
                     .extracting(Company::getCode)
                     .contains(companyCode);
             assertThat(admin.getRoles())
-                    .extracting(role -> role.getName().toUpperCase(Locale.ROOT))
+                    .extracting(Role::getName)
                     .contains("ROLE_ADMIN");
+            assertThat(admin.isMustChangePassword()).isTrue();
         }
 
         assertThat(systemSettingsRepository.findById("auto-approval.enabled")).isPresent();

@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DOC="${AUDIT_TRAIL_OWNERSHIP_DOC:-$ROOT_DIR/docs/AUDIT_TRAIL_OWNERSHIP.md}"
-ACCOUNTING_SERVICE="${AUDIT_TRAIL_ACCOUNTING_SERVICE:-$ROOT_DIR/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java}"
+ACCOUNTING_SERVICE="${AUDIT_TRAIL_ACCOUNTING_SERVICE:-$ROOT_DIR/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingCoreEngineCore.java}"
 APP_CONFIG_MAIN="${AUDIT_TRAIL_APP_CONFIG_MAIN:-$ROOT_DIR/erp-domain/src/main/resources/application.yml}"
 APP_CONFIG_TEST="${AUDIT_TRAIL_APP_CONFIG_TEST:-$ROOT_DIR/erp-domain/src/main/resources/application-test.yml}"
 APP_CONFIG_IT_TEST="${AUDIT_TRAIL_APP_CONFIG_IT_TEST:-$ROOT_DIR/erp-domain/src/test/resources/application-test.yml}"

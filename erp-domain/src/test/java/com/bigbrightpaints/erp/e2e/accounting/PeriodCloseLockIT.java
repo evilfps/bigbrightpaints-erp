@@ -64,7 +64,7 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
                 HttpMethod.GET,
                 new HttpEntity<>(headers),
                 Map.class);
-        List<Map<String, Object>> list = (List<Map<String, Object>>) resp.getBody().get("data");
+        List<Map<String, Object>> list = extractPeriodDtos(resp.getBody().get("data"));
         assertThat(list).isNotEmpty();
         for (Map<String, Object> dto : list) {
             Object startObj = dto.get("startDate");
@@ -81,6 +81,26 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
         throw new AssertionError("No period found for date " + forDate);
     }
 
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> extractPeriodDtos(Object data) {
+        if (data instanceof List<?> list) {
+            return (List<Map<String, Object>>) list;
+        }
+        if (data instanceof Map<?, ?> wrapper) {
+            Object nested = wrapper.get("items");
+            if (nested == null) {
+                nested = wrapper.get("content");
+            }
+            if (nested == null) {
+                nested = wrapper.get("data");
+            }
+            if (nested instanceof List<?> list) {
+                return (List<Map<String, Object>>) list;
+            }
+        }
+        throw new AssertionError("Unexpected periods payload: " + data);
+    }
+
     private HttpHeaders authHeaders(String email, String password, String companyCode) {
         Map<String, Object> req = Map.of(
                 "email", email,
@@ -94,7 +114,7 @@ class PeriodCloseLockIT extends AbstractIntegrationTest {
         HttpHeaders h = new HttpHeaders();
         h.setBearerAuth(token);
         h.setContentType(MediaType.APPLICATION_JSON);
-        h.set("X-Company-Id", companyCode);
+        h.set("X-Company-Code", companyCode);
         return h;
     }
 }

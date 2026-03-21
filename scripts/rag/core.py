@@ -159,7 +159,6 @@ INCLUDE_PREFIXES = (
 
 INCLUDE_FILES = {
     "openapi.json",
-    "erp-domain/openapi.json",
     ".env.example",
     "erp-domain/pom.xml",
     "docker-compose.yml",

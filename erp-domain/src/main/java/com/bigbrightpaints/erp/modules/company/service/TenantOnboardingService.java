@@ -18,6 +18,7 @@ import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.dto.TenantOnboardingRequest;
 import com.bigbrightpaints.erp.modules.company.dto.TenantOnboardingResponse;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
+import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class TenantOnboardingService {
 
+    private static final String BOOTSTRAP_MODE_SEEDED = "SEEDED";
     private static final String TEMPLATE_GENERIC = "GENERIC";
     private static final String TEMPLATE_INDIAN_STANDARD = "INDIAN_STANDARD";
     private static final String TEMPLATE_MANUFACTURING = "MANUFACTURING";
@@ -40,6 +42,7 @@ public class TenantOnboardingService {
     private final CompanyRepository companyRepository;
     private final UserAccountRepository userAccountRepository;
     private final RoleService roleService;
+    private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AccountRepository accountRepository;
     private final AccountingPeriodService accountingPeriodService;
@@ -50,6 +53,7 @@ public class TenantOnboardingService {
     public TenantOnboardingService(CompanyRepository companyRepository,
                                    UserAccountRepository userAccountRepository,
                                    RoleService roleService,
+                                   RoleRepository roleRepository,
                                    PasswordEncoder passwordEncoder,
                                    AccountRepository accountRepository,
                                    AccountingPeriodService accountingPeriodService,
@@ -59,6 +63,7 @@ public class TenantOnboardingService {
         this.companyRepository = companyRepository;
         this.userAccountRepository = userAccountRepository;
         this.roleService = roleService;
+        this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.accountRepository = accountRepository;
         this.accountingPeriodService = accountingPeriodService;
@@ -101,9 +106,13 @@ public class TenantOnboardingService {
                 savedCompany.getId(),
                 savedCompany.getCode(),
                 template.getCode(),
+                BOOTSTRAP_MODE_SEEDED,
+                true,
                 createdAccounts.size(),
                 defaultPeriod.getId(),
+                true,
                 normalizedAdminEmail,
+                true,
                 adminProvisioningResult.temporaryPassword(),
                 adminProvisioningResult.credentialsEmailSent(),
                 systemSettingsInitialized);
@@ -192,7 +201,7 @@ public class TenantOnboardingService {
     }
 
     private AdminProvisioningResult createTenantAdmin(Company company, String adminEmail, String adminDisplayName) {
-        Role adminRole = roleService.ensureRoleExists("ROLE_ADMIN");
+        Role adminRole = requireAdminRole();
         String temporaryPassword = PasswordUtils.generateTemporaryPassword(14);
         UserAccount admin = new UserAccount(
                 adminEmail,
@@ -209,6 +218,13 @@ public class TenantOnboardingService {
                 temporaryPassword,
                 company.getCode());
         return new AdminProvisioningResult(temporaryPassword, emailService.isCredentialEmailDeliveryEnabled());
+    }
+
+    private Role requireAdminRole() {
+        roleService.ensureRoleExists("ROLE_ADMIN");
+        return roleRepository.findByName("ROLE_ADMIN")
+                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+                        "ROLE_ADMIN must exist before tenant onboarding"));
     }
 
     private String resolveAdminDisplayName(String requestedDisplayName, Company company) {

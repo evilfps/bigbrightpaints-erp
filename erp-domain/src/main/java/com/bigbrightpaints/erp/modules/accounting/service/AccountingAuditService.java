@@ -91,12 +91,6 @@ public class AccountingAuditService extends AccountingCoreEngine {
                 accountingEventStore);
     }
 
-    // Compatibility constructor used by controller bridge delegates.
-    public AccountingAuditService(AccountingCoreEngine ignored) {
-        super(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null);
-    }
-
     public AuditDigestResponse auditDigest(LocalDate from, LocalDate to) {
         if (from != null && to != null && from.isAfter(to)) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_DATE,

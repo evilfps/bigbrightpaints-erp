@@ -7,7 +7,6 @@ import com.bigbrightpaints.erp.modules.company.dto.CompanyAdminCredentialResetDt
 import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateRequest;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyRequest;
-import com.bigbrightpaints.erp.modules.company.dto.CompanySuperAdminDashboardDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanySupportWarningDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyTenantMetricsDto;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
@@ -48,14 +47,6 @@ public class CompanyController {
             return ResponseEntity.ok(ApiResponse.success(companyService.findAll()));
         }
         return ResponseEntity.ok(ApiResponse.success(companyService.findAll(requireCompanyContext(principal))));
-    }
-
-    @GetMapping("/superadmin/dashboard")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
-    public ResponseEntity<ApiResponse<CompanySuperAdminDashboardDto>> superAdminDashboard() {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Superadmin tenant dashboard fetched",
-                companyService.getSuperAdminDashboard()));
     }
 
     @PostMapping

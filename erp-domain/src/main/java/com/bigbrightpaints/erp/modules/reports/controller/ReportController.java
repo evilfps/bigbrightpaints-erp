@@ -4,6 +4,8 @@ import com.bigbrightpaints.erp.modules.admin.dto.ExportRequestCreateRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.ExportRequestDto;
 import com.bigbrightpaints.erp.modules.admin.dto.ExportRequestDownloadResponse;
 import com.bigbrightpaints.erp.modules.admin.service.ExportApprovalService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountHierarchyService;
+import com.bigbrightpaints.erp.modules.accounting.service.AgingReportService;
 import com.bigbrightpaints.erp.modules.factory.dto.CostBreakdownDto;
 import com.bigbrightpaints.erp.modules.factory.dto.MonthlyProductionCostDto;
 import com.bigbrightpaints.erp.modules.factory.dto.WastageReportDto;
@@ -29,11 +31,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReportController {
 
     private final ReportService reportService;
+    private final AccountHierarchyService accountHierarchyService;
+    private final AgingReportService agingReportService;
     private final ExportApprovalService exportApprovalService;
 
     public ReportController(ReportService reportService,
+                            AccountHierarchyService accountHierarchyService,
+                            AgingReportService agingReportService,
                             ExportApprovalService exportApprovalService) {
         this.reportService = reportService;
+        this.accountHierarchyService = accountHierarchyService;
+        this.agingReportService = agingReportService;
         this.exportApprovalService = exportApprovalService;
     }
 
@@ -48,7 +56,8 @@ public class ReportController {
             @RequestParam(required = false) Long comparativePeriodId,
             @RequestParam(required = false) String exportFormat) {
         if (date != null && !date.isBlank()) {
-            return ResponseEntity.ok(ApiResponse.success(reportService.balanceSheet(java.time.LocalDate.parse(date))));
+            return ResponseEntity.ok(ApiResponse.success(
+                    reportService.balanceSheet(ReportQueryRequestBuilder.fromAsOfDate(java.time.LocalDate.parse(date)))));
         }
         return ResponseEntity.ok(ApiResponse.success(reportService.balanceSheet(
                 ReportQueryRequestBuilder.fromPeriodAndRange(
@@ -72,7 +81,8 @@ public class ReportController {
             @RequestParam(required = false) Long comparativePeriodId,
             @RequestParam(required = false) String exportFormat) {
         if (date != null && !date.isBlank()) {
-            return ResponseEntity.ok(ApiResponse.success(reportService.profitLoss(java.time.LocalDate.parse(date))));
+            return ResponseEntity.ok(ApiResponse.success(
+                    reportService.profitLoss(ReportQueryRequestBuilder.fromAsOfDate(java.time.LocalDate.parse(date)))));
         }
         return ResponseEntity.ok(ApiResponse.success(reportService.profitLoss(
                 ReportQueryRequestBuilder.fromPeriodAndRange(
@@ -131,7 +141,8 @@ public class ReportController {
             @RequestParam(required = false) Long comparativePeriodId,
             @RequestParam(required = false) String exportFormat) {
         if (date != null && !date.isBlank()) {
-            return ResponseEntity.ok(ApiResponse.success(reportService.trialBalance(java.time.LocalDate.parse(date))));
+            return ResponseEntity.ok(ApiResponse.success(
+                    reportService.trialBalance(ReportQueryRequestBuilder.fromAsOfDate(java.time.LocalDate.parse(date)))));
         }
         return ResponseEntity.ok(ApiResponse.success(reportService.trialBalance(
                 ReportQueryRequestBuilder.fromPeriodAndRange(
@@ -150,7 +161,7 @@ public class ReportController {
     }
 
     @GetMapping("/reports/aged-debtors")
-    public ResponseEntity<ApiResponse<List<AgedDebtorDto>>> agedDebtorsV2(
+    public ResponseEntity<ApiResponse<List<AgedDebtorDto>>> agedDebtors(
             @RequestParam(required = false) Long periodId,
             @RequestParam(required = false) java.time.LocalDate startDate,
             @RequestParam(required = false) java.time.LocalDate endDate,
@@ -166,9 +177,55 @@ public class ReportController {
                         exportFormat))));
     }
 
-    @GetMapping("/accounting/reports/aged-debtors")
-    public ResponseEntity<ApiResponse<List<AgedDebtorDto>>> agedDebtors() {
-        return ResponseEntity.ok(ApiResponse.success(reportService.agedDebtors()));
+    @GetMapping("/reports/balance-sheet/hierarchy")
+    public ResponseEntity<ApiResponse<AccountHierarchyService.BalanceSheetHierarchy>> balanceSheetHierarchy() {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Hierarchical balance sheet",
+                accountHierarchyService.getBalanceSheetHierarchy()));
+    }
+
+    @GetMapping("/reports/income-statement/hierarchy")
+    public ResponseEntity<ApiResponse<AccountHierarchyService.IncomeStatementHierarchy>> incomeStatementHierarchy() {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Hierarchical income statement",
+                accountHierarchyService.getIncomeStatementHierarchy()));
+    }
+
+    @GetMapping("/reports/aging/receivables")
+    public ResponseEntity<ApiResponse<AgingReportService.AgedReceivablesReport>> agedReceivables(
+            @RequestParam(required = false) String asOfDate) {
+        if (asOfDate != null && !asOfDate.isBlank()) {
+            return ResponseEntity.ok(ApiResponse.success(
+                    "Aged receivables report",
+                    agingReportService.getAgedReceivablesReport(java.time.LocalDate.parse(asOfDate.trim()))));
+        }
+        return ResponseEntity.ok(ApiResponse.success(
+                "Aged receivables report",
+                agingReportService.getAgedReceivablesReport()));
+    }
+
+    @GetMapping("/reports/aging/dealer/{dealerId}")
+    public ResponseEntity<ApiResponse<AgingReportService.DealerAgingDetail>> dealerAging(
+            @PathVariable Long dealerId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Dealer aging summary",
+                agingReportService.getDealerAging(dealerId)));
+    }
+
+    @GetMapping("/reports/aging/dealer/{dealerId}/detailed")
+    public ResponseEntity<ApiResponse<AgingReportService.DealerAgingDetailedReport>> dealerAgingDetailed(
+            @PathVariable Long dealerId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Dealer aging detail with invoices",
+                agingReportService.getDealerAgingDetailed(dealerId)));
+    }
+
+    @GetMapping("/reports/dso/dealer/{dealerId}")
+    public ResponseEntity<ApiResponse<AgingReportService.DSOReport>> dealerDso(
+            @PathVariable Long dealerId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Days Sales Outstanding report",
+                agingReportService.getDealerDSO(dealerId)));
     }
 
     @GetMapping("/reports/wastage")

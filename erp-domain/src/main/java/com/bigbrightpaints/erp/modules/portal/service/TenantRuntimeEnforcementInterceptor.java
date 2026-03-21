@@ -63,7 +63,6 @@ public class TenantRuntimeEnforcementInterceptor implements HandlerInterceptor {
             return false;
         }
         return path.startsWith("/api/v1/reports/")
-                || path.startsWith("/api/v1/accounting/reports/")
                 || path.startsWith("/api/v1/portal/")
                 || path.startsWith("/api/v1/demo/");
     }

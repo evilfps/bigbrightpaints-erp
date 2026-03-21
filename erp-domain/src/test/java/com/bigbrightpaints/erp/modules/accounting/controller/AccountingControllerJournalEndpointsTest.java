@@ -283,9 +283,9 @@ class AccountingControllerJournalEndpointsTest {
     }
 
     @Test
-    void compatibilityConstructorBridge_createJournalEntryDelegatesToAccountingService() {
+    void createJournalEntry_delegatesToAccountingServiceWithSanitizedManualPayload() {
         AccountingService accountingService = mock(AccountingService.class);
-        AccountingController controller = compatibilityController(accountingService);
+        AccountingController controller = newController(accountingService, mock(JournalEntryService.class), null);
         JournalEntryRequest request = new JournalEntryRequest(
                 "BRIDGE-ENTRY-1",
                 LocalDate.of(2026, 2, 28),
@@ -646,25 +646,6 @@ class AccountingControllerJournalEndpointsTest {
                 null,
                 null,
                 null,
-                null,
-                null
-        );
-    }
-
-    private AccountingController compatibilityController(AccountingService accountingService) {
-        return new AccountingController(
-                accountingService,
-                mock(AccountingFacade.class),
-                mock(SalesReturnService.class),
-                mock(AccountingPeriodService.class),
-                mock(ReconciliationService.class),
-                mock(StatementService.class),
-                mock(TaxService.class),
-                mock(TemporalBalanceService.class),
-                mock(AccountHierarchyService.class),
-                mock(AgingReportService.class),
-                mock(CompanyDefaultAccountsService.class),
-                mock(AccountingAuditTrailService.class),
                 null,
                 null
         );

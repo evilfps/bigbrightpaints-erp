@@ -13,6 +13,7 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.controller.AccountingController;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountHierarchyService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditTrailService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
@@ -37,16 +38,16 @@ class TS_RuntimeAccountingControllerExportCoverageTest {
 
     @Test
     void exportEndpoints_emitAuditMetadataAndCsvHeaders() {
-        AccountingService accountingService = mock(AccountingService.class);
+        AccountingAuditService accountingAuditService = mock(AccountingAuditService.class);
         StatementService statementService = mock(StatementService.class);
         AuditService auditService = mock(AuditService.class);
-        AccountingController controller = newController(accountingService, statementService, auditService);
+        AccountingController controller = newController(accountingAuditService, statementService, auditService);
 
         when(statementService.dealerStatementPdf(eq(10L), any(), any())).thenReturn("dealer".getBytes());
         when(statementService.supplierStatementPdf(eq(20L), any(), any())).thenReturn("supplier".getBytes());
         when(statementService.dealerAgingPdf(eq(30L), any(), any())).thenReturn("dealer-aging".getBytes());
         when(statementService.supplierAgingPdf(eq(40L), any(), any())).thenReturn("supplier-aging".getBytes());
-        when(accountingService.auditDigestCsv(any(), any())).thenReturn("date,entry\n2026-01-01,1\n");
+        when(accountingAuditService.auditDigestCsv(any(), any())).thenReturn("date,entry\n2026-01-01,1\n");
 
         controller.dealerStatementPdf(10L, null, null);
         controller.supplierStatementPdf(20L, null, null);
@@ -89,21 +90,27 @@ class TS_RuntimeAccountingControllerExportCoverageTest {
 
     @Test
     void exportEndpoints_failClosedWhenAuditServiceUnavailable() {
-        AccountingService accountingService = mock(AccountingService.class);
         StatementService statementService = mock(StatementService.class);
-        AccountingController controller = newController(accountingService, statementService, null);
-        when(accountingService.auditDigestCsv(any(), any())).thenReturn("date,entry\n2026-01-01,1\n");
+        AccountingAuditService accountingAuditService = mock(AccountingAuditService.class);
+        AccountingController controller = newController(accountingAuditService, statementService, null);
+        when(accountingAuditService.auditDigestCsv(any(), any())).thenReturn("date,entry\n2026-01-01,1\n");
 
         var response = controller.auditDigestCsv(null, null);
 
         assertThat(response.getBody()).contains("date,entry");
     }
 
-    private AccountingController newController(AccountingService accountingService,
+    private AccountingController newController(AccountingAuditService accountingAuditService,
                                                StatementService statementService,
                                                AuditService auditService) {
         AccountingController controller = new AccountingController(
-                accountingService,
+                mock(AccountingService.class),
+                null,
+                null,
+                null,
+                null,
+                accountingAuditService,
+                null,
                 mock(AccountingFacade.class),
                 mock(SalesReturnService.class),
                 mock(AccountingPeriodService.class),
@@ -117,6 +124,7 @@ class TS_RuntimeAccountingControllerExportCoverageTest {
                 mock(AccountingAuditTrailService.class),
                 mock(CompanyContextService.class),
                 mock(CompanyClock.class),
+                null,
                 null
         );
         ReflectionTestUtils.setField(controller, "auditService", auditService);

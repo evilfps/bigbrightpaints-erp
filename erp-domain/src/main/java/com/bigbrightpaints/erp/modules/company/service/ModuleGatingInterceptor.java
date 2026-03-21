@@ -57,7 +57,7 @@ public class ModuleGatingInterceptor implements HandlerInterceptor {
         if (startsWithAny(path, "/api/v1/portal", "/api/v1/dealer-portal")) {
             return CompanyModule.PORTAL;
         }
-        if (startsWithAny(path, "/api/v1/reports", "/api/v1/accounting/reports")) {
+        if (startsWithAny(path, "/api/v1/reports")) {
             return CompanyModule.REPORTS_ADVANCED;
         }
 

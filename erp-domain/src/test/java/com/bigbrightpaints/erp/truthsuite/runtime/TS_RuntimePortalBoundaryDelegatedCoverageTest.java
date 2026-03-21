@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.platform.engine.discovery.ClassNameFilter;
 import org.junit.platform.engine.discovery.DiscoverySelectors;
 import org.junit.platform.launcher.Launcher;
 import org.junit.platform.launcher.LauncherDiscoveryRequest;
@@ -30,6 +31,7 @@ class TS_RuntimePortalBoundaryDelegatedCoverageTest {
     private void assertDelegatedSuitePasses(String className) {
         LauncherDiscoveryRequest request = LauncherDiscoveryRequestBuilder.request()
                 .selectors(DiscoverySelectors.selectClass(className))
+                .filters(ClassNameFilter.includeClassNamePatterns(".*(Tests?|IT|ITCase|Suite)"))
                 .build();
         SummaryGeneratingListener summaryListener = new SummaryGeneratingListener();
         Launcher launcher = LauncherFactory.create();

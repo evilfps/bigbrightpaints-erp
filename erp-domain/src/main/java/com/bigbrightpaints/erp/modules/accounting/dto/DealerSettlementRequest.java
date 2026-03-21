@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.accounting.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
@@ -17,6 +18,10 @@ public record DealerSettlementRequest(
         Long fxGainAccountId,
         Long fxLossAccountId,
         @DecimalMin(value = "0.01") BigDecimal amount,
+        @Schema(
+                implementation = HeaderSettlementAllocationApplication.class,
+                description = "Header-level unapplied amount handling. DOCUMENT is only valid on explicit allocation rows."
+        )
         SettlementAllocationApplication unappliedAmountApplication,
         LocalDate settlementDate,
         String referenceNumber,

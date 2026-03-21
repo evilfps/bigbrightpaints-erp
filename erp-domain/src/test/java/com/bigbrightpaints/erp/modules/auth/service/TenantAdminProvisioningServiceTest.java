@@ -8,6 +8,7 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
+import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -35,6 +37,9 @@ class TenantAdminProvisioningServiceTest {
 
     @Mock
     private RoleService roleService;
+
+    @Mock
+    private RoleRepository roleRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -53,6 +58,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -61,7 +67,7 @@ class TenantAdminProvisioningServiceTest {
         Role adminRole = new Role();
         adminRole.setName("ROLE_ADMIN");
         when(userAccountRepository.findByEmailIgnoreCase("new-admin@ske.com")).thenReturn(Optional.empty());
-        when(roleService.ensureRoleExists("ROLE_ADMIN")).thenReturn(adminRole);
+        when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(adminRole));
         when(passwordEncoder.encode(any())).thenReturn("encoded");
         when(userAccountRepository.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -81,6 +87,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -89,7 +96,7 @@ class TenantAdminProvisioningServiceTest {
         Role adminRole = new Role();
         adminRole.setName("ROLE_ADMIN");
         when(userAccountRepository.findByEmailIgnoreCase("new-admin@ske.com")).thenReturn(Optional.empty());
-        when(roleService.ensureRoleExists("ROLE_ADMIN")).thenReturn(adminRole);
+        when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(adminRole));
         when(passwordEncoder.encode(any())).thenReturn("encoded");
         when(userAccountRepository.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -104,10 +111,57 @@ class TenantAdminProvisioningServiceTest {
     }
 
     @Test
+    void provisionInitialAdmin_reloadsPersistedAdminRoleAfterSynchronization() {
+        TenantAdminProvisioningService service = new TenantAdminProvisioningService(
+                userAccountRepository,
+                roleService,
+                roleRepository,
+                passwordEncoder,
+                emailService,
+                tokenBlacklistService,
+                refreshTokenService);
+        Company company = company(10L, "SKE", "SKE");
+        Role persistedRole = new Role();
+        ReflectionTestUtils.setField(persistedRole, "id", 42L);
+        persistedRole.setName("ROLE_ADMIN");
+        when(userAccountRepository.findByEmailIgnoreCase("new-admin@ske.com")).thenReturn(Optional.empty());
+        when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(persistedRole));
+        when(passwordEncoder.encode(any())).thenReturn("encoded");
+        when(userAccountRepository.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        String email = service.provisionInitialAdmin(company, "new-admin@ske.com", "New Admin");
+
+        assertThat(email).isEqualTo("new-admin@ske.com");
+        verify(roleRepository).findByName("ROLE_ADMIN");
+        verify(roleService).ensureRoleExists("ROLE_ADMIN");
+    }
+
+    @Test
+    void provisionInitialAdmin_failsFastWhenAdminRoleMissingAfterSynchronization() {
+        TenantAdminProvisioningService service = new TenantAdminProvisioningService(
+                userAccountRepository,
+                roleService,
+                roleRepository,
+                passwordEncoder,
+                emailService,
+                tokenBlacklistService,
+                refreshTokenService);
+        Company company = company(10L, "SKE", "SKE");
+        when(userAccountRepository.findByEmailIgnoreCase("new-admin@ske.com")).thenReturn(Optional.empty());
+        when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.provisionInitialAdmin(company, "new-admin@ske.com", "New Admin"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("ROLE_ADMIN must exist before tenant admin provisioning");
+        verify(roleService).ensureRoleExists("ROLE_ADMIN");
+    }
+
+    @Test
     void provisionInitialAdmin_rejectsBlankEmail() {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -124,6 +178,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -143,6 +198,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -159,6 +215,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -182,6 +239,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -205,6 +263,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -232,6 +291,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -252,6 +312,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -280,6 +341,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -312,6 +374,7 @@ class TenantAdminProvisioningServiceTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,

@@ -11,6 +11,7 @@ import com.bigbrightpaints.erp.modules.reports.dto.BalanceSheetDto;
 import com.bigbrightpaints.erp.modules.reports.dto.CashFlowDto;
 import com.bigbrightpaints.erp.modules.reports.dto.ProfitLossDto;
 import com.bigbrightpaints.erp.modules.reports.dto.ReportSource;
+import com.bigbrightpaints.erp.modules.reports.service.ReportQueryRequestBuilder;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import com.bigbrightpaints.erp.test.support.TestDateUtils;
@@ -93,8 +94,8 @@ class CR_Reports_CashFlow_NotZeroByConstructionIT extends AbstractIntegrationTes
                     line(loan.getId(), BigDecimal.ZERO, new BigDecimal("30.00"))
             ));
 
-            ProfitLossDto profitLoss = reportService.profitLoss();
-            BalanceSheetDto balanceSheet = reportService.balanceSheet();
+            ProfitLossDto profitLoss = reportService.profitLoss(ReportQueryRequestBuilder.empty());
+            BalanceSheetDto balanceSheet = reportService.balanceSheet(ReportQueryRequestBuilder.empty());
             CashFlowDto cashFlow = reportService.cashFlow();
 
             assertThat(profitLoss.revenue()).isEqualByComparingTo(new BigDecimal("100.00"));

@@ -255,14 +255,6 @@ class JournalEntryServiceTest {
         assertThat(savedEntry.get().getEntryDate()).isEqualTo(explicitDate);
     }
 
-    @Test
-    void compatibilityConstructorLeavesCompanyDependenciesUnset() {
-        JournalEntryService service = new JournalEntryService((AccountingCoreEngine) null, accountingIdempotencyService);
-
-        assertThat(ReflectionTestUtils.getField(service, "companyContextService")).isNull();
-        assertThat(ReflectionTestUtils.getField(service, "companyClock")).isNull();
-    }
-
     private Account account(Long id, String code, AccountType type) {
         Account account = new Account();
         ReflectionTestUtils.setField(account, "id", id);

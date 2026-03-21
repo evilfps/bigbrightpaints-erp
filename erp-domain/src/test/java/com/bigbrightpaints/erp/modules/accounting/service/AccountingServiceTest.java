@@ -96,6 +96,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -170,6 +171,14 @@ class AccountingServiceTest {
     private AccountingEventStore accountingEventStore;
 
     private AccountingService accountingService;
+    private JournalEntryService journalEntryService;
+    private AccountingIdempotencyService settlementIdempotencyService;
+    private DealerReceiptService dealerReceiptService;
+    private SettlementService settlementService;
+    private CreditDebitNoteService creditDebitNoteService;
+    private InventoryAccountingService inventoryAccountingService;
+    private org.springframework.beans.factory.ObjectProvider<AccountingFacade> accountingFacadeProvider;
+    private AccountingFacade accountingFacade;
     private Company company;
     private MockEnvironment environment;
 
@@ -179,7 +188,97 @@ class AccountingServiceTest {
                 "policy.admin",
                 "n/a",
                 List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
-        accountingService = new AccountingService(
+        journalEntryService = spy(new JournalEntryService(
+                companyContextService,
+                accountRepository,
+                journalEntryRepository,
+                dealerLedgerService,
+                supplierLedgerService,
+                payrollRunRepository,
+                payrollRunLineRepository,
+                accountingPeriodService,
+                referenceNumberService,
+                eventPublisher,
+                companyClock,
+                companyEntityLookup,
+                settlementAllocationRepository,
+                rawMaterialPurchaseRepository,
+                invoiceRepository,
+                rawMaterialMovementRepository,
+                rawMaterialBatchRepository,
+                finishedGoodBatchRepository,
+                dealerRepository,
+                supplierRepository,
+                invoiceSettlementPolicy,
+                journalReferenceResolver,
+                journalReferenceMappingRepository,
+                entityManager,
+                systemSettingsService,
+                auditService,
+                accountingEventStore,
+                mock(AccountingIdempotencyService.class)
+        ));
+        settlementIdempotencyService = spy(new AccountingIdempotencyService(
+                companyContextService,
+                accountRepository,
+                journalEntryRepository,
+                dealerLedgerService,
+                supplierLedgerService,
+                payrollRunRepository,
+                payrollRunLineRepository,
+                accountingPeriodService,
+                referenceNumberService,
+                eventPublisher,
+                companyClock,
+                companyEntityLookup,
+                settlementAllocationRepository,
+                rawMaterialPurchaseRepository,
+                invoiceRepository,
+                rawMaterialMovementRepository,
+                rawMaterialBatchRepository,
+                finishedGoodBatchRepository,
+                dealerRepository,
+                supplierRepository,
+                invoiceSettlementPolicy,
+                journalReferenceResolver,
+                journalReferenceMappingRepository,
+                entityManager,
+                systemSettingsService,
+                auditService,
+                accountingEventStore,
+                mock(org.springframework.beans.factory.ObjectProvider.class)
+        ));
+        settlementService = spy(new SettlementService(
+                companyContextService,
+                accountRepository,
+                journalEntryRepository,
+                dealerLedgerService,
+                supplierLedgerService,
+                payrollRunRepository,
+                payrollRunLineRepository,
+                accountingPeriodService,
+                referenceNumberService,
+                eventPublisher,
+                companyClock,
+                companyEntityLookup,
+                settlementAllocationRepository,
+                rawMaterialPurchaseRepository,
+                invoiceRepository,
+                rawMaterialMovementRepository,
+                rawMaterialBatchRepository,
+                finishedGoodBatchRepository,
+                dealerRepository,
+                supplierRepository,
+                invoiceSettlementPolicy,
+                journalReferenceResolver,
+                journalReferenceMappingRepository,
+                entityManager,
+                systemSettingsService,
+                auditService,
+                accountingEventStore,
+                settlementIdempotencyService
+        ));
+        creditDebitNoteService = spy(new CreditDebitNoteService(
                 companyContextService,
                 accountRepository,
                 journalEntryRepository,
@@ -207,23 +306,238 @@ class AccountingServiceTest {
                 systemSettingsService,
                 auditService,
                 accountingEventStore
+        ));
+        inventoryAccountingService = spy(new InventoryAccountingService(
+                companyContextService,
+                accountRepository,
+                journalEntryRepository,
+                dealerLedgerService,
+                supplierLedgerService,
+                payrollRunRepository,
+                payrollRunLineRepository,
+                accountingPeriodService,
+                referenceNumberService,
+                eventPublisher,
+                companyClock,
+                companyEntityLookup,
+                settlementAllocationRepository,
+                rawMaterialPurchaseRepository,
+                invoiceRepository,
+                rawMaterialMovementRepository,
+                rawMaterialBatchRepository,
+                finishedGoodBatchRepository,
+                dealerRepository,
+                supplierRepository,
+                invoiceSettlementPolicy,
+                journalReferenceResolver,
+                journalReferenceMappingRepository,
+                entityManager,
+                systemSettingsService,
+                auditService,
+                accountingEventStore
+        ));
+        dealerReceiptService = spy(new DealerReceiptService(
+                companyContextService,
+                accountRepository,
+                journalEntryRepository,
+                dealerLedgerService,
+                supplierLedgerService,
+                payrollRunRepository,
+                payrollRunLineRepository,
+                accountingPeriodService,
+                referenceNumberService,
+                eventPublisher,
+                companyClock,
+                companyEntityLookup,
+                settlementAllocationRepository,
+                rawMaterialPurchaseRepository,
+                invoiceRepository,
+                rawMaterialMovementRepository,
+                rawMaterialBatchRepository,
+                finishedGoodBatchRepository,
+                dealerRepository,
+                supplierRepository,
+                invoiceSettlementPolicy,
+                journalReferenceResolver,
+                journalReferenceMappingRepository,
+                entityManager,
+                systemSettingsService,
+                auditService,
+                accountingEventStore,
+                settlementIdempotencyService
+        ));
+        accountingFacadeProvider = mock(org.springframework.beans.factory.ObjectProvider.class);
+        accountingService = new AccountingService(
+                companyContextService,
+                accountRepository,
+                journalEntryRepository,
+                dealerLedgerService,
+                supplierLedgerService,
+                payrollRunRepository,
+                payrollRunLineRepository,
+                accountingPeriodService,
+                referenceNumberService,
+                eventPublisher,
+                companyClock,
+                companyEntityLookup,
+                settlementAllocationRepository,
+                rawMaterialPurchaseRepository,
+                invoiceRepository,
+                rawMaterialMovementRepository,
+                rawMaterialBatchRepository,
+                finishedGoodBatchRepository,
+                dealerRepository,
+                supplierRepository,
+                invoiceSettlementPolicy,
+                journalReferenceResolver,
+                journalReferenceMappingRepository,
+                entityManager,
+                systemSettingsService,
+                auditService,
+                accountingEventStore,
+                journalEntryService,
+                dealerReceiptService,
+                settlementService,
+                creditDebitNoteService,
+                mock(AccountingAuditService.class),
+                inventoryAccountingService,
+                accountingFacadeProvider
         );
+        accountingFacade = spy(new AccountingFacade(
+                companyContextService,
+                accountRepository,
+                accountingService,
+                journalEntryRepository,
+                referenceNumberService,
+                dealerRepository,
+                supplierRepository,
+                companyClock,
+                companyEntityLookup,
+                mock(CompanyAccountingSettingsService.class),
+                journalReferenceResolver,
+                journalReferenceMappingRepository
+        ));
         environment = new MockEnvironment();
         ReflectionTestUtils.setField(accountingService, "environment", environment);
+        ReflectionTestUtils.setField(journalEntryService, "environment", environment);
+        ReflectionTestUtils.setField(settlementIdempotencyService, "environment", environment);
+        ReflectionTestUtils.setField(dealerReceiptService, "environment", environment);
+        ReflectionTestUtils.setField(settlementService, "environment", environment);
+        ReflectionTestUtils.setField(creditDebitNoteService, "environment", environment);
+        ReflectionTestUtils.setField(inventoryAccountingService, "environment", environment);
         company = new Company();
         company.setBaseCurrency("INR");
         lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        lenient().when(accountingFacadeProvider.getIfAvailable()).thenReturn(accountingFacade);
+        lenient().when(accountingFacadeProvider.getObject()).thenReturn(accountingFacade);
+        lenient().when(companyClock.today(eq(company))).thenReturn(LocalDate.of(2024, 4, 15));
         lenient().when(systemSettingsService.isPeriodLockEnforced()).thenReturn(true);
         lenient().when(accountingPeriodService.requireOpenPeriod(any(), any())).thenReturn(new AccountingPeriod());
         lenient().when(accountingPeriodService.requirePostablePeriod(any(), any(), any(), any(), any(), anyBoolean()))
                 .thenReturn(new AccountingPeriod());
+        lenient().when(accountRepository.findByCompanyAndId(any(), any())).thenAnswer(invocation -> {
+            Long accountId = invocation.getArgument(1);
+            if (accountId == null) {
+                return Optional.empty();
+            }
+            Account account = new Account();
+            account.setCompany(company);
+            account.setCode("ACC-" + accountId);
+            account.setType(AccountType.ASSET);
+            account.setActive(true);
+            ReflectionTestUtils.setField(account, "id", accountId);
+            return Optional.of(account);
+        });
+        lenient().when(accountRepository.lockByCompanyAndId(any(), any())).thenAnswer(invocation -> {
+            Long accountId = invocation.getArgument(1);
+            if (accountId == null) {
+                return Optional.empty();
+            }
+            Account account = new Account();
+            account.setCompany(company);
+            account.setCode("ACC-" + accountId);
+            account.setType(AccountType.ASSET);
+            account.setActive(true);
+            ReflectionTestUtils.setField(account, "id", accountId);
+            return Optional.of(account);
+        });
+        lenient().when(dealerRepository.lockByCompanyAndId(any(), any())).thenAnswer(invocation -> {
+            Long dealerId = invocation.getArgument(1);
+            if (dealerId == null) {
+                return Optional.empty();
+            }
+            Dealer dealer = new Dealer();
+            dealer.setCompany(company);
+            dealer.setName("Dealer " + dealerId);
+            ReflectionTestUtils.setField(dealer, "id", dealerId);
+            Account receivable = new Account();
+            receivable.setCompany(company);
+            receivable.setCode("AR-" + dealerId);
+            receivable.setType(AccountType.ASSET);
+            receivable.setActive(true);
+            ReflectionTestUtils.setField(receivable, "id", 10_000L + dealerId);
+            dealer.setReceivableAccount(receivable);
+            return Optional.of(dealer);
+        });
+        lenient().when(supplierRepository.lockByCompanyAndId(any(), any())).thenAnswer(invocation -> {
+            Long supplierId = invocation.getArgument(1);
+            if (supplierId == null) {
+                return Optional.empty();
+            }
+            Supplier supplier = new Supplier();
+            supplier.setCompany(company);
+            supplier.setName("Supplier " + supplierId);
+            supplier.setStatus(SupplierStatus.ACTIVE);
+            ReflectionTestUtils.setField(supplier, "id", supplierId);
+            Account payable = new Account();
+            payable.setCompany(company);
+            payable.setCode("AP-" + supplierId);
+            payable.setType(AccountType.LIABILITY);
+            payable.setActive(true);
+            ReflectionTestUtils.setField(payable, "id", 20_000L + supplierId);
+            supplier.setPayableAccount(payable);
+            return Optional.of(supplier);
+        });
+        lenient().when(companyEntityLookup.requireDealer(any(), any())).thenAnswer(invocation -> {
+            Long dealerId = invocation.getArgument(1);
+            Dealer dealer = new Dealer();
+            dealer.setCompany(company);
+            dealer.setName("Dealer " + dealerId);
+            ReflectionTestUtils.setField(dealer, "id", dealerId);
+            Account receivable = new Account();
+            receivable.setCompany(company);
+            receivable.setCode("AR-" + dealerId);
+            receivable.setType(AccountType.ASSET);
+            receivable.setActive(true);
+            ReflectionTestUtils.setField(receivable, "id", 30_000L + dealerId);
+            dealer.setReceivableAccount(receivable);
+            return dealer;
+        });
+        lenient().when(companyEntityLookup.requireSupplier(any(), any())).thenAnswer(invocation -> {
+            Long supplierId = invocation.getArgument(1);
+            Supplier supplier = new Supplier();
+            supplier.setCompany(company);
+            supplier.setName("Supplier " + supplierId);
+            supplier.setStatus(SupplierStatus.ACTIVE);
+            ReflectionTestUtils.setField(supplier, "id", supplierId);
+            Account payable = new Account();
+            payable.setCompany(company);
+            payable.setCode("AP-" + supplierId);
+            payable.setType(AccountType.LIABILITY);
+            payable.setActive(true);
+            ReflectionTestUtils.setField(payable, "id", 40_000L + supplierId);
+            supplier.setPayableAccount(payable);
+            return supplier;
+        });
         lenient().when(dealerRepository.findByCompanyAndReceivableAccountIn(any(), any())).thenReturn(List.of());
         lenient().when(supplierRepository.findByCompanyAndPayableAccountIn(any(), any())).thenReturn(List.of());
         lenient().when(referenceNumberService.dealerReceiptReference(any(), any())).thenReturn("REF-SETTLE");
         lenient().when(journalReferenceMappingRepository.reserveReferenceMapping(any(), any(), any(), any(), any()))
                 .thenReturn(1);
+        lenient().when(journalReferenceMappingRepository.reserveManualReference(any(), any(), any(), any(), any()))
+                .thenReturn(1);
         lenient().when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(any(), any()))
-                .thenAnswer(invocation -> Optional.of(new JournalReferenceMapping()));
+                .thenReturn(Optional.empty());
     }
 
     @AfterEach
@@ -354,11 +668,10 @@ class AccountingServiceTest {
 
     @Test
     void createStandardJournal_buildsAutomatedJournalRequestFromResolvedLines() {
-        AccountingService serviceSpy = spy(accountingService);
         ArgumentCaptor<JournalEntryRequest> requestCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
-        doReturn(stubEntry(501L)).when(serviceSpy).createJournalEntry(requestCaptor.capture());
+        doReturn(stubEntry(501L)).when(journalEntryService).createJournalEntry(requestCaptor.capture());
 
-        JournalEntryDto result = serviceSpy.createStandardJournal(new JournalCreationRequest(
+        JournalEntryDto result = accountingService.createStandardJournal(new JournalCreationRequest(
                 new BigDecimal("125.00"),
                 null,
                 null,
@@ -396,11 +709,10 @@ class AccountingServiceTest {
 
     @Test
     void createManualJournal_buildsManualEntryRequestAndDefaultsLineNarration() {
-        AccountingService serviceSpy = spy(accountingService);
-        ArgumentCaptor<JournalEntryRequest> requestCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
-        doReturn(stubEntry(601L)).when(serviceSpy).createManualJournalEntry(requestCaptor.capture(), eq("MAN-KEY-1"));
+        ArgumentCaptor<JournalCreationRequest> requestCaptor = ArgumentCaptor.forClass(JournalCreationRequest.class);
+        doReturn(stubEntry(601L)).when(accountingFacade).createStandardJournal(requestCaptor.capture());
 
-        JournalEntryDto result = serviceSpy.createManualJournal(new ManualJournalRequest(
+        JournalEntryDto result = accountingService.createManualJournal(new ManualJournalRequest(
                 LocalDate.of(2026, 3, 6),
                 "  Manual reason  ",
                 "MAN-KEY-1",
@@ -412,20 +724,36 @@ class AccountingServiceTest {
                 List.of("att-manual")
         ));
 
-        JournalEntryRequest forwarded = requestCaptor.getValue();
+        JournalCreationRequest forwarded = requestCaptor.getValue();
         assertThat(result.id()).isEqualTo(601L);
-        assertThat(forwarded.referenceNumber()).isNull();
         assertThat(forwarded.entryDate()).isEqualTo(LocalDate.of(2026, 3, 6));
-        assertThat(forwarded.memo()).isEqualTo("Manual reason");
+        assertThat(forwarded.narration()).isEqualTo("Manual reason");
         assertThat(forwarded.adminOverride()).isTrue();
         assertThat(forwarded.sourceModule()).isEqualTo("MANUAL");
         assertThat(forwarded.sourceReference()).isEqualTo("MAN-KEY-1");
-        assertThat(forwarded.journalType()).isEqualTo(JournalEntryType.MANUAL.name());
         assertThat(forwarded.attachmentReferences()).containsExactly("att-manual");
         assertThat(forwarded.lines()).containsExactly(
-                new JournalEntryRequest.JournalLineRequest(601L, "Manual reason", new BigDecimal("50.00"), BigDecimal.ZERO),
-                new JournalEntryRequest.JournalLineRequest(602L, "Cash offset", BigDecimal.ZERO, new BigDecimal("50.00"))
+                new JournalCreationRequest.LineRequest(601L, new BigDecimal("50.00"), BigDecimal.ZERO, "Manual reason"),
+                new JournalCreationRequest.LineRequest(602L, BigDecimal.ZERO, new BigDecimal("50.00"), "Cash offset")
         );
+    }
+
+    @Test
+    void createManualJournal_requiresAccountingFacade() {
+        when(accountingFacadeProvider.getIfAvailable()).thenReturn(null);
+
+        assertThatThrownBy(() -> accountingService.createManualJournal(new ManualJournalRequest(
+                LocalDate.of(2026, 3, 6),
+                "Manual reason",
+                "MAN-KEY-NULL",
+                false,
+                List.of(
+                        new ManualJournalRequest.LineRequest(601L, new BigDecimal("50.00"), null, ManualJournalRequest.EntryType.DEBIT),
+                        new ManualJournalRequest.LineRequest(602L, new BigDecimal("50.00"), null, ManualJournalRequest.EntryType.CREDIT)
+                )
+        )))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("AccountingFacade is required");
     }
 
     @Test
@@ -448,7 +776,10 @@ class AccountingServiceTest {
                 null,
                 null,
                 true,
-                List.of(new JournalEntryRequest.JournalLineRequest(701L, "line", new BigDecimal("10.00"), BigDecimal.ZERO)),
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(701L, "debit", new BigDecimal("10.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(702L, "credit", BigDecimal.ZERO, new BigDecimal("10.00"))
+                ),
                 null,
                 null,
                 "MANUAL",
@@ -481,7 +812,10 @@ class AccountingServiceTest {
                 null,
                 null,
                 true,
-                List.of(new JournalEntryRequest.JournalLineRequest(702L, "line", new BigDecimal("10.00"), BigDecimal.ZERO)),
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(702L, "debit", new BigDecimal("10.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(703L, "credit", BigDecimal.ZERO, new BigDecimal("10.00"))
+                ),
                 null,
                 null,
                 "MANUAL",
@@ -518,7 +852,10 @@ class AccountingServiceTest {
                 null,
                 null,
                 true,
-                List.of(new JournalEntryRequest.JournalLineRequest(703L, "line", new BigDecimal("10.00"), BigDecimal.ZERO)),
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(703L, "debit", new BigDecimal("10.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(704L, "credit", BigDecimal.ZERO, new BigDecimal("10.00"))
+                ),
                 null,
                 null,
                 "MANUAL",
@@ -534,7 +871,6 @@ class AccountingServiceTest {
     @Test
     void createManualJournalEntry_replaysAfterRetryableCreateFailure() {
         ReflectionTestUtils.setField(company, "id", 89L);
-        AccountingService serviceSpy = spy(accountingService);
         JournalEntry existing = journalEntry(704L, "MAN-RETRY-1");
         existing.setEntryDate(LocalDate.of(2026, 3, 10));
         existing.setMemo("Retry replay");
@@ -547,16 +883,19 @@ class AccountingServiceTest {
         when(journalReferenceMappingRepository.reserveManualReference(eq(89L), any(), any(), eq("JOURNAL_ENTRY"), any()))
                 .thenReturn(1);
         doThrow(new DataIntegrityViolationException("duplicate manual journal"))
-                .when(serviceSpy).createJournalEntry(any(JournalEntryRequest.class));
+                .when(journalEntryService).createJournalEntry(any(JournalEntryRequest.class));
 
-        JournalEntryDto result = serviceSpy.createManualJournalEntry(new JournalEntryRequest(
+        JournalEntryDto result = accountingService.createManualJournalEntry(new JournalEntryRequest(
                 null,
                 LocalDate.of(2026, 3, 10),
                 "Retry replay",
                 null,
                 null,
                 true,
-                List.of(new JournalEntryRequest.JournalLineRequest(704L, "line", new BigDecimal("10.00"), BigDecimal.ZERO)),
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(704L, "debit", new BigDecimal("10.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(705L, "credit", BigDecimal.ZERO, new BigDecimal("10.00"))
+                ),
                 null,
                 null,
                 "MANUAL",
@@ -572,7 +911,6 @@ class AccountingServiceTest {
     @Test
     void createManualJournalEntry_updatesReservedMappingAfterSuccessfulCreate() {
         ReflectionTestUtils.setField(company, "id", 90L);
-        AccountingService serviceSpy = spy(accountingService);
         JournalReferenceMapping mapping = new JournalReferenceMapping();
         JournalEntryDto created = journalEntryDto(705L, "JRN-705");
 
@@ -584,16 +922,19 @@ class AccountingServiceTest {
                 .thenReturn(1);
         when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(eq(company), any()))
                 .thenReturn(List.of(mapping));
-        doReturn(created).when(serviceSpy).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(created).when(journalEntryService).createJournalEntry(any(JournalEntryRequest.class));
 
-        JournalEntryDto result = serviceSpy.createManualJournalEntry(new JournalEntryRequest(
+        JournalEntryDto result = accountingService.createManualJournalEntry(new JournalEntryRequest(
                 null,
                 LocalDate.of(2026, 3, 11),
                 "Created manual",
                 null,
                 null,
                 true,
-                List.of(new JournalEntryRequest.JournalLineRequest(705L, "line", new BigDecimal("10.00"), BigDecimal.ZERO)),
+                List.of(
+                        new JournalEntryRequest.JournalLineRequest(705L, "debit", new BigDecimal("10.00"), BigDecimal.ZERO),
+                        new JournalEntryRequest.JournalLineRequest(706L, "credit", BigDecimal.ZERO, new BigDecimal("10.00"))
+                ),
                 null,
                 null,
                 "MANUAL",
@@ -658,7 +999,6 @@ class AccountingServiceTest {
 
     @Test
     void postPayrollRun_usesLegacyRunTokenForReferenceAndMemo() {
-        AccountingService serviceSpy = spy(accountingService);
         when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 12));
         List<JournalEntryRequest.JournalLineRequest> lines = List.of(
                 new JournalEntryRequest.JournalLineRequest(11L, "Payroll expense", new BigDecimal("1000.00"), BigDecimal.ZERO),
@@ -666,9 +1006,9 @@ class AccountingServiceTest {
         );
 
         ArgumentCaptor<JournalEntryRequest> requestCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
-        doReturn(null).when(serviceSpy).createJournalEntry(requestCaptor.capture());
+        doReturn(null).when(journalEntryService).createJournalEntry(requestCaptor.capture());
 
-        serviceSpy.postPayrollRun(null, 44L, null, null, lines);
+        accountingService.postPayrollRun(null, 44L, null, null, lines);
 
         JournalEntryRequest posted = requestCaptor.getValue();
         assertThat(posted.referenceNumber()).isEqualTo("PAYROLL-LEGACY-44");
@@ -854,6 +1194,7 @@ class AccountingServiceTest {
     void createJournalEntry_manualSourcePreservesAttachmentsAndLinksClosedPeriodException() {
         ClosedPeriodPostingExceptionService exceptionService = org.mockito.Mockito.mock(ClosedPeriodPostingExceptionService.class);
         ReflectionTestUtils.setField(accountingService, "closedPeriodPostingExceptionService", exceptionService);
+        ReflectionTestUtils.setField(journalEntryService, "closedPeriodPostingExceptionService", exceptionService);
 
         LocalDate today = LocalDate.of(2024, 2, 2);
         AccountingPeriod closedPeriod = openPeriod(today);
@@ -1063,7 +1404,7 @@ class AccountingServiceTest {
         when(invoiceRepository.lockByCompanyAndId(eq(company), eq(712L))).thenReturn(Optional.of(second));
         when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(904L))).thenReturn(new JournalEntry());
-        doReturn(stubEntry(904L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(904L)).when(settlementIdempotencyService).createJournalEntry(any(JournalEntryRequest.class));
 
         DealerSettlementRequest request = new DealerSettlementRequest(
                 1L,
@@ -1231,6 +1572,19 @@ class AccountingServiceTest {
         receivable.setType(AccountType.ASSET);
         ReflectionTestUtils.setField(receivable, "id", 10L);
         dealer.setReceivableAccount(receivable);
+
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-DOCUMENT");
+        cash.setType(AccountType.ASSET);
+        cash.setActive(true);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        Invoice invoice = new Invoice();
+        invoice.setCompany(company);
+        invoice.setDealer(dealer);
+        invoice.setOutstandingAmount(new BigDecimal("25.00"));
+        ReflectionTestUtils.setField(invoice, "id", 702L);
 
         when(dealerRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(dealer));
 
@@ -1400,7 +1754,39 @@ class AccountingServiceTest {
 
     @Test
     void settleDealerInvoices_postsDiscountSettlementWhenAdminOverrideApproved() {
-        AccountingService service = spy(accountingService);
+        AccountingIdempotencyService settlementEngine = settlementIdempotencyService();
+        SettlementService settlementService = new SettlementService(
+                companyContextService,
+                accountRepository,
+                journalEntryRepository,
+                dealerLedgerService,
+                supplierLedgerService,
+                payrollRunRepository,
+                payrollRunLineRepository,
+                accountingPeriodService,
+                referenceNumberService,
+                eventPublisher,
+                companyClock,
+                companyEntityLookup,
+                settlementAllocationRepository,
+                rawMaterialPurchaseRepository,
+                invoiceRepository,
+                rawMaterialMovementRepository,
+                rawMaterialBatchRepository,
+                finishedGoodBatchRepository,
+                dealerRepository,
+                supplierRepository,
+                invoiceSettlementPolicy,
+                journalReferenceResolver,
+                journalReferenceMappingRepository,
+                entityManager,
+                systemSettingsService,
+                auditService,
+                accountingEventStore,
+                settlementEngine
+        );
+        ReflectionTestUtils.setField(settlementService, "environment", environment);
+        ReflectionTestUtils.setField(accountingService, "settlementService", settlementService);
 
         Dealer dealer = dealer(92L, "Dealer Override Approved", account(9202L, "AR-9202", AccountType.ASSET));
         Account cash = account(9203L, "BANK-9203", AccountType.ASSET);
@@ -1412,7 +1798,7 @@ class AccountingServiceTest {
         when(companyEntityLookup.requireAccount(eq(company), eq(9203L))).thenReturn(cash);
         when(companyEntityLookup.requireAccount(eq(company), eq(9204L))).thenReturn(discount);
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(906L))).thenReturn(new JournalEntry());
-        doReturn(stubEntry(906L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(906L)).when(settlementEngine).createJournalEntry(any(JournalEntryRequest.class));
 
         DealerSettlementRequest request = new DealerSettlementRequest(
                 92L,
@@ -1441,7 +1827,7 @@ class AccountingServiceTest {
                 null
         );
 
-        PartnerSettlementResponse response = service.settleDealerInvoices(request);
+        PartnerSettlementResponse response = accountingService.settleDealerInvoices(request);
 
         assertThat(response.totalApplied()).isEqualByComparingTo("25.00");
         assertThat(response.totalDiscount()).isEqualByComparingTo("1.00");
@@ -1521,7 +1907,6 @@ class AccountingServiceTest {
         AccountingPeriod openPeriod = openPeriod(today);
         when(accountingPeriodService.requirePostablePeriod(eq(company), eq(today), any(), any(), any(), anyBoolean())).thenReturn(openPeriod);
 
-        AccountingService service = spy(accountingService);
         JournalEntry original = reversalSourceEntry(500L, "REV-AUDIT-OK", today);
         JournalEntry reversal = new JournalEntry();
         ReflectionTestUtils.setField(reversal, "id", 900L);
@@ -1529,7 +1914,7 @@ class AccountingServiceTest {
         when(companyEntityLookup.requireJournalEntry(company, 500L)).thenReturn(original);
         when(companyEntityLookup.requireJournalEntry(company, 900L)).thenReturn(reversal);
         when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doReturn(stubEntry(900L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(900L)).when(journalEntryService).createJournalEntry(any(JournalEntryRequest.class));
 
         JournalEntryReversalRequest request = new JournalEntryReversalRequest(
                 today,
@@ -1541,7 +1926,7 @@ class AccountingServiceTest {
 
         TransactionTemplate transactionTemplate = new TransactionTemplate(new ResourcelessTransactionManager());
         transactionTemplate.executeWithoutResult(status -> {
-            JournalEntryDto result = service.reverseJournalEntry(500L, request);
+            JournalEntryDto result = accountingService.reverseJournalEntry(500L, request);
             assertThat(result.id()).isEqualTo(900L);
             verify(auditService, never()).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_REVERSED), any());
         });
@@ -1556,7 +1941,6 @@ class AccountingServiceTest {
         AccountingPeriod openPeriod = openPeriod(today);
         when(accountingPeriodService.requirePostablePeriod(eq(company), eq(today), any(), any(), any(), anyBoolean())).thenReturn(openPeriod);
 
-        AccountingService service = spy(accountingService);
         JournalEntry original = reversalSourceEntry(501L, "REV-AUDIT-ROLLBACK", today);
         JournalEntry reversal = new JournalEntry();
         ReflectionTestUtils.setField(reversal, "id", 901L);
@@ -1564,7 +1948,7 @@ class AccountingServiceTest {
         when(companyEntityLookup.requireJournalEntry(company, 501L)).thenReturn(original);
         when(companyEntityLookup.requireJournalEntry(company, 901L)).thenReturn(reversal);
         when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doReturn(stubEntry(901L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(901L)).when(journalEntryService).createJournalEntry(any(JournalEntryRequest.class));
 
         JournalEntryReversalRequest request = new JournalEntryReversalRequest(
                 today,
@@ -1576,7 +1960,7 @@ class AccountingServiceTest {
 
         TransactionTemplate transactionTemplate = new TransactionTemplate(new ResourcelessTransactionManager());
         transactionTemplate.executeWithoutResult(status -> {
-            service.reverseJournalEntry(501L, request);
+            accountingService.reverseJournalEntry(501L, request);
             status.setRollbackOnly();
             verify(auditService, never()).logSuccess(eq(AuditEvent.JOURNAL_ENTRY_REVERSED), any());
         });
@@ -1591,7 +1975,6 @@ class AccountingServiceTest {
         AccountingPeriod openPeriod = openPeriod(today);
         when(accountingPeriodService.requirePostablePeriod(eq(company), eq(today), any(), any(), any(), anyBoolean())).thenReturn(openPeriod);
 
-        AccountingService service = spy(accountingService);
         JournalEntry original = reversalSourceEntry(502L, "REV-AUDIT-POLICY", today);
         JournalEntry reversal = new JournalEntry();
         ReflectionTestUtils.setField(reversal, "id", 902L);
@@ -1599,7 +1982,7 @@ class AccountingServiceTest {
         when(companyEntityLookup.requireJournalEntry(company, 502L)).thenReturn(original);
         when(companyEntityLookup.requireJournalEntry(company, 902L)).thenReturn(reversal);
         when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doReturn(stubEntry(902L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(902L)).when(journalEntryService).createJournalEntry(any(JournalEntryRequest.class));
 
         JournalEntryReversalRequest request = new JournalEntryReversalRequest(
                 today,
@@ -1611,7 +1994,7 @@ class AccountingServiceTest {
 
         TransactionTemplate transactionTemplate = new TransactionTemplate(new ResourcelessTransactionManager());
         transactionTemplate.executeWithoutResult(status -> {
-            JournalEntryDto result = service.reverseJournalEntry(502L, request);
+            JournalEntryDto result = accountingService.reverseJournalEntry(502L, request);
             assertThat(result.id()).isEqualTo(902L);
         });
 
@@ -1625,7 +2008,6 @@ class AccountingServiceTest {
         AccountingPeriod openPeriod = openPeriod(today);
         when(accountingPeriodService.requirePostablePeriod(eq(company), eq(today), any(), any(), any(), anyBoolean())).thenReturn(openPeriod);
 
-        AccountingService service = spy(accountingService);
         JournalEntry original = reversalSourceEntry(503L, "REV-CONSISTENT-DTO", today);
         JournalEntry reversal = new JournalEntry();
         ReflectionTestUtils.setField(reversal, "id", 903L);
@@ -1633,7 +2015,7 @@ class AccountingServiceTest {
         when(companyEntityLookup.requireJournalEntry(company, 503L)).thenReturn(original);
         when(companyEntityLookup.requireJournalEntry(company, 903L)).thenReturn(reversal);
         when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doReturn(stubEntry(903L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(903L)).when(journalEntryService).createJournalEntry(any(JournalEntryRequest.class));
 
         JournalEntryReversalRequest request = new JournalEntryReversalRequest(
                 today,
@@ -1643,7 +2025,7 @@ class AccountingServiceTest {
                 Boolean.FALSE
         );
 
-        JournalEntryDto result = service.reverseJournalEntry(503L, request);
+        JournalEntryDto result = accountingService.reverseJournalEntry(503L, request);
 
         assertThat(result.id()).isEqualTo(903L);
         assertThat(result.correctionType()).isEqualTo(JournalCorrectionType.REVERSAL.name());
@@ -2432,7 +2814,7 @@ class AccountingServiceTest {
 
     @Test
     void createJournalEntry_bestEffortEventTrailFailureStillPosts() {
-        ReflectionTestUtils.setField(accountingService, "strictAccountingEventTrail", false);
+        setCreateJournalEntryEventTrailStrictness(false);
         LocalDate today = LocalDate.of(2024, 3, 23);
         when(companyClock.today(company)).thenReturn(today);
         AccountingPeriod period = new AccountingPeriod();
@@ -2490,7 +2872,7 @@ class AccountingServiceTest {
 
     @Test
     void createJournalEntry_bestEffortEventTrailValidationFailureClassified() {
-        ReflectionTestUtils.setField(accountingService, "strictAccountingEventTrail", false);
+        setCreateJournalEntryEventTrailStrictness(false);
         LocalDate today = LocalDate.of(2024, 3, 24);
         when(companyClock.today(company)).thenReturn(today);
         AccountingPeriod period = new AccountingPeriod();
@@ -2544,7 +2926,7 @@ class AccountingServiceTest {
 
     @Test
     void createJournalEntry_bestEffortEventTrailDataIntegrityFailureClassified() {
-        ReflectionTestUtils.setField(accountingService, "strictAccountingEventTrail", false);
+        setCreateJournalEntryEventTrailStrictness(false);
         LocalDate today = LocalDate.of(2024, 3, 25);
         when(companyClock.today(company)).thenReturn(today);
         AccountingPeriod period = new AccountingPeriod();
@@ -2704,7 +3086,7 @@ class AccountingServiceTest {
         when(companyEntityLookup.requireJournalEntry(company, 610L)).thenReturn(original);
         when(companyEntityLookup.requireJournalEntry(company, 910L)).thenReturn(reversal);
         when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doReturn(stubEntry(910L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(910L)).when(journalEntryService).createJournalEntry(any(JournalEntryRequest.class));
         when(accountingEventStore.recordJournalEntryReversed(any(), any(), any()))
                 .thenThrow(new IllegalStateException("event-store-down"));
 
@@ -2738,7 +3120,7 @@ class AccountingServiceTest {
 
     @Test
     void reverseJournalEntry_bestEffortEventTrailValidationApplicationExceptionClassified() {
-        ReflectionTestUtils.setField(accountingService, "strictAccountingEventTrail", false);
+        ReflectionTestUtils.setField(journalEntryService, "strictAccountingEventTrail", false);
         LocalDate today = LocalDate.of(2024, 4, 3);
         when(companyClock.today(company)).thenReturn(today);
         AccountingPeriod openPeriod = openPeriod(today);
@@ -2752,7 +3134,7 @@ class AccountingServiceTest {
         when(companyEntityLookup.requireJournalEntry(company, 612L)).thenReturn(original);
         when(companyEntityLookup.requireJournalEntry(company, 912L)).thenReturn(reversal);
         when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doReturn(stubEntry(912L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(912L)).when(journalEntryService).createJournalEntry(any(JournalEntryRequest.class));
         when(accountingEventStore.recordJournalEntryReversed(any(), any(), any()))
                 .thenThrow(new ApplicationException(
                         ErrorCode.VALIDATION_INVALID_REFERENCE,
@@ -2784,7 +3166,7 @@ class AccountingServiceTest {
 
     @Test
     void reverseJournalEntry_bestEffortEventTrailDataIntegrityApplicationExceptionClassified() {
-        ReflectionTestUtils.setField(accountingService, "strictAccountingEventTrail", false);
+        ReflectionTestUtils.setField(journalEntryService, "strictAccountingEventTrail", false);
         LocalDate today = LocalDate.of(2024, 4, 4);
         when(companyClock.today(company)).thenReturn(today);
         AccountingPeriod openPeriod = openPeriod(today);
@@ -2798,7 +3180,7 @@ class AccountingServiceTest {
         when(companyEntityLookup.requireJournalEntry(company, 613L)).thenReturn(original);
         when(companyEntityLookup.requireJournalEntry(company, 913L)).thenReturn(reversal);
         when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doReturn(stubEntry(913L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(913L)).when(journalEntryService).createJournalEntry(any(JournalEntryRequest.class));
         when(accountingEventStore.recordJournalEntryReversed(any(), any(), any()))
                 .thenThrow(new ApplicationException(
                         ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
@@ -2830,7 +3212,7 @@ class AccountingServiceTest {
 
     @Test
     void reverseJournalEntry_bestEffortEventTrailFailureContinuesWhenAuditMarkerFails() {
-        ReflectionTestUtils.setField(accountingService, "strictAccountingEventTrail", false);
+        ReflectionTestUtils.setField(journalEntryService, "strictAccountingEventTrail", false);
         LocalDate today = LocalDate.of(2024, 4, 3);
         when(companyClock.today(company)).thenReturn(today);
         AccountingPeriod openPeriod = openPeriod(today);
@@ -2844,7 +3226,7 @@ class AccountingServiceTest {
         when(companyEntityLookup.requireJournalEntry(company, 611L)).thenReturn(original);
         when(companyEntityLookup.requireJournalEntry(company, 911L)).thenReturn(reversal);
         when(journalEntryRepository.save(any(JournalEntry.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        doReturn(stubEntry(911L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(911L)).when(journalEntryService).createJournalEntry(any(JournalEntryRequest.class));
         when(accountingEventStore.recordJournalEntryReversed(any(), any(), any()))
                 .thenThrow(new IllegalStateException("event-store-down"));
         doThrow(new IllegalStateException("audit-log-down"))
@@ -3335,7 +3717,7 @@ class AccountingServiceTest {
 
         JournalEntryDto journalEntryDto = stubEntry(55L);
         ArgumentCaptor<JournalEntryRequest> journalCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
-        doReturn(journalEntryDto).when(service).createJournalEntry(journalCaptor.capture());
+        doReturn(journalEntryDto).when(settlementIdempotencyService).createJournalEntry(journalCaptor.capture());
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(55L))).thenReturn(new com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry());
 
         SettlementAllocationRequest allocation = new SettlementAllocationRequest(
@@ -4827,7 +5209,7 @@ class AccountingServiceTest {
         when(invoiceRepository.lockByCompanyAndId(eq(company), eq(502L))).thenReturn(Optional.of(invoice));
         when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(eq(company), eq(createdEntry)))
                 .thenReturn(List.of());
-        doReturn(stubEntry(910L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(910L)).when(settlementIdempotencyService).createJournalEntry(any(JournalEntryRequest.class));
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(910L))).thenReturn(createdEntry);
         when(settlementAllocationRepository.saveAll(any())).thenThrow(new DataIntegrityViolationException("duplicate"));
 
@@ -4926,7 +5308,7 @@ class AccountingServiceTest {
         when(invoiceRepository.lockByCompanyAndId(eq(company), eq(502L))).thenReturn(Optional.of(invoice));
         when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(eq(company), eq(createdEntry)))
                 .thenReturn(List.of());
-        doReturn(stubEntry(1910L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(1910L)).when(settlementIdempotencyService).createJournalEntry(any(JournalEntryRequest.class));
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(1910L))).thenReturn(createdEntry);
         when(settlementAllocationRepository.saveAll(any())).thenThrow(new DataIntegrityViolationException("duplicate"));
 
@@ -5032,7 +5414,7 @@ class AccountingServiceTest {
         when(invoiceRepository.lockOpenInvoicesForSettlement(eq(company), eq(dealer))).thenReturn(List.of(invoice));
         when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(eq(company), eq(createdEntry)))
                 .thenReturn(List.of());
-        doReturn(stubEntry(920L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(920L)).when(settlementIdempotencyService).createJournalEntry(any(JournalEntryRequest.class));
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(920L))).thenReturn(createdEntry);
         when(settlementAllocationRepository.saveAll(any())).thenThrow(new DataIntegrityViolationException("duplicate"));
 
@@ -5127,7 +5509,7 @@ class AccountingServiceTest {
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
         when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(603L))).thenReturn(Optional.of(purchase));
-        doReturn(stubEntry(930L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(930L)).when(settlementIdempotencyService).createJournalEntry(any(JournalEntryRequest.class));
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(930L))).thenReturn(createdEntry);
         when(settlementAllocationRepository.saveAll(any())).thenThrow(new DataIntegrityViolationException("duplicate"));
 
@@ -5241,7 +5623,7 @@ class AccountingServiceTest {
                 any()))
                 .thenReturn(1);
         when(invoiceRepository.lockByCompanyAndId(eq(company), eq(702L))).thenReturn(Optional.of(invoice));
-        doReturn(stubEntry(950L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(950L)).when(settlementIdempotencyService).createJournalEntry(any(JournalEntryRequest.class));
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(950L))).thenReturn(createdEntry);
         when(settlementAllocationRepository.saveAll(any())).thenThrow(new DataIntegrityViolationException("duplicate"));
 
@@ -5385,7 +5767,7 @@ class AccountingServiceTest {
                 any()))
                 .thenReturn(1);
         when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(704L))).thenReturn(Optional.of(purchase));
-        doReturn(stubEntry(960L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(960L)).when(settlementIdempotencyService).createJournalEntry(any(JournalEntryRequest.class));
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(960L))).thenReturn(createdEntry);
         when(settlementAllocationRepository.saveAll(any())).thenThrow(new DataIntegrityViolationException("duplicate"));
 
@@ -6136,7 +6518,7 @@ class AccountingServiceTest {
         when(companyEntityLookup.requireAccount(eq(company), eq(21L))).thenReturn(discount);
 
         JournalEntryDto journalEntryDto = stubEntry(44L);
-        doReturn(journalEntryDto).when(service).createJournalEntry(any());
+        doReturn(journalEntryDto).when(settlementIdempotencyService).createJournalEntry(any());
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(44L))).thenReturn(new com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry());
 
         SettlementAllocationRequest allocation = new SettlementAllocationRequest(
@@ -6233,7 +6615,7 @@ class AccountingServiceTest {
                     return incoming;
                 });
 
-        doReturn(stubEntry(44L)).when(service).createJournalEntry(any());
+        doReturn(stubEntry(44L)).when(settlementIdempotencyService).createJournalEntry(any(JournalEntryRequest.class));
 
         SettlementAllocationRequest allocation = new SettlementAllocationRequest(
                 5L,
@@ -6269,8 +6651,6 @@ class AccountingServiceTest {
 
     @Test
     void revalueInventory_distributesAcrossFinishedGoodBatches() {
-        AccountingService service = spy(accountingService);
-
         Account inventory = new Account();
         inventory.setCompany(company);
         inventory.setCode("INV");
@@ -6307,9 +6687,9 @@ class AccountingServiceTest {
                 .thenReturn(List.of(batch1, batch2));
 
         JournalEntryDto journalEntryDto = stubEntry(77L);
-        doReturn(journalEntryDto).when(service).createJournalEntry(any());
+        doReturn(journalEntryDto).when(inventoryAccountingService).createJournalEntry(any(JournalEntryRequest.class));
 
-        service.revalueInventory(new InventoryRevaluationRequest(
+        accountingService.revalueInventory(new InventoryRevaluationRequest(
                 11L,
                 12L,
                 new BigDecimal("20.00"),
@@ -8548,7 +8928,7 @@ class AccountingServiceTest {
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
         when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         JournalEntryDto journalEntryDto = stubEntry(87L);
-        doReturn(journalEntryDto).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(journalEntryDto).when(settlementIdempotencyService).createJournalEntry(any(JournalEntryRequest.class));
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(87L)))
                 .thenReturn(new com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry());
 
@@ -8610,7 +8990,7 @@ class AccountingServiceTest {
         when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
 
         JournalEntryDto journalEntryDto = stubEntry(88L);
-        doReturn(journalEntryDto).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(journalEntryDto).when(settlementIdempotencyService).createJournalEntry(any(JournalEntryRequest.class));
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(88L)))
                 .thenReturn(new com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry());
 
@@ -8691,7 +9071,7 @@ class AccountingServiceTest {
         when(invoiceRepository.lockByCompanyAndId(eq(company), eq(702L))).thenReturn(Optional.of(second));
         when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(901L))).thenReturn(new JournalEntry());
-        doReturn(stubEntry(901L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(901L)).when(settlementIdempotencyService).createJournalEntry(any(JournalEntryRequest.class));
 
         DealerSettlementRequest request = new DealerSettlementRequest(
                 1L,
@@ -8738,7 +9118,7 @@ class AccountingServiceTest {
         when(invoiceRepository.lockOpenInvoicesForSettlement(eq(company), eq(dealer))).thenReturn(List.of());
         when(companyEntityLookup.requireAccount(eq(company), eq(9201L))).thenReturn(cash);
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(905L))).thenReturn(new JournalEntry());
-        doReturn(stubEntry(905L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(905L)).when(settlementIdempotencyService).createJournalEntry(any(JournalEntryRequest.class));
 
         DealerSettlementRequest request = new DealerSettlementRequest(
                 91L,
@@ -8803,7 +9183,7 @@ class AccountingServiceTest {
         when(invoiceRepository.lockByCompanyAndId(eq(company), eq(703L))).thenReturn(Optional.of(invoice));
         when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(902L))).thenReturn(new JournalEntry());
-        doReturn(stubEntry(902L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(902L)).when(settlementIdempotencyService).createJournalEntry(any(JournalEntryRequest.class));
 
         DealerSettlementRequest request = new DealerSettlementRequest(
                 1L,
@@ -8908,7 +9288,7 @@ class AccountingServiceTest {
         when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(802L))).thenReturn(Optional.of(second));
         when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(903L))).thenReturn(new JournalEntry());
-        doReturn(stubEntry(903L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(903L)).when(settlementIdempotencyService).createJournalEntry(any(JournalEntryRequest.class));
 
         SupplierSettlementRequest request = new SupplierSettlementRequest(
                 1L,
@@ -8953,7 +9333,7 @@ class AccountingServiceTest {
         when(rawMaterialPurchaseRepository.lockOpenPurchasesForSettlement(eq(company), eq(supplier))).thenReturn(List.of());
         when(companyEntityLookup.requireAccount(eq(company), eq(9302L))).thenReturn(cash);
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(907L))).thenReturn(new JournalEntry());
-        doReturn(stubEntry(907L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(907L)).when(settlementIdempotencyService).createJournalEntry(any(JournalEntryRequest.class));
 
         SupplierSettlementRequest request = new SupplierSettlementRequest(
                 93L,
@@ -9120,6 +9500,19 @@ class AccountingServiceTest {
         ReflectionTestUtils.setField(payable, "id", 10L);
         supplier.setPayableAccount(payable);
 
+        Account cash = new Account();
+        cash.setCompany(company);
+        cash.setCode("CASH-DOCUMENT");
+        cash.setType(AccountType.ASSET);
+        cash.setActive(true);
+        ReflectionTestUtils.setField(cash, "id", 20L);
+
+        RawMaterialPurchase purchase = new RawMaterialPurchase();
+        purchase.setCompany(company);
+        purchase.setSupplier(supplier);
+        purchase.setOutstandingAmount(new BigDecimal("25.00"));
+        ReflectionTestUtils.setField(purchase, "id", 803L);
+
         when(supplierRepository.lockByCompanyAndId(eq(company), eq(1L))).thenReturn(Optional.of(supplier));
 
         SupplierSettlementRequest request = new SupplierSettlementRequest(
@@ -9203,7 +9596,39 @@ class AccountingServiceTest {
 
     @Test
     void settleSupplierInvoices_postsDiscountSettlementWhenAdminOverrideApproved() {
-        AccountingService service = spy(accountingService);
+        AccountingIdempotencyService settlementEngine = settlementIdempotencyService();
+        SettlementService settlementService = new SettlementService(
+                companyContextService,
+                accountRepository,
+                journalEntryRepository,
+                dealerLedgerService,
+                supplierLedgerService,
+                payrollRunRepository,
+                payrollRunLineRepository,
+                accountingPeriodService,
+                referenceNumberService,
+                eventPublisher,
+                companyClock,
+                companyEntityLookup,
+                settlementAllocationRepository,
+                rawMaterialPurchaseRepository,
+                invoiceRepository,
+                rawMaterialMovementRepository,
+                rawMaterialBatchRepository,
+                finishedGoodBatchRepository,
+                dealerRepository,
+                supplierRepository,
+                invoiceSettlementPolicy,
+                journalReferenceResolver,
+                journalReferenceMappingRepository,
+                entityManager,
+                systemSettingsService,
+                auditService,
+                accountingEventStore,
+                settlementEngine
+        );
+        ReflectionTestUtils.setField(settlementService, "environment", environment);
+        ReflectionTestUtils.setField(accountingService, "settlementService", settlementService);
 
         Supplier supplier = supplier(94L, "Supplier Override Approved", account(9401L, "AP-9401", AccountType.LIABILITY));
         supplier.setStatus(SupplierStatus.ACTIVE);
@@ -9223,7 +9648,7 @@ class AccountingServiceTest {
         when(companyEntityLookup.requireAccount(eq(company), eq(9402L))).thenReturn(cash);
         when(companyEntityLookup.requireAccount(eq(company), eq(9403L))).thenReturn(discount);
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(908L))).thenReturn(new JournalEntry());
-        doReturn(stubEntry(908L)).when(service).createJournalEntry(any(JournalEntryRequest.class));
+        doReturn(stubEntry(908L)).when(settlementEngine).createJournalEntry(any(JournalEntryRequest.class));
 
         SupplierSettlementRequest request = new SupplierSettlementRequest(
                 94L,
@@ -9251,7 +9676,7 @@ class AccountingServiceTest {
                 ))
         );
 
-        PartnerSettlementResponse response = service.settleSupplierInvoices(request);
+        PartnerSettlementResponse response = accountingService.settleSupplierInvoices(request);
 
         assertThat(response.totalApplied()).isEqualByComparingTo("30.00");
         assertThat(response.totalDiscount()).isEqualByComparingTo("2.00");
@@ -10097,6 +10522,7 @@ class AccountingServiceTest {
         Dealer dealer = new Dealer();
         ReflectionTestUtils.setField(dealer, "id", 1L);
         dealer.setName("Dealer Auto");
+        dealer.setReceivableAccount(account(1030L, "AR-AUTO", AccountType.ASSET));
 
         Invoice oldest = new Invoice();
         ReflectionTestUtils.setField(oldest, "id", 101L);
@@ -10125,7 +10551,7 @@ class AccountingServiceTest {
                 .thenReturn(List.of(allocationOne, allocationTwo));
 
         ArgumentCaptor<DealerReceiptRequest> requestCaptor = ArgumentCaptor.forClass(DealerReceiptRequest.class);
-        doReturn(stubEntry(501L)).when(service).recordDealerReceipt(requestCaptor.capture());
+        doReturn(stubEntry(501L)).when(settlementIdempotencyService).recordDealerReceipt(requestCaptor.capture());
 
         AutoSettlementRequest request = new AutoSettlementRequest(
                 900L,
@@ -10158,6 +10584,7 @@ class AccountingServiceTest {
         ReflectionTestUtils.setField(supplier, "id", 2L);
         supplier.setName("Supplier Auto");
         supplier.setStatus(SupplierStatus.ACTIVE);
+        supplier.setPayableAccount(account(2030L, "AP-AUTO", AccountType.LIABILITY));
 
         RawMaterialPurchase oldest = new RawMaterialPurchase();
         ReflectionTestUtils.setField(oldest, "id", 201L);
@@ -10187,7 +10614,7 @@ class AccountingServiceTest {
                 .thenReturn(List.of(allocationOne, allocationTwo));
 
         ArgumentCaptor<SupplierPaymentRequest> requestCaptor = ArgumentCaptor.forClass(SupplierPaymentRequest.class);
-        doReturn(stubEntry(601L)).when(service).recordSupplierPayment(requestCaptor.capture());
+        doReturn(stubEntry(601L)).when(settlementIdempotencyService).recordSupplierPayment(requestCaptor.capture());
 
         AutoSettlementRequest request = new AutoSettlementRequest(
                 901L,
@@ -10221,6 +10648,7 @@ class AccountingServiceTest {
         supplier.setCode("SUP-02");
         supplier.setName("Supplier Auto");
         supplier.setStatus(SupplierStatus.ACTIVE);
+        supplier.setPayableAccount(account(2031L, "AP-AUTO-2", AccountType.LIABILITY));
 
         RawMaterialPurchase oldest = new RawMaterialPurchase();
         ReflectionTestUtils.setField(oldest, "id", 201L);
@@ -10250,7 +10678,7 @@ class AccountingServiceTest {
                 .thenReturn(List.of(allocationOne, allocationTwo));
 
         ArgumentCaptor<SupplierPaymentRequest> requestCaptor = ArgumentCaptor.forClass(SupplierPaymentRequest.class);
-        doReturn(stubEntry(601L)).when(service).recordSupplierPayment(requestCaptor.capture());
+        doReturn(stubEntry(601L)).when(settlementIdempotencyService).recordSupplierPayment(requestCaptor.capture());
 
         AutoSettlementRequest request = new AutoSettlementRequest(
                 901L,
@@ -10751,8 +11179,6 @@ class AccountingServiceTest {
 
     @Test
     void postAccrual_createsAutoReversalAndLinksProvenance() {
-        AccountingService service = spy(accountingService);
-
         Account debit = account(601L, "ACCRUAL-EXP", AccountType.EXPENSE);
         Account credit = account(602L, "ACCRUAL-LIAB", AccountType.LIABILITY);
         when(companyEntityLookup.requireAccount(eq(company), eq(601L))).thenReturn(debit);
@@ -10769,9 +11195,9 @@ class AccountingServiceTest {
         when(companyEntityLookup.requireJournalEntry(eq(company), eq(9911L))).thenReturn(reversalEntry);
 
         ArgumentCaptor<JournalEntryRequest> requestCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
-        doReturn(stubEntry(9910L), stubEntry(9911L)).when(service).createJournalEntry(requestCaptor.capture());
+        doReturn(stubEntry(9910L), stubEntry(9911L)).when(creditDebitNoteService).createJournalEntry(requestCaptor.capture());
 
-        JournalEntryDto result = service.postAccrual(new AccrualRequest(
+        JournalEntryDto result = accountingService.postAccrual(new AccrualRequest(
                 601L,
                 602L,
                 new BigDecimal("80.00"),
@@ -11357,7 +11783,6 @@ class AccountingServiceTest {
 
     @Test
     void postDebitNote_createsScaledReversalAndVoidsPurchaseWhenFullyDebited() {
-        AccountingService service = spy(accountingService);
         LocalDate today = LocalDate.of(2026, 3, 15);
         when(companyClock.today(company)).thenReturn(today);
 
@@ -11383,9 +11808,9 @@ class AccountingServiceTest {
         when(companyEntityLookup.requireJournalEntry(company, 9603L)).thenReturn(saved);
 
         ArgumentCaptor<JournalEntryRequest> requestCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
-        doReturn(stubEntry(9603L)).when(service).createJournalEntry(requestCaptor.capture());
+        doReturn(stubEntry(9603L)).when(creditDebitNoteService).createJournalEntry(requestCaptor.capture());
 
-        JournalEntryDto result = service.postDebitNote(new DebitNoteRequest(
+        JournalEntryDto result = accountingService.postDebitNote(new DebitNoteRequest(
                 9601L,
                 null,
                 null,
@@ -12668,6 +13093,16 @@ class AccountingServiceTest {
                                 BigDecimal debit,
                                 BigDecimal credit) {
         entry.getLines().add(journalLine(entry, account, description, debit, credit));
+    }
+
+    private void setCreateJournalEntryEventTrailStrictness(boolean strict) {
+        ReflectionTestUtils.setField(accountingService, "strictAccountingEventTrail", strict);
+        ReflectionTestUtils.setField(journalEntryService, "strictAccountingEventTrail", strict);
+    }
+
+    private AccountingIdempotencyService settlementIdempotencyService() {
+        ReflectionTestUtils.setField(accountingService, "settlementService", settlementService);
+        return settlementIdempotencyService;
     }
 
     private AccountingPeriod openPeriod(LocalDate date) {
