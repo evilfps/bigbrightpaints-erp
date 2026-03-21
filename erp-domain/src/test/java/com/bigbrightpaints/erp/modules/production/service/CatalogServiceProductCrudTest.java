@@ -531,6 +531,194 @@ class CatalogServiceProductCrudTest {
     }
 
     @Test
+    void helperMethods_coverRemainingCanonicalFamilyBranches() {
+        ProductionProduct canonicalProduct = new ProductionProduct();
+        canonicalProduct.setCompany(company);
+        canonicalProduct.setBrand(brand);
+        canonicalProduct.setProductName("Premium Primer WHITE 1L");
+        canonicalProduct.setProductFamilyName("Premium Primer");
+        canonicalProduct.setCategory("FINISHED_GOOD");
+        canonicalProduct.setUnitOfMeasure("LITER");
+        canonicalProduct.setHsnCode("320910");
+
+        ReflectionTestUtils.invokeMethod(
+                service,
+                "refreshCanonicalFamilyLinkage",
+                canonicalProduct,
+                brand,
+                "Premium Primer WHITE 1L",
+                "Premium Primer");
+
+        UUID expectedVariantGroupId = ReflectionTestUtils.invokeMethod(
+                service,
+                "buildVariantGroupId",
+                company,
+                brand,
+                "Premium Primer",
+                "FINISHED_GOOD",
+                "LITER",
+                "320910");
+        String missingPreviousFamily = ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveCanonicalProductFamilyName",
+                "Premium Primer WHITE 1L",
+                "Legacy Primer WHITE 1L",
+                null);
+        String blankDerivedFamilyFallback = ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveCanonicalProductFamilyName",
+                " WHITE 1L",
+                "Premium Primer WHITE 1L",
+                "Premium Primer");
+        String missingNameSuffix = ReflectionTestUtils.invokeMethod(
+                service,
+                "extractCanonicalMemberSuffix",
+                (String) null,
+                "Premium Primer");
+        String missingFamilySuffix = ReflectionTestUtils.invokeMethod(
+                service,
+                "extractCanonicalMemberSuffix",
+                "Premium Primer WHITE 1L",
+                "   ");
+        String mismatchedFamilySuffix = ReflectionTestUtils.invokeMethod(
+                service,
+                "extractCanonicalMemberSuffix",
+                "Other WHITE 1L",
+                "Premium Primer");
+
+        assertThat(canonicalProduct.getProductFamilyName()).isEqualTo("Premium Primer");
+        assertThat(canonicalProduct.getVariantGroupId()).isEqualTo(expectedVariantGroupId);
+        assertThat(missingPreviousFamily).isEqualTo("Premium Primer WHITE 1L");
+        assertThat(blankDerivedFamilyFallback).isEqualTo("WHITE 1L");
+        assertThat(missingNameSuffix).isNull();
+        assertThat(missingFamilySuffix).isNull();
+        assertThat(mismatchedFamilySuffix).isNull();
+    }
+
+    @Test
+    void helperMethods_coverRawMaterialInventoryValidationBranches() {
+        ProductionProduct rawMaterial = new ProductionProduct();
+        rawMaterial.setMetadata(new LinkedHashMap<>(Map.of("inventoryAccountId", 7001L)));
+
+        ReflectionTestUtils.invokeMethod(service, "validateInventorySyncMetadata", (Company) null, rawMaterial);
+        ReflectionTestUtils.invokeMethod(service, "validateInventorySyncMetadata", company, (ProductionProduct) null);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> unchangedMetadata = (Map<String, Object>) ReflectionTestUtils.invokeMethod(
+                service,
+                "validateInventorySyncMetadata",
+                company,
+                "RAW_MATERIAL",
+                "RM-001",
+                Map.of("productType", "base"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> inventoryKeyMetadata = (Map<String, Object>) ReflectionTestUtils.invokeMethod(
+                service,
+                "validateInventorySyncMetadata",
+                company,
+                "RAW_MATERIAL",
+                "RM-002",
+                new LinkedHashMap<>(Map.of("inventoryAccountId", 7001L)));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> rawKeyMetadata = (Map<String, Object>) ReflectionTestUtils.invokeMethod(
+                service,
+                "validateInventorySyncMetadata",
+                company,
+                "RAW_MATERIAL",
+                "RM-003",
+                new LinkedHashMap<>(Map.of("rawMaterialInventoryAccountId", 7002L)));
+        Long nullInventoryAccountId = ReflectionTestUtils.invokeMethod(
+                service,
+                "requireRawMaterialInventoryAccount",
+                company,
+                0L,
+                "RM-004");
+
+        when(companyEntityLookup.requireAccount(company, 999L)).thenThrow(new IllegalArgumentException("Account not found"));
+
+        assertThat(rawMaterial.getMetadata()).containsEntry("inventoryAccountId", 7001L);
+        assertThat(unchangedMetadata).containsEntry("productType", "base");
+        assertThat(inventoryKeyMetadata)
+                .containsEntry("inventoryAccountId", 7001L)
+                .doesNotContainKey("rawMaterialInventoryAccountId");
+        assertThat(rawKeyMetadata)
+                .containsEntry("rawMaterialInventoryAccountId", 7002L)
+                .doesNotContainKey("inventoryAccountId");
+        assertThat(nullInventoryAccountId).isNull();
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                service,
+                "requireRawMaterialInventoryAccount",
+                company,
+                999L,
+                "RM-999"))
+                .hasMessageContaining("invalid inventory account id 999");
+    }
+
+    @Test
+    void helperMethods_coverFinishedGoodAccountValidationBranches() {
+        Company companyWithoutTaxDefault = new Company();
+        companyWithoutTaxDefault.setCode("NO-TAX");
+        companyWithoutTaxDefault.setDefaultInventoryAccountId(9001L);
+        companyWithoutTaxDefault.setDefaultCogsAccountId(9002L);
+        companyWithoutTaxDefault.setDefaultRevenueAccountId(9003L);
+        companyWithoutTaxDefault.setDefaultDiscountAccountId(9005L);
+        companyWithoutTaxDefault.setDefaultTaxAccountId(null);
+
+        Account remappedDiscountAccount = new Account();
+        ReflectionTestUtils.setField(remappedDiscountAccount, "id", 9905L);
+        when(companyEntityLookup.requireAccount(company, 7007L)).thenReturn(remappedDiscountAccount);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> remappedFinishedGoodMetadata = (Map<String, Object>) ReflectionTestUtils.invokeMethod(
+                service,
+                "ensureFinishedGoodAccounts",
+                company,
+                "FG-002",
+                new LinkedHashMap<>(Map.of(
+                        "fgValuationAccountId", 9001L,
+                        "fgCogsAccountId", 9002L,
+                        "fgRevenueAccountId", 9003L,
+                        "fgTaxAccountId", 9004L,
+                        "fgDiscountAccountId", 7007L)));
+        Long missingFinishedGoodAccountId = ReflectionTestUtils.invokeMethod(
+                service,
+                "requireFinishedGoodAccount",
+                company,
+                0L,
+                "FG-003",
+                "fgTaxAccountId");
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                service,
+                "ensureFinishedGoodAccounts",
+                companyWithoutTaxDefault,
+                "FG-001",
+                Map.of("productType", "decorative")))
+                .hasMessageContaining("Default fgTaxAccountId is not configured for company NO-TAX");
+        assertThat(remappedFinishedGoodMetadata).containsEntry("fgDiscountAccountId", 9905L);
+        assertThat(missingFinishedGoodAccountId).isNull();
+    }
+
+    @Test
+    void helperMethods_coverHasLongValueAndNegativeRateBranches() {
+        Boolean positiveNumber = ReflectionTestUtils.invokeMethod(service, "hasLongValue", 5L);
+        Boolean zeroNumber = ReflectionTestUtils.invokeMethod(service, "hasLongValue", 0L);
+        Boolean positiveString = ReflectionTestUtils.invokeMethod(service, "hasLongValue", " 17 ");
+        Boolean zeroString = ReflectionTestUtils.invokeMethod(service, "hasLongValue", " 0 ");
+        Boolean blankString = ReflectionTestUtils.invokeMethod(service, "hasLongValue", "   ");
+        Boolean invalidString = ReflectionTestUtils.invokeMethod(service, "hasLongValue", "abc");
+
+        assertThat(positiveNumber).isTrue();
+        assertThat(zeroNumber).isFalse();
+        assertThat(positiveString).isTrue();
+        assertThat(zeroString).isFalse();
+        assertThat(blankString).isFalse();
+        assertThat(invalidString).isFalse();
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "normalizeOptionalRate", new BigDecimal("-0.01")))
+                .hasMessageContaining("Minimum discount percent must be between 0 and 100");
+    }
+
+    @Test
     void searchProducts_returnsPaginatedFilteredResponse() {
         ProductionProduct product = new ProductionProduct();
         ReflectionTestUtils.setField(product, "id", 701L);
