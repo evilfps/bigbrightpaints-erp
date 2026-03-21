@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 public record CatalogProductRequest(
         @NotNull(message = "Brand is required")
@@ -21,10 +22,18 @@ public record CatalogProductRequest(
         String unitOfMeasure,
         @NotBlank(message = "HSN code is required")
         String hsnCode,
+        @DecimalMin(value = "0.00", message = "Base price cannot be negative")
+        BigDecimal basePrice,
         @NotNull(message = "GST rate is required")
         @DecimalMin(value = "0.00", message = "GST rate cannot be negative")
         @DecimalMax(value = "100.00", message = "GST rate cannot be greater than 100")
         BigDecimal gstRate,
+        @DecimalMin(value = "0.00", message = "Minimum discount percent cannot be negative")
+        @DecimalMax(value = "100.00", message = "Minimum discount percent cannot be greater than 100")
+        BigDecimal minDiscountPercent,
+        @DecimalMin(value = "0.00", message = "Minimum selling price cannot be negative")
+        BigDecimal minSellingPrice,
+        Map<String, Object> metadata,
         Boolean active
 ) {
 }

@@ -20,6 +20,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -35,12 +37,14 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 @Tag("critical")
+@MockitoSettings(strictness = Strictness.LENIENT)
 class CatalogServiceProductCrudTest {
 
     @Mock private CompanyContextService companyContextService;
@@ -92,7 +96,11 @@ class CatalogServiceProductCrudTest {
                 ),
                 "LITER",
                 "320910",
+                new BigDecimal("999.00"),
                 new BigDecimal("18.00"),
+                new BigDecimal("5.00"),
+                new BigDecimal("949.00"),
+                Map.of("productType", "decorative", "wipAccountId", 700L),
                 true
         );
 
@@ -120,7 +128,13 @@ class CatalogServiceProductCrudTest {
                 .containsExactly("1L:24", "4L:6");
         assertThat(response.unitOfMeasure()).isEqualTo("LITER");
         assertThat(response.hsnCode()).isEqualTo("320910");
+        assertThat(response.basePrice()).isEqualByComparingTo("999.00");
         assertThat(response.gstRate()).isEqualByComparingTo("18.00");
+        assertThat(response.minDiscountPercent()).isEqualByComparingTo("5.00");
+        assertThat(response.minSellingPrice()).isEqualByComparingTo("949.00");
+        assertThat(response.metadata())
+                .containsEntry("productType", "decorative")
+                .containsEntry("wipAccountId", 700L);
         assertThat(response.active()).isTrue();
     }
 
@@ -136,6 +150,10 @@ class CatalogServiceProductCrudTest {
         existing.setColors(new LinkedHashSet<>(List.of("White")));
         existing.setSizes(new LinkedHashSet<>(List.of("1L")));
         existing.setCartonSizes(new LinkedHashMap<>(java.util.Map.of("1L", 12)));
+        existing.setBasePrice(new BigDecimal("600.00"));
+        existing.setMinDiscountPercent(new BigDecimal("2.50"));
+        existing.setMinSellingPrice(new BigDecimal("575.00"));
+        existing.setMetadata(new LinkedHashMap<>(Map.of("legacyFlag", "keep")));
 
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
@@ -145,7 +163,11 @@ class CatalogServiceProductCrudTest {
                 List.of(new CatalogProductCartonSizeRequest("10L", 2)),
                 "LITER",
                 "320990",
+                new BigDecimal("820.00"),
                 new BigDecimal("12.00"),
+                new BigDecimal("6.00"),
+                new BigDecimal("790.00"),
+                Map.of("productType", "decorative", "wipAccountId", 701L, "wastageAccountId", 702L),
                 false
         );
 
@@ -164,9 +186,91 @@ class CatalogServiceProductCrudTest {
         assertThat(response.cartonSizes())
                 .extracting(mapping -> mapping.size() + ":" + mapping.piecesPerCarton())
                 .containsExactly("10L:2");
+        assertThat(response.basePrice()).isEqualByComparingTo("820.00");
         assertThat(response.hsnCode()).isEqualTo("320990");
         assertThat(response.gstRate()).isEqualByComparingTo("12.00");
+        assertThat(response.minDiscountPercent()).isEqualByComparingTo("6.00");
+        assertThat(response.minSellingPrice()).isEqualByComparingTo("790.00");
+        assertThat(response.metadata())
+                .containsEntry("productType", "decorative")
+                .containsEntry("wipAccountId", 701L)
+                .containsEntry("wastageAccountId", 702L);
         assertThat(response.active()).isFalse();
+    }
+
+    @Test
+    void updateProduct_preservesExistingPricingAndMetadata_whenOptionalFieldsAreOmitted() {
+        ProductionProduct existing = new ProductionProduct();
+        ReflectionTestUtils.setField(existing, "id", 503L);
+        existing.setCompany(company);
+        existing.setBrand(brand);
+        existing.setProductName("Primer");
+        existing.setSkuCode("BBR-PRIMER-001");
+        existing.setActive(true);
+        existing.setColors(new LinkedHashSet<>(List.of("White")));
+        existing.setSizes(new LinkedHashSet<>(List.of("1L")));
+        existing.setCartonSizes(new LinkedHashMap<>(java.util.Map.of("1L", 12)));
+        existing.setBasePrice(new BigDecimal("710.00"));
+        existing.setGstRate(new BigDecimal("18.00"));
+        existing.setMinDiscountPercent(new BigDecimal("4.00"));
+        existing.setMinSellingPrice(new BigDecimal("690.00"));
+        existing.setMetadata(new LinkedHashMap<>(Map.of("wipAccountId", 801L, "productType", "decorative")));
+
+        CatalogProductRequest request = new CatalogProductRequest(
+                11L,
+                "Primer Updated",
+                List.of("White"),
+                List.of("1L"),
+                List.of(new CatalogProductCartonSizeRequest("1L", 12)),
+                "LITER",
+                "320910",
+                null,
+                new BigDecimal("18.00"),
+                null,
+                null,
+                null,
+                true
+        );
+
+        when(brandRepository.findByCompanyAndId(company, 11L)).thenReturn(Optional.of(brand));
+        when(productRepository.findByCompanyAndId(company, 503L)).thenReturn(Optional.of(existing));
+        when(productRepository.findByBrandAndProductNameIgnoreCase(brand, "Primer Updated")).thenReturn(Optional.of(existing));
+        when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CatalogProductDto response = service.updateProduct(503L, request);
+
+        assertThat(response.basePrice()).isEqualByComparingTo("710.00");
+        assertThat(response.minDiscountPercent()).isEqualByComparingTo("4.00");
+        assertThat(response.minSellingPrice()).isEqualByComparingTo("690.00");
+        assertThat(response.metadata())
+                .containsEntry("wipAccountId", 801L)
+                .containsEntry("productType", "decorative");
+    }
+
+    @Test
+    void helperMethods_coverNullEmptyAndInvalidOptionalPayloadBranches() {
+        Long nullMetadataValue = ReflectionTestUtils.invokeMethod(
+                service,
+                "metadataLong",
+                (Map<String, Object>) null,
+                "wipAccountId");
+        Long blankMetadataValue = ReflectionTestUtils.invokeMethod(
+                service,
+                "metadataLong",
+                Map.of("wipAccountId", "   "),
+                "wipAccountId");
+        assertThat(nullMetadataValue).isNull();
+        assertThat(blankMetadataValue).isNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> normalizedEmpty = (Map<String, Object>) ReflectionTestUtils.invokeMethod(
+                service,
+                "normalizeMetadata",
+                Map.of());
+        assertThat(normalizedEmpty).isEmpty();
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "normalizeOptionalRate", new BigDecimal("101.00")))
+                .hasMessageContaining("Minimum discount percent must be between 0 and 100");
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "normalizeMoney", new BigDecimal("-1.00")))
+                .hasMessageContaining("Money values cannot be negative");
     }
 
     @Test

@@ -544,16 +544,15 @@ public class ProductionCatalogService {
         List<String> sizes = normalizeCanonicalTokens(request.getSizes(), "sizes");
         UUID variantGroupId = buildVariantGroupId(company, brand, productFamilyName, normalizedCategory, unitOfMeasure, hsnCode, colors, sizes);
 
-        List<CatalogProductCandidate> generatedCandidates = new ArrayList<>();
         String brandPrefix = sanitizeSkuFragment(brand.getCode());
         String productFamilyCode = requireCanonicalSkuFragment("baseProductName", productFamilyName, Integer.MAX_VALUE);
+        String previewSku = buildCanonicalSku(brandPrefix, productFamilyCode, colors.getFirst(), sizes.getFirst());
+        metadata = validateCanonicalEntryMetadata(company, normalizedCategory, previewSku, metadata);
+
+        List<CatalogProductCandidate> generatedCandidates = new ArrayList<>();
         for (String color : colors) {
-            String colorCode = requireCanonicalSkuFragment("colors", color, 16);
             for (String size : sizes) {
-                String sizeCode = requireCanonicalSkuFragment("sizes", size, 16);
-                String sku = String.join("-", List.of(brandPrefix, productFamilyCode, colorCode, sizeCode))
-                        .replaceAll("-{2,}", "-");
-                assertNotReservedSemiFinishedSku(sku);
+                String sku = buildCanonicalSku(brandPrefix, productFamilyCode, color, size);
                 String productName = productFamilyName + " " + color + " " + size;
                 ProductCreateRequest createRequest = new ProductCreateRequest(
                         brand.getId(),
@@ -588,9 +587,7 @@ public class ProductionCatalogService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        Set<String> existingSkuKeys = generatedSkuKeys.isEmpty()
-                ? Set.of()
-                : productRepository.findByCompanyAndSkuCodeIn(company, generatedSkuKeys).stream()
+        Set<String> existingSkuKeys = productRepository.findByCompanyAndSkuCodeIn(company, generatedSkuKeys).stream()
                 .map(ProductionProduct::getSkuCode)
                 .map(ProductionCatalogService::normalizeSkuKey)
                 .filter(Objects::nonNull)
@@ -724,11 +721,23 @@ public class ProductionCatalogService {
         String fingerprint = String.join("|",
                 String.valueOf(company != null ? company.getId() : null),
                 String.valueOf(brand != null ? brand.getId() : null),
-                productFamilyName,
-                category,
-                unitOfMeasure,
-                hsnCode);
+                sanitizeSegment(productFamilyName),
+                sanitizeSegment(category),
+                sanitizeSegment(unitOfMeasure),
+                sanitizeSegment(hsnCode));
         return UUID.nameUUIDFromBytes(fingerprint.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String buildCanonicalSku(String brandPrefix,
+                                     String productFamilyCode,
+                                     String color,
+                                     String size) {
+        String colorCode = requireCanonicalSkuFragment("colors", color, 16);
+        String sizeCode = requireCanonicalSkuFragment("sizes", size, 16);
+        String sku = String.join("-", List.of(brandPrefix, productFamilyCode, colorCode, sizeCode))
+                .replaceAll("-{2,}", "-");
+        assertNotReservedSemiFinishedSku(sku);
+        return sku;
     }
 
     private String requireCanonicalSkuFragment(String fieldName, String rawValue, int maxLength) {
@@ -1988,6 +1997,27 @@ public class ProductionCatalogService {
             return new HashMap<>();
         }
         return new HashMap<>(metadata);
+    }
+
+    private Map<String, Object> validateCanonicalEntryMetadata(Company company,
+                                                               String category,
+                                                               String sku,
+                                                               Map<String, Object> metadata) {
+        Map<String, Object> working = normalizeMetadata(metadata);
+        if (isRawMaterialCategory(category)) {
+            Long inventoryAccountId = rawMaterialInventoryAccountIdFromMetadata(working);
+            if (inventoryAccountId != null) {
+                Long validatedAccountId = requireRawMaterialInventoryAccount(company, inventoryAccountId, sku);
+                if (working.containsKey("inventoryAccountId")) {
+                    working.put("inventoryAccountId", validatedAccountId);
+                }
+                if (working.containsKey("rawMaterialInventoryAccountId")) {
+                    working.put("rawMaterialInventoryAccountId", validatedAccountId);
+                }
+            }
+            return working;
+        }
+        return ensureFinishedGoodAccounts(company, sku, working);
     }
 
     private Map<String, Object> ensureFinishedGoodAccounts(Company company, String sku, Map<String, Object> metadata) {

@@ -384,7 +384,21 @@ public class CatalogService {
         product.setCartonSizes(cartonSizes);
         product.setUnitOfMeasure(normalizeRequiredText(request.unitOfMeasure(), "Unit of measure is required"));
         product.setHsnCode(normalizeRequiredText(request.hsnCode(), "HSN code is required"));
+        if (request.basePrice() != null || creating) {
+            product.setBasePrice(normalizeMoney(request.basePrice()));
+        }
         product.setGstRate(normalizeRate(request.gstRate()));
+        if (request.minDiscountPercent() != null || creating) {
+            product.setMinDiscountPercent(normalizeOptionalRate(request.minDiscountPercent()));
+        }
+        if (request.minSellingPrice() != null || creating) {
+            product.setMinSellingPrice(normalizeMoney(request.minSellingPrice()));
+        }
+        if (request.metadata() != null) {
+            product.setMetadata(normalizeMetadata(request.metadata()));
+        } else if (creating) {
+            product.setMetadata(new LinkedHashMap<>());
+        }
         if (creating) {
             product.setActive(request.active() == null || request.active());
         } else if (request.active() != null) {
@@ -699,6 +713,33 @@ public class CatalogService {
             throw ValidationUtils.invalidInput("GST rate must be between 0 and 100");
         }
         return value;
+    }
+
+    private BigDecimal normalizeOptionalRate(BigDecimal value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        if (value.compareTo(BigDecimal.ZERO) < 0 || value.compareTo(new BigDecimal("100")) > 0) {
+            throw ValidationUtils.invalidInput("Minimum discount percent must be between 0 and 100");
+        }
+        return value;
+    }
+
+    private BigDecimal normalizeMoney(BigDecimal value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        if (value.compareTo(BigDecimal.ZERO) < 0) {
+            throw ValidationUtils.invalidInput("Money values cannot be negative");
+        }
+        return value;
+    }
+
+    private Map<String, Object> normalizeMetadata(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return new LinkedHashMap<>();
+        }
+        return new LinkedHashMap<>(metadata);
     }
 
     private String normalizeRequiredText(String value, String message) {

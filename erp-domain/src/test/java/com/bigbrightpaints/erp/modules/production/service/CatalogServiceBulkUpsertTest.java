@@ -98,7 +98,11 @@ class CatalogServiceBulkUpsertTest {
                         List.of(new CatalogProductCartonSizeRequest("1L", 24)),
                         "LITER",
                         "320910",
+                        null,
                         new BigDecimal("18.00"),
+                        null,
+                        null,
+                        null,
                         true
                 ));
 
@@ -113,7 +117,11 @@ class CatalogServiceBulkUpsertTest {
                         List.of(),
                         "LITER",
                         "320910",
+                        null,
                         new BigDecimal("18.00"),
+                        null,
+                        null,
+                        null,
                         true
                 ));
 
@@ -146,6 +154,10 @@ class CatalogServiceBulkUpsertTest {
                         List.of("4L"),
                         List.of(new CatalogProductCartonSizeRequest("4L", 12)),
                         "   ",
+                        null,
+                        null,
+                        null,
+                        null,
                         null,
                         null,
                         true

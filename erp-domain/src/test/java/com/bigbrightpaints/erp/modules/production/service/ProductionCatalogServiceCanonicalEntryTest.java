@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -14,6 +15,8 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
+import com.bigbrightpaints.erp.modules.production.dto.BulkVariantRequest;
+import com.bigbrightpaints.erp.modules.production.dto.BulkVariantResponse;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryRequest;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -162,6 +165,71 @@ class ProductionCatalogServiceCanonicalEntryTest {
     }
 
     @Test
+    void createOrPreviewCatalogProducts_rejectsNullColors() {
+        CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE"), List.of("1L"));
+        request.setColors(null);
+
+        assertThatThrownBy(() -> service.createOrPreviewCatalogProducts(request, true))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("colors must contain at least one value");
+    }
+
+    @Test
+    void createOrPreviewCatalogProducts_previewRejectsInvalidRawMaterialInventoryAccount() {
+        CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE"), List.of("1L"));
+        request.setMetadata(Map.of("inventoryAccountId", 999L));
+        when(companyEntityLookup.requireAccount(company, 999L)).thenThrow(new IllegalArgumentException("missing"));
+
+        assertThatThrownBy(() -> service.createOrPreviewCatalogProducts(request, true))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("invalid inventory account id 999");
+    }
+
+    @Test
+    void createOrPreviewCatalogProducts_previewAcceptsRawMaterialInventoryAlias() {
+        CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE"), List.of("1L"));
+        request.setMetadata(Map.of("rawMaterialInventoryAccountId", 555L));
+        when(companyEntityLookup.requireAccount(company, 555L)).thenReturn(account(555L));
+
+        CatalogProductEntryResponse response = service.createOrPreviewCatalogProducts(request, true);
+
+        assertThat(response.metadata()).containsEntry("rawMaterialInventoryAccountId", 555L);
+    }
+
+    @Test
+    void createOrPreviewCatalogProducts_previewEnrichesFinishedGoodsWithPostingDefaults() {
+        when(companyDefaultAccountsService.requireDefaults()).thenReturn(
+                new CompanyDefaultAccountsService.DefaultAccounts(101L, 102L, 103L, 104L, 105L));
+        when(companyEntityLookup.requireAccount(company, 101L)).thenReturn(account(101L));
+        when(companyEntityLookup.requireAccount(company, 102L)).thenReturn(account(102L));
+        when(companyEntityLookup.requireAccount(company, 103L)).thenReturn(account(103L));
+        when(companyEntityLookup.requireAccount(company, 104L)).thenReturn(account(104L));
+        when(companyEntityLookup.requireAccount(company, 105L)).thenReturn(account(105L));
+
+        CatalogProductEntryRequest request = request("FINISHED_GOOD", List.of("WHITE"), List.of("1L"));
+
+        CatalogProductEntryResponse response = service.createOrPreviewCatalogProducts(request, true);
+
+        assertThat(response.preview()).isTrue();
+        assertThat(response.metadata())
+                .containsEntry("fgValuationAccountId", 101L)
+                .containsEntry("fgCogsAccountId", 102L)
+                .containsEntry("fgRevenueAccountId", 103L)
+                .containsEntry("fgDiscountAccountId", 104L)
+                .containsEntry("fgTaxAccountId", 105L);
+    }
+
+    @Test
+    void createOrPreviewCatalogProducts_rethrowsUnexpectedCreateFailures() {
+        CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE"), List.of("1L"));
+        when(productRepository.save(any(ProductionProduct.class))).thenThrow(new RuntimeException("boom"));
+
+        assertThatThrownBy(() -> service.createOrPreviewCatalogProducts(request, false))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("boom");
+    }
+
+    @Test
     void createOrPreviewCatalogProducts_translatesWriteTimeDuplicateIntoConcurrencyConflict() {
         CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE", "BLUE"), List.of("1L"));
         String conflictingSku = canonicalSku("Primer", "WHITE", "1L");
@@ -230,6 +298,17 @@ class ProductionCatalogServiceCanonicalEntryTest {
                 "320910",
                 List.of("WHITE"),
                 List.of("1L"));
+        UUID caseAndPunctuationVariantGroupId = ReflectionTestUtils.invokeMethod(
+                service,
+                "buildVariantGroupId",
+                null,
+                null,
+                " primer!! ",
+                "raw material",
+                "li-ter",
+                "3209-10",
+                List.of("WHITE"),
+                List.of("1L"));
         @SuppressWarnings("unchecked")
         Set<String> single = (Set<String>) ReflectionTestUtils.invokeMethod(service, "singleVariantSet", "WHITE");
         @SuppressWarnings("unchecked")
@@ -237,9 +316,109 @@ class ProductionCatalogServiceCanonicalEntryTest {
 
         assertThat(fullMatrixVariantGroupId).isEqualTo(subsetVariantGroupId);
         assertThat(fullMatrixVariantGroupId).isEqualTo(reorderedVariantGroupId);
+        assertThat(fullMatrixVariantGroupId).isEqualTo(caseAndPunctuationVariantGroupId);
         assertThat(differentFamilyVariantGroupId).isNotEqualTo(fullMatrixVariantGroupId);
         assertThat(single).containsExactly("WHITE");
         assertThat(empty).isEmpty();
+    }
+
+    @Test
+    void canonicalHelperMethods_coverBlankCartonsUnlimitedSkuAndExplicitConflictOverrides() {
+        @SuppressWarnings("unchecked")
+        Map<String, Integer> emptyCartons = (Map<String, Integer>) ReflectionTestUtils.invokeMethod(
+                service,
+                "defaultCartonSizes",
+                "   ");
+        String unboundedSkuFragment = ReflectionTestUtils.invokeMethod(
+                service,
+                "requireCanonicalSkuFragment",
+                "baseProductName",
+                "Primer",
+                0);
+        Object plan = ReflectionTestUtils.invokeMethod(
+                service,
+                "prepareCatalogProductEntryPlan",
+                company,
+                request("RAW_MATERIAL", List.of("WHITE"), List.of("1L")));
+        CatalogProductEntryResponse.Conflict overrideConflict = new CatalogProductEntryResponse.Conflict(
+                "BBR-PRIMER-WHITE-1L",
+                "MANUAL_OVERRIDE",
+                "Primer WHITE 1L",
+                "WHITE",
+                "1L");
+        CatalogProductEntryResponse overriddenResponse = ReflectionTestUtils.invokeMethod(
+                service,
+                "toCatalogProductEntryResponse",
+                plan,
+                List.of(overrideConflict),
+                true);
+
+        assertThat(emptyCartons).isEmpty();
+        assertThat(unboundedSkuFragment).isEqualTo("PRIMER");
+        assertThat(overriddenResponse.conflicts()).containsExactly(overrideConflict);
+    }
+
+    @Test
+    void canonicalHelperMethods_fallbackToPlanConflictsForNullOrEmptyOverrides() {
+        Object duplicatePlan = ReflectionTestUtils.invokeMethod(
+                service,
+                "prepareCatalogProductEntryPlan",
+                company,
+                request("RAW_MATERIAL", List.of("WHITE", "white"), List.of("1L")));
+
+        CatalogProductEntryResponse nullOverrideResponse = ReflectionTestUtils.invokeMethod(
+                service,
+                "toCatalogProductEntryResponse",
+                duplicatePlan,
+                (Object) null,
+                true);
+        CatalogProductEntryResponse emptyOverrideResponse = ReflectionTestUtils.invokeMethod(
+                service,
+                "toCatalogProductEntryResponse",
+                duplicatePlan,
+                List.of(),
+                true);
+
+        assertThat(nullOverrideResponse.conflicts())
+                .extracting(CatalogProductEntryResponse.Conflict::reason)
+                .containsOnly("DUPLICATE_IN_REQUEST");
+        assertThat(emptyOverrideResponse.conflicts())
+                .extracting(CatalogProductEntryResponse.Conflict::reason)
+                .containsOnly("DUPLICATE_IN_REQUEST");
+    }
+
+    @Test
+    void createVariants_dryRun_generatesCanonicalSkuFromSizeFragments() {
+        BulkVariantResponse response = service.createVariants(
+                bulkVariantRequest(List.of("WHITE"), List.of("1L")),
+                true);
+
+        assertThat(response.generated())
+                .extracting(BulkVariantResponse.VariantItem::sku)
+                .containsExactly("BBR-PRIMER-WHITE-1L");
+        assertThat(response.wouldCreate())
+                .extracting(BulkVariantResponse.VariantItem::size)
+                .containsExactly("1L");
+    }
+
+    @Test
+    void canonicalHelperMethods_validateMimeParameterSections() {
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isValidMimeParameterSection",
+                "charset=utf-8;header=present")).isTrue();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isValidMimeParameterSection",
+                "charset=utf-8;;header=present")).isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isValidMimeParameterSection",
+                "=utf-8")).isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                service,
+                "isValidMimeParameterSection",
+                "charset=")).isFalse();
     }
 
     private CatalogProductEntryRequest request(String category, List<String> colors, List<String> sizes) {
@@ -259,6 +438,26 @@ class ProductionCatalogServiceCanonicalEntryTest {
         return request;
     }
 
+    private BulkVariantRequest bulkVariantRequest(List<String> colors, List<String> sizes) {
+        return new BulkVariantRequest(
+                11L,
+                null,
+                null,
+                "Primer",
+                "RAW_MATERIAL",
+                colors,
+                sizes,
+                null,
+                "LITER",
+                null,
+                new BigDecimal("1200.00"),
+                new BigDecimal("18.00"),
+                BigDecimal.ZERO,
+                new BigDecimal("1100.00"),
+                Map.of("productType", "decorative")
+        );
+    }
+
     private String canonicalSku(String baseProductName, String color, String size) {
         return String.join("-", "BBR", "PRIMER", color, size);
     }
@@ -269,5 +468,11 @@ class ProductionCatalogServiceCanonicalEntryTest {
         product.setBrand(brand);
         product.setSkuCode(sku);
         return product;
+    }
+
+    private Account account(Long id) {
+        Account account = new Account();
+        ReflectionTestUtils.setField(account, "id", id);
+        return account;
     }
 }

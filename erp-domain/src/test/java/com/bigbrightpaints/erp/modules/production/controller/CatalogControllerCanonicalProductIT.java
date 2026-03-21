@@ -69,6 +69,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
     void createProduct_requiresActiveBrandId_rejectsFallbackFieldsAnd_persistsSingleCanonicalSku() {
         ProductionBrand activeBrand = saveBrand("Canonical Active " + shortId(), true);
         ProductionBrand inactiveBrand = saveBrand("Canonical Inactive " + shortId(), false);
+        Account wipAccount = ensureAccount("WIP-" + shortId(), "Work In Progress", AccountType.ASSET);
 
         ResponseEntity<Map> missingBrandResponse = postCatalogProducts(basePayload(null), false);
         assertThat(missingBrandResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -149,7 +150,14 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         updatePayload.put("cartonSizes", detailData.get("cartonSizes"));
         updatePayload.put("unitOfMeasure", detailData.get("unitOfMeasure"));
         updatePayload.put("hsnCode", detailData.get("hsnCode"));
+        updatePayload.put("basePrice", new BigDecimal("1325.00"));
         updatePayload.put("gstRate", detailData.get("gstRate"));
+        updatePayload.put("minDiscountPercent", new BigDecimal("7.50"));
+        updatePayload.put("minSellingPrice", new BigDecimal("1225.00"));
+        updatePayload.put("metadata", Map.of(
+                "productType", "decorative",
+                "wipAccountId", wipAccount.getId(),
+                "wastageAccountId", company.getDefaultCogsAccountId()));
         updatePayload.put("active", true);
 
         ResponseEntity<Map> updateResponse = rest.exchange(
@@ -158,7 +166,29 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
                 new HttpEntity<>(updatePayload, headers),
                 Map.class);
         assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(data(updateResponse).get("name")).isEqualTo("Premium Primer Updated");
+        Map<String, Object> updatedProduct = data(updateResponse);
+        assertThat(updatedProduct.get("name")).isEqualTo("Premium Primer Updated");
+        assertThat(decimalValue(updatedProduct.get("basePrice"))).isEqualByComparingTo("1325.00");
+        assertThat(decimalValue(updatedProduct.get("minDiscountPercent"))).isEqualByComparingTo("7.50");
+        assertThat(decimalValue(updatedProduct.get("minSellingPrice"))).isEqualByComparingTo("1225.00");
+        Map<String, Object> updatedMetadata = metadata(updatedProduct);
+        assertThat(updatedMetadata).containsEntry("productType", "decorative");
+        assertThat(((Number) updatedMetadata.get("wipAccountId")).longValue()).isEqualTo(wipAccount.getId());
+        assertThat(((Number) updatedMetadata.get("wastageAccountId")).longValue()).isEqualTo(company.getDefaultCogsAccountId());
+
+        ResponseEntity<Map> updatedDetailResponse = rest.exchange(
+                "/api/v1/catalog/products/" + member.get("id"),
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(updatedDetailResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> updatedDetail = data(updatedDetailResponse);
+        assertThat(decimalValue(updatedDetail.get("basePrice"))).isEqualByComparingTo("1325.00");
+        assertThat(decimalValue(updatedDetail.get("minDiscountPercent"))).isEqualByComparingTo("7.50");
+        assertThat(decimalValue(updatedDetail.get("minSellingPrice"))).isEqualByComparingTo("1225.00");
+        Map<String, Object> updatedDetailMetadata = metadata(updatedDetail);
+        assertThat(((Number) updatedDetailMetadata.get("wipAccountId")).longValue()).isEqualTo(wipAccount.getId());
+        assertThat(((Number) updatedDetailMetadata.get("wastageAccountId")).longValue()).isEqualTo(company.getDefaultCogsAccountId());
     }
 
     @Test
@@ -187,6 +217,26 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
                 .containsExactly(buildCanonicalSku(activeBrand.getCode(), familyName, "WHITE", "1L"));
         assertThat(members(secondData)).extracting(member -> String.valueOf(member.get("sku")))
                 .containsExactly(buildCanonicalSku(activeBrand.getCode(), familyName, "BLUE", "1L"));
+    }
+
+    @Test
+    void createProduct_reusesVariantGroupAcrossCaseAndPunctuationVariants() {
+        ProductionBrand activeBrand = saveBrand("Canonical Canon " + shortId(), true);
+
+        ResponseEntity<Map> firstResponse = postCatalogProducts(
+                familyPayload(activeBrand.getId(), "Primer", "FINISHED_GOOD", List.of("WHITE"), List.of("1L"), Map.of("productType", "decorative")),
+                false);
+        ResponseEntity<Map> secondResponse = postCatalogProducts(
+                familyPayload(activeBrand.getId(), " primer!! ", "finished good", List.of("BLUE"), List.of("1-l"), Map.of("productType", "decorative")),
+                false);
+
+        assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(secondResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        UUID firstVariantGroupId = UUID.fromString(String.valueOf(data(firstResponse).get("variantGroupId")));
+        UUID secondVariantGroupId = UUID.fromString(String.valueOf(data(secondResponse).get("variantGroupId")));
+
+        assertThat(secondVariantGroupId).isEqualTo(firstVariantGroupId);
     }
 
     @Test
