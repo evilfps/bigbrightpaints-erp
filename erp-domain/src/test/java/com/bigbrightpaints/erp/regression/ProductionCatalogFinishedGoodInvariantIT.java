@@ -45,7 +45,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE_PREFIX = "LF-015";
-    private static final String PASSWORD = "ChangeMe123!";
+    private static final String PASSWORD = "changeme";
 
     @Autowired private TestRestTemplate rest;
     @Autowired private CompanyRepository companyRepository;

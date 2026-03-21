@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE = "CAT-SURFACE-RETIRE";
-    private static final String PASSWORD = "ChangeMe123!";
+    private static final String PASSWORD = "changeme";
     private static final String ADMIN_EMAIL = "catalog-surface-retire@bbp.com";
 
     @Autowired private TestRestTemplate rest;
