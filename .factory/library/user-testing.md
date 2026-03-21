@@ -187,3 +187,8 @@ Testing surface: tools, URLs, setup steps, isolation notes, known quirks.
 - For existing-brand selection proof, seed active and inactive brands and use `GET /api/v1/catalog/brands?active=true`.
 - For new-brand proof, call `POST /api/v1/catalog/brands`, capture the returned `brandId`, and then call `POST /api/v1/catalog/products`; do not validate inline brand creation inside the product request.
 - For preview proof, confirm the preview and commit payloads produce the same candidate SKU set and that preview does not persist products, family/group rows, or mirrors.
+
+### Known Broad-Gate Reds Outside This Packet
+- `SalesControllerIT.dispatch_confirm_allows_factory_to_reach_business_validation` is currently red before catalog changes in the sales dispatch authorization path.
+- `TS_RuntimeInventoryValuationExecutableCoverageTest.fifoFinishedGoodValuation_usesQuantityAvailable_notQuantityTotal` is currently red before catalog changes in reports/inventory valuation coverage.
+- Do not widen catalog packet validation to fix these unrelated failures. If `bash scripts/gate_fast.sh` is run for broad-signal proof and only these exact failures remain, record them as known pre-existing blockers rather than catalog regressions.

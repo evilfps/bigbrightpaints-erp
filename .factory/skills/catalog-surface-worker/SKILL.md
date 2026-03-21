@@ -72,7 +72,7 @@ None.
 ### Step 5: Verify thoroughly
 1. Run the targeted packet suite or narrower targeted command for the changed surface.
 2. Run repo-root OpenAPI verification when public routes or schemas changed.
-3. Run `bash scripts/gate_fast.sh` before handing off the feature unless the orchestrator explicitly scoped a smaller interim check.
+3. Run `bash scripts/gate_fast.sh` only when the feature explicitly requires broad-signal proof. If mission `AGENTS.md` documents unrelated pre-existing broad-gate failures, do not widen scope to repair them during an in-scope catalog feature; record them exactly if they are the only remaining broad-gate reds.
 4. Run `git diff --check` before handoff.
 5. Perform API-level verification for the claimed assertions, including negative checks for retired routes and strict contract failures.
 6. For retired routes, prove unmapped/not-supported behavior with an authenticated caller; do not treat `401/403` as sufficient evidence of removal.

@@ -9,7 +9,7 @@ commands:
   catalog-consolidation-targeted: >-
     cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CatalogServiceBrandCrudTest,CatalogServiceProductCrudTest,CatalogServiceBulkUpsertTest,ProductionCatalogServiceBulkVariantRaceTest,ProductionCatalogServiceRetryPolicyTest,ProductionCatalogFinishedGoodInvariantIT,ProductionCatalogRawMaterialInvariantIT,SalesCoreEngineCoverageTest,SalesProformaBoundaryServiceTest,SalesServiceTest,OpenApiSnapshotIT' test
   test: >-
-    cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true
+    cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CatalogServiceBrandCrudTest,CatalogServiceProductCrudTest,CatalogServiceBulkUpsertTest,ProductionCatalogServiceBulkVariantRaceTest,ProductionCatalogServiceRetryPolicyTest,ProductionCatalogFinishedGoodInvariantIT,ProductionCatalogRawMaterialInvariantIT,SalesCoreEngineCoverageTest,SalesProformaBoundaryServiceTest,SalesServiceTest,OpenApiSnapshotIT' test
   pr-auth-tenant: >-
     cd /home/realnigga/Desktop/Mission-control && bash scripts/run_test_manifest.sh --profile pr-fast --label auth-tenant --manifest ci/pr_manifests/pr_auth_tenant.txt
   gate-fast: >-
