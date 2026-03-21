@@ -7,6 +7,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.util.Collections;
@@ -26,9 +27,11 @@ public class CatalogProductEntryRequest {
     private String category;
 
     @NotBlank(message = "unitOfMeasure is required")
+    @Size(max = 64, message = "unitOfMeasure cannot exceed 64 characters")
     private String unitOfMeasure;
 
     @NotBlank(message = "hsnCode is required")
+    @Size(max = 32, message = "hsnCode cannot exceed 32 characters")
     private String hsnCode;
 
     @NotNull(message = "gstRate is required")
@@ -42,8 +45,14 @@ public class CatalogProductEntryRequest {
     @NotEmpty(message = "sizes must contain at least one value")
     private List<String> sizes;
 
+    @DecimalMin(value = "0.00", message = "basePrice cannot be negative")
     private BigDecimal basePrice;
+
+    @DecimalMin(value = "0.00", message = "minDiscountPercent cannot be negative")
+    @DecimalMax(value = "100.00", message = "minDiscountPercent cannot be greater than 100")
     private BigDecimal minDiscountPercent;
+
+    @DecimalMin(value = "0.00", message = "minSellingPrice cannot be negative")
     private BigDecimal minSellingPrice;
     private Map<String, Object> metadata = new LinkedHashMap<>();
 

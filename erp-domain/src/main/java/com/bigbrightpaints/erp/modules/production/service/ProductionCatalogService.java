@@ -86,6 +86,8 @@ public class ProductionCatalogService {
     private static final int MAX_PRODUCT_SKU_LENGTH = 128;
     private static final int MAX_PRODUCT_NAME_LENGTH = 255;
     private static final int MAX_PRODUCT_FAMILY_NAME_LENGTH = 255;
+    private static final int MAX_PRODUCT_UNIT_OF_MEASURE_LENGTH = 64;
+    private static final int MAX_PRODUCT_HSN_CODE_LENGTH = 32;
     private static final Set<String> CATALOG_IMPORT_ALLOWED_CONTENT_TYPES = Set.of(
             "text/csv",
             "application/csv",
@@ -542,11 +544,21 @@ public class ProductionCatalogService {
                 "shorten baseProductName");
         String normalizedCategory = normalizeCategory(request.getCategory());
         String unitOfMeasure = requireCanonicalToken(request.getUnitOfMeasure(), "unitOfMeasure");
+        validateCanonicalPersistedTextLength(
+                unitOfMeasure,
+                "unitOfMeasure",
+                MAX_PRODUCT_UNIT_OF_MEASURE_LENGTH,
+                "shorten unitOfMeasure");
         String hsnCode = requireCanonicalToken(request.getHsnCode(), "hsnCode");
-        BigDecimal basePrice = money(request.getBasePrice());
-        BigDecimal gstRate = percent(request.getGstRate());
-        BigDecimal minDiscountPercent = percent(request.getMinDiscountPercent());
-        BigDecimal minSellingPrice = money(request.getMinSellingPrice());
+        validateCanonicalPersistedTextLength(
+                hsnCode,
+                "hsnCode",
+                MAX_PRODUCT_HSN_CODE_LENGTH,
+                "shorten hsnCode");
+        BigDecimal basePrice = validateCanonicalMoney(request.getBasePrice(), "basePrice");
+        BigDecimal gstRate = validateCanonicalPercent(request.getGstRate(), "gstRate", true);
+        BigDecimal minDiscountPercent = validateCanonicalPercent(request.getMinDiscountPercent(), "minDiscountPercent", false);
+        BigDecimal minSellingPrice = validateCanonicalMoney(request.getMinSellingPrice(), "minSellingPrice");
         Map<String, Object> metadata = normalizeMetadata(request.getMetadata());
 
         List<String> colors = normalizeCanonicalTokens(request.getColors(), "colors");
@@ -795,6 +807,33 @@ public class ProductionCatalogService {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                     "Canonical product " + persistedFieldName + " exceeds " + maxLength + " characters; " + remedy);
         }
+    }
+
+    private BigDecimal validateCanonicalMoney(BigDecimal value, String fieldName) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        if (value.compareTo(BigDecimal.ZERO) < 0) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(fieldName + " cannot be negative");
+        }
+        return money(value);
+    }
+
+    private BigDecimal validateCanonicalPercent(BigDecimal value, String fieldName, boolean required) {
+        if (value == null) {
+            if (required) {
+                throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(fieldName + " is required");
+            }
+            return BigDecimal.ZERO;
+        }
+        if (value.compareTo(BigDecimal.ZERO) < 0) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(fieldName + " cannot be negative");
+        }
+        if (value.compareTo(new BigDecimal("100")) > 0) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                    fieldName + " cannot be greater than 100");
+        }
+        return percent(value);
     }
 
     /**

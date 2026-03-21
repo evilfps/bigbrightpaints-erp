@@ -168,6 +168,46 @@ class ProductionCatalogServiceCanonicalEntryTest {
     }
 
     @Test
+    void createOrPreviewCatalogProducts_rejectsOutOfRangePricingInputs() {
+        CatalogProductEntryRequest negativeBasePrice = request("RAW_MATERIAL", List.of("WHITE"), List.of("1L"));
+        negativeBasePrice.setBasePrice(new BigDecimal("-1.00"));
+        CatalogProductEntryRequest negativeDiscount = request("RAW_MATERIAL", List.of("WHITE"), List.of("1L"));
+        negativeDiscount.setMinDiscountPercent(new BigDecimal("-1.00"));
+        CatalogProductEntryRequest excessiveDiscount = request("RAW_MATERIAL", List.of("WHITE"), List.of("1L"));
+        excessiveDiscount.setMinDiscountPercent(new BigDecimal("101.00"));
+        CatalogProductEntryRequest negativeMinSellingPrice = request("RAW_MATERIAL", List.of("WHITE"), List.of("1L"));
+        negativeMinSellingPrice.setMinSellingPrice(new BigDecimal("-1.00"));
+
+        assertThatThrownBy(() -> service.createOrPreviewCatalogProducts(negativeBasePrice, true))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("basePrice cannot be negative");
+        assertThatThrownBy(() -> service.createOrPreviewCatalogProducts(negativeDiscount, true))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("minDiscountPercent cannot be negative");
+        assertThatThrownBy(() -> service.createOrPreviewCatalogProducts(excessiveDiscount, true))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("minDiscountPercent cannot be greater than 100");
+        assertThatThrownBy(() -> service.createOrPreviewCatalogProducts(negativeMinSellingPrice, true))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("minSellingPrice cannot be negative");
+    }
+
+    @Test
+    void createOrPreviewCatalogProducts_rejectsOversizedUnitOfMeasureAndHsnCode() {
+        CatalogProductEntryRequest oversizedUnit = request("RAW_MATERIAL", List.of("WHITE"), List.of("1L"));
+        oversizedUnit.setUnitOfMeasure("L".repeat(65));
+        CatalogProductEntryRequest oversizedHsn = request("RAW_MATERIAL", List.of("WHITE"), List.of("1L"));
+        oversizedHsn.setHsnCode("9".repeat(33));
+
+        assertThatThrownBy(() -> service.createOrPreviewCatalogProducts(oversizedUnit, true))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("unitOfMeasure exceeds 64 characters");
+        assertThatThrownBy(() -> service.createOrPreviewCatalogProducts(oversizedHsn, true))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("hsnCode exceeds 32 characters");
+    }
+
+    @Test
     void createOrPreviewCatalogProducts_previewFlagsDuplicateRequestConflicts_forRawMaterials() {
         CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE", "white"), List.of("1L"));
 
