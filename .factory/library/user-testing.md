@@ -162,3 +162,28 @@ Testing surface: tools, URLs, setup steps, isolation notes, known quirks.
 - **Orchestrator removal:** New regression tests proving removed paths are gone
 - **Gate-fast:** `cd erp-domain && MIGRATION_SET=v2 mvn test -Pgate-fast -Djacoco.skip=true`
 - **Gate-core:** `cd erp-domain && MIGRATION_SET=v2 mvn test -Pgate-core -Djacoco.skip=true`
+
+## Catalog Surface Consolidation Packet Guidance
+
+### Validation Surface
+- **Primary:** targeted Maven/API evidence for canonical catalog routes, downstream readiness, and OpenAPI snapshot alignment.
+- **Secondary:** authenticated `curl` probes against the compose-backed backend on `8081/9090` when a validator needs runtime proof for surviving or retired catalog routes.
+- No browser surface is required for this packet.
+
+### Validation Concurrency
+- **api-catalog-surface:** max concurrent validators **2**.
+  - Dry run: `OpenApiSnapshotIT` completed successfully in about 43s with ~4.15 CPU average and ~950 MiB max RSS on a 16-core / ~15.2 GiB machine.
+  - 70% CPU-headroom budgeting supports 2 concurrent API validators conservatively.
+- **jvm-tests (shared checkout):** keep at **1** concurrent validator because concurrent Maven runs collide on `erp-domain/target`, Surefire reports, and gate artifacts.
+
+### Key Commands
+- `.factory/services.yaml -> commands.catalog-consolidation-targeted`
+- `.factory/services.yaml -> commands.gate-fast`
+
+### Runtime Probe Guidance
+- Prefer targeted Maven evidence first.
+- When runtime API proof is required, use the compose-backed runtime on `5433/8081/9090`; do not touch localhost PostgreSQL `5432`.
+- For retired-route proof, use authenticated negative requests and prove the route is unmapped/not-supported rather than merely unauthorized.
+- For existing-brand selection proof, seed active and inactive brands and use `GET /api/v1/catalog/brands?active=true`.
+- For new-brand proof, call `POST /api/v1/catalog/brands`, capture the returned `brandId`, and then call `POST /api/v1/catalog/products`; do not validate inline brand creation inside the product request.
+- For preview proof, confirm the preview and commit payloads produce the same candidate SKU set and that preview does not persist products, family/group rows, or mirrors.

@@ -36,3 +36,8 @@ Environment variables, external dependencies, and setup notes.
 - The approved review and integration base is `origin/Factory-droid`.
 - Mission-owned compose runtime must use host PostgreSQL port `5433`; host port `5432` belongs to another local database.
 - Custom project droids are the approved delegation path for orchestrator-side subagent work in this mission.
+
+## Catalog Surface Consolidation Notes
+- Primary validation path for this packet is Maven plus Testcontainers-backed API/integration evidence.
+- Use the compose-backed runtime on `5433/8081/9090` only when the feature needs explicit runtime API probes.
+- Do not use or depend on the unrelated local PostgreSQL instance on `5432`.

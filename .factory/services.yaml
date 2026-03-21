@@ -6,6 +6,8 @@ commands:
     cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 compile -q
   typecheck: >-
     cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 compile -q
+  catalog-consolidation-targeted: >-
+    cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CatalogServiceBrandCrudTest,CatalogServiceProductCrudTest,CatalogServiceBulkUpsertTest,ProductionCatalogServiceBulkVariantRaceTest,ProductionCatalogServiceRetryPolicyTest,ProductionCatalogFinishedGoodInvariantIT,ProductionCatalogRawMaterialInvariantIT,SalesCoreEngineCoverageTest,SalesProformaBoundaryServiceTest,SalesServiceTest,OpenApiSnapshotIT' test
   test: >-
     cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true
   pr-auth-tenant: >-
