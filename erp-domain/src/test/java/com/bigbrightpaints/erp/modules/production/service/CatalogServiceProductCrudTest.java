@@ -14,6 +14,7 @@ import com.bigbrightpaints.erp.modules.production.dto.CatalogProductDto;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductRequest;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -39,6 +40,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class CatalogServiceProductCrudTest {
 
     @Mock private CompanyContextService companyContextService;

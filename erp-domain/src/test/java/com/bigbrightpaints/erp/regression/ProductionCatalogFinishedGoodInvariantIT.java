@@ -22,6 +22,7 @@ import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -42,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DisplayName("Regression: Catalog -> FinishedGood invariants")
+@Tag("critical")
 class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE_PREFIX = "LF-015";

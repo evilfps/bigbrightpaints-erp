@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
@@ -20,8 +21,10 @@ import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.SetJoin;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -34,16 +37,19 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
+@Tag("critical")
 class CatalogServiceCanonicalCoverageTest {
 
     @Mock private CompanyContextService companyContextService;
@@ -200,5 +206,139 @@ class CatalogServiceCanonicalCoverageTest {
         assertThat(explicit).containsExactly("Red", "Blue");
         assertThat(fallback).containsExactly("White");
         assertThat(empty).isEmpty();
+    }
+
+    @Test
+    void syncInventoryTruth_shortCircuitsWhenCompanyProductOrIdIsMissing() {
+        ProductionProduct persistedProduct = new ProductionProduct();
+        ReflectionTestUtils.setField(persistedProduct, "id", 801L);
+
+        ProductionProduct transientProduct = new ProductionProduct();
+
+        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", (Company) null, persistedProduct);
+        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", company, null);
+        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", company, transientProduct);
+
+        verifyNoInteractions(rawMaterialRepository, finishedGoodRepository);
+    }
+
+    @Test
+    void syncInventoryTruth_appliesMetadataDefaultAndExistingRawMaterialAccounts() {
+        company.setDefaultInventoryAccountId(77L);
+        Company companyWithoutDefault = new Company();
+        ReflectionTestUtils.setField(companyWithoutDefault, "id", 201L);
+        companyWithoutDefault.setCode("BBP-NODEFAULT");
+
+        ProductionProduct metadataProduct = rawMaterialProduct(901L, "RM-META", "Titanium Dioxide", " KG ", new BigDecimal("18.00"));
+        metadataProduct.setMetadata(new LinkedHashMap<>(Map.of("inventoryAccountId", 88L)));
+        ProductionProduct defaultProduct = rawMaterialProduct(902L, "RM-DEFAULT", "Calcium Carbonate", null, null);
+        defaultProduct.setMetadata(new LinkedHashMap<>());
+        ProductionProduct preservedProduct = rawMaterialProduct(903L, "RM-PRESERVE", "Preserved Account", "LITER", null);
+        preservedProduct.setMetadata(new LinkedHashMap<>());
+        ProductionProduct noDefaultProduct = rawMaterialProduct(904L, "RM-NODEFAULT", "No Default", null, null);
+        noDefaultProduct.setMetadata(new LinkedHashMap<>());
+
+        RawMaterial preserved = new RawMaterial();
+        preserved.setInventoryAccountId(55L);
+        RawMaterial noDefault = new RawMaterial();
+
+        when(rawMaterialRepository.findByCompanyAndSku(company, "RM-META")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.findByCompanyAndSku(company, "RM-DEFAULT")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.findByCompanyAndSku(company, "RM-PRESERVE")).thenReturn(Optional.of(preserved));
+        when(rawMaterialRepository.findByCompanyAndSku(companyWithoutDefault, "RM-NODEFAULT")).thenReturn(Optional.of(noDefault));
+        when(rawMaterialRepository.save(org.mockito.ArgumentMatchers.any(RawMaterial.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", company, metadataProduct);
+        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", company, defaultProduct);
+        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", company, preservedProduct);
+        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", companyWithoutDefault, noDefaultProduct);
+
+        ArgumentCaptor<RawMaterial> materialCaptor = ArgumentCaptor.forClass(RawMaterial.class);
+        verify(rawMaterialRepository, times(4)).save(materialCaptor.capture());
+        List<RawMaterial> savedMaterials = materialCaptor.getAllValues();
+        RawMaterial metadataMaterial = savedMaterials.get(0);
+        RawMaterial defaultMaterial = savedMaterials.get(1);
+        RawMaterial preservedMaterial = savedMaterials.get(2);
+        RawMaterial noDefaultMaterial = savedMaterials.get(3);
+
+        assertThat(metadataMaterial.getInventoryAccountId()).isEqualTo(88L);
+        assertThat(metadataMaterial.getUnitType()).isEqualTo("KG");
+        assertThat(metadataMaterial.getGstRate()).isEqualByComparingTo("18.00");
+        assertThat(defaultMaterial.getInventoryAccountId()).isEqualTo(77L);
+        assertThat(defaultMaterial.getUnitType()).isEqualTo("UNIT");
+        assertThat(defaultMaterial.getGstRate()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(preservedMaterial.getInventoryAccountId()).isEqualTo(55L);
+        assertThat(noDefaultMaterial.getInventoryAccountId()).isNull();
+        assertThat(noDefaultMaterial.getUnitType()).isEqualTo("UNIT");
+    }
+
+    @Test
+    void rawMaterialHelpers_coverFallbackAndParsingBranches() {
+        String defaultUnit = ReflectionTestUtils.invokeMethod(service, "resolveUnit", (String) null);
+        String trimmedUnit = ReflectionTestUtils.invokeMethod(service, "resolveUnit", " KG ");
+        assertThat(defaultUnit).isEqualTo("UNIT");
+        assertThat(trimmedUnit).isEqualTo("KG");
+
+        Long nullProductAccountId = ReflectionTestUtils.invokeMethod(
+                service,
+                "rawMaterialInventoryAccountIdFromMetadata",
+                (Object) null);
+        assertThat(nullProductAccountId).isNull();
+
+        ProductionProduct numericProduct = new ProductionProduct();
+        numericProduct.setMetadata(new LinkedHashMap<>(Map.of("inventoryAccountId", 12L)));
+        Long numericAccountId = ReflectionTestUtils.invokeMethod(service, "rawMaterialInventoryAccountIdFromMetadata", numericProduct);
+        assertThat(numericAccountId).isEqualTo(12L);
+
+        ProductionProduct zeroNumeric = new ProductionProduct();
+        zeroNumeric.setMetadata(new LinkedHashMap<>(Map.of("inventoryAccountId", 0L)));
+        Long zeroNumericAccountId = ReflectionTestUtils.invokeMethod(service, "rawMaterialInventoryAccountIdFromMetadata", zeroNumeric);
+        assertThat(zeroNumericAccountId).isNull();
+
+        ProductionProduct stringProduct = new ProductionProduct();
+        stringProduct.setMetadata(new LinkedHashMap<>(Map.of("rawMaterialInventoryAccountId", "42")));
+        Long stringAccountId = ReflectionTestUtils.invokeMethod(service, "rawMaterialInventoryAccountIdFromMetadata", stringProduct);
+        assertThat(stringAccountId).isEqualTo(42L);
+
+        ProductionProduct negativeStringProduct = new ProductionProduct();
+        negativeStringProduct.setMetadata(new LinkedHashMap<>(Map.of("rawMaterialInventoryAccountId", "-9")));
+        Long negativeStringAccountId = ReflectionTestUtils.invokeMethod(service, "rawMaterialInventoryAccountIdFromMetadata", negativeStringProduct);
+        assertThat(negativeStringAccountId).isNull();
+
+        ProductionProduct invalidStringProduct = new ProductionProduct();
+        invalidStringProduct.setMetadata(new LinkedHashMap<>(Map.of("rawMaterialInventoryAccountId", "abc")));
+        Long invalidStringAccountId = ReflectionTestUtils.invokeMethod(service, "rawMaterialInventoryAccountIdFromMetadata", invalidStringProduct);
+        assertThat(invalidStringAccountId).isNull();
+
+        Boolean rawMaterialCategory = ReflectionTestUtils.invokeMethod(service, "isRawMaterialCategory", "raw-material");
+        Boolean blankCategory = ReflectionTestUtils.invokeMethod(service, "isRawMaterialCategory", " ");
+        assertThat(rawMaterialCategory).isTrue();
+        assertThat(blankCategory).isFalse();
+
+        @SuppressWarnings("unchecked")
+        List<String> fallbackFromNull = (List<String>) ReflectionTestUtils.invokeMethod(
+                service,
+                "toVariantList",
+                null,
+                " White ");
+        assertThat(fallbackFromNull).containsExactly("White");
+    }
+
+    private ProductionProduct rawMaterialProduct(Long id,
+                                                 String sku,
+                                                 String name,
+                                                 String unitOfMeasure,
+                                                 BigDecimal gstRate) {
+        ProductionProduct product = new ProductionProduct();
+        ReflectionTestUtils.setField(product, "id", id);
+        product.setCompany(company);
+        product.setBrand(brand);
+        product.setProductName(name);
+        product.setSkuCode(sku);
+        product.setCategory("RAW_MATERIAL");
+        product.setUnitOfMeasure(unitOfMeasure);
+        product.setGstRate(gstRate);
+        return product;
     }
 }

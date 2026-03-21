@@ -17,6 +17,7 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionProductReposi
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryRequest;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryResponse;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -43,6 +44,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
+@Tag("critical")
 class ProductionCatalogServiceCanonicalEntryTest {
 
     @Mock private CompanyContextService companyContextService;

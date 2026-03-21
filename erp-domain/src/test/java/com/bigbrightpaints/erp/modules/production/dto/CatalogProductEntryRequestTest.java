@@ -1,12 +1,14 @@
 package com.bigbrightpaints.erp.modules.production.dto;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Tag("critical")
 class CatalogProductEntryRequestTest {
 
     @Test

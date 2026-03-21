@@ -570,8 +570,7 @@ public class ProductionCatalogService {
                         gstRate,
                         minDiscountPercent,
                         minSellingPrice,
-                        metadata
-                );
+                        metadata);
                 generatedCandidates.add(new CatalogProductCandidate(sku, color, size, productName, createRequest));
             }
         }
