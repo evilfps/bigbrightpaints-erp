@@ -1,22 +1,22 @@
 {
   "featureId": "catalog-contract-cleanup-and-proof",
-  "reviewedAt": "2026-03-21T07:17:01.978880+00:00",
-  "commitId": "095cfe36243717ee56b21f63c7f00509f92808e4",
+  "reviewedAt": "2026-03-21T13:14:03+05:30",
+  "commitId": "d7e11f0cfcec7c9f6a807b6ad185b7f7bc874b09",
   "transcriptSkeletonReviewed": true,
   "diffReviewed": true,
   "status": "fail",
   "codeReview": {
-    "summary": "The re-review fixes one of the round-1 blockers: `.factory/library/frontend-handoff.md` now drops the stale retired-catalog request bullets and points accounting consumers at the surviving catalog DTOs, and `SalesControllerIT` has been restored to its pre-feature expectation. However, the packet still does not satisfy the required narrowing because the unrelated runtime valuation truth-suite change introduced by `385cfadd` remains present in the current tree.",
+    "summary": "The rerun cleaned the assigned contract surfaces: the inspected doc set, `.factory/library/frontend-handoff.md`, `openapi.json`, `erp-domain/docs/endpoint_inventory.tsv`, `RawMaterialAndProductUpdateIT`, and `CriticalPathSmokeTest` now describe only the surviving `/api/v1/catalog/**` flow with a separate brand-create step, and I did not find a remaining contract-cleanup gap in those surfaces. But the one round-2 blocker was not actually fixed: the out-of-scope valuation truth-suite edit is still present in the current repo state, and the rerun commits after `095cfe36243717ee56b21f63c7f00509f92808e4` do not touch that file.",
     "issues": [
       {
         "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeInventoryValuationExecutableCoverageTest.java",
         "line": 83,
         "severity": "blocking",
-        "description": "The final packet still includes the out-of-scope valuation test edit that switched this assertion from `currentSnapshot(company)` to `snapshotAsOf(company, LocalDate.of(2026, 3, 1))`. Mission guidance explicitly marks this truth-suite failure as outside the catalog packet (`/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/AGENTS.md:41-45`), and `git diff --name-only 385cfadd^..095cfe36 -- erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/SalesControllerIT.java erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeInventoryValuationExecutableCoverageTest.java` still lists `TS_RuntimeInventoryValuationExecutableCoverageTest.java`, showing the packet has not been fully narrowed back to in-scope cleanup work."
+        "description": "The packet still contains the unrelated reports/valuation edit that changed the assertion to `service.snapshotAsOf(company, LocalDate.of(2026, 3, 1))`. Mission guidance keeps inventory valuation redesign out of scope and explicitly calls this truth-suite failure pre-existing (`/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/AGENTS.md`). `git show 385cfadd -- erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeInventoryValuationExecutableCoverageTest.java` shows that `385cfadd` introduced this change, `git log --oneline -- erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeInventoryValuationExecutableCoverageTest.java` shows no later fix commit for the file, and `git diff --name-status 095cfe36243717ee56b21f63c7f00509f92808e4..HEAD` lists only docs/skill/scrutiny artifact updates. So the rerun did not remove the out-of-scope edit even though the rest of the cleanup proof now looks narrow."
       }
     ]
   },
   "sharedStateObservations": [],
   "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/catalog-surface-consolidation/scrutiny/reviews/catalog-contract-cleanup-and-proof.json",
-  "summary": "Fail: the stale frontend-handoff bullets are fixed and the `SalesControllerIT` scope drift is gone, but the current repo still retains the unrelated `TS_RuntimeInventoryValuationExecutableCoverageTest` edit, so the cleanup-proof packet is not yet fully narrow."
+  "summary": "Fail: the contract-cleanup surfaces are aligned, but the packet still contains the unrelated `TS_RuntimeInventoryValuationExecutableCoverageTest` change from `385cfadd`, so the rerun does not clear the only remaining out-of-scope blocker."
 }
