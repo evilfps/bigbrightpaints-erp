@@ -7,6 +7,10 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
 import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
@@ -59,6 +63,7 @@ public class CatalogService {
 
     private static final String DEFAULT_PRODUCT_CATEGORY = "FINISHED_GOOD";
     private static final int MAX_PAGE_SIZE = 100;
+    private static final List<String> RAW_MATERIAL_CATEGORIES = List.of("RAW_MATERIAL", "RAW MATERIAL", "RAW-MATERIAL");
     private static final Pattern NON_ALPHANUM = Pattern.compile("[^A-Z0-9]");
     private static final Pattern SKU_SEQUENCE_PATTERN = Pattern.compile("-(\\d{3})$");
     private static final Pattern SIZE_WITH_UNIT_PATTERN = Pattern.compile("^([0-9]+(?:\\.[0-9]+)?)\\s*(ML|L|LTR|LITRE|LITER)?$");
@@ -69,15 +74,21 @@ public class CatalogService {
     private final ProductionBrandRepository brandRepository;
     private final ProductionProductRepository productRepository;
     private final SizeVariantRepository sizeVariantRepository;
+    private final FinishedGoodRepository finishedGoodRepository;
+    private final RawMaterialRepository rawMaterialRepository;
 
     public CatalogService(CompanyContextService companyContextService,
                           ProductionBrandRepository brandRepository,
                           ProductionProductRepository productRepository,
-                          SizeVariantRepository sizeVariantRepository) {
+                          SizeVariantRepository sizeVariantRepository,
+                          FinishedGoodRepository finishedGoodRepository,
+                          RawMaterialRepository rawMaterialRepository) {
         this.companyContextService = companyContextService;
         this.brandRepository = brandRepository;
         this.productRepository = productRepository;
         this.sizeVariantRepository = sizeVariantRepository;
+        this.finishedGoodRepository = finishedGoodRepository;
+        this.rawMaterialRepository = rawMaterialRepository;
     }
 
     @Transactional
@@ -163,6 +174,7 @@ public class CatalogService {
         product.setBrand(brand);
         applyProductPayload(product, brand, request, false);
         ProductionProduct saved = productRepository.save(product);
+        syncInventoryTruth(company, saved);
         syncSizeVariants(company, saved);
         return toProductDto(saved);
     }
@@ -362,7 +374,9 @@ public class CatalogService {
         assertUniqueProductName(brand, name, creating ? null : product.getId());
 
         product.setProductName(name);
-        product.setCategory(DEFAULT_PRODUCT_CATEGORY);
+        if (creating) {
+            product.setCategory(DEFAULT_PRODUCT_CATEGORY);
+        }
         product.setDefaultColour(colors.stream().findFirst().orElse(null));
         product.setSizeLabel(sizes.stream().findFirst().orElse(null));
         product.setColors(colors);
@@ -376,6 +390,62 @@ public class CatalogService {
         } else if (request.active() != null) {
             product.setActive(request.active());
         }
+    }
+
+    private void syncInventoryTruth(Company company, ProductionProduct product) {
+        if (company == null || product == null || product.getId() == null) {
+            return;
+        }
+        if (isRawMaterialCategory(product.getCategory())) {
+            syncRawMaterial(company, product);
+            return;
+        }
+        syncFinishedGood(company, product);
+    }
+
+    private void syncRawMaterial(Company company, ProductionProduct product) {
+        String sku = normalizeRequiredText(product.getSkuCode(), "Product SKU is required");
+        RawMaterial material = rawMaterialRepository.findByCompanyAndSku(company, sku)
+                .orElseGet(() -> {
+                    RawMaterial created = new RawMaterial();
+                    created.setCompany(company);
+                    created.setSku(sku);
+                    created.setCurrentStock(BigDecimal.ZERO);
+                    return created;
+                });
+        material.setName(normalizeRequiredText(product.getProductName(), "Product name is required"));
+        material.setUnitType(resolveUnit(product.getUnitOfMeasure()));
+        Long inventoryAccountId = rawMaterialInventoryAccountIdFromMetadata(product);
+        if (inventoryAccountId != null) {
+            material.setInventoryAccountId(inventoryAccountId);
+        } else if (material.getInventoryAccountId() == null && company.getDefaultInventoryAccountId() != null) {
+            material.setInventoryAccountId(company.getDefaultInventoryAccountId());
+        }
+        if (product.getGstRate() != null) {
+            material.setGstRate(product.getGstRate());
+        }
+        rawMaterialRepository.save(material);
+    }
+
+    private void syncFinishedGood(Company company, ProductionProduct product) {
+        String sku = normalizeRequiredText(product.getSkuCode(), "Product SKU is required");
+        FinishedGood finishedGood = finishedGoodRepository.findByCompanyAndProductCode(company, sku)
+                .orElseGet(() -> {
+                    FinishedGood created = new FinishedGood();
+                    created.setCompany(company);
+                    created.setProductCode(sku);
+                    created.setCurrentStock(BigDecimal.ZERO);
+                    created.setReservedStock(BigDecimal.ZERO);
+                    return created;
+                });
+        finishedGood.setName(normalizeRequiredText(product.getProductName(), "Product name is required"));
+        finishedGood.setUnit(resolveUnit(product.getUnitOfMeasure()));
+        finishedGood.setValuationAccountId(metadataLong(product.getMetadata(), "fgValuationAccountId"));
+        finishedGood.setCogsAccountId(metadataLong(product.getMetadata(), "fgCogsAccountId"));
+        finishedGood.setRevenueAccountId(metadataLong(product.getMetadata(), "fgRevenueAccountId"));
+        finishedGood.setDiscountAccountId(metadataLong(product.getMetadata(), "fgDiscountAccountId"));
+        finishedGood.setTaxAccountId(metadataLong(product.getMetadata(), "fgTaxAccountId"));
+        finishedGoodRepository.save(finishedGood);
     }
 
     private Set<String> normalizeOptions(List<String> values, String fieldName) {
@@ -505,6 +575,49 @@ public class CatalogService {
             return value.divide(ONE_THOUSAND, 4, RoundingMode.HALF_UP);
         }
         return value.setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private String resolveUnit(String unit) {
+        return StringUtils.hasText(unit) ? unit.trim() : "UNIT";
+    }
+
+    private Long rawMaterialInventoryAccountIdFromMetadata(ProductionProduct product) {
+        if (product == null) {
+            return null;
+        }
+        Long accountId = metadataLong(product.getMetadata(), "inventoryAccountId");
+        if (accountId == null) {
+            accountId = metadataLong(product.getMetadata(), "rawMaterialInventoryAccountId");
+        }
+        return accountId;
+    }
+
+    private Long metadataLong(Map<String, Object> metadata, String key) {
+        if (metadata == null) {
+            return null;
+        }
+        Object candidate = metadata.get(key);
+        if (candidate instanceof Number number) {
+            long value = number.longValue();
+            return value > 0 ? value : null;
+        }
+        if (candidate instanceof String text && StringUtils.hasText(text)) {
+            try {
+                long value = Long.parseLong(text.trim());
+                return value > 0 ? value : null;
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private boolean isRawMaterialCategory(String category) {
+        if (!StringUtils.hasText(category)) {
+            return false;
+        }
+        String normalized = category.replace('-', '_').toUpperCase(Locale.ROOT);
+        return RAW_MATERIAL_CATEGORIES.stream().anyMatch(normalized::equalsIgnoreCase);
     }
 
     private ProductionBrand requireBrand(Company company, Long brandId) {

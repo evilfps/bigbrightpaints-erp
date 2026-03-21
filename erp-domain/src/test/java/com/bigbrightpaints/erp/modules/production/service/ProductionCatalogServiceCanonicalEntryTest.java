@@ -183,13 +183,46 @@ class ProductionCatalogServiceCanonicalEntryTest {
     }
 
     @Test
-    void canonicalHelperMethods_coverNullVariantGroupInputs_andSingleVariantBranches() {
-        UUID variantGroupId = ReflectionTestUtils.invokeMethod(
+    void canonicalHelperMethods_keepFamilyGroupingStableAcrossSubsetAndOrderChanges() {
+        UUID fullMatrixVariantGroupId = ReflectionTestUtils.invokeMethod(
                 service,
                 "buildVariantGroupId",
                 null,
                 null,
                 "Primer",
+                "RAW_MATERIAL",
+                "LITER",
+                "320910",
+                List.of("WHITE", "BLUE"),
+                List.of("1L", "4L"));
+        UUID subsetVariantGroupId = ReflectionTestUtils.invokeMethod(
+                service,
+                "buildVariantGroupId",
+                null,
+                null,
+                "Primer",
+                "RAW_MATERIAL",
+                "LITER",
+                "320910",
+                List.of("BLUE"),
+                List.of("4L"));
+        UUID reorderedVariantGroupId = ReflectionTestUtils.invokeMethod(
+                service,
+                "buildVariantGroupId",
+                null,
+                null,
+                "Primer",
+                "RAW_MATERIAL",
+                "LITER",
+                "320910",
+                List.of("BLUE", "WHITE"),
+                List.of("4L", "1L"));
+        UUID differentFamilyVariantGroupId = ReflectionTestUtils.invokeMethod(
+                service,
+                "buildVariantGroupId",
+                null,
+                null,
+                "Sealer",
                 "RAW_MATERIAL",
                 "LITER",
                 "320910",
@@ -200,7 +233,9 @@ class ProductionCatalogServiceCanonicalEntryTest {
         @SuppressWarnings("unchecked")
         Set<String> empty = (Set<String>) ReflectionTestUtils.invokeMethod(service, "singleVariantSet", "   ");
 
-        assertThat(variantGroupId).isNotNull();
+        assertThat(fullMatrixVariantGroupId).isEqualTo(subsetVariantGroupId);
+        assertThat(fullMatrixVariantGroupId).isEqualTo(reorderedVariantGroupId);
+        assertThat(differentFamilyVariantGroupId).isNotEqualTo(fullMatrixVariantGroupId);
         assertThat(single).containsExactly("WHITE");
         assertThat(empty).isEmpty();
     }

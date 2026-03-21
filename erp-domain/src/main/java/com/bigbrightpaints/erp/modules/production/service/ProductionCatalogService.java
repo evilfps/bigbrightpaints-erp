@@ -728,9 +728,7 @@ public class ProductionCatalogService {
                 productFamilyName,
                 category,
                 unitOfMeasure,
-                hsnCode,
-                String.join(",", colors),
-                String.join(",", sizes));
+                hsnCode);
         return UUID.nameUUIDFromBytes(fingerprint.getBytes(StandardCharsets.UTF_8));
     }
 

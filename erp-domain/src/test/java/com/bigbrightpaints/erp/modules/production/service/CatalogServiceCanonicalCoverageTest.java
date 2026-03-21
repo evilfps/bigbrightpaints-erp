@@ -3,6 +3,8 @@ package com.bigbrightpaints.erp.modules.production.service;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
@@ -48,6 +50,8 @@ class CatalogServiceCanonicalCoverageTest {
     @Mock private ProductionBrandRepository brandRepository;
     @Mock private ProductionProductRepository productRepository;
     @Mock private SizeVariantRepository sizeVariantRepository;
+    @Mock private FinishedGoodRepository finishedGoodRepository;
+    @Mock private RawMaterialRepository rawMaterialRepository;
 
     private CatalogService service;
     private Company company;
@@ -55,7 +59,13 @@ class CatalogServiceCanonicalCoverageTest {
 
     @BeforeEach
     void setUp() {
-        service = new CatalogService(companyContextService, brandRepository, productRepository, sizeVariantRepository);
+        service = new CatalogService(
+                companyContextService,
+                brandRepository,
+                productRepository,
+                sizeVariantRepository,
+                finishedGoodRepository,
+                rawMaterialRepository);
 
         company = new Company();
         ReflectionTestUtils.setField(company, "id", 200L);

@@ -160,6 +160,88 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void createProduct_reusesVariantGroupAcrossSeparateFamilySlices() {
+        ProductionBrand activeBrand = saveBrand("Canonical Family " + shortId(), true);
+        String familyName = "Family Primer " + shortId();
+
+        ResponseEntity<Map> firstResponse = postCatalogProducts(
+                familyPayload(activeBrand.getId(), familyName, "FINISHED_GOOD", List.of("WHITE"), List.of("1L"), Map.of("productType", "decorative")),
+                false);
+        ResponseEntity<Map> secondResponse = postCatalogProducts(
+                familyPayload(activeBrand.getId(), familyName, "FINISHED_GOOD", List.of("BLUE"), List.of("1L"), Map.of("productType", "decorative")),
+                false);
+
+        assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(secondResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Map<String, Object> firstData = data(firstResponse);
+        Map<String, Object> secondData = data(secondResponse);
+        UUID firstVariantGroupId = UUID.fromString(String.valueOf(firstData.get("variantGroupId")));
+        UUID secondVariantGroupId = UUID.fromString(String.valueOf(secondData.get("variantGroupId")));
+
+        assertThat(secondVariantGroupId).isEqualTo(firstVariantGroupId);
+        assertThat(productRepository.countByCompanyAndVariantGroupId(company, firstVariantGroupId)).isEqualTo(2);
+        assertThat(members(firstData)).extracting(member -> String.valueOf(member.get("sku")))
+                .containsExactly(buildCanonicalSku(activeBrand.getCode(), familyName, "WHITE", "1L"));
+        assertThat(members(secondData)).extracting(member -> String.valueOf(member.get("sku")))
+                .containsExactly(buildCanonicalSku(activeBrand.getCode(), familyName, "BLUE", "1L"));
+    }
+
+    @Test
+    void updateProduct_preservesRawMaterialCategory_andResyncsRawMaterialTruth() {
+        ProductionBrand activeBrand = saveBrand("Canonical Raw " + shortId(), true);
+
+        ResponseEntity<Map> createResponse = postCatalogProducts(rawMaterialPayload(activeBrand.getId()), false);
+        assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Map<String, Object> createData = data(createResponse);
+        Map<String, Object> member = members(createData).getFirst();
+        Long productId = Long.valueOf(String.valueOf(member.get("id")));
+        String sku = String.valueOf(member.get("sku"));
+
+        ResponseEntity<Map> detailResponse = rest.exchange(
+                "/api/v1/catalog/products/" + productId,
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(detailResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Map<String, Object> detailData = data(detailResponse);
+        Map<String, Object> updatePayload = new LinkedHashMap<>();
+        updatePayload.put("brandId", activeBrand.getId());
+        updatePayload.put("name", "Titanium Dioxide Updated");
+        updatePayload.put("colors", detailData.get("colors"));
+        updatePayload.put("sizes", detailData.get("sizes"));
+        updatePayload.put("cartonSizes", detailData.get("cartonSizes"));
+        updatePayload.put("unitOfMeasure", detailData.get("unitOfMeasure"));
+        updatePayload.put("hsnCode", detailData.get("hsnCode"));
+        updatePayload.put("gstRate", detailData.get("gstRate"));
+        updatePayload.put("active", true);
+
+        ResponseEntity<Map> updateResponse = rest.exchange(
+                "/api/v1/catalog/products/" + productId,
+                HttpMethod.PUT,
+                new HttpEntity<>(updatePayload, headers),
+                Map.class);
+        assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(data(updateResponse)).containsEntry("category", "RAW_MATERIAL");
+        assertThat(data(updateResponse)).containsEntry("name", "Titanium Dioxide Updated");
+
+        ProductionProduct updatedProduct = productRepository.findByCompanyAndId(company, productId).orElseThrow();
+        assertThat(updatedProduct.getCategory()).isEqualTo("RAW_MATERIAL");
+
+        assertThat(finishedGoodRepository.findByCompanyAndProductCode(company, sku)).isEmpty();
+        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isPresent()
+                .get()
+                .satisfies(material -> {
+                    assertThat(material.getName()).isEqualTo("Titanium Dioxide Updated");
+                    assertThat(material.getUnitType()).isEqualTo("KG");
+                    assertThat(material.getInventoryAccountId()).isEqualTo(company.getDefaultInventoryAccountId());
+                    assertThat(material.getGstRate()).isEqualByComparingTo("18.00");
+                });
+    }
+
+    @Test
     void previewAndCommit_matrixCreate_shareCandidatePlan_and_previewDoesNotPersist() {
         ProductionBrand activeBrand = saveBrand("Canonical Matrix " + shortId(), true);
         Map<String, Object> payload = matrixPayload(activeBrand.getId(), "Premium Emulsion " + shortId());
@@ -403,6 +485,45 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         payload.put("colors", List.of("WHITE", "BLUE", "GREEN", "BLACK"));
         payload.put("sizes", List.of("1L", "4L", "10L", "20L"));
         payload.put("metadata", Map.of("productType", "decorative"));
+        return payload;
+    }
+
+    private Map<String, Object> familyPayload(Long brandId,
+                                              String baseProductName,
+                                              String category,
+                                              List<String> colors,
+                                              List<String> sizes,
+                                              Map<String, Object> metadata) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("brandId", brandId);
+        payload.put("baseProductName", baseProductName);
+        payload.put("category", category);
+        payload.put("unitOfMeasure", "LITER");
+        payload.put("hsnCode", "320910");
+        payload.put("gstRate", new BigDecimal("18.00"));
+        payload.put("basePrice", new BigDecimal("1200.00"));
+        payload.put("minDiscountPercent", new BigDecimal("5.00"));
+        payload.put("minSellingPrice", new BigDecimal("1140.00"));
+        payload.put("colors", colors);
+        payload.put("sizes", sizes);
+        payload.put("metadata", metadata);
+        return payload;
+    }
+
+    private Map<String, Object> rawMaterialPayload(Long brandId) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("brandId", brandId);
+        payload.put("baseProductName", "Titanium Dioxide");
+        payload.put("category", "RAW_MATERIAL");
+        payload.put("unitOfMeasure", "KG");
+        payload.put("hsnCode", "320611");
+        payload.put("gstRate", new BigDecimal("18.00"));
+        payload.put("basePrice", new BigDecimal("500.00"));
+        payload.put("minDiscountPercent", BigDecimal.ZERO);
+        payload.put("minSellingPrice", new BigDecimal("500.00"));
+        payload.put("colors", List.of("NATURAL"));
+        payload.put("sizes", List.of("25KG"));
+        payload.put("metadata", Map.of("inventoryAccountId", company.getDefaultInventoryAccountId()));
         return payload;
     }
 
