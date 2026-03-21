@@ -719,6 +719,32 @@ class CatalogServiceProductCrudTest {
     }
 
     @Test
+    void deactivateProduct_hidesAccountingMetadataOnPublicResponse() {
+        ProductionProduct existing = new ProductionProduct();
+        ReflectionTestUtils.setField(existing, "id", 601L);
+        existing.setCompany(company);
+        existing.setBrand(brand);
+        existing.setProductName("Primer");
+        existing.setCategory("FINISHED_GOOD");
+        existing.setSkuCode("BBR-PRIMER-DELETE");
+        existing.setActive(true);
+        existing.setMetadata(new LinkedHashMap<>(Map.of(
+                "productType", "decorative",
+                "wipAccountId", 801L,
+                "fgTaxAccountId", 9004L)));
+
+        when(productRepository.findByCompanyAndId(company, 601L)).thenReturn(Optional.of(existing));
+        when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CatalogProductDto response = service.deactivateProduct(601L);
+
+        assertThat(response.active()).isFalse();
+        assertThat(response.metadata())
+                .containsEntry("productType", "decorative")
+                .doesNotContainKeys("wipAccountId", "fgTaxAccountId");
+    }
+
+    @Test
     void searchProducts_returnsPaginatedFilteredResponse() {
         ProductionProduct product = new ProductionProduct();
         ReflectionTestUtils.setField(product, "id", 701L);
@@ -744,6 +770,8 @@ class CatalogServiceProductCrudTest {
         LinkedHashMap<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("productType", "decorative");
         metadata.put("legacyFlag", null);
+        metadata.put("wipAccountId", 801L);
+        metadata.put("fgValuationAccountId", 9001L);
         product.setMetadata(metadata);
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
@@ -766,6 +794,7 @@ class CatalogServiceProductCrudTest {
         assertThat(response.content().get(0).minSellingPrice()).isEqualByComparingTo("760.00");
         assertThat(response.content().get(0).metadata()).containsEntry("productType", "decorative");
         assertThat(response.content().get(0).metadata()).containsEntry("legacyFlag", null);
+        assertThat(response.content().get(0).metadata()).doesNotContainKeys("wipAccountId", "fgValuationAccountId");
         assertThat(pageableCaptor.getValue().getPageNumber()).isEqualTo(1);
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(5);
         assertThat(pageableCaptor.getValue().getSort().getOrderFor("productName")).isNotNull();

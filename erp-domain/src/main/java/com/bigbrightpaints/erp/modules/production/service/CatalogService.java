@@ -67,6 +67,7 @@ public class CatalogService {
 
     private static final String DEFAULT_PRODUCT_CATEGORY = "FINISHED_GOOD";
     private static final int MAX_PAGE_SIZE = 100;
+    private static final String ACCOUNTING_METADATA_KEY_SUFFIX = "AccountId";
     private static final List<String> RAW_MATERIAL_CATEGORIES = List.of("RAW_MATERIAL", "RAW MATERIAL", "RAW-MATERIAL");
     private static final Pattern NON_ALPHANUM = Pattern.compile("[^A-Z0-9]");
     private static final Pattern SKU_SEQUENCE_PATTERN = Pattern.compile("-(\\d{3})$");
@@ -176,7 +177,7 @@ public class CatalogService {
     @Transactional(readOnly = true)
     public CatalogProductDto getProduct(Long productId) {
         Company company = companyContextService.requireCurrentCompany();
-        return toProductDto(requireProduct(company, productId));
+        return toPublicProductDto(requireProduct(company, productId));
     }
 
     @Transactional
@@ -200,7 +201,7 @@ public class CatalogService {
         Company company = companyContextService.requireCurrentCompany();
         ProductionProduct product = requireProduct(company, productId);
         product.setActive(false);
-        return toProductDto(productRepository.save(product));
+        return toPublicProductDto(productRepository.save(product));
     }
 
     @Transactional(readOnly = true)
@@ -221,7 +222,7 @@ public class CatalogService {
                 normalizeOptionalText(size),
                 active);
         Page<ProductionProduct> result = productRepository.findAll(specification, pageable);
-        List<CatalogProductDto> content = result.getContent().stream().map(this::toProductDto).toList();
+        List<CatalogProductDto> content = result.getContent().stream().map(this::toPublicProductDto).toList();
         return PageResponse.of(content, result.getTotalElements(), sanitizedPage, sanitizedPageSize);
     }
 
@@ -994,6 +995,14 @@ public class CatalogService {
     }
 
     private CatalogProductDto toProductDto(ProductionProduct product) {
+        return toProductDto(product, true);
+    }
+
+    private CatalogProductDto toPublicProductDto(ProductionProduct product) {
+        return toProductDto(product, false);
+    }
+
+    private CatalogProductDto toProductDto(ProductionProduct product, boolean includeAccountingMetadata) {
         List<String> colors = toVariantList(product.getColors(), product.getDefaultColour());
         List<String> sizes = toVariantList(product.getSizes(), product.getSizeLabel());
         List<CatalogProductCartonSizeDto> cartonSizeDtos = product.getCartonSizes() == null
@@ -1001,9 +1010,7 @@ public class CatalogService {
                 : product.getCartonSizes().entrySet().stream()
                 .map(entry -> new CatalogProductCartonSizeDto(entry.getKey(), entry.getValue()))
                 .toList();
-        Map<String, Object> metadata = product.getMetadata() == null
-                ? Map.of()
-                : Collections.unmodifiableMap(new LinkedHashMap<>(product.getMetadata()));
+        Map<String, Object> metadata = snapshotMetadata(product.getMetadata(), includeAccountingMetadata);
 
         return new CatalogProductDto(
                 product.getId(),
@@ -1027,6 +1034,19 @@ public class CatalogService {
                 product.getMinSellingPrice(),
                 metadata,
                 product.isActive());
+    }
+
+    private Map<String, Object> snapshotMetadata(Map<String, Object> metadata, boolean includeAccountingMetadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<String, Object> snapshot = new LinkedHashMap<>();
+        metadata.forEach((key, value) -> {
+            if (includeAccountingMetadata || key == null || !key.endsWith(ACCOUNTING_METADATA_KEY_SUFFIX)) {
+                snapshot.put(key, value);
+            }
+        });
+        return snapshot.isEmpty() ? Map.of() : Collections.unmodifiableMap(snapshot);
     }
 
     private List<String> toVariantList(Set<String> values, String fallback) {

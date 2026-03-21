@@ -70,6 +70,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         ProductionBrand activeBrand = saveBrand("Canonical Active " + shortId(), true);
         ProductionBrand inactiveBrand = saveBrand("Canonical Inactive " + shortId(), false);
         Account wipAccount = ensureAccount("WIP-" + shortId(), "Work In Progress", AccountType.ASSET);
+        HttpHeaders salesHeaders = authHeaders(SALES_EMAIL, PASSWORD, COMPANY_CODE);
 
         ResponseEntity<Map> missingBrandResponse = postCatalogProducts(basePayload(null), false);
         assertThat(missingBrandResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -124,7 +125,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         ResponseEntity<Map> listResponse = rest.exchange(
                 "/api/v1/catalog/products?brandId=" + activeBrand.getId(),
                 HttpMethod.GET,
-                new HttpEntity<>(headers),
+                new HttpEntity<>(salesHeaders),
                 Map.class);
         assertThat(listResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<String, Object> listItem = pageContent(listResponse).stream()
@@ -136,7 +137,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         ResponseEntity<Map> detailResponse = rest.exchange(
                 "/api/v1/catalog/products/" + member.get("id"),
                 HttpMethod.GET,
-                new HttpEntity<>(headers),
+                new HttpEntity<>(salesHeaders),
                 Map.class);
         assertThat(detailResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<String, Object> detailData = data(detailResponse);
@@ -182,7 +183,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         ResponseEntity<Map> updatedDetailResponse = rest.exchange(
                 "/api/v1/catalog/products/" + member.get("id"),
                 HttpMethod.GET,
-                new HttpEntity<>(headers),
+                new HttpEntity<>(salesHeaders),
                 Map.class);
         assertThat(updatedDetailResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<String, Object> updatedDetail = data(updatedDetailResponse);
@@ -192,8 +193,23 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         assertThat(decimalValue(updatedDetail.get("minDiscountPercent"))).isEqualByComparingTo("7.50");
         assertThat(decimalValue(updatedDetail.get("minSellingPrice"))).isEqualByComparingTo("1225.00");
         Map<String, Object> updatedDetailMetadata = metadata(updatedDetail);
-        assertThat(((Number) updatedDetailMetadata.get("wipAccountId")).longValue()).isEqualTo(wipAccount.getId());
-        assertThat(((Number) updatedDetailMetadata.get("wastageAccountId")).longValue()).isEqualTo(company.getDefaultCogsAccountId());
+        assertThat(updatedDetailMetadata)
+                .containsEntry("productType", "decorative")
+                .doesNotContainKeys("wipAccountId", "wastageAccountId");
+
+        ResponseEntity<Map> updatedListResponse = rest.exchange(
+                "/api/v1/catalog/products?brandId=" + activeBrand.getId(),
+                HttpMethod.GET,
+                new HttpEntity<>(salesHeaders),
+                Map.class);
+        assertThat(updatedListResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> updatedListItem = pageContent(updatedListResponse).stream()
+                .filter(item -> String.valueOf(member.get("id")).equals(String.valueOf(item.get("id"))))
+                .findFirst()
+                .orElseThrow();
+        assertThat(metadata(updatedListItem))
+                .containsEntry("productType", "decorative")
+                .doesNotContainKeys("wipAccountId", "wastageAccountId");
     }
 
     @Test
