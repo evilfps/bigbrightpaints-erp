@@ -1,5 +1,12 @@
 # Rollback Runbook
 
+## 2026-03-21 — `catalog-surface-consolidation.variant-group-linkage`
+
+- **Scope:** revert `migration_v2/V163__catalog_variant_group_linkage.sql` and the canonical catalog write/import flow that depends on `production_products.variant_group_id` and `production_products.product_family_name`.
+- **Application rollback:** redeploy the previous backend build before reopening traffic so runtime code stops reading or writing canonical variant-group/product-family fields through the consolidated `/api/v1/catalog/**` surface.
+- **Database rollback:** after the reverted build is live, execute `DROP INDEX IF EXISTS idx_production_products_company_variant_group; ALTER TABLE public.production_products DROP COLUMN IF EXISTS variant_group_id; ALTER TABLE public.production_products DROP COLUMN IF EXISTS product_family_name;`.
+- **Verification:** rerun `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -Djacoco.skip=true -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true -Dtest=OpenApiSnapshotIT test` and `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -Djacoco.skip=true -Dtest=OpenApiSnapshotIT,CatalogServiceProductCrudTest,CatalogControllerCanonicalProductIT,AccountingCatalogControllerSecurityIT test` against the reverted packet to confirm canonical catalog import/product behavior is back on the pre-PR-128 contract.
+
 ## 2026-03-17 — `auth-merge-gate-hardening.password-reset-delivery-tracking`
 
 - **Scope:** revert `migration_v2/V162__password_reset_token_delivery_tracking.sql` and the delivered-only password-reset rollback flow that depends on `password_reset_tokens.delivered_at`.
