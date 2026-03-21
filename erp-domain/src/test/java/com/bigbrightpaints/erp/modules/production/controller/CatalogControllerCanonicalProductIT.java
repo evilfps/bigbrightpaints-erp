@@ -421,6 +421,65 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         assertThat(factoryResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
+    @Test
+    void updateProduct_allowsAdminAndAccounting_only() {
+        ProductionBrand activeBrand = saveBrand("Canonical Update Roles " + shortId(), true);
+        ResponseEntity<Map> createResponse = postCatalogProducts(basePayload(activeBrand.getId()), false);
+        assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Long productId = Long.valueOf(String.valueOf(members(data(createResponse)).getFirst().get("id")));
+        ResponseEntity<Map> detailResponse = rest.exchange(
+                "/api/v1/catalog/products/" + productId,
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(detailResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Map<String, Object> detailData = data(detailResponse);
+        Map<String, Object> updatePayload = new LinkedHashMap<>();
+        updatePayload.put("brandId", activeBrand.getId());
+        updatePayload.put("name", "Restricted Update");
+        updatePayload.put("colors", detailData.get("colors"));
+        updatePayload.put("sizes", detailData.get("sizes"));
+        updatePayload.put("cartonSizes", detailData.get("cartonSizes"));
+        updatePayload.put("unitOfMeasure", detailData.get("unitOfMeasure"));
+        updatePayload.put("hsnCode", detailData.get("hsnCode"));
+        updatePayload.put("basePrice", detailData.get("basePrice"));
+        updatePayload.put("gstRate", detailData.get("gstRate"));
+        updatePayload.put("minDiscountPercent", detailData.get("minDiscountPercent"));
+        updatePayload.put("minSellingPrice", detailData.get("minSellingPrice"));
+        updatePayload.put("metadata", detailData.get("metadata"));
+        updatePayload.put("active", true);
+
+        ResponseEntity<Map> adminResponse = rest.exchange(
+                "/api/v1/catalog/products/" + productId,
+                HttpMethod.PUT,
+                new HttpEntity<>(updatePayload, authHeaders()),
+                Map.class);
+        assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> accountingResponse = rest.exchange(
+                "/api/v1/catalog/products/" + productId,
+                HttpMethod.PUT,
+                new HttpEntity<>(updatePayload, authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE)),
+                Map.class);
+        assertThat(accountingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> salesResponse = rest.exchange(
+                "/api/v1/catalog/products/" + productId,
+                HttpMethod.PUT,
+                new HttpEntity<>(updatePayload, authHeaders(SALES_EMAIL, PASSWORD, COMPANY_CODE)),
+                Map.class);
+        assertThat(salesResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> factoryResponse = rest.exchange(
+                "/api/v1/catalog/products/" + productId,
+                HttpMethod.PUT,
+                new HttpEntity<>(updatePayload, authHeaders(FACTORY_EMAIL, PASSWORD, COMPANY_CODE)),
+                Map.class);
+        assertThat(factoryResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
     private void configureDefaultAccounts() {
         Account inventory = ensureAccount("INV-" + shortId(), "Inventory", AccountType.ASSET);
         Account cogs = ensureAccount("COGS-" + shortId(), "COGS", AccountType.COGS);

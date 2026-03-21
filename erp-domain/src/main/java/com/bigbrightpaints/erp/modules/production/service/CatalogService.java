@@ -397,7 +397,9 @@ public class CatalogService {
             product.setMinSellingPrice(normalizeMoney(request.minSellingPrice()));
         }
         if (request.metadata() != null) {
-            product.setMetadata(normalizeMetadata(request.metadata()));
+            product.setMetadata(creating
+                    ? normalizeMetadata(request.metadata())
+                    : mergeMetadata(product.getMetadata(), request.metadata()));
         } else if (creating) {
             product.setMetadata(new LinkedHashMap<>());
         }
@@ -782,6 +784,12 @@ public class CatalogService {
             return new LinkedHashMap<>();
         }
         return new LinkedHashMap<>(metadata);
+    }
+
+    private Map<String, Object> mergeMetadata(Map<String, Object> existingMetadata, Map<String, Object> requestMetadata) {
+        Map<String, Object> merged = normalizeMetadata(existingMetadata);
+        merged.putAll(normalizeMetadata(requestMetadata));
+        return merged;
     }
 
     private String normalizeRequiredText(String value, String message) {

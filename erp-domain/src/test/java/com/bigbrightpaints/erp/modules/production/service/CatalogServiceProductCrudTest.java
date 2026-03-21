@@ -263,6 +263,63 @@ class CatalogServiceProductCrudTest {
     }
 
     @Test
+    void updateProduct_mergesMetadataWithoutDroppingFinishedGoodPostingAccounts() {
+        ProductionProduct existing = new ProductionProduct();
+        ReflectionTestUtils.setField(existing, "id", 504L);
+        existing.setCompany(company);
+        existing.setBrand(brand);
+        existing.setProductName("Primer");
+        existing.setCategory("FINISHED_GOOD");
+        existing.setSkuCode("BBR-PRIMER-002");
+        existing.setActive(true);
+        existing.setColors(new LinkedHashSet<>(List.of("White")));
+        existing.setSizes(new LinkedHashSet<>(List.of("1L")));
+        existing.setCartonSizes(new LinkedHashMap<>(java.util.Map.of("1L", 12)));
+        existing.setBasePrice(new BigDecimal("710.00"));
+        existing.setGstRate(new BigDecimal("18.00"));
+        existing.setMinDiscountPercent(new BigDecimal("4.00"));
+        existing.setMinSellingPrice(new BigDecimal("690.00"));
+        existing.setMetadata(new LinkedHashMap<>(Map.of(
+                "fgValuationAccountId", 9001L,
+                "fgCogsAccountId", 9002L,
+                "fgRevenueAccountId", 9003L,
+                "fgTaxAccountId", 9004L,
+                "productType", "decorative")));
+
+        CatalogProductRequest request = new CatalogProductRequest(
+                11L,
+                "Primer Updated",
+                List.of("White"),
+                List.of("1L"),
+                List.of(new CatalogProductCartonSizeRequest("1L", 12)),
+                "LITER",
+                "320910",
+                null,
+                new BigDecimal("18.00"),
+                null,
+                null,
+                Map.of("wipAccountId", 801L, "wastageAccountId", 802L),
+                true
+        );
+
+        when(brandRepository.findByCompanyAndId(company, 11L)).thenReturn(Optional.of(brand));
+        when(productRepository.findByCompanyAndId(company, 504L)).thenReturn(Optional.of(existing));
+        when(productRepository.findByBrandAndProductNameIgnoreCase(brand, "Primer Updated")).thenReturn(Optional.of(existing));
+        when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CatalogProductDto response = service.updateProduct(504L, request);
+
+        assertThat(response.metadata())
+                .containsEntry("fgValuationAccountId", 9001L)
+                .containsEntry("fgCogsAccountId", 9002L)
+                .containsEntry("fgRevenueAccountId", 9003L)
+                .containsEntry("fgTaxAccountId", 9004L)
+                .containsEntry("wipAccountId", 801L)
+                .containsEntry("wastageAccountId", 802L)
+                .containsEntry("productType", "decorative");
+    }
+
+    @Test
     void helperMethods_coverNullEmptyAndInvalidOptionalPayloadBranches() {
         Long nullMetadataValue = ReflectionTestUtils.invokeMethod(
                 service,

@@ -116,6 +116,7 @@ public class CatalogController {
     }
 
     @PutMapping("/products/{productId}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<CatalogProductDto>> updateProduct(@PathVariable Long productId,
                                                                         @Valid @RequestBody CatalogProductRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Product updated", catalogService.updateProduct(productId, request)));
