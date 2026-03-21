@@ -187,6 +187,8 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         ApiResponse<Map<String, Object>> body = response.getBody();
         assertThat(body).isNotNull();
+        assertThat(body.data()).containsKey("details");
+        assertThat(body.data().get("details")).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> details = (Map<String, Object>) body.data().get("details");
         assertThat(details)

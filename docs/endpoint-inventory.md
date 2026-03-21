@@ -15,9 +15,9 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `2bc273c865a5090ce25c4696a704308c2ce0fc739c2863b52b8e51afadb9151b`)
-- OpenAPI total paths: `302`
-- OpenAPI total operations: `362`
+- OpenAPI snapshot: `openapi.json` (sha256 `3cf325784d8edf221baea208cff098b7a085300a049368d4222136fc1c9fd95e`)
+- OpenAPI total paths: `304`
+- OpenAPI total operations: `364`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
 
 ## Summary by module
@@ -28,7 +28,7 @@ Portal scope guardrail:
 | `admin` | 17 | /api/v1/admin/approvals, /api/v1/admin/changelog, /api/v1/admin/changelog/{id} |
 | `audit` | 2 | /api/v1/audit/business-events, /api/v1/audit/ml-events |
 | `auth` | 12 | /api/v1/auth/login, /api/v1/auth/logout, /api/v1/auth/me |
-| `catalog` | 5 | /api/v1/catalog/brands, /api/v1/catalog/brands/{brandId}, /api/v1/catalog/import |
+| `catalog` | 7 | /api/v1/catalog/brands, /api/v1/catalog/brands/{brandId}, /api/v1/catalog/import |
 | `changelog` | 2 | /api/v1/changelog, /api/v1/changelog/latest-highlighted |
 | `companies` | 9 | /api/v1/companies, /api/v1/companies/superadmin/tenants, /api/v1/companies/superadmin/tenants/{id} |
 | `credit` | 3 | /api/v1/credit/override-requests, /api/v1/credit/override-requests/{id}/approve, /api/v1/credit/override-requests/{id}/reject |
@@ -177,6 +177,8 @@ Portal scope guardrail:
 - `GET, PUT, DELETE` `/api/v1/catalog/brands/{brandId}`
 - `POST` `/api/v1/catalog/import`
 - `GET, POST` `/api/v1/catalog/products`
+- `POST` `/api/v1/catalog/products/bulk-variants`
+- `POST` `/api/v1/catalog/products/single`
 - `GET, PUT, DELETE` `/api/v1/catalog/products/{productId}`
 
 ## `changelog`
