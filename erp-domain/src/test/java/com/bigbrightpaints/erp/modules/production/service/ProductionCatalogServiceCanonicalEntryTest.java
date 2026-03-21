@@ -42,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
@@ -94,6 +95,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
         when(brandRepository.findByCompanyAndId(company, 11L)).thenReturn(Optional.of(brand));
         when(companyEntityLookup.requireProductionBrand(company, 11L)).thenReturn(brand);
         when(productRepository.findByCompanyAndSkuCodeIn(eq(company), anySet())).thenReturn(List.of());
+        when(productRepository.findByBrandAndProductNameIgnoreCase(eq(brand), anyString())).thenReturn(Optional.empty());
     }
 
     @Test
@@ -146,6 +148,26 @@ class ProductionCatalogServiceCanonicalEntryTest {
     }
 
     @Test
+    void createOrPreviewCatalogProducts_rejectsCanonicalFamilyNamesLongerThanDatabaseLimit() {
+        CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE"), List.of("1L"));
+        request.setBaseProductName("P".repeat(256));
+
+        assertThatThrownBy(() -> service.createOrPreviewCatalogProducts(request, true))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("productFamilyName exceeds 255 characters");
+    }
+
+    @Test
+    void createOrPreviewCatalogProducts_rejectsCanonicalProductNamesLongerThanDatabaseLimit() {
+        CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("RED"), List.of("1L"));
+        request.setBaseProductName("Primer" + ".".repeat(245));
+
+        assertThatThrownBy(() -> service.createOrPreviewCatalogProducts(request, true))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("productName exceeds 255 characters");
+    }
+
+    @Test
     void createOrPreviewCatalogProducts_previewFlagsDuplicateRequestConflicts_forRawMaterials() {
         CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE", "white"), List.of("1L"));
 
@@ -172,6 +194,25 @@ class ProductionCatalogServiceCanonicalEntryTest {
         assertThat(response.conflicts())
                 .extracting(CatalogProductEntryResponse.Conflict::sku, CatalogProductEntryResponse.Conflict::reason)
                 .containsExactly(new org.assertj.core.groups.Tuple(existingSku, "SKU_ALREADY_EXISTS"));
+    }
+
+    @Test
+    void createOrPreviewCatalogProducts_previewFlagsExistingProductNameConflicts() {
+        CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE", "BLUE"), List.of("1L"));
+        String conflictingSku = canonicalSku("Primer", "BLUE", "1L");
+        when(productRepository.findByBrandAndProductNameIgnoreCase(brand, "Primer BLUE 1L"))
+                .thenReturn(Optional.of(existingProduct("LEGACY-PRIMER-BLUE", "Primer BLUE 1L")));
+
+        CatalogProductEntryResponse response = service.createOrPreviewCatalogProducts(request, true);
+
+        assertThat(response.conflicts())
+                .extracting(CatalogProductEntryResponse.Conflict::sku,
+                        CatalogProductEntryResponse.Conflict::reason,
+                        CatalogProductEntryResponse.Conflict::productName)
+                .containsExactly(new org.assertj.core.groups.Tuple(
+                        conflictingSku,
+                        "PRODUCT_NAME_ALREADY_EXISTS",
+                        "Primer BLUE 1L"));
     }
 
     @Test
@@ -473,10 +514,15 @@ class ProductionCatalogServiceCanonicalEntryTest {
     }
 
     private ProductionProduct existingProduct(String sku) {
+        return existingProduct(sku, null);
+    }
+
+    private ProductionProduct existingProduct(String sku, String productName) {
         ProductionProduct product = new ProductionProduct();
         product.setCompany(company);
         product.setBrand(brand);
         product.setSkuCode(sku);
+        product.setProductName(productName);
         return product;
     }
 

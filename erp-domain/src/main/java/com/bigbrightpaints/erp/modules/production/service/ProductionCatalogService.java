@@ -84,6 +84,8 @@ public class ProductionCatalogService {
     private static final String SEMI_FINISHED_SUFFIX = "-BULK";
     private static final int MAX_CATALOG_FIELD_LENGTH = 2048;
     private static final int MAX_PRODUCT_SKU_LENGTH = 128;
+    private static final int MAX_PRODUCT_NAME_LENGTH = 255;
+    private static final int MAX_PRODUCT_FAMILY_NAME_LENGTH = 255;
     private static final Set<String> CATALOG_IMPORT_ALLOWED_CONTENT_TYPES = Set.of(
             "text/csv",
             "application/csv",
@@ -108,6 +110,7 @@ public class ProductionCatalogService {
     private static final String VARIANT_REASON_WOULD_CREATE = "WOULD_CREATE";
     private static final String VARIANT_REASON_CREATED = "CREATED";
     private static final String VARIANT_REASON_SKU_ALREADY_EXISTS = "SKU_ALREADY_EXISTS";
+    private static final String VARIANT_REASON_PRODUCT_NAME_ALREADY_EXISTS = "PRODUCT_NAME_ALREADY_EXISTS";
     private static final String VARIANT_REASON_DUPLICATE_IN_REQUEST = "DUPLICATE_IN_REQUEST";
     private static final String VARIANT_REASON_CONCURRENT_CONFLICT = "CONCURRENT_SKU_CONFLICT";
     private static final String CATALOG_ENTRY_OPERATION = "catalog-product-entry";
@@ -532,6 +535,11 @@ public class ProductionCatalogService {
 
         ProductionBrand brand = requireActiveBrand(company, request.getBrandId());
         String productFamilyName = requireCanonicalToken(request.getBaseProductName(), "baseProductName");
+        validateCanonicalPersistedTextLength(
+                productFamilyName,
+                "productFamilyName",
+                MAX_PRODUCT_FAMILY_NAME_LENGTH,
+                "shorten baseProductName");
         String normalizedCategory = normalizeCategory(request.getCategory());
         String unitOfMeasure = requireCanonicalToken(request.getUnitOfMeasure(), "unitOfMeasure");
         String hsnCode = requireCanonicalToken(request.getHsnCode(), "hsnCode");
@@ -555,6 +563,11 @@ public class ProductionCatalogService {
             for (String size : sizes) {
                 String sku = buildCanonicalSku(brandPrefix, productFamilyCode, color, size);
                 String productName = productFamilyName + " " + color + " " + size;
+                validateCanonicalPersistedTextLength(
+                        productName,
+                        "productName",
+                        MAX_PRODUCT_NAME_LENGTH,
+                        "shorten baseProductName, color, or size");
                 ProductCreateRequest createRequest = new ProductCreateRequest(
                         brand.getId(),
                         null,
@@ -593,6 +606,16 @@ public class ProductionCatalogService {
                 .map(ProductionCatalogService::normalizeSkuKey)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
+        Map<String, ProductionProduct> existingProductsByName = new LinkedHashMap<>();
+        for (CatalogProductCandidate candidate : generatedCandidates) {
+            String productNameKey = normalizeKey(candidate.productName());
+            if (!StringUtils.hasText(productNameKey) || existingProductsByName.containsKey(productNameKey)) {
+                continue;
+            }
+            existingProductsByName.put(
+                    productNameKey,
+                    productRepository.findByBrandAndProductNameIgnoreCase(brand, candidate.productName()).orElse(null));
+        }
 
         List<CatalogProductEntryResponse.Member> generatedMembers = new ArrayList<>();
         List<CatalogProductEntryResponse.Conflict> conflicts = new ArrayList<>();
@@ -600,12 +623,21 @@ public class ProductionCatalogService {
         for (CatalogProductCandidate candidate : generatedCandidates) {
             generatedMembers.add(candidate.toMember(null, null));
             String skuKey = normalizeSkuKey(candidate.sku());
+            String productNameKey = normalizeKey(candidate.productName());
             if (duplicateSkuKeys.contains(skuKey)) {
                 conflicts.add(candidate.toConflict(VARIANT_REASON_DUPLICATE_IN_REQUEST));
                 continue;
             }
             if (existingSkuKeys.contains(skuKey)) {
                 conflicts.add(candidate.toConflict(VARIANT_REASON_SKU_ALREADY_EXISTS));
+                continue;
+            }
+            ProductionProduct existingProductByName = StringUtils.hasText(productNameKey)
+                    ? existingProductsByName.get(productNameKey)
+                    : null;
+            if (existingProductByName != null
+                    && !Objects.equals(normalizeSkuKey(existingProductByName.getSkuCode()), skuKey)) {
+                conflicts.add(candidate.toConflict(VARIANT_REASON_PRODUCT_NAME_ALREADY_EXISTS));
                 continue;
             }
             candidatesToCreate.add(candidate);
@@ -753,6 +785,16 @@ public class ProductionCatalogService {
                     "Canonical product " + fieldName + " must contain at least one alphanumeric SKU character");
         }
         return sanitized;
+    }
+
+    private void validateCanonicalPersistedTextLength(String value,
+                                                      String persistedFieldName,
+                                                      int maxLength,
+                                                      String remedy) {
+        if (StringUtils.hasText(value) && value.length() > maxLength) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                    "Canonical product " + persistedFieldName + " exceeds " + maxLength + " characters; " + remedy);
+        }
     }
 
     /**
