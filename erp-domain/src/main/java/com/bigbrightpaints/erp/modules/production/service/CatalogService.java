@@ -43,6 +43,7 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -54,6 +55,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -404,6 +406,7 @@ public class CatalogService {
         } else if (request.active() != null) {
             product.setActive(request.active());
         }
+        refreshCanonicalFamilyLinkage(product, brand);
     }
 
     private void syncInventoryTruth(Company company, ProductionProduct product) {
@@ -415,6 +418,45 @@ public class CatalogService {
             return;
         }
         syncFinishedGood(company, product);
+    }
+
+    private void refreshCanonicalFamilyLinkage(ProductionProduct product, ProductionBrand brand) {
+        if (product.getVariantGroupId() == null && !StringUtils.hasText(product.getProductFamilyName())) {
+            return;
+        }
+        String productFamilyName = normalizeRequiredText(product.getProductName(), "Product name is required");
+        product.setProductFamilyName(productFamilyName);
+        product.setVariantGroupId(buildVariantGroupId(
+                product.getCompany(),
+                brand,
+                productFamilyName,
+                product.getCategory(),
+                product.getUnitOfMeasure(),
+                product.getHsnCode()));
+    }
+
+    private UUID buildVariantGroupId(Company company,
+                                     ProductionBrand brand,
+                                     String productFamilyName,
+                                     String category,
+                                     String unitOfMeasure,
+                                     String hsnCode) {
+        String fingerprint = String.join("|",
+                String.valueOf(company != null ? company.getId() : null),
+                String.valueOf(brand != null ? brand.getId() : null),
+                sanitizeSegment(productFamilyName),
+                sanitizeSegment(category),
+                sanitizeSegment(unitOfMeasure),
+                sanitizeSegment(hsnCode));
+        return UUID.nameUUIDFromBytes(fingerprint.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String sanitizeSegment(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String upper = value.trim().toUpperCase(Locale.ROOT);
+        return NON_ALPHANUM.matcher(upper).replaceAll("");
     }
 
     private void syncRawMaterial(Company company, ProductionProduct product) {
@@ -687,10 +729,10 @@ public class CatalogService {
                 next = Integer.parseInt(matcher.group(1)) + 1;
             }
         }
-        String candidate;
-        do {
+        String candidate = prefix + "-" + String.format(Locale.ROOT, "%03d", next++);
+        while (productRepository.findByCompanyAndSkuCode(company, candidate).isPresent()) {
             candidate = prefix + "-" + String.format(Locale.ROOT, "%03d", next++);
-        } while (productRepository.findByCompanyAndSkuCode(company, candidate).isPresent());
+        }
         return candidate;
     }
 

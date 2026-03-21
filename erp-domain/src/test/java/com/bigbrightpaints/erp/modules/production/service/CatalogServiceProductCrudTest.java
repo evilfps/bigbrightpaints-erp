@@ -145,6 +145,7 @@ class CatalogServiceProductCrudTest {
         existing.setCompany(company);
         existing.setBrand(brand);
         existing.setProductName("Old Name");
+        existing.setCategory("FINISHED_GOOD");
         existing.setSkuCode("BBR-OLDNAME-001");
         existing.setActive(true);
         existing.setColors(new LinkedHashSet<>(List.of("White")));
@@ -154,6 +155,8 @@ class CatalogServiceProductCrudTest {
         existing.setMinDiscountPercent(new BigDecimal("2.50"));
         existing.setMinSellingPrice(new BigDecimal("575.00"));
         existing.setMetadata(new LinkedHashMap<>(Map.of("legacyFlag", "keep")));
+        existing.setVariantGroupId(UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
+        existing.setProductFamilyName("Old Name");
 
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
@@ -177,10 +180,22 @@ class CatalogServiceProductCrudTest {
         when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         CatalogProductDto response = service.updateProduct(502L, request);
+        UUID expectedVariantGroupId = ReflectionTestUtils.invokeMethod(
+                service,
+                "buildVariantGroupId",
+                company,
+                brand,
+                "Interior Emulsion",
+                "FINISHED_GOOD",
+                "LITER",
+                "320990");
 
         assertThat(response.id()).isEqualTo(502L);
         assertThat(response.name()).isEqualTo("Interior Emulsion");
         assertThat(response.sku()).isEqualTo("BBR-OLDNAME-001");
+        assertThat(response.productFamilyName()).isEqualTo("Interior Emulsion");
+        assertThat(response.variantGroupId()).isEqualTo(expectedVariantGroupId);
+        assertThat(response.variantGroupId()).isNotEqualTo(UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
         assertThat(response.colors()).containsExactly("Ivory");
         assertThat(response.sizes()).containsExactly("10L");
         assertThat(response.cartonSizes())

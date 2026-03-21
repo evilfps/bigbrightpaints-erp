@@ -167,7 +167,10 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
                 Map.class);
         assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<String, Object> updatedProduct = data(updateResponse);
+        UUID updatedVariantGroupId = UUID.fromString(String.valueOf(updatedProduct.get("variantGroupId")));
         assertThat(updatedProduct.get("name")).isEqualTo("Premium Primer Updated");
+        assertThat(updatedProduct.get("productFamilyName")).isEqualTo("Premium Primer Updated");
+        assertThat(updatedVariantGroupId).isNotEqualTo(variantGroupId);
         assertThat(decimalValue(updatedProduct.get("basePrice"))).isEqualByComparingTo("1325.00");
         assertThat(decimalValue(updatedProduct.get("minDiscountPercent"))).isEqualByComparingTo("7.50");
         assertThat(decimalValue(updatedProduct.get("minSellingPrice"))).isEqualByComparingTo("1225.00");
@@ -183,6 +186,8 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
                 Map.class);
         assertThat(updatedDetailResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<String, Object> updatedDetail = data(updatedDetailResponse);
+        assertThat(UUID.fromString(String.valueOf(updatedDetail.get("variantGroupId")))).isEqualTo(updatedVariantGroupId);
+        assertThat(updatedDetail.get("productFamilyName")).isEqualTo("Premium Primer Updated");
         assertThat(decimalValue(updatedDetail.get("basePrice"))).isEqualByComparingTo("1325.00");
         assertThat(decimalValue(updatedDetail.get("minDiscountPercent"))).isEqualByComparingTo("7.50");
         assertThat(decimalValue(updatedDetail.get("minSellingPrice"))).isEqualByComparingTo("1225.00");

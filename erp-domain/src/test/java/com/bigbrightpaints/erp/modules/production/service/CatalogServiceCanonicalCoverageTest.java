@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.production.service;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
 import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
@@ -38,6 +39,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doReturn;
@@ -323,6 +325,97 @@ class CatalogServiceCanonicalCoverageTest {
                 null,
                 " White ");
         assertThat(fallbackFromNull).containsExactly("White");
+    }
+
+    @Test
+    void syncSizeVariants_handlesMillilitersAndDisablesStaleVariants() {
+        ProductionProduct product = new ProductionProduct();
+        ReflectionTestUtils.setField(product, "id", 905L);
+        product.setCompany(company);
+        product.setBrand(brand);
+        product.setCartonSizes(new LinkedHashMap<>(Map.of("500 ml", 6)));
+
+        SizeVariant nullLabel = new SizeVariant();
+        nullLabel.setCompany(company);
+        nullLabel.setProduct(product);
+        nullLabel.setActive(true);
+
+        SizeVariant stale = new SizeVariant();
+        stale.setCompany(company);
+        stale.setProduct(product);
+        stale.setSizeLabel("1L");
+        stale.setActive(true);
+
+        when(sizeVariantRepository.findByCompanyAndProductAndSizeLabelIgnoreCase(company, product, "500 ml"))
+                .thenReturn(Optional.empty());
+        when(sizeVariantRepository.findByCompanyAndProductOrderBySizeLabelAsc(company, product))
+                .thenReturn(List.of(nullLabel, stale));
+        when(sizeVariantRepository.save(org.mockito.ArgumentMatchers.any(SizeVariant.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ReflectionTestUtils.invokeMethod(service, "syncSizeVariants", company, product);
+
+        ArgumentCaptor<SizeVariant> variantCaptor = ArgumentCaptor.forClass(SizeVariant.class);
+        verify(sizeVariantRepository, times(2)).save(variantCaptor.capture());
+        List<SizeVariant> savedVariants = variantCaptor.getAllValues();
+        SizeVariant createdVariant = savedVariants.getFirst();
+
+        assertThat(createdVariant.getSizeLabel()).isEqualTo("500 ml");
+        assertThat(createdVariant.getCartonQuantity()).isEqualTo(6);
+        assertThat(createdVariant.getLitersPerUnit()).isEqualByComparingTo("0.5000");
+        assertThat(createdVariant.isActive()).isTrue();
+        assertThat(stale.isActive()).isFalse();
+    }
+
+    @Test
+    void helperMethods_coverSequenceSanitizerAndCanonicalLinkageBranches() {
+        ProductionProduct latest = new ProductionProduct();
+        latest.setSkuCode("BBR-PRIMER-007");
+
+        when(productRepository.findTopByCompanyAndSkuCodeStartingWithOrderBySkuCodeDesc(company, "BBR-PRIMER"))
+                .thenReturn(Optional.of(latest));
+        when(productRepository.findByCompanyAndSkuCode(company, "BBR-PRIMER-008"))
+                .thenReturn(Optional.of(new ProductionProduct()));
+        when(productRepository.findByCompanyAndSkuCode(company, "BBR-PRIMER-009"))
+                .thenReturn(Optional.empty());
+
+        String generatedSku = ReflectionTestUtils.invokeMethod(service, "generateSku", company, brand, "Primer");
+        String fallbackCode = ReflectionTestUtils.invokeMethod(service, "sanitizeCode", "***");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> normalizedNullMetadata = (Map<String, Object>) ReflectionTestUtils.invokeMethod(
+                service,
+                "normalizeMetadata",
+                (Object) null);
+        String blankOptional = ReflectionTestUtils.invokeMethod(service, "normalizeOptionalText", "   ");
+        String blankSegment = ReflectionTestUtils.invokeMethod(service, "sanitizeSegment", "   ");
+        UUID anonymousVariantGroupId = ReflectionTestUtils.invokeMethod(
+                service,
+                "buildVariantGroupId",
+                null,
+                null,
+                "Primer",
+                "FINISHED_GOOD",
+                "LITER",
+                "320910");
+
+        ProductionProduct legacyProduct = new ProductionProduct();
+        legacyProduct.setCompany(company);
+        legacyProduct.setBrand(brand);
+        legacyProduct.setProductName("Legacy Product");
+        legacyProduct.setCategory("FINISHED_GOOD");
+        legacyProduct.setUnitOfMeasure("LITER");
+        legacyProduct.setHsnCode("320910");
+
+        ReflectionTestUtils.invokeMethod(service, "refreshCanonicalFamilyLinkage", legacyProduct, brand);
+
+        assertThat(generatedSku).isEqualTo("BBR-PRIMER-009");
+        assertThat(fallbackCode).isEqualTo("CAT");
+        assertThat(normalizedNullMetadata).isEmpty();
+        assertThat(blankOptional).isNull();
+        assertThat(blankSegment).isEmpty();
+        assertThat(anonymousVariantGroupId).isNotNull();
+        assertThat(legacyProduct.getVariantGroupId()).isNull();
+        assertThat(legacyProduct.getProductFamilyName()).isNull();
     }
 
     private ProductionProduct rawMaterialProduct(Long id,

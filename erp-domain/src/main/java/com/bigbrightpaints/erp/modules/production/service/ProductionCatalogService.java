@@ -83,6 +83,7 @@ public class ProductionCatalogService {
     private static final Pattern SEQUENCE_PATTERN = Pattern.compile(".*-(\\d{3})$");
     private static final String SEMI_FINISHED_SUFFIX = "-BULK";
     private static final int MAX_CATALOG_FIELD_LENGTH = 2048;
+    private static final int MAX_PRODUCT_SKU_LENGTH = 128;
     private static final Set<String> CATALOG_IMPORT_ALLOWED_CONTENT_TYPES = Set.of(
             "text/csv",
             "application/csv",
@@ -736,6 +737,10 @@ public class ProductionCatalogService {
         String sizeCode = requireCanonicalSkuFragment("sizes", size, 16);
         String sku = String.join("-", List.of(brandPrefix, productFamilyCode, colorCode, sizeCode))
                 .replaceAll("-{2,}", "-");
+        if (sku.length() > MAX_PRODUCT_SKU_LENGTH) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                    "Canonical product SKU exceeds 128 characters; shorten baseProductName, color, or size");
+        }
         assertNotReservedSemiFinishedSku(sku);
         return sku;
     }

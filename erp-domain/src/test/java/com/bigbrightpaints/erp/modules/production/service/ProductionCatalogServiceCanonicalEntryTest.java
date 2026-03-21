@@ -136,6 +136,16 @@ class ProductionCatalogServiceCanonicalEntryTest {
     }
 
     @Test
+    void createOrPreviewCatalogProducts_rejectsCanonicalSkusLongerThanDatabaseLimit() {
+        CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE"), List.of("1L"));
+        request.setBaseProductName("P".repeat(116));
+
+        assertThatThrownBy(() -> service.createOrPreviewCatalogProducts(request, true))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Canonical product SKU exceeds 128 characters");
+    }
+
+    @Test
     void createOrPreviewCatalogProducts_previewFlagsDuplicateRequestConflicts_forRawMaterials() {
         CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE", "white"), List.of("1L"));
 
