@@ -1,0 +1,28 @@
+{
+  "featureId": "catalog-canonical-product-contract",
+  "reviewedAt": "2026-03-21T06:27:56.676497Z",
+  "commitId": "d52f09bac4beacce0ca6e3d37e7b20e61c1847ea",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "Fail. The commit correctly hardens `POST /api/v1/catalog/products` itself: it requires an active `brandId`, rejects inline fallback fields and packed tokens, adds preview/commit planning with fail-closed SKU conflict handling, persists variant-group/product-family metadata, and removes the public bulk write mapping. But the feature still claims VAL-PRODUCT-009 without updating the surviving canonical follow-up read contract to expose that persisted linkage. `GET /api/v1/catalog/products` and `GET /api/v1/catalog/products/{productId}` still return `CatalogProductDto`, which omits both `variantGroupId` and `productFamilyName`, so callers cannot verify the persisted family/group linkage through the canonical read surface after commit.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/dto/CatalogProductDto.java",
+        "line": 7,
+        "severity": "blocking",
+        "description": "The feature fulfills VAL-PRODUCT-009, but the surviving follow-up read DTO still has no `variantGroupId` or `productFamilyName`. `CatalogController` continues to serve `GET /api/v1/catalog/products` and `GET /api/v1/catalog/products/{productId}` as `CatalogProductDto` (`CatalogController.java:78-97`), and `CatalogService.toProductDto` still serializes only the legacy fields (`CatalogService.java:611-633`). The new write response exposes the linkage (`CatalogProductEntryResponse.java:8-27`), but canonical follow-up reads cannot return it, so the implementation does not fully satisfy the required persisted-readback contract for explicit family/group linkage."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "`catalog-surface-worker` still conflicts with higher-priority execution guidance on doc updates. The skill requires README/packet-doc/library cleanup in the same feature whenever the catalog contract changes, but the worker was also operating under an instruction set that forbade documentation edits unless explicitly requested, so the worker recorded a formal procedure deviation even though the packet guidance expects those updates in-feature.",
+      "evidence": "Skill file `.factory/skills/catalog-surface-worker/SKILL.md:63-69` requires Step 4 contract-surface updates including README/packet docs and says not to leave split truth behind. The reviewed handoff records `skillFeedback.followedProcedure=false` and says: `Updated the repo-root openapi.json but left packet docs/library files untouched` because `avoid documentation updates unless explicitly requested` (`handoffs/2026-03-21T05-28-25-275Z__catalog-canonical-product-contract__dcab85a9-2610-4e45-9549-5cee9c91ecdd.json:72-77`)."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail. Commit `d52f09bac4beacce0ca6e3d37e7b20e61c1847ea` hardens the canonical write path, but it does not extend the canonical follow-up read contract to expose `variantGroupId`/`productFamilyName`, leaving VAL-PRODUCT-009 incomplete."
+}

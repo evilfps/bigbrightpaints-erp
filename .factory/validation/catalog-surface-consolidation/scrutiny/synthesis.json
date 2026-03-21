@@ -1,0 +1,86 @@
+{
+  "milestone": "catalog-surface-consolidation",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CatalogServiceBrandCrudTest,CatalogServiceProductCrudTest,CatalogServiceBulkUpsertTest,ProductionCatalogServiceBulkVariantRaceTest,ProductionCatalogServiceRetryPolicyTest,ProductionCatalogFinishedGoodInvariantIT,ProductionCatalogRawMaterialInvariantIT,SalesCoreEngineCoverageTest,SalesProformaBoundaryServiceTest,SalesServiceTest,OpenApiSnapshotIT' test",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "bash /home/realnigga/Desktop/Mission-control/ci/lint-knowledgebase.sh && bash /home/realnigga/Desktop/Mission-control/ci/check-architecture.sh && bash /home/realnigga/Desktop/Mission-control/ci/check-enterprise-policy.sh && bash /home/realnigga/Desktop/Mission-control/ci/check-orchestrator-layer.sh && python3 /home/realnigga/Desktop/Mission-control/scripts/check_flaky_tags.py --tests-root /home/realnigga/Desktop/Mission-control/erp-domain/src/test/java --gate gate-fast && bash /home/realnigga/Desktop/Mission-control/scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 4,
+    "passed": 1,
+    "failed": 3,
+    "failedFeatures": [
+      "catalog-canonical-product-contract",
+      "catalog-public-surface-retirement",
+      "catalog-contract-cleanup-and-proof"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "catalog-canonical-product-contract",
+      "severity": "blocking",
+      "description": "Canonical follow-up reads still use CatalogProductDto without `variantGroupId` or `productFamilyName`, so GET /api/v1/catalog/products and GET /api/v1/catalog/products/{productId} cannot return the persisted family/group linkage required by VAL-PRODUCT-009."
+    },
+    {
+      "featureId": "catalog-public-surface-retirement",
+      "severity": "blocking",
+      "description": "AccountingCatalogControllerIdempotencyHeaderTest still constructs AccountingCatalogController and calls importCatalog even though AccountingCatalogController was reduced to an empty private shell, leaving stale test source behind. A clean `mvn clean test-compile -DskipTests` now fails on those missing constructor/method references."
+    },
+    {
+      "featureId": "catalog-contract-cleanup-and-proof",
+      "severity": "blocking",
+      "description": "`.factory/library/frontend-handoff.md` still lists stale catalog request-field bullets (`sizeLabel`, `basePrice`, `minSellingPrice`, `metadata`) that do not match the surviving CatalogProductRequest contract, so contract cleanup remains incomplete."
+    },
+    {
+      "featureId": "catalog-contract-cleanup-and-proof",
+      "severity": "blocking",
+      "description": "The cleanup packet widened scope by changing SalesControllerIT and TS_RuntimeInventoryValuationExecutableCoverageTest to repair known pre-existing non-catalog failures that mission guidance explicitly marked out of scope."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "catalog-surface-worker skill",
+      "suggestion": "Clarify that proof-only packet work is valid when runtime behavior already satisfies the assigned assertions and the worker's job is to add or tighten regression evidence.",
+      "evidence": "`catalog-downstream-readiness` passed review, but its worker still recorded a procedure deviation because the skill does not explicitly describe proof-only validation work. The transcript shows the worker followed the expected research/setup flow and added only regression evidence.",
+      "isSystemic": true
+    },
+    {
+      "target": "catalog-surface-worker skill",
+      "suggestion": "Align Step 4 cleanup expectations with mission feature slicing so workers know when contract-surface cleanup belongs to a later dedicated cleanup feature versus the current feature.",
+      "evidence": "`catalog-public-surface-retirement` review noted the skill requires endpoint inventory, frontend handoff, and README/doc cleanup in the same feature, while this mission assigns that work to `catalog-contract-cleanup-and-proof` in features.json.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "State explicitly that doc/OpenAPI/handoff updates named in a feature description or validation contract are in-scope even under default instructions that otherwise discourage documentation edits.",
+      "evidence": "The `catalog-canonical-product-contract` worker recorded a formal deviation after leaving packet docs/library files untouched because it interpreted the default 'do not update docs unless asked' guidance as conflicting with the packet's required contract-surface cleanup.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Add a new shared services.yaml command to force clean test compilation whenever controller APIs are removed.",
+      "reason": "Not applied during this validation run because the scrutiny packet already captured direct clean-compile evidence for the stale test-source failure, and changing shared validator commands would expand scope beyond reporting the milestone's current findings."
+    },
+    {
+      "observation": "Document `erp-domain/openapi.json` as shared knowledge because the cleanup worker copied the repo-root snapshot there manually.",
+      "reason": "Rejected as ambiguous for now because the review evidence shows a manual synchronization step, but it does not establish whether the secondary snapshot is an enduring contract requirement or a one-off packet tactic."
+    }
+  ],
+  "previousRound": null
+}

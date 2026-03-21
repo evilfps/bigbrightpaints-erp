@@ -1,0 +1,33 @@
+{
+  "featureId": "catalog-public-surface-retirement",
+  "reviewedAt": "2026-03-21T06:29:02.143368Z",
+  "commitId": "7865e997d8d296b67d773ca8d03bef8e4aa77219",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "Fail. The runtime surface retirement itself is mostly correct: the accounting and production public mappings are removed, the OpenAPI assertions prove only `/api/v1/catalog/**` survives, and `AccountingCatalogControllerSecurityIT` covers canonical existing-brand/new-brand flows plus authenticated 404 probes for retired routes. But the feature did not finish retiring its own stale accounting-controller test surface. `AccountingCatalogController.java` was collapsed to an empty private utility shell, while `AccountingCatalogControllerIdempotencyHeaderTest` still instantiates the removed controller constructor and calls `importCatalog(...)`. That leaves the source tree internally inconsistent and the surface retirement incomplete.",
+    "issues": [
+      {
+        "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingCatalogControllerIdempotencyHeaderTest.java",
+        "line": 26,
+        "severity": "blocking",
+        "description": "The feature removes the public accounting catalog controller implementation (`AccountingCatalogController.java:3-5` now contains only an empty private class), but this test still constructs `new AccountingCatalogController(productionCatalogService)` and calls `importCatalog(...)` at lines 26-41. Because the deleted constructor and method are still referenced in tracked test source, the retirement is incomplete and a clean recompilation of test sources would fail."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "`catalog-surface-worker` Step 4 is broader than the mission's feature slicing. The skill says contract-surface changes must update route inventories, `.factory/library/frontend-handoff.md`, and README/docs in the same feature, but this mission explicitly assigns that cleanup to the later `catalog-contract-cleanup-and-proof` feature. That mismatch can push workers to overreach or report false procedure deviations.",
+      "evidence": "Skill file `.factory/skills/catalog-surface-worker/SKILL.md:63-69` requires same-feature cleanup of `erp-domain/docs/endpoint_inventory.tsv`, `.factory/library/frontend-handoff.md`, and README/packet docs. Mission feature planning moves that work to `catalog-contract-cleanup-and-proof` in `features.json:167-179`."
+    },
+    {
+      "area": "services",
+      "observation": "The shared packet validation commands lean on selective `mvn -Dtest=... test` runs without an explicit clean test-compile step, which let this controller-API deletion ship alongside a stale unchanged test source. Adding a clean compile/test-compile check when removing controller methods would make this class of regression easier to catch.",
+      "evidence": "`.factory/services.yaml:5-12` defines `compile`/`typecheck` separately, while the packet-targeted command is a selective `mvn ... -Dtest='...' test`. The reviewed handoff only records selective `-Dtest=` runs (`handoffs/2026-03-21T05-55-42-994Z__catalog-public-surface-retirement__5b09f2b8-34c7-4d9d-b5a4-1fb67a8035e0.json:18-23`), yet the current source tree still has `AccountingCatalogController.java:3-5` stripped down while `AccountingCatalogControllerIdempotencyHeaderTest.java:26-41` references the deleted API."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail. Commit `7865e997d8d296b67d773ca8d03bef8e4aa77219` successfully retires the public accounting/production catalog routes, but it leaves `AccountingCatalogControllerIdempotencyHeaderTest` pointing at the deleted accounting controller API, so the feature does not fully complete its stale-surface retirement."
+}

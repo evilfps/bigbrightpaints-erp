@@ -1,0 +1,34 @@
+{
+  "featureId": "catalog-contract-cleanup-and-proof",
+  "reviewedAt": "2026-03-21T06:27:25.877143+00:00",
+  "commitId": "385cfadd",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature correctly removes the retired catalog hosts from the route inventory, OpenAPI surface, README, and the two explicitly named catalog tests, but it does not fully satisfy the contract-alignment goal. The frontend handoff still contains stale catalog DTO field bullets that no longer match the surviving request contracts, and the packet also bundles two explicitly out-of-scope validator fixes into this catalog cleanup feature.",
+    "issues": [
+      {
+        "file": ".factory/library/frontend-handoff.md",
+        "line": 882,
+        "severity": "blocking",
+        "description": "The accounting handoff section still contains stale catalog request-field bullets (`sizeLabel`, `basePrice`, `minSellingPrice`, `metadata`) immediately after stating that public accounting catalog DTOs are retired. Those fields do not match the surviving `CatalogProductRequest` (`erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/dto/CatalogProductRequest.java:12-28`) and therefore leave the required frontend-handoff contract cleanup incomplete."
+      },
+      {
+        "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/SalesControllerIT.java",
+        "line": 361,
+        "severity": "blocking",
+        "description": "This packet widens scope by changing `SalesControllerIT` here and `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeInventoryValuationExecutableCoverageTest.java:83` to repair two known pre-existing non-catalog failures, even though mission guidance explicitly marks those failures as out of scope and says workers must not widen scope to fix them (`/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/AGENTS.md:41-45`)."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "Catalog cleanup guidance documents only the repo-root `openapi.json`, but the repo also carries `erp-domain/openapi.json` and this feature's worker had to manually compare hashes and copy the root snapshot into that secondary location during the run.",
+      "evidence": "`docs/developer/catalog-consolidation/04-update-hygiene.md:30` names only `openapi.json`, while the transcript skeleton for worker `1e057612-f0b9-4493-96d2-affdd541beb9` shows a hash-compare command followed by `cp \"/home/realnigga/Desktop/Mission-control/openapi.json\" \"/home/realnigga/Desktop/Mission-control/erp-domain/openapi.json\"`."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail: the packet leaves stale contract text in `.factory/library/frontend-handoff.md` and also bundles two explicitly out-of-scope validator fixes (`SalesControllerIT` and `TS_RuntimeInventoryValuationExecutableCoverageTest`) into a catalog cleanup feature."
+}
