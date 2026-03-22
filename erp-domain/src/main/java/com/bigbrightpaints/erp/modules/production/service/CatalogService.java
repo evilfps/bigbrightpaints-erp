@@ -467,9 +467,11 @@ public class CatalogService {
         }
         if (isRawMaterialCategory(product.getCategory())) {
             syncRawMaterial(company, product, itemClass);
+            deleteFinishedGoodMirror(company, product);
             return;
         }
         syncFinishedGood(company, product);
+        deleteRawMaterialMirror(company, product);
     }
 
     private void refreshCanonicalFamilyLinkage(ProductionProduct product,
@@ -599,6 +601,22 @@ public class CatalogService {
         finishedGood.setDiscountAccountId(metadataLong(product.getMetadata(), "fgDiscountAccountId"));
         finishedGood.setTaxAccountId(metadataLong(product.getMetadata(), "fgTaxAccountId"));
         finishedGoodRepository.save(finishedGood);
+    }
+
+    private void deleteRawMaterialMirror(Company company, ProductionProduct product) {
+        String sku = product != null ? normalizeOptionalText(product.getSkuCode()) : null;
+        if (!StringUtils.hasText(sku)) {
+            return;
+        }
+        rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, sku).ifPresent(rawMaterialRepository::delete);
+    }
+
+    private void deleteFinishedGoodMirror(Company company, ProductionProduct product) {
+        String sku = product != null ? normalizeOptionalText(product.getSkuCode()) : null;
+        if (!StringUtils.hasText(sku)) {
+            return;
+        }
+        finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, sku).ifPresent(finishedGoodRepository::delete);
     }
 
     private Set<String> normalizeOptions(List<String> values, String fieldName) {
@@ -918,13 +936,18 @@ public class CatalogService {
         return value.trim().toUpperCase(Locale.ROOT);
     }
 
+    private String normalizeSkuLookupKey(String value) {
+        String normalized = normalizeSkuKey(value);
+        return StringUtils.hasText(normalized) ? normalized.toLowerCase(Locale.ROOT) : null;
+    }
+
     private Map<String, RawMaterial> rawMaterialsBySku(Company company, List<ProductionProduct> products) {
         if (company == null || products == null || products.isEmpty()) {
             return Map.of();
         }
         List<String> skus = products.stream()
                 .map(ProductionProduct::getSkuCode)
-                .map(this::normalizeSkuKey)
+                .map(this::normalizeSkuLookupKey)
                 .filter(StringUtils::hasText)
                 .distinct()
                 .toList();

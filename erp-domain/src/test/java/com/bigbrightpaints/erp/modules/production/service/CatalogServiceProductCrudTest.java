@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
@@ -45,6 +46,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -349,6 +351,129 @@ class CatalogServiceProductCrudTest {
         assertThat(response.category()).isEqualTo("RAW_MATERIAL");
         assertThat(response.itemClass()).isEqualTo("RAW_MATERIAL");
         assertThat(legacyProductionMaterial.getMaterialType()).isEqualTo(MaterialType.PRODUCTION);
+    }
+
+    @Test
+    void updateProduct_reclassifiesFinishedGoodAsRawMaterialAndDeletesStaleFinishedGoodMirror() {
+        ProductionProduct existing = new ProductionProduct();
+        ReflectionTestUtils.setField(existing, "id", 50315L);
+        existing.setCompany(company);
+        existing.setBrand(brand);
+        existing.setProductName("Primer Base");
+        existing.setCategory("FINISHED_GOOD");
+        existing.setSkuCode("FG-TO-RM-001");
+        existing.setActive(true);
+        existing.setColors(new LinkedHashSet<>(List.of("White")));
+        existing.setSizes(new LinkedHashSet<>(List.of("20L")));
+        existing.setCartonSizes(new LinkedHashMap<>(Map.of("20L", 1)));
+        existing.setUnitOfMeasure("LITER");
+        existing.setHsnCode("320890");
+        existing.setBasePrice(new BigDecimal("710.00"));
+        existing.setGstRate(new BigDecimal("18.00"));
+        existing.setMetadata(new LinkedHashMap<>(Map.of("productType", "decorative")));
+
+        RawMaterial syncedMaterial = new RawMaterial();
+        syncedMaterial.setCompany(company);
+        syncedMaterial.setSku("FG-TO-RM-001");
+        syncedMaterial.setMaterialType(MaterialType.PRODUCTION);
+
+        FinishedGood staleFinishedGood = new FinishedGood();
+        staleFinishedGood.setCompany(company);
+        staleFinishedGood.setProductCode("FG-TO-RM-001");
+
+        CatalogProductRequest request = new CatalogProductRequest(
+                11L,
+                "Primer Base Raw",
+                "RAW_MATERIAL",
+                List.of("White"),
+                List.of("20L"),
+                List.of(new CatalogProductCartonSizeRequest("20L", 1)),
+                "LITER",
+                "320890",
+                new BigDecimal("720.00"),
+                new BigDecimal("18.00"),
+                null,
+                null,
+                Map.of("rawMaterialInventoryAccountId", 801L),
+                true
+        );
+
+        when(brandRepository.findByCompanyAndId(company, 11L)).thenReturn(Optional.of(brand));
+        when(productRepository.findByCompanyAndId(company, 50315L)).thenReturn(Optional.of(existing));
+        when(productRepository.findByBrandAndProductNameIgnoreCase(brand, "Primer Base Raw"))
+                .thenReturn(Optional.of(existing));
+        when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(rawMaterialRepository.findByCompanyAndSku(company, "FG-TO-RM-001")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "FG-TO-RM-001"))
+                .thenReturn(Optional.of(syncedMaterial));
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "FG-TO-RM-001"))
+                .thenReturn(Optional.of(staleFinishedGood));
+
+        CatalogProductDto response = service.updateProduct(50315L, request);
+
+        assertThat(response.category()).isEqualTo("RAW_MATERIAL");
+        assertThat(response.itemClass()).isEqualTo("RAW_MATERIAL");
+        verify(rawMaterialRepository).save(any(RawMaterial.class));
+        verify(finishedGoodRepository).delete(staleFinishedGood);
+    }
+
+    @Test
+    void updateProduct_reclassifiesRawMaterialAsFinishedGoodAndDeletesStaleRawMaterialMirror() {
+        ProductionProduct existing = new ProductionProduct();
+        ReflectionTestUtils.setField(existing, "id", 50316L);
+        existing.setCompany(company);
+        existing.setBrand(brand);
+        existing.setProductName("Resin Base");
+        existing.setCategory("RAW_MATERIAL");
+        existing.setSkuCode("RM-TO-FG-001");
+        existing.setActive(true);
+        existing.setColors(new LinkedHashSet<>(List.of("White")));
+        existing.setSizes(new LinkedHashSet<>(List.of("20L")));
+        existing.setCartonSizes(new LinkedHashMap<>(Map.of("20L", 1)));
+        existing.setUnitOfMeasure("LITER");
+        existing.setHsnCode("320890");
+        existing.setBasePrice(new BigDecimal("410.00"));
+        existing.setGstRate(new BigDecimal("18.00"));
+        existing.setMetadata(new LinkedHashMap<>(Map.of("rawMaterialInventoryAccountId", 801L)));
+
+        RawMaterial staleRawMaterial = new RawMaterial();
+        staleRawMaterial.setCompany(company);
+        staleRawMaterial.setSku("RM-TO-FG-001");
+        staleRawMaterial.setMaterialType(MaterialType.PRODUCTION);
+
+        CatalogProductRequest request = new CatalogProductRequest(
+                11L,
+                "Resin Base Finish",
+                "FINISHED_GOOD",
+                List.of("White"),
+                List.of("20L"),
+                List.of(new CatalogProductCartonSizeRequest("20L", 1)),
+                "LITER",
+                "320890",
+                new BigDecimal("510.00"),
+                new BigDecimal("18.00"),
+                null,
+                null,
+                Map.of("productType", "decorative"),
+                true
+        );
+
+        when(brandRepository.findByCompanyAndId(company, 11L)).thenReturn(Optional.of(brand));
+        when(productRepository.findByCompanyAndId(company, 50316L)).thenReturn(Optional.of(existing));
+        when(productRepository.findByBrandAndProductNameIgnoreCase(brand, "Resin Base Finish"))
+                .thenReturn(Optional.of(existing));
+        when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "RM-TO-FG-001")).thenReturn(Optional.empty());
+        when(finishedGoodRepository.save(any(FinishedGood.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "RM-TO-FG-001"))
+                .thenReturn(Optional.of(staleRawMaterial));
+
+        CatalogProductDto response = service.updateProduct(50316L, request);
+
+        assertThat(response.category()).isEqualTo("FINISHED_GOOD");
+        assertThat(response.itemClass()).isEqualTo("FINISHED_GOOD");
+        verify(finishedGoodRepository).save(any(FinishedGood.class));
+        verify(rawMaterialRepository).delete(staleRawMaterial);
     }
 
     @Test
@@ -883,7 +1008,7 @@ class CatalogServiceProductCrudTest {
 
         when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "PKG-LEGACY"))
                 .thenReturn(Optional.of(legacyProductionMirror));
-        when(rawMaterialRepository.findByCompanyAndSkuInIgnoreCase(company, List.of("PKG-DUPLICATE")))
+        when(rawMaterialRepository.findByCompanyAndSkuInIgnoreCase(company, List.of("pkg-duplicate")))
                 .thenReturn(List.of(duplicateMirror, duplicateMirror2));
 
         assertThat((String) ReflectionTestUtils.invokeMethod(service, "resolveRequestedItemClass", null, null, true))
@@ -902,6 +1027,8 @@ class CatalogServiceProductCrudTest {
                 .isFalse();
         assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeSkuKey", " pkg-001 "))
                 .isEqualTo("PKG-001");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeSkuLookupKey", " pkg-001 "))
+                .isEqualTo("pkg-001");
         assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeSkuKey", "   "))
                 .isNull();
         assertThat((Map<?, ?>) ReflectionTestUtils.invokeMethod(service, "rawMaterialsBySku", null, List.of(legacyPackagingSkuProduct)))
@@ -1163,7 +1290,7 @@ class CatalogServiceProductCrudTest {
         product.setBrand(brand);
         product.setProductName("Bucket Shell WHITE 1L");
         product.setCategory("RAW_MATERIAL");
-        product.setSkuCode("PKG-BBR-BUCKET-WHITE-1L");
+        product.setSkuCode("Pkg-Bbr-Bucket-White-1L");
         product.setDefaultColour("WHITE");
         product.setSizeLabel("1L");
         product.setUnitOfMeasure("UNIT");
@@ -1186,7 +1313,10 @@ class CatalogServiceProductCrudTest {
         assertThat(response.content()).hasSize(1);
         assertThat(response.content().getFirst().itemClass()).isEqualTo("PACKAGING_RAW_MATERIAL");
         assertThat(response.content().getFirst().rawMaterialId()).isEqualTo(8801L);
-        verify(rawMaterialRepository).findByCompanyAndSkuInIgnoreCase(eq(company), anyCollection());
+        verify(rawMaterialRepository).findByCompanyAndSkuInIgnoreCase(eq(company), argThat(skus ->
+                skus.size() == 1
+                        && skus.contains("pkg-bbr-bucket-white-1l")
+                        && !skus.contains("Pkg-Bbr-Bucket-White-1L")));
         verify(rawMaterialRepository, never()).findByCompanyAndSkuIgnoreCase(any(), any());
     }
 }
