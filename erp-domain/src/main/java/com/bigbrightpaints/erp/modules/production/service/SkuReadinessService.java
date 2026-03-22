@@ -19,7 +19,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -60,7 +59,8 @@ public class SkuReadinessService {
         }
         return buildSnapshot(
                 company,
-                normalizeSku(product.getSkuCode()),
+                normalizeSkuKey(product.getSkuCode()),
+                sanitizeSku(product.getSkuCode()),
                 product,
                 null);
     }
@@ -74,7 +74,7 @@ public class SkuReadinessService {
         }
         return buildSnapshot(
                 resolveCompany(product, finishedGood, rawMaterial),
-                normalizeSku(product.getSkuCode()),
+                normalizeSkuKey(product.getSkuCode()),
                 product,
                 finishedGood,
                 rawMaterial,
@@ -83,11 +83,13 @@ public class SkuReadinessService {
     }
 
     public SkuReadinessDto forSku(Company company, String sku, ExpectedStockType expectedStockType) {
-        String normalizedSku = normalizeSku(sku);
-        ProductionProduct product = StringUtils.hasText(normalizedSku)
-                ? productRepository.findByCompanyAndSkuCode(company, normalizedSku).orElse(null)
+        String requestedSku = sanitizeSku(sku);
+        ProductionProduct product = StringUtils.hasText(requestedSku)
+                ? productRepository.findByCompanyAndSkuCodeIgnoreCase(company, requestedSku).orElse(null)
                 : null;
-        return buildSnapshot(company, normalizedSku, product, expectedStockType);
+        String lookupSku = product != null ? sanitizeSku(product.getSkuCode()) : requestedSku;
+        String snapshotSku = product != null ? normalizeSkuKey(product.getSkuCode()) : normalizeSkuKey(requestedSku);
+        return buildSnapshot(company, snapshotSku, lookupSku, product, expectedStockType);
     }
 
     public Map<Long, SkuReadinessDto> forProducts(Company company, Collection<ProductionProduct> products) {
@@ -102,29 +104,34 @@ public class SkuReadinessService {
         }
 
         Map<String, ProductionProduct> productsBySku = candidates.stream()
-                .filter(product -> StringUtils.hasText(normalizeSku(product.getSkuCode())))
+                .filter(product -> StringUtils.hasText(normalizeSkuKey(product.getSkuCode())))
                 .collect(Collectors.toMap(
-                        product -> normalizeSku(product.getSkuCode()),
+                        product -> normalizeSkuKey(product.getSkuCode()),
                         product -> product,
                         (left, right) -> left,
                         LinkedHashMap::new));
-        Set<String> skus = productsBySku.keySet();
+        List<String> lookupSkus = productsBySku.values().stream()
+                .map(ProductionProduct::getSkuCode)
+                .map(this::sanitizeSku)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
 
-        Map<String, FinishedGood> finishedGoodsBySku = skus.isEmpty()
+        Map<String, FinishedGood> finishedGoodsBySku = lookupSkus.isEmpty()
                 ? Map.of()
-                : finishedGoodRepository.findByCompanyAndProductCodeIn(company, skus).stream()
+                : finishedGoodRepository.findByCompanyAndProductCodeIn(company, lookupSkus).stream()
                 .filter(finishedGood -> StringUtils.hasText(finishedGood.getProductCode()))
                 .collect(Collectors.toMap(
-                        finishedGood -> normalizeSku(finishedGood.getProductCode()),
+                        finishedGood -> normalizeSkuKey(finishedGood.getProductCode()),
                         finishedGood -> finishedGood,
                         (left, right) -> left,
                         LinkedHashMap::new));
-        Map<String, RawMaterial> rawMaterialsBySku = skus.isEmpty()
+        Map<String, RawMaterial> rawMaterialsBySku = lookupSkus.isEmpty()
                 ? Map.of()
-                : rawMaterialRepository.findByCompanyAndSkuIn(company, skus).stream()
+                : rawMaterialRepository.findByCompanyAndSkuIn(company, lookupSkus).stream()
                 .filter(rawMaterial -> StringUtils.hasText(rawMaterial.getSku()))
                 .collect(Collectors.toMap(
-                        rawMaterial -> normalizeSku(rawMaterial.getSku()),
+                        rawMaterial -> normalizeSkuKey(rawMaterial.getSku()),
                         rawMaterial -> rawMaterial,
                         (left, right) -> left,
                         LinkedHashMap::new));
@@ -144,7 +151,8 @@ public class SkuReadinessService {
             if (productId == null) {
                 continue;
             }
-            String normalizedSku = normalizeSku(product.getSkuCode());
+            String normalizedSku = normalizeSkuKey(product.getSkuCode());
+            String exactSku = sanitizeSku(product.getSkuCode());
             FinishedGood finishedGood = StringUtils.hasText(normalizedSku)
                     ? finishedGoodsBySku.get(normalizedSku)
                     : null;
@@ -155,7 +163,7 @@ public class SkuReadinessService {
                     && Boolean.TRUE.equals(saleReadyBatchByFinishedGoodId.get(finishedGood.getId()));
             readinessByProductId.put(productId, buildSnapshot(
                     company,
-                    normalizedSku,
+                    exactSku,
                     product,
                     finishedGood,
                     rawMaterial,
@@ -179,21 +187,25 @@ public class SkuReadinessService {
     }
 
     private SkuReadinessDto buildSnapshot(Company company,
-                                          String normalizedSku,
+                                          String sku,
+                                          String lookupSku,
                                           ProductionProduct product,
                                           ExpectedStockType expectedStockType) {
-        String sku = StringUtils.hasText(normalizedSku)
-                ? normalizedSku
-                : Optional.ofNullable(product).map(ProductionProduct::getSkuCode).map(this::normalizeSku).orElse(null);
-        FinishedGood finishedGood = StringUtils.hasText(sku)
-                ? finishedGoodRepository.findByCompanyAndProductCode(company, sku).orElse(null)
+        String resolvedSku = StringUtils.hasText(sku)
+                ? sku
+                : Optional.ofNullable(product).map(ProductionProduct::getSkuCode).map(this::normalizeSkuKey).orElse(null);
+        String resolvedLookupSku = StringUtils.hasText(lookupSku)
+                ? sanitizeSku(lookupSku)
+                : Optional.ofNullable(product).map(ProductionProduct::getSkuCode).map(this::sanitizeSku).orElse(null);
+        FinishedGood finishedGood = StringUtils.hasText(resolvedLookupSku)
+                ? finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, resolvedLookupSku).orElse(null)
                 : null;
-        RawMaterial rawMaterial = StringUtils.hasText(sku)
-                ? rawMaterialRepository.findByCompanyAndSku(company, sku).orElse(null)
+        RawMaterial rawMaterial = StringUtils.hasText(resolvedLookupSku)
+                ? rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, resolvedLookupSku).orElse(null)
                 : null;
         return buildSnapshot(
                 company,
-                sku,
+                resolvedSku,
                 product,
                 finishedGood,
                 rawMaterial,
@@ -409,7 +421,12 @@ public class SkuReadinessService {
                 && product.getGstRate().compareTo(BigDecimal.ZERO) > 0;
     }
 
-    private String normalizeSku(String sku) {
-        return StringUtils.hasText(sku) ? sku.trim().toUpperCase(Locale.ROOT) : null;
+    private String sanitizeSku(String sku) {
+        return StringUtils.hasText(sku) ? sku.trim() : null;
+    }
+
+    private String normalizeSkuKey(String sku) {
+        String sanitized = sanitizeSku(sku);
+        return StringUtils.hasText(sanitized) ? sanitized.toUpperCase(Locale.ROOT) : null;
     }
 }

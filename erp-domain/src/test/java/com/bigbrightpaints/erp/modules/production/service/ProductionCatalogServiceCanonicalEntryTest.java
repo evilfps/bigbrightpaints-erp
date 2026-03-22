@@ -42,6 +42,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -369,6 +370,33 @@ class ProductionCatalogServiceCanonicalEntryTest {
                 "fgCogsAccountId",
                 "fgRevenueAccountId",
                 "fgTaxAccountId");
+    }
+
+    @Test
+    void createOrPreviewCatalogProducts_previewPassesGstRateIntoFinishedGoodReadinessDraft() {
+        when(companyDefaultAccountsService.getDefaults()).thenReturn(
+                new CompanyDefaultAccountsService.DefaultAccounts(null, null, null, null, null));
+        SkuReadinessDto readiness = new SkuReadinessDto(
+                "BBR-PRIMER-WHITE-1L",
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED")),
+                new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED", "WIP_ACCOUNT_MISSING")),
+                new SkuReadinessDto.Stage(false, List.of("GST_OUTPUT_ACCOUNT_MISSING"))
+        );
+        when(skuReadinessService.forPlannedProduct(
+                argThat(product -> product.getGstRate() != null
+                        && product.getGstRate().compareTo(new BigDecimal("18.00")) == 0),
+                eq(SkuReadinessService.ExpectedStockType.FINISHED_GOOD),
+                any(),
+                any()
+        )).thenReturn(readiness);
+
+        CatalogProductEntryResponse response = service.createOrPreviewCatalogProducts(
+                request("FINISHED_GOOD", List.of("WHITE"), List.of("1L")),
+                true);
+
+        assertThat(response.members()).hasSize(1);
+        assertThat(response.members().getFirst().readiness()).isEqualTo(readiness);
     }
 
     @Test

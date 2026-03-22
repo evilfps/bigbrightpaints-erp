@@ -15,6 +15,7 @@ public interface FinishedGoodRepository extends JpaRepository<FinishedGood, Long
     List<FinishedGood> findByCompanyOrderByProductCodeAsc(Company company);
     Optional<FinishedGood> findByCompanyAndId(Company company, Long id);
     Optional<FinishedGood> findByCompanyAndProductCode(Company company, String productCode);
+    Optional<FinishedGood> findByCompanyAndProductCodeIgnoreCase(Company company, String productCode);
     List<FinishedGood> findByCompanyAndProductCodeIn(Company company, Collection<String> productCodes);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

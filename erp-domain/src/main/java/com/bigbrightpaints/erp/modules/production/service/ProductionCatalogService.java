@@ -726,6 +726,7 @@ public class ProductionCatalogService {
         draftProduct.setDefaultColour(candidate.color());
         draftProduct.setSizeLabel(candidate.size());
         draftProduct.setUnitOfMeasure(cleanValue(candidate.createRequest().unitOfMeasure()));
+        draftProduct.setGstRate(candidate.createRequest().gstRate());
         draftProduct.setMetadata(normalizeMetadata(candidate.createRequest().metadata()));
         draftProduct.setActive(true);
 

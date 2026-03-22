@@ -17,6 +17,7 @@ public interface RawMaterialRepository extends JpaRepository<RawMaterial, Long> 
     List<RawMaterial> findByCompanyOrderByNameAsc(Company company);
     Optional<RawMaterial> findByCompanyAndId(Company company, Long id);
     Optional<RawMaterial> findByCompanyAndSku(Company company, String sku);
+    Optional<RawMaterial> findByCompanyAndSkuIgnoreCase(Company company, String sku);
     List<RawMaterial> findByCompanyAndSkuIn(Company company, Collection<String> skus);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

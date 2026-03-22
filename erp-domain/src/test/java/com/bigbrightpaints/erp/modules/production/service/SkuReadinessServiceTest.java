@@ -74,15 +74,15 @@ class SkuReadinessServiceTest {
 
     @Test
     void forSku_finishedGoodHappyPath_isFullyReady() {
-        ProductionProduct product = finishedGoodProduct(" fg-1 ");
+        ProductionProduct product = finishedGoodProduct("FG-1");
         product.setMetadata(finishedGoodProductionMetadata("44", "55", "66"));
         FinishedGood finishedGood = finishedGood("FG-1", 11L, 22L, 33L, 44L);
         FinishedGoodBatch saleReadyBatch = new FinishedGoodBatch();
         saleReadyBatch.setQuantityAvailable(new BigDecimal("5"));
 
-        when(productRepository.findByCompanyAndSkuCode(company, "FG-1")).thenReturn(Optional.of(product));
-        when(finishedGoodRepository.findByCompanyAndProductCode(company, "FG-1")).thenReturn(Optional.of(finishedGood));
-        when(rawMaterialRepository.findByCompanyAndSku(company, "FG-1")).thenReturn(Optional.empty());
+        when(productRepository.findByCompanyAndSkuCodeIgnoreCase(company, "fg-1")).thenReturn(Optional.of(product));
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "FG-1")).thenReturn(Optional.of(finishedGood));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "FG-1")).thenReturn(Optional.empty());
         when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
                 .thenReturn(List.of(saleReadyBatch));
 
@@ -93,7 +93,7 @@ class SkuReadinessServiceTest {
         assertThat(readiness.inventory().ready()).isTrue();
         assertThat(readiness.production().ready()).isTrue();
         assertThat(readiness.sales().ready()).isTrue();
-        verify(productRepository).findByCompanyAndSkuCode(company, "FG-1");
+        verify(productRepository).findByCompanyAndSkuCodeIgnoreCase(company, "fg-1");
     }
 
     @Test
@@ -103,9 +103,9 @@ class SkuReadinessServiceTest {
         FinishedGoodBatch emptyBatch = new FinishedGoodBatch();
         emptyBatch.setQuantityAvailable(BigDecimal.ZERO);
 
-        when(productRepository.findByCompanyAndSkuCode(company, "FG-2")).thenReturn(Optional.of(product));
-        when(finishedGoodRepository.findByCompanyAndProductCode(company, "FG-2")).thenReturn(Optional.of(finishedGood));
-        when(rawMaterialRepository.findByCompanyAndSku(company, "FG-2")).thenReturn(Optional.empty());
+        when(productRepository.findByCompanyAndSkuCodeIgnoreCase(company, "FG-2")).thenReturn(Optional.of(product));
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "FG-2")).thenReturn(Optional.of(finishedGood));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "FG-2")).thenReturn(Optional.empty());
         when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
                 .thenReturn(List.of(emptyBatch));
 
@@ -130,9 +130,9 @@ class SkuReadinessServiceTest {
         FinishedGoodBatch saleReadyBatch = new FinishedGoodBatch();
         saleReadyBatch.setQuantityAvailable(new BigDecimal("2"));
 
-        when(productRepository.findByCompanyAndSkuCode(company, "FG-LABOR")).thenReturn(Optional.of(product));
-        when(finishedGoodRepository.findByCompanyAndProductCode(company, "FG-LABOR")).thenReturn(Optional.of(finishedGood));
-        when(rawMaterialRepository.findByCompanyAndSku(company, "FG-LABOR")).thenReturn(Optional.empty());
+        when(productRepository.findByCompanyAndSkuCodeIgnoreCase(company, "FG-LABOR")).thenReturn(Optional.of(product));
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "FG-LABOR")).thenReturn(Optional.of(finishedGood));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "FG-LABOR")).thenReturn(Optional.empty());
         when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
                 .thenReturn(List.of(saleReadyBatch));
 
@@ -156,9 +156,9 @@ class SkuReadinessServiceTest {
         FinishedGoodBatch saleReadyBatch = new FinishedGoodBatch();
         saleReadyBatch.setQuantityAvailable(new BigDecimal("4"));
 
-        when(productRepository.findByCompanyAndSkuCode(company, "FG-SALES-BLOCKED")).thenReturn(Optional.of(product));
-        when(finishedGoodRepository.findByCompanyAndProductCode(company, "FG-SALES-BLOCKED")).thenReturn(Optional.of(finishedGood));
-        when(rawMaterialRepository.findByCompanyAndSku(company, "FG-SALES-BLOCKED")).thenReturn(Optional.empty());
+        when(productRepository.findByCompanyAndSkuCodeIgnoreCase(company, "FG-SALES-BLOCKED")).thenReturn(Optional.of(product));
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "FG-SALES-BLOCKED")).thenReturn(Optional.of(finishedGood));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "FG-SALES-BLOCKED")).thenReturn(Optional.empty());
         when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
                 .thenReturn(List.of(saleReadyBatch));
 
@@ -180,9 +180,9 @@ class SkuReadinessServiceTest {
         FinishedGoodBatch saleReadyBatch = new FinishedGoodBatch();
         saleReadyBatch.setQuantityAvailable(new BigDecimal("6"));
 
-        when(productRepository.findByCompanyAndSkuCode(company, "FG-GST-MISMATCH")).thenReturn(Optional.of(product));
-        when(finishedGoodRepository.findByCompanyAndProductCode(company, "FG-GST-MISMATCH")).thenReturn(Optional.of(finishedGood));
-        when(rawMaterialRepository.findByCompanyAndSku(company, "FG-GST-MISMATCH")).thenReturn(Optional.empty());
+        when(productRepository.findByCompanyAndSkuCodeIgnoreCase(company, "FG-GST-MISMATCH")).thenReturn(Optional.of(product));
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "FG-GST-MISMATCH")).thenReturn(Optional.of(finishedGood));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "FG-GST-MISMATCH")).thenReturn(Optional.empty());
         when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
                 .thenReturn(List.of(saleReadyBatch));
 
@@ -196,9 +196,9 @@ class SkuReadinessServiceTest {
         ProductionProduct product = finishedGoodProduct("RM-1");
         RawMaterial rawMaterial = rawMaterial("RM-1", null);
 
-        when(productRepository.findByCompanyAndSkuCode(company, "RM-1")).thenReturn(Optional.of(product));
-        when(finishedGoodRepository.findByCompanyAndProductCode(company, "RM-1")).thenReturn(Optional.empty());
-        when(rawMaterialRepository.findByCompanyAndSku(company, "RM-1")).thenReturn(Optional.of(rawMaterial));
+        when(productRepository.findByCompanyAndSkuCodeIgnoreCase(company, "RM-1")).thenReturn(Optional.of(product));
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "RM-1")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "RM-1")).thenReturn(Optional.of(rawMaterial));
 
         SkuReadinessDto readiness = service.forSku(company, "RM-1", SkuReadinessService.ExpectedStockType.RAW_MATERIAL);
 
@@ -218,9 +218,9 @@ class SkuReadinessServiceTest {
     void forSku_usesRawMaterialMirrorToInferRawMaterialTypeWhenProductMissing() {
         RawMaterial rawMaterial = rawMaterial("RM-2", 77L);
 
-        when(productRepository.findByCompanyAndSkuCode(company, "RM-2")).thenReturn(Optional.empty());
-        when(finishedGoodRepository.findByCompanyAndProductCode(company, "RM-2")).thenReturn(Optional.empty());
-        when(rawMaterialRepository.findByCompanyAndSku(company, "RM-2")).thenReturn(Optional.of(rawMaterial));
+        when(productRepository.findByCompanyAndSkuCodeIgnoreCase(company, "rm-2")).thenReturn(Optional.empty());
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "rm-2")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "rm-2")).thenReturn(Optional.of(rawMaterial));
 
         SkuReadinessDto readiness = service.forSku(company, "rm-2", null);
 
@@ -229,6 +229,30 @@ class SkuReadinessServiceTest {
         assertThat(readiness.inventory().ready()).isTrue();
         assertThat(readiness.production().blockers()).containsExactly("PRODUCT_MASTER_MISSING");
         assertThat(readiness.sales().blockers()).containsExactly("RAW_MATERIAL_SKU_NOT_SALES_ORDERABLE");
+    }
+
+    @Test
+    void forSku_preservesStoredSkuCasingWhenResolvingReadinessMirrors() {
+        ProductionProduct product = finishedGoodProduct("Fg-Mixed-1");
+        product.setMetadata(finishedGoodProductionMetadata(44L, 55L, 66L));
+        FinishedGood finishedGood = finishedGood("Fg-Mixed-1", 11L, 22L, 33L, 44L);
+        FinishedGoodBatch saleReadyBatch = new FinishedGoodBatch();
+        saleReadyBatch.setQuantityAvailable(new BigDecimal("3"));
+
+        when(productRepository.findByCompanyAndSkuCodeIgnoreCase(company, "FG-MIXED-1")).thenReturn(Optional.of(product));
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "Fg-Mixed-1"))
+                .thenReturn(Optional.of(finishedGood));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "Fg-Mixed-1")).thenReturn(Optional.empty());
+        when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
+                .thenReturn(List.of(saleReadyBatch));
+
+        SkuReadinessDto readiness = service.forSku(company, "FG-MIXED-1", null);
+
+        assertThat(readiness.sku()).isEqualTo("FG-MIXED-1");
+        assertThat(readiness.inventory().ready()).isTrue();
+        verify(productRepository).findByCompanyAndSkuCodeIgnoreCase(company, "FG-MIXED-1");
+        verify(finishedGoodRepository).findByCompanyAndProductCodeIgnoreCase(company, "Fg-Mixed-1");
+        verify(rawMaterialRepository).findByCompanyAndSkuIgnoreCase(company, "Fg-Mixed-1");
     }
 
     @Test
@@ -249,9 +273,9 @@ class SkuReadinessServiceTest {
         ProductionProduct product = finishedGoodProduct("RM-3");
         product.setCategory("RAW MATERIAL");
 
-        when(productRepository.findByCompanyAndSkuCode(company, "RM-3")).thenReturn(Optional.of(product));
-        when(finishedGoodRepository.findByCompanyAndProductCode(company, "RM-3")).thenReturn(Optional.empty());
-        when(rawMaterialRepository.findByCompanyAndSku(company, "RM-3")).thenReturn(Optional.empty());
+        when(productRepository.findByCompanyAndSkuCodeIgnoreCase(company, "RM-3")).thenReturn(Optional.of(product));
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "RM-3")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "RM-3")).thenReturn(Optional.empty());
 
         SkuReadinessDto readiness = service.forSku(company, "RM-3", null);
 
@@ -265,9 +289,9 @@ class SkuReadinessServiceTest {
         ProductionProduct product = finishedGoodProduct("FG-RAW-CAT");
         product.setCategory("RAW_MATERIAL");
 
-        when(productRepository.findByCompanyAndSkuCode(company, "FG-RAW-CAT")).thenReturn(Optional.of(product));
-        when(finishedGoodRepository.findByCompanyAndProductCode(company, "FG-RAW-CAT")).thenReturn(Optional.empty());
-        when(rawMaterialRepository.findByCompanyAndSku(company, "FG-RAW-CAT")).thenReturn(Optional.empty());
+        when(productRepository.findByCompanyAndSkuCodeIgnoreCase(company, "FG-RAW-CAT")).thenReturn(Optional.of(product));
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "FG-RAW-CAT")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "FG-RAW-CAT")).thenReturn(Optional.empty());
 
         SkuReadinessDto readiness = service.forSku(
                 company,
@@ -306,8 +330,8 @@ class SkuReadinessServiceTest {
         FinishedGoodBatch nullQuantityBatch = new FinishedGoodBatch();
         nullQuantityBatch.setQuantityAvailable(null);
 
-        when(finishedGoodRepository.findByCompanyAndProductCode(company, "FG-3")).thenReturn(Optional.of(finishedGood));
-        when(rawMaterialRepository.findByCompanyAndSku(company, "FG-3")).thenReturn(Optional.empty());
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "FG-3")).thenReturn(Optional.of(finishedGood));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "FG-3")).thenReturn(Optional.empty());
         when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
                 .thenReturn(List.of(nullQuantityBatch));
 
@@ -323,8 +347,8 @@ class SkuReadinessServiceTest {
         ProductionProduct product = finishedGoodProduct("FG-CONVERTED");
         RawMaterial staleRawMaterial = rawMaterial("FG-CONVERTED", 77L);
 
-        when(finishedGoodRepository.findByCompanyAndProductCode(company, "FG-CONVERTED")).thenReturn(Optional.empty());
-        when(rawMaterialRepository.findByCompanyAndSku(company, "FG-CONVERTED")).thenReturn(Optional.of(staleRawMaterial));
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "FG-CONVERTED")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "FG-CONVERTED")).thenReturn(Optional.of(staleRawMaterial));
 
         SkuReadinessDto readiness = service.forProduct(company, product);
 
@@ -374,21 +398,21 @@ class SkuReadinessServiceTest {
 
     @Test
     void forProducts_batchesMirrorAndBatchLookupsForCatalogBrowse() {
-        ProductionProduct finishedGoodProduct = finishedGoodProduct("FG-BROWSE");
+        ProductionProduct finishedGoodProduct = finishedGoodProduct("Fg-Browse");
         ReflectionTestUtils.setField(finishedGoodProduct, "id", 101L);
         finishedGoodProduct.setMetadata(finishedGoodProductionMetadata(44L, 55L, 66L));
 
-        ProductionProduct rawMaterialProduct = finishedGoodProduct("RM-BROWSE");
+        ProductionProduct rawMaterialProduct = finishedGoodProduct("Rm-Browse");
         ReflectionTestUtils.setField(rawMaterialProduct, "id", 102L);
         rawMaterialProduct.setCategory("RAW_MATERIAL");
 
-        FinishedGood finishedGood = finishedGood("FG-BROWSE", 11L, 22L, 33L, 44L);
+        FinishedGood finishedGood = finishedGood("Fg-Browse", 11L, 22L, 33L, 44L);
         ReflectionTestUtils.setField(finishedGood, "id", 501L);
         FinishedGoodBatch saleReadyBatch = new FinishedGoodBatch();
         saleReadyBatch.setFinishedGood(finishedGood);
         saleReadyBatch.setQuantityAvailable(new BigDecimal("7"));
 
-        RawMaterial rawMaterial = rawMaterial("RM-BROWSE", 77L);
+        RawMaterial rawMaterial = rawMaterial("Rm-Browse", 77L);
 
         when(finishedGoodRepository.findByCompanyAndProductCodeIn(eq(company), anyCollection()))
                 .thenReturn(List.of(finishedGood));
@@ -404,9 +428,9 @@ class SkuReadinessServiceTest {
         assertThat(readiness.get(102L).inventory().ready()).isTrue();
 
         verify(finishedGoodRepository).findByCompanyAndProductCodeIn(eq(company), argThat(skus ->
-                skus.size() == 2 && skus.containsAll(List.of("FG-BROWSE", "RM-BROWSE"))));
+                skus.size() == 2 && skus.containsAll(List.of("Fg-Browse", "Rm-Browse"))));
         verify(rawMaterialRepository).findByCompanyAndSkuIn(eq(company), argThat(skus ->
-                skus.size() == 2 && skus.containsAll(List.of("FG-BROWSE", "RM-BROWSE"))));
+                skus.size() == 2 && skus.containsAll(List.of("Fg-Browse", "Rm-Browse"))));
         verify(finishedGoodBatchRepository).findByFinishedGoodIn(argThat(finishedGoods ->
                 finishedGoods.size() == 1 && finishedGoods.contains(finishedGood)));
         verify(finishedGoodBatchRepository, never()).findByFinishedGoodOrderByManufacturedAtAsc(any(FinishedGood.class));
