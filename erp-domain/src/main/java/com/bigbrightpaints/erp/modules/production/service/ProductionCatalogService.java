@@ -418,14 +418,9 @@ public class ProductionCatalogService {
                         candidate.createRequest(),
                         plan.variantGroupId(),
                         plan.productFamilyName());
-                created.add(new CatalogProductEntryResponse.Member(
+                created.add(candidate.toMember(
                         product.id(),
                         product.publicId(),
-                        product.skuCode(),
-                        product.productName(),
-                        itemClassForProduct(productRepository.findByCompanyAndId(company, product.id()).orElse(null)),
-                        product.defaultColour(),
-                        product.sizeLabel(),
                         skuReadinessService.forSku(company, product.skuCode(), expectedStockType(plan.itemClass()))));
             } catch (RuntimeException ex) {
                 if (isVariantDuplicateConflict(ex, company, candidate.sku())) {
@@ -516,7 +511,7 @@ public class ProductionCatalogService {
         product.setMetadata(metadata);
         ProductionProduct saved = productRepository.save(product);
         ensureCatalogFinishedGood(company, saved);
-        syncRawMaterial(company, saved);
+        syncRawMaterial(company, saved, normalizedItemClass);
         return toProductDto(saved);
     }
 
@@ -1343,10 +1338,14 @@ public class ProductionCatalogService {
     public ProductionProductDto updateProduct(Long productId, ProductUpdateRequest request) {
         Company company = companyContextService.requireCurrentCompany();
         ProductionProduct product = companyEntityLookup.requireProductionProduct(company, productId);
+        String normalizedItemClass = null;
         if (StringUtils.hasText(request.productName())) {
             product.setProductName(request.productName().trim());
         }
-        if (StringUtils.hasText(request.category())) {
+        if (StringUtils.hasText(request.itemClass())) {
+            normalizedItemClass = normalizeItemClass(request.itemClass());
+            product.setCategory(categoryForItemClass(normalizedItemClass));
+        } else if (StringUtils.hasText(request.category())) {
             product.setCategory(normalizeCategory(request.category()));
         }
         if (request.defaultColour() != null) {
@@ -1385,6 +1384,7 @@ public class ProductionCatalogService {
         }
         ProductionProduct saved = productRepository.save(product);
         ensureCatalogFinishedGood(company, saved);
+        syncRawMaterial(company, saved, normalizedItemClass);
         return toProductDto(saved);
     }
 
@@ -1735,7 +1735,18 @@ public class ProductionCatalogService {
     }
 
     private boolean syncRawMaterial(Company company, ProductionProduct product) {
-        return syncRawMaterial(company, product, null, rawMaterialInventoryAccountIdFromMetadata(product) != null);
+        return syncRawMaterial(company, product, null, null, rawMaterialInventoryAccountIdFromMetadata(product) != null);
+    }
+
+    private boolean syncRawMaterial(Company company,
+                                    ProductionProduct product,
+                                    String itemClassHint) {
+        return syncRawMaterial(
+                company,
+                product,
+                itemClassHint,
+                null,
+                rawMaterialInventoryAccountIdFromMetadata(product) != null);
     }
 
     private boolean syncRawMaterial(Company company,
@@ -1744,12 +1755,26 @@ public class ProductionCatalogService {
         return syncRawMaterial(
                 company,
                 product,
+                null,
                 validatedRawMaterialInventoryAccounts,
                 rawMaterialInventoryAccountIdFromMetadata(product) != null);
     }
 
     private boolean syncRawMaterial(Company company,
                                     ProductionProduct product,
+                                    Map<Long, Long> validatedRawMaterialInventoryAccounts,
+                                    boolean hasExplicitInventoryAccountMapping) {
+        return syncRawMaterial(
+                company,
+                product,
+                null,
+                validatedRawMaterialInventoryAccounts,
+                hasExplicitInventoryAccountMapping);
+    }
+
+    private boolean syncRawMaterial(Company company,
+                                    ProductionProduct product,
+                                    String itemClassHint,
                                     Map<Long, Long> validatedRawMaterialInventoryAccounts,
                                     boolean hasExplicitInventoryAccountMapping) {
         if (!isRawMaterialCategory(product.getCategory())) {
@@ -1784,8 +1809,12 @@ public class ProductionCatalogService {
         if (product.getGstRate() != null) {
             material.setGstRate(percent(product.getGstRate()));
         }
-        if (isLikelyPackagingMaterial(product)) {
-            material.setMaterialType(com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PACKAGING);
+        com.bigbrightpaints.erp.modules.inventory.domain.MaterialType materialType = resolveRawMaterialMaterialType(
+                product,
+                material,
+                itemClassHint);
+        if (materialType != null && material.getMaterialType() != materialType) {
+            material.setMaterialType(materialType);
         }
         String canonicalCostingMethod = CostingMethodUtils.canonicalizeRawMaterialMethodForSync(material.getCostingMethod());
         if (!Objects.equals(material.getCostingMethod(), canonicalCostingMethod)) {
@@ -2015,6 +2044,23 @@ public class ProductionCatalogService {
                 || value.contains("container");
     }
 
+    private com.bigbrightpaints.erp.modules.inventory.domain.MaterialType resolveRawMaterialMaterialType(
+            ProductionProduct product,
+            RawMaterial material,
+            String itemClassHint) {
+        if (StringUtils.hasText(itemClassHint)) {
+            return ITEM_CLASS_PACKAGING_RAW_MATERIAL.equals(normalizeItemClass(itemClassHint))
+                    ? com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PACKAGING
+                    : com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PRODUCTION;
+        }
+        if (material != null && material.getMaterialType() != null) {
+            return material.getMaterialType();
+        }
+        return isLikelyPackagingMaterial(product)
+                ? com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PACKAGING
+                : com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PRODUCTION;
+    }
+
     private Long requiredMetadataLong(ProductionProduct product, String key) {
         Long value = metadataLong(product, key);
         if (value == null || value <= 0) {
@@ -2189,7 +2235,13 @@ public class ProductionCatalogService {
         if (!isRawMaterialCategory(product.getCategory())) {
             return ITEM_CLASS_FINISHED_GOOD;
         }
-        return isLikelyPackagingMaterial(product) ? ITEM_CLASS_PACKAGING_RAW_MATERIAL : ITEM_CLASS_RAW_MATERIAL;
+        RawMaterial material = StringUtils.hasText(product.getSkuCode())
+                ? rawMaterialRepository.findByCompanyAndSkuIgnoreCase(product.getCompany(), product.getSkuCode()).orElse(null)
+                : null;
+        if (material != null && material.getMaterialType() == com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PACKAGING) {
+            return ITEM_CLASS_PACKAGING_RAW_MATERIAL;
+        }
+        return ITEM_CLASS_RAW_MATERIAL;
     }
 
     private static String normalizeKey(String value) {

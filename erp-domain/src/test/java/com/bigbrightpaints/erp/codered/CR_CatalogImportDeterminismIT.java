@@ -84,6 +84,7 @@ class CR_CatalogImportDeterminismIT extends AbstractIntegrationTest {
                 null,
                 "Cross-Tenant Raw",
                 "RAW_MATERIAL",
+                "RAW_MATERIAL",
                 null,
                 null,
                 "KG",

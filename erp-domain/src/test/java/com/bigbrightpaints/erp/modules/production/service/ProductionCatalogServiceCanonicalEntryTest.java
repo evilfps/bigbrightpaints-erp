@@ -436,6 +436,49 @@ class ProductionCatalogServiceCanonicalEntryTest {
     }
 
     @Test
+    void createOrPreviewCatalogProducts_preservesPackagingItemClassThroughCreate() {
+        company.setDefaultInventoryAccountId(9001L);
+        when(companyEntityLookup.requireAccount(company, 9001L)).thenReturn(account(9001L));
+        when(productRepository.findByCompanyAndSkuCode(company, "PKG-PRIMER-WHITE-1L")).thenReturn(Optional.empty());
+        when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> {
+            ProductionProduct saved = invocation.getArgument(0);
+            ReflectionTestUtils.setField(saved, "id", 902L);
+            ReflectionTestUtils.setField(saved, "publicId", UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"));
+            return saved;
+        });
+        when(rawMaterialRepository.findByCompanyAndSku(company, "PKG-PRIMER-WHITE-1L")).thenReturn(Optional.empty());
+        final com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial[] savedMaterial = new com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial[1];
+        when(rawMaterialRepository.save(any())).thenAnswer(invocation -> {
+            savedMaterial[0] = invocation.getArgument(0);
+            return savedMaterial[0];
+        });
+
+        SkuReadinessDto readiness = new SkuReadinessDto(
+                "PKG-PRIMER-WHITE-1L",
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(false, List.of("RAW_MATERIAL_SKU_NOT_SALES_ORDERABLE"))
+        );
+        when(skuReadinessService.forSku(
+                company,
+                "PKG-PRIMER-WHITE-1L",
+                SkuReadinessService.ExpectedStockType.PACKAGING_RAW_MATERIAL
+        )).thenReturn(readiness);
+
+        CatalogProductEntryResponse response = service.createOrPreviewCatalogProducts(
+                request("PACKAGING_RAW_MATERIAL", List.of("WHITE"), List.of("1L")),
+                false);
+
+        assertThat(response.members()).hasSize(1);
+        assertThat(response.members().getFirst().sku()).isEqualTo("PKG-PRIMER-WHITE-1L");
+        assertThat(response.members().getFirst().itemClass()).isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat(savedMaterial[0]).isNotNull();
+        assertThat(savedMaterial[0].getMaterialType())
+                .isEqualTo(com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PACKAGING);
+    }
+
+    @Test
     void createOrPreviewCatalogProducts_rethrowsUnexpectedCreateFailures() {
         CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE"), List.of("1L"));
         when(productRepository.save(any(ProductionProduct.class))).thenThrow(new RuntimeException("boom"));

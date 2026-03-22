@@ -109,6 +109,7 @@ class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
                 null,
                 productName,
                 "FINISHED_GOOD",
+                "FINISHED_GOOD",
                 "WHITE",
                 "1L",
                 "UNIT",
@@ -148,6 +149,7 @@ class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
                 null,
                 sourceName,
                 "FINISHED_GOOD",
+                "FINISHED_GOOD",
                 "BLUE",
                 "1L",
                 "UNIT",
@@ -162,6 +164,7 @@ class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
 
         productionCatalogService.updateProduct(created.id(), new ProductUpdateRequest(
                 updatedName,
+                null,
                 null,
                 null,
                 null,
@@ -188,6 +191,7 @@ class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
                 "LF-015 Brand",
                 null,
                 "LF-015 Bulk Collision Product " + token,
+                "FINISHED_GOOD",
                 "FINISHED_GOOD",
                 "WHITE",
                 "1L",
@@ -322,6 +326,7 @@ class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
         payload.put("brandId", brandId);
         payload.put("baseProductName", "LF-015 Ready Primer");
         payload.put("category", "FINISHED_GOOD");
+        payload.put("itemClass", "FINISHED_GOOD");
         payload.put("unitOfMeasure", "LITER");
         payload.put("hsnCode", "320910");
         payload.put("gstRate", new BigDecimal("18.00"));

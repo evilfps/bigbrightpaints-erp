@@ -405,6 +405,7 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 null,
                 "FG Sync Product",
                 "FINISHED_GOOD",
+                "FINISHED_GOOD",
                 null,
                 null,
                 "LTR",
@@ -426,6 +427,7 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         finishedGoodRepository.save(afterCreate);
 
         productionCatalogService.updateProduct(created.id(), new ProductUpdateRequest(
+                null,
                 null,
                 null,
                 null,
@@ -475,6 +477,7 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 null,
                 "FG Unsupported Product",
                 "FINISHED_GOOD",
+                "FINISHED_GOOD",
                 null,
                 null,
                 "LTR",
@@ -493,6 +496,7 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         assertThat(afterFgCreate.getCostingMethod()).isEqualTo("CUSTOM_METHOD");
 
         productionCatalogService.updateProduct(createdFinishedGood.id(), new ProductUpdateRequest(
+                null,
                 null,
                 null,
                 null,
@@ -531,6 +535,7 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 null,
                 "RM Unsupported Product",
                 "RAW_MATERIAL",
+                "RAW_MATERIAL",
                 null,
                 null,
                 "KG",
@@ -547,6 +552,7 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         assertThat(afterRmCreate.getCostingMethod()).isEqualTo("CUSTOM_METHOD");
 
         productionCatalogService.updateProduct(createdRawMaterial.id(), new ProductUpdateRequest(
+                null,
                 null,
                 null,
                 null,
@@ -625,6 +631,7 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         payload.put("brandId", brandId);
         payload.put("baseProductName", "Titanium Dioxide");
         payload.put("category", "RAW_MATERIAL");
+        payload.put("itemClass", "RAW_MATERIAL");
         payload.put("unitOfMeasure", "KG");
         payload.put("hsnCode", "320611");
         payload.put("gstRate", new BigDecimal("18.00"));

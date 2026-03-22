@@ -50,6 +50,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -271,6 +272,40 @@ class OpeningStockImportServiceTest {
 
         verify(openingStockImportRepository, never()).saveAndFlush(any());
         verifyNoInteractions(accountingFacade);
+    }
+
+    @Test
+    void importOpeningStock_rejectsConcurrentReplayConflictFromUniqueReplayKey() throws Exception {
+        MockMultipartFile file = csvFile(String.join("\n",
+                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"
+        ));
+        String fileHash = com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.sha256Hex(file.getBytes());
+
+        OpeningStockImport existing = new OpeningStockImport();
+        existing.setCompany(company);
+        existing.setIdempotencyKey("original-key");
+        existing.setReferenceNumber("OPEN-STOCK-ACME-ORIGINAL");
+        existing.setReplayProtectionKey("OPENING-STOCK|ACME|" + fileHash);
+
+        when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "fresh-key"))
+                .thenReturn(Optional.empty(), Optional.empty());
+        when(openingStockImportRepository.findByCompanyAndReplayProtectionKey(company, existing.getReplayProtectionKey()))
+                .thenReturn(Optional.empty(), Optional.of(existing));
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), any(String.class)))
+                .thenReturn(Optional.empty());
+        when(openingStockImportRepository.saveAndFlush(any()))
+                .thenThrow(new DataIntegrityViolationException("duplicate replay protection key"));
+
+        assertThatThrownBy(() -> service.importOpeningStock(file, "fresh-key"))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_DUPLICATE_ENTRY);
+                    assertThat(ex.getMessage()).contains("already exists for this exact payload");
+                    assertThat(ex.getDetails())
+                            .containsEntry("existingIdempotencyKey", "original-key")
+                            .containsEntry("referenceNumber", "OPEN-STOCK-ACME-ORIGINAL")
+                            .containsEntry("attemptedIdempotencyKey", "fresh-key");
+                });
     }
 
     @Test

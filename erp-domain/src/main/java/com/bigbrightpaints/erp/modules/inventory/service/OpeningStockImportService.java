@@ -145,7 +145,7 @@ public class OpeningStockImportService {
         }
         String fileHash = resolveFileHash(file);
         String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
-        String replayProtectionKey = buildReplayProtectionKey(company, file);
+        String replayProtectionKey = buildReplayProtectionKey(company, fileHash);
         String importReference = resolveImportReference(company, normalizedKey);
 
         OpeningStockImport existing = openingStockImportRepository.findByCompanyAndIdempotencyKey(company, normalizedKey)
@@ -182,7 +182,16 @@ public class OpeningStockImportService {
                 throw ex;
             }
             OpeningStockImport concurrent = openingStockImportRepository.findByCompanyAndIdempotencyKey(company, normalizedKey)
-                    .orElseThrow(() -> ex);
+                    .orElse(null);
+            if (concurrent == null) {
+                OpeningStockImport concurrentReplay = openingStockImportRepository
+                        .findByCompanyAndReplayProtectionKey(company, replayProtectionKey)
+                        .orElse(null);
+                if (concurrentReplay != null) {
+                    throw openingStockReplayConflict(concurrentReplay, normalizedKey);
+                }
+                throw ex;
+            }
             assertIdempotencyMatch(concurrent, fileHash, normalizedKey);
             return toResponse(concurrent);
         }
@@ -505,8 +514,7 @@ public class OpeningStockImportService {
         return "OPEN-STOCK-%s-%s".formatted(companyCode, shortHash);
     }
 
-    private String buildReplayProtectionKey(Company company, MultipartFile file) {
-        String fileHash = resolveFileHash(file);
+    private String buildReplayProtectionKey(Company company, String fileHash) {
         String companyCode = sanitizeCompanyCode(company != null ? company.getCode() : null);
         return "OPENING-STOCK|%s|%s".formatted(companyCode, fileHash);
     }
