@@ -7,6 +7,7 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
@@ -55,6 +56,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -244,6 +246,37 @@ class OpeningStockImportServiceTest {
     }
 
     @Test
+    void importOpeningStock_rejectsNullAndEmptyFiles() {
+        MockMultipartFile emptyFile = csvFile("");
+
+        assertThatThrownBy(() -> service.importOpeningStock(null, "key-null"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("CSV file is required");
+        assertThatThrownBy(() -> service.importOpeningStock(emptyFile, "key-empty"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("CSV file is required");
+    }
+
+    @Test
+    void importOpeningStock_rejectsDuplicateReferenceNumberReservation() {
+        MockMultipartFile file = csvFile(String.join("\n",
+                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"
+        ));
+
+        when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "fresh-key"))
+                .thenReturn(Optional.empty());
+        when(openingStockImportRepository.findByCompanyAndReplayProtectionKey(eq(company), any(String.class)))
+                .thenReturn(Optional.empty());
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), any(String.class)))
+                .thenReturn(Optional.of(new JournalEntry()));
+
+        assertThatThrownBy(() -> service.importOpeningStock(file, "fresh-key"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("already processed for this idempotency key");
+    }
+
+    @Test
     void importOpeningStock_rejectsReplayOfSamePayloadUnderFreshIdempotencyKey() {
         MockMultipartFile file = csvFile(String.join("\n",
                 "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
@@ -306,6 +339,106 @@ class OpeningStockImportServiceTest {
                             .containsEntry("referenceNumber", "OPEN-STOCK-ACME-ORIGINAL")
                             .containsEntry("attemptedIdempotencyKey", "fresh-key");
                 });
+    }
+
+    @Test
+    void importOpeningStock_returnsConcurrentIdempotentRecordWhenUniqueConstraintRaceFindsSameKey() throws Exception {
+        MockMultipartFile file = csvFile(String.join("\n",
+                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"
+        ));
+        String fileHash = com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.sha256Hex(file.getBytes());
+        String replayProtectionKey = "OPENING-STOCK|ACME|" + fileHash;
+
+        OpeningStockImport concurrent = new OpeningStockImport();
+        concurrent.setCompany(company);
+        concurrent.setIdempotencyKey("fresh-key");
+        concurrent.setIdempotencyHash(fileHash);
+        concurrent.setReferenceNumber("OPEN-STOCK-ACME-CONCURRENT");
+        concurrent.setReplayProtectionKey(replayProtectionKey);
+        concurrent.setRowsProcessed(1);
+
+        when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "fresh-key"))
+                .thenReturn(Optional.empty(), Optional.of(concurrent));
+        when(openingStockImportRepository.findByCompanyAndReplayProtectionKey(company, replayProtectionKey))
+                .thenReturn(Optional.empty());
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), any(String.class)))
+                .thenReturn(Optional.empty());
+        when(openingStockImportRepository.saveAndFlush(any()))
+                .thenThrow(new DataIntegrityViolationException("duplicate idempotency key"));
+
+        OpeningStockImportResponse response = service.importOpeningStock(file, "fresh-key");
+
+        assertThat(response.rowsProcessed()).isEqualTo(1);
+    }
+
+    @Test
+    void importOpeningStock_rethrowsConcurrentViolationWhenNoReplayOrIdempotentRecordCanBeRecovered() throws Exception {
+        MockMultipartFile file = csvFile(String.join("\n",
+                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"
+        ));
+        String fileHash = com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.sha256Hex(file.getBytes());
+        String replayProtectionKey = "OPENING-STOCK|ACME|" + fileHash;
+
+        when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "fresh-key"))
+                .thenReturn(Optional.empty(), Optional.empty());
+        when(openingStockImportRepository.findByCompanyAndReplayProtectionKey(company, replayProtectionKey))
+                .thenReturn(Optional.empty(), Optional.empty());
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), any(String.class)))
+                .thenReturn(Optional.empty());
+        when(openingStockImportRepository.saveAndFlush(any()))
+                .thenThrow(new DataIntegrityViolationException("duplicate but not recoverable"));
+
+        assertThatThrownBy(() -> service.importOpeningStock(file, "fresh-key"))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("duplicate but not recoverable");
+    }
+
+    @Test
+    void importOpeningStock_rethrowsNonDataIntegrityRuntimeFailures() {
+        MockMultipartFile file = csvFile(String.join("\n",
+                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"
+        ));
+        when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "fresh-key"))
+                .thenReturn(Optional.empty());
+        when(openingStockImportRepository.findByCompanyAndReplayProtectionKey(eq(company), any(String.class)))
+                .thenReturn(Optional.empty());
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), any(String.class)))
+                .thenReturn(Optional.empty());
+        when(openingStockImportRepository.saveAndFlush(any()))
+                .thenThrow(new IllegalStateException("unexpected failure"));
+
+        assertThatThrownBy(() -> service.importOpeningStock(file, "fresh-key"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("unexpected failure");
+    }
+
+    @Test
+    void importOpeningStock_rejectsNullTransactionResponse() {
+        MockMultipartFile file = csvFile(String.join("\n",
+                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"
+        ));
+
+        when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "fresh-key"))
+                .thenReturn(Optional.empty());
+        when(openingStockImportRepository.findByCompanyAndReplayProtectionKey(eq(company), any(String.class)))
+                .thenReturn(Optional.empty());
+        when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), any(String.class)))
+                .thenReturn(Optional.empty());
+
+        ReflectionTestUtils.setField(service, "transactionTemplate", new TransactionTemplate(new ResourcelessTransactionManager()) {
+            @Override
+            public <T> T execute(org.springframework.transaction.support.TransactionCallback<T> action) {
+                return null;
+            }
+        });
+
+        assertThatThrownBy(() -> service.importOpeningStock(file, "fresh-key"))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("failed to return a response");
     }
 
     @Test

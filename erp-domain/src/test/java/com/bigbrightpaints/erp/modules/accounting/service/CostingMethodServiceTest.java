@@ -39,7 +39,7 @@ class CostingMethodServiceTest {
     }
 
     @Test
-    void resolveActiveMethod_defaultsToWeightedAverageWhenPeriodValueMissing() {
+    void resolveActiveMethod_defaultsToFifoWhenPeriodValueMissing() {
         Company company = new Company();
         AccountingPeriod period = new AccountingPeriod();
         period.setCostingMethod(null);
@@ -49,6 +49,18 @@ class CostingMethodServiceTest {
 
         CostingMethodService service = new CostingMethodService(accountingPeriodService, companyContextService);
 
-        assertThat(service.resolveActiveMethod(company, referenceDate)).isEqualTo(CostingMethod.WEIGHTED_AVERAGE);
+        assertThat(service.resolveActiveMethod(company, referenceDate)).isEqualTo(CostingMethod.FIFO);
+    }
+
+    @Test
+    void resolveActiveMethod_defaultsToFifoWhenPeriodMissing() {
+        Company company = new Company();
+        LocalDate referenceDate = LocalDate.of(2026, 2, 10);
+
+        when(accountingPeriodService.ensurePeriod(company, referenceDate)).thenReturn(null);
+
+        CostingMethodService service = new CostingMethodService(accountingPeriodService, companyContextService);
+
+        assertThat(service.resolveActiveMethod(company, referenceDate)).isEqualTo(CostingMethod.FIFO);
     }
 }

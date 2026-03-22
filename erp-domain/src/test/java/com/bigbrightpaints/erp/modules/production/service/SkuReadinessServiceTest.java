@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
@@ -232,6 +233,24 @@ class SkuReadinessServiceTest {
     }
 
     @Test
+    void forSku_usesPackagingRawMaterialMirrorToInferPackagingTypeWhenProductMissing() {
+        RawMaterial rawMaterial = rawMaterial("PKG-2", 77L);
+        rawMaterial.setMaterialType(MaterialType.PACKAGING);
+
+        when(productRepository.findByCompanyAndSkuCodeIgnoreCase(company, "pkg-2")).thenReturn(Optional.empty());
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "pkg-2")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "pkg-2")).thenReturn(Optional.of(rawMaterial));
+
+        SkuReadinessDto readiness = service.forSku(company, "pkg-2", null);
+
+        assertThat(readiness.sku()).isEqualTo("PKG-2");
+        assertThat(readiness.catalog().blockers()).containsExactly("PRODUCT_MASTER_MISSING");
+        assertThat(readiness.inventory().ready()).isTrue();
+        assertThat(readiness.production().blockers()).containsExactly("PRODUCT_MASTER_MISSING");
+        assertThat(readiness.sales().blockers()).containsExactly("RAW_MATERIAL_SKU_NOT_SALES_ORDERABLE");
+    }
+
+    @Test
     void forSku_preservesStoredSkuCasingWhenResolvingReadinessMirrors() {
         ProductionProduct product = finishedGoodProduct("Fg-Mixed-1");
         product.setMetadata(finishedGoodProductionMetadata(44L, 55L, 66L));
@@ -386,6 +405,26 @@ class SkuReadinessServiceTest {
         SkuReadinessDto readiness = service.forPlannedProduct(
                 product,
                 SkuReadinessService.ExpectedStockType.RAW_MATERIAL,
+                null,
+                rawMaterial);
+
+        assertThat(readiness.catalog().ready()).isTrue();
+        assertThat(readiness.inventory().ready()).isTrue();
+        assertThat(readiness.production().ready()).isTrue();
+        assertThat(readiness.sales().blockers()).containsExactly("RAW_MATERIAL_SKU_NOT_SALES_ORDERABLE");
+        verifyNoInteractions(productRepository, finishedGoodRepository, rawMaterialRepository, finishedGoodBatchRepository);
+    }
+
+    @Test
+    void forPlannedProduct_packagingRawMaterialUsesProjectedMirrorWithoutRepositoryLookups() {
+        ProductionProduct product = finishedGoodProduct("PKG-PLAN");
+        product.setCategory("RAW_MATERIAL");
+        RawMaterial rawMaterial = rawMaterial("PKG-PLAN", 77L);
+        rawMaterial.setMaterialType(MaterialType.PACKAGING);
+
+        SkuReadinessDto readiness = service.forPlannedProduct(
+                product,
+                SkuReadinessService.ExpectedStockType.PACKAGING_RAW_MATERIAL,
                 null,
                 rawMaterial);
 

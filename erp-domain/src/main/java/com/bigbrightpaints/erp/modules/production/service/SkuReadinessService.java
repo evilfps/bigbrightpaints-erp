@@ -231,8 +231,7 @@ public class SkuReadinessService {
         }
 
         List<String> inventoryBlockers = new ArrayList<>();
-        if (effectiveStockType == ExpectedStockType.RAW_MATERIAL
-                || effectiveStockType == ExpectedStockType.PACKAGING_RAW_MATERIAL) {
+        if (effectiveStockType == ExpectedStockType.RAW_MATERIAL || effectiveStockType == ExpectedStockType.PACKAGING_RAW_MATERIAL) {
             if (product != null && !isRawMaterialCategory(product.getCategory())) {
                 inventoryBlockers.add("RAW_MATERIAL_CATEGORY_REQUIRED");
             }
@@ -281,8 +280,7 @@ public class SkuReadinessService {
         }
 
         List<String> salesBlockers = new ArrayList<>();
-        if (effectiveStockType == ExpectedStockType.RAW_MATERIAL
-                || effectiveStockType == ExpectedStockType.PACKAGING_RAW_MATERIAL) {
+        if (effectiveStockType == ExpectedStockType.RAW_MATERIAL || effectiveStockType == ExpectedStockType.PACKAGING_RAW_MATERIAL) {
             salesBlockers.add("RAW_MATERIAL_SKU_NOT_SALES_ORDERABLE");
         } else {
             salesBlockers.addAll(catalogBlockers);

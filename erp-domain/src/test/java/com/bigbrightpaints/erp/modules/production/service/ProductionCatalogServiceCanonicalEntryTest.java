@@ -7,6 +7,8 @@ import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
@@ -19,6 +21,8 @@ import com.bigbrightpaints.erp.modules.production.dto.BulkVariantRequest;
 import com.bigbrightpaints.erp.modules.production.dto.BulkVariantResponse;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryRequest;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryResponse;
+import com.bigbrightpaints.erp.modules.production.dto.ProductUpdateRequest;
+import com.bigbrightpaints.erp.modules.production.dto.ProductionProductDto;
 import com.bigbrightpaints.erp.modules.production.dto.SkuReadinessDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -676,6 +680,64 @@ class ProductionCatalogServiceCanonicalEntryTest {
     }
 
     @Test
+    void updateProduct_itemClassHint_reclassifiesRawMaterialMirrorAsPackaging() {
+        ProductionProduct product = new ProductionProduct();
+        ReflectionTestUtils.setField(product, "id", 41L);
+        product.setCompany(company);
+        product.setBrand(brand);
+        product.setSkuCode("RM-PRIMER");
+        product.setProductName("Primer");
+        product.setCategory("RAW_MATERIAL");
+        product.setUnitOfMeasure("KG");
+        product.setMetadata(Map.of());
+
+        RawMaterial material = new RawMaterial();
+        ReflectionTestUtils.setField(material, "id", 42L);
+        material.setCompany(company);
+        material.setSku("RM-PRIMER");
+        material.setName("Primer");
+        material.setUnitType("KG");
+        material.setInventoryAccountId(999L);
+        material.setMaterialType(MaterialType.PRODUCTION);
+
+        when(companyEntityLookup.requireProductionProduct(company, 41L)).thenReturn(product);
+        when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(rawMaterialRepository.findByCompanyAndSku(company, "RM-PRIMER")).thenReturn(Optional.of(material));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "RM-PRIMER")).thenReturn(Optional.of(material));
+        when(rawMaterialRepository.save(any(RawMaterial.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductionProductDto response = service.updateProduct(
+                41L,
+                new ProductUpdateRequest(
+                        "Primer",
+                        null,
+                        "PACKAGING_RAW_MATERIAL",
+                        null,
+                        null,
+                        "KG",
+                        new BigDecimal("100.00"),
+                        new BigDecimal("18.00"),
+                        BigDecimal.ZERO,
+                        new BigDecimal("95.00"),
+                        Map.of()));
+
+        assertThat(response.category()).isEqualTo("RAW_MATERIAL");
+        assertThat(product.getCategory()).isEqualTo("RAW_MATERIAL");
+        assertThat(material.getMaterialType()).isEqualTo(MaterialType.PACKAGING);
+    }
+
+    @Test
+    void syncRawMaterial_returnsFalseForFinishedGoods() {
+        ProductionProduct finishedGood = new ProductionProduct();
+        finishedGood.setCompany(company);
+        finishedGood.setCategory("FINISHED_GOOD");
+        finishedGood.setSkuCode("FG-PRIMER");
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "syncRawMaterial", company, finishedGood, "FINISHED_GOOD"))
+                .isFalse();
+    }
+
+    @Test
     void canonicalHelperMethods_validateMimeParameterSections() {
         assertThat((Boolean) ReflectionTestUtils.invokeMethod(
                 service,
@@ -693,6 +755,137 @@ class ProductionCatalogServiceCanonicalEntryTest {
                 service,
                 "isValidMimeParameterSection",
                 "charset=")).isFalse();
+    }
+
+    @Test
+    void canonicalHelperMethods_coverItemClassAndMaterialTypeMappings() {
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "containsAnyPackagingToken", "pack liner"))
+                .isTrue();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "containsAnyPackagingToken", "container shell"))
+                .isTrue();
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeItemClass", "FINISHED_GOOD"))
+                .isEqualTo("FINISHED_GOOD");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeItemClass", "RAW_MATERIAL"))
+                .isEqualTo("RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeItemClass", "PACKAGING_RAW_MATERIAL"))
+                .isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeItemClass", "PACKAGING"))
+                .isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeVariantItemClass", "RAW_MATERIAL"))
+                .isEqualTo("RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeVariantItemClass", "PACKAGING"))
+                .isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeVariantItemClass", "FINISHED_GOOD"))
+                .isEqualTo("FINISHED_GOOD");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassSkuPrefix", "FINISHED_GOOD"))
+                .isEqualTo("FG");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassSkuPrefix", "RAW_MATERIAL"))
+                .isEqualTo("RM");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassSkuPrefix", "PACKAGING_RAW_MATERIAL"))
+                .isEqualTo("PKG");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "categoryForItemClass", "PACKAGING_RAW_MATERIAL"))
+                .isEqualTo("RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "categoryForItemClass", "RAW_MATERIAL"))
+                .isEqualTo("RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "categoryForItemClass", "FINISHED_GOOD"))
+                .isEqualTo("FINISHED_GOOD");
+        assertThat((SkuReadinessService.ExpectedStockType) ReflectionTestUtils.invokeMethod(service, "expectedStockType", "FINISHED_GOOD"))
+                .isEqualTo(SkuReadinessService.ExpectedStockType.FINISHED_GOOD);
+        assertThat((SkuReadinessService.ExpectedStockType) ReflectionTestUtils.invokeMethod(service, "expectedStockType", "RAW_MATERIAL"))
+                .isEqualTo(SkuReadinessService.ExpectedStockType.RAW_MATERIAL);
+        assertThat((SkuReadinessService.ExpectedStockType) ReflectionTestUtils.invokeMethod(service, "expectedStockType", "PACKAGING_RAW_MATERIAL"))
+                .isEqualTo(SkuReadinessService.ExpectedStockType.PACKAGING_RAW_MATERIAL);
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "buildDeterministicSku", "PACKAGING_RAW_MATERIAL", "PRIMER", "WHITE", "1L"))
+                .isEqualTo("PKG-PRIMER-WHITE-1L");
+
+        RawMaterial packagingMaterial = new RawMaterial();
+        packagingMaterial.setMaterialType(MaterialType.PACKAGING);
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "PKG-001")).thenReturn(Optional.of(packagingMaterial));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "RM-001")).thenReturn(Optional.empty());
+
+        ProductionProduct packagingProduct = new ProductionProduct();
+        packagingProduct.setCompany(company);
+        packagingProduct.setCategory("RAW_MATERIAL");
+        packagingProduct.setSkuCode("PKG-001");
+        packagingProduct.setProductName("Bottle");
+
+        ProductionProduct rawProduct = new ProductionProduct();
+        rawProduct.setCompany(company);
+        rawProduct.setCategory("RAW_MATERIAL");
+        rawProduct.setSkuCode("RM-001");
+        rawProduct.setProductName("Resin");
+
+        ProductionProduct rawProductWithoutSku = new ProductionProduct();
+        rawProductWithoutSku.setCompany(company);
+        rawProductWithoutSku.setCategory("RAW_MATERIAL");
+        rawProductWithoutSku.setProductName("Base Resin");
+
+        ProductionProduct finishedGood = new ProductionProduct();
+        finishedGood.setCategory("FINISHED_GOOD");
+
+        RawMaterial existingProductionMaterial = new RawMaterial();
+        existingProductionMaterial.setMaterialType(MaterialType.PRODUCTION);
+        RawMaterial existingPackagingMaterial = new RawMaterial();
+        existingPackagingMaterial.setMaterialType(MaterialType.PACKAGING);
+        RawMaterial heuristicPackagingMaterial = new RawMaterial();
+        heuristicPackagingMaterial.setMaterialType(null);
+        RawMaterial heuristicProductionMaterial = new RawMaterial();
+        heuristicProductionMaterial.setMaterialType(null);
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", packagingProduct))
+                .isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", rawProduct))
+                .isEqualTo("RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", rawProductWithoutSku))
+                .isEqualTo("RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", finishedGood))
+                .isEqualTo("FINISHED_GOOD");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", new Object[]{null}))
+                .isEqualTo("FINISHED_GOOD");
+        assertThat((MaterialType) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveRawMaterialMaterialType",
+                packagingProduct,
+                null,
+                "PACKAGING_RAW_MATERIAL"))
+                .isEqualTo(MaterialType.PACKAGING);
+        assertThat((MaterialType) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveRawMaterialMaterialType",
+                rawProduct,
+                null,
+                "RAW_MATERIAL"))
+                .isEqualTo(MaterialType.PRODUCTION);
+        assertThat((MaterialType) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveRawMaterialMaterialType",
+                rawProduct,
+                existingProductionMaterial,
+                null))
+                .isEqualTo(MaterialType.PRODUCTION);
+        assertThat((MaterialType) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveRawMaterialMaterialType",
+                rawProduct,
+                existingPackagingMaterial,
+                null))
+                .isEqualTo(MaterialType.PACKAGING);
+        assertThat((MaterialType) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveRawMaterialMaterialType",
+                packagingProduct,
+                heuristicPackagingMaterial,
+                null))
+                .isEqualTo(MaterialType.PACKAGING);
+        assertThat((MaterialType) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveRawMaterialMaterialType",
+                rawProduct,
+                heuristicProductionMaterial,
+                null))
+                .isEqualTo(MaterialType.PRODUCTION);
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "normalizeItemClass", "LEGACY"))
+                .hasMessageContaining("itemClass is required");
     }
 
     private CatalogProductEntryRequest request(String itemClass, List<String> colors, List<String> sizes) {

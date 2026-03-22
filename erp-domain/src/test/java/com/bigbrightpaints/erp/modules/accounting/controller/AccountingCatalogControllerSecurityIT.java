@@ -114,7 +114,7 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
 
         DownstreamFlowResult flow = runDownstreamReadyFlow(activeBrand.getId(), "Existing Flow Primer " + shortId());
         assertThat(flow.brandId()).isEqualTo(activeBrand.getId());
-        assertThat(flow.sku()).startsWith(activeBrand.getCode());
+        assertThat(flow.sku()).startsWith("FG-");
     }
 
     @Test
@@ -487,6 +487,7 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
         payload.put("brandId", brandId);
         payload.put("baseProductName", baseProductName);
         payload.put("category", "FINISHED_GOOD");
+        payload.put("itemClass", "FINISHED_GOOD");
         payload.put("unitOfMeasure", "LITER");
         payload.put("hsnCode", "320910");
         payload.put("gstRate", new BigDecimal("18.00"));

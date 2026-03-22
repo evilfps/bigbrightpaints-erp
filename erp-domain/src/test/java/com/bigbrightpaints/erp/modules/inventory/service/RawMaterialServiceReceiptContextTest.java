@@ -7,6 +7,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialAdjustmentRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
@@ -16,6 +17,8 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.inventory.dto.RawMaterialBatchRequest;
+import com.bigbrightpaints.erp.modules.inventory.dto.RawMaterialRequest;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
@@ -136,10 +139,20 @@ class RawMaterialServiceReceiptContextTest {
         supplier.setCode("SUP-10");
         supplier.setName("Supplier 10");
 
+        ProductionBrand rawMaterialBrand = new ProductionBrand();
+        rawMaterialBrand.setCompany(company);
+        rawMaterialBrand.setCode("RAW-MATERIALS");
+        rawMaterialBrand.setName("Raw Materials");
+
         lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
         lenient().when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(material));
         lenient().when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
         lenient().when(rawMaterialRepository.save(any(RawMaterial.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(productionProductRepository.findByCompanyAndSkuCode(any(Company.class), any(String.class))).thenReturn(Optional.empty());
+        lenient().when(productionProductRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(productionBrandRepository.findByCompanyAndCodeIgnoreCase(company, "RAW-MATERIALS"))
+                .thenReturn(Optional.of(rawMaterialBrand));
+        lenient().when(productionBrandRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(batchRepository.existsByRawMaterialAndBatchCode(material, "BATCH-1")).thenReturn(false);
         lenient().when(batchRepository.save(any(RawMaterialBatch.class))).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(movementRepository.save(any(RawMaterialMovement.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -270,6 +283,86 @@ class RawMaterialServiceReceiptContextTest {
         assertThat(result.journalEntryId()).isEqualTo(501L);
     }
 
+
+    @Test
+    void createRawMaterial_mapsPackagingAliasesAndDefaultsInventoryAccount() {
+        RawMaterialRequest request = new RawMaterialRequest(
+                "Bottle",
+                "PKG-001",
+                "pkg",
+                "PCS",
+                new BigDecimal("2"),
+                new BigDecimal("1"),
+                new BigDecimal("5"),
+                null,
+                null
+        );
+
+        rawMaterialService.createRawMaterial(request);
+
+        ArgumentCaptor<RawMaterial> materialCaptor = ArgumentCaptor.forClass(RawMaterial.class);
+        verify(rawMaterialRepository).save(materialCaptor.capture());
+        assertThat(materialCaptor.getValue().getMaterialType()).isEqualTo(MaterialType.PACKAGING);
+        assertThat(materialCaptor.getValue().getInventoryAccountId()).isEqualTo(99L);
+    }
+
+    @Test
+    void updateRawMaterial_defaultsBlankMaterialTypeToProduction() {
+        material.setMaterialType(MaterialType.PACKAGING);
+
+        rawMaterialService.updateRawMaterial(20L, new RawMaterialRequest(
+                "Resin",
+                "RM-20",
+                null,
+                "KG",
+                new BigDecimal("5"),
+                new BigDecimal("2"),
+                new BigDecimal("8"),
+                77L,
+                null
+        ));
+
+        ArgumentCaptor<RawMaterial> materialCaptor = ArgumentCaptor.forClass(RawMaterial.class);
+        verify(rawMaterialRepository).save(materialCaptor.capture());
+        assertThat(materialCaptor.getValue().getMaterialType()).isEqualTo(MaterialType.PRODUCTION);
+        assertThat(materialCaptor.getValue().getInventoryAccountId()).isEqualTo(77L);
+    }
+
+    @Test
+    void updateRawMaterial_mapsRawMaterialAliasToProductionType() {
+        rawMaterialService.updateRawMaterial(20L, new RawMaterialRequest(
+                "Resin",
+                "RM-20",
+                "RM",
+                "KG",
+                new BigDecimal("5"),
+                new BigDecimal("2"),
+                new BigDecimal("8"),
+                77L,
+                null
+        ));
+
+        ArgumentCaptor<RawMaterial> materialCaptor = ArgumentCaptor.forClass(RawMaterial.class);
+        verify(rawMaterialRepository).save(materialCaptor.capture());
+        assertThat(materialCaptor.getValue().getMaterialType()).isEqualTo(MaterialType.PRODUCTION);
+    }
+
+    @Test
+    void createRawMaterial_rejectsUnsupportedMaterialType() {
+        assertThatThrownBy(() -> rawMaterialService.createRawMaterial(new RawMaterialRequest(
+                "Mystery",
+                "RM-ERR",
+                "unknown-type",
+                "KG",
+                BigDecimal.ONE,
+                BigDecimal.ZERO,
+                BigDecimal.TEN,
+                99L,
+                null
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Unsupported materialType");
+    }
     @Test
     @DisplayName("recordReceipt honors explicit posting contexts and restores inventory account from company defaults")
     void recordReceipt_explicitPostingContextUsesReferenceAndDefaultInventoryAccount() {

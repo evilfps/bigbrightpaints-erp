@@ -81,14 +81,22 @@ class ProductionCatalogServiceBulkVariantRaceTest {
         brand.setName("BigBright");
         brand.setCode("BBP");
         brand.setCompany(company);
+        company.setDefaultInventoryAccountId(101L);
+        company.setDefaultCogsAccountId(102L);
+        company.setDefaultRevenueAccountId(103L);
+        company.setDefaultTaxAccountId(104L);
 
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         lenient().when(companyEntityLookup.requireProductionBrand(company, 11L)).thenReturn(brand);
+        lenient().when(companyDefaultAccountsService.getDefaults())
+                .thenReturn(new CompanyDefaultAccountsService.DefaultAccounts(101L, 102L, 103L, null, 104L));
+        lenient().when(companyDefaultAccountsService.requireDefaults())
+                .thenReturn(new CompanyDefaultAccountsService.DefaultAccounts(101L, 102L, 103L, null, 104L));
     }
 
     @Test
     void createVariants_failsClosedWhenConcurrentInsertRaisesDataIntegrityDuplicate() {
-        String sku = "BBP-PRIMER-RED-20L";
+        String sku = "FG-PRIMER-RED-20L";
         when(productRepository.findByCompanyAndSkuCode(company, sku))
                 .thenReturn(Optional.of(existingProduct(sku)));
         doThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint"))
@@ -114,7 +122,7 @@ class ProductionCatalogServiceBulkVariantRaceTest {
 
     @Test
     void createVariants_failsClosedWhenConcurrentInsertRaisesSkuAlreadyExistsValidation() {
-        String sku = "BBP-PRIMER-RED-20L";
+        String sku = "FG-PRIMER-RED-20L";
         when(productRepository.findByCompanyAndSkuCode(company, sku))
                 .thenReturn(Optional.of(existingProduct(sku)));
         doThrow(new IllegalArgumentException("SKU " + sku + " already exists"))
@@ -156,11 +164,13 @@ class ProductionCatalogServiceBulkVariantRaceTest {
     }
 
     @Test
-    void createVariants_rejectsEmptySkuPrefixAfterNormalization() {
-        assertThatThrownBy(() -> service.createVariants(variantRequest("Primer", List.of("Red"), List.of("20L"), "***")))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("skuPrefix/brandCode")
-                .hasMessageContaining("SKU character");
+    void createVariants_ignoresLegacySkuPrefixAndUsesDeterministicItemClassPrefix() {
+        BulkVariantResponse response = service.createVariants(
+                variantRequest("Primer", List.of("Red"), List.of("20L"), "***"),
+                true);
+
+        assertThat(response.wouldCreate()).hasSize(1);
+        assertThat(response.wouldCreate().getFirst().sku()).isEqualTo("FG-PRIMER-RED-20L");
     }
 
     @Test

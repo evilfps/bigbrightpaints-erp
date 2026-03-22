@@ -71,32 +71,33 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         ProductionBrand inactiveBrand = saveBrand("Canonical Inactive " + shortId(), false);
         Account wipAccount = ensureAccount("WIP-" + shortId(), "Work In Progress", AccountType.ASSET);
         HttpHeaders salesHeaders = authHeaders(SALES_EMAIL, PASSWORD, COMPANY_CODE);
+        String baseProductName = "Premium Primer";
 
-        ResponseEntity<Map> missingBrandResponse = postCatalogProducts(basePayload(null), false);
+        ResponseEntity<Map> missingBrandResponse = postCatalogProducts(basePayload(null, baseProductName), false);
         assertThat(missingBrandResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(errors(missingBrandResponse)).containsKey("brandId");
 
-        ResponseEntity<Map> nonexistentBrandResponse = postCatalogProducts(basePayload(999999L), false);
+        ResponseEntity<Map> nonexistentBrandResponse = postCatalogProducts(basePayload(999999L, baseProductName), false);
         assertThat(nonexistentBrandResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(errorData(nonexistentBrandResponse)).containsEntry("code", "BUS_003");
 
-        ResponseEntity<Map> inactiveBrandResponse = postCatalogProducts(basePayload(inactiveBrand.getId()), false);
+        ResponseEntity<Map> inactiveBrandResponse = postCatalogProducts(basePayload(inactiveBrand.getId(), baseProductName), false);
         assertThat(inactiveBrandResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(String.valueOf(errorData(inactiveBrandResponse).get("reason"))).contains("inactive");
 
-        Map<String, Object> inlineFallbackPayload = basePayload(activeBrand.getId());
+        Map<String, Object> inlineFallbackPayload = basePayload(activeBrand.getId(), baseProductName);
         inlineFallbackPayload.put("brandName", "Inline Brand");
         ResponseEntity<Map> inlineFallbackResponse = postCatalogProducts(inlineFallbackPayload, false);
         assertThat(inlineFallbackResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(String.valueOf(errorData(inlineFallbackResponse).get("reason"))).contains("Unsupported fields");
 
-        Map<String, Object> packedTokenPayload = basePayload(activeBrand.getId());
+        Map<String, Object> packedTokenPayload = basePayload(activeBrand.getId(), baseProductName);
         packedTokenPayload.put("colors", List.of("WHITE/BLACK"));
         ResponseEntity<Map> packedTokenResponse = postCatalogProducts(packedTokenPayload, false);
         assertThat(packedTokenResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(String.valueOf(errorData(packedTokenResponse).get("reason"))).contains("packed multi-value tokens");
 
-        ResponseEntity<Map> successResponse = postCatalogProducts(basePayload(activeBrand.getId()), false);
+        ResponseEntity<Map> successResponse = postCatalogProducts(basePayload(activeBrand.getId(), baseProductName), false);
         assertThat(successResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         Map<String, Object> data = data(successResponse);
@@ -116,7 +117,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         Map<String, Object> member = members.getFirst();
         assertThat(member.get("id")).isNotNull();
         assertThat(member.get("publicId")).isNotNull();
-        assertThat(member.get("sku")).isEqualTo(buildCanonicalSku(activeBrand.getCode(), "Premium Primer", "WHITE", "1L"));
+        assertThat(member.get("sku")).isEqualTo(buildCanonicalSku("FINISHED_GOOD", "Premium Primer", "WHITE", "1L"));
         assertThat(member.get("productName")).isEqualTo("Premium Primer WHITE 1L");
         assertThat(productRepository.countByCompanyAndVariantGroupId(company, variantGroupId)).isEqualTo(1);
         assertThat(productRepository.findByCompanyAndSkuCode(company, String.valueOf(member.get("sku")))).isPresent();
@@ -374,9 +375,9 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         assertThat(secondVariantGroupId).isEqualTo(firstVariantGroupId);
         assertThat(productRepository.countByCompanyAndVariantGroupId(company, firstVariantGroupId)).isEqualTo(2);
         assertThat(members(firstData)).extracting(member -> String.valueOf(member.get("sku")))
-                .containsExactly(buildCanonicalSku(activeBrand.getCode(), familyName, "WHITE", "1L"));
+                .containsExactly(buildCanonicalSku("FINISHED_GOOD", familyName, "WHITE", "1L"));
         assertThat(members(secondData)).extracting(member -> String.valueOf(member.get("sku")))
-                .containsExactly(buildCanonicalSku(activeBrand.getCode(), familyName, "BLUE", "1L"));
+                .containsExactly(buildCanonicalSku("FINISHED_GOOD", familyName, "BLUE", "1L"));
     }
 
     @Test
@@ -724,12 +725,17 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
     }
 
     private Map<String, Object> basePayload(Long brandId) {
+        return basePayload(brandId, "Premium Primer " + shortId());
+    }
+
+    private Map<String, Object> basePayload(Long brandId, String baseProductName) {
         Map<String, Object> payload = new LinkedHashMap<>();
         if (brandId != null) {
             payload.put("brandId", brandId);
         }
-        payload.put("baseProductName", "Premium Primer");
+        payload.put("baseProductName", baseProductName);
         payload.put("category", "FINISHED_GOOD");
+        payload.put("itemClass", "FINISHED_GOOD");
         payload.put("unitOfMeasure", "LITER");
         payload.put("hsnCode", "320910");
         payload.put("gstRate", new BigDecimal("18.00"));
@@ -747,6 +753,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         payload.put("brandId", brandId);
         payload.put("baseProductName", baseProductName);
         payload.put("category", "FINISHED_GOOD");
+        payload.put("itemClass", "FINISHED_GOOD");
         payload.put("unitOfMeasure", "LITER");
         payload.put("hsnCode", "320910");
         payload.put("gstRate", new BigDecimal("18.00"));
@@ -769,6 +776,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         payload.put("brandId", brandId);
         payload.put("baseProductName", baseProductName);
         payload.put("category", category);
+        payload.put("itemClass", itemClassForCategory(category));
         payload.put("unitOfMeasure", "LITER");
         payload.put("hsnCode", "320910");
         payload.put("gstRate", new BigDecimal("18.00"));
@@ -786,6 +794,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         payload.put("brandId", brandId);
         payload.put("baseProductName", "Titanium Dioxide");
         payload.put("category", "RAW_MATERIAL");
+        payload.put("itemClass", "RAW_MATERIAL");
         payload.put("unitOfMeasure", "KG");
         payload.put("hsnCode", "320611");
         payload.put("gstRate", new BigDecimal("18.00"));
@@ -877,11 +886,28 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         return new BigDecimal(String.valueOf(value));
     }
 
-    private String buildCanonicalSku(String brandCode, String baseProductName, String color, String size) {
-        return List.of(brandCode, baseProductName, color, size).stream()
+    private String buildCanonicalSku(String itemClass, String baseProductName, String color, String size) {
+        return List.of(itemClassSkuPrefix(itemClass), baseProductName, color, size).stream()
                 .map(this::sanitizeSkuFragment)
                 .collect(Collectors.joining("-"))
                 .replaceAll("-{2,}", "-");
+    }
+
+    private String itemClassForCategory(String category) {
+        String normalized = category == null ? "" : category.trim().replace(' ', '_').toUpperCase();
+        return switch (normalized) {
+            case "RAW_MATERIAL" -> "RAW_MATERIAL";
+            case "PACKAGING", "PACKAGING_RAW_MATERIAL" -> "PACKAGING_RAW_MATERIAL";
+            default -> "FINISHED_GOOD";
+        };
+    }
+
+    private String itemClassSkuPrefix(String itemClass) {
+        return switch (itemClassForCategory(itemClass)) {
+            case "RAW_MATERIAL" -> "RM";
+            case "PACKAGING_RAW_MATERIAL" -> "PKG";
+            default -> "FG";
+        };
     }
 
     private String sanitizeSkuFragment(String value) {

@@ -6,6 +6,8 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
@@ -654,6 +656,36 @@ class CatalogServiceProductCrudTest {
                 999L,
                 "RM-999"))
                 .hasMessageContaining("invalid inventory account id 999");
+    }
+
+    @Test
+    void helperMethods_coverPackagingItemClassResolution() {
+        RawMaterial packagingMaterial = new RawMaterial();
+        packagingMaterial.setMaterialType(MaterialType.PACKAGING);
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "PKG-001")).thenReturn(Optional.of(packagingMaterial));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "RM-001")).thenReturn(Optional.empty());
+
+        ProductionProduct packagingProduct = new ProductionProduct();
+        packagingProduct.setCompany(company);
+        packagingProduct.setCategory("RAW_MATERIAL");
+        packagingProduct.setSkuCode("PKG-001");
+
+        ProductionProduct rawMaterialProduct = new ProductionProduct();
+        rawMaterialProduct.setCompany(company);
+        rawMaterialProduct.setCategory("RAW_MATERIAL");
+        rawMaterialProduct.setSkuCode("RM-001");
+
+        ProductionProduct finishedGoodProduct = new ProductionProduct();
+        finishedGoodProduct.setCategory("FINISHED_GOOD");
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", new Object[]{null}))
+                .isEqualTo("FINISHED_GOOD");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", finishedGoodProduct))
+                .isEqualTo("FINISHED_GOOD");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", packagingProduct))
+                .isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", rawMaterialProduct))
+                .isEqualTo("RAW_MATERIAL");
     }
 
     @Test

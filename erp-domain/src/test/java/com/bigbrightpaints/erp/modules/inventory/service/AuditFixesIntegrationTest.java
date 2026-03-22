@@ -342,7 +342,8 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
 
         CompanyContextHolder.setCompanyId(companyA.getCode());
 
-        assertThrows(IllegalArgumentException.class, () -> salesService.getOrderWithItems(orderB.getId()));
+        assertThrows(com.bigbrightpaints.erp.core.exception.ApplicationException.class,
+                () -> salesService.getOrderWithItems(orderB.getId()));
     }
 
     @Test
@@ -404,6 +405,7 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
         supplier.setCode("SUP-DUP");
         supplier.setName("Dup Supplier");
         supplier.setPayableAccount(payable);
+        supplier.setStatus("ACTIVE");
         supplier = supplierRepository.save(supplier);
 
         var material = rawMaterialService.createRawMaterial(new RawMaterialRequest(
@@ -431,7 +433,8 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
 
         rawMaterialService.createBatch(material.id(), request, "RM-DUP-KEY-1");
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        com.bigbrightpaints.erp.core.exception.ApplicationException ex = assertThrows(
+                com.bigbrightpaints.erp.core.exception.ApplicationException.class,
                 () -> rawMaterialService.createBatch(material.id(), request, "RM-DUP-KEY-2"));
         assertTrue(ex.getMessage().contains("Batch code"));
     }

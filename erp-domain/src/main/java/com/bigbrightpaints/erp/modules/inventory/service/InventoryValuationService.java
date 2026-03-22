@@ -127,6 +127,11 @@ public class InventoryValuationService {
         if (finishedGood == null) {
             return BigDecimal.ZERO;
         }
+        CostingMethodUtils.FinishedGoodBatchSelectionMethod selectionMethod =
+                CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod(finishedGood.getCostingMethod());
+        if (selectionMethod == CostingMethodUtils.FinishedGoodBatchSelectionMethod.WAC) {
+            return currentWeightedAverageCost(finishedGood);
+        }
         if (batch != null && batch.getUnitCost() != null) {
             return batch.getUnitCost();
         }
