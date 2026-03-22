@@ -98,7 +98,7 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
     }
 
     @Test
-    void production_conflict_exposes_allowlisted_details_for_bulk_variant_contract_and_prefixed_path() throws Exception {
+    void production_conflict_keeps_details_redacted_for_retired_bulk_variant_route_and_prefixed_path() throws Exception {
         GlobalExceptionHandler handler = new GlobalExceptionHandler();
         setActiveProfile(handler, "prod");
 
@@ -116,11 +116,7 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
                 handler.handleApplicationException(ex, request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        Map<String, Object> details = requireDetails(response);
-        assertThat(details)
-                .containsOnlyKeys("generated", "conflicts", "wouldCreate", "created", "operation")
-                .containsEntry("operation", CATALOG_BULK_VARIANTS_OPERATION)
-                .doesNotContainKey("internalLeak");
+        assertThat(requireBodyData(response)).doesNotContainKey("details");
 
         MockHttpServletRequest prefixedRequest = new MockHttpServletRequest();
         prefixedRequest.setContextPath("/tenant");
@@ -132,10 +128,7 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
                 handler.handleApplicationException(ex, prefixedRequest);
 
         assertThat(prefixedResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        Map<String, Object> prefixedDetails = requireDetails(prefixedResponse);
-        assertThat(prefixedDetails)
-                .containsKey("conflicts")
-                .containsEntry("operation", CATALOG_BULK_VARIANTS_OPERATION);
+        assertThat(requireBodyData(prefixedResponse)).doesNotContainKey("details");
     }
 
     @Test
