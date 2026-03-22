@@ -147,6 +147,7 @@ public class OpeningStockImportService {
         String fileHash = resolveFileHash(file);
         String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
         String normalizedBatchKey = normalizeOpeningStockBatchKey(openingStockBatchKey);
+        String replayProtectionKey = buildReplayProtectionKey(company, fileHash);
         String importReference = resolveImportReference(company, normalizedBatchKey);
 
         OpeningStockImport existing = openingStockImportRepository.findByCompanyAndIdempotencyKey(company, normalizedKey)
@@ -157,10 +158,22 @@ public class OpeningStockImportService {
         }
 
         OpeningStockImport replayConflict = openingStockImportRepository
-                .findByCompanyAndOpeningStockBatchKey(company, normalizedBatchKey)
+                .findByCompanyAndReplayProtectionKey(company, replayProtectionKey)
                 .orElse(null);
         if (replayConflict != null) {
-            throw openingStockReplayConflict(replayConflict, normalizedKey, normalizedBatchKey);
+            throw openingStockFileReplayConflict(
+                    replayConflict,
+                    normalizedKey,
+                    normalizedBatchKey,
+                    replayProtectionKey,
+                    fileHash);
+        }
+
+        OpeningStockImport batchKeyConflict = openingStockImportRepository
+                .findByCompanyAndOpeningStockBatchKey(company, normalizedBatchKey)
+                .orElse(null);
+        if (batchKeyConflict != null) {
+            throw openingStockReplayConflict(batchKeyConflict, normalizedKey, normalizedBatchKey);
         }
 
         assertImportAllowed();
@@ -173,7 +186,14 @@ public class OpeningStockImportService {
 
         try {
             OpeningStockImportResponse response = transactionTemplate.execute(status ->
-                    importOpeningStockInternal(company, file, normalizedKey, normalizedBatchKey, fileHash, importReference));
+                    importOpeningStockInternal(
+                            company,
+                            file,
+                            normalizedKey,
+                            normalizedBatchKey,
+                            replayProtectionKey,
+                            fileHash,
+                            importReference));
             if (response == null) {
                 throw ValidationUtils.invalidState("Opening stock import failed to return a response");
             }
@@ -186,10 +206,21 @@ public class OpeningStockImportService {
                     .orElse(null);
             if (concurrent == null) {
                 OpeningStockImport concurrentReplay = openingStockImportRepository
-                        .findByCompanyAndOpeningStockBatchKey(company, normalizedBatchKey)
+                        .findByCompanyAndReplayProtectionKey(company, replayProtectionKey)
                         .orElse(null);
                 if (concurrentReplay != null) {
-                    throw openingStockReplayConflict(concurrentReplay, normalizedKey, normalizedBatchKey);
+                    throw openingStockFileReplayConflict(
+                            concurrentReplay,
+                            normalizedKey,
+                            normalizedBatchKey,
+                            replayProtectionKey,
+                            fileHash);
+                }
+                OpeningStockImport concurrentBatchKey = openingStockImportRepository
+                        .findByCompanyAndOpeningStockBatchKey(company, normalizedBatchKey)
+                        .orElse(null);
+                if (concurrentBatchKey != null) {
+                    throw openingStockReplayConflict(concurrentBatchKey, normalizedKey, normalizedBatchKey);
                 }
                 throw ex;
             }
@@ -218,6 +249,7 @@ public class OpeningStockImportService {
                                                                   MultipartFile file,
                                                                   String idempotencyKey,
                                                                   String openingStockBatchKey,
+                                                                  String replayProtectionKey,
                                                                   String fileHash,
                                                                   String importReference) {
         OpeningStockImport record = new OpeningStockImport();
@@ -226,6 +258,7 @@ public class OpeningStockImportService {
         record.setIdempotencyHash(fileHash);
         record.setReferenceNumber(importReference);
         record.setOpeningStockBatchKey(openingStockBatchKey);
+        record.setReplayProtectionKey(replayProtectionKey);
         record.setFileHash(fileHash);
         record.setFileName(file.getOriginalFilename());
         record = openingStockImportRepository.saveAndFlush(record);
@@ -516,6 +549,13 @@ public class OpeningStockImportService {
         return false;
     }
 
+    private String buildReplayProtectionKey(Company company, String fileHash) {
+        String companyIdentity = company != null && company.getId() != null
+                ? "CID-" + company.getId()
+                : sanitizeCompanyCode(company != null ? company.getCode() : null);
+        return "OPENING-STOCK|%s|%s".formatted(companyIdentity, fileHash);
+    }
+
     private String resolveImportReference(Company company, String openingStockBatchKey) {
         String companyCode = sanitizeCompanyCode(company != null ? company.getCode() : null);
         String referenceHash = IdempotencyUtils.sha256Hex(openingStockBatchKey);
@@ -535,6 +575,27 @@ public class OpeningStockImportService {
                 .withDetail("attemptedIdempotencyKey", attemptedIdempotencyKey)
                 .withDetail("attemptedOpeningStockBatchKey", attemptedBatchKey)
                 .withDetail("operatorAction", "Reuse the original Idempotency-Key for a retry, or reverse the prior opening stock before importing a distinct batch.");
+    }
+
+    private ApplicationException openingStockFileReplayConflict(OpeningStockImport existing,
+                                                                String attemptedIdempotencyKey,
+                                                                String attemptedBatchKey,
+                                                                String replayProtectionKey,
+                                                                String fileHash) {
+        String existingReplayProtectionKey = StringUtils.hasText(existing.getReplayProtectionKey())
+                ? existing.getReplayProtectionKey()
+                : replayProtectionKey;
+        return new ApplicationException(
+                ErrorCode.BUSINESS_DUPLICATE_ENTRY,
+                "Opening stock file already imported. Reuse the original Idempotency-Key to retry, or reverse the prior opening stock before importing a materially distinct file.")
+                .withDetail("existingIdempotencyKey", existing.getIdempotencyKey())
+                .withDetail("openingStockBatchKey", existing.getOpeningStockBatchKey())
+                .withDetail("referenceNumber", existing.getReferenceNumber())
+                .withDetail("replayProtectionKey", existingReplayProtectionKey)
+                .withDetail("fileHash", fileHash)
+                .withDetail("attemptedIdempotencyKey", attemptedIdempotencyKey)
+                .withDetail("attemptedOpeningStockBatchKey", attemptedBatchKey)
+                .withDetail("operatorAction", "Reuse the original Idempotency-Key for a retry, or reverse the prior opening stock before importing a distinct file.");
     }
 
     private String sanitizeCompanyCode(String code) {
