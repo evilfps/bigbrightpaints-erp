@@ -20,6 +20,7 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialAdjustment;
@@ -52,6 +53,7 @@ import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -126,6 +128,7 @@ public class RawMaterialService {
         material.setCompany(company);
         material.setName(request.name());
         material.setSku(request.sku());
+        material.setMaterialType(resolveMaterialType(request.materialType()));
         material.setUnitType(request.unitType());
         material.setCurrentStock(BigDecimal.ZERO);
         material.setReorderLevel(request.reorderLevel() != null ? request.reorderLevel() : BigDecimal.ZERO);
@@ -148,6 +151,7 @@ public class RawMaterialService {
                 .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Raw material not found"));
         material.setName(request.name());
         material.setSku(request.sku());
+        material.setMaterialType(resolveMaterialType(request.materialType()));
         material.setUnitType(request.unitType());
         material.setReorderLevel(request.reorderLevel() != null ? request.reorderLevel() : BigDecimal.ZERO);
         material.setMinStock(request.minStock() != null ? request.minStock() : BigDecimal.ZERO);
@@ -629,6 +633,18 @@ public class RawMaterialService {
                 material.getMinStock(), material.getMaxStock(), stockStatus(material), material.getInventoryAccountId(),
                 material.getCostingMethod(),
                 material.getMaterialType() != null ? material.getMaterialType().name() : null);
+    }
+
+    private MaterialType resolveMaterialType(String rawMaterialType) {
+        if (!StringUtils.hasText(rawMaterialType)) {
+            return MaterialType.PRODUCTION;
+        }
+        String normalized = rawMaterialType.trim().replace('-', '_').replace(' ', '_').toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "PACKAGING", "PACKAGING_RAW_MATERIAL", "PKG" -> MaterialType.PACKAGING;
+            case "PRODUCTION", "RAW_MATERIAL", "RM" -> MaterialType.PRODUCTION;
+            default -> throw ValidationUtils.invalidInput("Unsupported materialType: " + rawMaterialType);
+        };
     }
 
     private RawMaterialBatchDto toBatchDto(RawMaterialBatch batch) {

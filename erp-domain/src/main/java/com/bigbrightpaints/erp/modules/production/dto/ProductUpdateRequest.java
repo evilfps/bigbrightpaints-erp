@@ -6,6 +6,7 @@ import java.util.Map;
 public record ProductUpdateRequest(
         String productName,
         String category,
+        String itemClass,
         String defaultColour,
         String sizeLabel,
         String unitOfMeasure,

@@ -14,6 +14,7 @@ public record CatalogProductDto(
         String name,
         String sku,
         String category,
+        String itemClass,
         UUID variantGroupId,
         String productFamilyName,
         List<String> colors,

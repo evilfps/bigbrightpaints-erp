@@ -33,7 +33,7 @@ Verified role behavior for accounting portal scope:
 - Most accounting, reports, purchasing, HR/payroll, and inventory-adjustment endpoints require `ROLE_ADMIN` or `ROLE_ACCOUNTING`.
 - Exceptions you must respect in UI:
   - Supplier `GET` endpoints allow `ROLE_FACTORY` too.
-  - Raw-material endpoints allow `ROLE_FACTORY` too, but `POST /api/v1/raw-materials/intake` excludes `ROLE_FACTORY`.
+  - Raw-material endpoints allow `ROLE_FACTORY` too, but `retired raw-material intake endpoint` excludes `ROLE_FACTORY`.
   - Opening stock import `POST /api/v1/inventory/opening-stock` allows `ROLE_FACTORY` along with `ROLE_ADMIN|ROLE_ACCOUNTING`.
   - Finished-goods write endpoints (`POST/PUT /api/v1/finished-goods`, `POST /api/v1/finished-goods/{id}/batches`) exclude `ROLE_ACCOUNTING` and require `ROLE_ADMIN` or `ROLE_FACTORY`.
   - Finished-goods low-stock and batch-list reads exclude `ROLE_ACCOUNTING` (`ROLE_ADMIN|ROLE_FACTORY|ROLE_SALES` only).
@@ -217,13 +217,13 @@ These rows are required for the period-close maker-checker UX, but they live out
 | `inventoryAdjustmentListAdjustments` | GET | `/api/v1/inventory/adjustments` | - | - | Yes | No | Yes |
 | `inventoryAdjustmentCreateAdjustment` | POST | `/api/v1/inventory/adjustments` | adjustmentAccountId (body), lines (body), lines[].finishedGoodId (body), lines[].quantity (body), lines[].unitCost (body), type (body) | Idempotency-Key (header), adjustmentDate (body), adminOverride (body), idempotencyKey (body), lines[].note (body), reason (body) | No | No | No |
 | `inventoryImportOpeningStock` | POST | `/api/v1/inventory/opening-stock` | file (multipart body), Idempotency-Key (header) | - | No | No | Conditional |
-| `rawMaterialListRawMaterials` | GET | `/api/v1/accounting/raw-materials` | - | - | Yes | No | Yes |
-| `rawMaterialCreateRawMaterial` | POST | `/api/v1/accounting/raw-materials` | maxStock (body), minStock (body), name (body), reorderLevel (body), unitType (body) | costingMethod (body), inventoryAccountId (body), sku (body) | No | No | No |
-| `rawMaterialDeleteRawMaterial` | DELETE | `/api/v1/accounting/raw-materials/{id}` | id (path) | - | No | No | Yes |
-| `rawMaterialUpdateRawMaterial` | PUT | `/api/v1/accounting/raw-materials/{id}` | id (path), maxStock (body), minStock (body), name (body), reorderLevel (body), unitType (body) | costingMethod (body), inventoryAccountId (body), sku (body) | No | No | Yes |
-| `rawMaterialBatches` | GET | `/api/v1/raw-material-batches/{rawMaterialId}` | rawMaterialId (path) | - | Yes | No | Yes |
-| `rawMaterialCreateBatch` | POST | `/api/v1/raw-material-batches/{rawMaterialId}` | costPerUnit (body), quantity (body), rawMaterialId (path), supplierId (body), unit (body) | Idempotency-Key (header), batchCode (body), notes (body) | No | No | No |
-| `rawMaterialIntake` | POST | `/api/v1/raw-materials/intake` | costPerUnit (body), quantity (body), rawMaterialId (body), supplierId (body), unit (body) | Idempotency-Key (header), batchCode (body), notes (body) | No | No | No |
+| `rawMaterialListRawMaterials` | GET | `/api/v1/catalog/products` | - | - | Yes | No | Yes |
+| `rawMaterialCreateRawMaterial` | POST | `/api/v1/catalog/products` | maxStock (body), minStock (body), name (body), reorderLevel (body), unitType (body) | costingMethod (body), inventoryAccountId (body), sku (body) | No | No | No |
+| `rawMaterialDeleteRawMaterial` | DELETE | `/api/v1/catalog/products/{id}` | id (path) | - | No | No | Yes |
+| `rawMaterialUpdateRawMaterial` | PUT | `/api/v1/catalog/products/{id}` | id (path), maxStock (body), minStock (body), name (body), reorderLevel (body), unitType (body) | costingMethod (body), inventoryAccountId (body), sku (body) | No | No | Yes |
+| `rawMaterialBatches` | GET | `/api/v1/inventory/raw-materials/adjustments` | rawMaterialId (path) | - | Yes | No | Yes |
+| `rawMaterialCreateBatch` | POST | `/api/v1/inventory/raw-materials/adjustments` | costPerUnit (body), quantity (body), rawMaterialId (path), supplierId (body), unit (body) | Idempotency-Key (header), batchCode (body), notes (body) | No | No | No |
+| `rawMaterialIntake` | POST | `/api/v1/purchasing/raw-material-purchases` | costPerUnit (body), quantity (body), rawMaterialId (body), supplierId (body), unit (body) | Idempotency-Key (header), batchCode (body), notes (body) | No | No | No |
 | `rawMaterialStockSummary` | GET | `/api/v1/raw-materials/stock` | - | - | Yes | No | Yes |
 | `rawMaterialInventory` | GET | `/api/v1/raw-materials/stock/inventory` | - | - | Yes | No | Yes |
 | `rawMaterialLowStock` | GET | `/api/v1/raw-materials/stock/low-stock` | - | - | Yes | No | Yes |
@@ -295,20 +295,20 @@ These rows are required for the period-close maker-checker UX, but they live out
 - `GET /api/v1/finished-goods/{id}` documents no explicit error responses (only: 200).
 - `PUT /api/v1/finished-goods/{id}` documents no explicit error responses (only: 200).
 - `PUT /api/v1/finished-goods/{id}` is mutating but defines only `200` (missing richer status semantics).
-- `PUT /api/v1/accounting/raw-materials/{id}` documents no explicit error responses (only: 200).
-- `PUT /api/v1/accounting/raw-materials/{id}` is mutating but defines only `200` (missing richer status semantics).
-- `DELETE /api/v1/accounting/raw-materials/{id}` documents no explicit error responses (only: 200).
-- `DELETE /api/v1/accounting/raw-materials/{id}` is mutating but defines only `200` (missing richer status semantics).
+- `retired raw-material CRUD endpoint` documents no explicit error responses (only: 200).
+- `retired raw-material CRUD endpoint` is mutating but defines only `200` (missing richer status semantics).
+- `retired raw-material CRUD endpoint` documents no explicit error responses (only: 200).
+- `retired raw-material CRUD endpoint` is mutating but defines only `200` (missing richer status semantics).
 - `PUT /api/v1/catalog/products/{id}` documents no explicit error responses (only: 200).
 - `PUT /api/v1/catalog/products/{id}` is mutating but defines only `200` (missing richer status semantics).
 - `GET /api/v1/suppliers` documents no explicit error responses (only: 200).
 - `POST /api/v1/suppliers` documents no explicit error responses (only: 200).
 - `POST /api/v1/suppliers` is mutating but defines only `200` (missing richer status semantics).
-- `POST /api/v1/raw-materials/intake` documents no explicit error responses (only: 200).
-- `POST /api/v1/raw-materials/intake` is mutating but defines only `200` (missing richer status semantics).
-- `GET /api/v1/raw-material-batches/{rawMaterialId}` documents no explicit error responses (only: 200).
-- `POST /api/v1/raw-material-batches/{rawMaterialId}` documents no explicit error responses (only: 200).
-- `POST /api/v1/raw-material-batches/{rawMaterialId}` is mutating but defines only `200` (missing richer status semantics).
+- `retired raw-material intake endpoint` documents no explicit error responses (only: 200).
+- `retired raw-material intake endpoint` is mutating but defines only `200` (missing richer status semantics).
+- `retired raw-material batch endpoint` documents no explicit error responses (only: 200).
+- `retired raw-material batch endpoint` documents no explicit error responses (only: 200).
+- `retired raw-material batch endpoint` is mutating but defines only `200` (missing richer status semantics).
 - `GET /api/v1/purchasing/raw-material-purchases` documents no explicit error responses (only: 200).
 - `POST /api/v1/purchasing/raw-material-purchases` documents no explicit error responses (only: 200).
 - `POST /api/v1/purchasing/raw-material-purchases` is mutating but defines only `200` (missing richer status semantics).
@@ -362,9 +362,9 @@ These rows are required for the period-close maker-checker UX, but they live out
 - `GET /api/v1/finished-goods/{id}/batches` documents no explicit error responses (only: 200).
 - `POST /api/v1/finished-goods/{id}/batches` documents no explicit error responses (only: 200).
 - `POST /api/v1/finished-goods/{id}/batches` is mutating but defines only `200` (missing richer status semantics).
-- `GET /api/v1/accounting/raw-materials` documents no explicit error responses (only: 200).
-- `POST /api/v1/accounting/raw-materials` documents no explicit error responses (only: 200).
-- `POST /api/v1/accounting/raw-materials` is mutating but defines only `200` (missing richer status semantics).
+- `retired raw-material CRUD endpoint (replaced by /api/v1/catalog/products itemClass workflow)` documents no explicit error responses (only: 200).
+- `retired raw-material CRUD endpoint (replaced by /api/v1/catalog/products itemClass workflow)` documents no explicit error responses (only: 200).
+- `retired raw-material CRUD endpoint (replaced by /api/v1/catalog/products itemClass workflow)` is mutating but defines only `200` (missing richer status semantics).
 - `POST /api/v1/accounting/payroll/payments/batch` documents no explicit error responses (only: 200).
 - `POST /api/v1/accounting/payroll/payments/batch` is mutating but defines only `200` (missing richer status semantics).
 - `GET /api/v1/catalog/products` documents no explicit error responses (only: 200).

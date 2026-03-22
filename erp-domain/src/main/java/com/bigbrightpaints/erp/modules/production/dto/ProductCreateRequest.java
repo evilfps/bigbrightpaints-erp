@@ -14,6 +14,8 @@ public record ProductCreateRequest(
         String productName,
         @NotBlank(message = "Category is required")
         String category,
+        @NotBlank(message = "Item class is required")
+        String itemClass,
         String defaultColour,
         String sizeLabel,
         String unitOfMeasure,

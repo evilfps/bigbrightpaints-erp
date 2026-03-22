@@ -10,6 +10,7 @@ import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
 import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
@@ -66,6 +67,9 @@ import java.util.regex.Pattern;
 public class CatalogService {
 
     private static final String DEFAULT_PRODUCT_CATEGORY = "FINISHED_GOOD";
+    private static final String ITEM_CLASS_FINISHED_GOOD = "FINISHED_GOOD";
+    private static final String ITEM_CLASS_RAW_MATERIAL = "RAW_MATERIAL";
+    private static final String ITEM_CLASS_PACKAGING_RAW_MATERIAL = "PACKAGING_RAW_MATERIAL";
     private static final int MAX_PAGE_SIZE = 100;
     private static final String ACCOUNTING_METADATA_KEY_SUFFIX = "AccountId";
     private static final List<String> RAW_MATERIAL_CATEGORIES = List.of("RAW_MATERIAL", "RAW MATERIAL", "RAW-MATERIAL");
@@ -1064,6 +1068,7 @@ public class CatalogService {
                 product.getProductName(),
                 product.getSkuCode(),
                 product.getCategory(),
+                itemClassForProduct(product),
                 product.getVariantGroupId(),
                 product.getProductFamilyName(),
                 colors,
@@ -1078,6 +1083,19 @@ public class CatalogService {
                 metadata,
                 product.isActive(),
                 readiness);
+    }
+
+    private String itemClassForProduct(ProductionProduct product) {
+        if (product == null || !isRawMaterialCategory(product.getCategory())) {
+            return ITEM_CLASS_FINISHED_GOOD;
+        }
+        RawMaterial rawMaterial = StringUtils.hasText(product.getSkuCode())
+                ? rawMaterialRepository.findByCompanyAndSkuIgnoreCase(product.getCompany(), product.getSkuCode()).orElse(null)
+                : null;
+        if (rawMaterial != null && rawMaterial.getMaterialType() == MaterialType.PACKAGING) {
+            return ITEM_CLASS_PACKAGING_RAW_MATERIAL;
+        }
+        return ITEM_CLASS_RAW_MATERIAL;
     }
 
     private Map<String, Object> snapshotMetadata(Map<String, Object> metadata, boolean includeAccountingMetadata) {

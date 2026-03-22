@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
@@ -28,7 +29,8 @@ public class SkuReadinessService {
 
     public enum ExpectedStockType {
         FINISHED_GOOD,
-        RAW_MATERIAL
+        RAW_MATERIAL,
+        PACKAGING_RAW_MATERIAL
     }
 
     private static final List<String> RAW_MATERIAL_CATEGORIES = List.of(
@@ -229,7 +231,8 @@ public class SkuReadinessService {
         }
 
         List<String> inventoryBlockers = new ArrayList<>();
-        if (effectiveStockType == ExpectedStockType.RAW_MATERIAL) {
+        if (effectiveStockType == ExpectedStockType.RAW_MATERIAL
+                || effectiveStockType == ExpectedStockType.PACKAGING_RAW_MATERIAL) {
             if (product != null && !isRawMaterialCategory(product.getCategory())) {
                 inventoryBlockers.add("RAW_MATERIAL_CATEGORY_REQUIRED");
             }
@@ -278,7 +281,8 @@ public class SkuReadinessService {
         }
 
         List<String> salesBlockers = new ArrayList<>();
-        if (effectiveStockType == ExpectedStockType.RAW_MATERIAL) {
+        if (effectiveStockType == ExpectedStockType.RAW_MATERIAL
+                || effectiveStockType == ExpectedStockType.PACKAGING_RAW_MATERIAL) {
             salesBlockers.add("RAW_MATERIAL_SKU_NOT_SALES_ORDERABLE");
         } else {
             salesBlockers.addAll(catalogBlockers);
@@ -322,7 +326,9 @@ public class SkuReadinessService {
                     : ExpectedStockType.FINISHED_GOOD;
         }
         if (rawMaterial != null) {
-            return ExpectedStockType.RAW_MATERIAL;
+            return rawMaterial.getMaterialType() == MaterialType.PACKAGING
+                    ? ExpectedStockType.PACKAGING_RAW_MATERIAL
+                    : ExpectedStockType.RAW_MATERIAL;
         }
         return ExpectedStockType.FINISHED_GOOD;
     }

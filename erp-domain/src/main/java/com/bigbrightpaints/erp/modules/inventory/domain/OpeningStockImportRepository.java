@@ -9,5 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface OpeningStockImportRepository extends JpaRepository<OpeningStockImport, Long> {
     Optional<OpeningStockImport> findByCompanyAndIdempotencyKey(Company company, String idempotencyKey);
 
+    Optional<OpeningStockImport> findByCompanyAndReplayProtectionKey(Company company, String replayProtectionKey);
+
     Page<OpeningStockImport> findByCompany(Company company, Pageable pageable);
 }

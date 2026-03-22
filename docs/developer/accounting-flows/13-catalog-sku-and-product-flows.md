@@ -117,7 +117,7 @@ flowchart LR
   - `ProductionCatalogController` for read-only brand/product listing
 - `AccountingCatalogController.listProducts` and `/api/v1/catalog/products` both surface product truth from different controller families
 - accounting route ownership is only a wrapper; the actual truth lives in production services and inventory mirrors
-- raw-material management still lives on inventory routes such as `/api/v1/accounting/raw-materials`, which means product/catalog truth is not fully consolidated behind one host
+- raw-material management still lives on inventory routes such as `/api/v1/catalog/products`, which means product/catalog truth is not fully consolidated behind one host
 
 ## Review Hotspots
 

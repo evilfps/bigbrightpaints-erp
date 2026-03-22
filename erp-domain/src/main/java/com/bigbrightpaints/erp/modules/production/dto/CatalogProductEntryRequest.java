@@ -26,6 +26,9 @@ public class CatalogProductEntryRequest {
     @NotBlank(message = "category is required")
     private String category;
 
+    @NotBlank(message = "itemClass is required")
+    private String itemClass;
+
     @NotBlank(message = "unitOfMeasure is required")
     @Size(max = 64, message = "unitOfMeasure cannot exceed 64 characters")
     private String unitOfMeasure;
@@ -81,6 +84,14 @@ public class CatalogProductEntryRequest {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public String getItemClass() {
+        return itemClass;
+    }
+
+    public void setItemClass(String itemClass) {
+        this.itemClass = itemClass;
     }
 
     public String getUnitOfMeasure() {

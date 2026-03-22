@@ -175,6 +175,7 @@ class OpeningStockPostingRegressionIT extends AbstractIntegrationTest {
         request.setBrandId(saveBrand("LF021 Raw Material").getId());
         request.setBaseProductName("Opening Resin");
         request.setCategory("RAW_MATERIAL");
+        request.setItemClass("RAW_MATERIAL");
         request.setUnitOfMeasure("KG");
         request.setHsnCode("320611");
         request.setGstRate(new BigDecimal("18.00"));
@@ -193,6 +194,7 @@ class OpeningStockPostingRegressionIT extends AbstractIntegrationTest {
         request.setBrandId(saveBrand("LF021 Finished Good").getId());
         request.setBaseProductName("Opening Paint");
         request.setCategory("FINISHED_GOOD");
+        request.setItemClass("FINISHED_GOOD");
         request.setUnitOfMeasure("LITER");
         request.setHsnCode("320910");
         request.setGstRate(new BigDecimal("18.00"));

@@ -144,7 +144,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
     @Test
     void createOrPreviewCatalogProducts_rejectsCanonicalSkusLongerThanDatabaseLimit() {
         CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE"), List.of("1L"));
-        request.setBaseProductName("P".repeat(116));
+        request.setBaseProductName("P".repeat(130));
 
         assertThatThrownBy(() -> service.createOrPreviewCatalogProducts(request, true))
                 .isInstanceOf(ApplicationException.class)
@@ -229,7 +229,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
     @Test
     void createOrPreviewCatalogProducts_previewFlagsExistingSkuConflicts() {
         CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE", "BLUE"), List.of("1L"));
-        String existingSku = canonicalSku("Primer", "BLUE", "1L");
+        String existingSku = canonicalSku("RAW_MATERIAL", "Primer", "BLUE", "1L");
         when(productRepository.findByCompanyAndSkuCodeIn(eq(company), anySet()))
                 .thenReturn(List.of(existingProduct(existingSku)));
 
@@ -243,7 +243,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
     @Test
     void createOrPreviewCatalogProducts_previewFlagsExistingProductNameConflicts() {
         CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE", "BLUE"), List.of("1L"));
-        String conflictingSku = canonicalSku("Primer", "BLUE", "1L");
+        String conflictingSku = canonicalSku("RAW_MATERIAL", "Primer", "BLUE", "1L");
         when(productRepository.findByBrandAndProductNameIgnoreCase(brand, "Primer BLUE 1L"))
                 .thenReturn(Optional.of(existingProduct("LEGACY-PRIMER-BLUE", "Primer BLUE 1L")));
 
@@ -294,7 +294,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
     @Test
     void createOrPreviewCatalogProducts_previewIncludesReadinessOnGeneratedMembers() {
         SkuReadinessDto readiness = new SkuReadinessDto(
-                "BBR-PRIMER-WHITE-1L",
+                "RM-PRIMER-WHITE-1L",
                 new SkuReadinessDto.Stage(true, List.of()),
                 new SkuReadinessDto.Stage(false, List.of("RAW_MATERIAL_INVENTORY_ACCOUNT_MISSING")),
                 new SkuReadinessDto.Stage(false, List.of("RAW_MATERIAL_INVENTORY_ACCOUNT_MISSING")),
@@ -312,7 +312,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
                 true);
 
         assertThat(response.members()).hasSize(1);
-        assertThat(response.members().getFirst().sku()).isEqualTo("BBR-PRIMER-WHITE-1L");
+        assertThat(response.members().getFirst().sku()).isEqualTo("RM-PRIMER-WHITE-1L");
         assertThat(response.members().getFirst().readiness()).isEqualTo(readiness);
     }
 
@@ -344,7 +344,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
         when(companyDefaultAccountsService.getDefaults()).thenReturn(
                 new CompanyDefaultAccountsService.DefaultAccounts(null, null, null, null, null));
         SkuReadinessDto readiness = new SkuReadinessDto(
-                "BBR-PRIMER-WHITE-1L",
+                "FG-PRIMER-WHITE-1L",
                 new SkuReadinessDto.Stage(true, List.of()),
                 new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED")),
                 new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED", "WIP_ACCOUNT_MISSING")),
@@ -363,7 +363,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
 
         assertThat(response.preview()).isTrue();
         assertThat(response.members()).hasSize(1);
-        assertThat(response.members().getFirst().sku()).isEqualTo("BBR-PRIMER-WHITE-1L");
+        assertThat(response.members().getFirst().sku()).isEqualTo("FG-PRIMER-WHITE-1L");
         assertThat(response.members().getFirst().readiness()).isEqualTo(readiness);
         assertThat(response.metadata()).doesNotContainKeys(
                 "fgValuationAccountId",
@@ -377,7 +377,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
         when(companyDefaultAccountsService.getDefaults()).thenReturn(
                 new CompanyDefaultAccountsService.DefaultAccounts(null, null, null, null, null));
         SkuReadinessDto readiness = new SkuReadinessDto(
-                "BBR-PRIMER-WHITE-1L",
+                "RM-PRIMER-WHITE-1L",
                 new SkuReadinessDto.Stage(true, List.of()),
                 new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED")),
                 new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED", "WIP_ACCOUNT_MISSING")),
@@ -403,18 +403,18 @@ class ProductionCatalogServiceCanonicalEntryTest {
     void createOrPreviewCatalogProducts_createIncludesReadinessOnCreatedMembers() {
         company.setDefaultInventoryAccountId(9001L);
         when(companyEntityLookup.requireAccount(company, 9001L)).thenReturn(account(9001L));
-        when(productRepository.findByCompanyAndSkuCode(company, "BBR-PRIMER-WHITE-1L")).thenReturn(Optional.empty());
+        when(productRepository.findByCompanyAndSkuCode(company, "RM-PRIMER-WHITE-1L")).thenReturn(Optional.empty());
         when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> {
             ProductionProduct saved = invocation.getArgument(0);
             ReflectionTestUtils.setField(saved, "id", 901L);
             ReflectionTestUtils.setField(saved, "publicId", UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
             return saved;
         });
-        when(rawMaterialRepository.findByCompanyAndSku(company, "BBR-PRIMER-WHITE-1L")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.findByCompanyAndSku(company, "RM-PRIMER-WHITE-1L")).thenReturn(Optional.empty());
         when(rawMaterialRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         SkuReadinessDto readiness = new SkuReadinessDto(
-                "BBR-PRIMER-WHITE-1L",
+                "RM-PRIMER-WHITE-1L",
                 new SkuReadinessDto.Stage(true, List.of()),
                 new SkuReadinessDto.Stage(true, List.of()),
                 new SkuReadinessDto.Stage(true, List.of()),
@@ -422,7 +422,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
         );
         when(skuReadinessService.forSku(
                 company,
-                "BBR-PRIMER-WHITE-1L",
+                "RM-PRIMER-WHITE-1L",
                 SkuReadinessService.ExpectedStockType.RAW_MATERIAL
         )).thenReturn(readiness);
 
@@ -431,7 +431,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
                 false);
 
         assertThat(response.members()).hasSize(1);
-        assertThat(response.members().getFirst().sku()).isEqualTo("BBR-PRIMER-WHITE-1L");
+        assertThat(response.members().getFirst().sku()).isEqualTo("RM-PRIMER-WHITE-1L");
         assertThat(response.members().getFirst().readiness()).isEqualTo(readiness);
     }
 
@@ -448,9 +448,9 @@ class ProductionCatalogServiceCanonicalEntryTest {
     @Test
     void createOrPreviewCatalogProducts_translatesWriteTimeDuplicateIntoConcurrencyConflict() {
         CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE", "BLUE"), List.of("1L"));
-        String conflictingSku = canonicalSku("Primer", "WHITE", "1L");
+        String conflictingSku = canonicalSku("RAW_MATERIAL", "Primer", "WHITE", "1L");
         SkuReadinessDto readiness = new SkuReadinessDto(
-                canonicalSku("Primer", "BLUE", "1L"),
+                canonicalSku("RAW_MATERIAL", "Primer", "BLUE", "1L"),
                 new SkuReadinessDto.Stage(true, List.of()),
                 new SkuReadinessDto.Stage(false, List.of("RAW_MATERIAL_INVENTORY_ACCOUNT_MISSING")),
                 new SkuReadinessDto.Stage(false, List.of("RAW_MATERIAL_INVENTORY_ACCOUNT_MISSING")),
@@ -477,7 +477,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
                             (List<CatalogProductEntryResponse.Member>) ex.getDetails().get("wouldCreate");
                     assertThat(wouldCreate)
                             .extracting(CatalogProductEntryResponse.Member::sku)
-                            .containsExactly(canonicalSku("Primer", "BLUE", "1L"));
+                            .containsExactly(canonicalSku("RAW_MATERIAL", "Primer", "BLUE", "1L"));
                     assertThat(wouldCreate.getFirst().readiness()).isEqualTo(readiness);
                 });
     }
@@ -571,9 +571,10 @@ class ProductionCatalogServiceCanonicalEntryTest {
                 company,
                 request("RAW_MATERIAL", List.of("WHITE"), List.of("1L")));
         CatalogProductEntryResponse.Conflict overrideConflict = new CatalogProductEntryResponse.Conflict(
-                "BBR-PRIMER-WHITE-1L",
+                "RM-PRIMER-WHITE-1L",
                 "MANUAL_OVERRIDE",
                 "Primer WHITE 1L",
+                "RAW_MATERIAL",
                 "WHITE",
                 "1L");
         CatalogProductEntryResponse overriddenResponse = ReflectionTestUtils.invokeMethod(
@@ -625,7 +626,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
 
         assertThat(response.generated())
                 .extracting(BulkVariantResponse.VariantItem::sku)
-                .containsExactly("BBR-PRIMER-WHITE-1L");
+                .containsExactly("RM-PRIMER-WHITE-1L");
         assertThat(response.wouldCreate())
                 .extracting(BulkVariantResponse.VariantItem::size)
                 .containsExactly("1L");
@@ -651,11 +652,12 @@ class ProductionCatalogServiceCanonicalEntryTest {
                 "charset=")).isFalse();
     }
 
-    private CatalogProductEntryRequest request(String category, List<String> colors, List<String> sizes) {
+    private CatalogProductEntryRequest request(String itemClass, List<String> colors, List<String> sizes) {
         CatalogProductEntryRequest request = new CatalogProductEntryRequest();
         request.setBrandId(11L);
         request.setBaseProductName("Primer");
-        request.setCategory(category);
+        request.setCategory("IGNORED_LEGACY_CATEGORY");
+        request.setItemClass(itemClass);
         request.setUnitOfMeasure("LITER");
         request.setHsnCode("320910");
         request.setGstRate(new BigDecimal("18.00"));
@@ -688,8 +690,13 @@ class ProductionCatalogServiceCanonicalEntryTest {
         );
     }
 
-    private String canonicalSku(String baseProductName, String color, String size) {
-        return String.join("-", "BBR", "PRIMER", color, size);
+    private String canonicalSku(String itemClass, String baseProductName, String color, String size) {
+        String prefix = switch (itemClass) {
+            case "RAW_MATERIAL" -> "RM";
+            case "PACKAGING_RAW_MATERIAL" -> "PKG";
+            default -> "FG";
+        };
+        return String.join("-", prefix, "PRIMER", color, size);
     }
 
     private ProductionProduct existingProduct(String sku) {

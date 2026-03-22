@@ -243,6 +243,37 @@ class OpeningStockImportServiceTest {
     }
 
     @Test
+    void importOpeningStock_rejectsReplayOfSamePayloadUnderFreshIdempotencyKey() {
+        MockMultipartFile file = csvFile(String.join("\n",
+                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"
+        ));
+        when(openingStockImportRepository.findByCompanyAndIdempotencyKey(eq(company), any(String.class)))
+                .thenReturn(Optional.empty());
+
+        OpeningStockImport existing = new OpeningStockImport();
+        existing.setCompany(company);
+        existing.setIdempotencyKey("original-key");
+        existing.setReferenceNumber("OPEN-STOCK-ACME-ORIGINAL");
+        existing.setReplayProtectionKey("OPENING-STOCK|ACME|" + sha256(file));
+        when(openingStockImportRepository.findByCompanyAndReplayProtectionKey(company, existing.getReplayProtectionKey()))
+                .thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> service.importOpeningStock(file, "fresh-key"))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_DUPLICATE_ENTRY);
+                    assertThat(ex.getMessage()).contains("already exists for this exact payload");
+                    assertThat(ex.getDetails())
+                            .containsEntry("existingIdempotencyKey", "original-key")
+                            .containsEntry("referenceNumber", "OPEN-STOCK-ACME-ORIGINAL")
+                            .containsEntry("attemptedIdempotencyKey", "fresh-key");
+                });
+
+        verify(openingStockImportRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(accountingFacade);
+    }
+
+    @Test
     void importOpeningStock_processesMixedRawMaterialAndFinishedGoodRows() {
         String csv = String.join("\n",
                 "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type,manufactured_at",
@@ -1136,6 +1167,14 @@ class OpeningStockImportServiceTest {
                 "text/csv",
                 csv.getBytes(StandardCharsets.UTF_8)
         );
+    }
+
+    private String sha256(MockMultipartFile file) {
+        try {
+            return com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.sha256Hex(file.getBytes());
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     private SkuReadinessDto readyReadiness(String sku) {

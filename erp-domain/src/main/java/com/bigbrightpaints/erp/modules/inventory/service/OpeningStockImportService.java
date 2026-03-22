@@ -145,6 +145,7 @@ public class OpeningStockImportService {
         }
         String fileHash = resolveFileHash(file);
         String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
+        String replayProtectionKey = buildReplayProtectionKey(company, file);
         String importReference = resolveImportReference(company, normalizedKey);
 
         OpeningStockImport existing = openingStockImportRepository.findByCompanyAndIdempotencyKey(company, normalizedKey)
@@ -152,6 +153,13 @@ public class OpeningStockImportService {
         if (existing != null) {
             assertIdempotencyMatch(existing, fileHash, normalizedKey);
             return toResponse(existing);
+        }
+
+        OpeningStockImport replayConflict = openingStockImportRepository
+                .findByCompanyAndReplayProtectionKey(company, replayProtectionKey)
+                .orElse(null);
+        if (replayConflict != null) {
+            throw openingStockReplayConflict(replayConflict, normalizedKey);
         }
 
         assertImportAllowed();
@@ -164,7 +172,7 @@ public class OpeningStockImportService {
 
         try {
             OpeningStockImportResponse response = transactionTemplate.execute(status ->
-                    importOpeningStockInternal(company, file, normalizedKey, fileHash, importReference));
+                    importOpeningStockInternal(company, file, normalizedKey, fileHash, replayProtectionKey, importReference));
             if (response == null) {
                 throw ValidationUtils.invalidState("Opening stock import failed to return a response");
             }
@@ -200,12 +208,14 @@ public class OpeningStockImportService {
                                                                   MultipartFile file,
                                                                   String idempotencyKey,
                                                                   String fileHash,
+                                                                  String replayProtectionKey,
                                                                   String importReference) {
         OpeningStockImport record = new OpeningStockImport();
         record.setCompany(company);
         record.setIdempotencyKey(idempotencyKey);
         record.setIdempotencyHash(fileHash);
         record.setReferenceNumber(importReference);
+        record.setReplayProtectionKey(replayProtectionKey);
         record.setFileHash(fileHash);
         record.setFileName(file.getOriginalFilename());
         record = openingStockImportRepository.saveAndFlush(record);
@@ -493,6 +503,22 @@ public class OpeningStockImportService {
         String referenceHash = IdempotencyUtils.sha256Hex(idempotencyKey);
         String shortHash = referenceHash.substring(0, Math.min(12, referenceHash.length()));
         return "OPEN-STOCK-%s-%s".formatted(companyCode, shortHash);
+    }
+
+    private String buildReplayProtectionKey(Company company, MultipartFile file) {
+        String fileHash = resolveFileHash(file);
+        String companyCode = sanitizeCompanyCode(company != null ? company.getCode() : null);
+        return "OPENING-STOCK|%s|%s".formatted(companyCode, fileHash);
+    }
+
+    private ApplicationException openingStockReplayConflict(OpeningStockImport existing, String attemptedIdempotencyKey) {
+        return new ApplicationException(
+                ErrorCode.BUSINESS_DUPLICATE_ENTRY,
+                "Opening stock import already exists for this exact payload. Reuse the original Idempotency-Key to retry, or reverse the prior opening stock before importing a materially distinct batch.")
+                .withDetail("existingIdempotencyKey", existing.getIdempotencyKey())
+                .withDetail("referenceNumber", existing.getReferenceNumber())
+                .withDetail("attemptedIdempotencyKey", attemptedIdempotencyKey)
+                .withDetail("operatorAction", "Reuse the original Idempotency-Key for a retry, or reverse the prior opening stock before importing a distinct batch.");
     }
 
     private String sanitizeCompanyCode(String code) {

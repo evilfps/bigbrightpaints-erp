@@ -191,7 +191,7 @@ Important naming issue:
   Problem: shortcut surface beside broader HR/payroll lifecycle.
 - `/api/v1/accounting/catalog/*`
   Problem: accounting-prefixed catalog ownership overlaps production catalog.
-- `/api/v1/accounting/raw-materials*`
+- `/api/v1/catalog/products*`
   Problem: inventory-owned raw-material operations exposed under accounting prefix.
 
 ## 4. Cross-module ownership
