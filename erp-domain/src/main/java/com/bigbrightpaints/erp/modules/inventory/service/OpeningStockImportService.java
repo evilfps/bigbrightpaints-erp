@@ -611,12 +611,16 @@ public class OpeningStockImportService {
         movement.setQuantity(quantity);
         movement.setUnitCost(unitCost);
         InventoryMovement savedMovement = inventoryMovementRepository.save(movement);
+        SkuReadinessDto updatedReadiness = skuReadinessService.forSku(
+                company,
+                sku,
+                SkuReadinessService.ExpectedStockType.FINISHED_GOOD);
 
         return new OpeningMovementResult(
                 sku,
                 inventoryAccountId,
                 MoneyUtils.safeMultiply(quantity, unitCost),
-                readiness,
+                updatedReadiness,
                 null,
                 savedMovement);
     }

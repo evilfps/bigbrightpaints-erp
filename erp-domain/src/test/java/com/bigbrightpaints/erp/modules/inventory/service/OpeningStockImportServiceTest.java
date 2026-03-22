@@ -271,9 +271,21 @@ class OpeningStockImportServiceTest {
         finishedGood.setCompany(company);
         finishedGood.setProductCode("FG-1");
         finishedGood.setName("Gloss Paint");
+        finishedGood.setCogsAccountId(44L);
+        finishedGood.setRevenueAccountId(55L);
+        finishedGood.setTaxAccountId(66L);
         finishedGood.setValuationAccountId(33L);
         finishedGood.setCurrentStock(BigDecimal.ZERO);
         when(finishedGoodRepository.findByCompanyAndProductCode(company, "FG-1")).thenReturn(Optional.of(finishedGood));
+        SkuReadinessDto finishedGoodPreBatch = new SkuReadinessDto(
+                "FG-1",
+                readyStage(),
+                readyStage(),
+                readyStage(),
+                new SkuReadinessDto.Stage(false, List.of("NO_FINISHED_GOOD_BATCH_STOCK"))
+        );
+        when(skuReadinessService.forSku(company, "FG-1", SkuReadinessService.ExpectedStockType.FINISHED_GOOD))
+                .thenReturn(finishedGoodPreBatch, readyReadiness("FG-1"));
 
         when(rawMaterialBatchRepository.existsByRawMaterialAndBatchCode(eq(rawMaterial), any())).thenReturn(false);
         when(rawMaterialBatchRepository.save(any(RawMaterialBatch.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -331,6 +343,20 @@ class OpeningStockImportServiceTest {
         assertThat(response.finishedGoodBatchesCreated()).isEqualTo(1);
         assertThat(response.results()).hasSize(2);
         assertThat(response.errors()).isEmpty();
+        assertThat(response.results().stream()
+                .filter(result -> "FG-1".equals(result.sku()))
+                .findFirst()
+                .orElseThrow()
+                .readiness()
+                .sales()
+                .ready()).isTrue();
+        assertThat(response.results().stream()
+                .filter(result -> "FG-1".equals(result.sku()))
+                .findFirst()
+                .orElseThrow()
+                .readiness()
+                .sales()
+                .blockers()).isEmpty();
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<Long, BigDecimal>> inventoryLinesCaptor = ArgumentCaptor.forClass(Map.class);
@@ -350,7 +376,7 @@ class OpeningStockImportServiceTest {
                 .containsEntry(33L, new BigDecimal("48.00"));
         verify(skuReadinessService, times(1))
                 .forSku(company, "RM-1", SkuReadinessService.ExpectedStockType.RAW_MATERIAL);
-        verify(skuReadinessService, times(1))
+        verify(skuReadinessService, times(2))
                 .forSku(company, "FG-1", SkuReadinessService.ExpectedStockType.FINISHED_GOOD);
     }
 
