@@ -73,6 +73,7 @@ public class SkuReadinessService {
             throw new IllegalArgumentException("product is required");
         }
         return buildSnapshot(
+                resolveCompany(product, finishedGood, rawMaterial),
                 normalizeSku(product.getSkuCode()),
                 product,
                 finishedGood,
@@ -152,7 +153,14 @@ public class SkuReadinessService {
                     : null;
             boolean hasSaleReadyBatch = finishedGood != null
                     && Boolean.TRUE.equals(saleReadyBatchByFinishedGoodId.get(finishedGood.getId()));
-            readinessByProductId.put(productId, buildSnapshot(normalizedSku, product, finishedGood, rawMaterial, null, hasSaleReadyBatch));
+            readinessByProductId.put(productId, buildSnapshot(
+                    company,
+                    normalizedSku,
+                    product,
+                    finishedGood,
+                    rawMaterial,
+                    null,
+                    hasSaleReadyBatch));
         }
         return readinessByProductId;
     }
@@ -184,6 +192,7 @@ public class SkuReadinessService {
                 ? rawMaterialRepository.findByCompanyAndSku(company, sku).orElse(null)
                 : null;
         return buildSnapshot(
+                company,
                 sku,
                 product,
                 finishedGood,
@@ -193,7 +202,8 @@ public class SkuReadinessService {
         );
     }
 
-    private SkuReadinessDto buildSnapshot(String sku,
+    private SkuReadinessDto buildSnapshot(Company company,
+                                          String sku,
                                           ProductionProduct product,
                                           FinishedGood finishedGood,
                                           RawMaterial rawMaterial,
@@ -247,6 +257,13 @@ public class SkuReadinessService {
             Long wipAccountId = metadataLong(product, "wipAccountId");
             if (wipAccountId == null) {
                 productionBlockers.add("WIP_ACCOUNT_MISSING");
+            } else {
+                if (metadataLong(product, "laborAppliedAccountId") == null) {
+                    productionBlockers.add("LABOR_APPLIED_ACCOUNT_MISSING");
+                }
+                if (metadataLong(product, "overheadAppliedAccountId") == null) {
+                    productionBlockers.add("OVERHEAD_APPLIED_ACCOUNT_MISSING");
+                }
             }
         }
 
@@ -258,6 +275,20 @@ public class SkuReadinessService {
             salesBlockers.addAll(inventoryBlockers);
             if (!hasSaleReadyBatch) {
                 salesBlockers.add("NO_FINISHED_GOOD_BATCH_STOCK");
+            }
+            if (finishedGood != null && finishedGood.getDiscountAccountId() == null
+                    && (company == null || company.getDefaultDiscountAccountId() == null)) {
+                salesBlockers.add("DISCOUNT_ACCOUNT_MISSING");
+            }
+            if (isTaxableFinishedGood(product)) {
+                Long outputTaxAccountId = company != null ? company.getGstOutputTaxAccountId() : null;
+                if (outputTaxAccountId == null) {
+                    salesBlockers.add("GST_OUTPUT_ACCOUNT_MISSING");
+                } else if (finishedGood != null
+                        && finishedGood.getTaxAccountId() != null
+                        && !outputTaxAccountId.equals(finishedGood.getTaxAccountId())) {
+                    salesBlockers.add("FINISHED_GOOD_GST_OUTPUT_ACCOUNT_MISMATCH");
+                }
             }
         }
 
@@ -284,6 +315,21 @@ public class SkuReadinessService {
             return ExpectedStockType.RAW_MATERIAL;
         }
         return ExpectedStockType.FINISHED_GOOD;
+    }
+
+    private Company resolveCompany(ProductionProduct product,
+                                   FinishedGood finishedGood,
+                                   RawMaterial rawMaterial) {
+        if (product != null && product.getCompany() != null) {
+            return product.getCompany();
+        }
+        if (finishedGood != null && finishedGood.getCompany() != null) {
+            return finishedGood.getCompany();
+        }
+        if (rawMaterial != null) {
+            return rawMaterial.getCompany();
+        }
+        return null;
     }
 
     private boolean hasSaleReadyBatch(FinishedGood finishedGood) {
@@ -327,7 +373,8 @@ public class SkuReadinessService {
     }
 
     private boolean isAccountingBlocker(String blocker) {
-        return StringUtils.hasText(blocker) && blocker.endsWith("_ACCOUNT_MISSING");
+        return StringUtils.hasText(blocker)
+                && (blocker.endsWith("_ACCOUNT_MISSING") || blocker.endsWith("_ACCOUNT_MISMATCH"));
     }
 
     private boolean isRawMaterialCategory(String category) {
@@ -354,6 +401,12 @@ public class SkuReadinessService {
             }
         }
         return null;
+    }
+
+    private boolean isTaxableFinishedGood(ProductionProduct product) {
+        return product != null
+                && product.getGstRate() != null
+                && product.getGstRate().compareTo(BigDecimal.ZERO) > 0;
     }
 
     private String normalizeSku(String sku) {

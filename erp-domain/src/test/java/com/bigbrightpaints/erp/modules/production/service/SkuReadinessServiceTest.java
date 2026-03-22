@@ -61,6 +61,8 @@ class SkuReadinessServiceTest {
         company = new Company();
         company.setCode("ACME");
         company.setTimezone("UTC");
+        company.setDefaultDiscountAccountId(66L);
+        company.setGstOutputTaxAccountId(44L);
     }
 
     @Test
@@ -73,7 +75,7 @@ class SkuReadinessServiceTest {
     @Test
     void forSku_finishedGoodHappyPath_isFullyReady() {
         ProductionProduct product = finishedGoodProduct(" fg-1 ");
-        product.setMetadata(Map.of("wipAccountId", "44"));
+        product.setMetadata(finishedGoodProductionMetadata("44", "55", "66"));
         FinishedGood finishedGood = finishedGood("FG-1", 11L, 22L, 33L, 44L);
         FinishedGoodBatch saleReadyBatch = new FinishedGoodBatch();
         saleReadyBatch.setQuantityAvailable(new BigDecimal("5"));
@@ -118,6 +120,75 @@ class SkuReadinessServiceTest {
         );
         assertThat(readiness.production().blockers()).contains("WIP_ACCOUNT_MISSING");
         assertThat(readiness.sales().blockers()).contains("NO_FINISHED_GOOD_BATCH_STOCK");
+    }
+
+    @Test
+    void forSku_finishedGoodWithWipButMissingLaborAndOverhead_reportsProductionBlockers() {
+        ProductionProduct product = finishedGoodProduct("FG-LABOR");
+        product.setMetadata(Map.of("wipAccountId", 44L));
+        FinishedGood finishedGood = finishedGood("FG-LABOR", 11L, 22L, 33L, 44L);
+        FinishedGoodBatch saleReadyBatch = new FinishedGoodBatch();
+        saleReadyBatch.setQuantityAvailable(new BigDecimal("2"));
+
+        when(productRepository.findByCompanyAndSkuCode(company, "FG-LABOR")).thenReturn(Optional.of(product));
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "FG-LABOR")).thenReturn(Optional.of(finishedGood));
+        when(rawMaterialRepository.findByCompanyAndSku(company, "FG-LABOR")).thenReturn(Optional.empty());
+        when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
+                .thenReturn(List.of(saleReadyBatch));
+
+        SkuReadinessDto readiness = service.forSku(company, "FG-LABOR", null);
+
+        assertThat(readiness.production().blockers()).containsExactlyInAnyOrder(
+                "LABOR_APPLIED_ACCOUNT_MISSING",
+                "OVERHEAD_APPLIED_ACCOUNT_MISSING");
+        assertThat(readiness.sales().ready()).isTrue();
+    }
+
+    @Test
+    void forSku_finishedGoodSalesReadiness_reportsMissingDiscountAndGstOutputAccounts() {
+        company.setDefaultDiscountAccountId(null);
+        company.setGstOutputTaxAccountId(null);
+
+        ProductionProduct product = finishedGoodProduct("FG-SALES-BLOCKED");
+        product.setGstRate(new BigDecimal("18"));
+        product.setMetadata(finishedGoodProductionMetadata(44L, 55L, 66L));
+        FinishedGood finishedGood = finishedGood("FG-SALES-BLOCKED", 11L, 22L, 33L, 44L);
+        FinishedGoodBatch saleReadyBatch = new FinishedGoodBatch();
+        saleReadyBatch.setQuantityAvailable(new BigDecimal("4"));
+
+        when(productRepository.findByCompanyAndSkuCode(company, "FG-SALES-BLOCKED")).thenReturn(Optional.of(product));
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "FG-SALES-BLOCKED")).thenReturn(Optional.of(finishedGood));
+        when(rawMaterialRepository.findByCompanyAndSku(company, "FG-SALES-BLOCKED")).thenReturn(Optional.empty());
+        when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
+                .thenReturn(List.of(saleReadyBatch));
+
+        SkuReadinessDto readiness = service.forSku(company, "FG-SALES-BLOCKED", null);
+
+        assertThat(readiness.sales().blockers()).containsExactlyInAnyOrder(
+                "DISCOUNT_ACCOUNT_MISSING",
+                "GST_OUTPUT_ACCOUNT_MISSING");
+    }
+
+    @Test
+    void forSku_finishedGoodSalesReadiness_reportsGstOutputMismatchForTaxableSku() {
+        company.setGstOutputTaxAccountId(99L);
+
+        ProductionProduct product = finishedGoodProduct("FG-GST-MISMATCH");
+        product.setGstRate(new BigDecimal("18"));
+        product.setMetadata(finishedGoodProductionMetadata(44L, 55L, 66L));
+        FinishedGood finishedGood = finishedGood("FG-GST-MISMATCH", 11L, 22L, 33L, 44L);
+        FinishedGoodBatch saleReadyBatch = new FinishedGoodBatch();
+        saleReadyBatch.setQuantityAvailable(new BigDecimal("6"));
+
+        when(productRepository.findByCompanyAndSkuCode(company, "FG-GST-MISMATCH")).thenReturn(Optional.of(product));
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "FG-GST-MISMATCH")).thenReturn(Optional.of(finishedGood));
+        when(rawMaterialRepository.findByCompanyAndSku(company, "FG-GST-MISMATCH")).thenReturn(Optional.empty());
+        when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
+                .thenReturn(List.of(saleReadyBatch));
+
+        SkuReadinessDto readiness = service.forSku(company, "FG-GST-MISMATCH", null);
+
+        assertThat(readiness.sales().blockers()).containsExactly("FINISHED_GOOD_GST_OUTPUT_ACCOUNT_MISMATCH");
     }
 
     @Test
@@ -230,7 +301,7 @@ class SkuReadinessServiceTest {
     void forProduct_handlesNumericWipMetadataAndInactiveProduct() {
         ProductionProduct product = finishedGoodProduct("FG-3");
         product.setActive(false);
-        product.setMetadata(Map.of("wipAccountId", 88L));
+        product.setMetadata(finishedGoodProductionMetadata(88L, 55L, 66L));
         FinishedGood finishedGood = finishedGood("FG-3", 11L, 22L, 33L, 44L);
         FinishedGoodBatch nullQuantityBatch = new FinishedGoodBatch();
         nullQuantityBatch.setQuantityAvailable(null);
@@ -305,7 +376,7 @@ class SkuReadinessServiceTest {
     void forProducts_batchesMirrorAndBatchLookupsForCatalogBrowse() {
         ProductionProduct finishedGoodProduct = finishedGoodProduct("FG-BROWSE");
         ReflectionTestUtils.setField(finishedGoodProduct, "id", 101L);
-        finishedGoodProduct.setMetadata(Map.of("wipAccountId", 44L));
+        finishedGoodProduct.setMetadata(finishedGoodProductionMetadata(44L, 55L, 66L));
 
         ProductionProduct rawMaterialProduct = finishedGoodProduct("RM-BROWSE");
         ReflectionTestUtils.setField(rawMaterialProduct, "id", 102L);
@@ -354,6 +425,7 @@ class SkuReadinessServiceTest {
                         "PRODUCT_INACTIVE")),
                 new SkuReadinessDto.Stage(false, List.of(
                         "FINISHED_GOOD_COGS_ACCOUNT_MISSING",
+                        "FINISHED_GOOD_GST_OUTPUT_ACCOUNT_MISMATCH",
                         "NO_FINISHED_GOOD_BATCH_STOCK"))
         );
 
@@ -392,11 +464,11 @@ class SkuReadinessServiceTest {
     void forProducts_deduplicatesMirrorRowsAndBatchSignals() {
         ProductionProduct firstFinishedGood = finishedGoodProduct("FG-DUP");
         ReflectionTestUtils.setField(firstFinishedGood, "id", 301L);
-        firstFinishedGood.setMetadata(Map.of("wipAccountId", 44L));
+        firstFinishedGood.setMetadata(finishedGoodProductionMetadata(44L, 55L, 66L));
 
         ProductionProduct secondFinishedGood = finishedGoodProduct(" fg-dup ");
         ReflectionTestUtils.setField(secondFinishedGood, "id", 302L);
-        secondFinishedGood.setMetadata(Map.of("wipAccountId", 44L));
+        secondFinishedGood.setMetadata(finishedGoodProductionMetadata(44L, 55L, 66L));
 
         FinishedGood primaryMirror = finishedGood("FG-DUP", 11L, 22L, 33L, 44L);
         ReflectionTestUtils.setField(primaryMirror, "id", 601L);
@@ -450,7 +522,9 @@ class SkuReadinessServiceTest {
                         "ACCOUNTING_CONFIGURATION_REQUIRED",
                         "FINISHED_GOOD_VALUATION_ACCOUNT_MISSING")),
                 new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED", "WIP_ACCOUNT_MISSING")),
-                new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED"))
+                new SkuReadinessDto.Stage(false, List.of(
+                        "ACCOUNTING_CONFIGURATION_REQUIRED",
+                        "FINISHED_GOOD_GST_OUTPUT_ACCOUNT_MISMATCH"))
         );
 
         SkuReadinessDto sanitized = service.sanitizeForCatalogViewer(readiness, false);
@@ -465,6 +539,7 @@ class SkuReadinessServiceTest {
         product.setCompany(company);
         product.setSkuCode(sku);
         product.setCategory("FINISHED_GOOD");
+        product.setProductName("Gloss Paint");
         product.setActive(true);
         return product;
     }
@@ -492,5 +567,15 @@ class SkuReadinessServiceTest {
         rawMaterial.setName("Resin");
         rawMaterial.setInventoryAccountId(inventoryAccountId);
         return rawMaterial;
+    }
+
+    private Map<String, Object> finishedGoodProductionMetadata(Object wipAccountId,
+                                                               Object laborAppliedAccountId,
+                                                               Object overheadAppliedAccountId) {
+        return Map.of(
+                "wipAccountId", wipAccountId,
+                "laborAppliedAccountId", laborAppliedAccountId,
+                "overheadAppliedAccountId", overheadAppliedAccountId
+        );
     }
 }

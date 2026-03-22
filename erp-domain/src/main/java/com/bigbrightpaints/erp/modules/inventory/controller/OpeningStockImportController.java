@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.inventory.controller;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.inventory.dto.OpeningStockImportHistoryItem;
 import com.bigbrightpaints.erp.modules.inventory.dto.OpeningStockImportResponse;
 import com.bigbrightpaints.erp.modules.inventory.service.OpeningStockImportService;
@@ -8,6 +9,7 @@ import com.bigbrightpaints.erp.modules.production.service.SkuReadinessService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -41,10 +43,18 @@ public class OpeningStockImportController {
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestPart("file") MultipartFile file,
             Authentication authentication) {
-        OpeningStockImportResponse response = openingStockImportService.importOpeningStock(file, idempotencyKey);
-        return ResponseEntity.ok(ApiResponse.success(
-                "Opening stock import processed",
-                sanitizeResponseReadiness(response, canViewAccountingMetadata(authentication))));
+        boolean includeAccountingMetadata = canViewAccountingMetadata(authentication);
+        try {
+            OpeningStockImportResponse response = openingStockImportService.importOpeningStock(file, idempotencyKey);
+            return ResponseEntity.ok(ApiResponse.success(
+                    "Opening stock import processed",
+                    sanitizeResponseReadiness(response, includeAccountingMetadata)));
+        } catch (ApplicationException ex) {
+            if (includeAccountingMetadata) {
+                throw ex;
+            }
+            throw sanitizeImportException(ex);
+        }
     }
 
     @GetMapping("/opening-stock")
@@ -138,5 +148,32 @@ public class OpeningStockImportController {
         return authentication.getAuthorities().stream()
                 .map(grantedAuthority -> grantedAuthority.getAuthority())
                 .anyMatch(authority -> "ROLE_ADMIN".equals(authority) || "ROLE_ACCOUNTING".equals(authority));
+    }
+
+    private ApplicationException sanitizeImportException(ApplicationException ex) {
+        if (ex == null || !isAccountingSensitiveImportFailure(ex.getUserMessage())) {
+            return ex;
+        }
+        return new ApplicationException(
+                ex.getErrorCode(),
+                "Opening stock import requires accounting configuration to be completed before retrying.");
+    }
+
+    private boolean isAccountingSensitiveImportFailure(String message) {
+        if (!StringUtils.hasText(message)) {
+            return false;
+        }
+        String normalized = message.trim().toUpperCase(Locale.ROOT);
+        return normalized.contains("OPEN-BAL")
+                || normalized.contains("INVENTORY ACCOUNT")
+                || normalized.contains("VALUATION ACCOUNT")
+                || normalized.contains("COGS ACCOUNT")
+                || normalized.contains("REVENUE ACCOUNT")
+                || normalized.contains("TAX ACCOUNT")
+                || normalized.contains("GST OUTPUT ACCOUNT")
+                || normalized.contains("DISCOUNT ACCOUNT")
+                || normalized.contains("WIP ACCOUNT")
+                || normalized.contains("LABOR APPLIED ACCOUNT")
+                || normalized.contains("OVERHEAD APPLIED ACCOUNT");
     }
 }

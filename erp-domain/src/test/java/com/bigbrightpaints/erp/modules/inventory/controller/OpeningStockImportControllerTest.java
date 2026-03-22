@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.inventory.controller;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.inventory.dto.OpeningStockImportHistoryItem;
 import com.bigbrightpaints.erp.modules.inventory.dto.OpeningStockImportResponse;
 import com.bigbrightpaints.erp.modules.inventory.service.OpeningStockImportService;
@@ -21,6 +23,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -136,6 +139,38 @@ class OpeningStockImportControllerTest {
                 .data();
 
         assertThat(payload).isNull();
+        verifyNoInteractions(skuReadinessService);
+    }
+
+    @Test
+    void importOpeningStock_sanitizesAccountingSetupExceptionsForFactoryUsers() {
+        OpeningStockImportController controller = new OpeningStockImportController(openingStockImportService, skuReadinessService);
+        MockMultipartFile file = csvFile();
+        ApplicationException failure = new ApplicationException(
+                ErrorCode.VALIDATION_INVALID_REFERENCE,
+                "Opening balance account OPEN-BAL is missing; complete company defaults and repair seeded accounts before importing opening stock");
+        when(openingStockImportService.importOpeningStock(file, "factory-failure")).thenThrow(failure);
+
+        assertThatThrownBy(() -> controller.importOpeningStock("factory-failure", file, authentication("ROLE_FACTORY")))
+                .isInstanceOf(ApplicationException.class)
+                .extracting("errorCode", "userMessage")
+                .containsExactly(
+                        ErrorCode.VALIDATION_INVALID_REFERENCE,
+                        "Opening stock import requires accounting configuration to be completed before retrying.");
+        verifyNoInteractions(skuReadinessService);
+    }
+
+    @Test
+    void importOpeningStock_keepsAccountingSetupExceptionsForAccountingUsers() {
+        OpeningStockImportController controller = new OpeningStockImportController(openingStockImportService, skuReadinessService);
+        MockMultipartFile file = csvFile();
+        ApplicationException failure = new ApplicationException(
+                ErrorCode.VALIDATION_INVALID_REFERENCE,
+                "Opening balance account OPEN-BAL must be an equity account");
+        when(openingStockImportService.importOpeningStock(file, "accounting-failure")).thenThrow(failure);
+
+        assertThatThrownBy(() -> controller.importOpeningStock("accounting-failure", file, authentication("ROLE_ACCOUNTING")))
+                .isSameAs(failure);
         verifyNoInteractions(skuReadinessService);
     }
 
