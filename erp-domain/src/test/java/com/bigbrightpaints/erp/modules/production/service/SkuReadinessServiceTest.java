@@ -248,6 +248,22 @@ class SkuReadinessServiceTest {
     }
 
     @Test
+    void forProduct_prefersFinishedGoodCategoryOverStaleRawMaterialMirror() {
+        ProductionProduct product = finishedGoodProduct("FG-CONVERTED");
+        RawMaterial staleRawMaterial = rawMaterial("FG-CONVERTED", 77L);
+
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "FG-CONVERTED")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.findByCompanyAndSku(company, "FG-CONVERTED")).thenReturn(Optional.of(staleRawMaterial));
+
+        SkuReadinessDto readiness = service.forProduct(company, product);
+
+        assertThat(readiness.inventory().blockers()).containsExactly("FINISHED_GOOD_MIRROR_MISSING");
+        assertThat(readiness.inventory().blockers()).doesNotContain("RAW_MATERIAL_INVENTORY_ACCOUNT_MISSING");
+        assertThat(readiness.production().blockers()).containsExactly("FINISHED_GOOD_MIRROR_MISSING", "WIP_ACCOUNT_MISSING");
+        assertThat(readiness.sales().blockers()).containsExactly("FINISHED_GOOD_MIRROR_MISSING", "NO_FINISHED_GOOD_BATCH_STOCK");
+    }
+
+    @Test
     void forPlannedProduct_finishedGoodUsesProjectedMirrorAndNoBatchState() {
         ProductionProduct product = finishedGoodProduct("FG-PLAN");
         product.setMetadata(Map.of());

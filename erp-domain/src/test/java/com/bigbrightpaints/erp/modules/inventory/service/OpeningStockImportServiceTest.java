@@ -61,6 +61,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -543,6 +544,7 @@ class OpeningStockImportServiceTest {
                 .isEqualTo("SKU is required for opening stock; only prepared SKUs are accepted");
         assertThat(response.errors().getFirst().sku()).isNull();
         assertThat(response.errors().getFirst().readiness()).isNull();
+        verify(skuReadinessService, never()).forSku(eq(company), isNull(), any());
     }
 
     @Test

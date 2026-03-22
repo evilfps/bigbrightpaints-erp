@@ -307,20 +307,22 @@ public class OpeningStockImportService {
                     ));
                     rowsProcessed++;
                 } catch (ApplicationException ex) {
+                    String normalizedSkuForError = normalizeSku(row.sku);
                     errors.add(new ImportError(
                             record.getRecordNumber(),
                             ex.getMessage(),
-                            normalizeSku(row.sku),
+                            normalizedSkuForError,
                             row.type.name(),
-                            readinessFor(company, normalizeSku(row.sku), row.type)
+                            readinessForError(company, normalizedSkuForError, row.type)
                     ));
                 } catch (Exception ex) {
+                    String normalizedSkuForError = normalizeSku(row.sku);
                     errors.add(new ImportError(
                             record.getRecordNumber(),
                             "Unexpected error: " + ex.getMessage(),
-                            normalizeSku(row.sku),
+                            normalizedSkuForError,
                             row.type.name(),
-                            readinessFor(company, normalizeSku(row.sku), row.type)
+                            readinessForError(company, normalizedSkuForError, row.type)
                     ));
                 }
             }
@@ -701,6 +703,13 @@ public class OpeningStockImportService {
                 ? SkuReadinessService.ExpectedStockType.RAW_MATERIAL
                 : SkuReadinessService.ExpectedStockType.FINISHED_GOOD;
         return skuReadinessService.forSku(company, sku, expectedStockType);
+    }
+
+    private SkuReadinessDto readinessForError(Company company, String sku, StockType stockType) {
+        if (!StringUtils.hasText(sku)) {
+            return null;
+        }
+        return readinessFor(company, sku, stockType);
     }
 
     private ApplicationException openingStockReadinessFailure(String sku,

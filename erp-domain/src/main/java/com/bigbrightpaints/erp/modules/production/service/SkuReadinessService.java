@@ -275,8 +275,10 @@ public class SkuReadinessService {
         if (expectedStockType != null) {
             return expectedStockType;
         }
-        if (product != null && isRawMaterialCategory(product.getCategory())) {
-            return ExpectedStockType.RAW_MATERIAL;
+        if (product != null) {
+            return isRawMaterialCategory(product.getCategory())
+                    ? ExpectedStockType.RAW_MATERIAL
+                    : ExpectedStockType.FINISHED_GOOD;
         }
         if (rawMaterial != null) {
             return ExpectedStockType.RAW_MATERIAL;
