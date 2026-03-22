@@ -257,6 +257,30 @@ class OpeningStockImportServiceTest {
     }
 
     @Test
+    void importOpeningStock_requiresOpeningStockBatchKey() {
+        MockMultipartFile file = csvFile(String.join("\n",
+                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"
+        ));
+
+        assertThatThrownBy(() -> importOpeningStock(file, "fresh-key", null))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("openingStockBatchKey is required");
+    }
+
+    @Test
+    void importOpeningStock_rejectsOverlongOpeningStockBatchKey() {
+        MockMultipartFile file = csvFile(String.join("\n",
+                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"
+        ));
+
+        assertThatThrownBy(() -> importOpeningStock(file, "fresh-key", "B".repeat(129)))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("openingStockBatchKey exceeds 128 characters");
+    }
+
+    @Test
     void importOpeningStock_rejectsDuplicateReferenceNumberReservation() {
         MockMultipartFile file = csvFile(String.join("\n",
                 "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
@@ -486,12 +510,52 @@ class OpeningStockImportServiceTest {
     }
 
     @Test
+    void importOpeningStock_acceptsPackagingAliasRows() {
+        MockMultipartFile file = csvFile(String.join("\n",
+                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+                "PKG,PKG-1,Can,PCS,PCS,PKG-B1,10,5.00,PACKAGING"
+        ));
+
+        stubSuccessfulRawMaterialImport(file, "PKG-1", "Can", "PCS", 11L);
+
+        OpeningStockImportResponse response = importOpeningStock(file, "pkg-key", "batch-pkg");
+
+        assertThat(response.rowsProcessed()).isEqualTo(1);
+        assertThat(response.rawMaterialBatchesCreated()).isEqualTo(1);
+        assertThat(response.finishedGoodBatchesCreated()).isZero();
+        assertThat(response.results()).singleElement().satisfies(result -> {
+            assertThat(result.sku()).isEqualTo("PKG-1");
+            assertThat(result.stockType()).isEqualTo("PACKAGING_RAW_MATERIAL");
+        });
+    }
+
+    @Test
+    void importOpeningStock_acceptsRawMaterialAliasRows() {
+        MockMultipartFile file = csvFile(String.join("\n",
+                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+                "RM,RM-ALIAS,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"
+        ));
+
+        stubSuccessfulRawMaterialImport(file, "RM-ALIAS", "Resin", "KG", 12L);
+
+        OpeningStockImportResponse response = importOpeningStock(file, "rm-key", "batch-rm");
+
+        assertThat(response.rowsProcessed()).isEqualTo(1);
+        assertThat(response.rawMaterialBatchesCreated()).isEqualTo(1);
+        assertThat(response.results()).singleElement().satisfies(result -> {
+            assertThat(result.sku()).isEqualTo("RM-ALIAS");
+            assertThat(result.stockType()).isEqualTo("RAW_MATERIAL");
+        });
+    }
+
+    @Test
     void helperMethods_resolveImportReferenceUsesSanitizedCompanyCodeAndBatchKeyHash() {
         Company legacyCompany = new Company();
         legacyCompany.setCode(" acme-west ");
         Company blankCodeCompany = new Company();
         String batchOneHash = com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.sha256Hex("batch-1").substring(0, 12);
         String batchTwoHash = com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.sha256Hex("batch-2").substring(0, 12);
+        String batchThreeHash = com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.sha256Hex("batch-3").substring(0, 12);
 
         assertThat((String) ReflectionTestUtils.invokeMethod(service, "sanitizeCompanyCode", company.getCode()))
                 .isEqualTo("ACME");
@@ -505,10 +569,39 @@ class OpeningStockImportServiceTest {
                 .isEqualTo("OPENING-STOCK|ACMEWEST|hash-2");
         assertThat((String) ReflectionTestUtils.invokeMethod(service, "buildReplayProtectionKey", blankCodeCompany, "hash-3"))
                 .isEqualTo("OPENING-STOCK|COMPANY|hash-3");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "buildReplayProtectionKey", null, "hash-4"))
+                .isEqualTo("OPENING-STOCK|COMPANY|hash-4");
         assertThat((String) ReflectionTestUtils.invokeMethod(service, "resolveImportReference", company, "batch-1"))
                 .isEqualTo("OPEN-STOCK-ACME-" + batchOneHash);
         assertThat((String) ReflectionTestUtils.invokeMethod(service, "resolveImportReference", legacyCompany, "batch-2"))
                 .isEqualTo("OPEN-STOCK-ACMEWEST-" + batchTwoHash);
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "resolveImportReference", null, "batch-3"))
+                .isEqualTo("OPEN-STOCK-COMPANY-" + batchThreeHash);
+    }
+
+    @Test
+    void helperMethods_openingStockFileReplayConflictFallsBackToComputedReplayKey() {
+        OpeningStockImport existing = new OpeningStockImport();
+        existing.setIdempotencyKey("original-key");
+        existing.setOpeningStockBatchKey("original-batch");
+        existing.setReferenceNumber("OPEN-STOCK-ACME-ORIGINAL");
+
+        ApplicationException conflict = (ApplicationException) ReflectionTestUtils.invokeMethod(
+                service,
+                "openingStockFileReplayConflict",
+                existing,
+                "fresh-key",
+                "fresh-batch",
+                "computed-replay-key",
+                "file-hash"
+        );
+
+        assertThat(conflict.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_DUPLICATE_ENTRY);
+        assertThat(conflict.getDetails())
+                .containsEntry("replayProtectionKey", "computed-replay-key")
+                .containsEntry("fileHash", "file-hash")
+                .containsEntry("attemptedIdempotencyKey", "fresh-key")
+                .containsEntry("attemptedOpeningStockBatchKey", "fresh-batch");
     }
 
     @Test
@@ -1460,6 +1553,33 @@ class OpeningStockImportServiceTest {
                     ReflectionTestUtils.setField(record, "createdAt", Instant.parse("2026-02-03T00:00:00Z"));
                     return record;
                 });
+    }
+
+    private void stubSuccessfulRawMaterialImport(MockMultipartFile file,
+                                                 String sku,
+                                                 String name,
+                                                 String unitType,
+                                                 Long inventoryAccountId) {
+        stubDefaultImportState(file);
+
+        Account openingBalance = account(22L, "OPEN-BAL", "Opening Balance", AccountType.EQUITY);
+        when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "OPEN-BAL"))
+                .thenReturn(Optional.of(openingBalance));
+
+        RawMaterial material = new RawMaterial();
+        ReflectionTestUtils.setField(material, "id", inventoryAccountId + 100);
+        material.setCompany(company);
+        material.setSku(sku);
+        material.setName(name);
+        material.setUnitType(unitType);
+        material.setInventoryAccountId(inventoryAccountId);
+        material.setCurrentStock(BigDecimal.ZERO);
+        when(rawMaterialRepository.findByCompanyAndSku(company, sku)).thenReturn(Optional.of(material));
+
+        when(rawMaterialBatchRepository.existsByRawMaterialAndBatchCode(eq(material), any())).thenReturn(false);
+        when(rawMaterialBatchRepository.save(any(RawMaterialBatch.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(rawMaterialRepository.save(any(RawMaterial.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(rawMaterialMovementRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     private Account account(Long id, String code, String name, AccountType type) {

@@ -339,7 +339,7 @@ public class OpeningStockImportService {
                 }
                 try {
                     OpeningMovementResult movementResult;
-                    if (row.type == StockType.RAW_MATERIAL) {
+                    if (row.type == StockType.RAW_MATERIAL || row.type == StockType.PACKAGING_RAW_MATERIAL) {
                         movementResult = handleRawMaterial(company, row);
                         rawMaterialBatchesCreated++;
                     } else {
