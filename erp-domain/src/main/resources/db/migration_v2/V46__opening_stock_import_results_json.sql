@@ -11,6 +11,9 @@ FROM (
     SELECT source.id,
            'OPENING-STOCK|'
                || COALESCE(
+                   CASE
+                       WHEN source.company_id IS NOT NULL THEN 'CID-' || source.company_id::text
+                   END,
                    NULLIF(regexp_replace(upper(trim(COALESCE(company.code, 'COMPANY'))), '[^A-Z0-9]', '', 'g'), ''),
                    'COMPANY')
                || '|'

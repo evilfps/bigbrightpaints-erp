@@ -291,6 +291,66 @@ class CatalogServiceProductCrudTest {
     }
 
     @Test
+    void updateProduct_preservesProductionItemClassForLegacyPackagingSkuWhenRequestOmitsItemClass() {
+        ProductionProduct existing = new ProductionProduct();
+        ReflectionTestUtils.setField(existing, "id", 5031L);
+        existing.setCompany(company);
+        existing.setBrand(brand);
+        existing.setProductName("Legacy Bucket Resin");
+        existing.setCategory("RAW_MATERIAL");
+        existing.setSkuCode("PKG-LEGACY-001");
+        existing.setActive(true);
+        existing.setColors(new LinkedHashSet<>(List.of("White")));
+        existing.setSizes(new LinkedHashSet<>(List.of("20L")));
+        existing.setCartonSizes(new LinkedHashMap<>(java.util.Map.of("20L", 1)));
+        existing.setUnitOfMeasure("LITER");
+        existing.setHsnCode("320890");
+        existing.setBasePrice(new BigDecimal("710.00"));
+        existing.setGstRate(new BigDecimal("18.00"));
+        existing.setMinDiscountPercent(new BigDecimal("4.00"));
+        existing.setMinSellingPrice(new BigDecimal("690.00"));
+        existing.setMetadata(new LinkedHashMap<>(Map.of("rawMaterialInventoryAccountId", 801L)));
+
+        RawMaterial legacyProductionMaterial = new RawMaterial();
+        legacyProductionMaterial.setCompany(company);
+        legacyProductionMaterial.setSku("PKG-LEGACY-001");
+        legacyProductionMaterial.setMaterialType(MaterialType.PRODUCTION);
+
+        CatalogProductRequest request = new CatalogProductRequest(
+                11L,
+                "Legacy Bucket Resin Updated",
+                null,
+                List.of("White"),
+                List.of("20L"),
+                List.of(new CatalogProductCartonSizeRequest("20L", 1)),
+                "LITER",
+                "320890",
+                new BigDecimal("720.00"),
+                new BigDecimal("18.00"),
+                new BigDecimal("4.50"),
+                new BigDecimal("700.00"),
+                Map.of("rawMaterialInventoryAccountId", 801L),
+                true
+        );
+
+        when(brandRepository.findByCompanyAndId(company, 11L)).thenReturn(Optional.of(brand));
+        when(productRepository.findByCompanyAndId(company, 5031L)).thenReturn(Optional.of(existing));
+        when(productRepository.findByBrandAndProductNameIgnoreCase(brand, "Legacy Bucket Resin Updated"))
+                .thenReturn(Optional.of(existing));
+        when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "PKG-LEGACY-001"))
+                .thenReturn(Optional.of(legacyProductionMaterial));
+        when(rawMaterialRepository.findByCompanyAndSku(company, "PKG-LEGACY-001"))
+                .thenReturn(Optional.of(legacyProductionMaterial));
+
+        CatalogProductDto response = service.updateProduct(5031L, request);
+
+        assertThat(response.category()).isEqualTo("RAW_MATERIAL");
+        assertThat(response.itemClass()).isEqualTo("RAW_MATERIAL");
+        assertThat(legacyProductionMaterial.getMaterialType()).isEqualTo(MaterialType.PRODUCTION);
+    }
+
+    @Test
     void updateProduct_mergesMetadataWithoutDroppingFinishedGoodPostingAccounts() {
         ProductionProduct existing = new ProductionProduct();
         ReflectionTestUtils.setField(existing, "id", 504L);
@@ -675,13 +735,21 @@ class CatalogServiceProductCrudTest {
     void helperMethods_coverPackagingItemClassResolution() {
         RawMaterial packagingMaterial = new RawMaterial();
         packagingMaterial.setMaterialType(MaterialType.PACKAGING);
+        RawMaterial legacyProductionMaterial = new RawMaterial();
+        legacyProductionMaterial.setMaterialType(MaterialType.PRODUCTION);
         when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "PKG-001")).thenReturn(Optional.of(packagingMaterial));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "PKG-LEGACY")).thenReturn(Optional.of(legacyProductionMaterial));
         when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "RM-001")).thenReturn(Optional.empty());
 
         ProductionProduct packagingProduct = new ProductionProduct();
         packagingProduct.setCompany(company);
         packagingProduct.setCategory("RAW_MATERIAL");
         packagingProduct.setSkuCode("PKG-001");
+
+        ProductionProduct legacyProductionProduct = new ProductionProduct();
+        legacyProductionProduct.setCompany(company);
+        legacyProductionProduct.setCategory("RAW_MATERIAL");
+        legacyProductionProduct.setSkuCode("PKG-LEGACY");
 
         ProductionProduct rawMaterialProduct = new ProductionProduct();
         rawMaterialProduct.setCompany(company);
@@ -697,6 +765,8 @@ class CatalogServiceProductCrudTest {
                 .isEqualTo("FINISHED_GOOD");
         assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", packagingProduct))
                 .isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", legacyProductionProduct, legacyProductionMaterial))
+                .isEqualTo("RAW_MATERIAL");
         assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", rawMaterialProduct))
                 .isEqualTo("RAW_MATERIAL");
     }

@@ -1213,8 +1213,10 @@ public class CatalogService {
         if (product == null || !isRawMaterialCategory(product.getCategory())) {
             return ITEM_CLASS_FINISHED_GOOD;
         }
-        if (rawMaterial != null && rawMaterial.getMaterialType() == MaterialType.PACKAGING) {
-            return ITEM_CLASS_PACKAGING_RAW_MATERIAL;
+        if (rawMaterial != null && rawMaterial.getMaterialType() != null) {
+            return rawMaterial.getMaterialType() == MaterialType.PACKAGING
+                    ? ITEM_CLASS_PACKAGING_RAW_MATERIAL
+                    : ITEM_CLASS_RAW_MATERIAL;
         }
         if (isPackagingSku(product.getSkuCode())) {
             return ITEM_CLASS_PACKAGING_RAW_MATERIAL;
