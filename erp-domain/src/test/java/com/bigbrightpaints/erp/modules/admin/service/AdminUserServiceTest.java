@@ -49,6 +49,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -335,6 +336,55 @@ class AdminUserServiceTest {
     }
 
     @Test
+    void createUser_withoutPasswordIssuesTemporaryPasswordAndForcesReset() {
+        service.createUser(new CreateUserRequest(
+                "temp-user@example.com",
+                null,
+                "Temp User",
+                List.of(1L),
+                List.of("ROLE_SALES")
+        ));
+
+        ArgumentCaptor<UserAccount> userCaptor = ArgumentCaptor.forClass(UserAccount.class);
+        verify(userRepository).save(userCaptor.capture());
+        assertThat(userCaptor.getValue().isMustChangePassword()).isTrue();
+        verify(emailService).sendUserCredentialsEmail(
+                eq("temp-user@example.com"),
+                eq("Temp User"),
+                argThat(password -> password != null && !password.isBlank()));
+    }
+
+    @Test
+    void createUser_reusesExistingPortalDealerWithoutProvisioningAnotherAccount() {
+        Dealer existingDealer = new Dealer();
+        existingDealer.setCompany(company);
+        ReflectionTestUtils.setField(existingDealer, "id", 55L);
+        existingDealer.setCode("ACTIVE55");
+        existingDealer.setName("Active Dealer");
+        existingDealer.setEmail("dealer-active@example.com");
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-ACTIVE55");
+        receivable.setActive(true);
+        existingDealer.setReceivableAccount(receivable);
+
+        when(dealerRepository.findByCompanyAndPortalUserEmail(company, "dealer-active@example.com"))
+                .thenReturn(Optional.of(existingDealer));
+
+        service.createUser(new CreateUserRequest(
+                "dealer-active@example.com",
+                "Password@123",
+                "Dealer Active",
+                List.of(1L),
+                List.of("ROLE_DEALER")
+        ));
+
+        verify(dealerRepository, times(1)).save(any(Dealer.class));
+        verify(accountRepository, never()).save(any(Account.class));
+    }
+
+    @Test
     void listUsers_includesLastLoginAtDerivedFromLatestLoginAuditEvent() {
         UserAccount user = new UserAccount("audited-user@example.com", "hash", "Audited User");
         ReflectionTestUtils.setField(user, "id", 301L);
@@ -572,6 +622,32 @@ class AdminUserServiceTest {
 
         verify(userRepository).findById(305L);
         verify(userRepository, never()).findByIdAndCompanies_Id(eq(305L), any());
+    }
+
+    @Test
+    void updateUser_sameEnabledStateDoesNotTriggerReauthRevocation() {
+        UserAccount user = new UserAccount("same-enabled@example.com", "hash", "Same Enabled");
+        ReflectionTestUtils.setField(user, "id", 401L);
+        user.addCompany(company);
+        user.setEnabled(true);
+        Role role = new Role();
+        role.setName("ROLE_SALES");
+        user.addRole(role);
+
+        when(userRepository.findById(401L)).thenReturn(Optional.of(user));
+        when(auditLogRepository.findFirstByEventTypeAndUsernameIgnoreCaseOrderByTimestampDesc(
+                AuditEvent.LOGIN_SUCCESS,
+                "same-enabled@example.com"))
+                .thenReturn(Optional.empty());
+
+        var response = service.updateUser(
+                401L,
+                new UpdateUserRequest("Same Enabled Updated", null, null, true));
+
+        assertThat(response.enabled()).isTrue();
+        verify(tokenBlacklistService, never()).revokeAllUserTokens("same-enabled@example.com");
+        verify(refreshTokenService, never()).revokeAllForUser("same-enabled@example.com");
+        verify(tenantRuntimePolicyService, never()).assertCanAddEnabledUser(any(Company.class), anyString());
     }
 
     @Test
