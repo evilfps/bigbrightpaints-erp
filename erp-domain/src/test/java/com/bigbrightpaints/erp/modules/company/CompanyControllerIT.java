@@ -276,9 +276,9 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void tenant_bootstrap_accepts_missing_default_gst_rate_and_applies_fallback() {
+    void retired_company_bootstrap_alias_post_is_not_exposed() {
         String token = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
-        String newCompanyCode = "GST-FALLBACK-" + System.nanoTime();
+        String newCompanyCode = "RETIRED-POST-" + System.nanoTime();
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
@@ -289,57 +289,52 @@ public class CompanyControllerIT extends AbstractIntegrationTest {
                 "/api/v1/companies",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of(
-                        "name", "GST Fallback Co",
+                        "name", "Retired Bootstrap Alias",
                         "code", newCompanyCode,
-                        "timezone", "UTC"
+                        "timezone", "UTC",
+                        "defaultGstRate", 18.0
                 ), headers),
                 Map.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(companyRepository.findByCodeIgnoreCase(newCompanyCode).orElseThrow().getDefaultGstRate())
-                .isEqualByComparingTo("18");
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> responseBody = response.getBody();
-        assertThat(responseBody).isNotNull();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) responseBody.get("data");
-        assertThat(data).isNotNull();
-        assertThat(new BigDecimal(data.get("defaultGstRate").toString())).isEqualByComparingTo("18");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
+        assertThat(companyRepository.findByCodeIgnoreCase(newCompanyCode)).isEmpty();
     }
 
     @Test
-    void tenant_bootstrap_preserves_explicit_zero_default_gst_rate() {
+    void retired_superadmin_tenant_aliases_are_not_exposed() {
         String token = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
-        String newCompanyCode = "GST-ZERO-" + System.nanoTime();
+        String newCompanyCode = "RETIRED-ALIAS-" + System.nanoTime();
+        Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("X-Company-Code", ROOT_COMPANY_CODE);
 
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/companies",
+        ResponseEntity<Map> createAliasResponse = rest.exchange(
+                "/api/v1/companies/superadmin/tenants",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of(
-                        "name", "GST Zero Co",
+                        "name", "Retired Superadmin Alias",
                         "code", newCompanyCode,
                         "timezone", "UTC",
                         "defaultGstRate", 0
                 ), headers),
                 Map.class);
+        ResponseEntity<Map> updateAliasResponse = rest.exchange(
+                "/api/v1/companies/superadmin/tenants/" + companyId,
+                HttpMethod.PUT,
+                new HttpEntity<>(Map.of(
+                        "name", "Retired Alias Update",
+                        "code", COMPANY_CODE,
+                        "timezone", "UTC",
+                        "defaultGstRate", 18.0
+                ), headers),
+                Map.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(companyRepository.findByCodeIgnoreCase(newCompanyCode).orElseThrow().getDefaultGstRate())
-                .isEqualByComparingTo("0");
-
-        @SuppressWarnings("unchecked")
-        Map<String, Object> responseBody = response.getBody();
-        assertThat(responseBody).isNotNull();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) responseBody.get("data");
-        assertThat(data).isNotNull();
-        assertThat(new BigDecimal(data.get("defaultGstRate").toString())).isEqualByComparingTo("0");
+        assertThat(createAliasResponse.getStatusCode()).isIn(HttpStatus.NOT_FOUND, HttpStatus.METHOD_NOT_ALLOWED);
+        assertThat(updateAliasResponse.getStatusCode()).isIn(HttpStatus.NOT_FOUND, HttpStatus.METHOD_NOT_ALLOWED);
+        assertThat(companyRepository.findByCodeIgnoreCase(newCompanyCode)).isEmpty();
     }
 
     @Test

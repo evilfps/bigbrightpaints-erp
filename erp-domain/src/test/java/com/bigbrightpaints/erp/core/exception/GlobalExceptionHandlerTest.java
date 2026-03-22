@@ -165,7 +165,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void productionCatalogBulkVariantsConflictIncludesStructuredDetails() throws Exception {
+    void productionCatalogBulkVariantsConflictOnRetiredRouteRemainsRedacted() throws Exception {
         GlobalExceptionHandler handler = new GlobalExceptionHandler();
         setActiveProfile(handler, "prod");
 
@@ -187,14 +187,7 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         ApiResponse<Map<String, Object>> body = response.getBody();
         assertThat(body).isNotNull();
-        assertThat(body.data()).containsKey("details");
-        assertThat(body.data().get("details")).isInstanceOf(Map.class);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> details = (Map<String, Object>) body.data().get("details");
-        assertThat(details)
-                .containsOnlyKeys("generated", "conflicts", "wouldCreate", "created", "operation")
-                .containsEntry("operation", "catalog-bulk-variants")
-                .doesNotContainKey("internalLeak");
+        assertThat(body.data()).doesNotContainKey("details");
     }
 
     @Test

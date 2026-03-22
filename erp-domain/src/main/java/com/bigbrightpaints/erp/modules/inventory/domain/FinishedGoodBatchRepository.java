@@ -8,12 +8,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.time.LocalDate;
 import java.util.List;
 
 public interface FinishedGoodBatchRepository extends JpaRepository<FinishedGoodBatch, Long> {
 
     List<FinishedGoodBatch> findByFinishedGoodOrderByManufacturedAtAsc(FinishedGood finishedGood);
+    List<FinishedGoodBatch> findByFinishedGoodIn(Collection<FinishedGood> finishedGoods);
     List<FinishedGoodBatch> findByFinishedGood_ValuationAccountId(Long valuationAccountId);
 
     @Query("""

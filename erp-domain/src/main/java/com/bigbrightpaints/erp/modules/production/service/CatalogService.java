@@ -88,6 +88,7 @@ public class CatalogService {
     private final SizeVariantRepository sizeVariantRepository;
     private final FinishedGoodRepository finishedGoodRepository;
     private final RawMaterialRepository rawMaterialRepository;
+    private final SkuReadinessService skuReadinessService;
 
     public CatalogService(CompanyContextService companyContextService,
                           CompanyEntityLookup companyEntityLookup,
@@ -95,7 +96,8 @@ public class CatalogService {
                           ProductionProductRepository productRepository,
                           SizeVariantRepository sizeVariantRepository,
                           FinishedGoodRepository finishedGoodRepository,
-                          RawMaterialRepository rawMaterialRepository) {
+                          RawMaterialRepository rawMaterialRepository,
+                          SkuReadinessService skuReadinessService) {
         this.companyContextService = companyContextService;
         this.companyEntityLookup = companyEntityLookup;
         this.brandRepository = brandRepository;
@@ -103,6 +105,7 @@ public class CatalogService {
         this.sizeVariantRepository = sizeVariantRepository;
         this.finishedGoodRepository = finishedGoodRepository;
         this.rawMaterialRepository = rawMaterialRepository;
+        this.skuReadinessService = skuReadinessService;
     }
 
     @Transactional
@@ -238,8 +241,13 @@ public class CatalogService {
                 normalizeOptionalText(size),
                 active);
         Page<ProductionProduct> result = productRepository.findAll(specification, pageable);
+        Map<Long, com.bigbrightpaints.erp.modules.production.dto.SkuReadinessDto> readinessByProductId =
+                skuReadinessService.forProducts(company, result.getContent());
         List<CatalogProductDto> content = result.getContent().stream()
-                .map(product -> toProductDto(product, includeAccountingMetadata))
+                .map(product -> toProductDto(
+                        product,
+                        includeAccountingMetadata,
+                        readinessByProductId.get(product.getId())))
                 .toList();
         return PageResponse.of(content, result.getTotalElements(), sanitizedPage, sanitizedPageSize);
     }
@@ -1013,14 +1021,29 @@ public class CatalogService {
     }
 
     private CatalogProductDto toProductDto(ProductionProduct product) {
-        return toProductDto(product, true);
+        return toProductDto(
+                product,
+                true,
+                skuReadinessService.forProduct(product.getCompany(), product));
     }
 
     private CatalogProductDto toPublicProductDto(ProductionProduct product) {
-        return toProductDto(product, false);
+        return toProductDto(
+                product,
+                false,
+                skuReadinessService.forProduct(product.getCompany(), product));
     }
 
     private CatalogProductDto toProductDto(ProductionProduct product, boolean includeAccountingMetadata) {
+        return toProductDto(
+                product,
+                includeAccountingMetadata,
+                skuReadinessService.forProduct(product.getCompany(), product));
+    }
+
+    private CatalogProductDto toProductDto(ProductionProduct product,
+                                           boolean includeAccountingMetadata,
+                                           com.bigbrightpaints.erp.modules.production.dto.SkuReadinessDto readinessSnapshot) {
         List<String> colors = toVariantList(product.getColors(), product.getDefaultColour());
         List<String> sizes = toVariantList(product.getSizes(), product.getSizeLabel());
         List<CatalogProductCartonSizeDto> cartonSizeDtos = product.getCartonSizes() == null
@@ -1029,6 +1052,8 @@ public class CatalogService {
                 .map(entry -> new CatalogProductCartonSizeDto(entry.getKey(), entry.getValue()))
                 .toList();
         Map<String, Object> metadata = snapshotMetadata(product.getMetadata(), includeAccountingMetadata);
+        com.bigbrightpaints.erp.modules.production.dto.SkuReadinessDto readiness =
+                skuReadinessService.sanitizeForCatalogViewer(readinessSnapshot, includeAccountingMetadata);
 
         return new CatalogProductDto(
                 product.getId(),
@@ -1051,7 +1076,8 @@ public class CatalogService {
                 product.getMinDiscountPercent(),
                 product.getMinSellingPrice(),
                 metadata,
-                product.isActive());
+                product.isActive(),
+                readiness);
     }
 
     private Map<String, Object> snapshotMetadata(Map<String, Object> metadata, boolean includeAccountingMetadata) {

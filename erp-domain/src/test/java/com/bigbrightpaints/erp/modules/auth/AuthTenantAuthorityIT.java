@@ -103,48 +103,48 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     void admin_cannot_bootstrap_new_tenant() {
         String token = login(ADMIN_EMAIL, TENANT_A);
         String newCode = "TEN-BOOT-" + System.nanoTime();
+        String firstAdminEmail = "blocked-bootstrap-" + System.nanoTime() + "@bbp.com";
 
         ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/companies",
+                "/api/v1/superadmin/tenants/onboard",
                 HttpMethod.POST,
-                new HttpEntity<>(Map.of(
-                        "name", "Blocked Bootstrap",
-                        "code", newCode,
-                        "timezone", "UTC",
-                        "defaultGstRate", 18.0
-                ), jsonHeaders(token, TENANT_A)),
+                new HttpEntity<>(tenantOnboardingPayload("Blocked Bootstrap", newCode, firstAdminEmail),
+                        jsonHeaders(token, TENANT_A)),
                 Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(companyRepository.findByCodeIgnoreCase(newCode)).isEmpty();
+        assertThat(userAccountRepository.findByEmailIgnoreCase(firstAdminEmail)).isEmpty();
     }
 
     @Test
-    void super_admin_can_bootstrap_new_tenant() throws InterruptedException {
+    void super_admin_can_bootstrap_new_tenant() {
         String token = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
         String newCode = "TEN-ALLOW-" + System.nanoTime();
+        String firstAdminEmail = "allowed-bootstrap-" + System.nanoTime() + "@bbp.com";
 
         ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/companies",
+                "/api/v1/superadmin/tenants/onboard",
                 HttpMethod.POST,
-                new HttpEntity<>(Map.of(
-                        "name", "Allowed Bootstrap",
-                        "code", newCode,
-                        "timezone", "UTC",
-                        "defaultGstRate", 18.0
-                ), jsonHeaders(token, ROOT_TENANT)),
+                new HttpEntity<>(tenantOnboardingPayload("Allowed Bootstrap", newCode, firstAdminEmail),
+                        jsonHeaders(token, ROOT_TENANT)),
                 Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         Company saved = companyRepository.findByCodeIgnoreCase(newCode).orElseThrow();
         assertThat(saved.getCode()).isEqualTo(newCode);
-
-        AuditLog granted = awaitAuditEvent(AuditEvent.ACCESS_GRANTED, log ->
-                SUPER_ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
-                        && "tenant-bootstrap-created".equals(log.getMetadata().get("reason"))
-                        && newCode.equalsIgnoreCase(log.getMetadata().get("targetCompanyCode")));
-        assertThat(granted.getMetadata()).containsEntry("actor", SUPER_ADMIN_EMAIL);
-        assertThat(granted.getMetadata().get("tenantScope")).contains(ROOT_TENANT);
+        assertThat(userAccountRepository.findByEmailIgnoreCase(firstAdminEmail)).isPresent();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+        assertThat(data)
+                .containsEntry("companyCode", newCode)
+                .containsEntry("templateCode", "MANUFACTURING")
+                .containsEntry("bootstrapMode", "SEEDED")
+                .containsEntry("seededChartOfAccounts", true)
+                .containsEntry("defaultAccountingPeriodCreated", true)
+                .containsEntry("tenantAdminProvisioned", true);
+        assertThat(data.get("adminEmail")).isEqualTo(firstAdminEmail);
+        assertThat(data.get("adminTemporaryPassword")).isNotNull();
     }
 
     @Test
@@ -152,16 +152,11 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         String token = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
         String newCode = "TEN-ADM-" + System.nanoTime();
         String firstAdminEmail = "first-admin-" + System.nanoTime() + "@bbp.com";
-
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("name", "Provisioned Tenant");
-        payload.put("code", newCode);
-        payload.put("timezone", "UTC");
-        payload.put("firstAdminEmail", firstAdminEmail);
+        Map<String, Object> payload = tenantOnboardingPayload("Provisioned Tenant", newCode, firstAdminEmail);
         payload.put("firstAdminDisplayName", "Provisioned Admin");
 
         ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/companies",
+                "/api/v1/superadmin/tenants/onboard",
                 HttpMethod.POST,
                 new HttpEntity<>(payload, jsonHeaders(token, ROOT_TENANT)),
                 Map.class);
@@ -173,6 +168,14 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         assertThat(firstAdmin.isMustChangePassword()).isTrue();
         assertThat(firstAdmin.getCompanies()).anyMatch(company -> company.getCode().equalsIgnoreCase(newCode));
         assertThat(firstAdmin.getRoles()).anyMatch(role -> "ROLE_ADMIN".equalsIgnoreCase(role.getName()));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+        assertThat(data)
+                .containsEntry("companyCode", newCode)
+                .containsEntry("adminEmail", firstAdminEmail)
+                .containsEntry("tenantAdminProvisioned", true)
+                .containsEntry("templateCode", "MANUFACTURING");
+        assertThat(String.valueOf(data.get("adminTemporaryPassword"))).isNotBlank();
     }
 
     @Test
@@ -1124,6 +1127,18 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 HttpMethod.PUT,
                 new HttpEntity<>(payload, jsonHeaders(token, companyCode)),
                 Map.class);
+    }
+
+    private Map<String, Object> tenantOnboardingPayload(String name, String code, String firstAdminEmail) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("name", name);
+        payload.put("code", code);
+        payload.put("timezone", "UTC");
+        payload.put("defaultGstRate", 18.0);
+        payload.put("firstAdminEmail", firstAdminEmail);
+        payload.put("firstAdminDisplayName", name + " Admin");
+        payload.put("coaTemplateCode", "MANUFACTURING");
+        return payload;
     }
 
     private AuditLog awaitAuditEvent(AuditEvent eventType, Predicate<AuditLog> matcher) throws InterruptedException {

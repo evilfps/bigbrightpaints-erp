@@ -35,8 +35,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final String CATALOG_PRODUCT_ENTRY_PATH = "/api/v1/catalog/products";
     private static final String CATALOG_PRODUCT_ENTRY_OPERATION = "catalog-product-entry";
-    private static final String CATALOG_BULK_VARIANTS_PATH = "/api/v1/catalog/products/bulk-variants";
-    private static final String CATALOG_BULK_VARIANTS_OPERATION = "catalog-bulk-variants";
     private static final List<String> CATALOG_CONFLICT_RESPONSE_DETAIL_ALLOWLIST =
             List.of("generated", "conflicts", "wouldCreate", "created", "operation");
     static final Set<String> SETTLEMENT_FAILURE_DETAIL_ALLOWLIST =
@@ -214,8 +212,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                                                          HttpServletRequest request,
                                                          Map<String, Object> details) {
         if (ex == null || request == null || ex.getErrorCode() != ErrorCode.CONCURRENCY_CONFLICT) return false;
-        return matchesSafeConflictContract(request, details, CATALOG_PRODUCT_ENTRY_PATH, CATALOG_PRODUCT_ENTRY_OPERATION)
-                || matchesSafeConflictContract(request, details, CATALOG_BULK_VARIANTS_PATH, CATALOG_BULK_VARIANTS_OPERATION);
+        return matchesSafeConflictContract(request, details, CATALOG_PRODUCT_ENTRY_PATH, CATALOG_PRODUCT_ENTRY_OPERATION);
     }
 
     private boolean matchesSafeConflictContract(HttpServletRequest request,

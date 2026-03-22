@@ -1,7 +1,7 @@
 # Endpoint Inventory (OpenAPI)
 
 Source: `openapi.json`
-Updated: 2026-03-21
+Updated: 2026-03-22
 
 Related behavior contract:
 - `docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md`
@@ -15,9 +15,9 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `3cf325784d8edf221baea208cff098b7a085300a049368d4222136fc1c9fd95e`)
-- OpenAPI total paths: `304`
-- OpenAPI total operations: `364`
+- OpenAPI snapshot: `openapi.json` (sha256 `4bc982dcaed427d3f938fcb0e072933a20a96a27c150032795f7fcf14e4eacb5`)
+- OpenAPI total paths: `300`
+- OpenAPI total operations: `359`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
 
 ## Summary by module
@@ -28,9 +28,9 @@ Portal scope guardrail:
 | `admin` | 17 | /api/v1/admin/approvals, /api/v1/admin/changelog, /api/v1/admin/changelog/{id} |
 | `audit` | 2 | /api/v1/audit/business-events, /api/v1/audit/ml-events |
 | `auth` | 12 | /api/v1/auth/login, /api/v1/auth/logout, /api/v1/auth/me |
-| `catalog` | 7 | /api/v1/catalog/brands, /api/v1/catalog/brands/{brandId}, /api/v1/catalog/import |
+| `catalog` | 5 | /api/v1/catalog/brands, /api/v1/catalog/brands/{brandId}, /api/v1/catalog/import |
 | `changelog` | 2 | /api/v1/changelog, /api/v1/changelog/latest-highlighted |
-| `companies` | 9 | /api/v1/companies, /api/v1/companies/superadmin/tenants, /api/v1/companies/superadmin/tenants/{id} |
+| `companies` | 7 | /api/v1/companies, /api/v1/companies/{id}, /api/v1/companies/{id}/lifecycle-state |
 | `credit` | 3 | /api/v1/credit/override-requests, /api/v1/credit/override-requests/{id}/approve, /api/v1/credit/override-requests/{id}/reject |
 | `dealer-portal` | 7 | /api/v1/dealer-portal/aging, /api/v1/dealer-portal/credit-requests, /api/v1/dealer-portal/dashboard |
 | `dealers` | 8 | /api/v1/dealers, /api/v1/dealers/search, /api/v1/dealers/{dealerId} |
@@ -177,8 +177,6 @@ Portal scope guardrail:
 - `GET, PUT, DELETE` `/api/v1/catalog/brands/{brandId}`
 - `POST` `/api/v1/catalog/import`
 - `GET, POST` `/api/v1/catalog/products`
-- `POST` `/api/v1/catalog/products/bulk-variants`
-- `POST` `/api/v1/catalog/products/single`
 - `GET, PUT, DELETE` `/api/v1/catalog/products/{productId}`
 
 ## `changelog`
@@ -188,9 +186,7 @@ Portal scope guardrail:
 
 ## `companies`
 
-- `GET, POST` `/api/v1/companies`
-- `POST` `/api/v1/companies/superadmin/tenants`
-- `PUT` `/api/v1/companies/superadmin/tenants/{id}`
+- `GET` `/api/v1/companies`
 - `PUT, DELETE` `/api/v1/companies/{id}`
 - `POST` `/api/v1/companies/{id}/lifecycle-state`
 - `POST` `/api/v1/companies/{id}/support/admin-password-reset`

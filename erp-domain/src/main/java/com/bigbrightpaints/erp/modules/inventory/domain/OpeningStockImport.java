@@ -66,6 +66,9 @@ public class OpeningStockImport extends VersionedEntity {
     @Column(name = "errors_json", columnDefinition = "text")
     private String errorsJson;
 
+    @Column(name = "results_json", columnDefinition = "text")
+    private String resultsJson;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -182,6 +185,14 @@ public class OpeningStockImport extends VersionedEntity {
 
     public void setErrorsJson(String errorsJson) {
         this.errorsJson = errorsJson;
+    }
+
+    public String getResultsJson() {
+        return resultsJson;
+    }
+
+    public void setResultsJson(String resultsJson) {
+        this.resultsJson = resultsJson;
     }
 
     public Instant getCreatedAt() {

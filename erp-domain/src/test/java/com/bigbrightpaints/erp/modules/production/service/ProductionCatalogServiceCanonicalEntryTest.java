@@ -19,6 +19,7 @@ import com.bigbrightpaints.erp.modules.production.dto.BulkVariantRequest;
 import com.bigbrightpaints.erp.modules.production.dto.BulkVariantResponse;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryRequest;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryResponse;
+import com.bigbrightpaints.erp.modules.production.dto.SkuReadinessDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -60,6 +62,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
     @Mock private CompanyDefaultAccountsService companyDefaultAccountsService;
     @Mock private CatalogImportRepository catalogImportRepository;
     @Mock private AuditService auditService;
+    @Mock private SkuReadinessService skuReadinessService;
     @Mock private PlatformTransactionManager transactionManager;
 
     private ProductionCatalogService service;
@@ -78,6 +81,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
                 companyDefaultAccountsService,
                 catalogImportRepository,
                 auditService,
+                skuReadinessService,
                 transactionManager);
 
         company = new Company();
@@ -288,8 +292,33 @@ class ProductionCatalogServiceCanonicalEntryTest {
     }
 
     @Test
+    void createOrPreviewCatalogProducts_previewIncludesReadinessOnGeneratedMembers() {
+        SkuReadinessDto readiness = new SkuReadinessDto(
+                "BBR-PRIMER-WHITE-1L",
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(false, List.of("RAW_MATERIAL_INVENTORY_ACCOUNT_MISSING")),
+                new SkuReadinessDto.Stage(false, List.of("RAW_MATERIAL_INVENTORY_ACCOUNT_MISSING")),
+                new SkuReadinessDto.Stage(false, List.of("RAW_MATERIAL_SKU_NOT_SALES_ORDERABLE"))
+        );
+        when(skuReadinessService.forPlannedProduct(
+                any(ProductionProduct.class),
+                eq(SkuReadinessService.ExpectedStockType.RAW_MATERIAL),
+                any(),
+                any()
+        )).thenReturn(readiness);
+
+        CatalogProductEntryResponse response = service.createOrPreviewCatalogProducts(
+                request("RAW_MATERIAL", List.of("WHITE"), List.of("1L")),
+                true);
+
+        assertThat(response.members()).hasSize(1);
+        assertThat(response.members().getFirst().sku()).isEqualTo("BBR-PRIMER-WHITE-1L");
+        assertThat(response.members().getFirst().readiness()).isEqualTo(readiness);
+    }
+
+    @Test
     void createOrPreviewCatalogProducts_previewEnrichesFinishedGoodsWithPostingDefaults() {
-        when(companyDefaultAccountsService.requireDefaults()).thenReturn(
+        when(companyDefaultAccountsService.getDefaults()).thenReturn(
                 new CompanyDefaultAccountsService.DefaultAccounts(101L, 102L, 103L, 104L, 105L));
         when(companyEntityLookup.requireAccount(company, 101L)).thenReturn(account(101L));
         when(companyEntityLookup.requireAccount(company, 102L)).thenReturn(account(102L));
@@ -311,6 +340,102 @@ class ProductionCatalogServiceCanonicalEntryTest {
     }
 
     @Test
+    void createOrPreviewCatalogProducts_previewReturnsFinishedGoodReadinessWhenDefaultsAreMissing() {
+        when(companyDefaultAccountsService.getDefaults()).thenReturn(
+                new CompanyDefaultAccountsService.DefaultAccounts(null, null, null, null, null));
+        SkuReadinessDto readiness = new SkuReadinessDto(
+                "BBR-PRIMER-WHITE-1L",
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED")),
+                new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED", "WIP_ACCOUNT_MISSING")),
+                new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED"))
+        );
+        when(skuReadinessService.forPlannedProduct(
+                any(ProductionProduct.class),
+                eq(SkuReadinessService.ExpectedStockType.FINISHED_GOOD),
+                any(),
+                any()
+        )).thenReturn(readiness);
+
+        CatalogProductEntryResponse response = service.createOrPreviewCatalogProducts(
+                request("FINISHED_GOOD", List.of("WHITE"), List.of("1L")),
+                true);
+
+        assertThat(response.preview()).isTrue();
+        assertThat(response.members()).hasSize(1);
+        assertThat(response.members().getFirst().sku()).isEqualTo("BBR-PRIMER-WHITE-1L");
+        assertThat(response.members().getFirst().readiness()).isEqualTo(readiness);
+        assertThat(response.metadata()).doesNotContainKeys(
+                "fgValuationAccountId",
+                "fgCogsAccountId",
+                "fgRevenueAccountId",
+                "fgTaxAccountId");
+    }
+
+    @Test
+    void createOrPreviewCatalogProducts_previewPassesGstRateIntoFinishedGoodReadinessDraft() {
+        when(companyDefaultAccountsService.getDefaults()).thenReturn(
+                new CompanyDefaultAccountsService.DefaultAccounts(null, null, null, null, null));
+        SkuReadinessDto readiness = new SkuReadinessDto(
+                "BBR-PRIMER-WHITE-1L",
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED")),
+                new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED", "WIP_ACCOUNT_MISSING")),
+                new SkuReadinessDto.Stage(false, List.of("GST_OUTPUT_ACCOUNT_MISSING"))
+        );
+        when(skuReadinessService.forPlannedProduct(
+                argThat(product -> product.getGstRate() != null
+                        && product.getGstRate().compareTo(new BigDecimal("18.00")) == 0),
+                eq(SkuReadinessService.ExpectedStockType.FINISHED_GOOD),
+                any(),
+                any()
+        )).thenReturn(readiness);
+
+        CatalogProductEntryResponse response = service.createOrPreviewCatalogProducts(
+                request("FINISHED_GOOD", List.of("WHITE"), List.of("1L")),
+                true);
+
+        assertThat(response.members()).hasSize(1);
+        assertThat(response.members().getFirst().readiness()).isEqualTo(readiness);
+    }
+
+    @Test
+    void createOrPreviewCatalogProducts_createIncludesReadinessOnCreatedMembers() {
+        company.setDefaultInventoryAccountId(9001L);
+        when(companyEntityLookup.requireAccount(company, 9001L)).thenReturn(account(9001L));
+        when(productRepository.findByCompanyAndSkuCode(company, "BBR-PRIMER-WHITE-1L")).thenReturn(Optional.empty());
+        when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> {
+            ProductionProduct saved = invocation.getArgument(0);
+            ReflectionTestUtils.setField(saved, "id", 901L);
+            ReflectionTestUtils.setField(saved, "publicId", UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
+            return saved;
+        });
+        when(rawMaterialRepository.findByCompanyAndSku(company, "BBR-PRIMER-WHITE-1L")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SkuReadinessDto readiness = new SkuReadinessDto(
+                "BBR-PRIMER-WHITE-1L",
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(false, List.of("RAW_MATERIAL_SKU_NOT_SALES_ORDERABLE"))
+        );
+        when(skuReadinessService.forSku(
+                company,
+                "BBR-PRIMER-WHITE-1L",
+                SkuReadinessService.ExpectedStockType.RAW_MATERIAL
+        )).thenReturn(readiness);
+
+        CatalogProductEntryResponse response = service.createOrPreviewCatalogProducts(
+                request("RAW_MATERIAL", List.of("WHITE"), List.of("1L")),
+                false);
+
+        assertThat(response.members()).hasSize(1);
+        assertThat(response.members().getFirst().sku()).isEqualTo("BBR-PRIMER-WHITE-1L");
+        assertThat(response.members().getFirst().readiness()).isEqualTo(readiness);
+    }
+
+    @Test
     void createOrPreviewCatalogProducts_rethrowsUnexpectedCreateFailures() {
         CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE"), List.of("1L"));
         when(productRepository.save(any(ProductionProduct.class))).thenThrow(new RuntimeException("boom"));
@@ -324,6 +449,19 @@ class ProductionCatalogServiceCanonicalEntryTest {
     void createOrPreviewCatalogProducts_translatesWriteTimeDuplicateIntoConcurrencyConflict() {
         CatalogProductEntryRequest request = request("RAW_MATERIAL", List.of("WHITE", "BLUE"), List.of("1L"));
         String conflictingSku = canonicalSku("Primer", "WHITE", "1L");
+        SkuReadinessDto readiness = new SkuReadinessDto(
+                canonicalSku("Primer", "BLUE", "1L"),
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(false, List.of("RAW_MATERIAL_INVENTORY_ACCOUNT_MISSING")),
+                new SkuReadinessDto.Stage(false, List.of("RAW_MATERIAL_INVENTORY_ACCOUNT_MISSING")),
+                new SkuReadinessDto.Stage(false, List.of("RAW_MATERIAL_SKU_NOT_SALES_ORDERABLE"))
+        );
+        when(skuReadinessService.forPlannedProduct(
+                any(ProductionProduct.class),
+                eq(SkuReadinessService.ExpectedStockType.RAW_MATERIAL),
+                any(),
+                any()
+        )).thenReturn(readiness);
         when(productRepository.findByCompanyAndSkuCode(company, conflictingSku))
                 .thenReturn(Optional.empty(), Optional.of(existingProduct(conflictingSku)));
         when(productRepository.save(any(ProductionProduct.class)))
@@ -340,6 +478,7 @@ class ProductionCatalogServiceCanonicalEntryTest {
                     assertThat(wouldCreate)
                             .extracting(CatalogProductEntryResponse.Member::sku)
                             .containsExactly(canonicalSku("Primer", "BLUE", "1L"));
+                    assertThat(wouldCreate.getFirst().readiness()).isEqualTo(readiness);
                 });
     }
 

@@ -34,6 +34,7 @@ class CatalogServiceBrandCrudTest {
     @Mock private SizeVariantRepository sizeVariantRepository;
     @Mock private FinishedGoodRepository finishedGoodRepository;
     @Mock private RawMaterialRepository rawMaterialRepository;
+    @Mock private SkuReadinessService skuReadinessService;
 
     private CatalogService service;
     private Company company;
@@ -47,7 +48,8 @@ class CatalogServiceBrandCrudTest {
                 productRepository,
                 sizeVariantRepository,
                 finishedGoodRepository,
-                rawMaterialRepository);
+                rawMaterialRepository,
+                skuReadinessService);
         company = new Company();
         ReflectionTestUtils.setField(company, "id", 10L);
         company.setCode("BBP");

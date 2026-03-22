@@ -26,6 +26,7 @@ public record CatalogProductDto(
         BigDecimal minDiscountPercent,
         BigDecimal minSellingPrice,
         Map<String, Object> metadata,
-        boolean active
+        boolean active,
+        SkuReadinessDto readiness
 ) {
 }

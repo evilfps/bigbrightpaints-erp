@@ -38,7 +38,8 @@ public record CatalogProductEntryResponse(
             String sku,
             String productName,
             String color,
-            String size
+            String size,
+            SkuReadinessDto readiness
     ) {
     }
 

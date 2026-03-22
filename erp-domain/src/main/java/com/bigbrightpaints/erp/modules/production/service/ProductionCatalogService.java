@@ -30,6 +30,7 @@ import com.bigbrightpaints.erp.modules.production.dto.ProductCreateRequest;
 import com.bigbrightpaints.erp.modules.production.dto.ProductUpdateRequest;
 import com.bigbrightpaints.erp.modules.production.dto.ProductionBrandDto;
 import com.bigbrightpaints.erp.modules.production.dto.ProductionProductDto;
+import com.bigbrightpaints.erp.modules.production.dto.SkuReadinessDto;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -130,6 +131,7 @@ public class ProductionCatalogService {
     private final CompanyDefaultAccountsService companyDefaultAccountsService;
     private final CatalogImportRepository catalogImportRepository;
     private final AuditService auditService;
+    private final SkuReadinessService skuReadinessService;
     private final TransactionTemplate transactionTemplate;
     private final TransactionTemplate rowTransactionTemplate;
     private final IdempotencyReservationService idempotencyReservationService = new IdempotencyReservationService();
@@ -143,6 +145,7 @@ public class ProductionCatalogService {
                                     CompanyDefaultAccountsService companyDefaultAccountsService,
                                     CatalogImportRepository catalogImportRepository,
                                     AuditService auditService,
+                                    SkuReadinessService skuReadinessService,
                                     PlatformTransactionManager transactionManager) {
         this.companyContextService = companyContextService;
         this.brandRepository = brandRepository;
@@ -153,6 +156,7 @@ public class ProductionCatalogService {
         this.companyDefaultAccountsService = companyDefaultAccountsService;
         this.catalogImportRepository = catalogImportRepository;
         this.auditService = auditService;
+        this.skuReadinessService = skuReadinessService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.rowTransactionTemplate = new TransactionTemplate(transactionManager);
         this.rowTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -392,7 +396,7 @@ public class ProductionCatalogService {
     @Transactional
     public CatalogProductEntryResponse createOrPreviewCatalogProducts(CatalogProductEntryRequest request, boolean preview) {
         Company company = companyContextService.requireCurrentCompany();
-        CatalogProductEntryPlan plan = prepareCatalogProductEntryPlan(company, request);
+        CatalogProductEntryPlan plan = prepareCatalogProductEntryPlan(company, request, preview);
         CatalogProductEntryResponse previewResponse = toCatalogProductEntryResponse(plan, List.of(), preview);
 
         if (preview) {
@@ -417,7 +421,8 @@ public class ProductionCatalogService {
                         product.skuCode(),
                         product.productName(),
                         product.defaultColour(),
-                        product.sizeLabel()));
+                        product.sizeLabel(),
+                        skuReadinessService.forSku(company, product.skuCode(), expectedStockType(plan.category()))));
             } catch (RuntimeException ex) {
                 if (isVariantDuplicateConflict(ex, company, candidate.sku())) {
                     CatalogProductEntryResponse conflictResponse = toCatalogProductEntryResponse(
@@ -523,7 +528,9 @@ public class ProductionCatalogService {
                 : new LinkedHashMap<>();
     }
 
-    private CatalogProductEntryPlan prepareCatalogProductEntryPlan(Company company, CatalogProductEntryRequest request) {
+    private CatalogProductEntryPlan prepareCatalogProductEntryPlan(Company company,
+                                                                  CatalogProductEntryRequest request,
+                                                                  boolean preview) {
         if (request == null) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Canonical product request is required");
         }
@@ -568,7 +575,7 @@ public class ProductionCatalogService {
         String brandPrefix = sanitizeSkuFragment(brand.getCode());
         String productFamilyCode = requireCanonicalSkuFragment("baseProductName", productFamilyName, Integer.MAX_VALUE);
         String previewSku = buildCanonicalSku(brandPrefix, productFamilyCode, colors.getFirst(), sizes.getFirst());
-        metadata = validateCanonicalEntryMetadata(company, normalizedCategory, previewSku, metadata);
+        metadata = validateCanonicalEntryMetadata(company, normalizedCategory, previewSku, metadata, !preview);
 
         List<CatalogProductCandidate> generatedCandidates = new ArrayList<>();
         for (String color : colors) {
@@ -633,7 +640,7 @@ public class ProductionCatalogService {
         List<CatalogProductEntryResponse.Conflict> conflicts = new ArrayList<>();
         List<CatalogProductCandidate> candidatesToCreate = new ArrayList<>();
         for (CatalogProductCandidate candidate : generatedCandidates) {
-            generatedMembers.add(candidate.toMember(null, null));
+            generatedMembers.add(candidate.toMember(null, null, previewMemberReadiness(company, normalizedCategory, candidate)));
             String skuKey = normalizeSkuKey(candidate.sku());
             String productNameKey = normalizeKey(candidate.productName());
             if (duplicateSkuKeys.contains(skuKey)) {
@@ -677,6 +684,10 @@ public class ProductionCatalogService {
                 downstreamEffects);
     }
 
+    private CatalogProductEntryPlan prepareCatalogProductEntryPlan(Company company, CatalogProductEntryRequest request) {
+        return prepareCatalogProductEntryPlan(company, request, false);
+    }
+
     private CatalogProductEntryResponse toCatalogProductEntryResponse(CatalogProductEntryPlan plan,
                                                                      List<CatalogProductEntryResponse.Conflict> conflicts,
                                                                      boolean preview) {
@@ -702,6 +713,58 @@ public class ProductionCatalogService {
                 plan.downstreamEffects(),
                 plan.generatedMembers(),
                 effectiveConflicts);
+    }
+
+    private SkuReadinessDto previewMemberReadiness(Company company,
+                                                   String category,
+                                                   CatalogProductCandidate candidate) {
+        ProductionProduct draftProduct = new ProductionProduct();
+        draftProduct.setCompany(company);
+        draftProduct.setSkuCode(candidate.sku());
+        draftProduct.setProductName(candidate.productName());
+        draftProduct.setCategory(category);
+        draftProduct.setDefaultColour(candidate.color());
+        draftProduct.setSizeLabel(candidate.size());
+        draftProduct.setUnitOfMeasure(cleanValue(candidate.createRequest().unitOfMeasure()));
+        draftProduct.setGstRate(candidate.createRequest().gstRate());
+        draftProduct.setMetadata(normalizeMetadata(candidate.createRequest().metadata()));
+        draftProduct.setActive(true);
+
+        if (isRawMaterialCategory(category)) {
+            RawMaterial projectedRawMaterial = new RawMaterial();
+            projectedRawMaterial.setCompany(company);
+            projectedRawMaterial.setSku(candidate.sku());
+            projectedRawMaterial.setName(candidate.productName());
+            projectedRawMaterial.setUnitType(resolveUnit(draftProduct.getUnitOfMeasure()));
+            projectedRawMaterial.setInventoryAccountId(resolveRawMaterialInventoryAccountId(company, draftProduct));
+            return skuReadinessService.forPlannedProduct(
+                    draftProduct,
+                    SkuReadinessService.ExpectedStockType.RAW_MATERIAL,
+                    null,
+                    projectedRawMaterial);
+        }
+
+        FinishedGood projectedFinishedGood = new FinishedGood();
+        projectedFinishedGood.setCompany(company);
+        projectedFinishedGood.setProductCode(candidate.sku());
+        projectedFinishedGood.setName(candidate.productName());
+        projectedFinishedGood.setUnit(resolveUnit(draftProduct.getUnitOfMeasure()));
+        projectedFinishedGood.setValuationAccountId(metadataLong(draftProduct, "fgValuationAccountId"));
+        projectedFinishedGood.setCogsAccountId(metadataLong(draftProduct, "fgCogsAccountId"));
+        projectedFinishedGood.setRevenueAccountId(metadataLong(draftProduct, "fgRevenueAccountId"));
+        projectedFinishedGood.setTaxAccountId(metadataLong(draftProduct, "fgTaxAccountId"));
+        projectedFinishedGood.setDiscountAccountId(metadataLong(draftProduct, "fgDiscountAccountId"));
+        return skuReadinessService.forPlannedProduct(
+                draftProduct,
+                SkuReadinessService.ExpectedStockType.FINISHED_GOOD,
+                projectedFinishedGood,
+                null);
+    }
+
+    private SkuReadinessService.ExpectedStockType expectedStockType(String category) {
+        return isRawMaterialCategory(category)
+                ? SkuReadinessService.ExpectedStockType.RAW_MATERIAL
+                : SkuReadinessService.ExpectedStockType.FINISHED_GOOD;
     }
 
     private ApplicationException catalogProductEntryConflict(CatalogProductEntryResponse response, String message) {
@@ -2088,7 +2151,8 @@ public class ProductionCatalogService {
     private Map<String, Object> validateCanonicalEntryMetadata(Company company,
                                                                String category,
                                                                String sku,
-                                                               Map<String, Object> metadata) {
+                                                               Map<String, Object> metadata,
+                                                               boolean requireFinishedGoodDefaults) {
         Map<String, Object> working = normalizeMetadata(metadata);
         if (isRawMaterialCategory(category)) {
             Long inventoryAccountId = rawMaterialInventoryAccountIdFromMetadata(working);
@@ -2103,19 +2167,30 @@ public class ProductionCatalogService {
             }
             return working;
         }
-        return ensureFinishedGoodAccounts(company, sku, working);
+        return ensureFinishedGoodAccounts(company, sku, working, null, requireFinishedGoodDefaults);
     }
 
     private Map<String, Object> ensureFinishedGoodAccounts(Company company, String sku, Map<String, Object> metadata) {
-        return ensureFinishedGoodAccounts(company, sku, metadata, null);
+        return ensureFinishedGoodAccounts(company, sku, metadata, null, true);
     }
 
     private Map<String, Object> ensureFinishedGoodAccounts(Company company,
                                                            String sku,
                                                            Map<String, Object> metadata,
                                                            Map<Long, Long> validatedFinishedGoodAccounts) {
+        return ensureFinishedGoodAccounts(company, sku, metadata, validatedFinishedGoodAccounts, true);
+    }
+
+    private Map<String, Object> ensureFinishedGoodAccounts(Company company,
+                                                           String sku,
+                                                           Map<String, Object> metadata,
+                                                           Map<Long, Long> validatedFinishedGoodAccounts,
+                                                           boolean requireConfiguredDefaults) {
         Map<String, Object> working = metadata == null ? new HashMap<>() : new HashMap<>(metadata);
-        var defaults = companyDefaultAccountsService.requireDefaults();
+        var defaults = requireConfiguredDefaults
+                ? companyDefaultAccountsService.requireDefaults()
+                : Optional.ofNullable(companyDefaultAccountsService.getDefaults())
+                .orElse(new CompanyDefaultAccountsService.DefaultAccounts(null, null, null, null, null));
 
         Map<String, Long> defaultsMap = new HashMap<>();
         defaultsMap.put("fgValuationAccountId", defaults.inventoryAccountId());
@@ -2132,10 +2207,12 @@ public class ProductionCatalogService {
         }
 
         // Final validation: ensure required defaults are present so postings don't mis-map
-        for (String key : List.of("fgValuationAccountId", "fgCogsAccountId", "fgRevenueAccountId", "fgTaxAccountId")) {
-            if (!hasLongValue(working.get(key))) {
-                throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState("Default " + key + " is not configured for company " + company.getCode() +
-                        ". Configure company default accounts to enable product posting.");
+        if (requireConfiguredDefaults) {
+            for (String key : List.of("fgValuationAccountId", "fgCogsAccountId", "fgRevenueAccountId", "fgTaxAccountId")) {
+                if (!hasLongValue(working.get(key))) {
+                    throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState("Default " + key + " is not configured for company " + company.getCode() +
+                            ". Configure company default accounts to enable product posting.");
+                }
             }
         }
         for (String key : FINISHED_GOOD_ACCOUNT_KEYS) {
@@ -2358,8 +2435,10 @@ public class ProductionCatalogService {
                                            String size,
                                            String productName,
                                            ProductCreateRequest createRequest) {
-        private CatalogProductEntryResponse.Member toMember(Long id, UUID publicId) {
-            return new CatalogProductEntryResponse.Member(id, publicId, sku, productName, color, size);
+        private CatalogProductEntryResponse.Member toMember(Long id,
+                                                            UUID publicId,
+                                                            com.bigbrightpaints.erp.modules.production.dto.SkuReadinessDto readiness) {
+            return new CatalogProductEntryResponse.Member(id, publicId, sku, productName, color, size, readiness);
         }
 
         private CatalogProductEntryResponse.Conflict toConflict(String reason) {

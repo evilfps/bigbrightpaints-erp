@@ -43,6 +43,7 @@ class ProductionCatalogServiceRetryPolicyTest {
     @Mock private CompanyDefaultAccountsService companyDefaultAccountsService;
     @Mock private CatalogImportRepository catalogImportRepository;
     @Mock private AuditService auditService;
+    @Mock private SkuReadinessService skuReadinessService;
     @Mock private PlatformTransactionManager transactionManager;
 
     private ProductionCatalogService service;
@@ -59,6 +60,7 @@ class ProductionCatalogServiceRetryPolicyTest {
                 companyDefaultAccountsService,
                 catalogImportRepository,
                 auditService,
+                skuReadinessService,
                 transactionManager);
     }
 

@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
@@ -19,6 +20,7 @@ import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -135,5 +137,36 @@ class TenantOnboardingServiceTest {
                 .hasMessageContaining("ROLE_ADMIN must exist before tenant onboarding");
         verify(roleService).ensureRoleExists("ROLE_ADMIN");
         verify(roleRepository).findByName("ROLE_ADMIN");
+    }
+
+    @Test
+    void genericTemplateBlueprints_includesOpeningBalanceEquityAccount() {
+        TenantOnboardingService service = new TenantOnboardingService(
+                companyRepository,
+                userAccountRepository,
+                roleService,
+                roleRepository,
+                passwordEncoder,
+                accountRepository,
+                accountingPeriodService,
+                coATemplateService,
+                emailService,
+                systemSettingsRepository);
+
+        @SuppressWarnings("unchecked")
+        List<Object> blueprints = (List<Object>) ReflectionTestUtils.invokeMethod(service, "genericTemplateBlueprints");
+
+        Object openBal = blueprints.stream()
+                .filter(blueprint -> "OPEN-BAL".equals(ReflectionTestUtils.invokeMethod(blueprint, "code")))
+                .findFirst()
+                .orElseThrow();
+
+        String name = ReflectionTestUtils.invokeMethod(openBal, "name");
+        AccountType type = ReflectionTestUtils.invokeMethod(openBal, "type");
+        String parentCode = ReflectionTestUtils.invokeMethod(openBal, "parentCode");
+
+        assertThat(name).isEqualTo("Opening Balance");
+        assertThat(type).isEqualTo(AccountType.EQUITY);
+        assertThat(parentCode).isEqualTo("3000");
     }
 }

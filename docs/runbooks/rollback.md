@@ -1,5 +1,12 @@
 # Rollback Runbook
 
+## 2026-03-22 — `opening-stock-results-json`
+
+- **Scope:** revert `migration_v2/V46__opening_stock_import_results_json.sql` and the strict opening-stock history path that depends on `opening_stock_imports.results_json`.
+- **Application rollback:** redeploy the previous backend build before reopening traffic so runtime code stops reading or writing row-level `results[]` payloads on opening-stock imports.
+- **Database rollback:** after the reverted build is live, execute `ALTER TABLE public.opening_stock_imports DROP COLUMN IF EXISTS results_json;`.
+- **Verification:** rerun `export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock; mvn -B -ntp -Dtest='OpeningStockPostingRegressionIT,OpeningStockImportControllerTest,OpeningStockImportServiceTest' test` plus `python3 scripts/changed_files_coverage.py --jacoco erp-domain/target/site/jacoco/jacoco.xml --diff-base origin/main` against the reverted packet to confirm opening-stock replay and history are back on the pre-ERP-34 contract.
+
 ## 2026-03-21 — `catalog-surface-consolidation.variant-group-linkage`
 
 - **Scope:** revert `migration_v2/V163__catalog_variant_group_linkage.sql` and the canonical catalog write/import flow that depends on `production_products.variant_group_id` and `production_products.product_family_name`.

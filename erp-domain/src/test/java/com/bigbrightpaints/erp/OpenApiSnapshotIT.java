@@ -67,7 +67,12 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
                 "#/components/schemas/SystemSettingsUpdateRequest", "200", "#/components/schemas/ApiResponseSystemSettingsDto");
         assertOperationContract(root, "/api/v1/admin/tenant-runtime/metrics", "get",
                 null, "200", "#/components/schemas/ApiResponseTenantRuntimeMetricsDto");
+        assertOperationContract(root, "/api/v1/superadmin/tenants/onboard", "post",
+                "#/components/schemas/TenantOnboardingRequest", "200", "#/components/schemas/ApiResponseTenantOnboardingResponse");
         assertOperationMissing(root, "/api/v1/admin/tenant-runtime/policy", "put");
+        assertOperationMissing(root, "/api/v1/companies", "post");
+        assertOperationMissing(root, "/api/v1/companies/superadmin/tenants", "post");
+        assertOperationMissing(root, "/api/v1/companies/superadmin/tenants/{id}", "put");
         assertOperationContract(root, "/api/v1/admin/users/{userId}/force-reset-password", "post",
                 null, "200", "#/components/schemas/ApiResponseString");
         assertOperationContract(root, "/api/v1/admin/users/{userId}/status", "put",
@@ -100,11 +105,8 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         assertQueryParameter(root, "/api/v1/catalog/products", "get", "brandId");
         assertOperationContract(root, "/api/v1/catalog/products", "post",
                 "#/components/schemas/CatalogProductEntryRequest", "200", "#/components/schemas/ApiResponseCatalogProductEntryResponse");
-        assertOperationContract(root, "/api/v1/catalog/products/single", "post",
-                "#/components/schemas/ProductCreateRequest", "200", "#/components/schemas/ApiResponseProductionProductDto");
-        assertOperationContract(root, "/api/v1/catalog/products/bulk-variants", "post",
-                "#/components/schemas/BulkVariantRequest", "200", "#/components/schemas/ApiResponseBulkVariantResponse");
-        assertQueryParameter(root, "/api/v1/catalog/products/bulk-variants", "post", "dryRun");
+        assertOperationMissing(root, "/api/v1/catalog/products/single", "post");
+        assertOperationMissing(root, "/api/v1/catalog/products/bulk-variants", "post");
 
         assertOperationMissing(root, "/api/v1/accounting/catalog/import", "post");
         assertOperationMissing(root, "/api/v1/accounting/catalog/products", "get");

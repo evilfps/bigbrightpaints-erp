@@ -12,7 +12,6 @@ import com.bigbrightpaints.erp.modules.company.dto.CompanyTenantMetricsDto;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
-import java.math.BigDecimal;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;
@@ -49,20 +48,6 @@ public class CompanyController {
         return ResponseEntity.ok(ApiResponse.success(companyService.findAll(requireCompanyContext(principal))));
     }
 
-    @PostMapping
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
-    public ResponseEntity<ApiResponse<CompanyDto>> create(@Valid @RequestBody CompanyRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Company created", companyService.create(request)));
-    }
-
-    @PostMapping("/superadmin/tenants")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
-    public ResponseEntity<ApiResponse<CompanyDto>> createTenantForSuperAdmin(@Valid @RequestBody SuperAdminTenantCreateRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Tenant created",
-                companyService.create(request.toCompanyRequest())));
-    }
-
     @PostMapping("/{id}/lifecycle-state")
     @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<CompanyLifecycleStateDto>> updateLifecycleState(@PathVariable Long id,
@@ -96,15 +81,6 @@ public class CompanyController {
                                                            @Valid @RequestBody CompanyRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Company updated",
                 companyService.update(id, request, Set.of())));
-    }
-
-    @PutMapping("/superadmin/tenants/{id}")
-    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
-    public ResponseEntity<ApiResponse<CompanyDto>> updateTenantForSuperAdmin(@PathVariable Long id,
-                                                                              @Valid @RequestBody SuperAdminTenantUpdateRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Tenant updated",
-                companyService.update(id, request.toCompanyRequest(), Set.of())));
     }
 
     @PostMapping("/{id}/support/admin-password-reset")
@@ -178,69 +154,6 @@ public class CompanyController {
             String reason) {
         public CompanyAdminPasswordResetRequest(String adminEmail) {
             this(adminEmail, null);
-        }
-    }
-
-    public record SuperAdminTenantCreateRequest(
-            @NotBlank @Size(max = 255) String name,
-            @NotBlank @Size(max = 64) String code,
-            @NotBlank @Size(max = 64) String region,
-            @Size(min = 2, max = 2, message = "stateCode must be exactly 2 characters") String stateCode,
-            @Min(value = 0, message = "maxActiveUsers must be greater than or equal to 0") Long maxActiveUsers,
-            @Min(value = 0, message = "maxApiRequests must be greater than or equal to 0") Long maxApiRequests,
-            @Min(value = 0, message = "maxStorageBytes must be greater than or equal to 0") Long maxStorageBytes,
-            @Min(value = 0, message = "maxConcurrentUsers must be greater than or equal to 0") Long maxConcurrentUsers,
-            Boolean softLimitEnabled,
-            Boolean hardLimitEnabled,
-            @Email @NotBlank String firstAdminEmail,
-            @Size(max = 255) String firstAdminDisplayName) {
-        private CompanyRequest toCompanyRequest() {
-            return new CompanyRequest(
-                    name,
-                    code,
-                    region,
-                    stateCode,
-                    (BigDecimal) null,
-                    maxActiveUsers,
-                    maxApiRequests,
-                    maxStorageBytes,
-                    maxConcurrentUsers,
-                    softLimitEnabled,
-                    hardLimitEnabled,
-                    firstAdminEmail,
-                    firstAdminDisplayName,
-                    null);
-        }
-    }
-
-    public record SuperAdminTenantUpdateRequest(
-            @NotBlank @Size(max = 255) String name,
-            @NotBlank @Size(max = 64) String code,
-            @NotBlank @Size(max = 64) String region,
-            @Size(min = 2, max = 2, message = "stateCode must be exactly 2 characters") String stateCode,
-            @Min(value = 0, message = "maxActiveUsers must be greater than or equal to 0") Long maxActiveUsers,
-            @Min(value = 0, message = "maxApiRequests must be greater than or equal to 0") Long maxApiRequests,
-            @Min(value = 0, message = "maxStorageBytes must be greater than or equal to 0") Long maxStorageBytes,
-            @Min(value = 0, message = "maxConcurrentUsers must be greater than or equal to 0") Long maxConcurrentUsers,
-            Boolean softLimitEnabled,
-            Boolean hardLimitEnabled,
-            Set<@NotBlank @Size(max = 64) String> enabledModules) {
-        private CompanyRequest toCompanyRequest() {
-            return new CompanyRequest(
-                    name,
-                    code,
-                    region,
-                    stateCode,
-                    (BigDecimal) null,
-                    maxActiveUsers,
-                    maxApiRequests,
-                    maxStorageBytes,
-                    maxConcurrentUsers,
-                    softLimitEnabled,
-                    hardLimitEnabled,
-                    null,
-                    null,
-                    enabledModules);
         }
     }
 

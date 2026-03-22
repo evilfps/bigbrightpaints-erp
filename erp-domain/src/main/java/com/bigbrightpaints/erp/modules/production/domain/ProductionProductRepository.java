@@ -14,6 +14,7 @@ import java.util.UUID;
 
 public interface ProductionProductRepository extends JpaRepository<ProductionProduct, Long>, JpaSpecificationExecutor<ProductionProduct> {
     Optional<ProductionProduct> findByCompanyAndSkuCode(Company company, String skuCode);
+    Optional<ProductionProduct> findByCompanyAndSkuCodeIgnoreCase(Company company, String skuCode);
     Optional<ProductionProduct> findByCompanyAndId(Company company, Long id);
     Optional<ProductionProduct> findByBrandAndProductNameIgnoreCase(ProductionBrand brand, String productName);
     Optional<ProductionProduct> findTopByCompanyAndSkuCodeStartingWithOrderBySkuCodeDesc(Company company, String prefix);

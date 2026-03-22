@@ -373,6 +373,7 @@ public class TenantOnboardingService {
         list.add(spec("RETAINED-EARNINGS", "Retained Earnings", AccountType.EQUITY, "3000"));
         list.add(spec("OWNER-CAPITAL", "Owner Capital", AccountType.EQUITY, "3000"));
         list.add(spec("OWNER-DRAWINGS", "Owner Drawings", AccountType.EQUITY, "3000"));
+        list.add(spec("OPEN-BAL", "Opening Balance", AccountType.EQUITY, "3000"));
 
         // Revenue
         list.add(spec("4000", "Revenue", AccountType.REVENUE, null));

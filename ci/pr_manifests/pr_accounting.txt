@@ -37,3 +37,9 @@ com.bigbrightpaints.erp.modules.accounting.service.SettlementServiceTest
 com.bigbrightpaints.erp.core.config.ValidationSeedDataInitializerTest
 com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsReservationEngineTest
 com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsServiceTest
+com.bigbrightpaints.erp.modules.inventory.controller.OpeningStockImportControllerTest
+com.bigbrightpaints.erp.modules.inventory.service.OpeningStockImportServiceTest
+com.bigbrightpaints.erp.modules.production.service.CatalogServiceCanonicalCoverageTest
+com.bigbrightpaints.erp.modules.production.service.ProductionCatalogServiceCanonicalEntryTest
+com.bigbrightpaints.erp.modules.production.service.SkuReadinessServiceTest
+com.bigbrightpaints.erp.regression.OpeningStockPostingRegressionIT

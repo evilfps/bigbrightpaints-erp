@@ -90,15 +90,15 @@ Maker-checker period-close note:
 - `GET /api/v1/admin/approvals` is visible to `ROLE_ADMIN|ROLE_ACCOUNTING` in portal flows, and the backend also allows `ROLE_SUPER_ADMIN`.
 - `POST /api/v1/accounting/periods/{periodId}/close` still exists in OpenAPI, but `AccountingPeriodService.closePeriod(...)` rejects direct close for frontend flows.
 
-### accounting-catalog-controller (5)
+### catalog-controller (5)
 
 | Endpoint | Frontend should put | Backend expects | Returns |
 |---|---|---|---|
-| `POST /api/v1/accounting/catalog/import` | create-form; req: file (multipart body); opt: Idempotency-Key (header); states: loading, error, success | path=-; query=-; body=required (multipart/form-data with `file` part); ct=multipart/form-data; file-part content-type allowlist=`text/csv`,`application/csv`,`application/vnd.ms-excel`; fallback=missing file-part content-type accepted only when filename ends with `.csv` | ok 200; err 400, 409 (`CONC_001`), 422 (`FILE_003`) |
-| `GET /api/v1/accounting/catalog/products` | list-view; req: -; opt: -; states: loading, error, success, empty | path=-; query=-; body=none; ct=- | ok 200; err - |
-| `POST /api/v1/accounting/catalog/products` | create-form; req: category (body), productName (body); opt: basePrice (body), brandCode (body), brandId (body), brandName (body), customSkuCode (body), defaultColour (body), gstRate (body), metadata (body), minDiscountPercent (body), minSellingPrice (body), sizeLabel (body), unitOfMeasure (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err - |
-| `POST /api/v1/accounting/catalog/products/bulk-variants` | create-form; req: baseProductName (body), category (body), colors (body), sizes (body); opt: basePrice (body), brandCode (body), brandId (body), brandName (body), gstRate (body), metadata (body), minDiscountPercent (body), minSellingPrice (body), skuPrefix (body), unitOfMeasure (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err - |
-| `PUT /api/v1/accounting/catalog/products/{id}` | edit-form; req: id (path); opt: basePrice (body), category (body), defaultColour (body), gstRate (body), metadata (body), minDiscountPercent (body), minSellingPrice (body), productName (body), sizeLabel (body), unitOfMeasure (body); states: loading, error, success | path=id; query=-; body=required; ct=application/json | ok 200; err - |
+| `POST /api/v1/catalog/import` | create-form; req: file (multipart body); opt: Idempotency-Key (header); states: loading, error, success | path=-; query=-; body=required (multipart/form-data with `file` part); ct=multipart/form-data; file-part content-type allowlist=`text/csv`,`application/csv`,`application/vnd.ms-excel`; fallback=missing file-part content-type accepted only when filename ends with `.csv` | ok 200; err 400, 409 (`CONC_001`), 422 (`FILE_003`) |
+| `GET /api/v1/catalog/brands` | list-view; req: -; opt: active (query); states: loading, error, success, empty | path=-; query=active; body=none; ct=- | ok 200; err - |
+| `POST /api/v1/catalog/brands` | create-form; req: name (body); opt: active (body), description (body), logoUrl (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err - |
+| `GET /api/v1/catalog/products` | list-view; req: -; opt: active (query), brandId (query), color (query), page (query), pageSize (query), size (query); states: loading, error, success, empty | path=-; query=active, brandId, color, page, pageSize, size; body=none; ct=- | ok 200; err - |
+| `POST /api/v1/catalog/products` | create-form; req: baseProductName (body), brandId (body), category (body), colors (body), gstRate (body), hsnCode (body), sizes (body), unitOfMeasure (body); opt: basePrice (body), metadata (body), minDiscountPercent (body), minSellingPrice (body), preview (query); states: loading, error, success | path=-; query=preview; body=required; ct=application/json | ok 200; err - |
 
 ### accounting-configuration-controller (1)
 
@@ -190,7 +190,7 @@ Maker-checker period-close note:
 
 | Endpoint | Frontend should put | Backend expects | Returns |
 |---|---|---|---|
-| `POST /api/v1/inventory/opening-stock` | create-form; req: file (multipart body); opt: Idempotency-Key (header); states: loading, error, success, partial-success | path=-; query=-; body=required (multipart/form-data with `file`); ct=multipart/form-data; accounting side-effect=posts opening-stock journal (inventory Dr / `OPEN-BAL` Cr) | ok 200; err - |
+| `POST /api/v1/inventory/opening-stock` | create-form; req: file (multipart body), Idempotency-Key (header); states: loading, error, success, partial-success | path=-; query=-; body=required (multipart/form-data with `file`); ct=multipart/form-data; accounting side-effect=posts opening-stock journal (inventory Dr / `OPEN-BAL` Cr) | ok 200; err - |
 
 ## HR & Payroll
 
@@ -267,5 +267,5 @@ Maker-checker period-close note:
 - Security requirements are often `unspecified` in OpenAPI; enforce RBAC in frontend via `auth/me` permission claims and backend policy.
 - Workflow actions that should be safely repeatable (`close/lock/reopen/approve/post`) are exposed as `POST`; idempotency guarantees are not explicit.
 - `POST /api/v1/inventory/opening-stock` defines only `200`; partial-row errors and idempotency-conflict behavior are runtime/business errors not strongly typed in OpenAPI.
-- `POST /api/v1/inventory/opening-stock` accepts optional `Idempotency-Key`; backend normalizes missing key to file hash, so frontend should still send a stable key per import job.
+- `POST /api/v1/inventory/opening-stock` now requires explicit `Idempotency-Key`; frontend must not rely on legacy headers or file-hash fallback behavior.
 - Reporting endpoints are canonical under `/api/v1/reports/*`; `/api/v1/accounting/reports/*` is retired.

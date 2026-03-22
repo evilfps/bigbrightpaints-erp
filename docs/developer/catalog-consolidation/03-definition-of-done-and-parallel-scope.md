@@ -21,6 +21,8 @@ or broader pricing/valuation redesign.
 - keep explicit brand creation on `POST /api/v1/catalog/brands`
 - require product create to consume a resolved active `brandId`
 - support canonical preview on `POST /api/v1/catalog/products?preview=true`
+- remove retired write aliases `/api/v1/catalog/products/single` and
+  `/api/v1/catalog/products/bulk-variants`
 - persist explicit `variantGroupId` linkage
 - guarantee finished-good/raw-material readiness in the same write path
 - keep canonical browse/search on `GET /api/v1/catalog/products`
@@ -48,7 +50,7 @@ or broader pricing/valuation redesign.
 
 ### Write path
 
-- one canonical create endpoint exists for single and matrix create
+- single-SKU and matrix creation both use `POST /api/v1/catalog/products`
 - preview and commit use the same request shape
 - product create requires an active `brandId`
 - brand creation remains a separate `POST /api/v1/catalog/brands` step before
@@ -65,6 +67,8 @@ or broader pricing/valuation redesign.
 - raw-material create also creates or updates raw-material inventory truth
 - production/factory can select the product without manual repair
 - sales can use the SKU without catalog-readiness failures
+- every returned member exposes `catalog`, `inventory`, `production`, and
+  `sales` readiness with explicit blockers
 
 ### UX
 
@@ -80,6 +84,8 @@ or broader pricing/valuation redesign.
 - stale tests for retired hosts are deleted or rewritten
 - stale OpenAPI surfaces are removed
 - developer docs, handoff docs, and route inventories match runtime truth
+- frontend docs stop describing `/single` or `/bulk-variants` as current-state
+  create paths
 
 ## Required Proof
 
@@ -92,6 +98,7 @@ or broader pricing/valuation redesign.
 - variant grouping persists
 - finished-good mirror creation proves out
 - raw-material mirror creation proves out
+- readiness payload is returned for each created SKU
 - sales order SKU resolution works immediately after create
 - production/factory selection works immediately after create
 - OpenAPI snapshot matches repo-root `openapi.json`

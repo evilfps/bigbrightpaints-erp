@@ -11,6 +11,7 @@ Use this doc set to understand the post-consolidation truth:
 - product preview and commit live on `POST /api/v1/catalog/products`
 - product create consumes a pre-resolved active `brandId`
 - browse/search, preview, and commit all stay on the same canonical host
+- per-SKU readiness is returned directly on the canonical catalog response
 
 ## Doc Set
 
@@ -36,6 +37,8 @@ Use this doc set to understand the post-consolidation truth:
 - `POST /api/v1/catalog/products?preview=true` for non-mutating candidate
   planning
 - `POST /api/v1/catalog/products` for commit using the same request shape
+- retired create aliases `/api/v1/catalog/products/single` and
+  `/api/v1/catalog/products/bulk-variants` must not be reintroduced
 
 ### Rules
 
@@ -47,6 +50,8 @@ Use this doc set to understand the post-consolidation truth:
 - preview and commit share the same candidate plan and variant-group identity
 - downstream finished-good/raw-material readiness is produced in the same write
   path
+- the response exposes `catalog`, `inventory`, `production`, and `sales`
+  readiness with blocker lists for every member SKU
 
 ## End-to-End Flow Summary
 

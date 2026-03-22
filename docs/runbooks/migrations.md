@@ -1,5 +1,14 @@
 # Migration Runbook
 
+## 2026-03-22 — `migration_v2/V46__opening_stock_import_results_json.sql`
+
+- **Purpose:** persist canonical row-level `results[]` on `opening_stock_imports` so strict opening-stock imports retain both successful row readiness snapshots and row-level replay truth without hidden recomputation.
+- **Forward plan:** add nullable `opening_stock_imports.results_json`, deploy the strict opening-stock packet that records row results/errors in the import record, and keep history/read APIs on the canonical `/api/v1/inventory/opening-stock` host only.
+- **Dry-run commands:**
+  - `export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock; mvn -B -ntp -Dtest='OpenApiSnapshotIT,AccountingCatalogControllerSecurityIT,CompanyControllerIT,TenantOnboardingControllerTest,AuthTenantAuthorityIT#admin_cannot_bootstrap_new_tenant+super_admin_can_bootstrap_new_tenant+super_admin_can_bootstrap_new_tenant_with_first_admin_credentials_provisioning,GlobalExceptionHandlerTest,OpeningStockPostingRegressionIT,OpeningStockImportControllerTest,OpeningStockImportServiceTest,TenantOnboardingServiceTest,CatalogServiceCanonicalCoverageTest,CatalogServiceProductCrudTest,ProductionCatalogServiceCanonicalEntryTest,ProductionCatalogServiceBulkVariantRaceTest,SkuReadinessServiceTest' test`
+  - `python3 scripts/changed_files_coverage.py --jacoco erp-domain/target/site/jacoco/jacoco.xml --diff-base origin/main`
+- **Rollback strategy:** if the packet must be reverted before merge, deploy the previous backend build first, then execute `ALTER TABLE public.opening_stock_imports DROP COLUMN IF EXISTS results_json;` in the same maintenance window so reverted code does not inherit persisted row-result payloads it does not serve.
+
 ## 2026-03-21 — `migration_v2/V163__catalog_variant_group_linkage.sql`
 
 - **Purpose:** add canonical variant-group and product-family storage to `production_products` so consolidated catalog product creation can persist downstream-ready grouping metadata on the single `/api/v1/catalog/**` host.

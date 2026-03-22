@@ -22,3 +22,16 @@ module ownership, and target-state cleanup plans.
 - [catalog-consolidation/04-update-hygiene.md](./catalog-consolidation/04-update-hygiene.md)
   Rules for keeping these developer docs, OpenAPI, tests, and route ownership
   docs in sync as the catalog surface changes.
+- [onboarding-stock-readiness/README.md](./onboarding-stock-readiness/README.md)
+  Hard-cut setup-flow packet covering tenant bootstrap, company defaults,
+  stock-bearing product setup, opening stock, and per-SKU readiness truth.
+- [onboarding-stock-readiness/01-current-state-flow.md](./onboarding-stock-readiness/01-current-state-flow.md)
+  Current runtime ownership from onboarding through readiness visibility.
+- [onboarding-stock-readiness/02-route-service-map.md](./onboarding-stock-readiness/02-route-service-map.md)
+  Canonical route, service, and persistence map for setup readiness.
+- [onboarding-stock-readiness/03-target-simplified-user-flow.md](./onboarding-stock-readiness/03-target-simplified-user-flow.md)
+  Explicit operator journey and frontend/API ownership for setup.
+- [onboarding-stock-readiness/04-delete-first-duplicates.md](./onboarding-stock-readiness/04-delete-first-duplicates.md)
+  Delete-first seams that must stay retired.
+- [onboarding-stock-readiness/05-definition-of-done-and-update-hygiene.md](./onboarding-stock-readiness/05-definition-of-done-and-update-hygiene.md)
+  Scope, proof, stop rules, and doc hygiene for setup-flow changes.

@@ -3,15 +3,11 @@ package com.bigbrightpaints.erp.modules.production.controller;
 import com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogBrandDto;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogBrandRequest;
-import com.bigbrightpaints.erp.modules.production.dto.BulkVariantRequest;
-import com.bigbrightpaints.erp.modules.production.dto.BulkVariantResponse;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogImportResponse;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryRequest;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryResponse;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductDto;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductRequest;
-import com.bigbrightpaints.erp.modules.production.dto.ProductCreateRequest;
-import com.bigbrightpaints.erp.modules.production.dto.ProductionProductDto;
 import com.bigbrightpaints.erp.modules.production.service.CatalogService;
 import com.bigbrightpaints.erp.modules.production.service.ProductionCatalogService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
@@ -96,24 +92,6 @@ public class CatalogController {
         String message = preview ? "Product preview generated" : "Products created";
         return ResponseEntity.ok(ApiResponse.success(message,
                 productionCatalogService.createOrPreviewCatalogProducts(request, preview)));
-    }
-
-    @PostMapping("/products/single")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<ProductionProductDto>> createSingleProduct(
-            @Valid @RequestBody ProductCreateRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Product created",
-                productionCatalogService.createProduct(request)));
-    }
-
-    @PostMapping("/products/bulk-variants")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<BulkVariantResponse>> createBulkVariants(
-            @Valid @RequestBody BulkVariantRequest request,
-            @RequestParam(value = "dryRun", defaultValue = "false") boolean dryRun) {
-        String message = dryRun ? "Variant preview generated" : "Variants created";
-        return ResponseEntity.ok(ApiResponse.success(message,
-                productionCatalogService.createVariants(request, dryRun)));
     }
 
     @GetMapping("/products")
