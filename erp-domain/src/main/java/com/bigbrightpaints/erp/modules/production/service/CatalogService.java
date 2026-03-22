@@ -467,9 +467,11 @@ public class CatalogService {
         }
         if (isRawMaterialCategory(product.getCategory())) {
             syncRawMaterial(company, product, itemClass);
+            deleteFinishedGoodMirror(company, product);
             return;
         }
         syncFinishedGood(company, product);
+        deleteRawMaterialMirror(company, product);
     }
 
     private void refreshCanonicalFamilyLinkage(ProductionProduct product,
@@ -599,6 +601,22 @@ public class CatalogService {
         finishedGood.setDiscountAccountId(metadataLong(product.getMetadata(), "fgDiscountAccountId"));
         finishedGood.setTaxAccountId(metadataLong(product.getMetadata(), "fgTaxAccountId"));
         finishedGoodRepository.save(finishedGood);
+    }
+
+    private void deleteRawMaterialMirror(Company company, ProductionProduct product) {
+        String sku = product != null ? normalizeOptionalText(product.getSkuCode()) : null;
+        if (!StringUtils.hasText(sku)) {
+            return;
+        }
+        rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, sku).ifPresent(rawMaterialRepository::delete);
+    }
+
+    private void deleteFinishedGoodMirror(Company company, ProductionProduct product) {
+        String sku = product != null ? normalizeOptionalText(product.getSkuCode()) : null;
+        if (!StringUtils.hasText(sku)) {
+            return;
+        }
+        finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, sku).ifPresent(finishedGoodRepository::delete);
     }
 
     private Set<String> normalizeOptions(List<String> values, String fieldName) {

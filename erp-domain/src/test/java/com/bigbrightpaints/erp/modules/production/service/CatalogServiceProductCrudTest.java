@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
@@ -353,7 +354,7 @@ class CatalogServiceProductCrudTest {
     }
 
     @Test
-    void updateProduct_reclassifiesFinishedGoodAsRawMaterialWithoutDeletingHistoricalFinishedGoodMirror() {
+    void updateProduct_reclassifiesFinishedGoodAsRawMaterialAndDeletesStaleFinishedGoodMirror() {
         ProductionProduct existing = new ProductionProduct();
         ReflectionTestUtils.setField(existing, "id", 50315L);
         existing.setCompany(company);
@@ -375,6 +376,10 @@ class CatalogServiceProductCrudTest {
         syncedMaterial.setCompany(company);
         syncedMaterial.setSku("FG-TO-RM-001");
         syncedMaterial.setMaterialType(MaterialType.PRODUCTION);
+
+        FinishedGood staleFinishedGood = new FinishedGood();
+        staleFinishedGood.setCompany(company);
+        staleFinishedGood.setProductCode("FG-TO-RM-001");
 
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
@@ -401,18 +406,19 @@ class CatalogServiceProductCrudTest {
         when(rawMaterialRepository.findByCompanyAndSku(company, "FG-TO-RM-001")).thenReturn(Optional.empty());
         when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "FG-TO-RM-001"))
                 .thenReturn(Optional.of(syncedMaterial));
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "FG-TO-RM-001"))
+                .thenReturn(Optional.of(staleFinishedGood));
 
         CatalogProductDto response = service.updateProduct(50315L, request);
 
         assertThat(response.category()).isEqualTo("RAW_MATERIAL");
         assertThat(response.itemClass()).isEqualTo("RAW_MATERIAL");
         verify(rawMaterialRepository).save(any(RawMaterial.class));
-        verify(finishedGoodRepository, never()).delete(any());
-        verify(finishedGoodRepository, never()).findByCompanyAndProductCodeIgnoreCase(any(), any());
+        verify(finishedGoodRepository).delete(staleFinishedGood);
     }
 
     @Test
-    void updateProduct_reclassifiesRawMaterialAsFinishedGoodWithoutDeletingHistoricalRawMaterialMirror() {
+    void updateProduct_reclassifiesRawMaterialAsFinishedGoodAndDeletesStaleRawMaterialMirror() {
         ProductionProduct existing = new ProductionProduct();
         ReflectionTestUtils.setField(existing, "id", 50316L);
         existing.setCompany(company);
@@ -458,14 +464,16 @@ class CatalogServiceProductCrudTest {
                 .thenReturn(Optional.of(existing));
         when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(finishedGoodRepository.findByCompanyAndProductCode(company, "RM-TO-FG-001")).thenReturn(Optional.empty());
+        when(finishedGoodRepository.save(any(FinishedGood.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "RM-TO-FG-001"))
+                .thenReturn(Optional.of(staleRawMaterial));
 
         CatalogProductDto response = service.updateProduct(50316L, request);
 
         assertThat(response.category()).isEqualTo("FINISHED_GOOD");
         assertThat(response.itemClass()).isEqualTo("FINISHED_GOOD");
-        verify(finishedGoodRepository).save(any(com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood.class));
-        verify(rawMaterialRepository, never()).delete(staleRawMaterial);
-        verify(rawMaterialRepository, never()).findByCompanyAndSkuIgnoreCase(any(), any());
+        verify(finishedGoodRepository).save(any(FinishedGood.class));
+        verify(rawMaterialRepository).delete(staleRawMaterial);
     }
 
     @Test
