@@ -36,6 +36,7 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockMultipartFile;
@@ -43,6 +44,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("Regression: Opening stock import posts GL and links movements")
+@Tag("critical")
 class OpeningStockPostingRegressionIT extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE = "LF-021";

@@ -7,6 +7,7 @@ import com.bigbrightpaints.erp.shared.dto.PageResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -17,6 +18,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class OpeningStockImportControllerTest {
 
     @Mock
