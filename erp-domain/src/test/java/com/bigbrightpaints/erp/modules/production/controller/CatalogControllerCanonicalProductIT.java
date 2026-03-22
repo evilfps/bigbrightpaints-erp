@@ -117,7 +117,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         Map<String, Object> member = members.getFirst();
         assertThat(member.get("id")).isNotNull();
         assertThat(member.get("publicId")).isNotNull();
-        assertThat(member.get("sku")).isEqualTo(buildCanonicalSku("FINISHED_GOOD", "Premium Primer", "WHITE", "1L"));
+        assertThat(member.get("sku")).isEqualTo(buildCanonicalSku("FINISHED_GOOD", activeBrand.getCode(), "Premium Primer", "WHITE", "1L"));
         assertThat(member.get("productName")).isEqualTo("Premium Primer WHITE 1L");
         assertThat(productRepository.countByCompanyAndVariantGroupId(company, variantGroupId)).isEqualTo(1);
         assertThat(productRepository.findByCompanyAndSkuCode(company, String.valueOf(member.get("sku")))).isPresent();
@@ -375,9 +375,9 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         assertThat(secondVariantGroupId).isEqualTo(firstVariantGroupId);
         assertThat(productRepository.countByCompanyAndVariantGroupId(company, firstVariantGroupId)).isEqualTo(2);
         assertThat(members(firstData)).extracting(member -> String.valueOf(member.get("sku")))
-                .containsExactly(buildCanonicalSku("FINISHED_GOOD", familyName, "WHITE", "1L"));
+                .containsExactly(buildCanonicalSku("FINISHED_GOOD", activeBrand.getCode(), familyName, "WHITE", "1L"));
         assertThat(members(secondData)).extracting(member -> String.valueOf(member.get("sku")))
-                .containsExactly(buildCanonicalSku("FINISHED_GOOD", familyName, "BLUE", "1L"));
+                .containsExactly(buildCanonicalSku("FINISHED_GOOD", activeBrand.getCode(), familyName, "BLUE", "1L"));
     }
 
     @Test
@@ -410,6 +410,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         Map<String, Object> createData = data(createResponse);
         Map<String, Object> member = members(createData).getFirst();
         Long productId = Long.valueOf(String.valueOf(member.get("id")));
+        Long rawMaterialId = Long.valueOf(String.valueOf(member.get("rawMaterialId")));
         String sku = String.valueOf(member.get("sku"));
 
         ResponseEntity<Map> detailResponse = rest.exchange(
@@ -420,6 +421,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         assertThat(detailResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         Map<String, Object> detailData = data(detailResponse);
+        assertThat(((Number) detailData.get("rawMaterialId")).longValue()).isEqualTo(rawMaterialId);
         Map<String, Object> updatePayload = new LinkedHashMap<>();
         updatePayload.put("brandId", activeBrand.getId());
         updatePayload.put("name", "Titanium Dioxide Updated");
@@ -438,6 +440,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
                 Map.class);
         assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(data(updateResponse)).containsEntry("category", "RAW_MATERIAL");
+        assertThat(((Number) data(updateResponse).get("rawMaterialId")).longValue()).isEqualTo(rawMaterialId);
         assertThat(data(updateResponse)).containsEntry("name", "Titanium Dioxide Updated");
 
         ProductionProduct updatedProduct = productRepository.findByCompanyAndId(company, productId).orElseThrow();
@@ -886,8 +889,8 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         return new BigDecimal(String.valueOf(value));
     }
 
-    private String buildCanonicalSku(String itemClass, String baseProductName, String color, String size) {
-        return List.of(itemClassSkuPrefix(itemClass), baseProductName, color, size).stream()
+    private String buildCanonicalSku(String itemClass, String brandCode, String baseProductName, String color, String size) {
+        return List.of(itemClassSkuPrefix(itemClass), brandCode, baseProductName, color, size).stream()
                 .map(this::sanitizeSkuFragment)
                 .collect(Collectors.joining("-"))
                 .replaceAll("-{2,}", "-");

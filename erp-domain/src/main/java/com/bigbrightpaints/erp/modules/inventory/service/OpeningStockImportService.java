@@ -515,8 +515,7 @@ public class OpeningStockImportService {
     }
 
     private String buildReplayProtectionKey(Company company, String fileHash) {
-        String companyCode = sanitizeCompanyCode(company != null ? company.getCode() : null);
-        return "OPENING-STOCK|%s|%s".formatted(companyCode, fileHash);
+        return "OPENING-STOCK|%s|%s".formatted(replayProtectionCompanyScope(company), fileHash);
     }
 
     private ApplicationException openingStockReplayConflict(OpeningStockImport existing, String attemptedIdempotencyKey) {
@@ -535,6 +534,13 @@ public class OpeningStockImportService {
         }
         String normalized = code.trim().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
         return normalized.isBlank() ? "COMPANY" : normalized;
+    }
+
+    private String replayProtectionCompanyScope(Company company) {
+        if (company != null && company.getId() != null) {
+            return "CID-%d".formatted(company.getId());
+        }
+        return sanitizeCompanyCode(company != null ? company.getCode() : null);
     }
 
     private String resolveFileHash(MultipartFile file) {

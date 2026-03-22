@@ -62,6 +62,30 @@ class RawMaterialControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
+    void admin_reachesLegacyIntakeContract_andGetsDisabledConflict() {
+        HttpHeaders headers = jsonHeaders(ADMIN_EMAIL);
+        headers.set("Idempotency-Key", "rawmat-admin-intake-disabled");
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/raw-materials/intake",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "rawMaterialId", 999999,
+                        "batchCode", "LEGACY-INTAKE",
+                        "quantity", 3,
+                        "unit", "KG",
+                        "costPerUnit", 9.25,
+                        "supplierId", 999999,
+                        "notes", "validation-path-check"
+                ), headers),
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertNotPlatformOnly(response);
+    }
+
+    @Test
     void superAdmin_cannotExecuteRawMaterialAdjustmentWorkflowInsideTenant() {
         HttpHeaders headers = jsonHeaders(SUPER_ADMIN_EMAIL);
         headers.set("Idempotency-Key", "rawmat-superadmin-adjustment-blocked");

@@ -251,6 +251,22 @@ class SkuReadinessServiceTest {
     }
 
     @Test
+    void forSku_fallsBackToPackagingSkuPrefixWhenRawMaterialTypeIsMissing() {
+        RawMaterial rawMaterial = rawMaterial("PKG-3", 77L);
+        rawMaterial.setMaterialType(null);
+
+        when(productRepository.findByCompanyAndSkuCodeIgnoreCase(company, "pkg-3")).thenReturn(Optional.empty());
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "pkg-3")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "pkg-3")).thenReturn(Optional.of(rawMaterial));
+
+        SkuReadinessDto readiness = service.forSku(company, "pkg-3", null);
+
+        assertThat(readiness.sku()).isEqualTo("PKG-3");
+        assertThat(readiness.inventory().ready()).isTrue();
+        assertThat(readiness.sales().blockers()).containsExactly("RAW_MATERIAL_SKU_NOT_SALES_ORDERABLE");
+    }
+
+    @Test
     void forSku_preservesStoredSkuCasingWhenResolvingReadinessMirrors() {
         ProductionProduct product = finishedGoodProduct("Fg-Mixed-1");
         product.setMetadata(finishedGoodProductionMetadata(44L, 55L, 66L));

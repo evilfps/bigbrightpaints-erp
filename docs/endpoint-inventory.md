@@ -49,7 +49,7 @@ Portal scope guardrail:
 | `payroll` | 13 | /api/v1/payroll/runs, /api/v1/payroll/runs/monthly, /api/v1/payroll/runs/weekly |
 | `portal` | 3 | /api/v1/portal/dashboard, /api/v1/portal/operations, /api/v1/portal/workforce |
 | `purchasing` | 12 | /api/v1/purchasing/goods-receipts, /api/v1/purchasing/goods-receipts/{id}, /api/v1/purchasing/purchase-orders |
-| `raw-materials` | 4 | /api/v1/raw-materials/stock, /api/v1/raw-materials/stock/inventory, /api/v1/raw-materials/stock/low-stock |
+| `raw-materials` | 4 | /api/v1/raw-materials/intake, /api/v1/raw-materials/stock, /api/v1/raw-materials/stock/inventory |
 | `reports` | 20 | /api/v1/reports/account-statement, /api/v1/reports/aged-debtors, /api/v1/reports/aging/dealer/{dealerId} |
 | `sales` | 20 | /api/v1/sales/credit-requests, /api/v1/sales/credit-requests/{id}, /api/v1/sales/credit-requests/{id}/approve |
 | `superadmin` | 10 | /api/v1/superadmin/dashboard, /api/v1/superadmin/tenants, /api/v1/superadmin/tenants/coa-templates |
@@ -106,7 +106,7 @@ Portal scope guardrail:
 - `POST` `/api/v1/accounting/periods/{periodId}/reopen`
 - `POST` `/api/v1/accounting/periods/{periodId}/request-close`
 - `GET, POST` `/api/v1/catalog/products`
-- `PUT, DELETE` `/api/v1/catalog/products/{id}`
+- `PUT, DELETE` `/api/v1/catalog/products/{productId}`
 - `POST` `/api/v1/accounting/receipts/dealer`
 - `POST` `/api/v1/accounting/receipts/dealer/hybrid`
 - `POST` `/api/v1/accounting/reconciliation/bank`
@@ -371,6 +371,7 @@ Portal scope guardrail:
 
 ## `raw-materials`
 
+- `POST` `/api/v1/raw-materials/intake`
 - `GET` `/api/v1/raw-materials/stock`
 - `GET` `/api/v1/raw-materials/stock/inventory`
 - `GET` `/api/v1/raw-materials/stock/low-stock`

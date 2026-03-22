@@ -98,6 +98,7 @@ class CatalogServiceBulkUpsertTest {
                 new CatalogProductRequest(
                         1L,
                         "Weather Shield",
+                        null,
                         List.of("Red"),
                         List.of("1L"),
                         List.of(new CatalogProductCartonSizeRequest("1L", 24)),
@@ -117,6 +118,7 @@ class CatalogServiceBulkUpsertTest {
                 new CatalogProductRequest(
                         1L,
                         "Bad Product",
+                        null,
                         List.of("Blue"),
                         List.of("4L"),
                         List.of(),
@@ -155,6 +157,7 @@ class CatalogServiceBulkUpsertTest {
                 new CatalogProductRequest(
                         null,
                         "   ",
+                        null,
                         List.of("Blue"),
                         List.of("4L"),
                         List.of(new CatalogProductCartonSizeRequest("4L", 12)),

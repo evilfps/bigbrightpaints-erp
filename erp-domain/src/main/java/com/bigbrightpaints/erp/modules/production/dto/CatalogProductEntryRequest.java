@@ -23,7 +23,6 @@ public class CatalogProductEntryRequest {
     @NotBlank(message = "baseProductName is required")
     private String baseProductName;
 
-    @NotBlank(message = "category is required")
     private String category;
 
     @NotBlank(message = "itemClass is required")

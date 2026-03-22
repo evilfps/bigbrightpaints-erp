@@ -36,6 +36,7 @@ public record CatalogProductEntryResponse(
     public record Member(
             Long id,
             UUID publicId,
+            Long rawMaterialId,
             String sku,
             String productName,
             String itemClass,

@@ -103,6 +103,7 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
         ProductionProduct linked = productionProductRepository.findByCompanyAndSkuCode(company, sku).orElseThrow();
 
         assertThat(sku).startsWith("RM-");
+        assertThat(((Number) member.get("rawMaterialId")).longValue()).isEqualTo(rawMaterial.getId());
         assertThat(rawMaterial.getName()).isEqualTo("Titanium Oxide BASE STD");
         assertThat(rawMaterial.getInventoryAccountId()).isEqualTo(accounts.get("INV"));
         assertThat(linked.getProductName()).isEqualTo(rawMaterial.getName());
@@ -146,7 +147,74 @@ class RawMaterialAndProductUpdateIT extends AbstractIntegrationTest {
         RawMaterial rawMaterial = rawMaterialRepository.findByCompanyAndSku(company, sku).orElseThrow();
 
         assertThat(sku).startsWith("PKG-");
+        assertThat(((Number) member.get("rawMaterialId")).longValue()).isEqualTo(rawMaterial.getId());
         assertThat(rawMaterial.getMaterialType().name()).isEqualTo("PACKAGING");
+    }
+
+    @Test
+    void catalog_product_update_can_reclassify_raw_material_to_packaging() {
+        HttpHeaders headers = authenticatedHeaders();
+
+        Map<String, Long> accounts = fixtureAccountIds();
+        Long brandId = ensureCatalogBrand(headers, "Reclass Brand");
+        Map<String, Object> createPayload = new HashMap<>();
+        createPayload.put("brandId", brandId);
+        createPayload.put("baseProductName", "Bucket Shell");
+        createPayload.put("category", "RAW_MATERIAL");
+        createPayload.put("itemClass", "RAW_MATERIAL");
+        createPayload.put("colors", List.of("WHITE"));
+        createPayload.put("sizes", List.of("1L"));
+        createPayload.put("unitOfMeasure", "UNIT");
+        createPayload.put("hsnCode", "392310");
+        createPayload.put("basePrice", BigDecimal.ZERO);
+        createPayload.put("gstRate", BigDecimal.ZERO);
+        createPayload.put("minDiscountPercent", BigDecimal.ZERO);
+        createPayload.put("minSellingPrice", BigDecimal.ZERO);
+        createPayload.put("metadata", Map.of("inventoryAccountId", accounts.get("INV")));
+
+        ResponseEntity<Map> create = rest.exchange(
+                "/api/v1/catalog/products",
+                HttpMethod.POST,
+                new HttpEntity<>(createPayload, headers),
+                Map.class
+        );
+
+        assertThat(create.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> createdData = (Map<?, ?>) create.getBody().get("data");
+        Map<?, ?> member = (Map<?, ?>) ((List<?>) createdData.get("members")).getFirst();
+        Long productId = ((Number) member.get("id")).longValue();
+        Long rawMaterialId = ((Number) member.get("rawMaterialId")).longValue();
+
+        Map<String, Object> updatePayload = new HashMap<>();
+        updatePayload.put("brandId", brandId);
+        updatePayload.put("name", "Bucket Shell WHITE 1L");
+        updatePayload.put("itemClass", "PACKAGING_RAW_MATERIAL");
+        updatePayload.put("colors", List.of("WHITE"));
+        updatePayload.put("sizes", List.of("1L"));
+        updatePayload.put("cartonSizes", List.of(Map.of(
+                "size", "1L",
+                "piecesPerCarton", 1
+        )));
+        updatePayload.put("unitOfMeasure", "UNIT");
+        updatePayload.put("hsnCode", "392310");
+        updatePayload.put("gstRate", BigDecimal.ZERO);
+        updatePayload.put("active", true);
+
+        ResponseEntity<Map> update = rest.exchange(
+                "/api/v1/catalog/products/" + productId,
+                HttpMethod.PUT,
+                new HttpEntity<>(updatePayload, headers),
+                Map.class
+        );
+
+        assertThat(update.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<?, ?> updateData = (Map<?, ?>) update.getBody().get("data");
+        assertThat(updateData.get("itemClass")).isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat(((Number) updateData.get("rawMaterialId")).longValue()).isEqualTo(rawMaterialId);
+
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        RawMaterial updatedMaterial = rawMaterialRepository.findByCompanyAndId(company, rawMaterialId).orElseThrow();
+        assertThat(updatedMaterial.getMaterialType().name()).isEqualTo("PACKAGING");
     }
 
     @Test

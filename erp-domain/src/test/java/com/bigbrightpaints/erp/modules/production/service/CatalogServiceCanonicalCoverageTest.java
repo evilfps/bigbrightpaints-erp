@@ -294,9 +294,9 @@ class CatalogServiceCanonicalCoverageTest {
 
         ProductionProduct transientProduct = new ProductionProduct();
 
-        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", (Company) null, persistedProduct);
-        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", company, null);
-        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", company, transientProduct);
+        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", (Company) null, persistedProduct, "RAW_MATERIAL");
+        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", company, null, "RAW_MATERIAL");
+        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", company, transientProduct, "RAW_MATERIAL");
 
         verifyNoInteractions(rawMaterialRepository, finishedGoodRepository);
     }
@@ -328,10 +328,10 @@ class CatalogServiceCanonicalCoverageTest {
         when(rawMaterialRepository.save(org.mockito.ArgumentMatchers.any(RawMaterial.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", company, metadataProduct);
-        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", company, defaultProduct);
-        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", company, preservedProduct);
-        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", companyWithoutDefault, noDefaultProduct);
+        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", company, metadataProduct, "RAW_MATERIAL");
+        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", company, defaultProduct, "RAW_MATERIAL");
+        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", company, preservedProduct, "RAW_MATERIAL");
+        ReflectionTestUtils.invokeMethod(service, "syncInventoryTruth", companyWithoutDefault, noDefaultProduct, "RAW_MATERIAL");
 
         ArgumentCaptor<RawMaterial> materialCaptor = ArgumentCaptor.forClass(RawMaterial.class);
         verify(rawMaterialRepository, times(4)).save(materialCaptor.capture());
@@ -483,7 +483,7 @@ class CatalogServiceCanonicalCoverageTest {
         legacyProduct.setUnitOfMeasure("LITER");
         legacyProduct.setHsnCode("320910");
 
-        ReflectionTestUtils.invokeMethod(service, "refreshCanonicalFamilyLinkage", legacyProduct, brand, null, null);
+        ReflectionTestUtils.invokeMethod(service, "refreshCanonicalFamilyLinkage", legacyProduct, brand, null, null, "FINISHED_GOOD");
 
         assertThat(generatedSku).isEqualTo("BBR-PRIMER-009");
         assertThat(fallbackCode).isEqualTo("CAT");

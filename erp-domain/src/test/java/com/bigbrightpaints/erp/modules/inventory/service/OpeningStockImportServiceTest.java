@@ -141,6 +141,7 @@ class OpeningStockImportServiceTest {
         );
 
         company = new Company();
+        ReflectionTestUtils.setField(company, "id", 77L);
         company.setCode("ACME");
         company.setTimezone("UTC");
         lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
@@ -289,7 +290,7 @@ class OpeningStockImportServiceTest {
         existing.setCompany(company);
         existing.setIdempotencyKey("original-key");
         existing.setReferenceNumber("OPEN-STOCK-ACME-ORIGINAL");
-        existing.setReplayProtectionKey("OPENING-STOCK|ACME|" + sha256(file));
+        existing.setReplayProtectionKey(replayProtectionKey(sha256(file)));
         when(openingStockImportRepository.findByCompanyAndReplayProtectionKey(company, existing.getReplayProtectionKey()))
                 .thenReturn(Optional.of(existing));
 
@@ -319,7 +320,7 @@ class OpeningStockImportServiceTest {
         existing.setCompany(company);
         existing.setIdempotencyKey("original-key");
         existing.setReferenceNumber("OPEN-STOCK-ACME-ORIGINAL");
-        existing.setReplayProtectionKey("OPENING-STOCK|ACME|" + fileHash);
+        existing.setReplayProtectionKey(replayProtectionKey(fileHash));
 
         when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "fresh-key"))
                 .thenReturn(Optional.empty(), Optional.empty());
@@ -348,7 +349,7 @@ class OpeningStockImportServiceTest {
                 "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"
         ));
         String fileHash = com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.sha256Hex(file.getBytes());
-        String replayProtectionKey = "OPENING-STOCK|ACME|" + fileHash;
+        String replayProtectionKey = replayProtectionKey(fileHash);
 
         OpeningStockImport concurrent = new OpeningStockImport();
         concurrent.setCompany(company);
@@ -379,7 +380,7 @@ class OpeningStockImportServiceTest {
                 "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"
         ));
         String fileHash = com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.sha256Hex(file.getBytes());
-        String replayProtectionKey = "OPENING-STOCK|ACME|" + fileHash;
+        String replayProtectionKey = replayProtectionKey(fileHash);
 
         when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "fresh-key"))
                 .thenReturn(Optional.empty(), Optional.empty());
@@ -1343,6 +1344,10 @@ class OpeningStockImportServiceTest {
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    private String replayProtectionKey(String fileHash) {
+        return "OPENING-STOCK|CID-77|" + fileHash;
     }
 
     private SkuReadinessDto readyReadiness(String sku) {

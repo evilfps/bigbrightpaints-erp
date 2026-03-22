@@ -1636,7 +1636,7 @@ _Total documented accounting endpoints: **83**._
 
 Comprehensive handoff for `VAL-DOC-004` covering catalog, inventory, dispatch, and manufacturing API surfaces.
 
-> Response convention: endpoints below return `ApiResponse<T>` unless explicitly noted (`DELETE /api/v1/factory/production-plans/{id}` and `DELETE /api/v1/accounting/raw-materials/{id}` return `204`).
+> Response convention: endpoints below return `ApiResponse<T>` unless explicitly noted (`DELETE /api/v1/factory/production-plans/{id}` returns `204`).
 
 ##### Implementation note (inventory-engine-decomposition)
 
@@ -1691,15 +1691,14 @@ Auth default for controller: `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','RO
 
 | Method | Path | Request | Response `data` |
 |---|---|---|---|
-| GET | `/api/v1/accounting/raw-materials` | — | `List<RawMaterialDto>` |
-| POST | `/api/v1/accounting/raw-materials` | `RawMaterialRequest` | `RawMaterialDto` |
-| PUT | `/api/v1/accounting/raw-materials/{id}` | `RawMaterialRequest` | `RawMaterialDto` |
-| DELETE | `/api/v1/accounting/raw-materials/{id}` | — | `204 No Content` |
+| GET | `/api/v1/catalog/products` | Query: `active`, `brandId`, `color`, `size`, `page`, `pageSize` | `PageResponse<CatalogProductDto>` |
+| POST | `/api/v1/catalog/products` | `CatalogProductEntryRequest` (`itemClass=RAW_MATERIAL` or `PACKAGING_RAW_MATERIAL`) | `CatalogProductEntryResponse` |
+| PUT | `/api/v1/catalog/products/{productId}` | `CatalogProductRequest` | `CatalogProductDto` |
+| DELETE | `/api/v1/catalog/products/{productId}` | — | `CatalogProductDto` |
 | GET | `/api/v1/raw-materials/stock` | — | `StockSummaryDto` |
 | GET | `/api/v1/raw-materials/stock/inventory` | — | `List<InventoryStockSnapshot>` |
 | GET | `/api/v1/raw-materials/stock/low-stock` | — | `List<InventoryStockSnapshot>` |
-| GET | `/api/v1/raw-material-batches/{rawMaterialId}` | — | `List<RawMaterialBatchDto>` |
-| POST | `/api/v1/raw-material-batches/{rawMaterialId}` | Headers: `Idempotency-Key`/`X-Idempotency-Key`, body `RawMaterialBatchRequest` | `RawMaterialBatchDto` |
+| POST | `/api/v1/inventory/raw-materials/adjustments` | Header/body idempotency + `RawMaterialAdjustmentRequest` | `RawMaterialAdjustmentDto` |
 | POST | `/api/v1/raw-materials/intake` | Headers: `Idempotency-Key`/`X-Idempotency-Key`, body `RawMaterialIntakeRequest` | `RawMaterialBatchDto` |
 
 ##### Inventory adjustment + traceability APIs
@@ -1986,7 +1985,7 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 - **Catalog route guard**: surface only the canonical catalog endpoints listed in this section for brand selection/create, product preview/commit, and catalog browse.
 - **Dispatch confirm UI**: force explicit per-line shipped quantity entry (cannot exceed ordered quantity).
 - **Slip status controls**: only expose `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVED`; do not expose direct set to `DISPATCHED/BACKORDER/CANCELLED`.
-- **Idempotency-sensitive screens**: send stable idempotency keys for finished-good adjustments, raw-material adjustments, opening-stock import, raw-material intake/batch creation, and packing records.
+- **Idempotency-sensitive screens**: send stable idempotency keys for finished-good adjustments, raw-material adjustments, opening-stock import, raw-material intake, and packing records.
 - **Expiring inventory widget**: consume `/api/v1/inventory/batches/expiring-soon` and badge rows with `daysUntilExpiry` (`0` = expires today, higher numbers = less urgent).
 - **Opening stock import history screen**: use `GET /api/v1/inventory/opening-stock?page={n}&size={m}` for a company-scoped audit table (newest first) and show `errorCount` as a badge linking to stored import error details.
 - **Wastage dashboard**: combine `/reports/wastage` with `/reports/monthly-production-costs` for trend + variance cards.

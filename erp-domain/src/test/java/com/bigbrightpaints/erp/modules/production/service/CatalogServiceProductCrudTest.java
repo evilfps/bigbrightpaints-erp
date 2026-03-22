@@ -43,8 +43,11 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 
@@ -99,8 +102,10 @@ class CatalogServiceProductCrudTest {
             ReflectionTestUtils.setField(account, "id", invocation.getArgument(1, Long.class));
             return account;
         });
+        lenient().when(skuReadinessService.forProducts(eq(company), anyCollection())).thenReturn(Map.of());
         lenient().when(finishedGoodRepository.findByCompanyAndProductCode(any(), any())).thenReturn(Optional.empty());
         lenient().when(rawMaterialRepository.findByCompanyAndSku(any(), any())).thenReturn(Optional.empty());
+        lenient().when(rawMaterialRepository.findByCompanyAndSkuInIgnoreCase(any(), anyCollection())).thenReturn(List.of());
     }
 
     @Test
@@ -108,6 +113,7 @@ class CatalogServiceProductCrudTest {
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
                 "Exterior Emulsion",
+                null,
                 List.of("Red", "Blue"),
                 List.of("1L", "4L"),
                 List.of(
@@ -181,6 +187,7 @@ class CatalogServiceProductCrudTest {
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
                 "Interior Emulsion",
+                null,
                 List.of("Ivory"),
                 List.of("10L"),
                 List.of(new CatalogProductCartonSizeRequest("10L", 2)),
@@ -254,6 +261,7 @@ class CatalogServiceProductCrudTest {
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
                 "Primer Updated",
+                null,
                 List.of("White"),
                 List.of("1L"),
                 List.of(new CatalogProductCartonSizeRequest("1L", 12)),
@@ -309,6 +317,7 @@ class CatalogServiceProductCrudTest {
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
                 "Primer Updated",
+                null,
                 List.of("White"),
                 List.of("1L"),
                 List.of(new CatalogProductCartonSizeRequest("1L", 12)),
@@ -370,6 +379,7 @@ class CatalogServiceProductCrudTest {
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
                 "Premium Primer WHITE 1L",
+                null,
                 List.of("WHITE"),
                 List.of("1L"),
                 List.of(new CatalogProductCartonSizeRequest("1L", 1)),
@@ -427,6 +437,7 @@ class CatalogServiceProductCrudTest {
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
                 "Premium Primer Updated WHITE 1L",
+                null,
                 List.of("WHITE"),
                 List.of("1L"),
                 List.of(new CatalogProductCartonSizeRequest("1L", 1)),
@@ -485,6 +496,7 @@ class CatalogServiceProductCrudTest {
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
                 "Primer",
+                null,
                 List.of("White"),
                 List.of("1L"),
                 List.of(new CatalogProductCartonSizeRequest("1L", 12)),
@@ -551,7 +563,8 @@ class CatalogServiceProductCrudTest {
                 canonicalProduct,
                 brand,
                 "Premium Primer WHITE 1L",
-                "Premium Primer");
+                "Premium Primer",
+                "FINISHED_GOOD");
 
         UUID expectedVariantGroupId = ReflectionTestUtils.invokeMethod(
                 service,
@@ -832,5 +845,40 @@ class CatalogServiceProductCrudTest {
         assertThat(pageableCaptor.getValue().getPageNumber()).isEqualTo(1);
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(5);
         assertThat(pageableCaptor.getValue().getSort().getOrderFor("productName")).isNotNull();
+    }
+
+    @Test
+    void searchProducts_batchesRawMaterialMirrorLookupForPackagingRows() {
+        ProductionProduct product = new ProductionProduct();
+        ReflectionTestUtils.setField(product, "id", 702L);
+        product.setCompany(company);
+        product.setBrand(brand);
+        product.setProductName("Bucket Shell WHITE 1L");
+        product.setCategory("RAW_MATERIAL");
+        product.setSkuCode("PKG-BBR-BUCKET-WHITE-1L");
+        product.setDefaultColour("WHITE");
+        product.setSizeLabel("1L");
+        product.setUnitOfMeasure("UNIT");
+        product.setHsnCode("392310");
+        product.setActive(true);
+
+        RawMaterial rawMaterial = new RawMaterial();
+        ReflectionTestUtils.setField(rawMaterial, "id", 8801L);
+        rawMaterial.setCompany(company);
+        rawMaterial.setSku("PKG-BBR-BUCKET-WHITE-1L");
+        rawMaterial.setMaterialType(MaterialType.PACKAGING);
+
+        when(productRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(product), org.springframework.data.domain.PageRequest.of(0, 20), 1));
+        when(rawMaterialRepository.findByCompanyAndSkuInIgnoreCase(eq(company), anyCollection()))
+                .thenReturn(List.of(rawMaterial));
+
+        PageResponse<CatalogProductDto> response = service.searchProducts(null, null, null, true, 0, 20);
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.content().getFirst().itemClass()).isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat(response.content().getFirst().rawMaterialId()).isEqualTo(8801L);
+        verify(rawMaterialRepository).findByCompanyAndSkuInIgnoreCase(eq(company), anyCollection());
+        verify(rawMaterialRepository, never()).findByCompanyAndSkuIgnoreCase(any(), any());
     }
 }

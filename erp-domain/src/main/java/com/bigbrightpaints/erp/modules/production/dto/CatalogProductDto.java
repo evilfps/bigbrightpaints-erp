@@ -8,6 +8,7 @@ import java.util.UUID;
 public record CatalogProductDto(
         Long id,
         UUID publicId,
+        Long rawMaterialId,
         Long brandId,
         String brandName,
         String brandCode,

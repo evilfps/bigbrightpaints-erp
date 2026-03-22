@@ -319,16 +319,23 @@ public class SkuReadinessService {
             return expectedStockType;
         }
         if (product != null) {
+            if (isPackagingSku(product.getSkuCode())) {
+                return ExpectedStockType.PACKAGING_RAW_MATERIAL;
+            }
             return isRawMaterialCategory(product.getCategory())
                     ? ExpectedStockType.RAW_MATERIAL
                     : ExpectedStockType.FINISHED_GOOD;
         }
         if (rawMaterial != null) {
-            return rawMaterial.getMaterialType() == MaterialType.PACKAGING
+            return rawMaterial.getMaterialType() == MaterialType.PACKAGING || isPackagingSku(rawMaterial.getSku())
                     ? ExpectedStockType.PACKAGING_RAW_MATERIAL
                     : ExpectedStockType.RAW_MATERIAL;
         }
         return ExpectedStockType.FINISHED_GOOD;
+    }
+
+    private boolean isPackagingSku(String sku) {
+        return StringUtils.hasText(sku) && sku.trim().toUpperCase(Locale.ROOT).startsWith("PKG-");
     }
 
     private Company resolveCompany(ProductionProduct product,
