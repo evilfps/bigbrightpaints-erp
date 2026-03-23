@@ -47,7 +47,7 @@ public class RoleController {
     }
 
     @PostMapping
-    @PreAuthorize("@roleService.canManageSharedRoleMutation(authentication, #request.name())")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<RoleDto>> createRole(@Valid @RequestBody CreateRoleRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Role saved", roleService.createRole(request)));
     }

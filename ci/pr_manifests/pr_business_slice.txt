@@ -6,9 +6,15 @@ com.bigbrightpaints.erp.codered.CR_CatalogImportDeterminismIT
 com.bigbrightpaints.erp.codered.CR_CatalogImportIdempotencyIT
 com.bigbrightpaints.erp.modules.production.controller.CatalogControllerCanonicalProductIT
 com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryRequestTest
+com.bigbrightpaints.erp.modules.production.service.CatalogServiceBulkUpsertTest
 com.bigbrightpaints.erp.modules.production.service.CatalogServiceCanonicalCoverageTest
 com.bigbrightpaints.erp.modules.production.service.CatalogServiceProductCrudTest
 com.bigbrightpaints.erp.modules.production.service.ProductionCatalogServiceCanonicalEntryTest
+com.bigbrightpaints.erp.core.util.CompanyEntityLookupTest
+com.bigbrightpaints.erp.modules.factory.service.BulkPackingCostServiceTest
+com.bigbrightpaints.erp.modules.factory.service.PackagingMaterialServiceTest
+com.bigbrightpaints.erp.modules.factory.service.BulkPackingServiceTest
+com.bigbrightpaints.erp.modules.factory.service.BulkPackingServiceIdempotencyTest
 com.bigbrightpaints.erp.regression.ProductionCatalogFinishedGoodInvariantIT
 com.bigbrightpaints.erp.regression.ProductionCatalogRawMaterialInvariantIT
 BusinessDocumentTruthsTest
@@ -27,6 +33,10 @@ FinishedGoodsDispatchEngineCoverageTest
 FinishedGoodsReservationEngineTest
 FinishedGoodsServiceTest
 InventoryValuationServiceTest
+com.bigbrightpaints.erp.modules.inventory.RawMaterialAndProductUpdateIT
+com.bigbrightpaints.erp.modules.inventory.controller.FinishedGoodControllerTest
+com.bigbrightpaints.erp.modules.inventory.controller.RawMaterialControllerSecurityIT
+com.bigbrightpaints.erp.modules.inventory.controller.RawMaterialControllerTest
 com.bigbrightpaints.erp.modules.hr.service.LeaveServiceTest
 InvoiceServiceTest
 LegacyDispatchInvoiceLinkMatcherTest

@@ -681,7 +681,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 new HttpEntity<>(Map.of(
                         "name", "ROLE_FACTORY",
                         "description", "Tenant mutation attempt",
-                        "permissions", List.of("portal:factory")
+                        "permissions", factoryRolePermissionCodes()
                 ), jsonHeaders(adminToken, TENANT_A)),
                 Map.class);
 
@@ -709,7 +709,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 new HttpEntity<>(Map.of(
                         "name", "ROLE_FACTORY",
                         "description", description,
-                        "permissions", permissions
+                        "permissions", permissions.isEmpty() ? factoryRolePermissionCodes() : permissions
                 ), jsonHeaders(superAdminToken, TENANT_A)),
                 Map.class);
 
@@ -1034,6 +1034,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 .filter(String.class::isInstance)
                 .map(String.class::cast)
                 .collect(Collectors.toSet());
+    }
+
+    private List<String> factoryRolePermissionCodes() {
+        return List.of("portal:factory", "dispatch.confirm", "factory.dispatch");
     }
 
     private HttpHeaders jsonHeaders(String token, String companyCode) {

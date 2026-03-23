@@ -14,6 +14,8 @@ public record ProductCreateRequest(
         String productName,
         @NotBlank(message = "Category is required")
         String category,
+        @NotBlank(message = "Item class is required")
+        String itemClass,
         String defaultColour,
         String sizeLabel,
         String unitOfMeasure,
@@ -24,5 +26,42 @@ public record ProductCreateRequest(
         BigDecimal gstRate,
         BigDecimal minDiscountPercent,
         BigDecimal minSellingPrice,
-        Map<String, Object> metadata
-) {}
+        Map<String, Object> metadata,
+        Boolean active
+) {
+    public ProductCreateRequest(Long brandId,
+                                String brandName,
+                                String brandCode,
+                                String productName,
+                                String category,
+                                String itemClass,
+                                String defaultColour,
+                                String sizeLabel,
+                                String unitOfMeasure,
+                                String hsnCode,
+                                String customSkuCode,
+                                BigDecimal basePrice,
+                                BigDecimal gstRate,
+                                BigDecimal minDiscountPercent,
+                                BigDecimal minSellingPrice,
+                                Map<String, Object> metadata) {
+        this(
+                brandId,
+                brandName,
+                brandCode,
+                productName,
+                category,
+                itemClass,
+                defaultColour,
+                sizeLabel,
+                unitOfMeasure,
+                hsnCode,
+                customSkuCode,
+                basePrice,
+                gstRate,
+                minDiscountPercent,
+                minSellingPrice,
+                metadata,
+                null);
+    }
+}

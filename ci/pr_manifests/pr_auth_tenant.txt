@@ -21,6 +21,7 @@ com.bigbrightpaints.erp.modules.auth.service.PasswordResetServiceTest
 com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningServiceTest
 com.bigbrightpaints.erp.OpenApiSnapshotIT
 com.bigbrightpaints.erp.modules.admin.controller.AdminSettingsControllerTenantRuntimeContractTest
+com.bigbrightpaints.erp.modules.admin.service.AdminUserServiceTest
 com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyServiceTest
 com.bigbrightpaints.erp.modules.portal.service.TenantRuntimeEnforcementInterceptorTest
 com.bigbrightpaints.erp.modules.portal.PortalInsightsControllerIT

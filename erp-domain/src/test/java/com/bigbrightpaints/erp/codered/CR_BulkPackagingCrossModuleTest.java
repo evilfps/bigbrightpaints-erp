@@ -93,6 +93,10 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
         ProductionLog log = createProductionLog(company, bulkProduct, "PROD-" + shortId(), new BigDecimal("10"));
 
         seedSemiFinishedBatch(company, companyCode, accounts, bulkProduct.getSkuCode(), log.getProductionCode(), new BigDecimal("10"));
+        RawMaterial bucket = ensurePackagingMaterial(company, accounts.get("PACK_INV"), new BigDecimal("20"));
+        ensureRawMaterialBatch(bucket, new BigDecimal("20"), new BigDecimal("2.00"));
+        ensurePackagingSizeMapping(company, bucket, "1L");
+        ensurePackagingSizeMapping(company, bucket, "4L");
 
         LocalDate packingDate = TestDateUtils.safeDate(company);
         CompanyContextHolder.setCompanyId(companyCode);
@@ -110,11 +114,6 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
                 .findFirst()
                 .orElseThrow();
 
-        RawMaterial bucket = ensurePackagingMaterial(company, accounts.get("PACK_INV"), new BigDecimal("20"));
-        ensureRawMaterialBatch(bucket, new BigDecimal("20"), new BigDecimal("2.00"));
-        ensurePackagingSizeMapping(company, bucket, "1L");
-        ensurePackagingSizeMapping(company, bucket, "4L");
-
         FinishedGood childOne = ensureFinishedGood(company, "CR-CHILD-1L-" + shortId(), accounts.get("FG_INV"), accounts);
         FinishedGood childFour = ensureFinishedGood(company, "CR-CHILD-4L-" + shortId(), accounts.get("FG_INV"), accounts);
 
@@ -125,8 +124,6 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
                         new BulkPackRequest.PackLine(childOne.getId(), new BigDecimal("2"), "1L", "L"),
                         new BulkPackRequest.PackLine(childFour.getId(), new BigDecimal("2"), "4L", "L")
                 ),
-                null,
-                false,
                 packingDate,
                 "codered",
                 "CODE-RED bulk pack",
@@ -156,7 +153,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
 
         RawMaterial refreshedBucket = rawMaterialRepository.findById(bucket.getId()).orElseThrow();
         assertThat(refreshedBucket.getCurrentStock()).as("packaging stock consumed")
-                .isEqualByComparingTo(new BigDecimal("16"));
+                .isEqualByComparingTo(new BigDecimal("6"));
 
         String packReference = jdbcTemplate.queryForObject(
                 """
@@ -223,6 +220,9 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
         ProductionLog log = createProductionLog(company, bulkProduct, "PROD-" + shortId(), new BigDecimal("5"));
 
         seedSemiFinishedBatch(company, companyCode, accounts, bulkProduct.getSkuCode(), log.getProductionCode(), new BigDecimal("5"));
+        RawMaterial bucket = ensurePackagingMaterial(company, accounts.get("PACK_INV"), new BigDecimal("20"));
+        ensureRawMaterialBatch(bucket, new BigDecimal("20"), new BigDecimal("1.50"));
+        ensurePackagingSizeMapping(company, bucket, "1L");
 
         LocalDate packingDate = TestDateUtils.safeDate(company);
         CompanyContextHolder.setCompanyId(companyCode);
@@ -240,18 +240,12 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
                 .findFirst()
                 .orElseThrow();
 
-        RawMaterial bucket = ensurePackagingMaterial(company, accounts.get("PACK_INV"), new BigDecimal("20"));
-        ensureRawMaterialBatch(bucket, new BigDecimal("20"), new BigDecimal("1.50"));
-        ensurePackagingSizeMapping(company, bucket, "1L");
-
         FinishedGood childOne = ensureFinishedGood(company, "CR-CHILD-1L-" + shortId(), accounts.get("FG_INV"), accounts);
 
         CompanyContextHolder.setCompanyId(companyCode);
         assertThatThrownBy(() -> bulkPackingService.pack(new BulkPackRequest(
                 bulkBatch.getId(),
                 List.of(new BulkPackRequest.PackLine(childOne.getId(), new BigDecimal("1.5"), "1L", "L")),
-                null,
-                false,
                 packingDate,
                 "codered",
                 "CODE-RED fractional pack",
@@ -289,6 +283,10 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
         ProductionProduct bulkProduct = ensureProductionProduct(company, accounts, "CR-BULK-" + shortId());
         ProductionLog log = createProductionLog(company, bulkProduct, "PROD-" + shortId(), new BigDecimal("10"));
         seedSemiFinishedBatch(company, companyCode, accounts, bulkProduct.getSkuCode(), log.getProductionCode(), new BigDecimal("10"));
+        RawMaterial bucket = ensurePackagingMaterial(company, accounts.get("PACK_INV"), new BigDecimal("20"));
+        ensureRawMaterialBatch(bucket, new BigDecimal("20"), new BigDecimal("2.00"));
+        ensurePackagingSizeMapping(company, bucket, "1L");
+        ensurePackagingSizeMapping(company, bucket, "4L");
 
         LocalDate packingDate = TestDateUtils.safeDate(company);
         CompanyContextHolder.setCompanyId(companyCode);
@@ -306,11 +304,6 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
                 .findFirst()
                 .orElseThrow();
 
-        RawMaterial bucket = ensurePackagingMaterial(company, accounts.get("PACK_INV"), new BigDecimal("20"));
-        ensureRawMaterialBatch(bucket, new BigDecimal("20"), new BigDecimal("2.00"));
-        ensurePackagingSizeMapping(company, bucket, "1L");
-        ensurePackagingSizeMapping(company, bucket, "4L");
-
         FinishedGood childOne = ensureFinishedGood(company, "CR-CHILD-1L-" + shortId(), accounts.get("FG_INV"), accounts);
         FinishedGood childFour = ensureFinishedGood(company, "CR-CHILD-4L-" + shortId(), accounts.get("FG_INV"), accounts);
 
@@ -321,8 +314,6 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
                         new BulkPackRequest.PackLine(childOne.getId(), new BigDecimal("2"), "1L", "L"),
                         new BulkPackRequest.PackLine(childFour.getId(), new BigDecimal("2"), "4L", "L")
                 ),
-                null,
-                false,
                 packingDate,
                 "codered",
                 "CODE-RED bulk pack idempotent",
@@ -362,6 +353,10 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
         ProductionProduct bulkProduct = ensureProductionProduct(company, accounts, "CR-BULK-" + shortId());
         ProductionLog log = createProductionLog(company, bulkProduct, "PROD-" + shortId(), new BigDecimal("10"));
         seedSemiFinishedBatch(company, companyCode, accounts, bulkProduct.getSkuCode(), log.getProductionCode(), new BigDecimal("10"));
+        RawMaterial bucket = ensurePackagingMaterial(company, accounts.get("PACK_INV"), new BigDecimal("20"));
+        ensureRawMaterialBatch(bucket, new BigDecimal("20"), new BigDecimal("2.00"));
+        ensurePackagingSizeMapping(company, bucket, "1L");
+        ensurePackagingSizeMapping(company, bucket, "4L");
 
         LocalDate packingDate = TestDateUtils.safeDate(company);
         CompanyContextHolder.setCompanyId(companyCode);
@@ -379,11 +374,6 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
                 .findFirst()
                 .orElseThrow();
 
-        RawMaterial bucket = ensurePackagingMaterial(company, accounts.get("PACK_INV"), new BigDecimal("20"));
-        ensureRawMaterialBatch(bucket, new BigDecimal("20"), new BigDecimal("2.00"));
-        ensurePackagingSizeMapping(company, bucket, "1L");
-        ensurePackagingSizeMapping(company, bucket, "4L");
-
         FinishedGood childOne = ensureFinishedGood(company, "CR-CHILD-1L-" + shortId(), accounts.get("FG_INV"), accounts);
         FinishedGood childFour = ensureFinishedGood(company, "CR-CHILD-4L-" + shortId(), accounts.get("FG_INV"), accounts);
 
@@ -393,8 +383,6 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
                         new BulkPackRequest.PackLine(childOne.getId(), new BigDecimal("2"), "1L", "L"),
                         new BulkPackRequest.PackLine(childFour.getId(), new BigDecimal("2"), "4L", "L")
                 ),
-                null,
-                false,
                 packingDate,
                 "codered",
                 "CODE-RED bulk pack concurrency",

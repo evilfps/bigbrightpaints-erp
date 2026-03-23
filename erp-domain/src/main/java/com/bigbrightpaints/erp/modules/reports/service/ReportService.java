@@ -361,7 +361,7 @@ public class ReportService {
                                                        ReportMetadata metadata) {
         InventoryValuationService.InventorySnapshot effective = snapshot != null
                 ? snapshot
-                : new InventoryValuationService.InventorySnapshot(BigDecimal.ZERO, 0L, "WEIGHTED_AVERAGE", List.of());
+                : new InventoryValuationService.InventorySnapshot(BigDecimal.ZERO, 0L, "FIFO", List.of());
         List<InventoryValuationItemDto> items = effective.items() == null
                 ? List.of()
                 : effective.items().stream()
@@ -386,7 +386,7 @@ public class ReportService {
         List<InventoryValuationGroupDto> groupByBrand = summarizeInventory(items, "BRAND", false);
 
         BigDecimal totalValue = roundCurrency(totalValueOverride != null ? totalValueOverride : effective.totalValue());
-        String costingMethod = effective.costingMethod() != null ? effective.costingMethod() : "WEIGHTED_AVERAGE";
+        String costingMethod = effective.costingMethod() != null ? effective.costingMethod() : "FIFO";
 
         return new InventoryValuationDto(
                 totalValue,

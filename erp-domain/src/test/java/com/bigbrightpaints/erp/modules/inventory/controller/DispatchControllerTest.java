@@ -363,6 +363,7 @@ class DispatchControllerTest {
         PackagingSlipDto redactedSlip = controller.getPackagingSlip(5L).getBody().data();
 
         assertThat(redactedPreview.totalOrderedAmount()).isNull();
+        assertThat(redactedPreview.totalAvailableAmount()).isEqualByComparingTo("10.00");
         assertThat(redactedPreview.gstBreakdown()).isNull();
         assertThat(redactedPreview.lines().getFirst().unitPrice()).isNull();
         assertThat(redactedPreview.lines().getFirst().lineTotal()).isNull();

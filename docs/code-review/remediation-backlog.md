@@ -70,7 +70,7 @@ Additional live-backend findings should be folded into the lanes below rather th
 
 - **Row 1** also carries `TEN-09`, but treat it as validation-first: re-prove current tenant-runtime and portal payload drift against code, tests, and `openapi.json` before opening backend work.
 - **Row 4** also carries `O2C-09`, and the lane should explicitly preserve the reservation prerequisite before `POST /api/v1/sales/orders/{id}/confirm` succeeds.
-- **Row 5** also carries `MFG-09`; stock-bearing create readiness in the `MOCK` tenant is a concrete blocker, and `POST /api/v1/raw-materials/intake` should stay classified as a noncanonical escape hatch.
+- **Row 5** also carries `MFG-09`; stock-bearing create readiness in the `MOCK` tenant is a concrete blocker, and raw-material receiving must stay on the purchasing receipt flow rather than any noncanonical escape hatch.
 - **Row 6** also carries `FIN-08`, plus `ADMIN-07` and `ADMIN-13` as validation-first contract checks rather than automatic backend endpoint work.
 - **Row 7** also carries `ORCH-10` as a validation-first operator-surface check rather than an automatic new backend route build.
 

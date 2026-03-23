@@ -17,6 +17,6 @@ class RoleControllerSecurityContractTest {
 
         assertThat(annotation).isNotNull();
         assertThat(annotation.value())
-                .isEqualTo("@roleService.canManageSharedRoleMutation(authentication, #request.name())");
+                .isEqualTo("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')");
     }
 }

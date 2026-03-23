@@ -15,6 +15,7 @@ import com.bigbrightpaints.erp.modules.production.dto.CatalogProductBulkResponse
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductCartonSizeRequest;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductRequest;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -34,6 +35,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 @MockitoSettings(strictness = Strictness.LENIENT)
 class CatalogServiceBulkUpsertTest {
 
@@ -45,6 +47,7 @@ class CatalogServiceBulkUpsertTest {
     @Mock private FinishedGoodRepository finishedGoodRepository;
     @Mock private RawMaterialRepository rawMaterialRepository;
     @Mock private SkuReadinessService skuReadinessService;
+    @Mock private ProductionCatalogService productionCatalogService;
 
     private CatalogService service;
     private Company company;
@@ -60,7 +63,8 @@ class CatalogServiceBulkUpsertTest {
                 sizeVariantRepository,
                 finishedGoodRepository,
                 rawMaterialRepository,
-                skuReadinessService);
+                skuReadinessService,
+                productionCatalogService);
         company = new Company();
         ReflectionTestUtils.setField(company, "id", 301L);
         company.setCode("BBP");
@@ -98,6 +102,7 @@ class CatalogServiceBulkUpsertTest {
                 new CatalogProductRequest(
                         1L,
                         "Weather Shield",
+                        "FINISHED_GOOD",
                         List.of("Red"),
                         List.of("1L"),
                         List.of(new CatalogProductCartonSizeRequest("1L", 24)),
@@ -117,6 +122,7 @@ class CatalogServiceBulkUpsertTest {
                 new CatalogProductRequest(
                         1L,
                         "Bad Product",
+                        "FINISHED_GOOD",
                         List.of("Blue"),
                         List.of("4L"),
                         List.of(),
@@ -155,6 +161,7 @@ class CatalogServiceBulkUpsertTest {
                 new CatalogProductRequest(
                         null,
                         "   ",
+                        null,
                         List.of("Blue"),
                         List.of("4L"),
                         List.of(new CatalogProductCartonSizeRequest("4L", 12)),

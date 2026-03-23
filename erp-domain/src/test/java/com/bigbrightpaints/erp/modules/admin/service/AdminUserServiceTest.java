@@ -45,9 +45,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -264,6 +266,28 @@ class AdminUserServiceTest {
     }
 
     @Test
+    void createUser_nonSuperAdminCannotAssignAdminRoleWithoutPrefix() {
+        when(roleService.isSystemRole("ROLE_ADMIN")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.createUser(new CreateUserRequest(
+                "tenant-admin@example.com",
+                "Password@123",
+                "Tenant Admin",
+                List.of(1L),
+                List.of("admin")
+        ))).isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("SUPER_ADMIN authority required for role: ROLE_ADMIN");
+
+        verify(auditService).logAuthFailure(
+                eq(AuditEvent.ACCESS_DENIED),
+                eq("UNKNOWN_AUTH_ACTOR"),
+                eq("TEST"),
+                argThat((Map<String, String> metadata) -> "ROLE_ADMIN".equals(metadata.get("targetRole"))
+                        && "tenant-admin-role-management-requires-super-admin".equals(metadata.get("reason"))
+                        && "TEST".equals(metadata.get("tenantScope"))));
+    }
+
+    @Test
     void createUser_superAdminCanAssignSuperAdminRole() {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
                 "super-admin@bbp.com",
@@ -282,6 +306,82 @@ class AdminUserServiceTest {
         } finally {
             SecurityContextHolder.clearContext();
         }
+    }
+
+    @Test
+    void createUser_returnsFallbackRolesAndCompaniesWhenSavedAssociationsAreMissing() {
+        when(auditLogRepository.findFirstByEventTypeAndUsernameIgnoreCaseOrderByTimestampDesc(
+                AuditEvent.LOGIN_SUCCESS,
+                "fallback-user@example.com"
+        )).thenReturn(Optional.empty());
+        when(userRepository.save(any(UserAccount.class))).thenAnswer(invocation -> {
+            UserAccount persisted = invocation.getArgument(0);
+            UserAccount detached = new UserAccount(persisted.getEmail(), "encoded", persisted.getDisplayName());
+            ReflectionTestUtils.setField(detached, "id", 401L);
+            detached.setEnabled(persisted.isEnabled());
+            detached.setMfaEnabled(persisted.isMfaEnabled());
+            return detached;
+        });
+
+        var response = service.createUser(new CreateUserRequest(
+                "fallback-user@example.com",
+                "Password@123",
+                "Fallback User",
+                List.of(1L),
+                List.of("ROLE_SALES")
+        ));
+
+        assertThat(response.roles()).containsExactly("ROLE_SALES");
+        assertThat(response.companies()).containsExactly("TEST");
+    }
+
+    @Test
+    void createUser_withoutPasswordIssuesTemporaryPasswordAndForcesReset() {
+        service.createUser(new CreateUserRequest(
+                "temp-user@example.com",
+                null,
+                "Temp User",
+                List.of(1L),
+                List.of("ROLE_SALES")
+        ));
+
+        ArgumentCaptor<UserAccount> userCaptor = ArgumentCaptor.forClass(UserAccount.class);
+        verify(userRepository).save(userCaptor.capture());
+        assertThat(userCaptor.getValue().isMustChangePassword()).isTrue();
+        verify(emailService).sendUserCredentialsEmail(
+                eq("temp-user@example.com"),
+                eq("Temp User"),
+                argThat(password -> password != null && !password.isBlank()));
+    }
+
+    @Test
+    void createUser_reusesExistingPortalDealerWithoutProvisioningAnotherAccount() {
+        Dealer existingDealer = new Dealer();
+        existingDealer.setCompany(company);
+        ReflectionTestUtils.setField(existingDealer, "id", 55L);
+        existingDealer.setCode("ACTIVE55");
+        existingDealer.setName("Active Dealer");
+        existingDealer.setEmail("dealer-active@example.com");
+
+        Account receivable = new Account();
+        receivable.setCompany(company);
+        receivable.setCode("AR-ACTIVE55");
+        receivable.setActive(true);
+        existingDealer.setReceivableAccount(receivable);
+
+        when(dealerRepository.findByCompanyAndPortalUserEmail(company, "dealer-active@example.com"))
+                .thenReturn(Optional.of(existingDealer));
+
+        service.createUser(new CreateUserRequest(
+                "dealer-active@example.com",
+                "Password@123",
+                "Dealer Active",
+                List.of(1L),
+                List.of("ROLE_DEALER")
+        ));
+
+        verify(dealerRepository, times(1)).save(any(Dealer.class));
+        verify(accountRepository, never()).save(any(Account.class));
     }
 
     @Test
@@ -319,6 +419,37 @@ class AdminUserServiceTest {
         assertThat(results).hasSize(1);
         assertThat(results.getFirst().lastLoginAt())
                 .isEqualTo(LocalDateTime.of(2026, 1, 5, 10, 15, 30).atZone(ZoneOffset.UTC).toInstant());
+    }
+
+    @Test
+    void listUsers_ignoresNullRolesAndBlankCompanyCodes() {
+        UserAccount user = new UserAccount("filtered-user@example.com", "hash", "Filtered User");
+        ReflectionTestUtils.setField(user, "id", 303L);
+        user.addCompany(company);
+        Company blankCompany = new Company();
+        blankCompany.setCode("   ");
+        user.getCompanies().add(blankCompany);
+        user.getCompanies().add(null);
+
+        Role validRole = new Role();
+        validRole.setName("ROLE_ADMIN");
+        Role blankRole = new Role();
+        blankRole.setName("   ");
+        user.addRole(validRole);
+        user.getRoles().add(blankRole);
+        user.getRoles().add(null);
+
+        when(userRepository.findDistinctByCompanies_Id(company.getId())).thenReturn(List.of(user));
+        when(auditLogRepository.findLatestTimestampByEventTypeAndUsernameIn(
+                AuditEvent.LOGIN_SUCCESS,
+                java.util.Set.of("filtered-user@example.com")))
+                .thenReturn(List.of());
+
+        var results = service.listUsers();
+
+        assertThat(results).hasSize(1);
+        assertThat(results.getFirst().companies()).containsExactly("TEST");
+        assertThat(results.getFirst().roles()).containsExactly("ROLE_ADMIN");
     }
 
     @Test
@@ -491,6 +622,58 @@ class AdminUserServiceTest {
 
         verify(userRepository).findById(305L);
         verify(userRepository, never()).findByIdAndCompanies_Id(eq(305L), any());
+    }
+
+    @Test
+    void updateUser_sameEnabledStateDoesNotTriggerReauthRevocation() {
+        UserAccount user = new UserAccount("same-enabled@example.com", "hash", "Same Enabled");
+        ReflectionTestUtils.setField(user, "id", 401L);
+        user.addCompany(company);
+        user.setEnabled(true);
+        Role role = new Role();
+        role.setName("ROLE_SALES");
+        user.addRole(role);
+
+        when(userRepository.findById(401L)).thenReturn(Optional.of(user));
+        when(auditLogRepository.findFirstByEventTypeAndUsernameIgnoreCaseOrderByTimestampDesc(
+                AuditEvent.LOGIN_SUCCESS,
+                "same-enabled@example.com"))
+                .thenReturn(Optional.empty());
+
+        var response = service.updateUser(
+                401L,
+                new UpdateUserRequest("Same Enabled Updated", null, null, true));
+
+        assertThat(response.enabled()).isTrue();
+        verify(tokenBlacklistService, never()).revokeAllUserTokens("same-enabled@example.com");
+        verify(refreshTokenService, never()).revokeAllForUser("same-enabled@example.com");
+        verify(tenantRuntimePolicyService, never()).assertCanAddEnabledUser(any(Company.class), anyString());
+    }
+
+    @Test
+    void updateUser_reassignsScopedCompaniesAndRolesAndRevokesTokens() {
+        UserAccount user = new UserAccount("update-user@example.com", "hash", "Update User");
+        ReflectionTestUtils.setField(user, "id", 402L);
+        user.addCompany(company);
+        Role existingRole = new Role();
+        existingRole.setName("ROLE_DEALER");
+        user.addRole(existingRole);
+
+        when(userRepository.findById(402L)).thenReturn(Optional.of(user));
+        when(auditLogRepository.findFirstByEventTypeAndUsernameIgnoreCaseOrderByTimestampDesc(
+                AuditEvent.LOGIN_SUCCESS,
+                "update-user@example.com"))
+                .thenReturn(Optional.empty());
+
+        var response = service.updateUser(
+                402L,
+                new UpdateUserRequest("Updated User", List.of(1L), List.of("ROLE_SALES"), null));
+
+        assertThat(response.displayName()).isEqualTo("Updated User");
+        assertThat(response.roles()).containsExactly("ROLE_SALES");
+        assertThat(response.companies()).containsExactly("TEST");
+        verify(tokenBlacklistService).revokeAllUserTokens("update-user@example.com");
+        verify(refreshTokenService).revokeAllForUser("update-user@example.com");
     }
 
     @Test

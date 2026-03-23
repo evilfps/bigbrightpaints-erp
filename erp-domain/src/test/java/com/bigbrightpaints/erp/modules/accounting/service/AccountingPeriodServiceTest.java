@@ -1031,7 +1031,7 @@ class AccountingPeriodServiceTest {
     }
 
     @Test
-    void ensurePeriod_defaultsToWeightedAverageWhenCreatingMissingPeriod() {
+    void ensurePeriod_defaultsToFifoWhenCreatingMissingPeriod() {
         Company company = company(1L, "ACME");
         when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 2))
                 .thenReturn(Optional.empty());
@@ -1040,7 +1040,7 @@ class AccountingPeriodServiceTest {
 
         AccountingPeriod created = service.ensurePeriod(company, LocalDate.of(2026, 2, 9));
 
-        assertThat(created.getCostingMethod()).isEqualTo(CostingMethod.WEIGHTED_AVERAGE);
+        assertThat(created.getCostingMethod()).isEqualTo(CostingMethod.FIFO);
     }
 
     @Test
@@ -1075,7 +1075,7 @@ class AccountingPeriodServiceTest {
     }
 
     @Test
-    void createOrUpdatePeriod_defaultsToWeightedAverageWhenRequestMethodMissing() {
+    void createOrUpdatePeriod_defaultsToFifoWhenRequestMethodMissing() {
         Company company = company(1L, "ACME");
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
         when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 6))
@@ -1085,7 +1085,7 @@ class AccountingPeriodServiceTest {
 
         var dto = service.createOrUpdatePeriod(new AccountingPeriodUpsertRequest(2026, 6, null));
 
-        assertThat(dto.costingMethod()).isEqualTo("WEIGHTED_AVERAGE");
+        assertThat(dto.costingMethod()).isEqualTo("FIFO");
     }
 
     @Test

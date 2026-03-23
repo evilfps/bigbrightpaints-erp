@@ -37,7 +37,7 @@ class CatalogProductEntryRequestTest {
         CatalogProductEntryRequest request = new CatalogProductEntryRequest();
         request.setBrandId(11L);
         request.setBaseProductName("Primer");
-        request.setCategory("FINISHED_GOOD");
+        request.setCategory("RAW_MATERIAL");
         request.setUnitOfMeasure("L".repeat(65));
         request.setHsnCode("9".repeat(33));
         request.setGstRate(new BigDecimal("18.00"));
@@ -59,6 +59,8 @@ class CatalogProductEntryRequestTest {
                 .containsEntry("hsnCode", "hsnCode cannot exceed 32 characters")
                 .containsEntry("basePrice", "basePrice cannot be negative")
                 .containsEntry("minDiscountPercent", "minDiscountPercent cannot be greater than 100")
-                .containsEntry("minSellingPrice", "minSellingPrice cannot be negative");
+                .containsEntry("minSellingPrice", "minSellingPrice cannot be negative")
+                .doesNotContainKey("itemClass")
+                .doesNotContainKey("category");
     }
 }

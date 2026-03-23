@@ -97,7 +97,7 @@ class GstConfigurationRegressionIT extends AbstractIntegrationTest {
         HttpHeaders httpHeaders = new HttpHeaders();
         httpHeaders.setBearerAuth(token);
         httpHeaders.setContentType(MediaType.APPLICATION_JSON);
-        httpHeaders.set("X-Company-Id", COMPANY_CODE);
+        httpHeaders.set("X-Company-Code", COMPANY_CODE);
         return httpHeaders;
     }
 }

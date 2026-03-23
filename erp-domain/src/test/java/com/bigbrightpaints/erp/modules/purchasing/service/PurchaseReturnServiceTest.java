@@ -128,7 +128,7 @@ class PurchaseReturnServiceTest {
         lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
         lenient().when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
         lenient().when(purchaseRepository.lockByCompanyAndId(company, 30L)).thenReturn(Optional.of(purchase));
-        lenient().when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(material));
+        lenient().when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(material);
         lenient().when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(eq(company), eq(com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference.PURCHASE_RETURN), eq("PR-30")))
                 .thenReturn(List.of());
     }
@@ -211,6 +211,30 @@ class PurchaseReturnServiceTest {
         verify(allocationService).remainingReturnableQuantity(purchase, material);
         verifyNoInteractions(accountingFacade);
         verify(rawMaterialRepository, never()).deductStockIfSufficient(any(), any());
+    }
+
+    @Test
+    void recordPurchaseReturn_rejectsUnknownRawMaterial() {
+        Account payable = new Account();
+        ReflectionTestUtils.setField(payable, "id", 40L);
+        supplier.setPayableAccount(payable);
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenThrow(new IllegalArgumentException("Raw material not found: id=20"));
+
+        PurchaseReturnRequest request = new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                new BigDecimal("1.0000"),
+                new BigDecimal("5.00"),
+                "PR-30",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"
+        );
+
+        assertThatThrownBy(() -> purchaseReturnService.recordPurchaseReturn(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Raw material not found");
     }
 
     @Test
@@ -352,7 +376,7 @@ class PurchaseReturnServiceTest {
         ReflectionTestUtils.setField(otherMaterial, "id", 21L);
         otherMaterial.setCompany(company);
         otherMaterial.setName("Solvent");
-        when(rawMaterialRepository.lockByCompanyAndId(company, 21L)).thenReturn(Optional.of(otherMaterial));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 21L)).thenReturn(otherMaterial);
 
         assertThatThrownBy(() -> purchaseReturnService.previewPurchaseReturn(new PurchaseReturnRequest(
                 10L,

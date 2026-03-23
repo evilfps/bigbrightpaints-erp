@@ -177,7 +177,11 @@ class RoleServiceTest {
                 .hasMessageContaining("SUPER_ADMIN authority required for role mutation");
 
         ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(auditService).logFailure(eq(AuditEvent.ACCESS_DENIED), metadataCaptor.capture());
+        verify(auditService).logAuthFailure(
+                eq(AuditEvent.ACCESS_DENIED),
+                eq("tenant-admin@bbp.com"),
+                eq("TENANT-A"),
+                metadataCaptor.capture());
         assertThat(metadataCaptor.getValue())
                 .containsEntry("actor", "tenant-admin@bbp.com")
                 .containsEntry("reason", "shared-role-permission-mutation-requires-super-admin")
@@ -203,7 +207,11 @@ class RoleServiceTest {
                 .extracting(role -> role.name(), role -> role.description())
                 .containsExactly("ROLE_ACCOUNTING", "Accounting role");
 
-        verify(auditService).logSuccess(eq(AuditEvent.ACCESS_GRANTED), any(Map.class));
+        verify(auditService).logAuthSuccess(
+                eq(AuditEvent.ACCESS_GRANTED),
+                eq("root-superadmin@bbp.com"),
+                eq("TENANT-A"),
+                any(Map.class));
     }
 
     @Test
@@ -212,12 +220,14 @@ class RoleServiceTest {
         CompanyContextHolder.setCompanyCode("TENANT-A");
         RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
 
-        assertThat(service.canManageSharedRoleMutation(
-                        SecurityContextHolder.getContext().getAuthentication(),
-                        "ROLE_ACCOUNTING"))
+        assertThat(service.canManageSharedRoleMutation("ROLE_ACCOUNTING"))
                 .isFalse();
 
-        verify(auditService).logFailure(eq(AuditEvent.ACCESS_DENIED), any(Map.class));
+        verify(auditService).logAuthFailure(
+                eq(AuditEvent.ACCESS_DENIED),
+                eq("tenant-admin@bbp.com"),
+                eq("TENANT-A"),
+                any(Map.class));
     }
 
     @Test
@@ -226,12 +236,14 @@ class RoleServiceTest {
         CompanyContextHolder.setCompanyCode("TENANT-A");
         RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
 
-        assertThat(service.canManageSharedRoleMutation(
-                        SecurityContextHolder.getContext().getAuthentication(),
-                        "ROLE_ACCOUNTING"))
+        assertThat(service.canManageSharedRoleMutation("ROLE_ACCOUNTING"))
                 .isTrue();
 
-        verify(auditService).logSuccess(eq(AuditEvent.ACCESS_GRANTED), any(Map.class));
+        verify(auditService).logAuthSuccess(
+                eq(AuditEvent.ACCESS_GRANTED),
+                eq("root-superadmin@bbp.com"),
+                eq("TENANT-A"),
+                any(Map.class));
     }
 
     @Test
@@ -244,7 +256,11 @@ class RoleServiceTest {
         Role ensured = service.ensureRoleExists("ROLE_ADMIN");
 
         assertThat(ensured.getName()).isEqualTo("ROLE_ADMIN");
-        verify(auditService).logSuccess(eq(AuditEvent.ACCESS_GRANTED), any(Map.class));
+        verify(auditService).logAuthSuccess(
+                eq(AuditEvent.ACCESS_GRANTED),
+                eq("root-superadmin@bbp.com"),
+                eq("none"),
+                any(Map.class));
     }
 
     @Test
@@ -257,7 +273,11 @@ class RoleServiceTest {
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("SUPER_ADMIN authority required for role: ROLE_ADMIN");
 
-        verify(auditService).logFailure(eq(AuditEvent.ACCESS_DENIED), any(Map.class));
+        verify(auditService).logAuthFailure(
+                eq(AuditEvent.ACCESS_DENIED),
+                eq("tenant-admin@bbp.com"),
+                eq("TENANT-A"),
+                any(Map.class));
         verifyNoMoreInteractions(roleRepository);
     }
 
@@ -265,8 +285,8 @@ class RoleServiceTest {
     void canManageSharedRoleMutation_allowsCustomRolesWithoutAudit() {
         RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
 
-        assertThat(service.canManageSharedRoleMutation(null, "custom-role")).isTrue();
-        assertThat(service.canManageSharedRoleMutation(null, null)).isTrue();
+        assertThat(service.canManageSharedRoleMutation("custom-role")).isTrue();
+        assertThat(service.canManageSharedRoleMutation(null)).isTrue();
 
         verifyNoMoreInteractions(auditService);
     }

@@ -64,8 +64,10 @@ class RoleServiceRbacTenantIsolationTest {
                 .isInstanceOf(AccessDeniedException.class)
                 .hasMessageContaining("role mutation");
 
-        verify(auditService).logFailure(
+        verify(auditService).logAuthFailure(
                 eq(AuditEvent.ACCESS_DENIED),
+                eq("tenant-admin@bbp.com"),
+                eq("AUTH-TENANT-A"),
                 argThat((Map<String, String> metadata) ->
                         "tenant-admin@bbp.com".equals(metadata.get("actor"))
                                 && "AUTH-TENANT-A".equals(metadata.get("tenantScope"))
@@ -100,8 +102,10 @@ class RoleServiceRbacTenantIsolationTest {
         assertThat(response.name()).isEqualTo("ROLE_SALES");
         assertThat(response.permissions()).hasSize(1);
         assertThat(response.permissions().get(0).code()).isEqualTo("portal:sales");
-        verify(auditService).logSuccess(
+        verify(auditService).logAuthSuccess(
                 eq(AuditEvent.ACCESS_GRANTED),
+                eq("super-admin@bbp.com"),
+                eq("AUTH-ROOT"),
                 argThat((Map<String, String> metadata) ->
                         "super-admin@bbp.com".equals(metadata.get("actor"))
                                 && "AUTH-ROOT".equals(metadata.get("tenantScope"))
@@ -126,7 +130,7 @@ class RoleServiceRbacTenantIsolationTest {
 
         assertThat(ensured.getName()).isEqualTo("ROLE_DEALER");
         assertThat(ensured.getPermissions()).extracting(Permission::getCode).contains("portal:dealer");
-        verify(auditService, never()).logFailure(eq(AuditEvent.ACCESS_DENIED), any(Map.class));
+        verify(auditService, never()).logAuthFailure(eq(AuditEvent.ACCESS_DENIED), any(), any(), any(Map.class));
     }
 
     @Test

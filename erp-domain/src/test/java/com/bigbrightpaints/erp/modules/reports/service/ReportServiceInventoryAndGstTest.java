@@ -225,6 +225,34 @@ class ReportServiceInventoryAndGstTest {
     }
 
     @Test
+    void inventoryValuation_defaultsToFifoWhenSnapshotCostingMethodIsMissing() {
+        stubToday();
+        AccountingPeriod period = new AccountingPeriod();
+        ReflectionTestUtils.setField(period, "id", 11L);
+        period.setYear(2026);
+        period.setMonth(3);
+        period.setStatus(AccountingPeriodStatus.OPEN);
+
+        when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
+                .thenReturn(Optional.of(period));
+        when(inventoryValuationService.currentSnapshot(company)).thenReturn(
+                new InventoryValuationService.InventorySnapshot(
+                        BigDecimal.ZERO,
+                        0L,
+                        null,
+                        List.of()
+                ));
+
+        InventoryValuationDto response = reportService.inventoryValuation();
+
+        assertThat(response.totalValue()).isEqualByComparingTo("0.00");
+        assertThat(response.costingMethod()).isEqualTo("FIFO");
+        assertThat(response.items()).isEmpty();
+        assertThat(response.groupByCategory()).isEmpty();
+        assertThat(response.groupByBrand()).isEmpty();
+    }
+
+    @Test
     void balanceSheet_requiresExplicitQueryRequest() {
         assertThatThrownBy(() -> reportService.balanceSheet((FinancialReportQueryRequest) null))
                 .isInstanceOf(ApplicationException.class)

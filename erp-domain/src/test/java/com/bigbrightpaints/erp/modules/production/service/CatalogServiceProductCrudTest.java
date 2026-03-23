@@ -5,15 +5,23 @@ import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemDto;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemRequest;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductCartonSizeRequest;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductDto;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogProductRequest;
+import com.bigbrightpaints.erp.modules.production.dto.ProductCreateRequest;
+import com.bigbrightpaints.erp.modules.production.dto.ProductUpdateRequest;
+import com.bigbrightpaints.erp.modules.production.dto.ProductionProductDto;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -41,8 +49,13 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 
@@ -59,6 +72,7 @@ class CatalogServiceProductCrudTest {
     @Mock private FinishedGoodRepository finishedGoodRepository;
     @Mock private RawMaterialRepository rawMaterialRepository;
     @Mock private SkuReadinessService skuReadinessService;
+    @Mock private ProductionCatalogService productionCatalogService;
 
     private CatalogService service;
     private Company company;
@@ -74,7 +88,8 @@ class CatalogServiceProductCrudTest {
                 sizeVariantRepository,
                 finishedGoodRepository,
                 rawMaterialRepository,
-                skuReadinessService);
+                skuReadinessService,
+                productionCatalogService);
         company = new Company();
         ReflectionTestUtils.setField(company, "id", 200L);
         company.setCode("BBP");
@@ -97,8 +112,10 @@ class CatalogServiceProductCrudTest {
             ReflectionTestUtils.setField(account, "id", invocation.getArgument(1, Long.class));
             return account;
         });
+        lenient().when(skuReadinessService.forProducts(eq(company), anyCollection())).thenReturn(Map.of());
         lenient().when(finishedGoodRepository.findByCompanyAndProductCode(any(), any())).thenReturn(Optional.empty());
         lenient().when(rawMaterialRepository.findByCompanyAndSku(any(), any())).thenReturn(Optional.empty());
+        lenient().when(rawMaterialRepository.findByCompanyAndSkuInIgnoreCase(any(), anyCollection())).thenReturn(List.of());
     }
 
     @Test
@@ -106,6 +123,7 @@ class CatalogServiceProductCrudTest {
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
                 "Exterior Emulsion",
+                "FINISHED_GOOD",
                 List.of("Red", "Blue"),
                 List.of("1L", "4L"),
                 List.of(
@@ -179,6 +197,7 @@ class CatalogServiceProductCrudTest {
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
                 "Interior Emulsion",
+                null,
                 List.of("Ivory"),
                 List.of("10L"),
                 List.of(new CatalogProductCartonSizeRequest("10L", 2)),
@@ -252,6 +271,7 @@ class CatalogServiceProductCrudTest {
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
                 "Primer Updated",
+                null,
                 List.of("White"),
                 List.of("1L"),
                 List.of(new CatalogProductCartonSizeRequest("1L", 12)),
@@ -281,6 +301,257 @@ class CatalogServiceProductCrudTest {
     }
 
     @Test
+    void updateProduct_preservesProductionItemClassForLegacyPackagingSkuWhenRequestOmitsItemClass() {
+        ProductionProduct existing = new ProductionProduct();
+        ReflectionTestUtils.setField(existing, "id", 5031L);
+        existing.setCompany(company);
+        existing.setBrand(brand);
+        existing.setProductName("Legacy Bucket Resin");
+        existing.setCategory("RAW_MATERIAL");
+        existing.setSkuCode("PKG-LEGACY-001");
+        existing.setActive(true);
+        existing.setColors(new LinkedHashSet<>(List.of("White")));
+        existing.setSizes(new LinkedHashSet<>(List.of("20L")));
+        existing.setCartonSizes(new LinkedHashMap<>(java.util.Map.of("20L", 1)));
+        existing.setUnitOfMeasure("LITER");
+        existing.setHsnCode("320890");
+        existing.setBasePrice(new BigDecimal("710.00"));
+        existing.setGstRate(new BigDecimal("18.00"));
+        existing.setMinDiscountPercent(new BigDecimal("4.00"));
+        existing.setMinSellingPrice(new BigDecimal("690.00"));
+        existing.setMetadata(new LinkedHashMap<>(Map.of("rawMaterialInventoryAccountId", 801L)));
+
+        RawMaterial legacyProductionMaterial = new RawMaterial();
+        legacyProductionMaterial.setCompany(company);
+        legacyProductionMaterial.setSku("PKG-LEGACY-001");
+        legacyProductionMaterial.setMaterialType(MaterialType.PRODUCTION);
+
+        CatalogProductRequest request = new CatalogProductRequest(
+                11L,
+                "Legacy Bucket Resin Updated",
+                null,
+                List.of("White"),
+                List.of("20L"),
+                List.of(new CatalogProductCartonSizeRequest("20L", 1)),
+                "LITER",
+                "320890",
+                new BigDecimal("720.00"),
+                new BigDecimal("18.00"),
+                new BigDecimal("4.50"),
+                new BigDecimal("700.00"),
+                Map.of("rawMaterialInventoryAccountId", 801L),
+                true
+        );
+
+        when(brandRepository.findByCompanyAndId(company, 11L)).thenReturn(Optional.of(brand));
+        when(productRepository.findByCompanyAndId(company, 5031L)).thenReturn(Optional.of(existing));
+        when(productRepository.findByBrandAndProductNameIgnoreCase(brand, "Legacy Bucket Resin Updated"))
+                .thenReturn(Optional.of(existing));
+        when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "PKG-LEGACY-001"))
+                .thenReturn(Optional.of(legacyProductionMaterial));
+        when(rawMaterialRepository.findByCompanyAndSku(company, "PKG-LEGACY-001"))
+                .thenReturn(Optional.of(legacyProductionMaterial));
+
+        CatalogProductDto response = service.updateProduct(5031L, request);
+
+        assertThat(response.category()).isEqualTo("RAW_MATERIAL");
+        assertThat(response.itemClass()).isEqualTo("RAW_MATERIAL");
+        assertThat(legacyProductionMaterial.getMaterialType()).isEqualTo(MaterialType.PRODUCTION);
+    }
+
+    @Test
+    void updateProduct_reclassifiesFinishedGoodAsRawMaterialAndDeletesStaleFinishedGoodMirror() {
+        ProductionProduct existing = new ProductionProduct();
+        ReflectionTestUtils.setField(existing, "id", 50315L);
+        existing.setCompany(company);
+        existing.setBrand(brand);
+        existing.setProductName("Primer Base");
+        existing.setCategory("FINISHED_GOOD");
+        existing.setSkuCode("FG-TO-RM-001");
+        existing.setActive(true);
+        existing.setColors(new LinkedHashSet<>(List.of("White")));
+        existing.setSizes(new LinkedHashSet<>(List.of("20L")));
+        existing.setCartonSizes(new LinkedHashMap<>(Map.of("20L", 1)));
+        existing.setUnitOfMeasure("LITER");
+        existing.setHsnCode("320890");
+        existing.setBasePrice(new BigDecimal("710.00"));
+        existing.setGstRate(new BigDecimal("18.00"));
+        existing.setMetadata(new LinkedHashMap<>(Map.of("productType", "decorative")));
+
+        RawMaterial syncedMaterial = new RawMaterial();
+        syncedMaterial.setCompany(company);
+        syncedMaterial.setSku("FG-TO-RM-001");
+        syncedMaterial.setMaterialType(MaterialType.PRODUCTION);
+
+        FinishedGood staleFinishedGood = new FinishedGood();
+        staleFinishedGood.setCompany(company);
+        staleFinishedGood.setProductCode("FG-TO-RM-001");
+
+        CatalogProductRequest request = new CatalogProductRequest(
+                11L,
+                "Primer Base Raw",
+                "RAW_MATERIAL",
+                List.of("White"),
+                List.of("20L"),
+                List.of(new CatalogProductCartonSizeRequest("20L", 1)),
+                "LITER",
+                "320890",
+                new BigDecimal("720.00"),
+                new BigDecimal("18.00"),
+                null,
+                null,
+                Map.of("rawMaterialInventoryAccountId", 801L),
+                true
+        );
+
+        when(brandRepository.findByCompanyAndId(company, 11L)).thenReturn(Optional.of(brand));
+        when(productRepository.findByCompanyAndId(company, 50315L)).thenReturn(Optional.of(existing));
+        when(productRepository.findByBrandAndProductNameIgnoreCase(brand, "Primer Base Raw"))
+                .thenReturn(Optional.of(existing));
+        when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(rawMaterialRepository.findByCompanyAndSku(company, "FG-TO-RM-001")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "FG-TO-RM-001"))
+                .thenReturn(Optional.of(syncedMaterial));
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "FG-TO-RM-001"))
+                .thenReturn(Optional.of(staleFinishedGood));
+
+        CatalogProductDto response = service.updateProduct(50315L, request);
+
+        assertThat(response.category()).isEqualTo("RAW_MATERIAL");
+        assertThat(response.itemClass()).isEqualTo("RAW_MATERIAL");
+        verify(rawMaterialRepository).save(any(RawMaterial.class));
+        verify(finishedGoodRepository).delete(staleFinishedGood);
+    }
+
+    @Test
+    void updateProduct_reclassifiesRawMaterialAsFinishedGoodAndDeletesStaleRawMaterialMirror() {
+        ProductionProduct existing = new ProductionProduct();
+        ReflectionTestUtils.setField(existing, "id", 50316L);
+        existing.setCompany(company);
+        existing.setBrand(brand);
+        existing.setProductName("Resin Base");
+        existing.setCategory("RAW_MATERIAL");
+        existing.setSkuCode("RM-TO-FG-001");
+        existing.setActive(true);
+        existing.setColors(new LinkedHashSet<>(List.of("White")));
+        existing.setSizes(new LinkedHashSet<>(List.of("20L")));
+        existing.setCartonSizes(new LinkedHashMap<>(Map.of("20L", 1)));
+        existing.setUnitOfMeasure("LITER");
+        existing.setHsnCode("320890");
+        existing.setBasePrice(new BigDecimal("410.00"));
+        existing.setGstRate(new BigDecimal("18.00"));
+        existing.setMetadata(new LinkedHashMap<>(Map.of("rawMaterialInventoryAccountId", 801L)));
+
+        RawMaterial staleRawMaterial = new RawMaterial();
+        staleRawMaterial.setCompany(company);
+        staleRawMaterial.setSku("RM-TO-FG-001");
+        staleRawMaterial.setMaterialType(MaterialType.PRODUCTION);
+
+        CatalogProductRequest request = new CatalogProductRequest(
+                11L,
+                "Resin Base Finish",
+                "FINISHED_GOOD",
+                List.of("White"),
+                List.of("20L"),
+                List.of(new CatalogProductCartonSizeRequest("20L", 1)),
+                "LITER",
+                "320890",
+                new BigDecimal("510.00"),
+                new BigDecimal("18.00"),
+                null,
+                null,
+                Map.of("productType", "decorative"),
+                true
+        );
+
+        when(brandRepository.findByCompanyAndId(company, 11L)).thenReturn(Optional.of(brand));
+        when(productRepository.findByCompanyAndId(company, 50316L)).thenReturn(Optional.of(existing));
+        when(productRepository.findByBrandAndProductNameIgnoreCase(brand, "Resin Base Finish"))
+                .thenReturn(Optional.of(existing));
+        when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "RM-TO-FG-001")).thenReturn(Optional.empty());
+        when(finishedGoodRepository.save(any(FinishedGood.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(rawMaterialRepository.findByCompanyAndSku(company, "RM-TO-FG-001"))
+                .thenReturn(Optional.of(staleRawMaterial));
+
+        CatalogProductDto response = service.updateProduct(50316L, request);
+
+        assertThat(response.category()).isEqualTo("FINISHED_GOOD");
+        assertThat(response.itemClass()).isEqualTo("FINISHED_GOOD");
+        verify(finishedGoodRepository).save(any(FinishedGood.class));
+        verify(rawMaterialRepository).delete(staleRawMaterial);
+    }
+
+    @Test
+    void updateProduct_rejectsUnknownItemClassValues() {
+        ProductionProduct existing = new ProductionProduct();
+        ReflectionTestUtils.setField(existing, "id", 5032L);
+        existing.setCompany(company);
+        existing.setBrand(brand);
+        existing.setProductName("Primer");
+        existing.setCategory("FINISHED_GOOD");
+        existing.setSkuCode("BBR-PRIMER-003");
+
+        CatalogProductRequest request = new CatalogProductRequest(
+                11L,
+                "Primer Updated",
+                "LEGACY_ITEM_CLASS",
+                List.of("White"),
+                List.of("1L"),
+                List.of(new CatalogProductCartonSizeRequest("1L", 12)),
+                "LITER",
+                "320910",
+                new BigDecimal("720.00"),
+                new BigDecimal("18.00"),
+                new BigDecimal("4.50"),
+                new BigDecimal("700.00"),
+                Map.of("productType", "decorative"),
+                true
+        );
+
+        when(brandRepository.findByCompanyAndId(company, 11L)).thenReturn(Optional.of(brand));
+        when(productRepository.findByCompanyAndId(company, 5032L)).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> service.updateProduct(5032L, request))
+                .hasMessageContaining("itemClass must be FINISHED_GOOD, RAW_MATERIAL, or PACKAGING_RAW_MATERIAL");
+    }
+
+    @Test
+    void getProduct_returnsRawMaterialMirrorIdentityForPublicView() {
+        ProductionProduct existing = new ProductionProduct();
+        ReflectionTestUtils.setField(existing, "id", 5033L);
+        existing.setCompany(company);
+        existing.setBrand(brand);
+        existing.setProductName("Bucket Lid WHITE 1L");
+        existing.setCategory("RAW_MATERIAL");
+        existing.setSkuCode("PKG-BBR-LID-WHITE-1L");
+        existing.setActive(true);
+        existing.setColors(new LinkedHashSet<>(List.of("WHITE")));
+        existing.setSizes(new LinkedHashSet<>(List.of("1L")));
+        existing.setCartonSizes(new LinkedHashMap<>(java.util.Map.of("1L", 1)));
+        existing.setUnitOfMeasure("UNIT");
+        existing.setHsnCode("392310");
+        existing.setMetadata(new LinkedHashMap<>(Map.of("wipAccountId", 801L)));
+
+        RawMaterial rawMaterial = new RawMaterial();
+        ReflectionTestUtils.setField(rawMaterial, "id", 8802L);
+        rawMaterial.setCompany(company);
+        rawMaterial.setSku("PKG-BBR-LID-WHITE-1L");
+        rawMaterial.setMaterialType(MaterialType.PACKAGING);
+
+        when(productRepository.findByCompanyAndId(company, 5033L)).thenReturn(Optional.of(existing));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "PKG-BBR-LID-WHITE-1L"))
+                .thenReturn(Optional.of(rawMaterial));
+
+        CatalogProductDto response = service.getProduct(5033L, false);
+
+        assertThat(response.rawMaterialId()).isEqualTo(8802L);
+        assertThat(response.itemClass()).isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat(response.metadata()).doesNotContainKey("wipAccountId");
+    }
+
+    @Test
     void updateProduct_mergesMetadataWithoutDroppingFinishedGoodPostingAccounts() {
         ProductionProduct existing = new ProductionProduct();
         ReflectionTestUtils.setField(existing, "id", 504L);
@@ -307,6 +578,7 @@ class CatalogServiceProductCrudTest {
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
                 "Primer Updated",
+                null,
                 List.of("White"),
                 List.of("1L"),
                 List.of(new CatalogProductCartonSizeRequest("1L", 12)),
@@ -368,6 +640,7 @@ class CatalogServiceProductCrudTest {
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
                 "Premium Primer WHITE 1L",
+                null,
                 List.of("WHITE"),
                 List.of("1L"),
                 List.of(new CatalogProductCartonSizeRequest("1L", 1)),
@@ -425,6 +698,7 @@ class CatalogServiceProductCrudTest {
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
                 "Premium Primer Updated WHITE 1L",
+                null,
                 List.of("WHITE"),
                 List.of("1L"),
                 List.of(new CatalogProductCartonSizeRequest("1L", 1)),
@@ -483,6 +757,7 @@ class CatalogServiceProductCrudTest {
         CatalogProductRequest request = new CatalogProductRequest(
                 11L,
                 "Primer",
+                null,
                 List.of("White"),
                 List.of("1L"),
                 List.of(new CatalogProductCartonSizeRequest("1L", 12)),
@@ -549,7 +824,8 @@ class CatalogServiceProductCrudTest {
                 canonicalProduct,
                 brand,
                 "Premium Primer WHITE 1L",
-                "Premium Primer");
+                "Premium Primer",
+                "FINISHED_GOOD");
 
         UUID expectedVariantGroupId = ReflectionTestUtils.invokeMethod(
                 service,
@@ -654,6 +930,188 @@ class CatalogServiceProductCrudTest {
                 999L,
                 "RM-999"))
                 .hasMessageContaining("invalid inventory account id 999");
+    }
+
+    @Test
+    void helperMethods_coverPackagingItemClassResolution() {
+        RawMaterial packagingMaterial = new RawMaterial();
+        packagingMaterial.setMaterialType(MaterialType.PACKAGING);
+        RawMaterial legacyProductionMaterial = new RawMaterial();
+        legacyProductionMaterial.setMaterialType(MaterialType.PRODUCTION);
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "PKG-001")).thenReturn(Optional.of(packagingMaterial));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "PKG-LEGACY")).thenReturn(Optional.of(legacyProductionMaterial));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "RM-001")).thenReturn(Optional.empty());
+
+        ProductionProduct packagingProduct = new ProductionProduct();
+        packagingProduct.setCompany(company);
+        packagingProduct.setCategory("RAW_MATERIAL");
+        packagingProduct.setSkuCode("PKG-001");
+
+        ProductionProduct legacyProductionProduct = new ProductionProduct();
+        legacyProductionProduct.setCompany(company);
+        legacyProductionProduct.setCategory("RAW_MATERIAL");
+        legacyProductionProduct.setSkuCode("PKG-LEGACY");
+
+        ProductionProduct rawMaterialProduct = new ProductionProduct();
+        rawMaterialProduct.setCompany(company);
+        rawMaterialProduct.setCategory("RAW_MATERIAL");
+        rawMaterialProduct.setSkuCode("RM-001");
+
+        ProductionProduct finishedGoodProduct = new ProductionProduct();
+        finishedGoodProduct.setCategory("FINISHED_GOOD");
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", new Object[]{null}))
+                .isEqualTo("FINISHED_GOOD");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", finishedGoodProduct))
+                .isEqualTo("FINISHED_GOOD");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", packagingProduct))
+                .isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", legacyProductionProduct, legacyProductionMaterial))
+                .isEqualTo("RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", rawMaterialProduct))
+                .isEqualTo("RAW_MATERIAL");
+    }
+
+    @Test
+    void helperMethods_coverRequestedItemClassAndRawMaterialResolutionBranches() {
+        ProductionProduct legacyPackagingSkuProduct = new ProductionProduct();
+        legacyPackagingSkuProduct.setCompany(company);
+        legacyPackagingSkuProduct.setCategory("RAW_MATERIAL");
+        legacyPackagingSkuProduct.setSkuCode("PKG-LEGACY");
+
+        RawMaterial legacyProductionMirror = new RawMaterial();
+        legacyProductionMirror.setMaterialType(MaterialType.PRODUCTION);
+
+        ProductionProduct plainRaw = new ProductionProduct();
+        plainRaw.setCategory("RAW_MATERIAL");
+        plainRaw.setProductName("Resin Base");
+        plainRaw.setSkuCode("RM-PLAIN");
+
+        RawMaterial productionMirror = new RawMaterial();
+        productionMirror.setMaterialType(MaterialType.PRODUCTION);
+        RawMaterial duplicateMirror = new RawMaterial();
+        duplicateMirror.setSku("PKG-DUPLICATE");
+        RawMaterial duplicateMirror2 = new RawMaterial();
+        duplicateMirror2.setSku("PKG-DUPLICATE");
+
+        ProductionProduct duplicateSkuProduct = new ProductionProduct();
+        duplicateSkuProduct.setSkuCode("PKG-DUPLICATE");
+        duplicateSkuProduct.setCategory("RAW_MATERIAL");
+
+        ProductionProduct blankSkuProduct = new ProductionProduct();
+        blankSkuProduct.setSkuCode("   ");
+        blankSkuProduct.setCategory("RAW_MATERIAL");
+
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "PKG-LEGACY"))
+                .thenReturn(Optional.of(legacyProductionMirror));
+        when(rawMaterialRepository.findByCompanyAndSkuInIgnoreCase(company, List.of("pkg-duplicate")))
+                .thenReturn(List.of(duplicateMirror, duplicateMirror2));
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "resolveRequestedItemClass", null, null, true))
+                .hasMessageContaining("itemClass must be FINISHED_GOOD, RAW_MATERIAL, or PACKAGING_RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "resolveRequestedItemClass", legacyPackagingSkuProduct, null, false))
+                .isEqualTo("RAW_MATERIAL");
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "normalizeItemClass", (Object) null))
+                .hasMessageContaining("itemClass must be FINISHED_GOOD, RAW_MATERIAL, or PACKAGING_RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeItemClass", "packaging"))
+                .isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeItemClass", "production"))
+                .isEqualTo("RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "categoryForItemClass", "PACKAGING_RAW_MATERIAL"))
+                .isEqualTo("RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeSkuKey", " pkg-001 "))
+                .isEqualTo("PKG-001");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeSkuLookupKey", " pkg-001 "))
+                .isEqualTo("pkg-001");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeSkuKey", "   "))
+                .isNull();
+        assertThat((Map<?, ?>) ReflectionTestUtils.invokeMethod(service, "rawMaterialsBySku", null, List.of(legacyPackagingSkuProduct)))
+                .isEmpty();
+        assertThat((Map<?, ?>) ReflectionTestUtils.invokeMethod(service, "rawMaterialsBySku", company, null))
+                .isEmpty();
+        assertThat((Map<?, ?>) ReflectionTestUtils.invokeMethod(service, "rawMaterialsBySku", company, List.of()))
+                .isEmpty();
+        assertThat((Map<?, ?>) ReflectionTestUtils.invokeMethod(service, "rawMaterialsBySku", company, List.of(blankSkuProduct)))
+                .isEmpty();
+        assertThat((Map<?, ?>) ReflectionTestUtils.invokeMethod(service, "rawMaterialsBySku", company, List.of(duplicateSkuProduct)))
+                .hasSize(1);
+        assertThat((MaterialType) ReflectionTestUtils.invokeMethod(service, "resolveRawMaterialMaterialType", plainRaw, productionMirror, null))
+                .isEqualTo(MaterialType.PRODUCTION);
+        assertThat((MaterialType) ReflectionTestUtils.invokeMethod(service, "resolveRawMaterialMaterialType", plainRaw, null, "RAW_MATERIAL"))
+                .isEqualTo(MaterialType.PRODUCTION);
+        assertThat((MaterialType) ReflectionTestUtils.invokeMethod(service, "resolveRawMaterialMaterialType", plainRaw, null, "PACKAGING"))
+                .isEqualTo(MaterialType.PACKAGING);
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "normalizeItemClass", "LEGACY"))
+                .hasMessageContaining("itemClass must be FINISHED_GOOD, RAW_MATERIAL, or PACKAGING_RAW_MATERIAL");
+    }
+
+    @Test
+    void helperMethods_coverSkuNormalizationAndDefaultItemClassResolution() {
+        ProductionProduct rawProduct = new ProductionProduct();
+        rawProduct.setCategory("RAW_MATERIAL");
+        rawProduct.setSkuCode("PKG-BBR-PACK-1");
+
+        ProductionProduct finishedGoodProduct = new ProductionProduct();
+        finishedGoodProduct.setCategory("FINISHED_GOOD");
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeSkuKey", " pkg-bbr-pack-1 "))
+                .isEqualTo("PKG-BBR-PACK-1");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeSkuLookupKey", " pkg-bbr-pack-1 "))
+                .isEqualTo("pkg-bbr-pack-1");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeSkuKey", "   "))
+                .isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", new Object[]{null}))
+                .isEqualTo("FINISHED_GOOD");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", finishedGoodProduct))
+                .isEqualTo("FINISHED_GOOD");
+        assertThat((String) ReflectionTestUtils.invokeMethod(service, "itemClassForProduct", rawProduct))
+                .isEqualTo("RAW_MATERIAL");
+    }
+
+    @Test
+    void helperMethods_coverNullMaterialTypeAndPackagingSkuFallbackBranches() {
+        ProductionProduct blankSkuRaw = new ProductionProduct();
+        blankSkuRaw.setCompany(company);
+        blankSkuRaw.setCategory("RAW_MATERIAL");
+        blankSkuRaw.setSkuCode("   ");
+
+        ProductionProduct plainRaw = new ProductionProduct();
+        plainRaw.setCategory("RAW_MATERIAL");
+        plainRaw.setProductName("Resin Base");
+        plainRaw.setSkuCode("RM-PLAIN");
+
+        ProductionProduct packagingSkuRaw = new ProductionProduct();
+        packagingSkuRaw.setCategory("RAW_MATERIAL");
+        packagingSkuRaw.setSkuCode("PKG-NO-MIRROR");
+
+        RawMaterial unresolvedMirror = new RawMaterial();
+        unresolvedMirror.setMaterialType(null);
+
+        assertThat((RawMaterial) ReflectionTestUtils.invokeMethod(service, "rawMaterialForProduct", blankSkuRaw)).isNull();
+        assertThat((MaterialType) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveRawMaterialMaterialType",
+                plainRaw,
+                unresolvedMirror,
+                null)).isEqualTo(MaterialType.PRODUCTION);
+        assertThat((MaterialType) ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveRawMaterialMaterialType",
+                plainRaw,
+                null,
+                null)).isEqualTo(MaterialType.PRODUCTION);
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service,
+                "itemClassForProduct",
+                plainRaw,
+                unresolvedMirror)).isEqualTo("RAW_MATERIAL");
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service,
+                "itemClassForProduct",
+                packagingSkuRaw,
+                unresolvedMirror)).isEqualTo("RAW_MATERIAL");
+
+        verifyNoInteractions(rawMaterialRepository);
     }
 
     @Test
@@ -800,5 +1258,311 @@ class CatalogServiceProductCrudTest {
         assertThat(pageableCaptor.getValue().getPageNumber()).isEqualTo(1);
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(5);
         assertThat(pageableCaptor.getValue().getSort().getOrderFor("productName")).isNotNull();
+    }
+
+    @Test
+    void searchProducts_batchesRawMaterialMirrorLookupForPackagingRows() {
+        ProductionProduct product = new ProductionProduct();
+        ReflectionTestUtils.setField(product, "id", 702L);
+        product.setCompany(company);
+        product.setBrand(brand);
+        product.setProductName("Bucket Shell WHITE 1L");
+        product.setCategory("RAW_MATERIAL");
+        product.setSkuCode("Pkg-Bbr-Bucket-White-1L");
+        product.setDefaultColour("WHITE");
+        product.setSizeLabel("1L");
+        product.setUnitOfMeasure("UNIT");
+        product.setHsnCode("392310");
+        product.setActive(true);
+
+        RawMaterial rawMaterial = new RawMaterial();
+        ReflectionTestUtils.setField(rawMaterial, "id", 8801L);
+        rawMaterial.setCompany(company);
+        rawMaterial.setSku("PKG-BBR-BUCKET-WHITE-1L");
+        rawMaterial.setMaterialType(MaterialType.PACKAGING);
+
+        when(productRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(product), org.springframework.data.domain.PageRequest.of(0, 20), 1));
+        when(rawMaterialRepository.findByCompanyAndSkuInIgnoreCase(eq(company), anyCollection()))
+                .thenReturn(List.of(rawMaterial));
+
+        PageResponse<CatalogProductDto> response = service.searchProducts(null, null, null, true, 0, 20);
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.content().getFirst().itemClass()).isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat(response.content().getFirst().rawMaterialId()).isEqualTo(8801L);
+        verify(rawMaterialRepository).findByCompanyAndSkuInIgnoreCase(eq(company), argThat(skus ->
+                skus.size() == 1
+                        && skus.contains("pkg-bbr-bucket-white-1l")
+                        && !skus.contains("Pkg-Bbr-Bucket-White-1L")));
+        verify(rawMaterialRepository, never()).findByCompanyAndSkuIgnoreCase(any(), any());
+    }
+
+    @Test
+    void createItem_translatesCanonicalRequestAndHydratesPackagingMirror() {
+        CatalogItemRequest request = new CatalogItemRequest(
+                11L,
+                "Bucket Shell",
+                "PACKAGING_RAW_MATERIAL",
+                "WHITE",
+                "1L",
+                "UNIT",
+                "392310",
+                new BigDecimal("12.00"),
+                new BigDecimal("18.00"),
+                BigDecimal.ZERO,
+                new BigDecimal("12.00"),
+                Map.of("inventoryAccountId", 9001L),
+                true
+        );
+
+        ProductionProduct created = new ProductionProduct();
+        ReflectionTestUtils.setField(created, "id", 801L);
+        created.setCompany(company);
+        created.setBrand(brand);
+        created.setProductName("Bucket Shell WHITE 1L");
+        created.setCategory("RAW_MATERIAL");
+        created.setSkuCode("PKG-BBR-BUCKET-WHITE-1L");
+        created.setDefaultColour("WHITE");
+        created.setSizeLabel("1L");
+        created.setUnitOfMeasure("UNIT");
+        created.setHsnCode("392310");
+        created.setBasePrice(new BigDecimal("12.00"));
+        created.setGstRate(new BigDecimal("18.00"));
+        created.setMinDiscountPercent(BigDecimal.ZERO);
+        created.setMinSellingPrice(new BigDecimal("12.00"));
+        created.setMetadata(new LinkedHashMap<>(Map.of("inventoryAccountId", 9001L)));
+        created.setActive(true);
+
+        RawMaterial rawMaterial = new RawMaterial();
+        ReflectionTestUtils.setField(rawMaterial, "id", 8801L);
+        rawMaterial.setCompany(company);
+        rawMaterial.setSku("PKG-BBR-BUCKET-WHITE-1L");
+        rawMaterial.setMaterialType(MaterialType.PACKAGING);
+        rawMaterial.setCurrentStock(new BigDecimal("7.50"));
+
+        when(productionCatalogService.createProduct(any(ProductCreateRequest.class))).thenReturn(new ProductionProductDto(
+                801L,
+                null,
+                11L,
+                brand.getName(),
+                brand.getCode(),
+                created.getProductName(),
+                created.getCategory(),
+                created.getDefaultColour(),
+                created.getSizeLabel(),
+                created.getUnitOfMeasure(),
+                created.getHsnCode(),
+                created.getSkuCode(),
+                null,
+                "Bucket Shell",
+                true,
+                created.getBasePrice(),
+                created.getGstRate(),
+                created.getMinDiscountPercent(),
+                created.getMinSellingPrice(),
+                created.getMetadata()
+        ));
+        when(productRepository.findByCompanyAndId(company, 801L)).thenReturn(Optional.of(created));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "PKG-BBR-BUCKET-WHITE-1L"))
+                .thenReturn(Optional.of(rawMaterial));
+        when(skuReadinessService.forProduct(company, created)).thenReturn(null);
+
+        CatalogItemDto response = service.createItem(request);
+
+        ArgumentCaptor<ProductCreateRequest> requestCaptor = ArgumentCaptor.forClass(ProductCreateRequest.class);
+        verify(productionCatalogService).createProduct(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().itemClass()).isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat(requestCaptor.getValue().defaultColour()).isEqualTo("WHITE");
+        assertThat(requestCaptor.getValue().sizeLabel()).isEqualTo("1L");
+        assertThat(requestCaptor.getValue().active()).isTrue();
+        assertThat(response.id()).isEqualTo(801L);
+        assertThat(response.itemClass()).isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat(response.rawMaterialId()).isEqualTo(8801L);
+        assertThat(response.stock().onHandQuantity()).isEqualByComparingTo("7.50");
+        assertThat(response.stock().availableQuantity()).isEqualByComparingTo("7.50");
+    }
+
+    @Test
+    void updateItem_delegatesCanonicalUpdateAndHydratesFinishedGoodMirror() {
+        ProductionProduct existing = new ProductionProduct();
+        ReflectionTestUtils.setField(existing, "id", 802L);
+        existing.setCompany(company);
+        existing.setBrand(brand);
+        existing.setProductName("Primer");
+        existing.setCategory("FINISHED_GOOD");
+        existing.setSkuCode("BBR-PRIMER-001");
+        existing.setDefaultColour("WHITE");
+        existing.setSizeLabel("20L");
+        existing.setUnitOfMeasure("LITER");
+        existing.setHsnCode("320810");
+        existing.setBasePrice(new BigDecimal("799.00"));
+        existing.setGstRate(new BigDecimal("18.00"));
+        existing.setMinDiscountPercent(new BigDecimal("5.00"));
+        existing.setMinSellingPrice(new BigDecimal("760.00"));
+        existing.setActive(true);
+
+        FinishedGood finishedGood = new FinishedGood();
+        finishedGood.setCompany(company);
+        finishedGood.setProductCode("BBR-PRIMER-001");
+        finishedGood.setCurrentStock(new BigDecimal("12.00"));
+        finishedGood.setReservedStock(new BigDecimal("2.00"));
+        finishedGood.setUnit("LITER");
+
+        CatalogItemRequest request = new CatalogItemRequest(
+                11L,
+                "Primer Updated",
+                "FINISHED_GOOD",
+                "WHITE",
+                "20L",
+                "LITER",
+                "320810",
+                new BigDecimal("820.00"),
+                new BigDecimal("18.00"),
+                new BigDecimal("4.00"),
+                new BigDecimal("790.00"),
+                Map.of("productType", "decorative"),
+                false
+        );
+
+        when(productRepository.findByCompanyAndId(company, 802L)).thenReturn(Optional.of(existing));
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "BBR-PRIMER-001"))
+                .thenReturn(Optional.of(finishedGood));
+        when(skuReadinessService.forProduct(company, existing)).thenReturn(null);
+        when(productionCatalogService.updateProduct(eq(802L), any(ProductUpdateRequest.class))).thenAnswer(invocation -> {
+            existing.setProductName("Primer Updated");
+            existing.setActive(false);
+            existing.setBasePrice(new BigDecimal("820.00"));
+            existing.setMinDiscountPercent(new BigDecimal("4.00"));
+            existing.setMinSellingPrice(new BigDecimal("790.00"));
+            return new ProductionProductDto(
+                    802L,
+                    null,
+                    11L,
+                    brand.getName(),
+                    brand.getCode(),
+                    existing.getProductName(),
+                    existing.getCategory(),
+                    existing.getDefaultColour(),
+                    existing.getSizeLabel(),
+                    existing.getUnitOfMeasure(),
+                    existing.getHsnCode(),
+                    existing.getSkuCode(),
+                    null,
+                    "Primer",
+                    existing.isActive(),
+                    existing.getBasePrice(),
+                    existing.getGstRate(),
+                    existing.getMinDiscountPercent(),
+                    existing.getMinSellingPrice(),
+                    Map.of("productType", "decorative")
+            );
+        });
+
+        CatalogItemDto response = service.updateItem(802L, request);
+
+        ArgumentCaptor<ProductUpdateRequest> requestCaptor = ArgumentCaptor.forClass(ProductUpdateRequest.class);
+        verify(productionCatalogService).updateProduct(eq(802L), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().itemClass()).isEqualTo("FINISHED_GOOD");
+        assertThat(requestCaptor.getValue().active()).isFalse();
+        assertThat(response.active()).isFalse();
+        assertThat(response.stock().onHandQuantity()).isEqualByComparingTo("12.00");
+        assertThat(response.stock().reservedQuantity()).isEqualByComparingTo("2.00");
+        assertThat(response.stock().availableQuantity()).isEqualByComparingTo("10.00");
+    }
+
+    @Test
+    void deactivateItem_marksItemInactiveAndReturnsHydratedMirror() {
+        ProductionProduct existing = new ProductionProduct();
+        ReflectionTestUtils.setField(existing, "id", 803L);
+        existing.setCompany(company);
+        existing.setBrand(brand);
+        existing.setProductName("Titanium Dioxide");
+        existing.setCategory("RAW_MATERIAL");
+        existing.setSkuCode("RM-TIO2-001");
+        existing.setUnitOfMeasure("KG");
+        existing.setHsnCode("282300");
+        existing.setActive(true);
+
+        RawMaterial rawMaterial = new RawMaterial();
+        ReflectionTestUtils.setField(rawMaterial, "id", 8803L);
+        rawMaterial.setCompany(company);
+        rawMaterial.setSku("RM-TIO2-001");
+        rawMaterial.setMaterialType(MaterialType.PRODUCTION);
+        rawMaterial.setCurrentStock(new BigDecimal("3.00"));
+
+        when(productRepository.findByCompanyAndId(company, 803L)).thenReturn(Optional.of(existing));
+        when(productRepository.save(any(ProductionProduct.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "RM-TIO2-001")).thenReturn(Optional.of(rawMaterial));
+        when(skuReadinessService.forProduct(company, existing)).thenReturn(null);
+
+        CatalogItemDto response = service.deactivateItem(803L);
+
+        assertThat(existing.isActive()).isFalse();
+        assertThat(response.active()).isFalse();
+        assertThat(response.rawMaterialId()).isEqualTo(8803L);
+        assertThat(response.stock().availableQuantity()).isEqualByComparingTo("3.00");
+    }
+
+    @Test
+    void searchItems_filtersByItemClassAndIncludesStock() {
+        ProductionProduct packaging = new ProductionProduct();
+        ReflectionTestUtils.setField(packaging, "id", 804L);
+        packaging.setCompany(company);
+        packaging.setBrand(brand);
+        packaging.setProductName("Bucket Shell WHITE 1L");
+        packaging.setCategory("RAW_MATERIAL");
+        packaging.setSkuCode("Pkg-Bbr-Bucket-White-1L");
+        packaging.setDefaultColour("WHITE");
+        packaging.setSizeLabel("1L");
+        packaging.setUnitOfMeasure("UNIT");
+        packaging.setHsnCode("392310");
+        packaging.setMetadata(new LinkedHashMap<>(Map.of("inventoryAccountId", 9001L)));
+        packaging.setActive(true);
+
+        ProductionProduct finishedGoodProduct = new ProductionProduct();
+        ReflectionTestUtils.setField(finishedGoodProduct, "id", 805L);
+        finishedGoodProduct.setCompany(company);
+        finishedGoodProduct.setBrand(brand);
+        finishedGoodProduct.setProductName("Primer");
+        finishedGoodProduct.setCategory("FINISHED_GOOD");
+        finishedGoodProduct.setSkuCode("BBR-PRIMER-002");
+        finishedGoodProduct.setUnitOfMeasure("LITER");
+        finishedGoodProduct.setHsnCode("320810");
+        finishedGoodProduct.setActive(true);
+
+        RawMaterial packagingMirror = new RawMaterial();
+        ReflectionTestUtils.setField(packagingMirror, "id", 8804L);
+        packagingMirror.setCompany(company);
+        packagingMirror.setSku("PKG-BBR-BUCKET-WHITE-1L");
+        packagingMirror.setMaterialType(MaterialType.PACKAGING);
+        packagingMirror.setCurrentStock(new BigDecimal("9.00"));
+
+        when(productRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(packaging), org.springframework.data.domain.PageRequest.of(0, 20), 1));
+        when(rawMaterialRepository.findByCompanyAndSkuInIgnoreCase(eq(company), anyCollection()))
+                .thenReturn(List.of(packagingMirror));
+        when(finishedGoodRepository.findByCompanyAndProductCodeInIgnoreCase(eq(company), anyCollection()))
+                .thenReturn(List.of());
+        when(skuReadinessService.forProducts(company, List.of(packaging))).thenReturn(Map.of());
+
+        PageResponse<CatalogItemDto> response = service.searchItems(
+                "bucket",
+                "PACKAGING_RAW_MATERIAL",
+                true,
+                true,
+                0,
+                20,
+                false
+        );
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.content().getFirst().id()).isEqualTo(804L);
+        assertThat(response.content().getFirst().itemClass()).isEqualTo("PACKAGING_RAW_MATERIAL");
+        assertThat(response.content().getFirst().rawMaterialId()).isEqualTo(8804L);
+        assertThat(response.content().getFirst().stock().availableQuantity()).isEqualByComparingTo("9.00");
+        assertThat(response.content().getFirst().metadata()).doesNotContainKey("inventoryAccountId");
+        verify(rawMaterialRepository).findByCompanyAndSkuInIgnoreCase(eq(company), argThat(skus ->
+                skus.size() == 1 && skus.contains("pkg-bbr-bucket-white-1l")));
     }
 }

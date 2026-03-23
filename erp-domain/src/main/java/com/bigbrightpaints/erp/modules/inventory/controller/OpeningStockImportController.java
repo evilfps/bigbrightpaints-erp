@@ -41,11 +41,18 @@ public class OpeningStockImportController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_FACTORY')")
     public ResponseEntity<ApiResponse<OpeningStockImportResponse>> importOpeningStock(
             @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestParam(value = "openingStockBatchKey", required = false) String openingStockBatchKey,
             @RequestPart("file") MultipartFile file,
             Authentication authentication) {
         boolean includeAccountingMetadata = canViewAccountingMetadata(authentication);
+        String effectiveOpeningStockBatchKey = StringUtils.hasText(openingStockBatchKey)
+                ? openingStockBatchKey
+                : idempotencyKey;
         try {
-            OpeningStockImportResponse response = openingStockImportService.importOpeningStock(file, idempotencyKey);
+            OpeningStockImportResponse response = openingStockImportService.importOpeningStock(
+                    file,
+                    idempotencyKey,
+                    effectiveOpeningStockBatchKey);
             return ResponseEntity.ok(ApiResponse.success(
                     "Opening stock import processed",
                     sanitizeResponseReadiness(response, includeAccountingMetadata)));
@@ -72,10 +79,9 @@ public class OpeningStockImportController {
             return response;
         }
         return new OpeningStockImportResponse(
+                response.openingStockBatchKey(),
                 response.rowsProcessed(),
-                response.rawMaterialsCreated(),
                 response.rawMaterialBatchesCreated(),
-                response.finishedGoodsCreated(),
                 response.finishedGoodBatchesCreated(),
                 response.results().stream()
                         .map(result -> new OpeningStockImportResponse.ImportRowResult(

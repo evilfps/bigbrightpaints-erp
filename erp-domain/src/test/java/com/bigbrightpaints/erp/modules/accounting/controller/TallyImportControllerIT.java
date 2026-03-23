@@ -114,7 +114,7 @@ class TallyImportControllerIT extends AbstractIntegrationTest {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth((String) login.getBody().get("accessToken"));
-        headers.set("X-Company-Id", COMPANY_CODE);
+        headers.set("X-Company-Code", COMPANY_CODE);
         return headers;
     }
 

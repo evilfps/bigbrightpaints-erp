@@ -34,30 +34,17 @@ public class InventorySmokeIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void create_raw_material_and_check_stock_summary() {
+    void stock_summary_is_available_for_inventory_workbench() {
         String token = loginToken();
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        Map<String, Object> request = Map.of(
-                "name", "Titanium Dioxide",
-                "sku", "RM-001",
-                "unitType", "KG",
-                "reorderLevel", new BigDecimal("50"),
-                "minStock", new BigDecimal("20"),
-                "maxStock", new BigDecimal("500")
-        );
-
-        ResponseEntity<Map> createResp = rest.exchange("/api/v1/accounting/raw-materials", HttpMethod.POST,
-                new HttpEntity<>(request, headers), Map.class);
-        assertThat(createResp.getStatusCode()).isEqualTo(HttpStatus.OK);
-
         ResponseEntity<Map> summaryResp = rest.exchange("/api/v1/raw-materials/stock", HttpMethod.GET,
                 new HttpEntity<>(headers), Map.class);
         assertThat(summaryResp.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map data = (Map) summaryResp.getBody().get("data");
-        assertThat(((Number) data.get("totalMaterials")).longValue()).isGreaterThanOrEqualTo(1L);
+        assertThat(data).containsKeys("totalMaterials", "lowStockMaterials", "criticalStockMaterials");
     }
 }

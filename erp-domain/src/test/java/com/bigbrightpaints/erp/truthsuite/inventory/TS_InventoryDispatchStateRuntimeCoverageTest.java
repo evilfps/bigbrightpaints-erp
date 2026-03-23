@@ -7,8 +7,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.accounting.service.CostingMethodService;
@@ -56,6 +58,8 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
     @Mock
     private CompanyContextService companyContextService;
     @Mock
+    private CompanyEntityLookup companyEntityLookup;
+    @Mock
     private FinishedGoodRepository finishedGoodRepository;
     @Mock
     private FinishedGoodBatchRepository finishedGoodBatchRepository;
@@ -90,6 +94,7 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
     void setUp() {
         service = new FinishedGoodsWorkflowEngineService(
                 companyContextService,
+                companyEntityLookup,
                 finishedGoodRepository,
                 finishedGoodBatchRepository,
                 packagingSlipRepository,
@@ -130,6 +135,30 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
             }
             return slip;
         });
+    }
+
+    @Test
+    void lockFinishedGood_requiresActiveLinkedProduct() {
+        FinishedGood finishedGood = new FinishedGood();
+        ReflectionTestUtils.setField(finishedGood, "id", 901L);
+        finishedGood.setCompany(company);
+        finishedGood.setProductCode("FG-901");
+        when(companyEntityLookup.lockActiveFinishedGood(company, 901L)).thenReturn(finishedGood);
+
+        FinishedGood locked = ReflectionTestUtils.invokeMethod(service, "lockFinishedGood", 901L);
+
+        assertThat(locked).isSameAs(finishedGood);
+        verify(companyEntityLookup).lockActiveFinishedGood(company, 901L);
+    }
+
+    @Test
+    void lockFinishedGood_rejectsInactiveLinkedProduct() {
+        when(companyEntityLookup.lockActiveFinishedGood(company, 902L))
+                .thenThrow(new IllegalArgumentException("inactive"));
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "lockFinishedGood", 902L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Finished good not found");
     }
 
     @Test

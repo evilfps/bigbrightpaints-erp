@@ -48,6 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class OpeningStockPostingRegressionIT extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE = "LF-021";
+    private static final String OPENING_STOCK_BATCH_KEY = "OPEN-STOCK-BATCH-LF021-001";
 
     @Autowired
     private CompanyRepository companyRepository;
@@ -132,10 +133,11 @@ class OpeningStockPostingRegressionIT extends AbstractIntegrationTest {
                 "text/csv",
                 csv.getBytes(StandardCharsets.UTF_8));
 
-        OpeningStockImportResponse response = openingStockImportService.importOpeningStock(file, "opening-stock-regression-key");
+        OpeningStockImportResponse response = openingStockImportService.importOpeningStock(
+                file,
+                "opening-stock-regression-key",
+                OPENING_STOCK_BATCH_KEY);
         assertThat(response.rowsProcessed()).isEqualTo(2);
-        assertThat(response.rawMaterialsCreated()).isZero();
-        assertThat(response.finishedGoodsCreated()).isZero();
         assertThat(response.rawMaterialBatchesCreated()).isEqualTo(1);
         assertThat(response.finishedGoodBatchesCreated()).isEqualTo(1);
         assertThat(response.errors()).isEmpty();
@@ -175,6 +177,7 @@ class OpeningStockPostingRegressionIT extends AbstractIntegrationTest {
         request.setBrandId(saveBrand("LF021 Raw Material").getId());
         request.setBaseProductName("Opening Resin");
         request.setCategory("RAW_MATERIAL");
+        request.setItemClass("RAW_MATERIAL");
         request.setUnitOfMeasure("KG");
         request.setHsnCode("320611");
         request.setGstRate(new BigDecimal("18.00"));
@@ -193,6 +196,7 @@ class OpeningStockPostingRegressionIT extends AbstractIntegrationTest {
         request.setBrandId(saveBrand("LF021 Finished Good").getId());
         request.setBaseProductName("Opening Paint");
         request.setCategory("FINISHED_GOOD");
+        request.setItemClass("FINISHED_GOOD");
         request.setUnitOfMeasure("LITER");
         request.setHsnCode("320910");
         request.setGstRate(new BigDecimal("18.00"));

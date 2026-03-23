@@ -95,7 +95,7 @@ class GlobalExceptionHandlerTest {
                 .withDetail("created", List.of());
 
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setRequestURI("/api/v1/catalog/products");
+        request.setRequestURI("/api/v1/catalog/items");
 
         ResponseEntity<ApiResponse<Map<String, Object>>> response = handler.handleApplicationException(ex, request);
 
@@ -125,7 +125,7 @@ class GlobalExceptionHandlerTest {
                 .withDetail("internalLeak", Map.of("sql", "select * from products"));
 
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setRequestURI("/api/v1/catalog/products");
+        request.setRequestURI("/api/v1/catalog/items");
 
         ResponseEntity<ApiResponse<Map<String, Object>>> response = handler.handleApplicationException(ex, request);
 
@@ -154,7 +154,7 @@ class GlobalExceptionHandlerTest {
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setContextPath("/tenant-prefix");
-        request.setRequestURI("/tenant-prefix/api/v1/catalog/products");
+        request.setRequestURI("/tenant-prefix/api/v1/catalog/items");
 
         ResponseEntity<ApiResponse<Map<String, Object>>> response = handler.handleApplicationException(ex, request);
 

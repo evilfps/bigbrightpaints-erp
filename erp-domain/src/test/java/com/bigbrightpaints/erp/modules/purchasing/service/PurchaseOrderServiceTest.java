@@ -106,7 +106,7 @@ class PurchaseOrderServiceTest {
         when(companyEntityLookup.requireSupplier(company, 11L)).thenReturn(supplier);
         when(purchaseOrderRepository.lockByCompanyAndOrderNumberIgnoreCase(company, "PO-1001"))
                 .thenReturn(Optional.empty());
-        when(rawMaterialRepository.lockByCompanyAndId(company, 21L)).thenReturn(Optional.of(rawMaterial));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 21L)).thenReturn(rawMaterial);
 
         when(purchaseOrderRepository.save(any(PurchaseOrder.class))).thenAnswer(invocation -> {
             PurchaseOrder order = invocation.getArgument(0);
@@ -142,6 +142,70 @@ class PurchaseOrderServiceTest {
         assertThat(history.getReasonCode()).isEqualTo("PURCHASE_ORDER_CREATED");
         assertThat(history.getReason()).isEqualTo("Purchase order created");
         assertThat(history.getChangedBy()).isEqualTo(SecurityActorResolver.UNKNOWN_AUTH_ACTOR);
+    }
+
+    @Test
+    @DisplayName("createPurchaseOrder rejects inactive catalog-backed raw materials")
+    void createPurchaseOrder_rejectsInactiveCatalogRawMaterial() {
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyEntityLookup.requireSupplier(company, 11L)).thenReturn(supplier);
+        when(purchaseOrderRepository.lockByCompanyAndOrderNumberIgnoreCase(company, "PO-1003"))
+                .thenReturn(Optional.empty());
+        when(companyEntityLookup.lockActiveRawMaterial(company, 21L)).thenThrow(
+                new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE, "Catalog item is inactive for raw material RM-21"));
+
+        PurchaseOrderRequest request = new PurchaseOrderRequest(
+                11L,
+                "PO-1003",
+                LocalDate.of(2026, 3, 1),
+                "Inactive item order",
+                List.of(new PurchaseOrderLineRequest(
+                        21L,
+                        new BigDecimal("5.0000"),
+                        "KG",
+                        new BigDecimal("10.00"),
+                        "line note"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseOrderService.createPurchaseOrder(request))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> assertThat(((ApplicationException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.BUSINESS_INVALID_STATE))
+                .hasMessageContaining("inactive");
+
+        verify(purchaseOrderRepository, never()).save(any(PurchaseOrder.class));
+    }
+
+    @Test
+    @DisplayName("createPurchaseOrder rejects unknown raw materials before saving")
+    void createPurchaseOrder_rejectsUnknownRawMaterial() {
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyEntityLookup.requireSupplier(company, 11L)).thenReturn(supplier);
+        when(purchaseOrderRepository.lockByCompanyAndOrderNumberIgnoreCase(company, "PO-1004"))
+                .thenReturn(Optional.empty());
+        when(companyEntityLookup.lockActiveRawMaterial(company, 21L))
+                .thenThrow(new IllegalArgumentException("Raw material not found: id=21"));
+
+        PurchaseOrderRequest request = new PurchaseOrderRequest(
+                11L,
+                "PO-1004",
+                LocalDate.of(2026, 3, 1),
+                "Unknown item order",
+                List.of(new PurchaseOrderLineRequest(
+                        21L,
+                        new BigDecimal("5.0000"),
+                        "KG",
+                        new BigDecimal("10.00"),
+                        "line note"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseOrderService.createPurchaseOrder(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Raw material not found");
+
+        verify(purchaseOrderRepository, never()).save(any(PurchaseOrder.class));
     }
 
     @Test

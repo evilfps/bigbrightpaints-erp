@@ -207,7 +207,7 @@ class PurchaseInvoiceEngineLifecycleTest {
         lenient().when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-40")).thenReturn(Optional.empty());
         lenient().when(goodsReceiptRepository.lockByCompanyAndId(company, 40L)).thenReturn(Optional.of(goodsReceipt));
         lenient().when(purchaseRepository.findByCompanyAndGoodsReceipt(company, goodsReceipt)).thenReturn(Optional.empty());
-        lenient().when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(rawMaterial));
+        lenient().when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
         lenient().when(referenceNumberService.purchaseReference(company, supplier, "INV-40")).thenReturn("RMP-SUP10-INV40");
         lenient().when(gstService.splitTaxAmount(any(), any(), any(), any()))
                 .thenAnswer(invocation -> new GstService.GstBreakdown(
@@ -308,6 +308,36 @@ class PurchaseInvoiceEngineLifecycleTest {
                 any()
         );
         assertThat(statusCaptor.getAllValues()).containsExactly(PurchaseOrderStatus.INVOICED, PurchaseOrderStatus.CLOSED);
+    }
+
+    @Test
+    void createPurchase_rejectsUnknownRawMaterial() {
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenThrow(new IllegalArgumentException("Raw material not found: id=20"));
+
+        RawMaterialPurchaseRequest request = new RawMaterialPurchaseRequest(
+                10L,
+                "INV-41",
+                LocalDate.of(2026, 3, 2),
+                "invoice",
+                30L,
+                40L,
+                BigDecimal.ZERO,
+                List.of(new RawMaterialPurchaseLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("10.0000"),
+                        "KG",
+                        new BigDecimal("12.50"),
+                        null,
+                        null,
+                        "line"
+                ))
+        );
+
+        assertThatThrownBy(() -> purchaseInvoiceEngine.createPurchase(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Raw material not found");
     }
 
     @Test

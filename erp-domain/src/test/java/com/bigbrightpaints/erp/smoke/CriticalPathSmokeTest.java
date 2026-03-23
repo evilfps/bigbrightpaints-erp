@@ -148,10 +148,10 @@ public class CriticalPathSmokeTest extends AbstractIntegrationTest {
         // Create product
         Map<String, Object> productReq = Map.of(
                 "brandId", brandId,
-                "baseProductName", "Critical Path Product",
-                "category", "FINISHED_GOOD",
-                "colors", List.of("WHITE"),
-                "sizes", List.of("1L"),
+                "name", "Critical Path Product",
+                "itemClass", "FINISHED_GOOD",
+                "color", "WHITE",
+                "size", "1L",
                 "unitOfMeasure", "UNIT",
                 "hsnCode", "320910",
                 "basePrice", new BigDecimal("150.00"),
@@ -167,14 +167,14 @@ public class CriticalPathSmokeTest extends AbstractIntegrationTest {
                 )
         );
 
-        ResponseEntity<Map> response = rest.exchange("/api/v1/catalog/products",
+        ResponseEntity<Map> response = rest.exchange("/api/v1/catalog/items",
                 HttpMethod.POST, new HttpEntity<>(productReq, headers), Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
         assertThat(((Number) data.get("brandId")).longValue()).isEqualTo(brandId);
-        assertThat(((Number) data.get("candidateCount")).intValue()).isEqualTo(1);
-        assertThat(((List<?>) data.get("members"))).hasSize(1);
+        assertThat(data.get("id")).isNotNull();
+        assertThat(data.get("code")).isNotNull();
     }
 
     @Test

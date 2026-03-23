@@ -335,7 +335,7 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-Company-Id", OTHER_COMPANY);
+        headers.set("X-Company-Code", OTHER_COMPANY);
 
         Map<String, Object> payload = Map.of("displayName", "Other Admin Updated");
 
@@ -352,7 +352,7 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
         String token = login(ADMIN_EMAIL, ADMIN_PASSWORD, COMPANY);
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
-        headers.set("X-Company-Id", OTHER_COMPANY);
+        headers.set("X-Company-Code", OTHER_COMPANY);
 
         ResponseEntity<Map> response = rest.exchange(
                 "/api/v1/admin/users",

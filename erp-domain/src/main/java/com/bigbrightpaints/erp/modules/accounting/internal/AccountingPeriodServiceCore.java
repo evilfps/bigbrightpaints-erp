@@ -789,7 +789,7 @@ public class AccountingPeriodServiceCore {
                     period.setStartDate(safeDate);
                     period.setEndDate(safeDate.plusMonths(1).minusDays(1));
                     period.setStatus(AccountingPeriodStatus.OPEN);
-                    period.setCostingMethod(CostingMethod.WEIGHTED_AVERAGE);
+                    period.setCostingMethod(CostingMethod.FIFO);
                     return accountingPeriodRepository.save(period);
                 });
     }
@@ -906,7 +906,7 @@ public class AccountingPeriodServiceCore {
     }
 
     private CostingMethod resolveCostingMethodOrDefault(CostingMethod costingMethod) {
-        return costingMethod != null ? costingMethod : CostingMethod.WEIGHTED_AVERAGE;
+        return costingMethod != null ? costingMethod : CostingMethod.FIFO;
     }
 
     private LocalDate resolveCurrentDate(Company company) {

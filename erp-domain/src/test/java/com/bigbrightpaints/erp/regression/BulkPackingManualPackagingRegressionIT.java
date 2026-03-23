@@ -32,7 +32,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@DisplayName("Regression: Bulk pack rejects manual packaging consumption")
+@DisplayName("Regression: Bulk pack requires packaging BOM mappings")
 class BulkPackingManualPackagingRegressionIT extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE = "LF-016";
@@ -64,19 +64,14 @@ class BulkPackingManualPackagingRegressionIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void manualPackagingMaterialsAreRejected() {
+    void packagingBomMappingsAreRequired() {
         FinishedGood bulkFg = createFinishedGood("FG-BULK-LF016", "Bulk Paint", "L", bulkInventory);
         FinishedGood child = createFinishedGood("FG-1L-LF016", "Paint 1L", "UNIT", fgInventory);
         FinishedGoodBatch bulkBatch = createBulkBatch(bulkFg, new BigDecimal("10"), new BigDecimal("5"));
 
-        RawMaterial packaging = createRawMaterial("CAN-LF016", packagingInventory, new BigDecimal("5"));
-        addBatch(packaging, new BigDecimal("5"), new BigDecimal("1.00"));
-
         BulkPackRequest request = new BulkPackRequest(
                 bulkBatch.getId(),
                 List.of(new BulkPackRequest.PackLine(child.getId(), new BigDecimal("2"), "1L", "L")),
-                List.of(new BulkPackRequest.MaterialConsumption(packaging.getId(), BigDecimal.ONE, "UNIT")),
-                null,
                 LocalDate.now(),
                 "packer",
                 null,
@@ -88,8 +83,7 @@ class BulkPackingManualPackagingRegressionIT extends AbstractIntegrationTest {
                 .satisfies(ex -> {
                     ApplicationException appEx = (ApplicationException) ex;
                     assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
-                    assertThat(appEx.getMessage())
-                            .contains("Manual packaging materials are not supported");
+                    assertThat(appEx.getMessage()).contains("Packaging BOM is required for size: 1L");
                 });
     }
 

@@ -5,13 +5,12 @@ import java.time.Instant;
 public record OpeningStockImportHistoryItem(
         Long id,
         String idempotencyKey,
+        String openingStockBatchKey,
         String referenceNumber,
         String fileName,
         Long journalEntryId,
         int rowsProcessed,
-        int rawMaterialsCreated,
         int rawMaterialBatchesCreated,
-        int finishedGoodsCreated,
         int finishedGoodBatchesCreated,
         int errorCount,
         Instant createdAt

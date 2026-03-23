@@ -90,7 +90,7 @@ public class RoleService {
         return persistRole(request);
     }
 
-    public boolean canManageSharedRoleMutation(Authentication authentication, String roleName) {
+    public boolean canManageSharedRoleMutation(String roleName) {
         if (!StringUtils.hasText(roleName)) {
             return true;
         }
@@ -98,6 +98,7 @@ public class RoleService {
         if (SystemRole.fromName(normalizedName).isEmpty()) {
             return true;
         }
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         boolean granted = hasAuthority(authentication, "ROLE_SUPER_ADMIN");
         auditAuthorityDecision(granted, "shared-role-permission-mutation", normalizedName, authentication);
         return granted;
@@ -280,16 +281,18 @@ public class RoleService {
 
     private void auditAuthorityDecision(boolean granted, String action, String targetRole, Authentication authentication) {
         HashMap<String, String> metadata = new HashMap<>();
-        metadata.put("actor", resolveActor(authentication));
+        String actor = resolveActor(authentication);
+        String tenantScope = resolveTenantScope(authentication);
+        metadata.put("actor", actor);
         metadata.put("reason", granted
                 ? action + "-approved"
                 : action + "-requires-super-admin");
-        metadata.put("tenantScope", resolveTenantScope(authentication));
+        metadata.put("tenantScope", tenantScope);
         metadata.put("targetRole", targetRole);
         if (granted) {
-            auditService.logSuccess(AuditEvent.ACCESS_GRANTED, metadata);
+            auditService.logAuthSuccess(AuditEvent.ACCESS_GRANTED, actor, tenantScope, metadata);
         } else {
-            auditService.logFailure(AuditEvent.ACCESS_DENIED, metadata);
+            auditService.logAuthFailure(AuditEvent.ACCESS_DENIED, actor, tenantScope, metadata);
         }
     }
 

@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ActiveProfiles(value = {"test", "prod"}, inheritProfiles = false)
 @TestPropertySource(properties = {
-        "jwt.secret=test-secret-should-be-at-least-32-bytes-long-1234",
+        "jwt.secret=2f4f8a6c9b1d4e7f8a2c5d9e3f6b7c1a4d8e2f5a9c3b6d7e",
         "spring.mail.host=localhost",
         "spring.mail.username=test-smtp-user",
         "spring.mail.password=test-smtp-password",

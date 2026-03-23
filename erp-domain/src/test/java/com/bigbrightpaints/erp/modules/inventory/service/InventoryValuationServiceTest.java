@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.inventory.service;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -55,6 +56,20 @@ class InventoryValuationServiceTest {
         when(finishedGoodBatchRepository.calculateWeightedAverageCost(finishedGood)).thenReturn(new BigDecimal("14.25"));
 
         assertThat(service.resolveDispatchUnitCost(finishedGood, batch)).isEqualByComparingTo("14.25");
+    }
+
+    @Test
+    void resolveDispatchUnitCost_usesWeightedAverageWhenCostingMethodIsWac() {
+        FinishedGood finishedGood = new FinishedGood();
+        setId(finishedGood, 46L);
+        finishedGood.setCostingMethod(CostingMethod.WEIGHTED_AVERAGE.name());
+
+        FinishedGoodBatch batch = new FinishedGoodBatch();
+        batch.setUnitCost(new BigDecimal("31.25"));
+
+        when(finishedGoodBatchRepository.calculateWeightedAverageCost(finishedGood)).thenReturn(new BigDecimal("16.50"));
+
+        assertThat(service.resolveDispatchUnitCost(finishedGood, batch)).isEqualByComparingTo("16.50");
     }
 
     @Test

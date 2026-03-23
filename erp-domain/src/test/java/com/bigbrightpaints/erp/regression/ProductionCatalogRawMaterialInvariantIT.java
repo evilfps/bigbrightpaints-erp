@@ -405,8 +405,9 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 null,
                 "FG Sync Product",
                 "FINISHED_GOOD",
-                null,
-                null,
+                "FINISHED_GOOD",
+                "WHITE",
+                "1L",
                 "LTR",
                 null,
                 sku,
@@ -426,6 +427,9 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         finishedGoodRepository.save(afterCreate);
 
         productionCatalogService.updateProduct(created.id(), new ProductUpdateRequest(
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -475,8 +479,9 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 null,
                 "FG Unsupported Product",
                 "FINISHED_GOOD",
-                null,
-                null,
+                "FINISHED_GOOD",
+                "WHITE",
+                "1L",
                 "LTR",
                 null,
                 fgSku,
@@ -493,6 +498,9 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         assertThat(afterFgCreate.getCostingMethod()).isEqualTo("CUSTOM_METHOD");
 
         productionCatalogService.updateProduct(createdFinishedGood.id(), new ProductUpdateRequest(
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -531,7 +539,8 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 null,
                 "RM Unsupported Product",
                 "RAW_MATERIAL",
-                null,
+                "RAW_MATERIAL",
+                "STANDARD",
                 null,
                 "KG",
                 null,
@@ -556,6 +565,9 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
                 null
         ));
 
@@ -568,19 +580,17 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         ProductionBrand brand = saveBrand("RM Ready " + UUID.randomUUID().toString().substring(0, 8).toUpperCase(), true);
 
         ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/catalog/products",
+                "/api/v1/catalog/items",
                 HttpMethod.POST,
                 new HttpEntity<>(canonicalRawMaterialPayload(brand.getId()), headers),
                 Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<String, Object> responseData = data(response);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> member = ((List<Map<String, Object>>) responseData.get("members")).getFirst();
-        String sku = String.valueOf(member.get("sku"));
+        String sku = String.valueOf(responseData.get("code"));
 
         RawMaterial material = rawMaterialRepository.findByCompanyAndSku(company, sku).orElseThrow();
-        assertThat(material.getName()).isEqualTo("Titanium Dioxide NATURAL 25KG");
+        assertThat(material.getName()).isEqualTo("Titanium Dioxide NATURAL");
         assertThat(material.getUnitType()).isEqualTo("KG");
         assertThat(material.getCurrentStock()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(material.getInventoryAccountId()).isEqualTo(alternateInventoryAccount.getId());
@@ -623,16 +633,16 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("brandId", brandId);
-        payload.put("baseProductName", "Titanium Dioxide");
-        payload.put("category", "RAW_MATERIAL");
+        payload.put("name", "Titanium Dioxide");
+        payload.put("itemClass", "RAW_MATERIAL");
+        payload.put("color", "NATURAL");
+        payload.put("size", "25KG");
         payload.put("unitOfMeasure", "KG");
         payload.put("hsnCode", "320611");
         payload.put("gstRate", new BigDecimal("18.00"));
         payload.put("basePrice", new BigDecimal("500.00"));
         payload.put("minDiscountPercent", BigDecimal.ZERO);
         payload.put("minSellingPrice", new BigDecimal("500.00"));
-        payload.put("colors", List.of("NATURAL"));
-        payload.put("sizes", List.of("25KG"));
         payload.put("metadata", metadata);
         return payload;
     }

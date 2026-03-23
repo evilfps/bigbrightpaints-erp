@@ -795,7 +795,8 @@ class AccountingFacadeTest {
         verify(accountingService).createStandardJournal(argThat(journalRequest ->
                 journalRequest != null
                         && tenantToday.equals(journalRequest.entryDate())
-                        && ("MANUAL-" + tenantToday).equals(journalRequest.sourceReference())
+                        && journalRequest.sourceReference() != null
+                        && journalRequest.sourceReference().startsWith("MANUAL-" + tenantToday + "-")
         ));
     }
 
@@ -825,7 +826,8 @@ class AccountingFacadeTest {
         verify(accountingService).createStandardJournal(argThat(journalRequest ->
                 journalRequest != null
                         && explicitDate.equals(journalRequest.entryDate())
-                        && ("MANUAL-" + explicitDate).equals(journalRequest.sourceReference())
+                        && journalRequest.sourceReference() != null
+                        && journalRequest.sourceReference().startsWith("MANUAL-" + explicitDate + "-")
         ));
     }
 

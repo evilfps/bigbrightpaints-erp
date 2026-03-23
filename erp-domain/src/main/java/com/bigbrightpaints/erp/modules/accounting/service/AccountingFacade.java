@@ -279,6 +279,8 @@ public class AccountingFacade extends AccountingFacadeCore {
     }
 
     private String generatedManualSourceReference(LocalDate entryDate) {
-        return "MANUAL-" + (entryDate != null ? entryDate : resolveManualEntryDate(null));
+        LocalDate resolvedEntryDate = entryDate != null ? entryDate : resolveManualEntryDate(null);
+        String nonce = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        return "MANUAL-" + resolvedEntryDate + "-" + nonce;
     }
 }

@@ -94,8 +94,7 @@ public class PurchaseReturnService {
         if (purchase.getSupplier() == null || !purchase.getSupplier().getId().equals(supplier.getId())) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Purchase does not belong to the supplier");
         }
-        RawMaterial material = rawMaterialRepository.lockByCompanyAndId(company, request.rawMaterialId())
-                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Raw material not found"));
+        RawMaterial material = requireActiveMaterial(company, request.rawMaterialId());
         boolean materialInPurchase = purchase.getLines().stream()
                 .anyMatch(line -> line.getRawMaterial() != null
                         && line.getRawMaterial().getId().equals(material.getId()));
@@ -144,8 +143,7 @@ public class PurchaseReturnService {
         if (purchase.getSupplier() == null || !purchase.getSupplier().getId().equals(supplier.getId())) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Purchase does not belong to the supplier");
         }
-        RawMaterial material = rawMaterialRepository.lockByCompanyAndId(company, request.rawMaterialId())
-                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Raw material not found"));
+        RawMaterial material = requireActiveMaterial(company, request.rawMaterialId());
         boolean materialInPurchase = purchase.getLines().stream()
                 .anyMatch(line -> line.getRawMaterial() != null
                         && line.getRawMaterial().getId().equals(material.getId()));
@@ -487,6 +485,14 @@ public class PurchaseReturnService {
                     "Value for " + field + " must be greater than zero");
         }
         return value;
+    }
+
+    private RawMaterial requireActiveMaterial(Company company, Long rawMaterialId) {
+        try {
+            return companyEntityLookup.lockActiveRawMaterial(company, rawMaterialId);
+        } catch (IllegalArgumentException ex) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Raw material not found");
+        }
     }
 
     private BigDecimal currency(BigDecimal value) {

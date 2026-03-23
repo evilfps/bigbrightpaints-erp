@@ -132,7 +132,7 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         HttpHeaders h = new HttpHeaders();
         h.setBearerAuth(token);
         h.setContentType(MediaType.APPLICATION_JSON);
-        h.set("X-Company-Id", COMPANY_CODE);
+        h.set("X-Company-Code", COMPANY_CODE);
         return h;
     }
 

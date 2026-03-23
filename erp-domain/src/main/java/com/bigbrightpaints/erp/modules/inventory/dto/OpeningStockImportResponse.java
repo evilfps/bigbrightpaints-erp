@@ -4,10 +4,9 @@ import com.bigbrightpaints.erp.modules.production.dto.SkuReadinessDto;
 import java.util.List;
 
 public record OpeningStockImportResponse(
+        String openingStockBatchKey,
         int rowsProcessed,
-        int rawMaterialsCreated,
         int rawMaterialBatchesCreated,
-        int finishedGoodsCreated,
         int finishedGoodBatchesCreated,
         List<ImportRowResult> results,
         List<ImportError> errors

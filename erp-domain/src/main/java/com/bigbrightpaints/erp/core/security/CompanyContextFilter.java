@@ -62,7 +62,6 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             "/api/v1/suppliers",
             "/api/v1/catalog",
             "/api/v1/raw-materials",
-            "/api/v1/raw-material-batches",
             "/api/v1/migration",
             "/api/v1/orchestrator",
             "/api/v1/dispatch");

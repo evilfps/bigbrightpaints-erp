@@ -130,7 +130,7 @@ public class HrControllerIT extends AbstractIntegrationTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.add("X-Company-Id", COMPANY_CODE);
+        headers.add("X-Company-Code", COMPANY_CODE);
         return headers;
     }
 }

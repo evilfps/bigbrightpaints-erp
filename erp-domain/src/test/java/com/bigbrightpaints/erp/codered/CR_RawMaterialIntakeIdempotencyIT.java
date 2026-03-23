@@ -75,11 +75,13 @@ class CR_RawMaterialIntakeIdempotencyIT extends AbstractIntegrationTest {
                     created.setCompany(company);
                     created.setCode("SUP-RM");
                     created.setName("RM Supplier");
+                    created.setStatus("ACTIVE");
                     created.setPayableAccount(payable);
                     return supplierRepository.save(created);
                 });
         if (supplier.getPayableAccount() == null || !supplier.getPayableAccount().equals(payable)) {
             supplier.setPayableAccount(payable);
+            supplier.setStatus("ACTIVE");
             supplier = supplierRepository.save(supplier);
         }
 

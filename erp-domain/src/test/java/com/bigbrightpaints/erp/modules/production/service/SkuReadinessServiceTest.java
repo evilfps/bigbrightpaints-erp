@@ -1,10 +1,12 @@
 package com.bigbrightpaints.erp.modules.production.service;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
@@ -46,6 +48,8 @@ class SkuReadinessServiceTest {
     private FinishedGoodBatchRepository finishedGoodBatchRepository;
     @Mock
     private RawMaterialRepository rawMaterialRepository;
+    @Mock
+    private PackagingSizeMappingRepository packagingSizeMappingRepository;
 
     private SkuReadinessService service;
     private Company company;
@@ -56,7 +60,8 @@ class SkuReadinessServiceTest {
                 productRepository,
                 finishedGoodRepository,
                 finishedGoodBatchRepository,
-                rawMaterialRepository
+                rawMaterialRepository,
+                packagingSizeMappingRepository
         );
         company = new Company();
         company.setCode("ACME");
@@ -232,6 +237,71 @@ class SkuReadinessServiceTest {
     }
 
     @Test
+    void forSku_usesPackagingRawMaterialMirrorToInferPackagingTypeWhenProductMissing() {
+        RawMaterial rawMaterial = rawMaterial("PKG-2", 77L);
+        rawMaterial.setMaterialType(MaterialType.PACKAGING);
+
+        when(productRepository.findByCompanyAndSkuCodeIgnoreCase(company, "pkg-2")).thenReturn(Optional.empty());
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "pkg-2")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "pkg-2")).thenReturn(Optional.of(rawMaterial));
+
+        SkuReadinessDto readiness = service.forSku(company, "pkg-2", null);
+
+        assertThat(readiness.sku()).isEqualTo("PKG-2");
+        assertThat(readiness.catalog().blockers()).containsExactly("PRODUCT_MASTER_MISSING");
+        assertThat(readiness.inventory().ready()).isTrue();
+        assertThat(readiness.production().blockers()).containsExactly("PRODUCT_MASTER_MISSING");
+        assertThat(readiness.sales().blockers()).containsExactly("RAW_MATERIAL_SKU_NOT_SALES_ORDERABLE");
+    }
+
+    @Test
+    void forSku_fallsBackToPackagingSkuPrefixWhenRawMaterialTypeIsMissing() {
+        RawMaterial rawMaterial = rawMaterial("PKG-3", 77L);
+        rawMaterial.setMaterialType(null);
+
+        when(productRepository.findByCompanyAndSkuCodeIgnoreCase(company, "pkg-3")).thenReturn(Optional.empty());
+        when(finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, "pkg-3")).thenReturn(Optional.empty());
+        when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "pkg-3")).thenReturn(Optional.of(rawMaterial));
+
+        SkuReadinessDto readiness = service.forSku(company, "pkg-3", null);
+
+        assertThat(readiness.sku()).isEqualTo("PKG-3");
+        assertThat(readiness.inventory().ready()).isTrue();
+        assertThat(readiness.sales().blockers()).containsExactly("RAW_MATERIAL_SKU_NOT_SALES_ORDERABLE");
+    }
+
+    @Test
+    void resolveExpectedStockType_prefersStoredFinishedGoodCategoryOverPackagingPrefix() {
+        ProductionProduct product = finishedGoodProduct("PKG-FG-1");
+
+        SkuReadinessService.ExpectedStockType stockType = ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveExpectedStockType",
+                product,
+                null,
+                null);
+
+        assertThat(stockType).isEqualTo(SkuReadinessService.ExpectedStockType.FINISHED_GOOD);
+    }
+
+    @Test
+    void resolveExpectedStockType_prefersRawMaterialMirrorTypeOverPackagingPrefix() {
+        ProductionProduct product = finishedGoodProduct("PKG-RM-1");
+        product.setCategory("RAW_MATERIAL");
+        RawMaterial rawMaterial = rawMaterial("PKG-RM-1", 77L);
+        rawMaterial.setMaterialType(MaterialType.PRODUCTION);
+
+        SkuReadinessService.ExpectedStockType stockType = ReflectionTestUtils.invokeMethod(
+                service,
+                "resolveExpectedStockType",
+                product,
+                rawMaterial,
+                null);
+
+        assertThat(stockType).isEqualTo(SkuReadinessService.ExpectedStockType.RAW_MATERIAL);
+    }
+
+    @Test
     void forSku_preservesStoredSkuCasingWhenResolvingReadinessMirrors() {
         ProductionProduct product = finishedGoodProduct("Fg-Mixed-1");
         product.setMetadata(finishedGoodProductionMetadata(44L, 55L, 66L));
@@ -397,6 +467,26 @@ class SkuReadinessServiceTest {
     }
 
     @Test
+    void forPlannedProduct_packagingRawMaterialUsesProjectedMirrorWithoutRepositoryLookups() {
+        ProductionProduct product = finishedGoodProduct("PKG-PLAN");
+        product.setCategory("RAW_MATERIAL");
+        RawMaterial rawMaterial = rawMaterial("PKG-PLAN", 77L);
+        rawMaterial.setMaterialType(MaterialType.PACKAGING);
+
+        SkuReadinessDto readiness = service.forPlannedProduct(
+                product,
+                SkuReadinessService.ExpectedStockType.PACKAGING_RAW_MATERIAL,
+                null,
+                rawMaterial);
+
+        assertThat(readiness.catalog().ready()).isTrue();
+        assertThat(readiness.inventory().ready()).isTrue();
+        assertThat(readiness.production().ready()).isTrue();
+        assertThat(readiness.sales().blockers()).containsExactly("RAW_MATERIAL_SKU_NOT_SALES_ORDERABLE");
+        verifyNoInteractions(productRepository, finishedGoodRepository, rawMaterialRepository, finishedGoodBatchRepository);
+    }
+
+    @Test
     void forProducts_batchesMirrorAndBatchLookupsForCatalogBrowse() {
         ProductionProduct finishedGoodProduct = finishedGoodProduct("Fg-Browse");
         ReflectionTestUtils.setField(finishedGoodProduct, "id", 101L);
@@ -450,9 +540,15 @@ class SkuReadinessServiceTest {
                         "WIP_ACCOUNT_MISSING",
                         "PRODUCT_INACTIVE")),
                 new SkuReadinessDto.Stage(false, List.of(
+                        "WIP_ACCOUNT_MISSING",
+                        "PRODUCT_INACTIVE")),
+                new SkuReadinessDto.Stage(false, List.of(
                         "FINISHED_GOOD_COGS_ACCOUNT_MISSING",
                         "FINISHED_GOOD_GST_OUTPUT_ACCOUNT_MISMATCH",
-                        "NO_FINISHED_GOOD_BATCH_STOCK"))
+                        "NO_FINISHED_GOOD_BATCH_STOCK")),
+                new SkuReadinessDto.Stage(false, List.of(
+                        "FINISHED_GOOD_VALUATION_ACCOUNT_MISSING",
+                        "FINISHED_GOOD_COGS_ACCOUNT_MISSING"))
         );
 
         SkuReadinessDto sanitized = service.sanitizeForCatalogViewer(readiness, false);
@@ -554,9 +650,11 @@ class SkuReadinessServiceTest {
                         "ACCOUNTING_CONFIGURATION_REQUIRED",
                         "FINISHED_GOOD_VALUATION_ACCOUNT_MISSING")),
                 new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED", "WIP_ACCOUNT_MISSING")),
+                new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED", "PACKAGING_MAPPING_MISSING")),
                 new SkuReadinessDto.Stage(false, List.of(
                         "ACCOUNTING_CONFIGURATION_REQUIRED",
-                        "FINISHED_GOOD_GST_OUTPUT_ACCOUNT_MISMATCH"))
+                        "FINISHED_GOOD_GST_OUTPUT_ACCOUNT_MISMATCH")),
+                new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED"))
         );
 
         SkuReadinessDto sanitized = service.sanitizeForCatalogViewer(readiness, false);

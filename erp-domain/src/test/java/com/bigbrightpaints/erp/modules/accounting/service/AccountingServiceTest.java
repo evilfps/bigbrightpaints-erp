@@ -67,11 +67,14 @@ import com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -109,6 +112,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AccountingServiceTest {
 
     @Mock
@@ -1018,6 +1022,39 @@ class AccountingServiceTest {
     }
 
     @Test
+    @Tag("critical")
+    void resolvePayrollRunToken_appendsRunIdWhenRunNumberDoesNotContainSuffix() {
+        String token = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "resolvePayrollRunToken",
+                "FEB-2026",
+                44L
+        );
+
+        assertThat(token).isEqualTo("FEB-2026-44");
+    }
+
+    @Test
+    @Tag("critical")
+    void resolvePayrollRunToken_preservesLegacyAndSuffixRunNumbers() {
+        String legacyToken = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "resolvePayrollRunToken",
+                "LEGACY-44",
+                44L
+        );
+        String suffixedToken = ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "resolvePayrollRunToken",
+                "FEB-2026-44",
+                44L
+        );
+
+        assertThat(legacyToken).isEqualTo("LEGACY-44");
+        assertThat(suffixedToken).isEqualTo("FEB-2026-44");
+    }
+
+    @Test
     void resolvePayrollPaymentReference_usesLegacyTokenWhenRunNumberMissing() {
         PayrollRun run = new PayrollRun();
         ReflectionTestUtils.setField(run, "id", 77L);
@@ -1086,6 +1123,30 @@ class AccountingServiceTest {
     }
 
     @Test
+    void createJournalEntry_invalidDateSkipsPeriodCreationWhenLocksDisabled() {
+        LocalDate today = LocalDate.of(2024, 1, 31);
+        when(companyClock.today(company)).thenReturn(today);
+        when(systemSettingsService.isPeriodLockEnforced()).thenReturn(false);
+
+        JournalEntryRequest request = new JournalEntryRequest(
+                "OLD-NO-PERIOD",
+                today.minusDays(31),
+                "Old period posting",
+                null,
+                null,
+                Boolean.FALSE,
+                List.of(new JournalEntryRequest.JournalLineRequest(1L, "Old", new BigDecimal("10.00"), BigDecimal.ZERO))
+        );
+
+        assertThatThrownBy(() -> accountingService.createJournalEntry(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Entry date cannot be more than 30 days old");
+
+        verify(accountingPeriodService, never()).ensurePeriod(any(), any());
+        verify(accountingPeriodService, never()).requirePostablePeriod(any(), any(), any(), any(), any(), anyBoolean());
+    }
+
+    @Test
     void createJournalEntry_prodIgnoresBenchmarkDateValidationBypass() {
         LocalDate today = LocalDate.of(2024, 1, 31);
         when(companyClock.today(company)).thenReturn(today);
@@ -1111,8 +1172,9 @@ class AccountingServiceTest {
     void createJournalEntry_rejectsClosedPeriod() {
         LocalDate today = LocalDate.of(2024, 2, 1);
         when(companyClock.today(company)).thenReturn(today);
-        when(accountingPeriodService.requirePostablePeriod(eq(company), eq(today), any(), any(), any(), anyBoolean()))
-                .thenThrow(new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period is closed"));
+        doThrow(new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period is closed"))
+                .when(accountingPeriodService)
+                .requirePostablePeriod(any(), any(), any(), any(), any(), anyBoolean());
 
         JournalEntryRequest request = new JournalEntryRequest(
                 "CLOSED-REF",
@@ -1898,6 +1960,33 @@ class AccountingServiceTest {
         assertThatThrownBy(() -> accountingService.reverseJournalEntry(45L, request))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("CLOSED period");
+    }
+
+    @Test
+    void reverseJournalEntry_invalidDateSkipsPeriodLookup() {
+        LocalDate today = LocalDate.of(2024, 4, 1);
+        when(companyClock.today(company)).thenReturn(today);
+
+        var entry = new com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry();
+        entry.setStatus("POSTED");
+        entry.setReferenceNumber("REV-OLD-DATE");
+        entry.setEntryDate(today.minusDays(1));
+        entry.setAccountingPeriod(openPeriod(today.minusDays(1)));
+        when(companyEntityLookup.requireJournalEntry(company, 46L)).thenReturn(entry);
+
+        JournalEntryReversalRequest request = new JournalEntryReversalRequest(
+                today.minusDays(31),
+                false,
+                "Test reversal",
+                "Old reversal",
+                Boolean.FALSE
+        );
+
+        assertThatThrownBy(() -> accountingService.reverseJournalEntry(46L, request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Entry date cannot be more than 30 days old");
+
+        verify(accountingPeriodService, never()).requirePostablePeriod(eq(company), eq(today.minusDays(31)), any(), any(), any(), anyBoolean());
     }
 
     @Test

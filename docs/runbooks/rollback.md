@@ -2,9 +2,10 @@
 
 ## 2026-03-22 — `opening-stock-results-json`
 
-- **Scope:** revert `migration_v2/V46__opening_stock_import_results_json.sql` and the strict opening-stock history path that depends on `opening_stock_imports.results_json`.
-- **Application rollback:** redeploy the previous backend build before reopening traffic so runtime code stops reading or writing row-level `results[]` payloads on opening-stock imports.
-- **Database rollback:** after the reverted build is live, execute `ALTER TABLE public.opening_stock_imports DROP COLUMN IF EXISTS results_json;`.
+- **Scope:** revert `migration_v2/V46__opening_stock_import_results_json.sql` and the strict opening-stock history/replay path that now depends on both `opening_stock_imports.results_json` and `opening_stock_imports.replay_protection_key`.
+- **Application rollback:** redeploy the previous backend build before reopening traffic so runtime code stops reading or writing row-level `results[]` payloads and replay-protection fingerprints on opening-stock imports.
+- **Database rollback:** after the reverted build is live, execute `DROP INDEX IF EXISTS uq_opening_stock_imports_company_replay_key; ALTER TABLE public.opening_stock_imports DROP COLUMN IF EXISTS replay_protection_key; ALTER TABLE public.opening_stock_imports DROP COLUMN IF EXISTS results_json;`.
+- **Tested rollback path:** this rollback was validated against the V46 forward plan by replaying the opening-stock regression packet with the previous backend contract, ensuring the removed replay key/index are not required once the reverted build is active.
 - **Verification:** rerun `export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock; mvn -B -ntp -Dtest='OpeningStockPostingRegressionIT,OpeningStockImportControllerTest,OpeningStockImportServiceTest' test` plus `python3 scripts/changed_files_coverage.py --jacoco erp-domain/target/site/jacoco/jacoco.xml --diff-base origin/main` against the reverted packet to confirm opening-stock replay and history are back on the pre-ERP-34 contract.
 
 ## 2026-03-21 — `catalog-surface-consolidation.variant-group-linkage`

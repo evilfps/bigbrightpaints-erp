@@ -521,16 +521,20 @@ public abstract class AccountingCoreEngineCore {
         }
         entry.setAttachmentReferences(joinAttachmentReferences(request.attachmentReferences()));
         if (duplicate.isEmpty()) {
-            validateEntryDate(company, entryDate, overrideRequested, overrideAuthorized);
-            AccountingPeriod postingPeriod = systemSettingsService.isPeriodLockEnforced()
-                    ? accountingPeriodService.requirePostablePeriod(
-                            company,
-                            entryDate,
-                            resolvePostingDocumentType(entry),
-                            resolvePostingDocumentReference(entry),
-                            request.memo(),
-                            overrideRequested)
-                    : accountingPeriodService.ensurePeriod(company, entryDate);
+            AccountingPeriod postingPeriod;
+            if (systemSettingsService.isPeriodLockEnforced()) {
+                validateEntryDate(company, entryDate, overrideRequested, overrideAuthorized);
+                postingPeriod = accountingPeriodService.requirePostablePeriod(
+                        company,
+                        entryDate,
+                        resolvePostingDocumentType(entry),
+                        resolvePostingDocumentReference(entry),
+                        request.memo(),
+                        overrideRequested);
+            } else {
+                validateEntryDate(company, entryDate, overrideRequested, overrideAuthorized);
+                postingPeriod = accountingPeriodService.ensurePeriod(company, entryDate);
+            }
             if (postingPeriod == null) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period is required for journal posting");
             }
@@ -945,18 +949,20 @@ public abstract class AccountingCoreEngineCore {
         if (allowClosedPeriodOverride) {
             overrideAuthorized = true;
         }
-        validateEntryDate(company, reversalDate, overrideRequested, overrideAuthorized);
-
-        // PERIOD LOCK CHECK: Strictly enforce period status
-        AccountingPeriod postingPeriod = systemSettingsService.isPeriodLockEnforced()
-                ? accountingPeriodService.requirePostablePeriod(
-                        company,
-                        reversalDate,
-                        "JOURNAL_REVERSAL",
-                        entry.getReferenceNumber(),
-                        request != null ? request.reason() : null,
-                        overrideRequested || allowClosedPeriodOverride)
-                : accountingPeriodService.ensurePeriod(company, reversalDate);
+        AccountingPeriod postingPeriod;
+        if (systemSettingsService.isPeriodLockEnforced()) {
+            validateEntryDate(company, reversalDate, overrideRequested, overrideAuthorized);
+            postingPeriod = accountingPeriodService.requirePostablePeriod(
+                    company,
+                    reversalDate,
+                    "JOURNAL_REVERSAL",
+                    entry.getReferenceNumber(),
+                    request != null ? request.reason() : null,
+                    overrideRequested || allowClosedPeriodOverride);
+        } else {
+            validateEntryDate(company, reversalDate, overrideRequested, overrideAuthorized);
+            postingPeriod = accountingPeriodService.ensurePeriod(company, reversalDate);
+        }
         AccountingPeriod originalPeriod = entry.getAccountingPeriod();
         if (originalPeriod != null) {
             if (originalPeriod.getStatus() == AccountingPeriodStatus.LOCKED) {
@@ -1592,7 +1598,13 @@ public abstract class AccountingCoreEngineCore {
 
     private String resolvePayrollRunToken(String runNumber, Long runId) {
         if (StringUtils.hasText(runNumber)) {
-            return runNumber.trim();
+            String normalizedRunNumber = runNumber.trim();
+            if (runId == null
+                    || normalizedRunNumber.equalsIgnoreCase("LEGACY-" + runId)
+                    || normalizedRunNumber.endsWith("-" + runId)) {
+                return normalizedRunNumber;
+            }
+            return normalizedRunNumber + "-" + runId;
         }
         return runId != null ? "LEGACY-" + runId : null;
     }

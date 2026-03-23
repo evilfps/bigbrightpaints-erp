@@ -322,8 +322,11 @@ public class PurchaseOrderService {
     }
 
     private RawMaterial requireMaterial(Company company, Long rawMaterialId) {
-        return rawMaterialRepository.lockByCompanyAndId(company, rawMaterialId)
-                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Raw material not found"));
+        try {
+            return companyEntityLookup.lockActiveRawMaterial(company, rawMaterialId);
+        } catch (IllegalArgumentException ex) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Raw material not found");
+        }
     }
 
     private BigDecimal positive(BigDecimal value, String field) {

@@ -15,6 +15,7 @@ public record CatalogProductRequest(
         Long brandId,
         @NotBlank(message = "Product name is required")
         String name,
+        String itemClass,
         List<String> colors,
         List<String> sizes,
         List<@Valid CatalogProductCartonSizeRequest> cartonSizes,

@@ -40,7 +40,7 @@ public class AccountingPeriod extends VersionedEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "costing_method", nullable = false)
-    private CostingMethod costingMethod = CostingMethod.WEIGHTED_AVERAGE;
+    private CostingMethod costingMethod = CostingMethod.FIFO;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -109,7 +109,7 @@ public class AccountingPeriod extends VersionedEntity {
             this.endDate = yearMonth.atEndOfMonth();
         }
         if (costingMethod == null) {
-            costingMethod = CostingMethod.WEIGHTED_AVERAGE;
+            costingMethod = CostingMethod.FIFO;
         }
     }
 

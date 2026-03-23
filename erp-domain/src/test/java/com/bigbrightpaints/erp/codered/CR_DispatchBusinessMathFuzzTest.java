@@ -136,6 +136,7 @@ class CR_DispatchBusinessMathFuzzTest extends AbstractIntegrationTest {
                     UUID.randomUUID().toString()
             ));
             SalesOrder order = salesOrderRepository.findById(orderDto.id()).orElseThrow();
+            finishedGoodsService.reserveForOrder(order);
             PackagingSlip slip = packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
 
             BigDecimal gross = MoneyUtils.roundCurrency(qty.multiply(unitPrice));
@@ -218,6 +219,7 @@ class CR_DispatchBusinessMathFuzzTest extends AbstractIntegrationTest {
         Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
         company.setTimezone(timezone);
         company.setBaseCurrency("INR");
+        company.setStateCode("29");
         return companyRepository.save(company);
     }
 
@@ -272,6 +274,7 @@ class CR_DispatchBusinessMathFuzzTest extends AbstractIntegrationTest {
                     dealer.setCode("CR-DEALER");
                     dealer.setName("Code-Red Dealer");
                     dealer.setStatus("ACTIVE");
+                    dealer.setStateCode("29");
                     dealer.setReceivableAccount(arAccount);
                     return dealerRepository.save(dealer);
                 });

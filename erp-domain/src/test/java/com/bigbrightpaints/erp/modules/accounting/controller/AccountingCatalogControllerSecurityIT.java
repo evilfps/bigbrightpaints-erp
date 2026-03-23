@@ -66,6 +66,8 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
     private Account discountAccount;
     private Account taxAccount;
     private Account wipAccount;
+    private Account laborAppliedAccount;
+    private Account overheadAppliedAccount;
     private HttpHeaders headers;
 
     @BeforeEach
@@ -77,12 +79,15 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
         discountAccount = ensureAccount("DISC", "Discount", AccountType.EXPENSE);
         taxAccount = ensureAccount("GST-OUT", "GST Output", AccountType.LIABILITY);
         wipAccount = ensureAccount("WIP", "Work In Progress", AccountType.ASSET);
+        laborAppliedAccount = ensureAccount("LAB", "Labor Applied", AccountType.ASSET);
+        overheadAppliedAccount = ensureAccount("OVH", "Overhead Applied", AccountType.ASSET);
 
         company.setDefaultInventoryAccountId(inventoryAccount.getId());
         company.setDefaultCogsAccountId(cogsAccount.getId());
         company.setDefaultRevenueAccountId(revenueAccount.getId());
         company.setDefaultDiscountAccountId(discountAccount.getId());
         company.setDefaultTaxAccountId(taxAccount.getId());
+        company.setGstOutputTaxAccountId(taxAccount.getId());
         companyRepository.save(company);
 
         dataSeeder.ensureUser(ADMIN_EMAIL, PASSWORD, "Catalog Surface Admin", COMPANY_CODE, List.of("ROLE_ADMIN"));
@@ -114,7 +119,7 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
 
         DownstreamFlowResult flow = runDownstreamReadyFlow(activeBrand.getId(), "Existing Flow Primer " + shortId());
         assertThat(flow.brandId()).isEqualTo(activeBrand.getId());
-        assertThat(flow.sku()).startsWith(activeBrand.getCode());
+        assertThat(flow.sku()).startsWith("FG-");
     }
 
     @Test
@@ -192,30 +197,28 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void canonicalProductEntryRoute_allowsAdminAndAccounting_only_andSupportsPreview() {
+    void canonicalItemEntryRoute_allowsAdminAndAccounting_only() {
         ProductionBrand activeBrand = saveBrand("Single Route Brand " + shortId(), true);
 
         ResponseEntity<Map> adminResponse = rest.exchange(
-                "/api/v1/catalog/products",
+                "/api/v1/catalog/items",
                 HttpMethod.POST,
                 new HttpEntity<>(canonicalFinishedGoodPayload(activeBrand.getId(), "Canonical Entry " + shortId()), authHeaders()),
                 Map.class);
         assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(data(adminResponse)).containsEntry("preview", false);
-        assertThat(dataListMap(adminResponse, "members")).isNotEmpty();
+        assertThat(data(adminResponse)).containsKeys("id", "code");
 
         ResponseEntity<Map> accountingResponse = rest.exchange(
-                "/api/v1/catalog/products?preview=true",
+                "/api/v1/catalog/items",
                 HttpMethod.POST,
                 new HttpEntity<>(canonicalFinishedGoodPayload(activeBrand.getId(), "Canonical Preview " + shortId()),
                         authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE)),
                 Map.class);
         assertThat(accountingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(data(accountingResponse)).containsEntry("preview", true);
-        assertThat(dataListMap(accountingResponse, "members")).isNotEmpty();
+        assertThat(data(accountingResponse)).containsKeys("id", "code");
 
         ResponseEntity<Map> salesResponse = rest.exchange(
-                "/api/v1/catalog/products",
+                "/api/v1/catalog/items",
                 HttpMethod.POST,
                 new HttpEntity<>(canonicalFinishedGoodPayload(activeBrand.getId(), "Canonical Sales Block " + shortId()),
                         authHeaders(SALES_EMAIL, PASSWORD, COMPANY_CODE)),
@@ -223,7 +226,7 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
         assertThat(salesResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
         ResponseEntity<Map> factoryResponse = rest.exchange(
-                "/api/v1/catalog/products?preview=true",
+                "/api/v1/catalog/items",
                 HttpMethod.POST,
                 new HttpEntity<>(canonicalFinishedGoodPayload(activeBrand.getId(), "Canonical Factory Block " + shortId()),
                         authHeaders(FACTORY_EMAIL, PASSWORD, COMPANY_CODE)),
@@ -245,17 +248,17 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
         ProductionBrand brand = saveBrand("Readiness Mask " + shortId(), true);
 
         ResponseEntity<Map> createResponse = rest.exchange(
-                "/api/v1/catalog/products",
+                "/api/v1/catalog/items",
                 HttpMethod.POST,
                 new HttpEntity<>(canonicalFinishedGoodPayload(brand.getId(), "Readiness Mask Product " + shortId()), headers),
                 Map.class);
         assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        Map<String, Object> createdMember = dataListMap(createResponse, "members").getFirst();
-        String sku = String.valueOf(createdMember.get("sku"));
+        Map<String, Object> createdItem = data(createResponse);
+        String sku = String.valueOf(createdItem.get("code"));
+        Long productId = ((Number) createdItem.get("id")).longValue();
 
         Map<String, Object> browsedProduct = browseProduct(authHeaders(), brand.getId(), sku);
-        Long productId = ((Number) browsedProduct.get("id")).longValue();
 
         ProductionProduct product = productionProductRepository.findByCompanyAndSkuCode(company, sku).orElseThrow();
         Map<String, Object> degradedMetadata = new LinkedHashMap<>(product.getMetadata());
@@ -274,22 +277,22 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
         });
 
         ResponseEntity<Map> salesBrowseResponse = rest.exchange(
-                "/api/v1/catalog/products?brandId=" + brand.getId(),
+                "/api/v1/catalog/items?q=" + sku + "&includeReadiness=true",
                 HttpMethod.GET,
                 new HttpEntity<>(authHeaders(SALES_EMAIL, PASSWORD, COMPANY_CODE)),
                 Map.class);
         ResponseEntity<Map> accountingBrowseResponse = rest.exchange(
-                "/api/v1/catalog/products?brandId=" + brand.getId(),
+                "/api/v1/catalog/items?q=" + sku + "&includeReadiness=true",
                 HttpMethod.GET,
                 new HttpEntity<>(authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE)),
                 Map.class);
         ResponseEntity<Map> salesReadResponse = rest.exchange(
-                "/api/v1/catalog/products/" + productId,
+                "/api/v1/catalog/items/" + productId,
                 HttpMethod.GET,
                 new HttpEntity<>(authHeaders(SALES_EMAIL, PASSWORD, COMPANY_CODE)),
                 Map.class);
         ResponseEntity<Map> accountingReadResponse = rest.exchange(
-                "/api/v1/catalog/products/" + productId,
+                "/api/v1/catalog/items/" + productId,
                 HttpMethod.GET,
                 new HttpEntity<>(authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE)),
                 Map.class);
@@ -299,39 +302,39 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
         Map<String, Object> salesReadProduct = data(salesReadResponse);
         Map<String, Object> accountingReadProduct = data(accountingReadResponse);
 
-        assertThat(readinessBlockers(salesBrowseProduct, "inventory"))
+        assertThat(readinessBlockers(salesBrowseProduct, "inventoryReady"))
                 .containsExactly("ACCOUNTING_CONFIGURATION_REQUIRED");
-        assertThat(readinessBlockers(salesBrowseProduct, "production"))
+        assertThat(readinessBlockers(salesBrowseProduct, "productionReady"))
                 .containsExactly("ACCOUNTING_CONFIGURATION_REQUIRED");
-        assertThat(readinessBlockers(salesBrowseProduct, "sales"))
+        assertThat(readinessBlockers(salesBrowseProduct, "salesReady"))
                 .containsExactly("NO_FINISHED_GOOD_BATCH_STOCK", "ACCOUNTING_CONFIGURATION_REQUIRED");
-        assertThat(readinessBlockers(salesReadProduct, "inventory"))
+        assertThat(readinessBlockers(salesReadProduct, "inventoryReady"))
                 .containsExactly("ACCOUNTING_CONFIGURATION_REQUIRED");
-        assertThat(readinessBlockers(salesReadProduct, "production"))
+        assertThat(readinessBlockers(salesReadProduct, "productionReady"))
                 .containsExactly("ACCOUNTING_CONFIGURATION_REQUIRED");
-        assertThat(readinessBlockers(salesReadProduct, "sales"))
+        assertThat(readinessBlockers(salesReadProduct, "salesReady"))
                 .containsExactly("NO_FINISHED_GOOD_BATCH_STOCK", "ACCOUNTING_CONFIGURATION_REQUIRED");
 
-        assertThat(readinessBlockers(accountingBrowseProduct, "inventory"))
+        assertThat(readinessBlockers(accountingBrowseProduct, "inventoryReady"))
                 .containsExactlyInAnyOrder(
                         "FINISHED_GOOD_VALUATION_ACCOUNT_MISSING",
                         "FINISHED_GOOD_COGS_ACCOUNT_MISSING",
                         "FINISHED_GOOD_REVENUE_ACCOUNT_MISSING",
                         "FINISHED_GOOD_TAX_ACCOUNT_MISSING");
-        assertThat(readinessBlockers(accountingBrowseProduct, "production"))
+        assertThat(readinessBlockers(accountingBrowseProduct, "productionReady"))
                 .containsExactlyInAnyOrder(
                         "FINISHED_GOOD_VALUATION_ACCOUNT_MISSING",
                         "FINISHED_GOOD_COGS_ACCOUNT_MISSING",
                         "FINISHED_GOOD_REVENUE_ACCOUNT_MISSING",
                         "FINISHED_GOOD_TAX_ACCOUNT_MISSING",
                         "WIP_ACCOUNT_MISSING");
-        assertThat(readinessBlockers(accountingReadProduct, "inventory"))
+        assertThat(readinessBlockers(accountingReadProduct, "inventoryReady"))
                 .containsExactlyInAnyOrder(
                         "FINISHED_GOOD_VALUATION_ACCOUNT_MISSING",
                         "FINISHED_GOOD_COGS_ACCOUNT_MISSING",
                         "FINISHED_GOOD_REVENUE_ACCOUNT_MISSING",
                         "FINISHED_GOOD_TAX_ACCOUNT_MISSING");
-        assertThat(readinessBlockers(accountingReadProduct, "production"))
+        assertThat(readinessBlockers(accountingReadProduct, "productionReady"))
                 .containsExactlyInAnyOrder(
                         "FINISHED_GOOD_VALUATION_ACCOUNT_MISSING",
                         "FINISHED_GOOD_COGS_ACCOUNT_MISSING",
@@ -342,20 +345,18 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
 
     private DownstreamFlowResult runDownstreamReadyFlow(Long brandId, String baseProductName) {
         ResponseEntity<Map> createResponse = rest.exchange(
-                "/api/v1/catalog/products",
+                "/api/v1/catalog/items",
                 HttpMethod.POST,
                 new HttpEntity<>(canonicalFinishedGoodPayload(brandId, baseProductName), headers),
                 Map.class);
 
         assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<String, Object> createData = data(createResponse);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> createdMember = ((List<Map<String, Object>>) createData.get("members")).getFirst();
-        String sku = String.valueOf(createdMember.get("sku"));
+        String sku = String.valueOf(createData.get("code"));
         assertThat(finishedGoodRepository.findByCompanyAndProductCode(company, sku)).isPresent();
 
         ResponseEntity<Map> browseResponse = rest.exchange(
-                "/api/v1/catalog/products?brandId=" + brandId,
+                "/api/v1/catalog/items?q=" + sku + "&includeReadiness=true",
                 HttpMethod.GET,
                 new HttpEntity<>(headers),
                 Map.class);
@@ -364,7 +365,7 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> browseContent = (List<Map<String, Object>>) data(browseResponse).get("content");
         Map<String, Object> browsedProduct = browseContent.stream()
-                .filter(candidate -> sku.equals(String.valueOf(candidate.get("sku"))))
+                .filter(candidate -> sku.equals(String.valueOf(candidate.get("code"))))
                 .findFirst()
                 .orElseThrow();
 
@@ -481,20 +482,21 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
     private Map<String, Object> canonicalFinishedGoodPayload(Long brandId, String baseProductName) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("wipAccountId", wipAccount.getId());
-        metadata.put("semiFinishedAccountId", inventoryAccount.getId());
+        metadata.put("laborAppliedAccountId", laborAppliedAccount.getId());
+        metadata.put("overheadAppliedAccountId", overheadAppliedAccount.getId());
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("brandId", brandId);
-        payload.put("baseProductName", baseProductName);
-        payload.put("category", "FINISHED_GOOD");
+        payload.put("name", baseProductName);
+        payload.put("itemClass", "FINISHED_GOOD");
+        payload.put("color", "WHITE");
+        payload.put("size", "1L");
         payload.put("unitOfMeasure", "LITER");
         payload.put("hsnCode", "320910");
         payload.put("gstRate", new BigDecimal("18.00"));
         payload.put("basePrice", new BigDecimal("1200.00"));
         payload.put("minDiscountPercent", new BigDecimal("5.00"));
         payload.put("minSellingPrice", new BigDecimal("1140.00"));
-        payload.put("colors", List.of("WHITE"));
-        payload.put("sizes", List.of("1L"));
         payload.put("metadata", metadata);
         return payload;
     }
@@ -604,7 +606,7 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
 
     private Map<String, Object> browseProduct(HttpHeaders requestHeaders, Long brandId, String sku) {
         ResponseEntity<Map> browseResponse = rest.exchange(
-                "/api/v1/catalog/products?brandId=" + brandId,
+                "/api/v1/catalog/items?q=" + sku + "&includeReadiness=true",
                 HttpMethod.GET,
                 new HttpEntity<>(requestHeaders),
                 Map.class);
@@ -616,7 +618,7 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> browseContent = (List<Map<String, Object>>) data(response).get("content");
         return browseContent.stream()
-                .filter(candidate -> sku.equals(String.valueOf(candidate.get("sku"))))
+                .filter(candidate -> sku.equals(String.valueOf(candidate.get("code"))))
                 .findFirst()
                 .orElseThrow();
     }

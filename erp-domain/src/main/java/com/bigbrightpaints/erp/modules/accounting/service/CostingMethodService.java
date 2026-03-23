@@ -28,7 +28,7 @@ public class CostingMethodService {
     public CostingMethod resolveActiveMethod(Company company, LocalDate referenceDate) {
         AccountingPeriod period = accountingPeriodService.ensurePeriod(company, referenceDate);
         if (period == null || period.getCostingMethod() == null) {
-            return CostingMethod.WEIGHTED_AVERAGE;
+            return CostingMethod.FIFO;
         }
         return period.getCostingMethod();
     }

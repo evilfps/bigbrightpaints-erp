@@ -3,11 +3,9 @@ package com.bigbrightpaints.erp.modules.production.controller;
 import com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogBrandDto;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogBrandRequest;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemDto;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemRequest;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogImportResponse;
-import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryRequest;
-import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryResponse;
-import com.bigbrightpaints.erp.modules.production.dto.CatalogProductDto;
-import com.bigbrightpaints.erp.modules.production.dto.CatalogProductRequest;
 import com.bigbrightpaints.erp.modules.production.service.CatalogService;
 import com.bigbrightpaints.erp.modules.production.service.ProductionCatalogService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
@@ -84,52 +82,51 @@ public class CatalogController {
                 productionCatalogService.importCatalog(file, resolvedKey)));
     }
 
-    @PostMapping("/products")
+    @PostMapping("/items")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<CatalogProductEntryResponse>> createProduct(
-            @Valid @RequestBody CatalogProductEntryRequest request,
-            @RequestParam(value = "preview", defaultValue = "false") boolean preview) {
-        String message = preview ? "Product preview generated" : "Products created";
-        return ResponseEntity.ok(ApiResponse.success(message,
-                productionCatalogService.createOrPreviewCatalogProducts(request, preview)));
+    public ResponseEntity<ApiResponse<CatalogItemDto>> createItem(
+            @Valid @RequestBody CatalogItemRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Item created", catalogService.createItem(request)));
     }
 
-    @GetMapping("/products")
-    public ResponseEntity<ApiResponse<PageResponse<CatalogProductDto>>> searchProducts(
-            @RequestParam(value = "brandId", required = false) Long brandId,
-            @RequestParam(value = "color", required = false) String color,
-            @RequestParam(value = "size", required = false) String size,
-            @RequestParam(value = "active", required = false) Boolean active,
+    @GetMapping("/items")
+    public ResponseEntity<ApiResponse<PageResponse<CatalogItemDto>>> searchItems(
+            @RequestParam(value = "q", required = false) String q,
+            @RequestParam(value = "itemClass", required = false) String itemClass,
+            @RequestParam(value = "includeStock", defaultValue = "false") boolean includeStock,
+            @RequestParam(value = "includeReadiness", defaultValue = "false") boolean includeReadiness,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "pageSize", defaultValue = "20") int pageSize,
             Authentication authentication) {
-        return ResponseEntity.ok(ApiResponse.success(catalogService.searchProducts(
-                brandId,
-                color,
-                size,
-                active,
+        return ResponseEntity.ok(ApiResponse.success(catalogService.searchItems(
+                q,
+                itemClass,
+                includeStock,
+                includeReadiness,
                 page,
                 pageSize,
                 canViewAccountingMetadata(authentication))));
     }
 
-    @GetMapping("/products/{productId}")
-    public ResponseEntity<ApiResponse<CatalogProductDto>> getProduct(@PathVariable Long productId,
-                                                                     Authentication authentication) {
+    @GetMapping("/items/{itemId}")
+    public ResponseEntity<ApiResponse<CatalogItemDto>> getItem(@PathVariable Long itemId,
+                                                               @RequestParam(value = "includeStock", defaultValue = "true") boolean includeStock,
+                                                               @RequestParam(value = "includeReadiness", defaultValue = "true") boolean includeReadiness,
+                                                               Authentication authentication) {
         return ResponseEntity.ok(ApiResponse.success(
-                catalogService.getProduct(productId, canViewAccountingMetadata(authentication))));
+                catalogService.getItem(itemId, includeStock, includeReadiness, canViewAccountingMetadata(authentication))));
     }
 
-    @PutMapping("/products/{productId}")
+    @PutMapping("/items/{itemId}")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<CatalogProductDto>> updateProduct(@PathVariable Long productId,
-                                                                        @Valid @RequestBody CatalogProductRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Product updated", catalogService.updateProduct(productId, request)));
+    public ResponseEntity<ApiResponse<CatalogItemDto>> updateItem(@PathVariable Long itemId,
+                                                                  @Valid @RequestBody CatalogItemRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Item updated", catalogService.updateItem(itemId, request)));
     }
 
-    @DeleteMapping("/products/{productId}")
-    public ResponseEntity<ApiResponse<CatalogProductDto>> deactivateProduct(@PathVariable Long productId) {
-        return ResponseEntity.ok(ApiResponse.success("Product deactivated", catalogService.deactivateProduct(productId)));
+    @DeleteMapping("/items/{itemId}")
+    public ResponseEntity<ApiResponse<CatalogItemDto>> deactivateItem(@PathVariable Long itemId) {
+        return ResponseEntity.ok(ApiResponse.success("Item deactivated", catalogService.deactivateItem(itemId)));
     }
 
     private boolean canViewAccountingMetadata(Authentication authentication) {

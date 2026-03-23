@@ -1,58 +1,48 @@
 # R2 Checkpoint
 
 ## Scope
-- Feature: `ERP-34 hard-cut setup flow readiness`
-- PR: `#131`
-- PR branch: `feature/erp-34-hard-cut-setup-flow`
-- Review candidate: current remediation packet on PR `#131`
-- Why this is R2: this packet changes canonical tenant bootstrap and company-runtime ownership under `modules/company`, rewires catalog browse readiness exposure, hard-cuts opening stock away from hidden bootstrap/repair behavior, and ships `migration_v2/V46__opening_stock_import_results_json.sql` to persist row-level opening-stock results in the canonical import record.
+- Feature: `ERP-34 hard-cut stock setup readiness`
+- PR: `#133`
+- PR branch: `anas/erp-36-hard-cut-stock-setup`
+- Review candidate: current ERP-34 umbrella packet on PR `#133`
+- Why this is R2: this packet hard-cuts stock setup onto canonical item classes, removes stale raw-material write paths, and tightens opening-stock replay protection with migration-backed persistence plus DB-level uniqueness.
 
 ## Risk Trigger
-- Triggered by high-risk runtime changes under `modules/company` plus `migration_v2` schema changes and accounting-linked readiness behavior in the canonical setup flow.
-- Contract surfaces affected: `POST /api/v1/superadmin/tenants/onboard`, `GET|PUT /api/v1/companies/{id}/tenant-runtime/policy`, `POST|GET /api/v1/catalog/products`, `POST|GET /api/v1/inventory/opening-stock`, and readiness returned from catalog browse/read for non-accounting roles.
-- Failure mode if wrong: bootstrap route ownership drifts again, non-accounting catalog readers see accounting-only blocker detail, opening stock silently repairs missing mirrors/accounts, or the import history loses row-level results and replay truth.
+- Triggered by inventory/accounting runtime behavior changes plus `migration_v2/V46__opening_stock_import_results_json.sql` updates.
+- Contract surfaces affected: `POST|GET /api/v1/catalog/products`, `POST|GET /api/v1/inventory/opening-stock`, and catalog readiness/read-model behavior for stock-bearing SKUs.
+- Failure mode if wrong: catalog create/update can drift item classes or mirror seeding, packaging raw materials can collapse back into heuristic classification, or opening-stock replay protection can admit duplicate payloads under concurrency.
 
 ## Approval Authority
 - Mode: human
 - Approver: `Anas ibn Anwar`
 - Canary owner: `Anas ibn Anwar`
 - Approval status: `pending green CI and explicit merge approval`
-- Basis: the focused ERP-34 proof, changed-files coverage, OpenAPI/accounting guards, and `git diff --check` are green locally after closing the live review findings on PR `#131`.
+- Basis: focused compile proof, replay-protection regression proof, canonical catalog regression proof, and `git diff --check` are green locally for PR `#133`.
 
 ## Escalation Decision
 - Human escalation required: yes
-- Reason: this packet changes tenant-runtime authority, opening-stock accounting-linked behavior, and migration-backed import history, so merge remains gated on explicit human approval after CI settles on PR `#131`.
+- Reason: this packet changes migration-backed replay protection and canonical inventory/accounting behavior, so merge remains gated on explicit human approval after CI settles on PR `#133`.
 
 ## Rollback Owner
 - Owner: `Anas ibn Anwar`
-- Rollback method: revert the ERP-34 remediation commit(s), redeploy the previous backend build, drop `opening_stock_imports.results_json` after the reverted build is live, then rerun the focused ERP-34 proof and coverage gate before re-exposing the pre-remediation head.
+- Rollback method: revert the ERP-34 follow-up commit(s), redeploy the previous backend build, and rerun the focused catalog/opening-stock proof before reopening operator traffic.
 - Rollback trigger:
-  - any operator-facing path other than `/api/v1/superadmin/tenants/onboard` becomes current-state bootstrap again
-  - catalog browse/read leaks detailed accounting blockers to non-accounting roles
-  - opening stock recreates or repairs missing raw-material / finished-good mirrors
-  - opening-stock history loses row-level `results[]` persistence or replay correctness
+  - canonical catalog writes stop seeding the correct stock mirror or account linkage
+  - packaging raw materials lose explicit `PACKAGING_RAW_MATERIAL` classification
+  - opening-stock imports allow duplicate payloads under fresh idempotency keys or concurrent writes
 
 ## Expiry
 - Valid until: `2026-03-29`
-- Re-evaluate if: any additional high-risk company/auth/accounting/schema change lands above this ERP-34 packet, CI reruns against a different candidate than PR `#131`, or scope grows beyond tenant bootstrap, stock-bearing product readiness, and strict opening-stock behavior.
+- Re-evaluate if: scope grows beyond ERP-34 stock setup/opening-stock hard-cut behavior or CI reruns against a different candidate than PR `#133`.
 
 ## Verification Evidence
-- ERP-34 proof suite:
-  - `export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock; mvn -B -ntp -Dtest='OpenApiSnapshotIT,AccountingCatalogControllerSecurityIT,CompanyControllerIT,TenantOnboardingControllerTest,AuthTenantAuthorityIT#admin_cannot_bootstrap_new_tenant+super_admin_can_bootstrap_new_tenant+super_admin_can_bootstrap_new_tenant_with_first_admin_credentials_provisioning,GlobalExceptionHandlerTest,OpeningStockPostingRegressionIT,OpeningStockImportControllerTest,OpeningStockImportServiceTest,TenantOnboardingServiceTest,CatalogServiceCanonicalCoverageTest,CatalogServiceProductCrudTest,ProductionCatalogServiceCanonicalEntryTest,ProductionCatalogServiceBulkVariantRaceTest,SkuReadinessServiceTest' test`
+- Compile gate:
+  - `cd "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-34-hard-cut-readiness/erp-domain" && export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock; mvn -B -ntp -DskipTests test-compile`
   - result: `BUILD SUCCESS`
-  - tests: `153 run, 0 failures, 0 errors, 0 skipped`
-- Focused review-fix proof:
-  - `export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock; mvn -B -ntp -Dtest='SkuReadinessServiceTest,OpeningStockImportServiceTest' test`
+- Focused regression suite:
+  - `cd "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-34-hard-cut-readiness/erp-domain" && export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock; mvn -B -ntp -Dtest='RawMaterialControllerTest,OpeningStockImportServiceTest,ProductionCatalogServiceCanonicalEntryTest,CR_CatalogImportDeterminismIT,ProductionCatalogDiscountDefaultRegressionIT,ProductionCatalogFinishedGoodInvariantIT,ProductionCatalogRawMaterialInvariantIT' test`
   - result: `BUILD SUCCESS`
-  - tests: `38 run, 0 failures, 0 errors, 0 skipped`
-- Changed-files coverage:
-  - `python3 scripts/changed_files_coverage.py --jacoco erp-domain/target/site/jacoco/jacoco.xml --diff-base origin/main`
-  - result: `passes=true`
-  - result summary: `212/214 changed lines covered (99.07%), 79/86 changed branches covered (91.86%); unmapped changed lines remain non-blocking`
-- Contract/hygiene guards:
-  - `bash scripts/guard_openapi_contract_drift.sh`
-  - result: `OK`
-  - `bash scripts/guard_accounting_portal_scope_contract.sh`
-  - result: `OK`
+  - tests: `79 run, 0 failures, 0 errors, 0 skipped`
+- Contract/hygiene guard:
   - `git diff --check`
   - result: clean

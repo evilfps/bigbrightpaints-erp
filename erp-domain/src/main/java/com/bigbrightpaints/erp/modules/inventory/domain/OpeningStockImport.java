@@ -39,6 +39,12 @@ public class OpeningStockImport extends VersionedEntity {
     @Column(name = "reference_number", length = 128)
     private String referenceNumber;
 
+    @Column(name = "opening_stock_batch_key", length = 128)
+    private String openingStockBatchKey;
+
+    @Column(name = "replay_protection_key", length = 256)
+    private String replayProtectionKey;
+
     @Column(name = "file_hash", length = 64)
     private String fileHash;
 
@@ -113,6 +119,22 @@ public class OpeningStockImport extends VersionedEntity {
 
     public void setReferenceNumber(String referenceNumber) {
         this.referenceNumber = referenceNumber;
+    }
+
+    public String getOpeningStockBatchKey() {
+        return openingStockBatchKey;
+    }
+
+    public void setOpeningStockBatchKey(String openingStockBatchKey) {
+        this.openingStockBatchKey = openingStockBatchKey;
+    }
+
+    public String getReplayProtectionKey() {
+        return replayProtectionKey;
+    }
+
+    public void setReplayProtectionKey(String replayProtectionKey) {
+        this.replayProtectionKey = replayProtectionKey;
     }
 
     public String getFileHash() {

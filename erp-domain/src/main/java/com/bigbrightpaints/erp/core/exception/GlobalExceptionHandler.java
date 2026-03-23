@@ -33,7 +33,7 @@ import java.util.UUID;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-    private static final String CATALOG_PRODUCT_ENTRY_PATH = "/api/v1/catalog/products";
+    private static final String CATALOG_PRODUCT_ENTRY_PATH = "/api/v1/catalog/items";
     private static final String CATALOG_PRODUCT_ENTRY_OPERATION = "catalog-product-entry";
     private static final List<String> CATALOG_CONFLICT_RESPONSE_DETAIL_ALLOWLIST =
             List.of("generated", "conflicts", "wouldCreate", "created", "operation");

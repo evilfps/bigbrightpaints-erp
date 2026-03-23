@@ -3,7 +3,9 @@ package com.bigbrightpaints.erp.modules.accounting.controller;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -23,6 +25,11 @@ class AccountingCatalogControllerIdempotencyHeaderTest {
 
     @Test
     void retiredAccountingCatalogController_exposesNoPublicMethods() {
-        assertThat(AccountingCatalogController.class.getDeclaredMethods()).isEmpty();
+        Method[] declaredMethods = Arrays.stream(AccountingCatalogController.class.getDeclaredMethods())
+                .filter(method -> !method.isSynthetic())
+                .filter(method -> !method.getName().startsWith("$jacoco"))
+                .toArray(Method[]::new);
+
+        assertThat(declaredMethods).isEmpty();
     }
 }

@@ -83,6 +83,9 @@ public class ProductionCatalogService {
     private static final Pattern PACKED_MULTI_VALUE_TOKEN = Pattern.compile("[/,;\\r\\n]");
     private static final Pattern SEQUENCE_PATTERN = Pattern.compile(".*-(\\d{3})$");
     private static final String SEMI_FINISHED_SUFFIX = "-BULK";
+    private static final String ITEM_CLASS_FINISHED_GOOD = "FINISHED_GOOD";
+    private static final String ITEM_CLASS_RAW_MATERIAL = "RAW_MATERIAL";
+    private static final String ITEM_CLASS_PACKAGING_RAW_MATERIAL = "PACKAGING_RAW_MATERIAL";
     private static final int MAX_CATALOG_FIELD_LENGTH = 2048;
     private static final int MAX_PRODUCT_SKU_LENGTH = 128;
     private static final int MAX_PRODUCT_NAME_LENGTH = 255;
@@ -415,14 +418,11 @@ public class ProductionCatalogService {
                         candidate.createRequest(),
                         plan.variantGroupId(),
                         plan.productFamilyName());
-                created.add(new CatalogProductEntryResponse.Member(
+                created.add(candidate.toMember(
                         product.id(),
                         product.publicId(),
-                        product.skuCode(),
-                        product.productName(),
-                        product.defaultColour(),
-                        product.sizeLabel(),
-                        skuReadinessService.forSku(company, product.skuCode(), expectedStockType(plan.category()))));
+                        rawMaterialIdForSku(company, product.skuCode()),
+                        skuReadinessService.forSku(company, product.skuCode(), expectedStockType(plan.itemClass()))));
             } catch (RuntimeException ex) {
                 if (isVariantDuplicateConflict(ex, company, candidate.sku())) {
                     CatalogProductEntryResponse conflictResponse = toCatalogProductEntryResponse(
@@ -445,6 +445,7 @@ public class ProductionCatalogService {
                 plan.brand().getName(),
                 plan.brand().getCode(),
                 plan.category(),
+                plan.itemClass(),
                 plan.unitOfMeasure(),
                 plan.hsnCode(),
                 plan.basePrice(),
@@ -466,18 +467,23 @@ public class ProductionCatalogService {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Either brandId or brandName must be provided");
         }
 
-        String normalizedCategory = normalizeCategory(request.category());
+        String normalizedItemClass = normalizeItemClass(request.itemClass());
+        String normalizedCategory = categoryForItemClass(normalizedItemClass);
         BrandResolution resolution = resolveBrand(company, request.brandId(), request.brandName(), request.brandCode());
         ProductionBrand brand = resolution.brand();
-        String productName = request.productName().trim();
-        if (!StringUtils.hasText(productName)) {
+        String baseName = request.productName().trim();
+        if (!StringUtils.hasText(baseName)) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Product name is required");
         }
 
-        String sizeLabel = resolveEffectiveSizeLabel(request.sizeLabel(), request.unitOfMeasure());
-        validateSingleVariantField("defaultColour", request.defaultColour());
+        String detail = cleanValue(request.defaultColour());
+        String sizeLabel = cleanValue(request.sizeLabel());
+        validateSingleVariantField("defaultColour", detail);
         validateSingleVariantField("sizeLabel", sizeLabel);
-        String sku = determineSku(company, brand, normalizedCategory, request.defaultColour(), sizeLabel, request.customSkuCode());
+        String displayName = composeItemDisplayName(normalizedItemClass, baseName, detail, sizeLabel);
+        String sku = StringUtils.hasText(request.customSkuCode())
+                ? sanitizeSku(request.customSkuCode())
+                : buildCanonicalItemCode(normalizedItemClass, brand, baseName, detail, sizeLabel, request.unitOfMeasure());
         if (productRepository.findByCompanyAndSkuCode(company, sku).isPresent()) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("SKU " + sku + " already exists");
         }
@@ -486,10 +492,10 @@ public class ProductionCatalogService {
         ProductionProduct product = new ProductionProduct();
         product.setCompany(company);
         product.setBrand(brand);
-        product.setProductName(productName);
+        product.setProductName(displayName);
         product.setCategory(normalizedCategory);
-        product.setDefaultColour(cleanValue(request.defaultColour()));
-        product.setSizeLabel(cleanValue(sizeLabel));
+        product.setDefaultColour(detail);
+        product.setSizeLabel(sizeLabel);
         product.setColors(singleVariantSet(product.getDefaultColour()));
         product.setSizes(singleVariantSet(product.getSizeLabel()));
         product.setCartonSizes(defaultCartonSizes(product.getSizeLabel()));
@@ -497,8 +503,8 @@ public class ProductionCatalogService {
         product.setHsnCode(cleanValue(request.hsnCode()));
         product.setSkuCode(sku);
         product.setVariantGroupId(variantGroupId);
-        product.setProductFamilyName(cleanValue(productFamilyName));
-        product.setActive(true);
+        product.setProductFamilyName(cleanValue(productFamilyName != null ? productFamilyName : baseName));
+        product.setActive(request.active() == null || request.active());
         product.setBasePrice(money(request.basePrice()));
         product.setGstRate(percent(request.gstRate()));
         product.setMinDiscountPercent(percent(request.minDiscountPercent()));
@@ -510,7 +516,7 @@ public class ProductionCatalogService {
         product.setMetadata(metadata);
         ProductionProduct saved = productRepository.save(product);
         ensureCatalogFinishedGood(company, saved);
-        syncRawMaterial(company, saved);
+        syncRawMaterial(company, saved, normalizedItemClass);
         return toProductDto(saved);
     }
 
@@ -549,7 +555,8 @@ public class ProductionCatalogService {
                 "productFamilyName",
                 MAX_PRODUCT_FAMILY_NAME_LENGTH,
                 "shorten baseProductName");
-        String normalizedCategory = normalizeCategory(request.getCategory());
+        String normalizedItemClass = resolveEntryItemClass(request);
+        String normalizedCategory = categoryForItemClass(normalizedItemClass);
         String unitOfMeasure = requireCanonicalToken(request.getUnitOfMeasure(), "unitOfMeasure");
         validateCanonicalPersistedTextLength(
                 unitOfMeasure,
@@ -570,17 +577,17 @@ public class ProductionCatalogService {
 
         List<String> colors = normalizeCanonicalTokens(request.getColors(), "colors");
         List<String> sizes = normalizeCanonicalTokens(request.getSizes(), "sizes");
-        UUID variantGroupId = buildVariantGroupId(company, brand, productFamilyName, normalizedCategory, unitOfMeasure, hsnCode, colors, sizes);
+        UUID variantGroupId = buildVariantGroupId(company, brand, productFamilyName, normalizedItemClass, unitOfMeasure, hsnCode, colors, sizes);
 
-        String brandPrefix = sanitizeSkuFragment(brand.getCode());
+        String brandCode = sanitizeCode(brand.getCode());
         String productFamilyCode = requireCanonicalSkuFragment("baseProductName", productFamilyName, Integer.MAX_VALUE);
-        String previewSku = buildCanonicalSku(brandPrefix, productFamilyCode, colors.getFirst(), sizes.getFirst());
+        String previewSku = buildDeterministicSku(normalizedItemClass, brandCode, productFamilyCode, colors.getFirst(), sizes.getFirst());
         metadata = validateCanonicalEntryMetadata(company, normalizedCategory, previewSku, metadata, !preview);
 
         List<CatalogProductCandidate> generatedCandidates = new ArrayList<>();
         for (String color : colors) {
             for (String size : sizes) {
-                String sku = buildCanonicalSku(brandPrefix, productFamilyCode, color, size);
+                String sku = buildDeterministicSku(normalizedItemClass, brandCode, productFamilyCode, color, size);
                 String productName = productFamilyName + " " + color + " " + size;
                 validateCanonicalPersistedTextLength(
                         productName,
@@ -593,6 +600,7 @@ public class ProductionCatalogService {
                         null,
                         productName,
                         normalizedCategory,
+                        normalizedItemClass,
                         color,
                         size,
                         unitOfMeasure,
@@ -640,7 +648,7 @@ public class ProductionCatalogService {
         List<CatalogProductEntryResponse.Conflict> conflicts = new ArrayList<>();
         List<CatalogProductCandidate> candidatesToCreate = new ArrayList<>();
         for (CatalogProductCandidate candidate : generatedCandidates) {
-            generatedMembers.add(candidate.toMember(null, null, previewMemberReadiness(company, normalizedCategory, candidate)));
+                generatedMembers.add(candidate.toMember(null, null, null, previewMemberReadiness(company, normalizedItemClass, normalizedCategory, candidate)));
             String skuKey = normalizeSkuKey(candidate.sku());
             String productNameKey = normalizeKey(candidate.productName());
             if (duplicateSkuKeys.contains(skuKey)) {
@@ -671,6 +679,7 @@ public class ProductionCatalogService {
                 variantGroupId,
                 productFamilyName,
                 normalizedCategory,
+                normalizedItemClass,
                 unitOfMeasure,
                 hsnCode,
                 basePrice,
@@ -702,6 +711,7 @@ public class ProductionCatalogService {
                 plan.brand().getName(),
                 plan.brand().getCode(),
                 plan.category(),
+                plan.itemClass(),
                 plan.unitOfMeasure(),
                 plan.hsnCode(),
                 plan.basePrice(),
@@ -716,6 +726,7 @@ public class ProductionCatalogService {
     }
 
     private SkuReadinessDto previewMemberReadiness(Company company,
+                                                   String itemClass,
                                                    String category,
                                                    CatalogProductCandidate candidate) {
         ProductionProduct draftProduct = new ProductionProduct();
@@ -737,9 +748,12 @@ public class ProductionCatalogService {
             projectedRawMaterial.setName(candidate.productName());
             projectedRawMaterial.setUnitType(resolveUnit(draftProduct.getUnitOfMeasure()));
             projectedRawMaterial.setInventoryAccountId(resolveRawMaterialInventoryAccountId(company, draftProduct));
+            if (ITEM_CLASS_PACKAGING_RAW_MATERIAL.equals(itemClass)) {
+                projectedRawMaterial.setMaterialType(com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PACKAGING);
+            }
             return skuReadinessService.forPlannedProduct(
                     draftProduct,
-                    SkuReadinessService.ExpectedStockType.RAW_MATERIAL,
+                    expectedStockType(itemClass),
                     null,
                     projectedRawMaterial);
         }
@@ -756,15 +770,17 @@ public class ProductionCatalogService {
         projectedFinishedGood.setDiscountAccountId(metadataLong(draftProduct, "fgDiscountAccountId"));
         return skuReadinessService.forPlannedProduct(
                 draftProduct,
-                SkuReadinessService.ExpectedStockType.FINISHED_GOOD,
+                expectedStockType(itemClass),
                 projectedFinishedGood,
                 null);
     }
 
-    private SkuReadinessService.ExpectedStockType expectedStockType(String category) {
-        return isRawMaterialCategory(category)
-                ? SkuReadinessService.ExpectedStockType.RAW_MATERIAL
-                : SkuReadinessService.ExpectedStockType.FINISHED_GOOD;
+    private SkuReadinessService.ExpectedStockType expectedStockType(String itemClass) {
+        return switch (normalizeItemClass(itemClass)) {
+            case ITEM_CLASS_RAW_MATERIAL -> SkuReadinessService.ExpectedStockType.RAW_MATERIAL;
+            case ITEM_CLASS_PACKAGING_RAW_MATERIAL -> SkuReadinessService.ExpectedStockType.PACKAGING_RAW_MATERIAL;
+            default -> SkuReadinessService.ExpectedStockType.FINISHED_GOOD;
+        };
     }
 
     private ApplicationException catalogProductEntryConflict(CatalogProductEntryResponse response, String message) {
@@ -821,7 +837,7 @@ public class ProductionCatalogService {
     private UUID buildVariantGroupId(Company company,
                                      ProductionBrand brand,
                                      String productFamilyName,
-                                     String category,
+                                     String itemClass,
                                      String unitOfMeasure,
                                      String hsnCode,
                                      List<String> colors,
@@ -830,26 +846,87 @@ public class ProductionCatalogService {
                 String.valueOf(company != null ? company.getId() : null),
                 String.valueOf(brand != null ? brand.getId() : null),
                 sanitizeSegment(productFamilyName),
-                sanitizeSegment(category),
+                sanitizeSegment(itemClass),
                 sanitizeSegment(unitOfMeasure),
                 sanitizeSegment(hsnCode));
         return UUID.nameUUIDFromBytes(fingerprint.getBytes(StandardCharsets.UTF_8));
     }
 
-    private String buildCanonicalSku(String brandPrefix,
+    private String buildDeterministicSku(String itemClass,
+                                     String brandCode,
                                      String productFamilyCode,
                                      String color,
                                      String size) {
+        String stockPrefix = itemClassSkuPrefix(itemClass);
+        String normalizedBrandCode = requireCanonicalSkuFragment("brandCode", brandCode, 12);
         String colorCode = requireCanonicalSkuFragment("colors", color, 16);
         String sizeCode = requireCanonicalSkuFragment("sizes", size, 16);
-        String sku = String.join("-", List.of(brandPrefix, productFamilyCode, colorCode, sizeCode))
+        String sku = String.join("-", List.of(stockPrefix, normalizedBrandCode, productFamilyCode, colorCode, sizeCode))
                 .replaceAll("-{2,}", "-");
         if (sku.length() > MAX_PRODUCT_SKU_LENGTH) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                    "Canonical product SKU exceeds 128 characters; shorten baseProductName, color, or size");
+                    "Canonical product SKU exceeds 128 characters; shorten brand, baseProductName, color, or size");
         }
         assertNotReservedSemiFinishedSku(sku);
         return sku;
+    }
+
+    private String buildCanonicalItemCode(String itemClass,
+                                          ProductionBrand brand,
+                                          String baseName,
+                                          String detail,
+                                          String sizeLabel,
+                                          String unitOfMeasure) {
+        String normalizedItemClass = normalizeItemClass(itemClass);
+        return switch (normalizedItemClass) {
+            case ITEM_CLASS_FINISHED_GOOD -> String.join("-", List.of(
+                    "FG",
+                    requireCanonicalSkuFragment("brandCode", brand != null ? brand.getCode() : null, 12),
+                    requireCanonicalSkuFragment("name", baseName, 40),
+                    requireCanonicalSkuFragment("color", detail, 24),
+                    requireCanonicalSkuFragment("size", sizeLabel, 24)));
+            case ITEM_CLASS_RAW_MATERIAL -> String.join("-", List.of(
+                    "RM",
+                    requireCanonicalSkuFragment("brandCode", brand != null ? brand.getCode() : null, 12),
+                    requireCanonicalSkuFragment("name", baseName, 48),
+                    requireCanonicalSkuFragment("spec", detail, 24),
+                    requireCanonicalSkuFragment("unitOfMeasure", unitOfMeasure, 16)));
+            case ITEM_CLASS_PACKAGING_RAW_MATERIAL -> String.join("-", List.of(
+                    "PKG",
+                    requireCanonicalSkuFragment("brandCode", brand != null ? brand.getCode() : null, 12),
+                    requireCanonicalSkuFragment("packType", baseName, 32),
+                    requireCanonicalSkuFragment("size", sizeLabel, 24),
+                    requireCanonicalSkuFragment("unitOfMeasure", unitOfMeasure, 16)));
+            default -> throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                    "itemClass is required (FINISHED_GOOD, RAW_MATERIAL, or PACKAGING_RAW_MATERIAL)");
+        };
+    }
+
+    private String composeItemDisplayName(String itemClass,
+                                          String baseName,
+                                          String detail,
+                                          String sizeLabel) {
+        String normalizedBaseName = requireCanonicalToken(baseName, "name");
+        String normalizedItemClass = normalizeItemClass(itemClass);
+        return switch (normalizedItemClass) {
+            case ITEM_CLASS_FINISHED_GOOD -> normalizedBaseName
+                    + " " + requireCanonicalToken(detail, "color")
+                    + " " + requireCanonicalToken(sizeLabel, "size");
+            case ITEM_CLASS_RAW_MATERIAL -> StringUtils.hasText(detail)
+                    ? normalizedBaseName + " " + requireCanonicalToken(detail, "spec")
+                    : normalizedBaseName;
+            case ITEM_CLASS_PACKAGING_RAW_MATERIAL -> normalizedBaseName
+                    + " " + requireCanonicalToken(sizeLabel, "size");
+            default -> normalizedBaseName;
+        };
+    }
+
+    private void assertImmutableIdentityField(String fieldName, String existingValue, String requestedValue) {
+        if (Objects.equals(existingValue, requestedValue)) {
+            return;
+        }
+        throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                fieldName + " is immutable after item creation; create a new item instead");
     }
 
     private String requireCanonicalSkuFragment(String fieldName, String rawValue, int maxLength) {
@@ -976,7 +1053,8 @@ public class ProductionCatalogService {
                 request.brandCode());
         String baseName = request.baseProductName().trim();
         String unit = StringUtils.hasText(request.unitOfMeasure()) ? request.unitOfMeasure().trim() : "UNIT";
-        String prefix = resolveVariantPrefix(request.skuPrefix(), brandPlan.brandCode());
+        String normalizedItemClass = normalizeVariantItemClass(normalizedCategory);
+        String normalizedBrandCode = sanitizeCode(brandPlan.brandCode());
         String baseSkuFragment = requireVariantSkuFragment("baseProductName", baseName, Integer.MAX_VALUE);
 
         List<VariantCandidate> generatedCandidates = new ArrayList<>();
@@ -993,14 +1071,20 @@ public class ProductionCatalogService {
             for (String size : sizes) {
                 String sizeCode = requireVariantSkuFragment("size", size, 8);
                 String sku = String.join("-",
-                        List.of(prefix, baseSkuFragment, colorCode, sizeCode))
+                        List.of(itemClassSkuPrefix(normalizedItemClass), normalizedBrandCode, baseSkuFragment, colorCode, sizeCode))
                         .replaceAll("-+", "-");
                 ProductCreateRequest createRequest = new ProductCreateRequest(
                         brandPlan.brandId(),
                         brandPlan.brandId() == null ? brandPlan.brandName() : null,
                         brandPlan.brandId() == null ? brandPlan.brandCode() : null,
                         baseName + " " + color + " " + size,
-                        normalizedCategory, color, size, unit, null, sku,
+                        normalizedCategory,
+                        normalizedItemClass,
+                        color,
+                        size,
+                        unit,
+                        null,
+                        sku,
                         request.basePrice(), request.gstRate(),
                         request.minDiscountPercent(), request.minSellingPrice(),
                         request.metadata()
@@ -1271,7 +1355,7 @@ public class ProductionCatalogService {
         if (MULTI_VALUE_DELIMITER.matcher(value).find()) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                     "Multiple values in '" + fieldName + "' are not supported for single-product create/update. "
-                            + "Use POST /api/v1/catalog/products with array-based colors and sizes for matrix input.");
+                            + "Use POST /api/v1/catalog/items with one item per request.");
         }
     }
 
@@ -1321,22 +1405,40 @@ public class ProductionCatalogService {
     public ProductionProductDto updateProduct(Long productId, ProductUpdateRequest request) {
         Company company = companyContextService.requireCurrentCompany();
         ProductionProduct product = companyEntityLookup.requireProductionProduct(company, productId);
+        String currentItemClass = itemClassForProduct(product);
         if (StringUtils.hasText(request.productName())) {
-            product.setProductName(request.productName().trim());
+            product.setProductName(composeItemDisplayName(
+                    currentItemClass,
+                    request.productName().trim(),
+                    product.getDefaultColour(),
+                    product.getSizeLabel()));
         }
-        if (StringUtils.hasText(request.category())) {
-            product.setCategory(normalizeCategory(request.category()));
+        if (StringUtils.hasText(request.itemClass())) {
+            String requestedItemClass = normalizeItemClass(request.itemClass());
+            if (!Objects.equals(requestedItemClass, currentItemClass)) {
+                throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                        "itemClass is immutable for existing items; create a new item instead");
+            }
+        } else if (StringUtils.hasText(request.category())) {
+            String requestedCategory = normalizeCategory(request.category());
+            if (!requestedCategory.equalsIgnoreCase(product.getCategory())) {
+                throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                        "category is derived from itemClass and cannot be changed directly");
+            }
         }
         if (request.defaultColour() != null) {
             validateSingleVariantField("defaultColour", request.defaultColour());
-            product.setDefaultColour(cleanValue(request.defaultColour()));
+            assertImmutableIdentityField("color/spec", cleanValue(product.getDefaultColour()), cleanValue(request.defaultColour()));
         }
         if (request.sizeLabel() != null) {
             validateSingleVariantField("sizeLabel", request.sizeLabel());
-            product.setSizeLabel(cleanValue(request.sizeLabel()));
+            assertImmutableIdentityField("size", cleanValue(product.getSizeLabel()), cleanValue(request.sizeLabel()));
         }
         if (request.unitOfMeasure() != null) {
-            product.setUnitOfMeasure(cleanValue(request.unitOfMeasure()));
+            assertImmutableIdentityField("unitOfMeasure", cleanValue(product.getUnitOfMeasure()), cleanValue(request.unitOfMeasure()));
+        }
+        if (request.hsnCode() != null) {
+            product.setHsnCode(cleanValue(request.hsnCode()));
         }
         if (request.basePrice() != null) {
             product.setBasePrice(money(request.basePrice()));
@@ -1361,8 +1463,12 @@ public class ProductionCatalogService {
             product.setMetadata(ensureFinishedGoodAccounts(company, product.getSkuCode(),
                     new HashMap<>(Optional.ofNullable(product.getMetadata()).orElseGet(HashMap::new))));
         }
+        if (request.active() != null) {
+            product.setActive(request.active());
+        }
         ProductionProduct saved = productRepository.save(product);
         ensureCatalogFinishedGood(company, saved);
+        syncRawMaterial(company, saved, currentItemClass);
         return toProductDto(saved);
     }
 
@@ -1713,7 +1819,18 @@ public class ProductionCatalogService {
     }
 
     private boolean syncRawMaterial(Company company, ProductionProduct product) {
-        return syncRawMaterial(company, product, null, rawMaterialInventoryAccountIdFromMetadata(product) != null);
+        return syncRawMaterial(company, product, null, null, rawMaterialInventoryAccountIdFromMetadata(product) != null);
+    }
+
+    private boolean syncRawMaterial(Company company,
+                                    ProductionProduct product,
+                                    String itemClassHint) {
+        return syncRawMaterial(
+                company,
+                product,
+                itemClassHint,
+                null,
+                rawMaterialInventoryAccountIdFromMetadata(product) != null);
     }
 
     private boolean syncRawMaterial(Company company,
@@ -1722,12 +1839,26 @@ public class ProductionCatalogService {
         return syncRawMaterial(
                 company,
                 product,
+                null,
                 validatedRawMaterialInventoryAccounts,
                 rawMaterialInventoryAccountIdFromMetadata(product) != null);
     }
 
     private boolean syncRawMaterial(Company company,
                                     ProductionProduct product,
+                                    Map<Long, Long> validatedRawMaterialInventoryAccounts,
+                                    boolean hasExplicitInventoryAccountMapping) {
+        return syncRawMaterial(
+                company,
+                product,
+                null,
+                validatedRawMaterialInventoryAccounts,
+                hasExplicitInventoryAccountMapping);
+    }
+
+    private boolean syncRawMaterial(Company company,
+                                    ProductionProduct product,
+                                    String itemClassHint,
                                     Map<Long, Long> validatedRawMaterialInventoryAccounts,
                                     boolean hasExplicitInventoryAccountMapping) {
         if (!isRawMaterialCategory(product.getCategory())) {
@@ -1762,8 +1893,12 @@ public class ProductionCatalogService {
         if (product.getGstRate() != null) {
             material.setGstRate(percent(product.getGstRate()));
         }
-        if (isLikelyPackagingMaterial(product)) {
-            material.setMaterialType(com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PACKAGING);
+        com.bigbrightpaints.erp.modules.inventory.domain.MaterialType materialType = resolveRawMaterialMaterialType(
+                product,
+                material,
+                itemClassHint);
+        if (materialType != null && material.getMaterialType() != materialType) {
+            material.setMaterialType(materialType);
         }
         String canonicalCostingMethod = CostingMethodUtils.canonicalizeRawMaterialMethodForSync(material.getCostingMethod());
         if (!Objects.equals(material.getCostingMethod(), canonicalCostingMethod)) {
@@ -1968,29 +2103,19 @@ public class ProductionCatalogService {
         return "UNIT";
     }
 
-    private boolean isLikelyPackagingMaterial(ProductionProduct product) {
-        if (product == null) {
-            return false;
+    private com.bigbrightpaints.erp.modules.inventory.domain.MaterialType resolveRawMaterialMaterialType(
+            ProductionProduct product,
+            RawMaterial material,
+            String itemClassHint) {
+        if (StringUtils.hasText(itemClassHint)) {
+            return ITEM_CLASS_PACKAGING_RAW_MATERIAL.equals(normalizeItemClass(itemClassHint))
+                    ? com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PACKAGING
+                    : com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PRODUCTION;
         }
-        String sku = normalizeKey(product.getSkuCode());
-        String name = normalizeKey(product.getProductName());
-        String category = normalizeKey(product.getCategory());
-        return containsAnyPackagingToken(sku)
-                || containsAnyPackagingToken(name)
-                || containsAnyPackagingToken(category);
-    }
-
-    private boolean containsAnyPackagingToken(String value) {
-        if (!StringUtils.hasText(value)) {
-            return false;
+        if (material != null && material.getMaterialType() != null) {
+            return material.getMaterialType();
         }
-        return value.contains("pack")
-                || value.contains("bucket")
-                || value.contains("can")
-                || value.contains("tin")
-                || value.contains("label")
-                || value.contains("bottle")
-                || value.contains("container");
+        return com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PRODUCTION;
     }
 
     private Long requiredMetadataLong(ProductionProduct product, String key) {
@@ -2125,6 +2250,71 @@ public class ProductionCatalogService {
 
     private static String normalizeCategory(String category) {
         return StringUtils.hasText(category) ? category.trim().replace(' ', '_').toUpperCase() : "GENERAL";
+    }
+
+    private String resolveEntryItemClass(CatalogProductEntryRequest request) {
+        if (request == null) {
+            return normalizeItemClass(null);
+        }
+        return normalizeItemClass(request.getItemClass());
+    }
+
+    private String normalizeItemClass(String itemClass) {
+        String normalized = normalizeCategory(itemClass);
+        return switch (normalized) {
+            case ITEM_CLASS_FINISHED_GOOD, ITEM_CLASS_RAW_MATERIAL, ITEM_CLASS_PACKAGING_RAW_MATERIAL -> normalized;
+            case "PACKAGING" -> ITEM_CLASS_PACKAGING_RAW_MATERIAL;
+            default -> throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                    "itemClass is required (FINISHED_GOOD, RAW_MATERIAL, or PACKAGING_RAW_MATERIAL)");
+        };
+    }
+
+    private String normalizeVariantItemClass(String category) {
+        return switch (normalizeCategory(category)) {
+            case ITEM_CLASS_RAW_MATERIAL -> ITEM_CLASS_RAW_MATERIAL;
+            case ITEM_CLASS_PACKAGING_RAW_MATERIAL, "PACKAGING" -> ITEM_CLASS_PACKAGING_RAW_MATERIAL;
+            default -> ITEM_CLASS_FINISHED_GOOD;
+        };
+    }
+
+    private String itemClassSkuPrefix(String itemClass) {
+        return switch (normalizeItemClass(itemClass)) {
+            case ITEM_CLASS_RAW_MATERIAL -> "RM";
+            case ITEM_CLASS_PACKAGING_RAW_MATERIAL -> "PKG";
+            default -> "FG";
+        };
+    }
+
+    private String categoryForItemClass(String itemClass) {
+        return switch (normalizeItemClass(itemClass)) {
+            case ITEM_CLASS_RAW_MATERIAL, ITEM_CLASS_PACKAGING_RAW_MATERIAL -> ITEM_CLASS_RAW_MATERIAL;
+            default -> ITEM_CLASS_FINISHED_GOOD;
+        };
+    }
+
+    private Long rawMaterialIdForSku(Company company, String sku) {
+        if (company == null || !StringUtils.hasText(sku)) {
+            return null;
+        }
+        return rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, sku)
+                .map(RawMaterial::getId)
+                .orElse(null);
+    }
+
+    private String itemClassForProduct(ProductionProduct product) {
+        if (product == null) {
+            return ITEM_CLASS_FINISHED_GOOD;
+        }
+        if (!isRawMaterialCategory(product.getCategory())) {
+            return ITEM_CLASS_FINISHED_GOOD;
+        }
+        RawMaterial material = StringUtils.hasText(product.getSkuCode())
+                ? rawMaterialRepository.findByCompanyAndSkuIgnoreCase(product.getCompany(), product.getSkuCode()).orElse(null)
+                : null;
+        if (material != null && material.getMaterialType() == com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PACKAGING) {
+            return ITEM_CLASS_PACKAGING_RAW_MATERIAL;
+        }
+        return ITEM_CLASS_RAW_MATERIAL;
     }
 
     private static String normalizeKey(String value) {
@@ -2402,6 +2592,7 @@ public class ProductionCatalogService {
                                            UUID variantGroupId,
                                            String productFamilyName,
                                            String category,
+                                           String itemClass,
                                            String unitOfMeasure,
                                            String hsnCode,
                                            BigDecimal basePrice,
@@ -2437,12 +2628,13 @@ public class ProductionCatalogService {
                                            ProductCreateRequest createRequest) {
         private CatalogProductEntryResponse.Member toMember(Long id,
                                                             UUID publicId,
+                                                            Long rawMaterialId,
                                                             com.bigbrightpaints.erp.modules.production.dto.SkuReadinessDto readiness) {
-            return new CatalogProductEntryResponse.Member(id, publicId, sku, productName, color, size, readiness);
+            return new CatalogProductEntryResponse.Member(id, publicId, rawMaterialId, sku, productName, createRequest.itemClass(), color, size, readiness);
         }
 
         private CatalogProductEntryResponse.Conflict toConflict(String reason) {
-            return new CatalogProductEntryResponse.Conflict(sku, reason, productName, color, size);
+            return new CatalogProductEntryResponse.Conflict(sku, reason, productName, createRequest.itemClass(), color, size);
         }
     }
 

@@ -162,7 +162,7 @@ class TS_O2CListenerProformaInvoiceBoundaryTest extends AbstractIntegrationTest 
         activateCompany(fixture.company());
         assertThatThrownBy(() -> invoiceService.issueInvoiceForOrder(createdOrder.getId()))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("Dispatch confirmation is required before issuing an invoice");
+                .hasMessageContaining("Final invoice is created by dispatch confirmation");
 
         SalesOrder reloadedOrder = salesOrderRepository.findById(createdOrder.getId()).orElseThrow();
         assertThat(reloadedOrder.getFulfillmentInvoiceId()).isNull();

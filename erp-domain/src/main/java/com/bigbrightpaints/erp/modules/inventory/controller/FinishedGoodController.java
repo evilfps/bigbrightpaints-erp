@@ -37,23 +37,6 @@ public class FinishedGoodController {
         return ResponseEntity.ok(ApiResponse.success(good));
     }
 
-    @PostMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY')")
-    public ResponseEntity<ApiResponse<FinishedGoodDto>> createFinishedGood(
-            @Valid @RequestBody FinishedGoodRequest request) {
-        FinishedGoodDto created = finishedGoodsService.createFinishedGood(request);
-        return ResponseEntity.ok(ApiResponse.success("Finished good created", created));
-    }
-
-    @PutMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY')")
-    public ResponseEntity<ApiResponse<FinishedGoodDto>> updateFinishedGood(
-            @PathVariable Long id,
-            @Valid @RequestBody FinishedGoodRequest request) {
-        FinishedGoodDto updated = finishedGoodsService.updateFinishedGood(id, request);
-        return ResponseEntity.ok(ApiResponse.success("Finished good updated", updated));
-    }
-
     @GetMapping("/{id}/batches")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES')")
     public ResponseEntity<ApiResponse<List<FinishedGoodBatchDto>>> listBatches(@PathVariable Long id) {
@@ -66,10 +49,15 @@ public class FinishedGoodController {
     public ResponseEntity<ApiResponse<FinishedGoodBatchDto>> registerBatch(
             @PathVariable Long id,
             @Valid @RequestBody FinishedGoodBatchRequest request) {
-        FinishedGoodBatchDto batch = finishedGoodsService.registerBatch(
-                new FinishedGoodBatchRequest(id, request.batchCode(), request.quantity(),
-                        request.unitCost(), request.manufacturedAt(), request.expiryDate()));
-        return ResponseEntity.ok(ApiResponse.success("Batch registered", batch));
+        FinishedGoodBatchRequest effectiveRequest = new FinishedGoodBatchRequest(
+                id,
+                request.batchCode(),
+                request.quantity(),
+                request.unitCost(),
+                request.manufacturedAt(),
+                request.expiryDate());
+        FinishedGoodBatchDto batch = finishedGoodsService.registerBatch(effectiveRequest);
+        return ResponseEntity.ok(ApiResponse.success("Finished good batch registered", batch));
     }
 
     @GetMapping("/stock-summary")

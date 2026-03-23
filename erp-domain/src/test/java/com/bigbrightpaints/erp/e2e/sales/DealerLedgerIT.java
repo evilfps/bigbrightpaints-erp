@@ -70,7 +70,7 @@ public class DealerLedgerIT extends AbstractIntegrationTest {
         String token = (String) login.getBody().get("accessToken");
         HttpHeaders h = new HttpHeaders();
         h.setBearerAuth(token);
-        h.set("X-Company-Id", COMPANY_CODE);
+        h.set("X-Company-Code", COMPANY_CODE);
         return h;
     }
 

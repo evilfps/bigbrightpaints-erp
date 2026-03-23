@@ -25,7 +25,6 @@ import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource;
-import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.OpeningStockImport;
 import com.bigbrightpaints.erp.modules.inventory.domain.OpeningStockImportRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
@@ -138,20 +137,43 @@ public class OpeningStockImportService {
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
-    public OpeningStockImportResponse importOpeningStock(MultipartFile file, String idempotencyKey) {
+    public OpeningStockImportResponse importOpeningStock(MultipartFile file,
+                                                         String idempotencyKey,
+                                                         String openingStockBatchKey) {
         Company company = companyContextService.requireCurrentCompany();
         if (file == null || file.isEmpty()) {
             throw ValidationUtils.invalidInput("CSV file is required");
         }
         String fileHash = resolveFileHash(file);
         String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
-        String importReference = resolveImportReference(company, normalizedKey);
+        String normalizedBatchKey = normalizeOpeningStockBatchKey(openingStockBatchKey);
+        String replayProtectionKey = buildReplayProtectionKey(company, fileHash);
+        String importReference = resolveImportReference(company, normalizedBatchKey);
 
         OpeningStockImport existing = openingStockImportRepository.findByCompanyAndIdempotencyKey(company, normalizedKey)
                 .orElse(null);
         if (existing != null) {
             assertIdempotencyMatch(existing, fileHash, normalizedKey);
             return toResponse(existing);
+        }
+
+        OpeningStockImport replayConflict = openingStockImportRepository
+                .findByCompanyAndReplayProtectionKey(company, replayProtectionKey)
+                .orElse(null);
+        if (replayConflict != null) {
+            throw openingStockFileReplayConflict(
+                    replayConflict,
+                    normalizedKey,
+                    normalizedBatchKey,
+                    replayProtectionKey,
+                    fileHash);
+        }
+
+        OpeningStockImport batchKeyConflict = openingStockImportRepository
+                .findByCompanyAndOpeningStockBatchKey(company, normalizedBatchKey)
+                .orElse(null);
+        if (batchKeyConflict != null) {
+            throw openingStockReplayConflict(batchKeyConflict, normalizedKey, normalizedBatchKey);
         }
 
         assertImportAllowed();
@@ -164,7 +186,14 @@ public class OpeningStockImportService {
 
         try {
             OpeningStockImportResponse response = transactionTemplate.execute(status ->
-                    importOpeningStockInternal(company, file, normalizedKey, fileHash, importReference));
+                    importOpeningStockInternal(
+                            company,
+                            file,
+                            normalizedKey,
+                            normalizedBatchKey,
+                            replayProtectionKey,
+                            fileHash,
+                            importReference));
             if (response == null) {
                 throw ValidationUtils.invalidState("Opening stock import failed to return a response");
             }
@@ -174,7 +203,27 @@ public class OpeningStockImportService {
                 throw ex;
             }
             OpeningStockImport concurrent = openingStockImportRepository.findByCompanyAndIdempotencyKey(company, normalizedKey)
-                    .orElseThrow(() -> ex);
+                    .orElse(null);
+            if (concurrent == null) {
+                OpeningStockImport concurrentReplay = openingStockImportRepository
+                        .findByCompanyAndReplayProtectionKey(company, replayProtectionKey)
+                        .orElse(null);
+                if (concurrentReplay != null) {
+                    throw openingStockFileReplayConflict(
+                            concurrentReplay,
+                            normalizedKey,
+                            normalizedBatchKey,
+                            replayProtectionKey,
+                            fileHash);
+                }
+                OpeningStockImport concurrentBatchKey = openingStockImportRepository
+                        .findByCompanyAndOpeningStockBatchKey(company, normalizedBatchKey)
+                        .orElse(null);
+                if (concurrentBatchKey != null) {
+                    throw openingStockReplayConflict(concurrentBatchKey, normalizedKey, normalizedBatchKey);
+                }
+                throw ex;
+            }
             assertIdempotencyMatch(concurrent, fileHash, normalizedKey);
             return toResponse(concurrent);
         }
@@ -199,6 +248,8 @@ public class OpeningStockImportService {
     private OpeningStockImportResponse importOpeningStockInternal(Company company,
                                                                   MultipartFile file,
                                                                   String idempotencyKey,
+                                                                  String openingStockBatchKey,
+                                                                  String replayProtectionKey,
                                                                   String fileHash,
                                                                   String importReference) {
         OpeningStockImport record = new OpeningStockImport();
@@ -206,17 +257,17 @@ public class OpeningStockImportService {
         record.setIdempotencyKey(idempotencyKey);
         record.setIdempotencyHash(fileHash);
         record.setReferenceNumber(importReference);
+        record.setOpeningStockBatchKey(openingStockBatchKey);
+        record.setReplayProtectionKey(replayProtectionKey);
         record.setFileHash(fileHash);
         record.setFileName(file.getOriginalFilename());
         record = openingStockImportRepository.saveAndFlush(record);
 
-        ImportResult result = processImport(company, file, importReference);
+        ImportResult result = processImport(company, file, importReference, openingStockBatchKey);
         OpeningStockImportResponse response = result.response();
 
         record.setRowsProcessed(response.rowsProcessed());
-        record.setRawMaterialsCreated(response.rawMaterialsCreated());
         record.setRawMaterialBatchesCreated(response.rawMaterialBatchesCreated());
-        record.setFinishedGoodsCreated(response.finishedGoodsCreated());
         record.setFinishedGoodBatchesCreated(response.finishedGoodBatchesCreated());
         record.setResultsJson(serializeResults(response.results()));
         record.setErrorsJson(serializeErrors(response.errors()));
@@ -226,6 +277,7 @@ public class OpeningStockImportService {
         Map<String, String> auditMetadata = new HashMap<>();
         auditMetadata.put("operation", "opening-stock-import");
         auditMetadata.put("idempotencyKey", idempotencyKey);
+        auditMetadata.put("openingStockBatchKey", openingStockBatchKey);
         auditMetadata.put("referenceNumber", importReference);
         auditMetadata.put("fileHash", fileHash);
         auditMetadata.put("rowsProcessed", Integer.toString(response.rowsProcessed()));
@@ -236,11 +288,12 @@ public class OpeningStockImportService {
         return response;
     }
 
-    private ImportResult processImport(Company company, MultipartFile file, String importReference) {
+    private ImportResult processImport(Company company,
+                                       MultipartFile file,
+                                       String importReference,
+                                       String openingStockBatchKey) {
         int rowsProcessed = 0;
-        int rawMaterialsCreated = 0;
         int rawMaterialBatchesCreated = 0;
-        int finishedGoodsCreated = 0;
         int finishedGoodBatchesCreated = 0;
         List<ImportRowResult> results = new ArrayList<>();
         List<ImportError> errors = new ArrayList<>();
@@ -286,7 +339,7 @@ public class OpeningStockImportService {
                 }
                 try {
                     OpeningMovementResult movementResult;
-                    if (row.type == StockType.RAW_MATERIAL) {
+                    if (row.type == StockType.RAW_MATERIAL || row.type == StockType.PACKAGING_RAW_MATERIAL) {
                         movementResult = handleRawMaterial(company, row);
                         rawMaterialBatchesCreated++;
                     } else {
@@ -341,10 +394,9 @@ public class OpeningStockImportService {
             }
 
             OpeningStockImportResponse response = new OpeningStockImportResponse(
+                    openingStockBatchKey,
                     rowsProcessed,
-                    rawMaterialsCreated,
                     rawMaterialBatchesCreated,
-                    finishedGoodsCreated,
                     finishedGoodBatchesCreated,
                     results,
                     errors
@@ -381,23 +433,43 @@ public class OpeningStockImportService {
         return resolved;
     }
 
+    private String normalizeOpeningStockBatchKey(String openingStockBatchKey) {
+        String resolved = StringUtils.hasText(openingStockBatchKey) ? openingStockBatchKey.trim() : null;
+        if (!StringUtils.hasText(resolved)) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "openingStockBatchKey is required for opening stock imports");
+        }
+        if (resolved.length() > 128) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
+                    "openingStockBatchKey exceeds 128 characters");
+        }
+        return resolved;
+    }
+
     private String normalizeSku(String sku) {
         return StringUtils.hasText(sku) ? sku.trim().toUpperCase(Locale.ROOT) : null;
     }
 
     private void assertIdempotencyMatch(OpeningStockImport record, String expectedHash, String idempotencyKey) {
-        String storedSignature = StringUtils.hasText(record.getIdempotencyHash())
-                ? record.getIdempotencyHash()
-                : record.getFileHash();
+        String storedSignature = record.getIdempotencyHash();
+        if (!StringUtils.hasText(storedSignature)) {
+            storedSignature = record.getFileHash();
+        }
         if (StringUtils.hasText(storedSignature)) {
             if (!storedSignature.equals(expectedHash)) {
                 throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                         "Idempotency key already used with different payload")
                         .withDetail("idempotencyKey", idempotencyKey);
             }
+            if (!StringUtils.hasText(record.getIdempotencyHash()) || !StringUtils.hasText(record.getFileHash())) {
+                record.setIdempotencyHash(expectedHash);
+                record.setFileHash(expectedHash);
+                openingStockImportRepository.save(record);
+            }
             return;
         }
         record.setIdempotencyHash(expectedHash);
+        record.setFileHash(expectedHash);
         openingStockImportRepository.save(record);
     }
 
@@ -405,10 +477,9 @@ public class OpeningStockImportService {
         List<ImportRowResult> results = deserializeResults(record.getResultsJson());
         List<ImportError> errors = deserializeErrors(record.getErrorsJson());
         return new OpeningStockImportResponse(
+                record.getOpeningStockBatchKey(),
                 record.getRowsProcessed(),
-                record.getRawMaterialsCreated(),
                 record.getRawMaterialBatchesCreated(),
-                record.getFinishedGoodsCreated(),
                 record.getFinishedGoodBatchesCreated(),
                 results,
                 errors
@@ -420,13 +491,12 @@ public class OpeningStockImportService {
         return new OpeningStockImportHistoryItem(
                 record.getId(),
                 record.getIdempotencyKey(),
+                record.getOpeningStockBatchKey(),
                 record.getReferenceNumber(),
                 record.getFileName(),
                 record.getJournalEntryId(),
                 record.getRowsProcessed(),
-                record.getRawMaterialsCreated(),
                 record.getRawMaterialBatchesCreated(),
-                record.getFinishedGoodsCreated(),
                 record.getFinishedGoodBatchesCreated(),
                 errors.size(),
                 record.getCreatedAt()
@@ -488,11 +558,53 @@ public class OpeningStockImportService {
         return false;
     }
 
-    private String resolveImportReference(Company company, String idempotencyKey) {
+    private String buildReplayProtectionKey(Company company, String fileHash) {
+        String companyIdentity = company != null && company.getId() != null
+                ? "CID-" + company.getId()
+                : sanitizeCompanyCode(company != null ? company.getCode() : null);
+        return "OPENING-STOCK|%s|%s".formatted(companyIdentity, fileHash);
+    }
+
+    private String resolveImportReference(Company company, String openingStockBatchKey) {
         String companyCode = sanitizeCompanyCode(company != null ? company.getCode() : null);
-        String referenceHash = IdempotencyUtils.sha256Hex(idempotencyKey);
+        String referenceHash = IdempotencyUtils.sha256Hex(openingStockBatchKey);
         String shortHash = referenceHash.substring(0, Math.min(12, referenceHash.length()));
         return "OPEN-STOCK-%s-%s".formatted(companyCode, shortHash);
+    }
+
+    private ApplicationException openingStockReplayConflict(OpeningStockImport existing,
+                                                           String attemptedIdempotencyKey,
+                                                           String attemptedBatchKey) {
+        return new ApplicationException(
+                ErrorCode.BUSINESS_DUPLICATE_ENTRY,
+                "Opening stock batch key already exists. Reuse the original Idempotency-Key to retry, or reverse the prior opening stock before importing a materially distinct batch.")
+                .withDetail("existingIdempotencyKey", existing.getIdempotencyKey())
+                .withDetail("openingStockBatchKey", existing.getOpeningStockBatchKey())
+                .withDetail("referenceNumber", existing.getReferenceNumber())
+                .withDetail("attemptedIdempotencyKey", attemptedIdempotencyKey)
+                .withDetail("attemptedOpeningStockBatchKey", attemptedBatchKey)
+                .withDetail("operatorAction", "Reuse the original Idempotency-Key for a retry, or reverse the prior opening stock before importing a distinct batch.");
+    }
+
+    private ApplicationException openingStockFileReplayConflict(OpeningStockImport existing,
+                                                                String attemptedIdempotencyKey,
+                                                                String attemptedBatchKey,
+                                                                String replayProtectionKey,
+                                                                String fileHash) {
+        String existingReplayProtectionKey = StringUtils.hasText(existing.getReplayProtectionKey())
+                ? existing.getReplayProtectionKey()
+                : replayProtectionKey;
+        return new ApplicationException(
+                ErrorCode.BUSINESS_DUPLICATE_ENTRY,
+                "Opening stock file already imported. Reuse the original Idempotency-Key to retry, or reverse the prior opening stock before importing a materially distinct file.")
+                .withDetail("existingIdempotencyKey", existing.getIdempotencyKey())
+                .withDetail("openingStockBatchKey", existing.getOpeningStockBatchKey())
+                .withDetail("referenceNumber", existing.getReferenceNumber())
+                .withDetail("replayProtectionKey", existingReplayProtectionKey)
+                .withDetail("fileHash", fileHash)
+                .withDetail("attemptedIdempotencyKey", attemptedIdempotencyKey)
+                .withDetail("attemptedOpeningStockBatchKey", attemptedBatchKey)
+                .withDetail("operatorAction", "Reuse the original Idempotency-Key for a retry, or reverse the prior opening stock before importing a distinct file.");
     }
 
     private String sanitizeCompanyCode(String code) {
@@ -517,7 +629,7 @@ public class OpeningStockImportService {
                 company,
                 sku,
                 row,
-                SkuReadinessService.ExpectedStockType.RAW_MATERIAL
+                expectedStockType(row.type)
         );
         RawMaterial material = rawMaterialRepository.findByCompanyAndSku(company, sku)
                 .orElseThrow(() -> ValidationUtils.invalidState("Raw material mirror missing for prepared SKU " + sku));
@@ -704,10 +816,17 @@ public class OpeningStockImportService {
     }
 
     private SkuReadinessDto readinessFor(Company company, String sku, StockType stockType) {
-        SkuReadinessService.ExpectedStockType expectedStockType = stockType == StockType.RAW_MATERIAL
-                ? SkuReadinessService.ExpectedStockType.RAW_MATERIAL
-                : SkuReadinessService.ExpectedStockType.FINISHED_GOOD;
-        return skuReadinessService.forSku(company, sku, expectedStockType);
+        return skuReadinessService.forSku(company, sku, expectedStockType(stockType));
+    }
+
+    private SkuReadinessService.ExpectedStockType expectedStockType(StockType stockType) {
+        if (stockType == StockType.PACKAGING_RAW_MATERIAL) {
+            return SkuReadinessService.ExpectedStockType.PACKAGING_RAW_MATERIAL;
+        }
+        if (stockType == StockType.RAW_MATERIAL) {
+            return SkuReadinessService.ExpectedStockType.RAW_MATERIAL;
+        }
+        return SkuReadinessService.ExpectedStockType.FINISHED_GOOD;
     }
 
     private SkuReadinessDto readinessForError(Company company, String sku, StockType stockType) {
@@ -797,6 +916,7 @@ public class OpeningStockImportService {
 
     private enum StockType {
         RAW_MATERIAL,
+        PACKAGING_RAW_MATERIAL,
         FINISHED_GOOD
     }
 
@@ -812,36 +932,30 @@ public class OpeningStockImportService {
     private static final class OpeningRow {
         private final StockType type;
         private final String sku;
-        private final String name;
         private final String unit;
         private final String unitType;
         private final String batchCode;
         private final BigDecimal quantity;
         private final BigDecimal unitCost;
-        private final MaterialType materialType;
         private final LocalDate manufacturedDate;
         private final LocalDate expiryDate;
 
         private OpeningRow(StockType type,
                            String sku,
-                           String name,
                            String unit,
                            String unitType,
                            String batchCode,
                            BigDecimal quantity,
                            BigDecimal unitCost,
-                           MaterialType materialType,
                            LocalDate manufacturedDate,
                            LocalDate expiryDate) {
             this.type = type;
             this.sku = sku;
-            this.name = name;
             this.unit = unit;
             this.unitType = unitType;
             this.batchCode = batchCode;
             this.quantity = quantity;
             this.unitCost = unitCost;
-            this.materialType = materialType;
             this.manufacturedDate = manufacturedDate;
             this.expiryDate = expiryDate;
         }
@@ -849,34 +963,33 @@ public class OpeningStockImportService {
         static OpeningRow from(CSVRecord record) {
             String typeValue = readValue(record, "type", "item_type");
             String sku = readValue(record, "sku", "product_code", "sku_code");
-            String name = readValue(record, "name", "product_name");
             String unit = readValue(record, "unit", "unit_of_measure");
             String unitType = readValue(record, "unit_type");
             String batchCode = readValue(record, "batch_code", "batch");
             BigDecimal quantity = decimal(record, "quantity", "qty");
             BigDecimal unitCost = decimal(record, "unit_cost", "cost_per_unit", "cost");
-            String materialTypeRaw = readValue(record, "material_type");
-            MaterialType materialType = parseMaterialType(materialTypeRaw);
             LocalDate manufacturedDate = date(record, "manufactured_at", "manufacturing_date", "manufacturingDate", "batch_date");
             LocalDate expiryDate = date(record, "expiry_date", "expiryDate", "expiry");
 
-            if (!StringUtils.hasText(typeValue) && !StringUtils.hasText(sku) && !StringUtils.hasText(name)) {
+            if (!StringUtils.hasText(typeValue) && !StringUtils.hasText(sku)) {
                 return null;
             }
             StockType type = parseType(typeValue);
-            return new OpeningRow(type, sku, name, unit, unitType, batchCode, quantity, unitCost, materialType, manufacturedDate, expiryDate);
+            return new OpeningRow(type, sku, unit, unitType, batchCode, quantity, unitCost, manufacturedDate, expiryDate);
         }
 
         String displayKey() {
-            String id = StringUtils.hasText(sku) ? sku : name;
-            return StringUtils.hasText(id) ? id : "row";
+            return StringUtils.hasText(sku) ? sku : "row";
         }
 
         private static StockType parseType(String value) {
             if (!StringUtils.hasText(value)) {
-                throw ValidationUtils.invalidInput("type is required (RAW_MATERIAL or FINISHED_GOOD)");
+                throw ValidationUtils.invalidInput("type is required (RAW_MATERIAL, PACKAGING_RAW_MATERIAL, or FINISHED_GOOD)");
             }
             String normalized = value.trim().toUpperCase(Locale.ROOT);
+            if (normalized.startsWith("PACK") || normalized.equals("PKG") || normalized.equals("PACKAGING_RAW_MATERIAL")) {
+                return StockType.PACKAGING_RAW_MATERIAL;
+            }
             if (normalized.startsWith("RAW") || normalized.equals("RM") || normalized.equals("RAW_MATERIAL")) {
                 return StockType.RAW_MATERIAL;
             }
@@ -884,18 +997,6 @@ public class OpeningStockImportService {
                 return StockType.FINISHED_GOOD;
             }
             throw ValidationUtils.invalidInput("Unknown type: " + value);
-        }
-
-        private static MaterialType parseMaterialType(String value) {
-            if (!StringUtils.hasText(value)) {
-                return null;
-            }
-            String normalized = value.trim().toUpperCase(Locale.ROOT);
-            return switch (normalized) {
-                case "PACKAGING" -> MaterialType.PACKAGING;
-                case "PRODUCTION" -> MaterialType.PRODUCTION;
-                default -> throw ValidationUtils.invalidInput("Unknown material_type: " + value);
-            };
         }
 
         private static String readValue(CSVRecord record, String... keys) {

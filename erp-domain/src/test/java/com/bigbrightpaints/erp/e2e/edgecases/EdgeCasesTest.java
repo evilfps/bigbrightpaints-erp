@@ -24,6 +24,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -69,7 +70,7 @@ public class EdgeCasesTest extends AbstractIntegrationTest {
         HttpHeaders h = new HttpHeaders();
         h.setBearerAuth(token);
         h.setContentType(MediaType.APPLICATION_JSON);
-        h.set("X-Company-Id", COMPANY_CODE);
+        h.set("X-Company-Code", COMPANY_CODE);
         return h;
     }
 
@@ -105,13 +106,10 @@ public class EdgeCasesTest extends AbstractIntegrationTest {
         rm.setUnitType("KG");
         rm.setCurrentStock(BigDecimal.ZERO);
         rm = rawMaterialRepository.save(rm);
+        RawMaterial savedRawMaterial = rm;
 
-        // Try to set negative stock (should be prevented by validation or business logic)
-        rm.setCurrentStock(new BigDecimal("-10.00"));
-        RawMaterial saved = rawMaterialRepository.save(rm);
-
-        // Verify the system handled it (either prevented or normalized)
-        assertThat(saved.getCurrentStock()).isGreaterThanOrEqualTo(BigDecimal.ZERO);
+        assertThatThrownBy(() -> savedRawMaterial.setCurrentStock(new BigDecimal("-10.00")))
+                .hasMessageContaining("Raw material stock cannot be negative");
     }
 
     @Test

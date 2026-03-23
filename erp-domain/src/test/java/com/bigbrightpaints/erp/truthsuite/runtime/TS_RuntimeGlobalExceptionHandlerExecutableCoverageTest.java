@@ -19,7 +19,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 @Tag("critical")
 class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
 
-    private static final String CATALOG_PRODUCT_ENTRY_PATH = "/api/v1/catalog/products";
+    private static final String CATALOG_PRODUCT_ENTRY_PATH = "/api/v1/catalog/items";
     private static final String CATALOG_PRODUCT_ENTRY_OPERATION = "catalog-product-entry";
     private static final String CATALOG_BULK_VARIANTS_PATH = "/api/v1/catalog/products/bulk-variants";
     private static final String CATALOG_BULK_VARIANTS_OPERATION = "catalog-bulk-variants";
@@ -251,9 +251,9 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
         String unchangedUri = ReflectionTestUtils.invokeMethod(
                 handler,
                 "stripContextPath",
-                "/api/v1/catalog/products",
+                "/api/v1/catalog/items",
                 "/tenant");
-        assertThat(unchangedUri).isEqualTo("/api/v1/catalog/products");
+        assertThat(unchangedUri).isEqualTo("/api/v1/catalog/items");
 
         Boolean nullPathRejected = ReflectionTestUtils.invokeMethod(
                 handler,
@@ -279,8 +279,8 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
         String normalizedWithoutSlash = ReflectionTestUtils.invokeMethod(
                 handler,
                 "normalizeEndpointPath",
-                "api/v1/catalog/products");
-        assertThat(normalizedWithoutSlash).isEqualTo("/api/v1/catalog/products");
+                "api/v1/catalog/items");
+        assertThat(normalizedWithoutSlash).isEqualTo("/api/v1/catalog/items");
 
         String normalizedRoot = ReflectionTestUtils.invokeMethod(
                 handler,
@@ -291,7 +291,7 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
         String normalizedTrimmed = ReflectionTestUtils.invokeMethod(
                 handler,
                 "normalizeEndpointPath",
-                " /api/v1/catalog/products/ ");
+                " /api/v1/catalog/items/ ");
         assertThat(normalizedTrimmed).isEqualTo(CATALOG_PRODUCT_ENTRY_PATH);
     }
 

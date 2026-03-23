@@ -265,9 +265,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         rest.exchange("/api/v1/sales/orders/" + orderId + "/confirm",
                 HttpMethod.POST, new HttpEntity<>(headers), Map.class);
 
-        Map<String, Object> dispatchReq = new HashMap<>();
-        dispatchReq.put("orderId", orderId);
-        dispatchReq.put("confirmedBy", "o2c-test");
+        Map<String, Object> dispatchReq = dispatchRequest(orderId, "o2c-test", "o2c-golden-" + orderId);
 
         ResponseEntity<Map> dispatchResp = rest.exchange("/api/v1/sales/dispatch/confirm",
                 HttpMethod.POST, new HttpEntity<>(dispatchReq, headers), Map.class);
@@ -456,9 +454,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         rest.exchange("/api/v1/sales/orders/" + orderId + "/confirm",
                 HttpMethod.POST, new HttpEntity<>(headers), Map.class);
 
-        Map<String, Object> dispatchReq = new HashMap<>();
-        dispatchReq.put("orderId", orderId);
-        dispatchReq.put("confirmedBy", "o2c-test");
+        Map<String, Object> dispatchReq = dispatchRequest(orderId, "o2c-test", "o2c-return-" + orderId);
 
         ResponseEntity<Map> dispatchResp = rest.exchange("/api/v1/sales/dispatch/confirm",
                 HttpMethod.POST, new HttpEntity<>(dispatchReq, headers), Map.class);
@@ -561,9 +557,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         rest.exchange("/api/v1/sales/orders/" + orderId + "/confirm",
                 HttpMethod.POST, new HttpEntity<>(headers), Map.class);
 
-        Map<String, Object> dispatchReq = new HashMap<>();
-        dispatchReq.put("orderId", orderId);
-        dispatchReq.put("confirmedBy", "o2c-test");
+        Map<String, Object> dispatchReq = dispatchRequest(orderId, "o2c-test", "o2c-credit-" + orderId);
 
         ResponseEntity<Map> dispatchResp = rest.exchange("/api/v1/sales/dispatch/confirm",
                 HttpMethod.POST, new HttpEntity<>(dispatchReq, headers), Map.class);
@@ -1382,9 +1376,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
                 new HttpEntity<>(tenantHeaders),
                 Map.class);
 
-        Map<String, Object> dispatchReq = new HashMap<>();
-        dispatchReq.put("orderId", orderId);
-        dispatchReq.put("confirmedBy", "tenant-admin");
+        Map<String, Object> dispatchReq = dispatchRequest(orderId, "tenant-admin", "tenant-order-" + orderId);
 
         ResponseEntity<Map> dispatchResp = rest.exchange(
                 "/api/v1/sales/dispatch/confirm",
@@ -1567,8 +1559,19 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-Company-Id", companyCode);
+        headers.set("X-Company-Code", companyCode);
         return headers;
+    }
+
+    private Map<String, Object> dispatchRequest(Long orderId, String confirmedBy, String referenceSeed) {
+        Map<String, Object> request = new HashMap<>();
+        request.put("orderId", orderId);
+        request.put("confirmedBy", confirmedBy);
+        request.put("transporterName", "BB Logistics");
+        request.put("driverName", "Driver " + referenceSeed);
+        request.put("vehicleNumber", "MH12" + Math.abs(referenceSeed.hashCode()));
+        request.put("challanReference", "CH-" + referenceSeed);
+        return request;
     }
 
     private Map<?, ?> requireData(ResponseEntity<Map> response, String action) {

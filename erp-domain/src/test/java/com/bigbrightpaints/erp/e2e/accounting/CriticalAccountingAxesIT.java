@@ -629,7 +629,7 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-Company-Id", COMPANY_CODE);
+        headers.set("X-Company-Code", COMPANY_CODE);
 
         Map<String, Object> payload = Map.of(
                 "entryDate", LocalDate.now(),
@@ -925,6 +925,7 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
         supplierEntity.setCreditLimit(new BigDecimal("1000000"));
         supplierEntity.setOutstandingBalance(BigDecimal.ZERO);
         supplierEntity.setPayableAccount(accounts.get("AP"));
+        supplierEntity.setStatus("ACTIVE");
         return supplierRepository.save(supplierEntity);
     }
 

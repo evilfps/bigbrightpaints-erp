@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -15,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class CostingMethodServiceTest {
 
     @Mock
@@ -39,7 +41,7 @@ class CostingMethodServiceTest {
     }
 
     @Test
-    void resolveActiveMethod_defaultsToWeightedAverageWhenPeriodValueMissing() {
+    void resolveActiveMethod_defaultsToFifoWhenPeriodValueMissing() {
         Company company = new Company();
         AccountingPeriod period = new AccountingPeriod();
         period.setCostingMethod(null);
@@ -49,6 +51,18 @@ class CostingMethodServiceTest {
 
         CostingMethodService service = new CostingMethodService(accountingPeriodService, companyContextService);
 
-        assertThat(service.resolveActiveMethod(company, referenceDate)).isEqualTo(CostingMethod.WEIGHTED_AVERAGE);
+        assertThat(service.resolveActiveMethod(company, referenceDate)).isEqualTo(CostingMethod.FIFO);
+    }
+
+    @Test
+    void resolveActiveMethod_defaultsToFifoWhenPeriodMissing() {
+        Company company = new Company();
+        LocalDate referenceDate = LocalDate.of(2026, 2, 10);
+
+        when(accountingPeriodService.ensurePeriod(company, referenceDate)).thenReturn(null);
+
+        CostingMethodService service = new CostingMethodService(accountingPeriodService, companyContextService);
+
+        assertThat(service.resolveActiveMethod(company, referenceDate)).isEqualTo(CostingMethod.FIFO);
     }
 }

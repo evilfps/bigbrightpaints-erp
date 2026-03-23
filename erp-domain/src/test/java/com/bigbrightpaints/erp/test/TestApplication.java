@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @SpringBootApplication
@@ -18,7 +19,10 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         "com.bigbrightpaints.erp.orchestrator",
         "com.bigbrightpaints.erp.shared",
         "com.bigbrightpaints.erp.test"
-})
+}, excludeFilters = @ComponentScan.Filter(
+        type = FilterType.REGEX,
+        pattern = "com\\.bigbrightpaints\\.erp\\..*Test\\$.*"
+))
 @EnableJpaRepositories(basePackages = "com.bigbrightpaints.erp")
 @EntityScan(basePackages = "com.bigbrightpaints.erp")
 public class TestApplication {

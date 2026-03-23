@@ -143,7 +143,7 @@ public class LandedCostRevaluationIT extends AbstractIntegrationTest {
         HttpHeaders h = new HttpHeaders();
         h.setBearerAuth(token);
         h.setContentType(MediaType.APPLICATION_JSON);
-        h.set("X-Company-Id", COMPANY);
+        h.set("X-Company-Code", COMPANY);
         return h;
     }
 }

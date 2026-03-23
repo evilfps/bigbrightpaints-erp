@@ -216,7 +216,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void adjustment_wacUsesExpiryOrderedBatchSelection_andIdempotentReplayDoesNotDoubleDeplete() {
+    void adjustment_wacSettingFallsBackToFifoSelection_andIdempotentReplayDoesNotDoubleDeplete() {
         String companyCode = "CR-INV-ADJ-WAC-" + shortId();
         Company company = bootstrapCompany(companyCode);
         Map<String, Account> accounts = ensureAccounts(company);
@@ -261,10 +261,10 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
 
         FinishedGoodBatch soonerExpiryAfterFirst = finishedGoodBatchRepository.findById(soonerExpiryBatchId).orElseThrow();
         FinishedGoodBatch olderAfterFirst = finishedGoodBatchRepository.findById(olderBatchId).orElseThrow();
-        assertThat(soonerExpiryAfterFirst.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("1"));
-        assertThat(soonerExpiryAfterFirst.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("1"));
-        assertThat(olderAfterFirst.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
-        assertThat(olderAfterFirst.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(soonerExpiryAfterFirst.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(soonerExpiryAfterFirst.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(olderAfterFirst.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("1"));
+        assertThat(olderAfterFirst.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("1"));
 
         CompanyContextHolder.setCompanyId(companyCode);
         InventoryAdjustmentDto second = inventoryAdjustmentService.createAdjustment(request);
@@ -273,10 +273,10 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
 
         FinishedGoodBatch soonerExpiryAfterReplay = finishedGoodBatchRepository.findById(soonerExpiryBatchId).orElseThrow();
         FinishedGoodBatch olderAfterReplay = finishedGoodBatchRepository.findById(olderBatchId).orElseThrow();
-        assertThat(soonerExpiryAfterReplay.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("1"));
-        assertThat(soonerExpiryAfterReplay.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("1"));
-        assertThat(olderAfterReplay.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
-        assertThat(olderAfterReplay.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(soonerExpiryAfterReplay.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(soonerExpiryAfterReplay.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(olderAfterReplay.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("1"));
+        assertThat(olderAfterReplay.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("1"));
     }
 
     @Test
@@ -348,7 +348,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void adjustment_legacyWeightedAverageAlias_usesExpiryOrder_underTurkishLocale() {
+    void adjustment_legacyWeightedAverageAlias_usesFifoOrder_underTurkishLocale() {
         String companyCode = "CR-INV-ADJ-WAC-LOC-" + shortId();
         Company company = bootstrapCompany(companyCode);
         Map<String, Account> accounts = ensureAccounts(company);
@@ -402,14 +402,14 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
 
         FinishedGoodBatch soonerExpiryAfter = finishedGoodBatchRepository.findById(soonerExpiryBatchId).orElseThrow();
         FinishedGoodBatch olderAfter = finishedGoodBatchRepository.findById(olderBatchId).orElseThrow();
-        assertThat(soonerExpiryAfter.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("1"));
-        assertThat(soonerExpiryAfter.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("1"));
-        assertThat(olderAfter.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
-        assertThat(olderAfter.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(soonerExpiryAfter.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(soonerExpiryAfter.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(olderAfter.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("1"));
+        assertThat(olderAfter.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("1"));
     }
 
     @Test
-    void dispatch_wacUsesWeightedAverageCost_andRejectsFifoCostRegression() {
+    void dispatch_usesFifoCost_whenCurrentPeriodDefaultsToFifo() {
         String companyCode = "CR-INV-DISP-WAC-" + shortId();
         Company company = bootstrapCompany(companyCode);
         Map<String, Account> accounts = ensureAccounts(company);
@@ -443,9 +443,9 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
             finishedGoodsService.reserveForOrder(order);
             var postings = finishedGoodsService.markSlipDispatched(order.getId());
             assertThat(postings).hasSize(1);
-            assertThat(postings.getFirst().cost()).isEqualByComparingTo(new BigDecimal("28.00"));
-            // Guard against regressions to FIFO/batch-unit-cost paths.
-            assertThat(postings.getFirst().cost()).isNotEqualByComparingTo(new BigDecimal("16.00"));
+            assertThat(postings.getFirst().cost()).isEqualByComparingTo(new BigDecimal("16.00"));
+            // Guard against regressions to weighted-average/expiry-first paths.
+            assertThat(postings.getFirst().cost()).isNotEqualByComparingTo(new BigDecimal("28.00"));
             assertThat(postings.getFirst().cost()).isNotEqualByComparingTo(new BigDecimal("40.00"));
         } finally {
             CompanyContextHolder.clear();
@@ -453,10 +453,10 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
 
         FinishedGoodBatch fifoPreferredAfter = finishedGoodBatchRepository.findById(fifoPreferredBatchId).orElseThrow();
         FinishedGoodBatch wacExpiryAfter = finishedGoodBatchRepository.findById(wacExpiryBatchId).orElseThrow();
-        assertThat(fifoPreferredAfter.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
-        assertThat(fifoPreferredAfter.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
-        assertThat(wacExpiryAfter.getQuantityTotal()).isEqualByComparingTo(BigDecimal.ONE);
-        assertThat(wacExpiryAfter.getQuantityAvailable()).isEqualByComparingTo(BigDecimal.ONE);
+        assertThat(fifoPreferredAfter.getQuantityTotal()).isEqualByComparingTo(BigDecimal.ONE);
+        assertThat(fifoPreferredAfter.getQuantityAvailable()).isEqualByComparingTo(BigDecimal.ONE);
+        assertThat(wacExpiryAfter.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
+        assertThat(wacExpiryAfter.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
     }
 
     @Test
@@ -466,8 +466,8 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
         Map<String, Account> accounts = ensureAccounts(company);
 
         assertReserveAdjustmentSelectorParity(companyCode, company, accounts, "FIFO", true);
-        assertReserveAdjustmentSelectorParity(companyCode, company, accounts, "LIFO", false);
-        assertReserveAdjustmentSelectorParity(companyCode, company, accounts, "WAC", false);
+        assertReserveAdjustmentSelectorParity(companyCode, company, accounts, "LIFO", true);
+        assertReserveAdjustmentSelectorParity(companyCode, company, accounts, "WAC", true);
     }
 
     private Company bootstrapCompany(String companyCode) {

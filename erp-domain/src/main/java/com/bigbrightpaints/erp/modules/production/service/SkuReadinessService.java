@@ -1,10 +1,12 @@
 package com.bigbrightpaints.erp.modules.production.service;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
@@ -13,6 +15,7 @@ import com.bigbrightpaints.erp.modules.production.dto.SkuReadinessDto;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -28,7 +31,8 @@ public class SkuReadinessService {
 
     public enum ExpectedStockType {
         FINISHED_GOOD,
-        RAW_MATERIAL
+        RAW_MATERIAL,
+        PACKAGING_RAW_MATERIAL
     }
 
     private static final List<String> RAW_MATERIAL_CATEGORIES = List.of(
@@ -42,15 +46,18 @@ public class SkuReadinessService {
     private final FinishedGoodRepository finishedGoodRepository;
     private final FinishedGoodBatchRepository finishedGoodBatchRepository;
     private final RawMaterialRepository rawMaterialRepository;
+    private final PackagingSizeMappingRepository packagingSizeMappingRepository;
 
     public SkuReadinessService(ProductionProductRepository productRepository,
                                FinishedGoodRepository finishedGoodRepository,
                                FinishedGoodBatchRepository finishedGoodBatchRepository,
-                               RawMaterialRepository rawMaterialRepository) {
+                               RawMaterialRepository rawMaterialRepository,
+                               PackagingSizeMappingRepository packagingSizeMappingRepository) {
         this.productRepository = productRepository;
         this.finishedGoodRepository = finishedGoodRepository;
         this.finishedGoodBatchRepository = finishedGoodBatchRepository;
         this.rawMaterialRepository = rawMaterialRepository;
+        this.packagingSizeMappingRepository = packagingSizeMappingRepository;
     }
 
     public SkuReadinessDto forProduct(Company company, ProductionProduct product) {
@@ -180,7 +187,9 @@ public class SkuReadinessService {
                 sanitizeStage(readiness.catalog()),
                 sanitizeStage(readiness.inventory()),
                 sanitizeStage(readiness.production()),
-                sanitizeStage(readiness.sales())
+                sanitizeStage(readiness.packing()),
+                sanitizeStage(readiness.sales()),
+                sanitizeStage(readiness.accounting())
         );
     }
 
@@ -229,7 +238,7 @@ public class SkuReadinessService {
         }
 
         List<String> inventoryBlockers = new ArrayList<>();
-        if (effectiveStockType == ExpectedStockType.RAW_MATERIAL) {
+        if (effectiveStockType == ExpectedStockType.RAW_MATERIAL || effectiveStockType == ExpectedStockType.PACKAGING_RAW_MATERIAL) {
             if (product != null && !isRawMaterialCategory(product.getCategory())) {
                 inventoryBlockers.add("RAW_MATERIAL_CATEGORY_REQUIRED");
             }
@@ -277,8 +286,24 @@ public class SkuReadinessService {
             }
         }
 
+        List<String> packingBlockers = new ArrayList<>();
+        if (effectiveStockType == ExpectedStockType.PACKAGING_RAW_MATERIAL) {
+            packingBlockers.addAll(inventoryBlockers);
+        } else if (effectiveStockType == ExpectedStockType.FINISHED_GOOD) {
+            packingBlockers.addAll(productionBlockers);
+            if (product != null) {
+                String packagingSize = sanitizePackagingSize(product.getSizeLabel());
+                if (!StringUtils.hasText(packagingSize)) {
+                    packingBlockers.add("PACKAGING_SIZE_MISSING");
+                } else if (company == null || !packagingSizeMappingRepository
+                        .existsByCompanyAndPackagingSizeIgnoreCaseAndActiveTrue(company, packagingSize)) {
+                    packingBlockers.add("PACKAGING_MAPPING_MISSING");
+                }
+            }
+        }
+
         List<String> salesBlockers = new ArrayList<>();
-        if (effectiveStockType == ExpectedStockType.RAW_MATERIAL) {
+        if (effectiveStockType == ExpectedStockType.RAW_MATERIAL || effectiveStockType == ExpectedStockType.PACKAGING_RAW_MATERIAL) {
             salesBlockers.add("RAW_MATERIAL_SKU_NOT_SALES_ORDERABLE");
         } else {
             salesBlockers.addAll(catalogBlockers);
@@ -302,12 +327,20 @@ public class SkuReadinessService {
             }
         }
 
+        List<String> accountingBlockers = new ArrayList<>();
+        accountingBlockers.addAll(catalogBlockers);
+        accountingBlockers.addAll(accountingOnlyBlockers(inventoryBlockers));
+        accountingBlockers.addAll(accountingOnlyBlockers(productionBlockers));
+        accountingBlockers.addAll(accountingOnlyBlockers(salesBlockers));
+
         return new SkuReadinessDto(
                 sku,
                 stage(catalogBlockers),
                 stage(inventoryBlockers),
                 stage(productionBlockers),
-                stage(salesBlockers));
+                stage(packingBlockers),
+                stage(salesBlockers),
+                stage(accountingBlockers));
     }
 
     private ExpectedStockType resolveExpectedStockType(ProductionProduct product,
@@ -317,12 +350,20 @@ public class SkuReadinessService {
             return expectedStockType;
         }
         if (product != null) {
-            return isRawMaterialCategory(product.getCategory())
-                    ? ExpectedStockType.RAW_MATERIAL
-                    : ExpectedStockType.FINISHED_GOOD;
+            if (isRawMaterialCategory(product.getCategory())) {
+                if (rawMaterial != null && rawMaterial.getMaterialType() != null) {
+                    return rawMaterial.getMaterialType() == MaterialType.PACKAGING
+                            ? ExpectedStockType.PACKAGING_RAW_MATERIAL
+                            : ExpectedStockType.RAW_MATERIAL;
+                }
+                return ExpectedStockType.RAW_MATERIAL;
+            }
+            return ExpectedStockType.FINISHED_GOOD;
         }
         if (rawMaterial != null) {
-            return ExpectedStockType.RAW_MATERIAL;
+            return rawMaterial.getMaterialType() == MaterialType.PACKAGING
+                    ? ExpectedStockType.PACKAGING_RAW_MATERIAL
+                    : ExpectedStockType.RAW_MATERIAL;
         }
         return ExpectedStockType.FINISHED_GOOD;
     }
@@ -359,8 +400,34 @@ public class SkuReadinessService {
     }
 
     private SkuReadinessDto.Stage stage(List<String> blockers) {
-        List<String> effectiveBlockers = blockers == null ? List.of() : List.copyOf(blockers);
+        List<String> effectiveBlockers = deduplicateBlockers(blockers);
         return new SkuReadinessDto.Stage(effectiveBlockers.isEmpty(), effectiveBlockers);
+    }
+
+    private List<String> accountingOnlyBlockers(List<String> blockers) {
+        if (blockers == null || blockers.isEmpty()) {
+            return List.of();
+        }
+        return blockers.stream()
+                .filter(this::isAccountingBlocker)
+                .toList();
+    }
+
+    private String sanitizePackagingSize(String sizeLabel) {
+        return StringUtils.hasText(sizeLabel) ? sizeLabel.trim().toUpperCase(Locale.ROOT) : null;
+    }
+
+    private List<String> deduplicateBlockers(List<String> blockers) {
+        if (blockers == null || blockers.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<String> unique = new LinkedHashSet<>();
+        for (String blocker : blockers) {
+            if (StringUtils.hasText(blocker)) {
+                unique.add(blocker);
+            }
+        }
+        return List.copyOf(unique);
     }
 
     private SkuReadinessDto.Stage sanitizeStage(SkuReadinessDto.Stage stage) {

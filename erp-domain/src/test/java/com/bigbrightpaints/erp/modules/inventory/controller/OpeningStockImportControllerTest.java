@@ -42,12 +42,36 @@ class OpeningStockImportControllerTest {
     void importOpeningStock_delegatesCanonicalIdempotencyKeyToService() {
         OpeningStockImportController controller = new OpeningStockImportController(openingStockImportService, skuReadinessService);
         MockMultipartFile file = csvFile();
-        OpeningStockImportResponse response = new OpeningStockImportResponse(1, 0, 1, 0, 0, List.of(), List.of());
-        when(openingStockImportService.importOpeningStock(file, "import-key")).thenReturn(response);
+        OpeningStockImportResponse response = new OpeningStockImportResponse(
+                batchKey("import-key"),
+                1,
+                1,
+                0,
+                List.of(),
+                List.of());
+        when(openingStockImportService.importOpeningStock(file, "import-key", batchKey("import-key"))).thenReturn(response);
 
-        controller.importOpeningStock("import-key", file, authentication("ROLE_ADMIN"));
+        controller.importOpeningStock("import-key", batchKey("import-key"), file, authentication("ROLE_ADMIN"));
 
-        verify(openingStockImportService).importOpeningStock(file, "import-key");
+        verify(openingStockImportService).importOpeningStock(file, "import-key", batchKey("import-key"));
+    }
+
+    @Test
+    void importOpeningStock_fallsBackToIdempotencyKeyWhenBatchKeyIsMissing() {
+        OpeningStockImportController controller = new OpeningStockImportController(openingStockImportService, skuReadinessService);
+        MockMultipartFile file = csvFile();
+        OpeningStockImportResponse response = new OpeningStockImportResponse(
+                batchKey("legacy-key"),
+                1,
+                1,
+                0,
+                List.of(),
+                List.of());
+        when(openingStockImportService.importOpeningStock(file, "legacy-key", "legacy-key")).thenReturn(response);
+
+        controller.importOpeningStock("legacy-key", null, file, authentication("ROLE_ADMIN"));
+
+        verify(openingStockImportService).importOpeningStock(file, "legacy-key", "legacy-key");
     }
 
     @Test
@@ -65,8 +89,7 @@ class OpeningStockImportControllerTest {
                 List.of("ACCOUNTING_CONFIGURATION_REQUIRED"),
                 List.of());
         OpeningStockImportResponse response = new OpeningStockImportResponse(
-                1,
-                0,
+                batchKey("factory-key"),
                 0,
                 0,
                 1,
@@ -78,11 +101,11 @@ class OpeningStockImportControllerTest {
                         "FINISHED_GOOD",
                         rawReadiness))
         );
-        when(openingStockImportService.importOpeningStock(file, "factory-key")).thenReturn(response);
+        when(openingStockImportService.importOpeningStock(file, "factory-key", batchKey("factory-key"))).thenReturn(response);
         when(skuReadinessService.sanitizeForCatalogViewer(rawReadiness, false)).thenReturn(sanitizedReadiness);
 
         OpeningStockImportResponse payload = controller
-                .importOpeningStock("factory-key", file, authentication("ROLE_FACTORY"))
+                .importOpeningStock("factory-key", batchKey("factory-key"), file, authentication("ROLE_FACTORY"))
                 .getBody()
                 .data();
 
@@ -103,8 +126,7 @@ class OpeningStockImportControllerTest {
                 List.of("WIP_ACCOUNT_MISSING"),
                 List.of());
         OpeningStockImportResponse response = new OpeningStockImportResponse(
-                1,
-                0,
+                batchKey("accounting-key"),
                 0,
                 0,
                 1,
@@ -116,10 +138,10 @@ class OpeningStockImportControllerTest {
                         "FINISHED_GOOD",
                         rawReadiness))
         );
-        when(openingStockImportService.importOpeningStock(file, "accounting-key")).thenReturn(response);
+        when(openingStockImportService.importOpeningStock(file, "accounting-key", batchKey("accounting-key"))).thenReturn(response);
 
         OpeningStockImportResponse payload = controller
-                .importOpeningStock("accounting-key", file, authentication("ROLE_ACCOUNTING"))
+                .importOpeningStock("accounting-key", batchKey("accounting-key"), file, authentication("ROLE_ACCOUNTING"))
                 .getBody()
                 .data();
 
@@ -131,10 +153,10 @@ class OpeningStockImportControllerTest {
     void importOpeningStock_returnsNullPayloadWhenServiceReturnsNull() {
         OpeningStockImportController controller = new OpeningStockImportController(openingStockImportService, skuReadinessService);
         MockMultipartFile file = csvFile();
-        when(openingStockImportService.importOpeningStock(file, "null-key")).thenReturn(null);
+        when(openingStockImportService.importOpeningStock(file, "null-key", batchKey("null-key"))).thenReturn(null);
 
         OpeningStockImportResponse payload = controller
-                .importOpeningStock("null-key", file, null)
+                .importOpeningStock("null-key", batchKey("null-key"), file, null)
                 .getBody()
                 .data();
 
@@ -149,9 +171,13 @@ class OpeningStockImportControllerTest {
         ApplicationException failure = new ApplicationException(
                 ErrorCode.VALIDATION_INVALID_REFERENCE,
                 "Opening balance account OPEN-BAL is missing; complete company defaults and repair seeded accounts before importing opening stock");
-        when(openingStockImportService.importOpeningStock(file, "factory-failure")).thenThrow(failure);
+        when(openingStockImportService.importOpeningStock(file, "factory-failure", batchKey("factory-failure"))).thenThrow(failure);
 
-        assertThatThrownBy(() -> controller.importOpeningStock("factory-failure", file, authentication("ROLE_FACTORY")))
+        assertThatThrownBy(() -> controller.importOpeningStock(
+                "factory-failure",
+                batchKey("factory-failure"),
+                file,
+                authentication("ROLE_FACTORY")))
                 .isInstanceOf(ApplicationException.class)
                 .extracting("errorCode", "userMessage")
                 .containsExactly(
@@ -167,9 +193,13 @@ class OpeningStockImportControllerTest {
         ApplicationException failure = new ApplicationException(
                 ErrorCode.VALIDATION_INVALID_REFERENCE,
                 "Opening balance account OPEN-BAL must be an equity account");
-        when(openingStockImportService.importOpeningStock(file, "accounting-failure")).thenThrow(failure);
+        when(openingStockImportService.importOpeningStock(file, "accounting-failure", batchKey("accounting-failure"))).thenThrow(failure);
 
-        assertThatThrownBy(() -> controller.importOpeningStock("accounting-failure", file, authentication("ROLE_ACCOUNTING")))
+        assertThatThrownBy(() -> controller.importOpeningStock(
+                "accounting-failure",
+                batchKey("accounting-failure"),
+                file,
+                authentication("ROLE_ACCOUNTING")))
                 .isSameAs(failure);
         verifyNoInteractions(skuReadinessService);
     }
@@ -182,11 +212,10 @@ class OpeningStockImportControllerTest {
                         9L,
                         "idem-1",
                         "OPEN-STOCK-ACME-001",
+                        "OPEN-STOCK-ACME-REF-001",
                         "opening.csv",
                         55L,
                         2,
-                        1,
-                        1,
                         1,
                         1,
                         0,
@@ -234,9 +263,11 @@ class OpeningStockImportControllerTest {
                 new SkuReadinessDto.Stage(false, List.of("CATALOG_BLOCKER")),
                 new SkuReadinessDto.Stage(false, List.of("INVENTORY_BLOCKER")),
                 new SkuReadinessDto.Stage(false, List.of("PRODUCTION_BLOCKER")),
-                new SkuReadinessDto.Stage(false, List.of("SALES_BLOCKER"))
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(false, List.of("SALES_BLOCKER")),
+                new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_BLOCKER"))
         );
-        SkuReadinessDto missing = new SkuReadinessDto("FG-1", null, null, null, null);
+        SkuReadinessDto missing = new SkuReadinessDto("FG-1", null, null, null, null, null, null);
 
         assertThat(blockersForStage(controller, populated, "catalog")).containsExactly("CATALOG_BLOCKER");
         assertThat(blockersForStage(controller, populated, "inventory")).containsExactly("INVENTORY_BLOCKER");
@@ -259,7 +290,9 @@ class OpeningStockImportControllerTest {
                 new SkuReadinessDto.Stage(true, List.of()),
                 new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED")),
                 new SkuReadinessDto.Stage(true, List.of()),
-                new SkuReadinessDto.Stage(true, List.of())
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(false, List.of("ACCOUNTING_CONFIGURATION_REQUIRED"))
         );
 
         assertThat(sanitizeErrorMessage(controller, plainMessage, "FG-1", readiness(
@@ -279,7 +312,9 @@ class OpeningStockImportControllerTest {
                 new SkuReadinessDto.Stage(true, List.of()),
                 new SkuReadinessDto.Stage(false, null),
                 new SkuReadinessDto.Stage(true, List.of()),
-                new SkuReadinessDto.Stage(true, List.of())
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(false, null)
         );
 
         assertThat(sanitizeErrorMessage(
@@ -298,6 +333,8 @@ class OpeningStockImportControllerTest {
                 new SkuReadinessDto.Stage(true, List.of()),
                 new SkuReadinessDto.Stage(true, List.of()),
                 new SkuReadinessDto.Stage(false, List.of()),
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(true, List.of()),
                 new SkuReadinessDto.Stage(true, List.of())
         );
 
@@ -378,8 +415,14 @@ class OpeningStockImportControllerTest {
                 new SkuReadinessDto.Stage(catalogBlockers.isEmpty(), catalogBlockers),
                 new SkuReadinessDto.Stage(inventoryBlockers.isEmpty(), inventoryBlockers),
                 new SkuReadinessDto.Stage(productionBlockers.isEmpty(), productionBlockers),
-                new SkuReadinessDto.Stage(salesBlockers.isEmpty(), salesBlockers)
+                new SkuReadinessDto.Stage(true, List.of()),
+                new SkuReadinessDto.Stage(salesBlockers.isEmpty(), salesBlockers),
+                new SkuReadinessDto.Stage(inventoryBlockers.isEmpty(), inventoryBlockers)
         );
+    }
+
+    private String batchKey(String idempotencyKey) {
+        return "OPEN-STOCK-" + idempotencyKey;
     }
 
     @SuppressWarnings("unchecked")

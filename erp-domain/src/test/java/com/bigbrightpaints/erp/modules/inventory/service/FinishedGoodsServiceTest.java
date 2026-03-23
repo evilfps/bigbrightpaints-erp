@@ -167,7 +167,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void confirmDispatchUsesReservedBatchActualCostWhenPeriodDefaultsToWeightedAverage() {
+    void confirmDispatchUsesReservedBatchActualCostWhenCurrentPeriodDefaultsToFifo() {
         Company company = seedCompany("WAC-CONFIRM-BATCH-ACTUAL");
         FinishedGood fg = createFinishedGood(company, "FG-WAC-CONFIRM-BATCH-ACTUAL", new BigDecimal("20"), new BigDecimal("5"), "WAC");
 
@@ -268,7 +268,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void reserveForOrderUsesExpiryOrderWhenCostingMethodIsWac() {
+    void reserveForOrder_usesFifoWhenCurrentPeriodDefaultsToFifo() {
         Company company = seedCompany("WAC-FEFO");
         FinishedGood fg = createFinishedGood(company, "FG-WAC-FEFO", new BigDecimal("6"), BigDecimal.ZERO, "WAC");
 
@@ -303,7 +303,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
         assertThat(result.shortages()).isEmpty();
         assertThat(slip.getLines()).hasSize(1);
         assertThat(slip.getLines().getFirst().getFinishedGoodBatch().getId())
-                .isEqualTo(newerManufacturedSoonerExpiry.getId());
+                .isEqualTo(olderManufacturedLaterExpiry.getId());
     }
 
     @Test
@@ -374,7 +374,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
     @Test
     @Tag("critical")
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    void reserveForOrderTreatsLegacyWeightedAverageAliasAsWac_underTurkishLocale() {
+    void reserveForOrder_treatsLegacyWeightedAverageAliasAsFifoUnderTurkishLocale() {
         Locale previous = Locale.getDefault();
         Locale.setDefault(Locale.forLanguageTag("tr-TR"));
         try {
@@ -420,8 +420,8 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
 
             FinishedGoodBatch soonerAfterReplay = finishedGoodBatchRepository.findById(newerManufacturedSoonerExpiry.getId()).orElseThrow();
             FinishedGoodBatch olderAfterReplay = finishedGoodBatchRepository.findById(olderManufacturedLaterExpiry.getId()).orElseThrow();
-            assertThat(soonerAfterReplay.getQuantityAvailable()).isEqualByComparingTo(BigDecimal.ONE);
-            assertThat(olderAfterReplay.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
+            assertThat(soonerAfterReplay.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
+            assertThat(olderAfterReplay.getQuantityAvailable()).isEqualByComparingTo(BigDecimal.ONE);
 
             List<InventoryReservation> reservations = inventoryReservationRepository
                     .findByFinishedGoodCompanyAndReferenceTypeAndReferenceId(
@@ -430,7 +430,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
                             order.getId().toString());
             assertThat(reservations).hasSize(1);
             assertThat(reservations.getFirst().getFinishedGoodBatch().getId())
-                    .isEqualTo(newerManufacturedSoonerExpiry.getId());
+                    .isEqualTo(olderManufacturedLaterExpiry.getId());
             assertThat(reservations.getFirst().getReservedQuantity()).isEqualByComparingTo(new BigDecimal("2"));
             FinishedGood refreshedFinishedGood = finishedGoodRepository.findById(fg.getId()).orElseThrow();
             assertThat(refreshedFinishedGood.getReservedStock()).isEqualByComparingTo(new BigDecimal("2"));
@@ -582,7 +582,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void stockSummaryUsesBatchValuationUnitCostForLifoGoods() {
+    void stockSummaryUsesFifoValuationWhenFinishedGoodSettingIsLifo() {
         Company company = seedCompany("LIFO-PARITY");
         FinishedGood fg = createFinishedGood(company, "FG-LIFO-PARITY", new BigDecimal("5"), BigDecimal.ZERO, "LIFO");
         FinishedGoodBatch older = createBatch(fg, "LIFO-PARITY-OLD", new BigDecimal("2"), new BigDecimal("2"), new BigDecimal("5"));
@@ -597,7 +597,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
                 .findFirst()
                 .orElseThrow();
 
-        assertThat(summary.weightedAverageCost()).isEqualByComparingTo(new BigDecimal("20"));
+        assertThat(summary.weightedAverageCost()).isEqualByComparingTo(new BigDecimal("14"));
         assertThat(summary.weightedAverageCost()).isNotEqualByComparingTo(new BigDecimal("17.5"));
     }
 

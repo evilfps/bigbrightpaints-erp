@@ -397,8 +397,8 @@ class PurchasingServiceGoodsReceiptTest {
                 .thenReturn(Optional.empty());
         when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
                 .thenReturn(List.of());
-        when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-                .thenReturn(Optional.of(rawMaterial));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenReturn(rawMaterial);
 
         RawMaterialBatch recordedBatch = new RawMaterialBatch();
         ReflectionTestUtils.setField(recordedBatch, "id", 702L);
@@ -451,6 +451,33 @@ class PurchasingServiceGoodsReceiptTest {
     }
 
     @Test
+    @DisplayName("createGoodsReceipt rejects unknown raw materials before receipt mutations")
+    void createGoodsReceipt_rejectsUnknownRawMaterial() {
+        GoodsReceiptRequest request = request(
+                "idem-missing-material",
+                LocalDate.of(2026, 2, 20),
+                List.of(new GoodsReceiptLineRequest(20L, "REQ-BATCH", new BigDecimal("4.0000"), "KG", new BigDecimal("5.00"), "line note"))
+        );
+
+        when(goodsReceiptRepository.findWithLinesByCompanyAndIdempotencyKey(company, "idem-missing-material"))
+                .thenReturn(Optional.empty());
+        when(purchaseOrderRepository.lockByCompanyAndId(company, 30L))
+                .thenReturn(Optional.of(purchaseOrder));
+        when(goodsReceiptRepository.lockByCompanyAndReceiptNumberIgnoreCase(company, "GRN-30-01"))
+                .thenReturn(Optional.empty());
+        when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
+                .thenReturn(List.of());
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenThrow(new IllegalArgumentException("Raw material not found: id=20"));
+
+        assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Raw material not found");
+
+        verifyNoInteractions(rawMaterialService);
+    }
+
+    @Test
     @DisplayName("createGoodsReceipt partial receipt sets statuses and records batches")
     void createGoodsReceipt_partialReceipt_setsStatusesAndRecordsBatches() {
         LocalDate manufacturingDate = LocalDate.of(2026, 2, 15);
@@ -477,8 +504,8 @@ class PurchasingServiceGoodsReceiptTest {
                 .thenReturn(Optional.empty());
         when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
                 .thenReturn(List.of());
-        when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-                .thenReturn(Optional.of(rawMaterial));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenReturn(rawMaterial);
 
         RawMaterialBatch recordedBatch = new RawMaterialBatch();
         ReflectionTestUtils.setField(recordedBatch, "id", 701L);
@@ -566,8 +593,8 @@ class PurchasingServiceGoodsReceiptTest {
                 .thenReturn(Optional.empty());
         when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
                 .thenReturn(List.of());
-        when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-                .thenReturn(Optional.of(rawMaterial));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenReturn(rawMaterial);
 
         RawMaterialBatch recordedBatch = new RawMaterialBatch();
         ReflectionTestUtils.setField(recordedBatch, "id", 702L);
@@ -620,8 +647,8 @@ class PurchasingServiceGoodsReceiptTest {
                 .thenReturn(Optional.empty());
         when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
                 .thenReturn(List.of());
-        when(rawMaterialRepository.lockByCompanyAndId(company, 21L))
-                .thenReturn(Optional.of(otherMaterial));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 21L))
+                .thenReturn(otherMaterial);
 
         assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
                 .isInstanceOfSatisfying(ApplicationException.class, ex -> {
@@ -651,8 +678,8 @@ class PurchasingServiceGoodsReceiptTest {
                 .thenReturn(Optional.empty());
         when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
                 .thenReturn(List.of());
-        when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-                .thenReturn(Optional.of(rawMaterial));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenReturn(rawMaterial);
 
         assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
                 .isInstanceOfSatisfying(ApplicationException.class, ex -> {

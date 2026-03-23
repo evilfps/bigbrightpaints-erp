@@ -13,6 +13,7 @@ public record CatalogProductEntryResponse(
         String brandName,
         String brandCode,
         String category,
+        String itemClass,
         String unitOfMeasure,
         String hsnCode,
         BigDecimal basePrice,
@@ -35,8 +36,10 @@ public record CatalogProductEntryResponse(
     public record Member(
             Long id,
             UUID publicId,
+            Long rawMaterialId,
             String sku,
             String productName,
+            String itemClass,
             String color,
             String size,
             SkuReadinessDto readiness
@@ -47,6 +50,7 @@ public record CatalogProductEntryResponse(
             String sku,
             String reason,
             String productName,
+            String itemClass,
             String color,
             String size
     ) {

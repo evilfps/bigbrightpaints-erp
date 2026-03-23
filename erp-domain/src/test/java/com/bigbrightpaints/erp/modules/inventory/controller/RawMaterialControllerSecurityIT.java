@@ -6,6 +6,7 @@ import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -16,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+@Tag("critical")
 class RawMaterialControllerSecurityIT extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE = "RAWMAT-SEC";
@@ -36,56 +38,23 @@ class RawMaterialControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void admin_canReachRawMaterialIntakeWorkflowValidation() {
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/raw-materials/intake",
-                HttpMethod.POST,
-                new HttpEntity<>(Map.of(
-                        "rawMaterialId", 999999,
-                        "quantity", 5,
-                        "unit", "KG",
-                        "costPerUnit", 12.50,
-                        "notes", "validation-path-check"
-                ), jsonHeaders(ADMIN_EMAIL)),
-                Map.class
-        );
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertNotPlatformOnly(response);
-    }
-
-    @Test
-    void superAdmin_cannotExecuteRawMaterialIntakeWorkflowInsideTenant() {
-        ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/raw-materials/intake",
-                HttpMethod.POST,
-                new HttpEntity<>(Map.of(
-                        "rawMaterialId", 999999,
-                        "quantity", 5,
-                        "unit", "KG",
-                        "costPerUnit", 12.50,
-                        "notes", "platform-only-super-admin"
-                ), jsonHeaders(SUPER_ADMIN_EMAIL)),
-                Map.class
-        );
-
-        assertPlatformOnlyForbidden(response);
-    }
-
-    @Test
-    void admin_canReachRawMaterialBatchWorkflowValidation() {
+    void admin_canReachRawMaterialAdjustmentWorkflowValidation() {
         HttpHeaders headers = jsonHeaders(ADMIN_EMAIL);
-        headers.set("Idempotency-Key", "rawmat-admin-batch-validation");
+        headers.set("Idempotency-Key", "rawmat-admin-adjustment-validation");
 
         ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/raw-material-batches/999999",
+                "/api/v1/inventory/raw-materials/adjustments",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of(
-                        "batchCode", "RM-VALIDATION",
-                        "quantity", 3,
-                        "unit", "KG",
-                        "costPerUnit", 9.25,
-                        "notes", "validation-path-check"
+                        "adjustmentDate", "2026-03-22",
+                        "direction", "OUT",
+                        "adjustmentAccountId", 999999,
+                        "reason", "validation-path-check",
+                        "lines", List.of(Map.of(
+                                "rawMaterialId", 999999,
+                                "quantity", 3,
+                                "unitCost", 9.25
+                        ))
                 ), headers),
                 Map.class
         );
@@ -95,19 +64,47 @@ class RawMaterialControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void superAdmin_cannotExecuteRawMaterialBatchWorkflowInsideTenant() {
-        HttpHeaders headers = jsonHeaders(SUPER_ADMIN_EMAIL);
-        headers.set("Idempotency-Key", "rawmat-superadmin-batch-blocked");
+    void admin_legacyIntakeRoute_isRetired_withoutPlatformOnlyInterference() {
+        HttpHeaders headers = jsonHeaders(ADMIN_EMAIL);
+        headers.set("Idempotency-Key", "rawmat-admin-intake-disabled");
 
         ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/raw-material-batches/999999",
+                "/api/v1/raw-materials/intake",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of(
-                        "batchCode", "RM-SUPERADMIN",
+                        "rawMaterialId", 999999,
+                        "batchCode", "LEGACY-INTAKE",
                         "quantity", 3,
                         "unit", "KG",
                         "costPerUnit", 9.25,
-                        "notes", "platform-only-super-admin"
+                        "supplierId", 999999,
+                        "notes", "validation-path-check"
+                ), headers),
+                Map.class
+        );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertNotPlatformOnly(response);
+    }
+
+    @Test
+    void superAdmin_cannotExecuteRawMaterialAdjustmentWorkflowInsideTenant() {
+        HttpHeaders headers = jsonHeaders(SUPER_ADMIN_EMAIL);
+        headers.set("Idempotency-Key", "rawmat-superadmin-adjustment-blocked");
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/inventory/raw-materials/adjustments",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "adjustmentDate", "2026-03-22",
+                        "direction", "OUT",
+                        "adjustmentAccountId", 999999,
+                        "reason", "platform-only-super-admin",
+                        "lines", List.of(Map.of(
+                                "rawMaterialId", 999999,
+                                "quantity", 3,
+                                "unitCost", 9.25
+                        ))
                 ), headers),
                 Map.class
         );

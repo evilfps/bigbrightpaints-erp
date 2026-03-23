@@ -100,11 +100,20 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         assertMultipartBinaryRequest(root, "/api/v1/catalog/import", "post", "file");
         assertOperationResponse(root, "/api/v1/catalog/import", "post",
                 "200", "#/components/schemas/ApiResponseCatalogImportResponse");
-        assertOperationContract(root, "/api/v1/catalog/products", "get",
-                null, "200", "#/components/schemas/ApiResponsePageResponseCatalogProductDto");
-        assertQueryParameter(root, "/api/v1/catalog/products", "get", "brandId");
-        assertOperationContract(root, "/api/v1/catalog/products", "post",
-                "#/components/schemas/CatalogProductEntryRequest", "200", "#/components/schemas/ApiResponseCatalogProductEntryResponse");
+        assertOperationContract(root, "/api/v1/catalog/items", "get",
+                null, "200", "#/components/schemas/ApiResponsePageResponseCatalogItemDto");
+        assertQueryParameter(root, "/api/v1/catalog/items", "get", "q");
+        assertQueryParameter(root, "/api/v1/catalog/items", "get", "itemClass");
+        assertOperationContract(root, "/api/v1/catalog/items", "post",
+                "#/components/schemas/CatalogItemRequest", "200", "#/components/schemas/ApiResponseCatalogItemDto");
+        assertOperationContract(root, "/api/v1/catalog/items/{itemId}", "get",
+                null, "200", "#/components/schemas/ApiResponseCatalogItemDto");
+        assertOperationContract(root, "/api/v1/catalog/items/{itemId}", "put",
+                "#/components/schemas/CatalogItemRequest", "200", "#/components/schemas/ApiResponseCatalogItemDto");
+        assertOperationContract(root, "/api/v1/catalog/items/{itemId}", "delete",
+                null, "200", "#/components/schemas/ApiResponseCatalogItemDto");
+        assertOperationMissing(root, "/api/v1/catalog/products", "get");
+        assertOperationMissing(root, "/api/v1/catalog/products", "post");
         assertOperationMissing(root, "/api/v1/catalog/products/single", "post");
         assertOperationMissing(root, "/api/v1/catalog/products/bulk-variants", "post");
 
