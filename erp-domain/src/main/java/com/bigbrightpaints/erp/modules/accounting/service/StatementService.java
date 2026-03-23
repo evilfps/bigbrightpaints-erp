@@ -221,7 +221,9 @@ public class StatementService {
                 .filter(entry -> StringUtils.hasText(entry.getInvoiceNumber()))
                 .filter(entry -> entry.getOutstandingAmount().compareTo(BigDecimal.ZERO) > 0)
                 .filter(entry -> entry.isOverdue(ref))
-                .sorted(Comparator.comparing(DealerLedgerEntry::getDueDate)
+                .sorted(Comparator.comparing(
+                                DealerLedgerEntry::getDueDate,
+                                Comparator.nullsLast(Comparator.naturalOrder()))
                         .thenComparing(DealerLedgerEntry::getEntryDate)
                         .thenComparing(DealerLedgerEntry::getId, Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(entry -> new OverdueInvoiceDto(

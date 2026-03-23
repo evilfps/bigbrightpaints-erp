@@ -167,6 +167,7 @@ class CreditLimitRequestServiceTest {
         assertEquals(new BigDecimal("3100"), dealer.getCreditLimit());
         verify(dealerRepository).lockByCompanyAndId(company, 77L);
         verify(dealerRepository).save(dealer);
+        verify(creditRequestRepository).save(existing);
 
         ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
         verify(auditService).logSuccess(eq(AuditEvent.TRANSACTION_APPROVED), metadataCaptor.capture());
@@ -347,6 +348,7 @@ class CreditLimitRequestServiceTest {
         CreditLimitRequestDto dto = service.rejectRequest(911L, " Insufficient collateral documentation ");
 
         assertEquals("REJECTED", dto.status());
+        verify(creditRequestRepository).save(existing);
 
         ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
         verify(auditService).logSuccess(eq(AuditEvent.TRANSACTION_REJECTED), metadataCaptor.capture());

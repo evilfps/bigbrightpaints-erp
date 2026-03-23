@@ -75,6 +75,7 @@ public class CreditLimitRequestService {
         dealerRepository.save(dealer);
         creditRequest.setDealer(dealer);
         creditRequest.setStatus("APPROVED");
+        creditRequestRepository.save(creditRequest);
         Map<String, String> metadataOverrides = new HashMap<>();
         metadataOverrides.put("oldLimit", oldLimit.toPlainString());
         metadataOverrides.put("newLimit", newLimit.toPlainString());
@@ -89,6 +90,7 @@ public class CreditLimitRequestService {
         requirePendingRequest(creditRequest, "rejected");
         String normalizedDecisionReason = requireDecisionReason(decisionReason, "reject");
         creditRequest.setStatus("REJECTED");
+        creditRequestRepository.save(creditRequest);
         auditDecision(AuditEvent.TRANSACTION_REJECTED, creditRequest, normalizedDecisionReason, Map.of());
         return toDto(creditRequest);
     }
