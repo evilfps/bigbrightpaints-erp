@@ -92,23 +92,16 @@ class CreditLimitRequestServiceTest {
     }
 
     @Test
-    void createRequestAllowsDealerPortalFlowWithoutDealerId() {
-        when(creditRequestRepository.save(any(CreditRequest.class))).thenAnswer(invocation -> {
-            CreditRequest request = invocation.getArgument(0);
-            setField(request, "id", 902L);
-            setField(request, "publicId", UUID.fromString("223e4567-e89b-12d3-a456-426614174000"));
-            setField(request, "createdAt", Instant.parse("2026-03-23T10:25:30Z"));
-            return request;
-        });
+    void createRequestRequiresDealerId() {
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> service.createRequest(
+                new CreditLimitRequestCreateRequest(
+                        null,
+                        new BigDecimal("800"),
+                        "Portal initiated request"
+                )));
 
-        CreditLimitRequestDto dto = service.createRequest(new CreditLimitRequestCreateRequest(
-                null,
-                new BigDecimal("800"),
-                "Portal initiated request"
-        ));
-
-        assertEquals("PENDING", dto.status());
-        assertThat(dto.dealerName()).isNull();
+        assertEquals(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, ex.getErrorCode());
+        assertThat(ex.getDetails()).containsEntry("field", "dealerId");
         verify(dealerRepository, never()).findByCompanyAndId(any(), any());
     }
 
@@ -173,6 +166,7 @@ class CreditLimitRequestServiceTest {
         assertEquals("APPROVED", dto.status());
         assertEquals(new BigDecimal("3100"), dealer.getCreditLimit());
         verify(dealerRepository).lockByCompanyAndId(company, 77L);
+        verify(dealerRepository).save(dealer);
 
         ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
         verify(auditService).logSuccess(eq(AuditEvent.TRANSACTION_APPROVED), metadataCaptor.capture());

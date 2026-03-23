@@ -261,9 +261,10 @@ public class DealerService {
         Dealer dealer = requireDealerForRead(company, dealerId);
 
         BigDecimal outstanding = dealerLedgerService.currentBalance(dealerId);
+        BigDecimal creditOutstanding = outstanding.max(BigDecimal.ZERO);
         BigDecimal pendingOrderExposure = resolvePendingOrderExposure(dealer);
         BigDecimal creditLimit = dealer.getCreditLimit() != null ? dealer.getCreditLimit() : BigDecimal.ZERO;
-        BigDecimal creditUsed = outstanding.add(pendingOrderExposure);
+        BigDecimal creditUsed = creditOutstanding.add(pendingOrderExposure);
         BigDecimal availableCredit = creditLimit.subtract(creditUsed);
         if (availableCredit.compareTo(BigDecimal.ZERO) < 0) {
             availableCredit = BigDecimal.ZERO;
@@ -292,11 +293,12 @@ public class DealerService {
         Map<String, Object> buckets = toPortalAgingBuckets(aging);
         List<Map<String, Object>> overdueInvoices = toOverdueInvoicePayload(
                 statementService.dealerOverdueInvoices(dealer, companyClock.today(company)));
+        BigDecimal totalOutstanding = aging.totalOutstanding() != null ? aging.totalOutstanding() : BigDecimal.ZERO;
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("dealerId", dealer.getId());
         payload.put("dealerName", dealer.getName());
-        payload.put("totalOutstanding", aging.totalOutstanding());
+        payload.put("totalOutstanding", totalOutstanding);
         payload.put("agingBuckets", buckets);
         payload.put("overdueInvoices", overdueInvoices);
         return payload;

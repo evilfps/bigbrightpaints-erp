@@ -55,9 +55,7 @@ public class CreditLimitRequestService {
         Company company = companyContextService.requireCurrentCompany();
         CreditRequest creditRequest = new CreditRequest();
         creditRequest.setCompany(company);
-        if (request.dealerId() != null) {
-            creditRequest.setDealer(requireDealer(company, request.dealerId()));
-        }
+        creditRequest.setDealer(requireDealer(company, requireDealerId(request.dealerId())));
         creditRequest.setAmountRequested(request.amountRequested());
         creditRequest.setReason(request.reason());
         creditRequest.setStatus(STATUS_PENDING);
@@ -74,6 +72,7 @@ public class CreditLimitRequestService {
         BigDecimal oldLimit = requireCurrentDealerCreditLimit(dealer);
         BigDecimal newLimit = oldLimit.add(increment);
         dealer.setCreditLimit(newLimit);
+        dealerRepository.save(dealer);
         creditRequest.setDealer(dealer);
         creditRequest.setStatus("APPROVED");
         Map<String, String> metadataOverrides = new HashMap<>();
@@ -98,6 +97,16 @@ public class CreditLimitRequestService {
         return dealerRepository.findByCompanyAndId(company, dealerId)
                 .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                         "Dealer not found"));
+    }
+
+    private Long requireDealerId(Long dealerId) {
+        if (dealerId == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                    "Credit limit request requires dealerId")
+                    .withDetail("field", "dealerId")
+                    .withDetail("resourceType", "credit_limit_request");
+        }
+        return dealerId;
     }
 
     private CreditRequest requireRequest(Long id) {

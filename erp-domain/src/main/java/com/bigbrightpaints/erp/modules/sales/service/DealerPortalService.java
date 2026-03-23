@@ -190,13 +190,14 @@ public class DealerPortalService {
         BigDecimal totalOutstanding = ledgerAging.totalOutstanding() != null
                 ? ledgerAging.totalOutstanding()
                 : BigDecimal.ZERO;
+        BigDecimal creditOutstanding = totalOutstanding.max(BigDecimal.ZERO);
         Map<String, Object> agingBuckets = toPortalAgingBuckets(ledgerAging);
         List<Map<String, Object>> overdueInvoices = toOverdueInvoicePayload(
                 statementService.dealerOverdueInvoices(dealer, today));
 
         long pendingOrderCount = resolvePendingOrderCount(dealer, null);
         BigDecimal pendingOrderExposure = resolvePendingOrderExposure(dealer, null);
-        BigDecimal creditUsed = totalOutstanding.add(pendingOrderExposure);
+        BigDecimal creditUsed = creditOutstanding.add(pendingOrderExposure);
         BigDecimal creditLimit = dealer.getCreditLimit() != null ? dealer.getCreditLimit() : BigDecimal.ZERO;
         BigDecimal availableCredit = creditLimit.subtract(creditUsed);
         if (availableCredit.compareTo(BigDecimal.ZERO) < 0) {

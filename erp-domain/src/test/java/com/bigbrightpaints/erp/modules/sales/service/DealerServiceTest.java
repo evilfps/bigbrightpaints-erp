@@ -276,6 +276,21 @@ class DealerServiceTest {
     }
 
     @Test
+    void creditUtilizationClampsNegativeLedgerBalanceWhenDealerHasCredit() {
+        Dealer dealer = dealer("D-CREDIT", new BigDecimal("1000"), "WEST");
+        when(dealerRepository.findByCompanyAndId(company, 109L)).thenReturn(Optional.of(dealer));
+        when(dealerLedgerService.currentBalance(109L)).thenReturn(new BigDecimal("-125"));
+        when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(eq(company), eq(dealer), any(), eq(null)))
+                .thenReturn(new BigDecimal("50"));
+
+        var payload = dealerService.creditUtilization(109L);
+
+        assertThat(payload.get("outstandingAmount")).isEqualTo(new BigDecimal("-125"));
+        assertThat(payload.get("creditUsed")).isEqualTo(new BigDecimal("50"));
+        assertThat(payload.get("availableCredit")).isEqualTo(new BigDecimal("950"));
+    }
+
+    @Test
     void agingSummary_returnsDealerPayloadWhenDealerExists() {
         Dealer dealer = dealer("D-AGING", new BigDecimal("1000"), "WEST");
         when(dealerRepository.findByCompanyAndId(company, 77L)).thenReturn(Optional.of(dealer));
@@ -310,11 +325,12 @@ class DealerServiceTest {
         when(dealerRepository.findByCompanyAndId(company, 98L)).thenReturn(Optional.of(dealer));
         when(companyClock.today(company)).thenReturn(java.time.LocalDate.parse("2026-02-23"));
         when(statementService.dealerAging(dealer, java.time.LocalDate.parse("2026-02-23"), "0-0,1-30,31-60,61-90,91"))
-                .thenReturn(new AgingSummaryResponse(98L, "D-AGING-EMPTY Name", BigDecimal.ZERO, null));
+                .thenReturn(new AgingSummaryResponse(98L, "D-AGING-EMPTY Name", null, null));
         when(statementService.dealerOverdueInvoices(dealer, java.time.LocalDate.parse("2026-02-23"))).thenReturn(List.of());
 
         var payload = dealerService.agingSummary(98L);
 
+        assertThat(payload.get("totalOutstanding")).isEqualTo(BigDecimal.ZERO);
         assertThat((java.util.Map<String, Object>) payload.get("agingBuckets"))
                 .containsEntry("current", BigDecimal.ZERO)
                 .containsEntry("1-30 days", BigDecimal.ZERO)

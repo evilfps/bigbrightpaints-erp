@@ -429,6 +429,32 @@ class DealerPortalServiceTest {
     }
 
     @Test
+    void agingViewClampsNegativeLedgerBalanceWhenComputingCreditUsage() {
+        UserAccount user = userWithId(100L, "dealer@tenant.com");
+        Dealer dealer = dealerWithId(21L);
+        dealer.setName("Dealer Name");
+        dealer.setCompany(company);
+        dealer.setCreditLimit(new BigDecimal("1000"));
+
+        authenticate(user, "ROLE_DEALER");
+        when(dealerRepository.findAllByCompanyAndPortalUserId(company, 100L)).thenReturn(List.of(dealer));
+        when(dealerRepository.findByCompanyAndId(company, 21L)).thenReturn(java.util.Optional.of(dealer));
+        when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(
+                eq(company), eq(dealer), any(), isNull())).thenReturn(new BigDecimal("50"));
+        when(salesOrderRepository.countPendingCreditExposureByCompanyAndDealer(
+                eq(company), eq(dealer), any(), isNull())).thenReturn(1L);
+        when(statementService.dealerAging(eq(dealer), any(LocalDate.class), eq("0-0,1-30,31-60,61-90,91")))
+                .thenReturn(new AgingSummaryResponse(21L, "Dealer Name", new BigDecimal("-125"), List.of()));
+        when(statementService.dealerOverdueInvoices(eq(dealer), any(LocalDate.class))).thenReturn(List.of());
+
+        Map<String, Object> aging = dealerPortalService.getAgingForDealer(21L);
+
+        assertThat(aging.get("totalOutstanding")).isEqualTo(new BigDecimal("-125"));
+        assertThat(aging.get("creditUsed")).isEqualTo(new BigDecimal("50"));
+        assertThat(aging.get("availableCredit")).isEqualTo(new BigDecimal("950"));
+    }
+
+    @Test
     void contributesPendingCreditExposure_excludesCashOrders() {
         SalesOrder cashOrder = new SalesOrder();
         ReflectionTestUtils.setField(cashOrder, "id", 88L);
