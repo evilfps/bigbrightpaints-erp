@@ -211,7 +211,6 @@ public class CreditLimitRequestService {
                 request.getAmountRequested(),
                 normalizeStatus(request.getStatus()),
                 request.getReason(),
-                request.getCreatedAt()
-        );
+                request.getCreatedAt());
     }
 }

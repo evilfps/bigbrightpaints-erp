@@ -37,6 +37,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -258,6 +259,22 @@ class DealerServiceTest {
     }
 
     @Test
+    void creditUtilization_clampsAvailableCreditWhenCreditLimitIsMissing() {
+        Dealer dealer = dealer("D-NO-LIMIT", null, "WEST");
+        when(dealerRepository.findByCompanyAndId(company, 99L)).thenReturn(Optional.of(dealer));
+        when(dealerLedgerService.currentBalance(99L)).thenReturn(new BigDecimal("75"));
+        when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(eq(company), eq(dealer), any(), eq(null)))
+                .thenReturn(new BigDecimal("25"));
+
+        var payload = dealerService.creditUtilization(99L);
+
+        assertThat(payload.get("creditLimit")).isEqualTo(BigDecimal.ZERO);
+        assertThat(payload.get("creditUsed")).isEqualTo(new BigDecimal("100"));
+        assertThat(payload.get("availableCredit")).isEqualTo(BigDecimal.ZERO);
+        assertThat(payload.get("creditStatus")).isEqualTo("OVER_LIMIT");
+    }
+
+    @Test
     void agingSummary_returnsDealerPayloadWhenDealerExists() {
         Dealer dealer = dealer("D-AGING", new BigDecimal("1000"), "WEST");
         when(dealerRepository.findByCompanyAndId(company, 77L)).thenReturn(Optional.of(dealer));
@@ -276,6 +293,58 @@ class DealerServiceTest {
                 .containsEntry("dealerId", 99L)
                 .containsEntry("dealerName", "D-AGING Name")
                 .containsEntry("totalOutstanding", new BigDecimal("275"));
+    }
+
+    @Test
+    void agingSummary_defaultsBucketsWhenLedgerBucketsAreMissing() {
+        Dealer dealer = dealer("D-AGING-EMPTY", new BigDecimal("1000"), "WEST");
+        when(dealerRepository.findByCompanyAndId(company, 98L)).thenReturn(Optional.of(dealer));
+        when(companyClock.today(company)).thenReturn(java.time.LocalDate.parse("2026-02-23"));
+        when(statementService.dealerAging(98L, java.time.LocalDate.parse("2026-02-23"), "0-0,1-30,31-60,61-90,91"))
+                .thenReturn(new AgingSummaryResponse(98L, "D-AGING-EMPTY Name", BigDecimal.ZERO, null));
+
+        var payload = dealerService.agingSummary(98L);
+
+        assertThat((java.util.Map<String, Object>) payload.get("agingBuckets"))
+                .containsEntry("current", BigDecimal.ZERO)
+                .containsEntry("1-30 days", BigDecimal.ZERO)
+                .containsEntry("31-60 days", BigDecimal.ZERO)
+                .containsEntry("61-90 days", BigDecimal.ZERO)
+                .containsEntry("90+ days", BigDecimal.ZERO);
+        assertThat(payload.get("overdueInvoices")).isEqualTo(List.of());
+    }
+
+    @Test
+    void agingSummary_mapsLedgerBucketsAndSkipsUnknownOrNullEntries() {
+        Dealer dealer = dealer("D-AGING-MAP", new BigDecimal("1000"), "WEST");
+        when(dealerRepository.findByCompanyAndId(company, 97L)).thenReturn(Optional.of(dealer));
+        when(companyClock.today(company)).thenReturn(java.time.LocalDate.parse("2026-02-23"));
+        when(statementService.dealerAging(97L, java.time.LocalDate.parse("2026-02-23"), "0-0,1-30,31-60,61-90,91"))
+                .thenReturn(new AgingSummaryResponse(
+                        97L,
+                        "D-AGING-MAP Name",
+                        new BigDecimal("625"),
+                        Arrays.asList(
+                                new AgingBucketDto("0-0 days", 0, 0, new BigDecimal("25")),
+                                new AgingBucketDto("1-30 days", 1, 30, new BigDecimal("100")),
+                                new AgingBucketDto("31-60 days", 31, 60, new BigDecimal("150")),
+                                new AgingBucketDto("61-90 days", 61, 90, new BigDecimal("175")),
+                                new AgingBucketDto("91+ days", 91, null, new BigDecimal("175")),
+                                null,
+                                new AgingBucketDto("1-30 days", 1, 30, null),
+                                new AgingBucketDto("unknown", 10, 20, new BigDecimal("999"))
+                        )
+                ));
+
+        var payload = dealerService.agingSummary(97L);
+
+        assertThat(payload).containsEntry("totalOutstanding", new BigDecimal("625"));
+        assertThat((java.util.Map<String, Object>) payload.get("agingBuckets"))
+                .containsEntry("current", new BigDecimal("25"))
+                .containsEntry("1-30 days", new BigDecimal("100"))
+                .containsEntry("31-60 days", new BigDecimal("150"))
+                .containsEntry("61-90 days", new BigDecimal("175"))
+                .containsEntry("90+ days", new BigDecimal("175"));
     }
 
     @Test

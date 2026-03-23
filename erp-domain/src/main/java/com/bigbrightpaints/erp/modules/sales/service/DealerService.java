@@ -287,8 +287,7 @@ public class DealerService {
         AgingSummaryResponse aging = statementService.dealerAging(
                 dealerId,
                 companyClock.today(company),
-                PORTAL_AGING_BUCKETS
-        );
+                PORTAL_AGING_BUCKETS);
         Map<String, Object> buckets = toPortalAgingBuckets(aging);
 
         Map<String, Object> payload = new LinkedHashMap<>();

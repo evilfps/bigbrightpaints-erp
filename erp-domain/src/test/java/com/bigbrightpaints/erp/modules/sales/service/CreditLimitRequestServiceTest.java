@@ -92,6 +92,27 @@ class CreditLimitRequestServiceTest {
     }
 
     @Test
+    void createRequestAllowsDealerPortalFlowWithoutDealerId() {
+        when(creditRequestRepository.save(any(CreditRequest.class))).thenAnswer(invocation -> {
+            CreditRequest request = invocation.getArgument(0);
+            setField(request, "id", 902L);
+            setField(request, "publicId", UUID.fromString("223e4567-e89b-12d3-a456-426614174000"));
+            setField(request, "createdAt", Instant.parse("2026-03-23T10:25:30Z"));
+            return request;
+        });
+
+        CreditLimitRequestDto dto = service.createRequest(new CreditLimitRequestCreateRequest(
+                null,
+                new BigDecimal("800"),
+                "Portal initiated request"
+        ));
+
+        assertEquals("PENDING", dto.status());
+        assertThat(dto.dealerName()).isNull();
+        verify(dealerRepository, never()).findByCompanyAndId(any(), any());
+    }
+
+    @Test
     void listRequestsUsesDealerFetchPathForStableDtoMapping() {
         Dealer dealer = dealer(21L, "Prime Dealer", new BigDecimal("3000"));
         CreditRequest request = new CreditRequest();
@@ -113,6 +134,30 @@ class CreditLimitRequestServiceTest {
         assertEquals("Prime Dealer", response.getFirst().dealerName());
         verify(creditRequestRepository).findByCompanyWithDealerOrderByCreatedAtDesc(company);
         verify(creditRequestRepository, never()).findByCompanyOrderByCreatedAtDesc(any());
+    }
+
+    @Test
+    void listRequestsRejectsBlankStatus() {
+        CreditRequest request = request(9012L, null, new BigDecimal("900"), "Expansion", "   ");
+        when(creditRequestRepository.findByCompanyWithDealerOrderByCreatedAtDesc(company))
+                .thenReturn(List.of(request));
+
+        ApplicationException ex = assertThrows(ApplicationException.class, service::listRequests);
+
+        assertEquals(ErrorCode.VALIDATION_INVALID_INPUT, ex.getErrorCode());
+        assertThat(ex.getMessage()).contains("Status is required");
+    }
+
+    @Test
+    void listRequestsRejectsUnsupportedStatus() {
+        CreditRequest request = request(9013L, null, new BigDecimal("900"), "Expansion", "DRAFT");
+        when(creditRequestRepository.findByCompanyWithDealerOrderByCreatedAtDesc(company))
+                .thenReturn(List.of(request));
+
+        ApplicationException ex = assertThrows(ApplicationException.class, service::listRequests);
+
+        assertEquals(ErrorCode.VALIDATION_INVALID_INPUT, ex.getErrorCode());
+        assertThat(ex.getMessage()).contains("Unsupported credit limit request status");
     }
 
     @Test
@@ -166,6 +211,34 @@ class CreditLimitRequestServiceTest {
     }
 
     @Test
+    void approveRequestRequiresAssignedDealer() {
+        CreditRequest existing = request(916L, null, new BigDecimal("600"), null, "PENDING");
+        when(creditRequestRepository.findByCompanyAndId(company, 916L)).thenReturn(Optional.of(existing));
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> service.approveRequest(916L, "Approved"));
+
+        assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+        verify(dealerRepository, never()).lockByCompanyAndId(any(), any());
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void approveRequestRequiresAssignedDealerId() {
+        Dealer dealer = new Dealer();
+        dealer.setCompany(company);
+        CreditRequest existing = request(9161L, dealer, new BigDecimal("600"), null, "PENDING");
+        when(creditRequestRepository.findByCompanyAndId(company, 9161L)).thenReturn(Optional.of(existing));
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> service.approveRequest(9161L, "Approved"));
+
+        assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+        verify(dealerRepository, never()).lockByCompanyAndId(any(), any());
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
     void approveRequestFailsClosedWhenDealerCannotBeLocked() {
         Dealer dealer = dealer(81L, "Dealer", new BigDecimal("2000"));
         CreditRequest existing = request(917L, dealer, new BigDecimal("600"), null, "PENDING");
@@ -177,6 +250,34 @@ class CreditLimitRequestServiceTest {
 
         assertEquals(ErrorCode.VALIDATION_INVALID_REFERENCE, ex.getErrorCode());
         assertEquals(new BigDecimal("2000"), dealer.getCreditLimit());
+        verify(auditService, never()).logSuccess(any(), any());
+    }
+
+    @Test
+    void approveRequestFailsClosedWhenDealerCreditLimitIsMissing() {
+        Dealer dealer = dealer(83L, "Dealer", null);
+        CreditRequest existing = request(919L, dealer, new BigDecimal("600"), null, "PENDING");
+        when(creditRequestRepository.findByCompanyAndId(company, 919L)).thenReturn(Optional.of(existing));
+        when(dealerRepository.lockByCompanyAndId(company, 83L)).thenReturn(Optional.of(dealer));
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> service.approveRequest(919L, "Approved"));
+
+        assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+        verify(auditService, never()).logSuccess(any(), any());
+    }
+
+    @Test
+    void approveRequestFailsClosedWhenAmountRequestedIsMissing() {
+        Dealer dealer = dealer(821L, "Dealer", new BigDecimal("2000"));
+        CreditRequest existing = request(9181L, dealer, null, null, "PENDING");
+        when(creditRequestRepository.findByCompanyAndId(company, 9181L)).thenReturn(Optional.of(existing));
+        when(dealerRepository.lockByCompanyAndId(company, 821L)).thenReturn(Optional.of(dealer));
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> service.approveRequest(9181L, "Approved"));
+
+        assertEquals(ErrorCode.VALIDATION_INVALID_INPUT, ex.getErrorCode());
         verify(auditService, never()).logSuccess(any(), any());
     }
 
@@ -193,6 +294,51 @@ class CreditLimitRequestServiceTest {
         assertEquals(ErrorCode.VALIDATION_INVALID_INPUT, ex.getErrorCode());
         assertEquals(new BigDecimal("2000"), dealer.getCreditLimit());
         verify(auditService, never()).logSuccess(any(), any());
+    }
+
+    @Test
+    void approveRequestFailsClosedWhenDealerCreditLimitIsNegative() {
+        Dealer dealer = dealer(831L, "Dealer", new BigDecimal("-1"));
+        CreditRequest existing = request(9191L, dealer, new BigDecimal("600"), null, "PENDING");
+        when(creditRequestRepository.findByCompanyAndId(company, 9191L)).thenReturn(Optional.of(existing));
+        when(dealerRepository.lockByCompanyAndId(company, 831L)).thenReturn(Optional.of(dealer));
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> service.approveRequest(9191L, "Approved"));
+
+        assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+        verify(auditService, never()).logSuccess(any(), any());
+    }
+
+    @Test
+    void rejectRequestRejectsNonPendingStatus() {
+        CreditRequest existing = request(920L, null, new BigDecimal("725"), null, "REJECTED");
+        when(creditRequestRepository.findByCompanyAndId(company, 920L)).thenReturn(Optional.of(existing));
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> service.rejectRequest(920L, "Already rejected"));
+
+        assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+        verifyNoInteractions(auditService);
+    }
+
+    @Test
+    void rejectRequestAuditsSparseMetadataWhenRequestIdentifiersAreMissing() {
+        CreditRequest existing = new CreditRequest();
+        existing.setCompany(company);
+        existing.setStatus("PENDING");
+        existing.setReason("No identifiers yet");
+        when(creditRequestRepository.findByCompanyAndId(company, 921L)).thenReturn(Optional.of(existing));
+
+        service.rejectRequest(921L, "Missing paperwork");
+
+        ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(auditService).logSuccess(eq(AuditEvent.TRANSACTION_REJECTED), metadataCaptor.capture());
+        assertThat(metadataCaptor.getValue())
+                .containsEntry("resourceType", "credit_limit_request")
+                .containsEntry("decisionStatus", "REJECTED")
+                .containsEntry("decisionReason", "Missing paperwork")
+                .doesNotContainKeys("requestId", "requestPublicId", "dealerId", "amountRequested");
     }
 
     @Test
