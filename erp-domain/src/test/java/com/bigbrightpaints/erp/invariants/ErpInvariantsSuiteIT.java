@@ -19,6 +19,7 @@ import com.bigbrightpaints.erp.modules.accounting.event.AccountingEvent;
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.TemporalBalanceService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyModule;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
@@ -843,6 +844,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
     @DisplayName("Hire-to-Pay: employee -> attendance -> payroll run -> post -> pay")
     void hireToPay_goldenPath() {
         Company company = payroll.company();
+        enableModule(company, CompanyModule.HR_PAYROLL);
         HttpHeaders headers = authHeaders("pay@test.com", company.getCode());
         LocalDate entryDate = TestDateUtils.safeDate(company);
 
@@ -1041,6 +1043,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
     @DisplayName("Hire-to-Pay: payroll journal reversal creates balanced inverse")
     void hireToPay_reversal() {
         Company company = payroll.company();
+        enableModule(company, CompanyModule.HR_PAYROLL);
         HttpHeaders headers = authHeaders("pay@test.com", company.getCode());
         // Use a weekly run to avoid payroll run number collisions in this suite.
         LocalDate entryDate = TestDateUtils.safeDate(company);
@@ -1163,7 +1166,8 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         Company tenantCompany = companyRepository.findByCodeIgnoreCase(onboardedCompanyCode)
                 .orElseThrow(() -> new AssertionError("Onboarded company missing: " + onboardedCompanyCode));
         assertThat(tenantCompany.getEnabledModules())
-                .contains("MANUFACTURING", "PURCHASING", "HR_PAYROLL", "PORTAL", "REPORTS_ADVANCED");
+                .contains("MANUFACTURING", "PURCHASING", "PORTAL", "REPORTS_ADVANCED")
+                .doesNotContain("HR_PAYROLL");
 
         String opsEmail = "cross.ops." + deterministicSequence + "@example.com";
         dataSeeder.ensureUser(opsEmail, PASSWORD, "Cross Ops", onboardedCompanyCode, BASE_ROLES);

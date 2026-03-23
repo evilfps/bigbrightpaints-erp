@@ -54,4 +54,15 @@ class ModuleGatingServiceTest {
         assertThat(normalized).containsExactlyInAnyOrder("MANUFACTURING", "PORTAL");
         assertThat(normalized).doesNotContain("ACCOUNTING");
     }
+
+    @Test
+    void resolveEnabledGatableModules_defaultsExcludeHrPayroll() {
+        ModuleGatingService service = new ModuleGatingService(companyContextService);
+
+        Set<String> enabled = service.resolveEnabledGatableModules(null);
+
+        assertThat(enabled)
+                .containsExactlyInAnyOrder("MANUFACTURING", "PURCHASING", "PORTAL", "REPORTS_ADVANCED")
+                .doesNotContain("HR_PAYROLL");
+    }
 }

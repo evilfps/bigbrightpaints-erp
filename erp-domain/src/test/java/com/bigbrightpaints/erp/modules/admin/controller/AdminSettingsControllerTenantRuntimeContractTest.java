@@ -71,7 +71,8 @@ class AdminSettingsControllerTenantRuntimeContractTest {
                 mock(ExportApprovalService.class),
                 mock(CreditRequestRepository.class),
                 mock(CreditLimitOverrideRequestRepository.class),
-                mock(PayrollRunRepository.class)
+                mock(PayrollRunRepository.class),
+                null
         );
 
         ApiResponse<SystemSettingsDto> response = controller.getSettings();
@@ -117,7 +118,8 @@ class AdminSettingsControllerTenantRuntimeContractTest {
                 mock(ExportApprovalService.class),
                 mock(CreditRequestRepository.class),
                 mock(CreditLimitOverrideRequestRepository.class),
-                mock(PayrollRunRepository.class)
+                mock(PayrollRunRepository.class),
+                null
         );
 
         ApiResponse<SystemSettingsDto> response = controller.updateSettings(request);
@@ -139,7 +141,8 @@ class AdminSettingsControllerTenantRuntimeContractTest {
                 mock(ExportApprovalService.class),
                 mock(CreditRequestRepository.class),
                 mock(CreditLimitOverrideRequestRepository.class),
-                mock(PayrollRunRepository.class)
+                mock(PayrollRunRepository.class),
+                null
         );
         AdminNotifyRequest request = new AdminNotifyRequest(
                 "admin.user@bigbrightpaints.com",
@@ -255,7 +258,8 @@ class AdminSettingsControllerTenantRuntimeContractTest {
                 mock(ExportApprovalService.class),
                 mock(CreditRequestRepository.class),
                 mock(CreditLimitOverrideRequestRepository.class),
-                mock(PayrollRunRepository.class)
+                mock(PayrollRunRepository.class),
+                null
         );
     }
 }

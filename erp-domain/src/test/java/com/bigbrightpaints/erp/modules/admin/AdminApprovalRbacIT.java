@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.admin;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyModule;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
@@ -52,6 +53,7 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
         dataSeeder.ensureUser(SALES_EMAIL, PASSWORD, "Approval Sales", COMPANY_CODE, List.of("ROLE_SALES"));
         dataSeeder.ensureUser(FACTORY_EMAIL, PASSWORD, "Approval Factory", COMPANY_CODE, List.of("ROLE_FACTORY"));
         dataSeeder.ensureUser(DEALER_EMAIL, PASSWORD, "Approval Dealer", COMPANY_CODE, List.of("ROLE_DEALER"));
+        enableModule(COMPANY_CODE, CompanyModule.HR_PAYROLL);
         ensureDealerPortalMapping();
     }
 
@@ -152,14 +154,14 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
                 HttpMethod.POST,
                 new HttpEntity<>(decision, accountingHeaders),
                 Map.class);
-        assertThat(accountingApprove.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(accountingApprove.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 
         ResponseEntity<Map> adminReject = rest.exchange(
                 "/api/v1/credit/override-requests/" + unknownRequestId + "/reject",
                 HttpMethod.POST,
                 new HttpEntity<>(decision, adminHeaders),
                 Map.class);
-        assertThat(adminReject.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(adminReject.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
@@ -307,7 +309,10 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
     }
 
     private long createCreditRequest(HttpHeaders headers, String amountRequested, String reason) {
+        Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        Dealer dealer = dealerRepository.findByCompanyAndCodeIgnoreCase(company, DEALER_CODE).orElseThrow();
         Map<String, Object> payload = new HashMap<>();
+        payload.put("dealerId", dealer.getId());
         payload.put("amountRequested", new BigDecimal(amountRequested));
         payload.put("reason", reason);
 

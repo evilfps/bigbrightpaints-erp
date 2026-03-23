@@ -1,7 +1,5 @@
 package com.bigbrightpaints.erp.modules.company.service;
 
-import com.bigbrightpaints.erp.core.exception.ApplicationException;
-import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyModule;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,15 +28,11 @@ public class ModuleGatingInterceptor implements HandlerInterceptor {
             return true;
         }
         CompanyModule module = resolveTargetModule(path);
-        if (module == null || moduleGatingService.isEnabledForCurrentCompany(module)) {
+        if (module == null) {
             return true;
         }
-        throw new ApplicationException(
-                ErrorCode.MODULE_DISABLED,
-                "Module " + module.name() + " is disabled for the current tenant")
-                .withDetail("module", module.name())
-                .withDetail("companyCode", companyCode)
-                .withDetail("path", path);
+        moduleGatingService.requireEnabledForCurrentCompany(module, path);
+        return true;
     }
 
     CompanyModule resolveTargetModule(String path) {
@@ -49,6 +43,9 @@ public class ModuleGatingInterceptor implements HandlerInterceptor {
             return CompanyModule.MANUFACTURING;
         }
         if (startsWithAny(path, "/api/v1/hr", "/api/v1/payroll")) {
+            return CompanyModule.HR_PAYROLL;
+        }
+        if (startsWithAny(path, "/api/v1/accounting/payroll")) {
             return CompanyModule.HR_PAYROLL;
         }
         if (startsWithAny(path, "/api/v1/purchasing", "/api/v1/suppliers")) {

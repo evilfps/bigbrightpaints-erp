@@ -1,10 +1,12 @@
 package com.bigbrightpaints.erp.modules.portal.service;
 
+import com.bigbrightpaints.erp.modules.company.domain.CompanyModule;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.company.service.ModuleGatingService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTask;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTaskRepository;
@@ -83,6 +85,7 @@ public class PortalInsightsService {
     private final PayrollRunRepository payrollRunRepository;
     private final AccountRepository accountRepository;
     private final CompanyClock companyClock;
+    private final ModuleGatingService moduleGatingService;
 
     public PortalInsightsService(CompanyContextService companyContextService,
                                  EntityManager entityManager,
@@ -98,7 +101,8 @@ public class PortalInsightsService {
                                  LeaveRequestRepository leaveRequestRepository,
                                  PayrollRunRepository payrollRunRepository,
                                  AccountRepository accountRepository,
-                                 CompanyClock companyClock) {
+                                 CompanyClock companyClock,
+                                 ModuleGatingService moduleGatingService) {
         this.companyContextService = companyContextService;
         this.entityManager = entityManager;
         this.dealerRepository = dealerRepository;
@@ -114,15 +118,19 @@ public class PortalInsightsService {
         this.payrollRunRepository = payrollRunRepository;
         this.accountRepository = accountRepository;
         this.companyClock = companyClock;
+        this.moduleGatingService = moduleGatingService;
     }
 
     public DashboardInsights dashboard() {
         Company company = companyContextService.requireCurrentCompany();
+        boolean hrPayrollEnabled = moduleGatingService.isEnabledForCurrentCompany(CompanyModule.HR_PAYROLL);
         LocalDate recognizedRevenueCutoff = companyClock.today(company).minusDays(30);
         BigDecimal recognizedRevenue = sumRecognizedRevenue(company);
         BigDecimal recognizedRevenueLast30 = sumRecognizedRevenueOnOrAfter(company, recognizedRevenueCutoff);
         List<PackagingSlip> slips = packagingSlipRepository.findByCompanyOrderByCreatedAtDesc(company);
-        List<Employee> employees = employeeRepository.findByCompanyOrderByFirstNameAsc(company);
+        List<Employee> employees = hrPayrollEnabled
+                ? employeeRepository.findByCompanyOrderByFirstNameAsc(company)
+                : List.of();
         List<ProductionPlan> plans = productionPlanRepository.findByCompanyOrderByPlannedDateDesc(company);
 
         String revenue = currency(recognizedRevenue);
@@ -134,12 +142,22 @@ public class PortalInsightsService {
                 slips.size()
         );
 
-        List<DashboardInsights.HighlightMetric> highlights = List.of(
-                new DashboardInsights.HighlightMetric("Revenue run rate", revenue, "Last 30d: " + last30),
-                new DashboardInsights.HighlightMetric("Fulfilment SLA", percent(fulfilment), slips.isEmpty() ? "Awaiting fulfilment data" : "Dispatch ratio last 90d"),
-                new DashboardInsights.HighlightMetric("Active workforce", formatNumber(activeEmployees), employees.isEmpty() ? "No workforce records" : "Employees with ACTIVE status"),
-                new DashboardInsights.HighlightMetric("Dealer coverage", formatNumber(dealers), dealers == 0 ? "Seed dealer records to unlock insights" : "Connected dealer entities")
-        );
+        List<DashboardInsights.HighlightMetric> highlights = new ArrayList<>();
+        highlights.add(new DashboardInsights.HighlightMetric("Revenue run rate", revenue, "Last 30d: " + last30));
+        highlights.add(new DashboardInsights.HighlightMetric(
+                "Fulfilment SLA",
+                percent(fulfilment),
+                slips.isEmpty() ? "Awaiting fulfilment data" : "Dispatch ratio last 90d"));
+        if (hrPayrollEnabled) {
+            highlights.add(new DashboardInsights.HighlightMetric(
+                    "Active workforce",
+                    formatNumber(activeEmployees),
+                    employees.isEmpty() ? "No workforce records" : "Employees with ACTIVE status"));
+        }
+        highlights.add(new DashboardInsights.HighlightMetric(
+                "Dealer coverage",
+                formatNumber(dealers),
+                dealers == 0 ? "Seed dealer records to unlock insights" : "Connected dealer entities"));
 
         Map<String, Long> pipeline = plans.stream()
                 .collect(Collectors.groupingBy(plan -> plan.getStatus().toUpperCase(Locale.ROOT), Collectors.counting()));
@@ -150,18 +168,20 @@ public class PortalInsightsService {
                 .map(entry -> new DashboardInsights.PipelineStage(entry.getKey(), entry.getValue()))
                 .toList();
 
-        long onLeave = leaveRequestRepository.findByCompanyOrderByCreatedAtDesc(company).stream()
-                .filter(request -> "APPROVED".equalsIgnoreCase(request.getStatus()))
-                .count();
-        long payrollDrafts = payrollRunRepository.findByCompanyOrderByRunDateDesc(company).stream()
-                .filter(run -> "DRAFT".equalsIgnoreCase(run.getStatusString()))
-                .count();
-
-        List<DashboardInsights.HrPulseMetric> hrPulse = List.of(
-                new DashboardInsights.HrPulseMetric("Engagement", percent(ratio(activeEmployees, employees.size())), "Active employees"),
-                new DashboardInsights.HrPulseMetric("Leave utilisation", percent(ratio(onLeave, employees.size())), "Approved leave records"),
-                new DashboardInsights.HrPulseMetric("Payroll readiness", formatNumber(payrollDrafts), "Draft payroll runs awaiting approval")
-        );
+        List<DashboardInsights.HrPulseMetric> hrPulse = List.of();
+        if (hrPayrollEnabled) {
+            long onLeave = leaveRequestRepository.findByCompanyOrderByCreatedAtDesc(company).stream()
+                    .filter(request -> "APPROVED".equalsIgnoreCase(request.getStatus()))
+                    .count();
+            long payrollDrafts = payrollRunRepository.findByCompanyOrderByRunDateDesc(company).stream()
+                    .filter(run -> "DRAFT".equalsIgnoreCase(run.getStatusString()))
+                    .count();
+            hrPulse = List.of(
+                    new DashboardInsights.HrPulseMetric("Engagement", percent(ratio(activeEmployees, employees.size())), "Active employees"),
+                    new DashboardInsights.HrPulseMetric("Leave utilisation", percent(ratio(onLeave, employees.size())), "Approved leave records"),
+                    new DashboardInsights.HrPulseMetric("Payroll readiness", formatNumber(payrollDrafts), "Draft payroll runs awaiting approval")
+            );
+        }
 
         return new DashboardInsights(highlights, pipelineStages, hrPulse);
     }
@@ -221,6 +241,7 @@ public class PortalInsightsService {
     }
 
     public WorkforceInsights workforce() {
+        moduleGatingService.requireEnabledForCurrentCompany(CompanyModule.HR_PAYROLL, "/api/v1/portal/workforce");
         Company company = companyContextService.requireCurrentCompany();
         List<Employee> employees = employeeRepository.findByCompanyOrderByFirstNameAsc(company);
         List<LeaveRequest> leaveRequests = leaveRequestRepository.findByCompanyOrderByCreatedAtDesc(company);

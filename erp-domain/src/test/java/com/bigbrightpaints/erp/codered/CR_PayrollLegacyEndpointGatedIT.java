@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.codered;
 
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyModule;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
@@ -41,6 +42,7 @@ class CR_PayrollLegacyEndpointGatedIT extends AbstractIntegrationTest {
     void seedUser() {
         dataSeeder.ensureUser(USER_EMAIL, USER_PASSWORD, "Payroll Legacy", COMPANY_CODE,
                 List.of("ROLE_ACCOUNTING"));
+        enableModule(COMPANY_CODE, CompanyModule.HR_PAYROLL);
     }
 
     @AfterEach

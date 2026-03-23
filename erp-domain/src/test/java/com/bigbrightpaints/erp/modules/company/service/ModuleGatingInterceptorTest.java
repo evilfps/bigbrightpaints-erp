@@ -2,9 +2,9 @@ package com.bigbrightpaints.erp.modules.company.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
@@ -40,7 +40,6 @@ class ModuleGatingInterceptorTest {
     @Test
     void preHandle_allowsRequestWhenModuleIsEnabled() {
         CompanyContextHolder.setCompanyCode("ACME");
-        when(moduleGatingService.isEnabledForCurrentCompany(CompanyModule.REPORTS_ADVANCED)).thenReturn(true);
 
         boolean allowed = interceptor.preHandle(
                 new MockHttpServletRequest("GET", "/api/v1/reports/trial-balance"),
@@ -48,13 +47,16 @@ class ModuleGatingInterceptorTest {
                 new Object());
 
         assertThat(allowed).isTrue();
-        verify(moduleGatingService).isEnabledForCurrentCompany(CompanyModule.REPORTS_ADVANCED);
+        verify(moduleGatingService)
+                .requireEnabledForCurrentCompany(CompanyModule.REPORTS_ADVANCED, "/api/v1/reports/trial-balance");
     }
 
     @Test
     void preHandle_throwsForbiddenWhenModuleIsDisabled() {
         CompanyContextHolder.setCompanyCode("ACME");
-        when(moduleGatingService.isEnabledForCurrentCompany(CompanyModule.MANUFACTURING)).thenReturn(false);
+        doThrow(new ApplicationException(ErrorCode.MODULE_DISABLED, "disabled"))
+                .when(moduleGatingService)
+                .requireEnabledForCurrentCompany(CompanyModule.MANUFACTURING, "/api/v1/factory/batches");
 
         assertThatThrownBy(() -> interceptor.preHandle(
                 new MockHttpServletRequest("GET", "/api/v1/factory/batches"),
@@ -66,6 +68,28 @@ class ModuleGatingInterceptorTest {
     }
 
     @Test
+    void preHandle_throwsForbiddenForAccountingPayrollRouteWhenModuleIsDisabled() {
+        CompanyContextHolder.setCompanyCode("ACME");
+        doThrow(new ApplicationException(ErrorCode.MODULE_DISABLED, "disabled"))
+                .when(moduleGatingService)
+                .requireEnabledForCurrentCompany(CompanyModule.HR_PAYROLL, "/api/v1/accounting/payroll/payments/batch");
+
+        assertThatThrownBy(() -> interceptor.preHandle(
+                new MockHttpServletRequest("POST", "/api/v1/accounting/payroll/payments/batch"),
+                new MockHttpServletResponse(),
+                new Object()))
+                .isInstanceOf(ApplicationException.class)
+                .extracting(error -> ((ApplicationException) error).getErrorCode())
+                .isEqualTo(ErrorCode.MODULE_DISABLED);
+    }
+
+    @Test
+    void resolveTargetModule_prefersHrPayrollForAccountingPayrollRoutes() {
+        assertThat(interceptor.resolveTargetModule("/api/v1/accounting/payroll/payments"))
+                .isEqualTo(CompanyModule.HR_PAYROLL);
+    }
+
+    @Test
     void preHandle_skipsGatingWhenCompanyContextMissing() {
         boolean allowed = interceptor.preHandle(
                 new MockHttpServletRequest("GET", "/api/v1/reports/trial-balance"),
@@ -73,6 +97,7 @@ class ModuleGatingInterceptorTest {
                 new Object());
 
         assertThat(allowed).isTrue();
-        verify(moduleGatingService, never()).isEnabledForCurrentCompany(CompanyModule.REPORTS_ADVANCED);
+        verify(moduleGatingService, never())
+                .requireEnabledForCurrentCompany(CompanyModule.REPORTS_ADVANCED, "/api/v1/reports/trial-balance");
     }
 }

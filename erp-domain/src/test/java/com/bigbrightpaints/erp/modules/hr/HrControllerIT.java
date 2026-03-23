@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.hr;
 
+import com.bigbrightpaints.erp.modules.company.domain.CompanyModule;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,7 @@ public class HrControllerIT extends AbstractIntegrationTest {
     @BeforeEach
     void seed() {
         dataSeeder.ensureUser(ADMIN_EMAIL, ADMIN_PASSWORD, "HR Admin", COMPANY_CODE, List.of("ROLE_ADMIN"));
+        enableModule(COMPANY_CODE, CompanyModule.HR_PAYROLL);
     }
 
     @Test

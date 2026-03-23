@@ -25,6 +25,12 @@ public enum CompanyModule {
             PORTAL,
             REPORTS_ADVANCED);
 
+    private static final EnumSet<CompanyModule> DEFAULT_ENABLED_GATABLE_MODULES = EnumSet.of(
+            MANUFACTURING,
+            PURCHASING,
+            PORTAL,
+            REPORTS_ADVANCED);
+
     private final boolean gatable;
 
     CompanyModule(boolean gatable) {
@@ -52,7 +58,7 @@ public enum CompanyModule {
 
     public static Set<String> defaultEnabledGatableModuleNames() {
         LinkedHashSet<String> moduleNames = new LinkedHashSet<>();
-        for (CompanyModule module : GATABLE_MODULES) {
+        for (CompanyModule module : DEFAULT_ENABLED_GATABLE_MODULES) {
             moduleNames.add(module.name());
         }
         return moduleNames;

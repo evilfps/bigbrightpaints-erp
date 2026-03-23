@@ -1,5 +1,10 @@
 package com.bigbrightpaints.erp.test;
 
+import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyModule;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -35,6 +40,9 @@ public abstract class AbstractIntegrationTest {
 
     @Autowired
     protected TestDataSeeder dataSeeder;
+
+    @Autowired
+    protected CompanyRepository companyRepository;
 
     @DynamicPropertySource
     static void registerDataSource(DynamicPropertyRegistry registry) {
@@ -72,5 +80,24 @@ public abstract class AbstractIntegrationTest {
 
     private static String defaultString(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    protected Company enableModule(String companyCode, CompanyModule module) {
+        Company company = companyRepository.findByCodeIgnoreCase(companyCode)
+                .orElseThrow(() -> new IllegalArgumentException("Company not found: " + companyCode));
+        return enableModule(company, module);
+    }
+
+    protected Company enableModule(Company company, CompanyModule module) {
+        Company managedCompany = company;
+        if (company.getId() != null) {
+            managedCompany = companyRepository.findById(company.getId()).orElse(company);
+        } else if (company.getCode() != null && !company.getCode().isBlank()) {
+            managedCompany = companyRepository.findByCodeIgnoreCase(company.getCode()).orElse(company);
+        }
+        Set<String> enabledModules = new LinkedHashSet<>(managedCompany.getEnabledModules());
+        enabledModules.add(module.name());
+        managedCompany.setEnabledModules(enabledModules);
+        return companyRepository.save(managedCompany);
     }
 }

@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.hr;
 
+import com.bigbrightpaints.erp.modules.company.domain.CompanyModule;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +33,7 @@ public class PayrollRunApiIdempotencyIT extends AbstractIntegrationTest {
     void seed() {
         dataSeeder.ensureUser(ADMIN_EMAIL, ADMIN_PASSWORD, "Payroll Admin", COMPANY_CODE,
                 List.of("ROLE_ADMIN", "ROLE_ACCOUNTING"));
+        enableModule(COMPANY_CODE, CompanyModule.HR_PAYROLL);
     }
 
     @Test
