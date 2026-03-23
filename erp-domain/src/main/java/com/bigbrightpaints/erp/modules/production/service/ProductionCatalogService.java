@@ -11,8 +11,13 @@ import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReservationRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.production.domain.CatalogImport;
@@ -130,6 +135,11 @@ public class ProductionCatalogService {
     private final ProductionProductRepository productRepository;
     private final FinishedGoodRepository finishedGoodRepository;
     private final RawMaterialRepository rawMaterialRepository;
+    private final FinishedGoodBatchRepository finishedGoodBatchRepository;
+    private final InventoryMovementRepository inventoryMovementRepository;
+    private final InventoryReservationRepository inventoryReservationRepository;
+    private final RawMaterialBatchRepository rawMaterialBatchRepository;
+    private final RawMaterialMovementRepository rawMaterialMovementRepository;
     private final CompanyEntityLookup companyEntityLookup;
     private final CompanyDefaultAccountsService companyDefaultAccountsService;
     private final CatalogImportRepository catalogImportRepository;
@@ -144,6 +154,11 @@ public class ProductionCatalogService {
                                     ProductionProductRepository productRepository,
                                     FinishedGoodRepository finishedGoodRepository,
                                     RawMaterialRepository rawMaterialRepository,
+                                    FinishedGoodBatchRepository finishedGoodBatchRepository,
+                                    InventoryMovementRepository inventoryMovementRepository,
+                                    InventoryReservationRepository inventoryReservationRepository,
+                                    RawMaterialBatchRepository rawMaterialBatchRepository,
+                                    RawMaterialMovementRepository rawMaterialMovementRepository,
                                     CompanyEntityLookup companyEntityLookup,
                                     CompanyDefaultAccountsService companyDefaultAccountsService,
                                     CatalogImportRepository catalogImportRepository,
@@ -155,6 +170,11 @@ public class ProductionCatalogService {
         this.productRepository = productRepository;
         this.finishedGoodRepository = finishedGoodRepository;
         this.rawMaterialRepository = rawMaterialRepository;
+        this.finishedGoodBatchRepository = finishedGoodBatchRepository;
+        this.inventoryMovementRepository = inventoryMovementRepository;
+        this.inventoryReservationRepository = inventoryReservationRepository;
+        this.rawMaterialBatchRepository = rawMaterialBatchRepository;
+        this.rawMaterialMovementRepository = rawMaterialMovementRepository;
         this.companyEntityLookup = companyEntityLookup;
         this.companyDefaultAccountsService = companyDefaultAccountsService;
         this.catalogImportRepository = catalogImportRepository;
@@ -2133,7 +2153,10 @@ public class ProductionCatalogService {
         if (!StringUtils.hasText(sku)) {
             return;
         }
-        rawMaterialRepository.findByCompanyAndSku(company, sku).ifPresent(rawMaterialRepository::delete);
+        rawMaterialRepository.findByCompanyAndSku(company, sku).ifPresent(rawMaterial -> {
+            assertRawMaterialMirrorDeletionSafe(rawMaterial);
+            rawMaterialRepository.delete(rawMaterial);
+        });
     }
 
     private void deleteFinishedGoodMirror(Company company, ProductionProduct product) {
@@ -2141,7 +2164,40 @@ public class ProductionCatalogService {
         if (!StringUtils.hasText(sku)) {
             return;
         }
-        finishedGoodRepository.findByCompanyAndProductCode(company, sku).ifPresent(finishedGoodRepository::delete);
+        finishedGoodRepository.findByCompanyAndProductCode(company, sku).ifPresent(finishedGood -> {
+            assertFinishedGoodMirrorDeletionSafe(finishedGood);
+            finishedGoodRepository.delete(finishedGood);
+        });
+    }
+
+    private void assertRawMaterialMirrorDeletionSafe(RawMaterial rawMaterial) {
+        BigDecimal currentStock = rawMaterial.getCurrentStock() != null ? rawMaterial.getCurrentStock() : BigDecimal.ZERO;
+        BigDecimal privateStock = rawMaterial.getPrivateStock() != null ? rawMaterial.getPrivateStock() : BigDecimal.ZERO;
+        boolean hasBatches = !rawMaterialBatchRepository.findByRawMaterial(rawMaterial).isEmpty();
+        boolean hasMovements = rawMaterialMovementRepository.findFirstByRawMaterialOrderByCreatedAtAsc(rawMaterial).isPresent();
+        if (currentStock.compareTo(BigDecimal.ZERO) > 0
+                || privateStock.compareTo(BigDecimal.ZERO) > 0
+                || hasBatches
+                || hasMovements) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                    "SKU " + rawMaterial.getSku() + " cannot change itemClass because raw material history already exists; create a new SKU or reverse inventory before retrying");
+        }
+    }
+
+    private void assertFinishedGoodMirrorDeletionSafe(FinishedGood finishedGood) {
+        BigDecimal currentStock = finishedGood.getCurrentStock() != null ? finishedGood.getCurrentStock() : BigDecimal.ZERO;
+        BigDecimal reservedStock = finishedGood.getReservedStock() != null ? finishedGood.getReservedStock() : BigDecimal.ZERO;
+        boolean hasBatches = !finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood).isEmpty();
+        boolean hasMovements = inventoryMovementRepository.findFirstByFinishedGoodOrderByCreatedAtAsc(finishedGood).isPresent();
+        boolean hasReservations = inventoryReservationRepository.findFirstByFinishedGoodOrderByCreatedAtAsc(finishedGood).isPresent();
+        if (currentStock.compareTo(BigDecimal.ZERO) > 0
+                || reservedStock.compareTo(BigDecimal.ZERO) > 0
+                || hasBatches
+                || hasMovements
+                || hasReservations) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                    "SKU " + finishedGood.getProductCode() + " cannot change itemClass because finished good history already exists; create a new SKU or reverse inventory before retrying");
+        }
     }
 
     private String resolveUnit(String unit) {

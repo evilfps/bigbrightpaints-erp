@@ -9,6 +9,8 @@ import java.time.Instant;
 import java.util.List;
 
 public interface RawMaterialMovementRepository extends JpaRepository<RawMaterialMovement, Long> {
+    java.util.Optional<RawMaterialMovement> findFirstByRawMaterialOrderByCreatedAtAsc(RawMaterial rawMaterial);
+
     List<RawMaterialMovement> findByReferenceTypeAndReferenceId(String referenceType, String referenceId);
     List<RawMaterialMovement> findByRawMaterialCompanyAndReferenceTypeAndReferenceId(Company company,
                                                                                      String referenceType,

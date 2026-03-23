@@ -145,6 +145,7 @@ public class BulkPackingService {
 
         StringBuilder fingerprint = new StringBuilder();
         fingerprint.append("bulkBatchId=").append(bulkBatch.getId() != null ? bulkBatch.getId() : "null");
+        fingerprint.append("|consumePackaging=true");
 
         List<BulkPackRequest.PackLine> lines = request.packs().stream()
                 .sorted(Comparator.comparing(BulkPackRequest.PackLine::childSkuId))

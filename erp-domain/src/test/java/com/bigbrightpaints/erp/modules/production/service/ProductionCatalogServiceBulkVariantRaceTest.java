@@ -7,7 +7,12 @@ import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReservationRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.CatalogImportRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
@@ -47,6 +52,11 @@ class ProductionCatalogServiceBulkVariantRaceTest {
     @Mock private ProductionProductRepository productRepository;
     @Mock private FinishedGoodRepository finishedGoodRepository;
     @Mock private RawMaterialRepository rawMaterialRepository;
+    @Mock private FinishedGoodBatchRepository finishedGoodBatchRepository;
+    @Mock private InventoryMovementRepository inventoryMovementRepository;
+    @Mock private InventoryReservationRepository inventoryReservationRepository;
+    @Mock private RawMaterialBatchRepository rawMaterialBatchRepository;
+    @Mock private RawMaterialMovementRepository rawMaterialMovementRepository;
     @Mock private CompanyEntityLookup companyEntityLookup;
     @Mock private CompanyDefaultAccountsService companyDefaultAccountsService;
     @Mock private CatalogImportRepository catalogImportRepository;
@@ -66,6 +76,11 @@ class ProductionCatalogServiceBulkVariantRaceTest {
                 productRepository,
                 finishedGoodRepository,
                 rawMaterialRepository,
+                finishedGoodBatchRepository,
+                inventoryMovementRepository,
+                inventoryReservationRepository,
+                rawMaterialBatchRepository,
+                rawMaterialMovementRepository,
                 companyEntityLookup,
                 companyDefaultAccountsService,
                 catalogImportRepository,

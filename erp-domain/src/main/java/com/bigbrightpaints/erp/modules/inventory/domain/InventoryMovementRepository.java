@@ -9,6 +9,8 @@ import java.time.Instant;
 import java.util.List;
 
 public interface InventoryMovementRepository extends JpaRepository<InventoryMovement, Long> {
+    java.util.Optional<InventoryMovement> findFirstByFinishedGoodOrderByCreatedAtAsc(FinishedGood finishedGood);
+
     List<InventoryMovement> findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(String referenceType, String referenceId);
     List<InventoryMovement> findByFinishedGoodBatchOrderByCreatedAtAsc(FinishedGoodBatch finishedGoodBatch);
 
