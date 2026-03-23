@@ -145,6 +145,7 @@ class RawMaterialServiceReceiptContextTest {
         rawMaterialBrand.setName("Raw Materials");
 
         lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        lenient().when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(material);
         lenient().when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(material));
         lenient().when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
         lenient().when(rawMaterialRepository.save(any(RawMaterial.class))).thenAnswer(invocation -> invocation.getArgument(0));

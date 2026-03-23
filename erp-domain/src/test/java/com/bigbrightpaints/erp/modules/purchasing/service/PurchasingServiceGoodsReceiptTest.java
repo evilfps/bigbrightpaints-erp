@@ -397,8 +397,8 @@ class PurchasingServiceGoodsReceiptTest {
                 .thenReturn(Optional.empty());
         when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
                 .thenReturn(List.of());
-        when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-                .thenReturn(Optional.of(rawMaterial));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenReturn(rawMaterial);
 
         RawMaterialBatch recordedBatch = new RawMaterialBatch();
         ReflectionTestUtils.setField(recordedBatch, "id", 702L);
@@ -477,8 +477,8 @@ class PurchasingServiceGoodsReceiptTest {
                 .thenReturn(Optional.empty());
         when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
                 .thenReturn(List.of());
-        when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-                .thenReturn(Optional.of(rawMaterial));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenReturn(rawMaterial);
 
         RawMaterialBatch recordedBatch = new RawMaterialBatch();
         ReflectionTestUtils.setField(recordedBatch, "id", 701L);
@@ -566,8 +566,8 @@ class PurchasingServiceGoodsReceiptTest {
                 .thenReturn(Optional.empty());
         when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
                 .thenReturn(List.of());
-        when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-                .thenReturn(Optional.of(rawMaterial));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenReturn(rawMaterial);
 
         RawMaterialBatch recordedBatch = new RawMaterialBatch();
         ReflectionTestUtils.setField(recordedBatch, "id", 702L);
@@ -620,8 +620,8 @@ class PurchasingServiceGoodsReceiptTest {
                 .thenReturn(Optional.empty());
         when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
                 .thenReturn(List.of());
-        when(rawMaterialRepository.lockByCompanyAndId(company, 21L))
-                .thenReturn(Optional.of(otherMaterial));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 21L))
+                .thenReturn(otherMaterial);
 
         assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
                 .isInstanceOfSatisfying(ApplicationException.class, ex -> {
@@ -651,8 +651,8 @@ class PurchasingServiceGoodsReceiptTest {
                 .thenReturn(Optional.empty());
         when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
                 .thenReturn(List.of());
-        when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-                .thenReturn(Optional.of(rawMaterial));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenReturn(rawMaterial);
 
         assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
                 .isInstanceOfSatisfying(ApplicationException.class, ex -> {

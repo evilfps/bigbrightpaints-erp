@@ -207,7 +207,7 @@ class PurchaseInvoiceEngineLifecycleTest {
         lenient().when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-40")).thenReturn(Optional.empty());
         lenient().when(goodsReceiptRepository.lockByCompanyAndId(company, 40L)).thenReturn(Optional.of(goodsReceipt));
         lenient().when(purchaseRepository.findByCompanyAndGoodsReceipt(company, goodsReceipt)).thenReturn(Optional.empty());
-        lenient().when(rawMaterialRepository.lockByCompanyAndId(company, 20L)).thenReturn(Optional.of(rawMaterial));
+        lenient().when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
         lenient().when(referenceNumberService.purchaseReference(company, supplier, "INV-40")).thenReturn("RMP-SUP10-INV40");
         lenient().when(gstService.splitTaxAmount(any(), any(), any(), any()))
                 .thenAnswer(invocation -> new GstService.GstBreakdown(
