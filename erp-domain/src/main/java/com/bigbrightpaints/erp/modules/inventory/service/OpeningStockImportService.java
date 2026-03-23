@@ -452,15 +452,24 @@ public class OpeningStockImportService {
 
     private void assertIdempotencyMatch(OpeningStockImport record, String expectedHash, String idempotencyKey) {
         String storedSignature = record.getIdempotencyHash();
+        if (!StringUtils.hasText(storedSignature)) {
+            storedSignature = record.getFileHash();
+        }
         if (StringUtils.hasText(storedSignature)) {
             if (!storedSignature.equals(expectedHash)) {
                 throw new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT,
                         "Idempotency key already used with different payload")
                         .withDetail("idempotencyKey", idempotencyKey);
             }
+            if (!StringUtils.hasText(record.getIdempotencyHash()) || !StringUtils.hasText(record.getFileHash())) {
+                record.setIdempotencyHash(expectedHash);
+                record.setFileHash(expectedHash);
+                openingStockImportRepository.save(record);
+            }
             return;
         }
         record.setIdempotencyHash(expectedHash);
+        record.setFileHash(expectedHash);
         openingStockImportRepository.save(record);
     }
 

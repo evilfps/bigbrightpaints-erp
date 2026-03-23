@@ -92,6 +92,26 @@ class PackagingMaterialServiceTest {
     }
 
     @Test
+    void createMapping_rejectsMissingActiveRawMaterial() {
+        when(companyEntityLookup.requireActiveRawMaterial(company, 99L))
+                .thenThrow(new IllegalArgumentException("inactive"));
+
+        assertThatThrownBy(() -> packagingMaterialService.createMapping(new PackagingSizeMappingRequest(
+                "1L",
+                99L,
+                1,
+                12,
+                BigDecimal.ONE
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> {
+                    ApplicationException appEx = (ApplicationException) ex;
+                    assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_REFERENCE);
+                    assertThat(appEx.getMessage()).contains("Raw material not found");
+                });
+    }
+
+    @Test
     void consumePackagingMaterial_throwsWhenMappingMissing() {
         when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
                 .thenReturn(List.of());
@@ -248,6 +268,25 @@ class PackagingMaterialServiceTest {
                     ApplicationException appEx = (ApplicationException) ex;
                     assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
                     assertThat(appEx.getMessage()).contains("produced zero cost");
+                });
+    }
+
+    @Test
+    void consumePackagingMaterial_rejectsInactivePackagingMaterial() {
+        RawMaterial material = rawMaterial(16L, 900L, new BigDecimal("5"), null);
+        PackagingSizeMapping mapping = packagingMapping(material, 1);
+
+        when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
+                .thenReturn(List.of(mapping));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 16L))
+                .thenThrow(new IllegalArgumentException("inactive"));
+
+        assertThatThrownBy(() -> packagingMaterialService.consumePackagingMaterial("1L", 1, "PACK-REF"))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> {
+                    ApplicationException appEx = (ApplicationException) ex;
+                    assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_REFERENCE);
+                    assertThat(appEx.getMessage()).contains("Raw material not found");
                 });
     }
 

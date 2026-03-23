@@ -1275,6 +1275,57 @@ class OpeningStockImportServiceTest {
     }
 
     @Test
+    void importOpeningStock_replaysLegacyFileHashAndBackfillsIdempotencyHash() throws Exception {
+        MockMultipartFile file = csvFile(String.join("\n",
+                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"
+        ));
+        String fileHash = com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.sha256Hex(file.getBytes());
+
+        OpeningStockImport existing = new OpeningStockImport();
+        existing.setCompany(company);
+        existing.setIdempotencyKey("legacy-key");
+        existing.setFileHash(fileHash);
+        existing.setOpeningStockBatchKey("batch-key-legacy");
+        existing.setRowsProcessed(2);
+
+        when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "legacy-key"))
+                .thenReturn(Optional.of(existing));
+        when(openingStockImportRepository.save(existing)).thenReturn(existing);
+
+        OpeningStockImportResponse replay = importOpeningStock(file, "legacy-key");
+
+        assertThat(replay.openingStockBatchKey()).isEqualTo("batch-key-legacy");
+        assertThat(existing.getIdempotencyHash()).isEqualTo(fileHash);
+        verify(openingStockImportRepository).save(existing);
+    }
+
+    @Test
+    void importOpeningStock_rejectsLegacyFileHashReplayWhenPayloadDiffers() throws Exception {
+        MockMultipartFile file = csvFile(String.join("\n",
+                "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+                "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION"
+        ));
+
+        OpeningStockImport existing = new OpeningStockImport();
+        existing.setCompany(company);
+        existing.setIdempotencyKey("legacy-key");
+        existing.setFileHash("different-hash");
+
+        when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "legacy-key"))
+                .thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> importOpeningStock(file, "legacy-key"))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONCURRENCY_CONFLICT);
+                    assertThat(ex.getMessage()).isEqualTo("Idempotency key already used with different payload");
+                    assertThat(ex.getDetails()).containsEntry("idempotencyKey", "legacy-key");
+                });
+
+        verify(openingStockImportRepository, never()).save(existing);
+    }
+
+    @Test
     void importOpeningStock_replaysPersistedResultsAndErrors() throws Exception {
         MockMultipartFile file = csvFile(String.join("\n",
                 "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",

@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
@@ -148,6 +149,16 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
 
         assertThat(locked).isSameAs(finishedGood);
         verify(companyEntityLookup).lockActiveFinishedGood(company, 901L);
+    }
+
+    @Test
+    void lockFinishedGood_rejectsInactiveLinkedProduct() {
+        when(companyEntityLookup.lockActiveFinishedGood(company, 902L))
+                .thenThrow(new IllegalArgumentException("inactive"));
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "lockFinishedGood", 902L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Finished good not found");
     }
 
     @Test

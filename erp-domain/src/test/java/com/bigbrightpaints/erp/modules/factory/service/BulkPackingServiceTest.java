@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -95,6 +96,69 @@ class BulkPackingServiceTest {
     }
 
     @Test
+    void buildPackReference_includesExplicitIdempotencyKeyFingerprint() {
+        BulkPackingService service = new BulkPackingService(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+
+        FinishedGoodBatch bulkBatch = new FinishedGoodBatch();
+        ReflectionTestUtils.setField(bulkBatch, "id", 42L);
+        bulkBatch.setBatchCode("bulk-42");
+
+        BulkPackRequest requestWithFirstKey = new BulkPackRequest(
+                42L,
+                List.of(new BulkPackRequest.PackLine(7L, new BigDecimal("10"), "1L", "L")),
+                LocalDate.of(2026, 3, 23),
+                null,
+                null,
+                "KEY-1",
+                false);
+        BulkPackRequest requestWithSecondKey = new BulkPackRequest(
+                42L,
+                List.of(new BulkPackRequest.PackLine(7L, new BigDecimal("10"), "1L", "L")),
+                LocalDate.of(2026, 3, 23),
+                null,
+                null,
+                "KEY-2",
+                false);
+
+        String firstReference = ReflectionTestUtils.invokeMethod(service, "buildPackReference", bulkBatch, requestWithFirstKey);
+        String secondReference = ReflectionTestUtils.invokeMethod(service, "buildPackReference", bulkBatch, requestWithSecondKey);
+
+        assertThat(firstReference).isNotEqualTo(secondReference);
+    }
+
+    @Test
+    void buildPackReference_nullRequestStillExercisesDerivedFingerprintGuard() {
+        BulkPackingService service = new BulkPackingService(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+
+        FinishedGoodBatch bulkBatch = new FinishedGoodBatch();
+        ReflectionTestUtils.setField(bulkBatch, "id", 42L);
+        bulkBatch.setBatchCode("bulk-42");
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "buildPackReference", bulkBatch, null))
+                .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
     void createChildBatch_requiresActiveFinishedGood() {
         BulkPackingOrchestrator orchestrator = new BulkPackingOrchestrator(
                 companyEntityLookup,
@@ -134,6 +198,33 @@ class BulkPackingServiceTest {
     }
 
     @Test
+    void createChildBatch_translatesUnknownChildSku() {
+        BulkPackingOrchestrator orchestrator = new BulkPackingOrchestrator(
+                companyEntityLookup,
+                finishedGoodRepository,
+                finishedGoodBatchRegistrar,
+                packingJournalBuilder);
+        Company company = new Company();
+        ReflectionTestUtils.setField(company, "id", 9L);
+
+        FinishedGoodBatch parentBatch = new FinishedGoodBatch();
+
+        when(companyEntityLookup.lockActiveFinishedGood(company, 77L))
+                .thenThrow(new IllegalArgumentException("inactive"));
+
+        assertThatThrownBy(() -> orchestrator.createChildBatch(
+                company,
+                parentBatch,
+                new BulkPackRequest.PackLine(77L, new BigDecimal("6"), "1L", "L"),
+                new BigDecimal("80.00"),
+                new BigDecimal("2.50"),
+                LocalDate.of(2026, 3, 23),
+                "PACK-42-REF"))
+                .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+                .hasMessageContaining("Child SKU not found: 77");
+    }
+
+    @Test
     void resolveTargetFinishedGood_requiresActiveChildSku() {
         PackingProductSupport support = new PackingProductSupport(companyEntityLookup, finishedGoodRepository);
         Company company = new Company();
@@ -155,5 +246,27 @@ class BulkPackingServiceTest {
 
         assertThat(resolved).isSameAs(activeChild);
         verify(companyEntityLookup).lockActiveFinishedGood(company, 88L);
+    }
+
+    @Test
+    void resolveTargetFinishedGood_rejectsInactiveChildSku() {
+        PackingProductSupport support = new PackingProductSupport(companyEntityLookup, finishedGoodRepository);
+        Company company = new Company();
+
+        ProductionLog log = new ProductionLog();
+        ProductionProduct product = new ProductionProduct();
+        product.setSkuCode("FG-PARENT");
+        log.setProduct(product);
+
+        when(companyEntityLookup.lockActiveFinishedGood(company, 88L))
+                .thenThrow(new IllegalArgumentException("inactive"));
+
+        assertThatThrownBy(() -> support.resolveTargetFinishedGood(
+                company,
+                log,
+                new PackingLineRequest(88L, 1, "1L", new BigDecimal("1.0"), 1, 1, 1),
+                null))
+                .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+                .hasMessageContaining("Child finished good not found: 88");
     }
 }
