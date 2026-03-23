@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
@@ -25,7 +26,6 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepos
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -42,6 +42,8 @@ class PackagingMaterialServiceTest {
     @Mock
     private CompanyContextService companyContextService;
     @Mock
+    private CompanyEntityLookup companyEntityLookup;
+    @Mock
     private PackagingSizeMappingRepository mappingRepository;
     @Mock
     private RawMaterialRepository rawMaterialRepository;
@@ -57,6 +59,7 @@ class PackagingMaterialServiceTest {
     void setUp() {
         packagingMaterialService = new PackagingMaterialService(
                 companyContextService,
+                companyEntityLookup,
                 mappingRepository,
                 rawMaterialRepository,
                 rawMaterialBatchRepository,
@@ -71,7 +74,7 @@ class PackagingMaterialServiceTest {
     void createMapping_rejectsNonPackagingMaterial() {
         RawMaterial material = rawMaterial(15L, 900L, new BigDecimal("10"), null);
         material.setMaterialType(MaterialType.PRODUCTION);
-        when(rawMaterialRepository.findByCompanyAndId(company, 15L)).thenReturn(Optional.of(material));
+        when(companyEntityLookup.requireActiveRawMaterial(company, 15L)).thenReturn(material);
 
         assertThatThrownBy(() -> packagingMaterialService.createMapping(new PackagingSizeMappingRequest(
                 "1L",
@@ -126,7 +129,7 @@ class PackagingMaterialServiceTest {
 
         when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
                 .thenReturn(List.of(mapping));
-        when(rawMaterialRepository.lockByCompanyAndId(company, 11L)).thenReturn(Optional.of(material));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 11L)).thenReturn(material);
         when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material))
                 .thenReturn(List.of(batchA, batchB));
         when(rawMaterialBatchRepository.deductQuantityIfSufficient(eq(101L), any())).thenReturn(1);
@@ -156,7 +159,7 @@ class PackagingMaterialServiceTest {
 
         when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
                 .thenReturn(List.of(mapping));
-        when(rawMaterialRepository.lockByCompanyAndId(company, 12L)).thenReturn(Optional.of(material));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 12L)).thenReturn(material);
         when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material))
                 .thenReturn(List.of(batchA, batchB));
         when(rawMaterialBatchRepository.calculateWeightedAverageCost(material))
@@ -187,7 +190,7 @@ class PackagingMaterialServiceTest {
 
         when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
                 .thenReturn(List.of(mapping));
-        when(rawMaterialRepository.lockByCompanyAndId(company, 13L)).thenReturn(Optional.of(material));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 13L)).thenReturn(material);
         when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material))
                 .thenReturn(List.of(batchA, batchB));
         when(rawMaterialBatchRepository.calculateWeightedAverageCost(material))
@@ -228,7 +231,7 @@ class PackagingMaterialServiceTest {
 
         when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
                 .thenReturn(List.of(mapping));
-        when(rawMaterialRepository.lockByCompanyAndId(company, 14L)).thenReturn(Optional.of(material));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 14L)).thenReturn(material);
         when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material))
                 .thenReturn(List.of(batchA));
         when(rawMaterialBatchRepository.calculateWeightedAverageCost(material))

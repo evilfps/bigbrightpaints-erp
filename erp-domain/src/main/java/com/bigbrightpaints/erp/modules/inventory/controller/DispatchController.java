@@ -283,7 +283,7 @@ public class DispatchController {
                 preview.dealerCode(),
                 preview.createdAt(),
                 null,
-                null,
+                preview.totalAvailableAmount(),
                 null,
                 lines
         );
