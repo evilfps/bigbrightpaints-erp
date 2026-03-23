@@ -396,6 +396,52 @@ class StatementServiceTest {
     }
 
     @Test
+    void dealerOverdueInvoices_netsUnappliedCreditsAgainstOldestInvoiceRows() {
+        Dealer dealer = new Dealer();
+        dealer.setName("Dealer Credit Netting");
+        ReflectionTestUtils.setField(dealer, "id", 77L);
+
+        LocalDate asOf = LocalDate.of(2026, 2, 12);
+        DealerLedgerEntry overdue = new DealerLedgerEntry();
+        ReflectionTestUtils.setField(overdue, "id", 1L);
+        overdue.setEntryDate(asOf.minusDays(20));
+        overdue.setDueDate(asOf.minusDays(5));
+        overdue.setInvoiceNumber("INV-010");
+        overdue.setDebit(new BigDecimal("500.00"));
+        overdue.setCredit(BigDecimal.ZERO);
+        overdue.setAmountPaid(new BigDecimal("100.00"));
+        overdue.setPaymentStatus("PARTIAL");
+
+        DealerLedgerEntry current = new DealerLedgerEntry();
+        ReflectionTestUtils.setField(current, "id", 2L);
+        current.setEntryDate(asOf.minusDays(3));
+        current.setDueDate(asOf.plusDays(7));
+        current.setInvoiceNumber("INV-011");
+        current.setDebit(new BigDecimal("300.00"));
+        current.setCredit(BigDecimal.ZERO);
+        current.setAmountPaid(BigDecimal.ZERO);
+        current.setPaymentStatus("UNPAID");
+
+        DealerLedgerEntry unappliedCredit = new DealerLedgerEntry();
+        ReflectionTestUtils.setField(unappliedCredit, "id", 3L);
+        unappliedCredit.setEntryDate(asOf.minusDays(1));
+        unappliedCredit.setDebit(BigDecimal.ZERO);
+        unappliedCredit.setCredit(new BigDecimal("250.00"));
+
+        when(dealerLedgerRepository.findByCompanyAndDealerAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
+                company, dealer, asOf)).thenReturn(List.of(overdue, current, unappliedCredit));
+
+        List<OverdueInvoiceDto> overdueInvoices = statementService.dealerOverdueInvoices(dealer, asOf);
+
+        assertThat(overdueInvoices).containsExactly(new OverdueInvoiceDto(
+                "INV-010",
+                asOf.minusDays(20),
+                asOf.minusDays(5),
+                5L,
+                new BigDecimal("150.00")));
+    }
+
+    @Test
     void supplierAging_overcreditDoesNotCreateNegativeBucketAmount() {
         Supplier supplier = new Supplier();
         supplier.setName("Supplier Overcredit Clamp");

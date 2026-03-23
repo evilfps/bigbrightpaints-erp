@@ -213,25 +213,65 @@ public class StatementService {
     public List<OverdueInvoiceDto> dealerOverdueInvoices(Dealer dealer, LocalDate asOf) {
         Company company = companyContextService.requireCurrentCompany();
         LocalDate ref = asOf == null ? companyClock.today(company) : asOf;
-        return dealerLedgerRepository.findByCompanyAndDealerAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
-                        company,
-                        dealer,
-                        ref
-                ).stream()
-                .filter(entry -> StringUtils.hasText(entry.getInvoiceNumber()))
-                .filter(entry -> entry.getOutstandingAmount().compareTo(BigDecimal.ZERO) > 0)
-                .filter(entry -> entry.isOverdue(ref))
+        List<DealerLedgerEntry> entries = dealerLedgerRepository.findByCompanyAndDealerAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
+                company,
+                dealer,
+                ref
+        );
+        List<DealerOverdueInvoiceLine> invoiceLines = new ArrayList<>();
+        BigDecimal creditPool = BigDecimal.ZERO;
+        long sequence = 0L;
+        for (DealerLedgerEntry entry : entries) {
+            if (entry.getEntryDate().isAfter(ref)) {
+                continue;
+            }
+            BigDecimal delta = safe(entry.getDebit()).subtract(safe(entry.getCredit()));
+            if (delta.compareTo(BigDecimal.ZERO) < 0) {
+                creditPool = creditPool.add(delta.abs());
+            }
+            BigDecimal outstandingAmount = entry.getOutstandingAmount();
+            if (!StringUtils.hasText(entry.getInvoiceNumber())
+                    || outstandingAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                sequence++;
+                continue;
+            }
+            invoiceLines.add(new DealerOverdueInvoiceLine(
+                    entry.getInvoiceNumber(),
+                    entry.getEntryDate(),
+                    entry.getDueDate(),
+                    resolveAgingDate(entry),
+                    entry.getDaysOverdue(ref),
+                    entry.isOverdue(ref),
+                    outstandingAmount,
+                    sequence++
+            ));
+        }
+        if (creditPool.compareTo(BigDecimal.ZERO) > 0) {
+            invoiceLines.sort(Comparator.comparing(
+                            DealerOverdueInvoiceLine::agingDate,
+                            Comparator.nullsLast(Comparator.naturalOrder()))
+                    .thenComparing(DealerOverdueInvoiceLine::sequence));
+            for (int i = 0; i < invoiceLines.size() && creditPool.compareTo(BigDecimal.ZERO) > 0; i++) {
+                DealerOverdueInvoiceLine line = invoiceLines.get(i);
+                BigDecimal applied = creditPool.min(line.outstandingAmount());
+                invoiceLines.set(i, line.withOutstandingAmount(line.outstandingAmount().subtract(applied)));
+                creditPool = creditPool.subtract(applied);
+            }
+        }
+        return invoiceLines.stream()
+                .filter(DealerOverdueInvoiceLine::overdue)
+                .filter(line -> line.outstandingAmount().compareTo(BigDecimal.ZERO) > 0)
                 .sorted(Comparator.comparing(
-                                DealerLedgerEntry::getDueDate,
+                                DealerOverdueInvoiceLine::dueDate,
                                 Comparator.nullsLast(Comparator.naturalOrder()))
-                        .thenComparing(DealerLedgerEntry::getEntryDate)
-                        .thenComparing(DealerLedgerEntry::getId, Comparator.nullsLast(Comparator.naturalOrder())))
-                .map(entry -> new OverdueInvoiceDto(
-                        entry.getInvoiceNumber(),
-                        entry.getEntryDate(),
-                        entry.getDueDate(),
-                        entry.getDaysOverdue(ref),
-                        entry.getOutstandingAmount()))
+                        .thenComparing(DealerOverdueInvoiceLine::issueDate)
+                        .thenComparing(DealerOverdueInvoiceLine::sequence))
+                .map(line -> new OverdueInvoiceDto(
+                        line.invoiceNumber(),
+                        line.issueDate(),
+                        line.dueDate(),
+                        line.daysOverdue(),
+                        line.outstandingAmount()))
                 .toList();
     }
 
@@ -426,6 +466,28 @@ public class StatementService {
     }
 
     private record AgingLine(LocalDate date, BigDecimal amount) {
+    }
+
+    private record DealerOverdueInvoiceLine(String invoiceNumber,
+                                            LocalDate issueDate,
+                                            LocalDate dueDate,
+                                            LocalDate agingDate,
+                                            long daysOverdue,
+                                            boolean overdue,
+                                            BigDecimal outstandingAmount,
+                                            long sequence) {
+        private DealerOverdueInvoiceLine withOutstandingAmount(BigDecimal amount) {
+            return new DealerOverdueInvoiceLine(
+                    invoiceNumber,
+                    issueDate,
+                    dueDate,
+                    agingDate,
+                    daysOverdue,
+                    overdue,
+                    amount,
+                    sequence
+            );
+        }
     }
 
     private BigDecimal safe(BigDecimal val) {
