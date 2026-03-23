@@ -358,10 +358,10 @@ class DealerPortalServiceTest {
                                 new AgingBucketDto("1-30 days", 1, 30, null),
                                 new AgingBucketDto("unknown", 10, 20, new BigDecimal("999"))
                         )
-                ));
+        ));
         when(statementService.dealerOverdueInvoices(eq(dealer), any(LocalDate.class))).thenReturn(Arrays.asList(
                 null,
-                new OverdueInvoiceDto("INV-001", LocalDate.of(2026, 2, 1), 22L, new BigDecimal("100"))
+                new OverdueInvoiceDto("INV-001", LocalDate.of(2026, 1, 2), LocalDate.of(2026, 2, 1), 22L, new BigDecimal("100"))
         ));
 
         Map<String, Object> dashboard = dealerPortalService.getMyDashboard();
@@ -380,6 +380,7 @@ class DealerPortalServiceTest {
                 .singleElement()
                 .satisfies(entry -> assertThat((Map<String, Object>) entry)
                         .containsEntry("invoiceNumber", "INV-001")
+                        .containsEntry("issueDate", LocalDate.of(2026, 1, 2))
                         .containsEntry("daysOverdue", 22L)
                         .containsEntry("outstandingAmount", new BigDecimal("100")));
     }

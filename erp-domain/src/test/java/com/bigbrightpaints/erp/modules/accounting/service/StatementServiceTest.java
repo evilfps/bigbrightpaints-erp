@@ -389,6 +389,7 @@ class StatementServiceTest {
 
         assertThat(overdueInvoices).containsExactly(new OverdueInvoiceDto(
                 "INV-001",
+                asOf.minusDays(20),
                 asOf.minusDays(5),
                 5L,
                 new BigDecimal("400.00")));

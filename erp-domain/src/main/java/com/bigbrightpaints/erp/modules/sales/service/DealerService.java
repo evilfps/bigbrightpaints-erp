@@ -548,6 +548,7 @@ public class DealerService {
             }
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("invoiceNumber", overdueInvoice.invoiceNumber());
+            row.put("issueDate", overdueInvoice.issueDate());
             row.put("dueDate", overdueInvoice.dueDate());
             row.put("daysOverdue", overdueInvoice.daysOverdue());
             row.put("outstandingAmount", overdueInvoice.outstandingAmount());

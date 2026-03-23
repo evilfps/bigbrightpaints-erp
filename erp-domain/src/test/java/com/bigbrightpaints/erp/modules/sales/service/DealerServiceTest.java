@@ -303,7 +303,7 @@ class DealerServiceTest {
                         List.of(new AgingBucketDto("1-30 days", 1, 30, new BigDecimal("275")))
                 ));
         when(statementService.dealerOverdueInvoices(dealer, java.time.LocalDate.parse("2026-02-23"))).thenReturn(List.of(
-                new OverdueInvoiceDto("INV-900", java.time.LocalDate.parse("2026-02-10"), 13L, new BigDecimal("275"))
+                new OverdueInvoiceDto("INV-900", java.time.LocalDate.parse("2026-01-11"), java.time.LocalDate.parse("2026-02-10"), 13L, new BigDecimal("275"))
         ));
 
         var payload = dealerService.agingSummary(77L);
@@ -316,6 +316,7 @@ class DealerServiceTest {
                 .singleElement()
                 .satisfies(entry -> assertThat((java.util.Map<String, Object>) entry)
                         .containsEntry("invoiceNumber", "INV-900")
+                        .containsEntry("issueDate", java.time.LocalDate.parse("2026-01-11"))
                         .containsEntry("daysOverdue", 13L));
     }
 
@@ -364,7 +365,7 @@ class DealerServiceTest {
                 ));
         when(statementService.dealerOverdueInvoices(dealer, java.time.LocalDate.parse("2026-02-23"))).thenReturn(Arrays.asList(
                 null,
-                new OverdueInvoiceDto("INV-901", java.time.LocalDate.parse("2026-02-01"), 22L, new BigDecimal("175"))
+                new OverdueInvoiceDto("INV-901", java.time.LocalDate.parse("2026-01-10"), java.time.LocalDate.parse("2026-02-01"), 22L, new BigDecimal("175"))
         ));
 
         var payload = dealerService.agingSummary(97L);
@@ -380,6 +381,7 @@ class DealerServiceTest {
                 .singleElement()
                 .satisfies(entry -> assertThat((java.util.Map<String, Object>) entry)
                         .containsEntry("invoiceNumber", "INV-901")
+                        .containsEntry("issueDate", java.time.LocalDate.parse("2026-01-10"))
                         .containsEntry("daysOverdue", 22L));
     }
 

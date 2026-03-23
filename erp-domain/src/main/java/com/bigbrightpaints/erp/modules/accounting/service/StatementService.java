@@ -228,6 +228,7 @@ public class StatementService {
                         .thenComparing(DealerLedgerEntry::getId, Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(entry -> new OverdueInvoiceDto(
                         entry.getInvoiceNumber(),
+                        entry.getEntryDate(),
                         entry.getDueDate(),
                         entry.getDaysOverdue(ref),
                         entry.getOutstandingAmount()))
