@@ -7,6 +7,7 @@ import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyModule;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTask;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTaskRepository;
@@ -48,6 +49,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -96,6 +98,8 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
     private UserAccountRepository userAccountRepository;
     @Autowired
     private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+    @Autowired
+    private CompanyRepository companyRepository;
 
     private Company company;
 
@@ -240,6 +244,64 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
         Map<?, ?> workforceData = (Map<?, ?>) workforce.getBody().get("data");
         assertThat(workforceData).isNotNull();
         assertThat((List<?>) workforceData.get("squads")).isNotEmpty();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void dashboardRedactsHrMetricsAndBlocksWorkforceWhenPayrollModulePaused() {
+        company.setEnabledModules(Set.of(CompanyModule.PORTAL.name()));
+        companyRepository.saveAndFlush(company);
+
+        HttpHeaders headers = authenticatedHeaders();
+
+        ResponseEntity<Map> dashboard = rest.exchange("/api/v1/portal/dashboard", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+        assertThat(dashboard.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> dashboardData = (Map<String, Object>) dashboard.getBody().get("data");
+        assertThat(dashboardData).isNotNull();
+        List<Map<String, Object>> highlights = (List<Map<String, Object>>) dashboardData.get("highlights");
+        assertThat(highlights).extracting(metric -> metric.get("label")).doesNotContain("Active workforce");
+        assertThat((List<?>) dashboardData.get("hrPulse")).isEmpty();
+
+        ResponseEntity<Map> workforce = rest.exchange("/api/v1/portal/workforce", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+        assertThat(workforce.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        Map<String, Object> error = (Map<String, Object>) workforce.getBody().get("data");
+        assertThat(error)
+                .containsEntry("code", "BUS_010")
+                .containsEntry("path", "/api/v1/portal/workforce");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void dashboardUsesEmptyStateDetailsWhenWorkforceAndFulfilmentInputsAreMissing() {
+        employeeRepository.deleteAll();
+        packagingSlipRepository.deleteAll();
+        saveDealer("DETAIL-" + Long.toUnsignedString(System.nanoTime()));
+
+        HttpHeaders headers = authenticatedHeaders();
+        ResponseEntity<Map> dashboard = rest.exchange("/api/v1/portal/dashboard", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+
+        assertThat(dashboard.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> dashboardData = (Map<String, Object>) dashboard.getBody().get("data");
+        assertThat(dashboardData).isNotNull();
+        List<Map<String, Object>> highlights = (List<Map<String, Object>>) dashboardData.get("highlights");
+
+        Map<String, Object> fulfilment = highlights.stream()
+                .filter(metric -> "Fulfilment SLA".equals(metric.get("label")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(fulfilment.get("detail")).isEqualTo("Awaiting fulfilment data");
+
+        Map<String, Object> workforce = highlights.stream()
+                .filter(metric -> "Active workforce".equals(metric.get("label")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(workforce.get("detail")).isEqualTo("No workforce records");
+
+        Map<String, Object> dealers = highlights.stream()
+                .filter(metric -> "Dealer coverage".equals(metric.get("label")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(dealers.get("detail")).isEqualTo("Connected dealer entities");
     }
 
     @Test

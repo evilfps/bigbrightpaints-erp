@@ -11,6 +11,8 @@ import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.hr.dto.EmployeeDto;
+import com.bigbrightpaints.erp.modules.hr.dto.LeaveRequestDto;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionBatchRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionPlanRequest;
@@ -48,6 +50,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
 import org.springframework.transaction.support.DefaultTransactionStatus;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -392,6 +395,23 @@ class IntegrationCoordinatorTest {
     }
 
     @Test
+    void health_includesEmployeeCountWhenHrPayrollEnabled() {
+        company.setEnabledModules(Set.of("PORTAL", "HR_PAYROLL"));
+        CompanyContextHolder.setCompanyCode(COMPANY_ID);
+        when(salesService.listOrders(null)).thenReturn(List.of());
+        when(factoryService.listPlans()).thenReturn(List.of());
+        when(accountingService.listAccounts()).thenReturn(List.of());
+        when(hrService.listEmployees()).thenReturn(List.of(
+                employee("ACTIVE"),
+                employee("INACTIVE")));
+
+        Map<String, Object> health = integrationCoordinator.health();
+
+        assertThat(health).containsEntry("employees", 2);
+        verify(hrService).listEmployees();
+    }
+
+    @Test
     void fetchAdminDashboard_omitsHrSnapshotWhenHrPayrollPaused() {
         company.setEnabledModules(Set.of("PORTAL"));
         when(salesService.listOrders(null)).thenReturn(List.of());
@@ -403,6 +423,46 @@ class IntegrationCoordinatorTest {
         assertThat(snapshot).doesNotContainKey("hr");
         verify(hrService, never()).listEmployees();
         verify(hrService, never()).listLeaveRequests();
+    }
+
+    @Test
+    void fetchAdminDashboard_includesHrSnapshotWhenHrPayrollEnabled() {
+        company.setEnabledModules(Set.of("PORTAL", "HR_PAYROLL"));
+        when(salesService.listOrders(null)).thenReturn(List.of());
+        when(salesService.listDealers()).thenReturn(List.of());
+        when(accountingService.listAccounts()).thenReturn(List.of());
+        when(hrService.listEmployees()).thenReturn(List.of(
+                employee("ACTIVE"),
+                employee("INACTIVE")));
+        when(hrService.listLeaveRequests()).thenReturn(List.of(
+                leaveRequest("APPROVED"),
+                leaveRequest("PENDING")));
+
+        Map<String, Object> snapshot = integrationCoordinator.fetchAdminDashboard(COMPANY_ID);
+
+        assertThat(snapshot).containsKey("hr");
+        assertThat((Map<String, Object>) snapshot.get("hr"))
+                .containsEntry("activeEmployees", 1L)
+                .containsEntry("onLeave", 1L);
+        verify(hrService).listEmployees();
+        verify(hrService).listLeaveRequests();
+    }
+
+    @Test
+    void isHrPayrollEnabled_requiresCompanyAndEnabledModules() {
+        Company modulesMissing = new Company();
+        modulesMissing.setEnabledModules(null);
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(integrationCoordinator, "isHrPayrollEnabled", (Company) null))
+                .isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(integrationCoordinator, "isHrPayrollEnabled", modulesMissing))
+                .isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(integrationCoordinator, "isHrPayrollEnabled", company))
+                .isFalse();
+
+        company.setEnabledModules(Set.of("HR_PAYROLL"));
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(integrationCoordinator, "isHrPayrollEnabled", company))
+                .isTrue();
     }
 
     @Test
@@ -660,5 +720,73 @@ class IntegrationCoordinatorTest {
         protected void doRollback(DefaultTransactionStatus status) {
             // no-op
         }
+    }
+
+    private EmployeeDto employee(String status) {
+        return new EmployeeDto(
+                1L,
+                null,
+                "Harper",
+                "Singh",
+                "harper@example.com",
+                null,
+                "Operator",
+                status,
+                LocalDate.of(2024, 1, 1),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
+    private LeaveRequestDto leaveRequest(String status) {
+        return new LeaveRequestDto(
+                1L,
+                null,
+                1L,
+                "Harper Singh",
+                "Vacation",
+                LocalDate.of(2024, 1, 5),
+                LocalDate.of(2024, 1, 7),
+                null,
+                status,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 }

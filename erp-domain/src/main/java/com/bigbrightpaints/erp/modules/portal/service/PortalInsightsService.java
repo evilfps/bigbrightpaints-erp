@@ -179,8 +179,7 @@ public class PortalInsightsService {
             hrPulse = List.of(
                     new DashboardInsights.HrPulseMetric("Engagement", percent(ratio(activeEmployees, employees.size())), "Active employees"),
                     new DashboardInsights.HrPulseMetric("Leave utilisation", percent(ratio(onLeave, employees.size())), "Approved leave records"),
-                    new DashboardInsights.HrPulseMetric("Payroll readiness", formatNumber(payrollDrafts), "Draft payroll runs awaiting approval")
-            );
+                    new DashboardInsights.HrPulseMetric("Payroll readiness", formatNumber(payrollDrafts), "Draft payroll runs awaiting approval"));
         }
 
         return new DashboardInsights(highlights, pipelineStages, hrPulse);

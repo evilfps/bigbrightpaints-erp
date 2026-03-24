@@ -328,6 +328,16 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
     }
 
     @Test
+    void helperMethods_treatReadOnlyMethodsAsNonMutating_andBlankMethodAsMutating() {
+        assertThat(invokeIsMutatingRequest("GET")).isFalse();
+        assertThat(invokeIsMutatingRequest("HEAD")).isFalse();
+        assertThat(invokeIsMutatingRequest("OPTIONS")).isFalse();
+        assertThat(invokeIsMutatingRequest("TRACE")).isFalse();
+        assertThat(invokeIsMutatingRequest("POST")).isTrue();
+        assertThat(invokeIsMutatingRequest("   ")).isTrue();
+    }
+
+    @Test
     void authControllerForgotPasswordEndpoint_delegatesToPasswordResetService() {
         AuthService authService = mock(AuthService.class);
         PasswordService passwordService = mock(PasswordService.class);
@@ -703,6 +713,12 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
 
     private boolean invokeIsTenantAuditWorkflowRequest(String path) {
         Boolean result = ReflectionTestUtils.invokeMethod(filter, "isTenantAuditWorkflowRequest", path);
+        assertThat(result).isNotNull();
+        return result;
+    }
+
+    private boolean invokeIsMutatingRequest(String method) {
+        Boolean result = ReflectionTestUtils.invokeMethod(filter, "isMutatingRequest", method);
         assertThat(result).isNotNull();
         return result;
     }

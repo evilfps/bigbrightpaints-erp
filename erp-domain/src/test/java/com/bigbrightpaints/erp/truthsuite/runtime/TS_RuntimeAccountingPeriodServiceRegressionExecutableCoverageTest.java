@@ -27,7 +27,9 @@ import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodSnapsh
 import com.bigbrightpaints.erp.modules.accounting.service.PeriodCloseHook;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyModule;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptStatus;
@@ -37,6 +39,7 @@ import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -135,6 +138,165 @@ class TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest {
         verify(periodCloseHook).onPeriodCloseLocked(company, period);
         verify(snapshotService).captureSnapshot(company, period, "checker.user");
         verify(snapshotService).deleteSnapshotForPeriod(company, period);
+    }
+
+    @Test
+    void getMonthEndChecklist_countsPayrollDiagnosticsWhenHrPayrollEnabled() {
+        AccountingPeriodService service = newService();
+        Company company = company(3L, "TRUTH3");
+        company.setEnabledModules(Set.of(CompanyModule.HR_PAYROLL.name()));
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyEntityLookup.requireAccountingPeriod(company, 31L)).thenReturn(period);
+        when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING"))).thenReturn(0L);
+        when(reportService.inventoryReconciliation()).thenReturn(new com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto(
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO));
+        when(reconciliationService.reconcileSubledgersForPeriod(period.getStartDate(), period.getEndDate()))
+                .thenReturn(new ReconciliationService.PeriodReconciliationResult(
+                        period.getStartDate(),
+                        period.getEndDate(),
+                        java.math.BigDecimal.ZERO,
+                        java.math.BigDecimal.ZERO,
+                        java.math.BigDecimal.ZERO,
+                        true,
+                        java.math.BigDecimal.ZERO,
+                        java.math.BigDecimal.ZERO,
+                        java.math.BigDecimal.ZERO,
+                        true));
+        when(reconciliationService.generateGstReconciliation(java.time.YearMonth.from(period.getStartDate())))
+                .thenReturn(new com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto());
+        when(reconciliationDiscrepancyRepository.countByCompanyAndAccountingPeriodAndStatus(
+                company, period, com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyStatus.OPEN))
+                .thenReturn(0L);
+        when(reportService.trialBalance(period.getEndDate())).thenReturn(new com.bigbrightpaints.erp.modules.reports.dto.TrialBalanceDto(
+                List.of(),
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO,
+                true,
+                null));
+        when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
+                company, period.getStartDate(), period.getEndDate())).thenReturn(List.of());
+        when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusNotAndJournalEntryIsNull(
+                company, period.getStartDate(), period.getEndDate(), "DRAFT")).thenReturn(0L);
+        when(rawMaterialPurchaseRepository.countByCompanyAndInvoiceDateBetweenAndStatusInAndJournalEntryIsNull(
+                company, period.getStartDate(), period.getEndDate(), List.of("POSTED", "PARTIAL", "PAID"))).thenReturn(0L);
+        when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusInAndJournalMissing(
+                company,
+                period.getStartDate(),
+                period.getEndDate(),
+                List.of(PayrollRun.PayrollStatus.POSTED, PayrollRun.PayrollStatus.PAID))).thenReturn(2L);
+        when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("DRAFT"))).thenReturn(0L);
+        when(rawMaterialPurchaseRepository.countByCompanyAndInvoiceDateBetweenAndStatusNotIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("POSTED", "PARTIAL", "PAID"))).thenReturn(0L);
+        when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusIn(
+                company,
+                period.getStartDate(),
+                period.getEndDate(),
+                List.of(PayrollRun.PayrollStatus.DRAFT,
+                        PayrollRun.PayrollStatus.CALCULATED,
+                        PayrollRun.PayrollStatus.APPROVED))).thenReturn(3L);
+
+        var checklist = service.getMonthEndChecklist(31L);
+
+        assertThat(checklist.items()).filteredOn(item -> "unlinkedDocuments".equals(item.key()) || "unpostedDocuments".equals(item.key()))
+                .allMatch(item -> !item.completed());
+        verify(payrollRunRepository).countByCompanyAndPeriodBetweenAndStatusInAndJournalMissing(
+                company,
+                period.getStartDate(),
+                period.getEndDate(),
+                List.of(PayrollRun.PayrollStatus.POSTED, PayrollRun.PayrollStatus.PAID));
+        verify(payrollRunRepository).countByCompanyAndPeriodBetweenAndStatusIn(
+                company,
+                period.getStartDate(),
+                period.getEndDate(),
+                List.of(PayrollRun.PayrollStatus.DRAFT,
+                        PayrollRun.PayrollStatus.CALCULATED,
+                        PayrollRun.PayrollStatus.APPROVED));
+    }
+
+    @Test
+    void getMonthEndChecklist_skipsPayrollDiagnosticsWhenEnabledModulesAreNull() {
+        AccountingPeriodService service = newService();
+        Company company = company(4L, "TRUTH4");
+        company.setEnabledModules(null);
+        AccountingPeriod period = openPeriod(company, 2026, 2);
+
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(companyEntityLookup.requireAccountingPeriod(company, 32L)).thenReturn(period);
+        when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING"))).thenReturn(0L);
+        when(reportService.inventoryReconciliation()).thenReturn(new com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto(
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO));
+        when(reconciliationService.reconcileSubledgersForPeriod(period.getStartDate(), period.getEndDate()))
+                .thenReturn(new ReconciliationService.PeriodReconciliationResult(
+                        period.getStartDate(),
+                        period.getEndDate(),
+                        java.math.BigDecimal.ZERO,
+                        java.math.BigDecimal.ZERO,
+                        java.math.BigDecimal.ZERO,
+                        true,
+                        java.math.BigDecimal.ZERO,
+                        java.math.BigDecimal.ZERO,
+                        java.math.BigDecimal.ZERO,
+                        true));
+        when(reconciliationService.generateGstReconciliation(java.time.YearMonth.from(period.getStartDate())))
+                .thenReturn(new com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto());
+        when(reconciliationDiscrepancyRepository.countByCompanyAndAccountingPeriodAndStatus(
+                company, period, com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyStatus.OPEN))
+                .thenReturn(0L);
+        when(reportService.trialBalance(period.getEndDate())).thenReturn(new com.bigbrightpaints.erp.modules.reports.dto.TrialBalanceDto(
+                List.of(),
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO,
+                true,
+                null));
+        when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
+                company, period.getStartDate(), period.getEndDate())).thenReturn(List.of());
+        when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusNotAndJournalEntryIsNull(
+                company, period.getStartDate(), period.getEndDate(), "DRAFT")).thenReturn(0L);
+        when(rawMaterialPurchaseRepository.countByCompanyAndInvoiceDateBetweenAndStatusInAndJournalEntryIsNull(
+                company, period.getStartDate(), period.getEndDate(), List.of("POSTED", "PARTIAL", "PAID"))).thenReturn(0L);
+        when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("DRAFT"))).thenReturn(0L);
+        when(rawMaterialPurchaseRepository.countByCompanyAndInvoiceDateBetweenAndStatusNotIn(
+                company, period.getStartDate(), period.getEndDate(), List.of("POSTED", "PARTIAL", "PAID"))).thenReturn(0L);
+
+        var checklist = service.getMonthEndChecklist(32L);
+
+        assertThat(checklist.items()).filteredOn(item -> "unlinkedDocuments".equals(item.key()) || "unpostedDocuments".equals(item.key()))
+                .allMatch(item -> item.completed());
+        verify(payrollRunRepository, org.mockito.Mockito.never()).countByCompanyAndPeriodBetweenAndStatusInAndJournalMissing(
+                company,
+                period.getStartDate(),
+                period.getEndDate(),
+                List.of(PayrollRun.PayrollStatus.POSTED, PayrollRun.PayrollStatus.PAID));
+        verify(payrollRunRepository, org.mockito.Mockito.never()).countByCompanyAndPeriodBetweenAndStatusIn(
+                company,
+                period.getStartDate(),
+                period.getEndDate(),
+                List.of(PayrollRun.PayrollStatus.DRAFT,
+                        PayrollRun.PayrollStatus.CALCULATED,
+                        PayrollRun.PayrollStatus.APPROVED));
+    }
+
+    @Test
+    void isHrPayrollEnabled_requiresCompanyAndEnabledModules() {
+        AccountingPeriodService service = newService();
+        Company company = company(5L, "TRUTH5");
+        company.setEnabledModules(null);
+
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isHrPayrollEnabled", (Company) null)).isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isHrPayrollEnabled", company)).isFalse();
+
+        company.setEnabledModules(Set.of(CompanyModule.HR_PAYROLL.name()));
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isHrPayrollEnabled", company)).isTrue();
     }
 
     private AccountingPeriodService newService() {
