@@ -295,8 +295,14 @@ class OpeningStockImportServiceTest {
                 .thenReturn(Optional.of(new JournalEntry()));
 
         assertThatThrownBy(() -> importOpeningStock(file, "fresh-key"))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("already processed for this idempotency key");
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_DUPLICATE_ENTRY);
+                    assertThat(ex.getMessage()).isEqualTo("Opening stock batch already processed for this openingStockBatchKey");
+                    assertThat(ex.getDetails())
+                            .containsEntry("openingStockBatchKey", batchKey("fresh-key"))
+                            .containsEntry("operatorAction",
+                                    "Reuse the original Idempotency-Key for this batch, or reverse the prior opening stock before importing a distinct batch.");
+                });
     }
 
     @Test
@@ -1426,7 +1432,7 @@ class OpeningStockImportServiceTest {
     }
 
     @Test
-    void importOpeningStock_failsFastWhenFileHashCannotBeComputed() {
+    void importOpeningStock_failsFastWhenCsvStreamCannotBeRead() {
         MultipartFile brokenFile = new MultipartFile() {
             @Override
             public String getName() {

@@ -166,8 +166,11 @@ public class OpeningStockImportService {
 
         if (journalEntryRepository.findByCompanyAndReferenceNumber(company, importReference).isPresent()) {
             throw new ApplicationException(ErrorCode.BUSINESS_DUPLICATE_ENTRY,
-                    "Opening stock import already processed for this idempotency key")
-                    .withDetail("referenceNumber", importReference);
+                    "Opening stock batch already processed for this openingStockBatchKey")
+                    .withDetail("openingStockBatchKey", normalizedBatchKey)
+                    .withDetail("referenceNumber", importReference)
+                    .withDetail("operatorAction",
+                            "Reuse the original Idempotency-Key for this batch, or reverse the prior opening stock before importing a distinct batch.");
         }
 
         try {
