@@ -1,0 +1,7 @@
+{
+  "catalog_path": "/Users/anas/Documents/Factory/bigbrightpaints-erp/docs/CODE-RED/confidence-suite/TEST_CATALOG.json",
+  "tests_root": "/Users/anas/Documents/Factory/bigbrightpaints-erp/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite",
+  "tests_cataloged": 93,
+  "errors": [],
+  "passes": true
+}
