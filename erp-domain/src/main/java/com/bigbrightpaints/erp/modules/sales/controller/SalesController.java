@@ -6,7 +6,6 @@ import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.modules.sales.dto.*;
 import com.bigbrightpaints.erp.modules.sales.service.DealerService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesDashboardService;
-import com.bigbrightpaints.erp.modules.sales.service.SalesDealerCrudService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesDispatchReconciliationService;
 import com.bigbrightpaints.erp.modules.sales.service.DispatchMetadataValidator;
 import com.bigbrightpaints.erp.modules.sales.service.SalesOrderCrudService;
@@ -33,7 +32,6 @@ public class SalesController {
     private final SalesService salesService;
     private final SalesOrderCrudService salesOrderCrudService;
     private final SalesOrderLifecycleService salesOrderLifecycleService;
-    private final SalesDealerCrudService salesDealerCrudService;
     private final SalesDispatchReconciliationService salesDispatchReconciliationService;
     private final SalesDashboardService salesDashboardService;
     private final DealerService dealerService;
@@ -42,7 +40,6 @@ public class SalesController {
     public SalesController(SalesService salesService,
                            SalesOrderCrudService salesOrderCrudService,
                            SalesOrderLifecycleService salesOrderLifecycleService,
-                           SalesDealerCrudService salesDealerCrudService,
                            SalesDispatchReconciliationService salesDispatchReconciliationService,
                            SalesDashboardService salesDashboardService,
                            DealerService dealerService,
@@ -50,7 +47,6 @@ public class SalesController {
         this.salesService = salesService;
         this.salesOrderCrudService = salesOrderCrudService;
         this.salesOrderLifecycleService = salesOrderLifecycleService;
-        this.salesDealerCrudService = salesDealerCrudService;
         this.salesDispatchReconciliationService = salesDispatchReconciliationService;
         this.salesDashboardService = salesDashboardService;
         this.dealerService = dealerService;
@@ -294,42 +290,6 @@ public class SalesController {
                                              @RequestParam(required = false) String reason) {
         salesService.deleteTarget(id, reason);
         return ResponseEntity.noContent().build();
-    }
-
-    /* Credit Requests */
-    @GetMapping("/sales/credit-requests")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES')")
-    public ResponseEntity<ApiResponse<List<CreditRequestDto>>> creditRequests() {
-        return ResponseEntity.ok(ApiResponse.success(salesDealerCrudService.listCreditRequests()));
-    }
-
-    @PostMapping("/sales/credit-requests")
-    @PreAuthorize("hasAnyAuthority('ROLE_SALES','ROLE_ADMIN')")
-    public ResponseEntity<ApiResponse<CreditRequestDto>> createCreditRequest(@Valid @RequestBody CreditRequestRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Credit request created", salesDealerCrudService.createCreditRequest(request)));
-    }
-
-    @PutMapping("/sales/credit-requests/{id}")
-    @PreAuthorize("hasAnyAuthority('ROLE_SALES','ROLE_ADMIN')")
-    public ResponseEntity<ApiResponse<CreditRequestDto>> updateCreditRequest(@PathVariable Long id,
-                                                                              @Valid @RequestBody CreditRequestRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Credit request updated", salesDealerCrudService.updateCreditRequest(id, request)));
-    }
-
-    @PostMapping("/sales/credit-requests/{id}/approve")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<CreditRequestDto>> approveCreditRequest(@PathVariable Long id,
-                                                                              @Valid @RequestBody CreditRequestDecisionRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Credit request approved",
-                salesDealerCrudService.approveCreditRequest(id, request.reason())));
-    }
-
-    @PostMapping("/sales/credit-requests/{id}/reject")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<CreditRequestDto>> rejectCreditRequest(@PathVariable Long id,
-                                                                             @Valid @RequestBody CreditRequestDecisionRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Credit request rejected",
-                salesDealerCrudService.rejectCreditRequest(id, request.reason())));
     }
 
     /* Dispatch confirmation (final invoice + AR at shipment) */

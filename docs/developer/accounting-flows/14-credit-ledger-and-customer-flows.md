@@ -17,16 +17,17 @@
 
 ```mermaid
 flowchart LR
-    SCR["SalesController credit requests"] --> SDC["SalesDealerCrudService"]
-    SDC --> SCE["SalesCoreEngine"]
-    SCE --> DEAL["DealerRepository"]
+    CLR["CreditLimitRequestController"] --> CLS["CreditLimitRequestService"]
+    CLS --> DEAL["DealerRepository"]
 
     OVC["CreditLimitOverrideController"] --> OVS["CreditLimitOverrideService"]
     OVS --> DLS["DealerLedgerService"]
     OVS --> PSR["PackagingSlipRepository / SalesOrderRepository"]
 
     DPC["DealerPortalController"] --> DPS["DealerPortalService"]
+    DPC --> CLS
     DPS --> DS["DealerService.ledgerView"]
+    DPS --> STS
     DPS --> IR["InvoiceRepository"]
 
     ACC["AccountingController"] --> STS["StatementService"]
@@ -45,22 +46,22 @@ flowchart LR
 ### Credit Request Pipeline
 
 - entry:
-  - `SalesController.creditRequests`
-  - `SalesController.createCreditRequest`
-  - `SalesController.approveCreditRequest`
-  - `SalesController.rejectCreditRequest`
+  - `CreditLimitRequestController.listRequests`
+  - `CreditLimitRequestController.createRequest`
+  - `CreditLimitRequestController.approveRequest`
+  - `CreditLimitRequestController.rejectRequest`
+  - `DealerPortalController.createCreditLimitRequest`
 - canonical path:
-  - `SalesDealerCrudService`
-  - `SalesCoreEngine`
+  - `CreditLimitRequestService`
   - `CreditRequestRepository`
   - on approval, mutate the dealer credit limit directly
 - key functions:
-  - `listCreditRequests`
-  - `createCreditRequest`
-  - `approveCreditRequest`
-  - `rejectCreditRequest`
+  - `listRequests`
+  - `createRequest`
+  - `approveRequest`
+  - `rejectRequest`
 - important semantic:
-  - this is a durable credit-limit mutation path, not a temporary exception path
+  - this is the durable credit-limit mutation path, and create always starts at `PENDING` with no edit route
 
 ### Credit Override Pipeline
 
@@ -88,10 +89,11 @@ flowchart LR
 - canonical path:
   - `DealerPortalService`
   - `DealerService.ledgerView`
+  - `StatementService.dealerAging`
   - invoice repository reads
   - PDF rendering for invoice export
 - important semantic:
-  - dealer portal is read-only for credit requests and explicit about that
+  - portal balance/aging uses ledger-backed truth, while pending-order exposure is shown separately as forward-looking usage
 
 ### Accounting Statement / Aging / Settlement
 
@@ -115,7 +117,7 @@ flowchart LR
 
 - credit requests and override requests are explicit separate workflows rather than one overloaded endpoint
 - dealer ledger truth is reused across dealer portal, dealer admin, and accounting views
-- dealer portal credit creation fails closed instead of silently creating shadow credit requests
+- dealer portal creates durable credit-limit requests on the same canonical workflow used by sales/admin
 - invoice export and email routes do not invent their own receivable truth
 
 ## Duplicates and Bad Paths
@@ -129,12 +131,12 @@ flowchart LR
   - `AccountingController`
   - `ReportController`
 - `ReportService.accountStatement` is not the same thing as `StatementService.dealerStatement`, even though the names sound similar
-- `DealerPortalController.POST /credit-requests` is intentionally dead and returns `403`, which is correct but still a visible stale seam
+- dealer-facing credit state is split across durable limit changes and temporary dispatch overrides, so UI copy must keep those semantics separate
 
 ## Review Hotspots
 
-- `SalesCoreEngine.createCreditRequest`
-- `SalesCoreEngine.approveCreditRequest`
+- `CreditLimitRequestService.createRequest`
+- `CreditLimitRequestService.approveRequest`
 - `CreditLimitOverrideService.createRequest`
 - `CreditLimitOverrideService.approveRequest`
 - `DealerPortalService.buildAgingView`

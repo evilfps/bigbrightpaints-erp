@@ -156,20 +156,14 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         return ((Number) dealerData.get("id")).longValue();
     }
 
-    private Long createCreditRequest(HttpHeaders headers, String reason) {
-        return createCreditRequest(headers, null, new BigDecimal("1500.00"), reason);
-    }
-
     private Long createCreditRequest(HttpHeaders headers, Long dealerId, BigDecimal amountRequested, String reason) {
         Map<String, Object> request = new HashMap<>();
         request.put("amountRequested", amountRequested);
         request.put("reason", reason);
-        if (dealerId != null) {
-            request.put("dealerId", dealerId);
-        }
+        request.put("dealerId", dealerId);
 
         ResponseEntity<Map> createResponse = rest.exchange(
-                "/api/v1/sales/credit-requests",
+                "/api/v1/credit/limit-requests",
                 HttpMethod.POST,
                 new HttpEntity<>(request, headers),
                 Map.class);
@@ -312,7 +306,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         HttpHeaders adminHeaders = authenticatedHeaders(loginToken());
         Long dealerId = createDealer(adminHeaders, "Dashboard Dealer");
         createSalesOrder(adminHeaders, dealerId);
-        createCreditRequest(salesHeaders, "Dashboard metric credit request");
+        createCreditRequest(salesHeaders, dealerId, new BigDecimal("1500.00"), "Dashboard metric credit request");
 
         Map<?, ?> dashboardAfter = salesDashboardData(salesHeaders);
         assertThat(longValue(dashboardAfter.get("pendingCreditRequests"))).isEqualTo(pendingBefore + 1);
@@ -420,14 +414,14 @@ public class SalesControllerIT extends AbstractIntegrationTest {
                 "Temporary limit extension");
 
         ResponseEntity<Map> missingReasonResponse = rest.exchange(
-                "/api/v1/sales/credit-requests/" + creditRequestId + "/approve",
+                "/api/v1/credit/limit-requests/" + creditRequestId + "/approve",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of(), headers),
                 Map.class);
         assertThat(missingReasonResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 
         ResponseEntity<Map> approveResponse = rest.exchange(
-                "/api/v1/sales/credit-requests/" + creditRequestId + "/approve",
+                "/api/v1/credit/limit-requests/" + creditRequestId + "/approve",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of("reason", "Approved after reviewing ledger exposure"), headers),
                 Map.class);
@@ -451,7 +445,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
 
         Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
         ResponseEntity<Map> approveResponse = rest.exchange(
-                "/api/v1/sales/credit-requests/" + creditRequestId + "/approve",
+                "/api/v1/credit/limit-requests/" + creditRequestId + "/approve",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of("reason", "Approved after payment behavior review"), headers),
                 Map.class);
@@ -465,17 +459,22 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     void credit_request_reject_requires_decision_reason_metadata() {
         String token = loginToken();
         HttpHeaders headers = authenticatedHeaders(token);
-        Long creditRequestId = createCreditRequest(headers, "Overrun request without collateral");
+        Long dealerId = createPersistedDealer("CRR" + System.nanoTime(), new BigDecimal("200000.00"));
+        Long creditRequestId = createCreditRequest(
+                headers,
+                dealerId,
+                new BigDecimal("1500.00"),
+                "Overrun request without collateral");
 
         ResponseEntity<Map> missingReasonResponse = rest.exchange(
-                "/api/v1/sales/credit-requests/" + creditRequestId + "/reject",
+                "/api/v1/credit/limit-requests/" + creditRequestId + "/reject",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of(), headers),
                 Map.class);
         assertThat(missingReasonResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 
         ResponseEntity<Map> rejectResponse = rest.exchange(
-                "/api/v1/sales/credit-requests/" + creditRequestId + "/reject",
+                "/api/v1/credit/limit-requests/" + creditRequestId + "/reject",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of("reason", "Rejected due to overdue invoices and no guarantee"), headers),
                 Map.class);
@@ -496,7 +495,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
                 "Need temporary extension with dealer link");
 
         ResponseEntity<Map> listResponse = rest.exchange(
-                "/api/v1/sales/credit-requests",
+                "/api/v1/credit/limit-requests",
                 HttpMethod.GET,
                 new HttpEntity<>(headers),
                 Map.class);

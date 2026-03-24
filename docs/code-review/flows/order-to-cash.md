@@ -6,11 +6,11 @@ This review covers dealer master data, dealer self-service, credit requests, cre
 
 Primary evidence:
 
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/controller/{DealerController,DealerPortalController,SalesController,CreditLimitOverrideController}.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/controller/{DealerController,DealerPortalController,SalesController,CreditLimitRequestController,CreditLimitOverrideController}.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/controller/DispatchController.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/controller/InvoiceController.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java`
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/{SalesService,SalesCoreEngine,SalesDealerCrudService,SalesOrderLifecycleService,SalesDispatchReconciliationService,DealerService,DealerPortalService,CreditLimitOverrideService,SalesJournalService,DunningService}.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/{SalesService,SalesCoreEngine,SalesOrderLifecycleService,SalesDispatchReconciliationService,DealerService,DealerPortalService,CreditLimitRequestService,CreditLimitOverrideService,SalesJournalService,DunningService}.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/service/{InvoiceService,InvoiceSettlementPolicy}.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/{AccountingCoreEngineCore,AccountingFacadeCore}.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/{DealerLedgerService,StatementService,AgingReportService}.java`
@@ -44,9 +44,9 @@ Planning notes:
 | --- | --- | --- | --- |
 | Dealer master data | `POST/GET /api/v1/dealers`, `GET /api/v1/dealers/search`, `PUT /api/v1/dealers/{dealerId}` | `DealerController` | Admin/sales/accounting surface for dealer onboarding, lookup, and maintenance. |
 | Dealer financial views | `GET /api/v1/dealers/{dealerId}/{ledger|invoices|credit-utilization|aging}`, `POST /api/v1/dealers/{dealerId}/dunning/hold` | `DealerController` | Internal receivables, exposure, and hold-evaluation surface. |
-| Dealer self-service | `GET /api/v1/dealer-portal/{dashboard|ledger|invoices|aging|orders}`, `POST /api/v1/dealer-portal/credit-requests`, `GET /api/v1/dealer-portal/invoices/{invoiceId}/pdf` | `DealerPortalController` | Dealer-scoped read model plus credit-extension request entrypoint and PDF export. |
+| Dealer self-service | `GET /api/v1/dealer-portal/{dashboard|ledger|invoices|aging|orders}`, `POST /api/v1/dealer-portal/credit-limit-requests`, `GET /api/v1/dealer-portal/invoices/{invoiceId}/pdf` | `DealerPortalController` | Dealer-scoped read model, ledger-backed aging/balance truth, durable credit-limit request entrypoint, and PDF export. |
 | Sales order lifecycle | `GET/POST/PUT/DELETE /api/v1/sales/orders`, `GET /api/v1/sales/orders/search`, `POST /api/v1/sales/orders/{id}/{confirm|cancel}`, `PATCH /api/v1/sales/orders/{id}/status`, `GET /api/v1/sales/orders/{id}/timeline` | `SalesController` | Core quote/order CRUD, state transitions, and timeline history. |
-| Credit requests | `GET/POST/PUT /api/v1/sales/credit-requests`, `POST /api/v1/sales/credit-requests/{id}/{approve|reject}` | `SalesController` | Workflow for permanent credit-limit increase requests. |
+| Credit requests | `GET/POST /api/v1/credit/limit-requests`, `POST /api/v1/credit/limit-requests/{id}/{approve|reject}` | `CreditLimitRequestController` | Workflow for permanent credit-limit increase requests. |
 | Dispatch exceptions | `POST/GET /api/v1/credit/override-requests`, `POST /api/v1/credit/override-requests/{id}/{approve|reject}` | `CreditLimitOverrideController` | Maker-checker approvals for dispatch-time credit/price/discount/tax exceptions. |
 | Dispatch confirmation | `POST /api/v1/sales/dispatch/confirm`, `POST /api/v1/sales/dispatch/reconcile-order-markers`, `GET /api/v1/dispatch/{pending,preview/{slipId},slip/{slipId},order/{orderId}}`, `POST /api/v1/dispatch/confirm` | `SalesController`, `DispatchController` | Factory/admin path that converts a packing slip into inventory, invoice, and journal truth. |
 | Invoice access | `GET /api/v1/invoices`, `GET /api/v1/invoices/{id}`, `GET /api/v1/invoices/{id}/pdf`, `GET /api/v1/invoices/dealers/{dealerId}`, `POST /api/v1/invoices/{id}/email` | `InvoiceController` | Internal invoice browse/export/email surface. |
@@ -61,7 +61,7 @@ Planning notes:
 | --- | --- | --- |
 | `dealers`, `accounts` | `Dealer`, `DealerRepository`, `DealerService`, dealer receivable-account wiring in `SalesCoreEngine` | Dealer onboarding, portal binding, credit-limit storage, receivable-account linkage, dunning hold state. |
 | `sales_orders`, `sales_order_status_history` | `SalesOrder`, `SalesOrderRepository`, `SalesOrderStatusHistory` | Order identity, idempotency keys/hashes, state machine, timeline, accounting markers. |
-| `credit_requests` | `CreditRequest`, `SalesCoreEngine` credit-request methods | Permanent dealer credit-limit extension workflow. |
+| `credit_requests` | `CreditRequest`, `CreditLimitRequestService` | Permanent dealer credit-limit extension workflow. |
 | `credit_limit_override_requests` | `CreditLimitOverrideRequest`, `CreditLimitOverrideService` | Dispatch-time exception approval with requester/reviewer metadata, headroom math, and expiry. |
 | `packaging_slips` | `PackagingSlip`, `DispatchController`, `SalesCoreEngine.confirmDispatch(...)` | Physical dispatch truth, AR/COGS/invoice replay anchors, dispatch notes, confirmation metadata. |
 | `invoices`, `invoice_payment_refs` | `Invoice`, `InvoiceRepository`, `InvoiceSettlementPolicy`, `V3__sales_invoice.sql` | Invoice issuance, outstanding balance, due date, payment-reference idempotency. |
@@ -124,11 +124,11 @@ Operationally, the order row already carries downstream financial anchors: `sale
 
 Credit requests are the softer commercial approval lane.
 
-- Sales/admin users can create and update requests.
+- Sales/admin users can create requests, and dealers can create the same durable request through the dealer portal.
 - Admin/accounting users can approve or reject them.
 - `TS_O2CApprovalDecisionCoverageTest` and controller coverage prove that decision metadata is required and that approve/reject are dedicated actions rather than generic status edits.
 
-The critical implementation detail is in `SalesCoreEngine.approveCreditRequest(...)`:
+The critical implementation detail is in `CreditLimitRequestService.approveRequest(...)`:
 
 1. Load the pending credit request.
 2. Lock the linked dealer row.
@@ -136,7 +136,7 @@ The critical implementation detail is in `SalesCoreEngine.approveCreditRequest(.
 4. Add that increment directly to `Dealer.creditLimit`.
 5. Mark the request `APPROVED` and audit the old/new limit.
 
-So a credit request is not just an approval record; approval mutates dealer master data in-place.
+So a durable credit request is not just an approval record; approval mutates dealer master data in-place.
 
 ### 5. Credit-limit overrides (dispatch-time exception workflow)
 

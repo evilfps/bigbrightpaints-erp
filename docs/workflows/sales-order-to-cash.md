@@ -29,6 +29,6 @@ This guide explains how to complete one full customer order cycle: from dealer c
 ## Troubleshooting Quick Notes
 
 1. **Order created but cannot dispatch:** confirm order first (`/sales/orders/{id}/confirm`) and verify packaging slip exists.
-2. **Dispatch blocked by credit:** raise/approve credit request (`/api/v1/sales/credit-requests/{id}/approve`) or override workflow.
+2. **Dispatch blocked by credit:** use the right lane. Permanent dealer headroom goes through credit-limit requests (`/api/v1/credit/limit-requests/{id}/approve`); one-off dispatch exceptions go through the override workflow.
 3. **Payment posted but invoice still open:** run explicit dealer settlement step (auto-settle or manual settle API).
 4. **Period close rejected:** check bank/subledger/GST reconciliation and discrepancy list before re-requesting close.

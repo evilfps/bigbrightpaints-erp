@@ -688,7 +688,7 @@ Frontend rule:
 - For export approval rows shown to accounting users, treat the row as inbox-only. Do not synthesize approve/reject controls when the action fields are `null`.
 
 Action semantics:
-- Credit request approvals: `/api/v1/sales/credit-requests/{id}/approve|reject`
+- Credit request approvals: `/api/v1/credit/limit-requests/{id}/approve|reject`
 - Dispatch override approvals: `/api/v1/credit/override-requests/{id}/approve|reject`
 - Payroll approvals: `/api/v1/payroll/runs/{id}/approve` (no reject endpoint in queue payload)
 - Period close approvals: `/api/v1/accounting/periods/{id}/approve-close|reject-close`; this tenant-scoped queue is readable by `ROLE_ADMIN|ROLE_ACCOUNTING`, the controller currently allows `ROLE_ADMIN` only for approve/reject, and platform `ROLE_SUPER_ADMIN` remains blocked from `/api/v1/admin/approvals` by `CompanyContextFilter`. Keep the UX tied to the approval-queue payload and maker-checker boundary, and do not surface checker actions to accounting-only users.

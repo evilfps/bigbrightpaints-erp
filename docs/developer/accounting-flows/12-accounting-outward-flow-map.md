@@ -5,7 +5,7 @@
 - `modules/accounting/controller`
   Purpose: accounting-owned write and read entrypoints, including settlements, statements, payroll payment, temporal balances, and catalog wrapper routes.
 - `modules/sales/controller`
-  Purpose: dealer-facing ledger/aging views, credit requests, credit overrides, and dealer portal flows that either surface accounting truth or request accounting-adjacent approvals.
+  Purpose: dealer-facing ledger/aging views, durable credit-limit request routes, credit overrides, and dealer portal flows that either surface accounting truth or request accounting-adjacent approvals.
 - `modules/invoice/controller`
   Purpose: invoice read, PDF, and email surfaces over accounting-backed receivable truth.
 - `modules/production/controller`
@@ -27,7 +27,7 @@ flowchart LR
     ACC --> PAY["PayrollController"]
     PAY --> AENG["AccountingCoreEngineCore.processPayrollBatchPayment"]
 
-    SALES["SalesController"] --> CR["SalesCoreEngine credit requests"]
+    CLR["CreditLimitRequestController"] --> CLS["CreditLimitRequestService"]
     OVR["CreditLimitOverrideController"] --> OVS["CreditLimitOverrideService"]
     DEAL["DealerPortalController"] --> DPS["DealerPortalService"]
     INV["InvoiceController"] --> IVS["InvoiceService / InvoicePdfService"]
@@ -39,9 +39,10 @@ flowchart LR
     SET --> LED["dealer/supplier ledgers"]
     STM --> LED
     TMP --> JRN["journal summaries / trial-balance reads"]
-    CR --> DEALER["dealer credit limit"]
+    CLS --> DEALER["dealer credit limit"]
     OVS --> DEALER
     DPS --> LED
+    DPS --> STM
     IVS --> LED
     AF --> JRN
     CHS --> PUB["public changelog feed"]
@@ -81,15 +82,15 @@ flowchart LR
 ### Accounting -> Dealer Credit / Exposure
 
 - entrypoints:
-  - `SalesController` credit-request CRUD and approve/reject actions
+  - `CreditLimitRequestController` list/create/approve/reject
   - `CreditLimitOverrideController` create/list/approve/reject
-  - `DealerPortalController.createCreditRequest` hard fail-close path
+  - `DealerPortalController.createCreditLimitRequest`
 - canonical path:
-  - sales-owned credit request pipeline via `SalesCoreEngine`
+  - durable credit-limit pipeline via `CreditLimitRequestService`
   - override pipeline via `CreditLimitOverrideService`
-  - dealer exposure truth via `DealerLedgerService`
+  - outward balance and aging truth via `StatementService` + `DealerLedgerService`
 - why it matters:
-  - there are two approval mechanisms around the same business problem
+  - permanent credit-limit changes and dispatch-only exceptions are now explicit separate approval lanes
 
 ### HR -> Accounting Payroll
 
@@ -123,7 +124,8 @@ flowchart LR
 
 - outward accounting reads and writes still converge into a small number of truth engines or repositories
 - dealer and supplier statement truth is explicit and ledger-backed
-- dealer portal creation of credit requests is fail-closed instead of silently mutating credit state
+- dealer portal can submit permanent credit-limit requests without reusing the dispatch-override path
+- dealer portal/dashboard aging stays ledger-backed while pending-order exposure remains a separate forward-looking component
 - HR payroll posting already uses accounting journals rather than inventing its own posting store
 - changelog has a clean split between public reads and privileged writes
 
@@ -134,7 +136,7 @@ flowchart LR
   - `/api/v1/catalog/**`
   - `/api/v1/production/**`
 - credit approvals are split into:
-  - credit requests that directly mutate dealer credit limits on approval
+  - durable credit-limit requests that directly mutate dealer credit limits on approval
   - override requests that temporarily authorize excess dispatch headroom
 - dealer ledger and aging truth is surfaced through multiple outward views:
   - `DealerPortalController`
@@ -148,7 +150,7 @@ flowchart LR
 
 - `AccountingCatalogController`
 - `ProductionCatalogService`
-- `SalesCoreEngine` credit-request methods
+- `CreditLimitRequestService`
 - `CreditLimitOverrideService`
 - `DealerPortalService`
 - `StatementService`

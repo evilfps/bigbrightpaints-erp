@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
+import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
@@ -243,6 +244,7 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
         DealerRepository dealerRepository = mock(DealerRepository.class);
         CompanyContextService companyContextService = mock(CompanyContextService.class);
         DealerLedgerService dealerLedgerService = mock(DealerLedgerService.class);
+        StatementService statementService = mock(StatementService.class);
         InvoiceRepository invoiceRepository = mock(InvoiceRepository.class);
         InvoicePdfService invoicePdfService = mock(InvoicePdfService.class);
         DealerService dealerService = mock(DealerService.class);
@@ -257,7 +259,8 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
                 invoicePdfService,
                 dealerService,
                 salesOrderRepository,
-                companyClock
+                companyClock,
+                statementService
         );
 
         Company company = new Company();
@@ -272,6 +275,14 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
         when(dealerService.ledgerView(77L)).thenReturn(ledgerPayload);
         when(invoiceRepository.findByCompanyAndDealerOrderByIssueDateDesc(company, dealer)).thenReturn(List.of());
         when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 16));
+        when(statementService.dealerAging(dealer, LocalDate.of(2026, 2, 16), "0-0,1-30,31-60,61-90,91"))
+                .thenReturn(new com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse(
+                        77L,
+                        "Dealer",
+                        BigDecimal.ZERO,
+                        List.of()
+                ));
+        when(statementService.dealerOverdueInvoices(dealer, LocalDate.of(2026, 2, 16))).thenReturn(List.of());
 
         assertThat(portalService.getLedgerForDealer(77L)).isEqualTo(ledgerPayload);
         assertThat(portalService.getInvoicesForDealer(77L)).containsEntry("dealerId", 77L);

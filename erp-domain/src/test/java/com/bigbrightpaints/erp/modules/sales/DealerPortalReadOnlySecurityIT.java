@@ -23,7 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
-@DisplayName("Dealer portal read-only security")
+@DisplayName("Dealer portal credit-limit request security")
 class DealerPortalReadOnlySecurityIT extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE = "DEALER-PORTAL-READONLY";
@@ -62,12 +62,12 @@ class DealerPortalReadOnlySecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void dealerPortalCreditRequests_areForbidden() {
+    void dealerPortalCreditRequests_areAllowedForMappedDealer() {
         HttpHeaders headers = authHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/dealer-portal/credit-requests",
+                "/api/v1/dealer-portal/credit-limit-requests",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of(
                         "amountRequested", "25000.00",
@@ -76,28 +76,31 @@ class DealerPortalReadOnlySecurityIT extends AbstractIntegrationTest {
                 Map.class
         );
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertDeniedMessage(
-                response,
-                "Dealer portal is read-only. Ask your sales or admin contact to review credit-limit changes.");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(response.getBody().get("message")).isEqualTo("Credit limit request submitted");
+        Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("status")).isEqualTo("PENDING");
+        assertThat(data.get("amountRequested")).isEqualTo(25000.00);
     }
 
     @Test
-    void dealerPortalCreditRequests_failClosedBeforePayloadValidation() {
+    void dealerPortalCreditRequests_validatePayload() {
         HttpHeaders headers = authHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/dealer-portal/credit-requests",
+                "/api/v1/dealer-portal/credit-limit-requests",
                 HttpMethod.POST,
                 new HttpEntity<>(Map.of(), headers),
                 Map.class
         );
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-        assertDeniedMessage(
-                response,
-                "Dealer portal is read-only. Ask your sales or admin contact to review credit-limit changes.");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(String.valueOf(response.getBody().get("message"))).contains("amountRequested");
     }
 
     @Test
@@ -128,11 +131,4 @@ class DealerPortalReadOnlySecurityIT extends AbstractIntegrationTest {
         return headers;
     }
 
-    private void assertDeniedMessage(ResponseEntity<Map> response, String expectedMessage) {
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().get("message")).isEqualTo(expectedMessage);
-        Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
-        assertThat(data).isNotNull();
-        assertThat(data.get("message")).isEqualTo(expectedMessage);
-    }
 }

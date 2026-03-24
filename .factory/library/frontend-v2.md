@@ -40,8 +40,8 @@ Final backend-facing handoff for frontend-v2 consumers after the merged `truth-r
 
 ### Portal boundaries
 
-- Dealer portal is read-only and limited to the authenticated dealer's own dashboard, ledger, invoices, aging, orders, and invoice PDF export.
-- Do **not** expose dealer write CTAs for tenant-internal workflows; `POST /api/v1/dealer-portal/credit-requests` is retained only as a fail-closed read-only blocker path.
+- Dealer portal is dealer-scoped and limited to the authenticated dealer's own dashboard, ledger, invoices, aging, orders, invoice PDF export, and permanent credit-limit request submission.
+- Expose only the durable credit-limit request CTA in the dealer portal. Do not expose dispatch overrides or other tenant-internal workflow CTAs there.
 - Dealer pending-order exposure and admin aging views now share the same linkage/parity rules.
 - Sales and factory users must not be shown accounting-only final dispatch posting actions.
 - Super Admin is platform-only and must not be routed into tenant business workflows or tenant portal dashboards.
@@ -55,7 +55,7 @@ Final backend-facing handoff for frontend-v2 consumers after the merged `truth-r
 | `ROLE_ACCOUNTING` | accounting posting, settlements, approval review, finance trail | factory-only shipment workspace actions presented as accounting features |
 | `ROLE_SALES` | dealer onboarding/search, commercial order flows, credit-request creation | accounting-only final dispatch posting and approval-review actions |
 | `ROLE_FACTORY` | operational dispatch preview/confirm, challan handling, shipment metadata capture | pricing/accounting detail, finance posting controls |
-| `ROLE_DEALER` | own dashboard/ledger/invoices/aging/orders/PDF export | create/update tenant workflows, credit-request submission, foreign-record access |
+| `ROLE_DEALER` | own dashboard/ledger/invoices/aging/orders/PDF export and permanent credit-limit request submission | dispatch overrides, foreign-record access, broader tenant workflow actions |
 | `ROLE_SUPER_ADMIN` | platform control-plane flows only | tenant portal, tenant dispatch, tenant settlement, tenant sales execution |
 
 ## Contract Notes That Commonly Affect UI
@@ -66,7 +66,7 @@ Final backend-facing handoff for frontend-v2 consumers after the merged `truth-r
 - Tenant runtime policy writes now belong only on `PUT /api/v1/companies/{id}/tenant-runtime/policy`; remove any frontend or operator tooling that still targets `PUT /api/v1/admin/tenant-runtime/policy`. Tenant admins still read runtime state from `GET /api/v1/admin/tenant-runtime/metrics`.
 - Remove any frontend CTA or retry logic that targets `/api/v1/orchestrator/factory/dispatch/{batchId}`; route those users to the factory operational dispatch flow at `POST /api/v1/dispatch/confirm`. Orchestrator fulfillment status bumps for shipment completion should also be removed in favor of the canonical dispatch surfaces.
 - Keep non-active suppliers visible but disable mutation CTAs when the current supplier state is already known client-side.
-- Keep dealer portal screens read-only even if a compatibility endpoint still exists on the backend.
+- Keep dealer portal scoped and narrow: allow permanent credit-limit request submission, but keep dispatch overrides and other internal workflow actions out of dealer UX.
 
 ## Delivered vs Deferred
 

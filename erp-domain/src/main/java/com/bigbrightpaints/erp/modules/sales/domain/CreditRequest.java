@@ -36,6 +36,12 @@ public class CreditRequest extends VersionedEntity {
 
     private String reason;
 
+    @Column(name = "requester_user_id")
+    private Long requesterUserId;
+
+    @Column(name = "requester_email")
+    private String requesterEmail;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -61,5 +67,9 @@ public class CreditRequest extends VersionedEntity {
     public void setStatus(String status) { this.status = status; }
     public String getReason() { return reason; }
     public void setReason(String reason) { this.reason = reason; }
+    public Long getRequesterUserId() { return requesterUserId; }
+    public void setRequesterUserId(Long requesterUserId) { this.requesterUserId = requesterUserId; }
+    public String getRequesterEmail() { return requesterEmail; }
+    public void setRequesterEmail(String requesterEmail) { this.requesterEmail = requesterEmail; }
     public Instant getCreatedAt() { return createdAt; }
 }

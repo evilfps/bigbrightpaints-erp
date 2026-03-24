@@ -1,5 +1,15 @@
 # Migration Runbook
 
+## 2026-03-23 — `migration_v2/V164__credit_request_requester_identity.sql`
+
+- **Purpose:** persist dealer-portal submitter identity on `credit_requests` so ERP-32 durable credit-limit approvals no longer surface anonymous maker rows when dealer users submit permanent limit requests.
+- **Forward plan:** add nullable `credit_requests.requester_user_id` and `credit_requests.requester_email`, deploy the backend packet that writes requester identity from the authenticated dealer portal principal, and keep existing historical rows nullable because legacy sales/admin-created durable requests intentionally remain without portal maker metadata.
+- **Dry-run commands:**
+  - `cd erp-domain && mvn -B -ntp -Dtest='CreditLimitRequestServiceTest,DealerPortalServiceTest,DealerPortalControllerExportAuditTest,AdminSettingsControllerApprovalsContractTest' test`
+  - `cd erp-domain && mvn -B -ntp -Ppr-fast -Dtest='com.bigbrightpaints.erp.modules.sales.service.DealerPortalServiceTest,com.bigbrightpaints.erp.modules.sales.controller.DealerPortalControllerExportAuditTest,com.bigbrightpaints.erp.modules.sales.service.CreditLimitRequestServiceTest,com.bigbrightpaints.erp.modules.admin.controller.AdminSettingsControllerApprovalsContractTest,com.bigbrightpaints.erp.modules.accounting.service.StatementServiceTest,com.bigbrightpaints.erp.modules.sales.dto.CreditLimitRequestCreateRequestTest,com.bigbrightpaints.erp.modules.sales.dto.CreditLimitRequestDecisionRequestTest,com.bigbrightpaints.erp.modules.sales.dto.CreditLimitRequestDtoTest,com.bigbrightpaints.erp.modules.sales.dto.DealerPortalCreditLimitRequestCreateRequestTest' test`
+  - `export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock; cd erp-domain && mvn -B -ntp -Dtest='AdminApprovalRbacIT,DealerPortalReadOnlySecurityIT' test`
+- **Rollback strategy:** if this packet must be reverted before merge, redeploy the previous backend build first so runtime code stops reading or writing credit-request maker identity, then execute `ALTER TABLE public.credit_requests DROP COLUMN IF EXISTS requester_email; ALTER TABLE public.credit_requests DROP COLUMN IF EXISTS requester_user_id;` in the same maintenance window.
+
 ## 2026-03-22 — `migration_v2/V46__opening_stock_import_results_json.sql`
 
 - **Purpose:** persist canonical row-level `results[]` on `opening_stock_imports` and add `replay_protection_key` so strict opening-stock imports retain replay truth even under fresh idempotency keys and concurrent duplicate submissions.

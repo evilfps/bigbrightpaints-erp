@@ -66,7 +66,8 @@ public class OpenApiTaggingConfig {
         }
         if (normalized.startsWith("/api/v1/sales")
                 || normalized.startsWith("/api/v1/invoices")
-                || normalized.startsWith("/api/v1/credit/override-requests")) {
+                || normalized.startsWith("/api/v1/credit/override-requests")
+                || normalized.startsWith("/api/v1/credit/limit-requests")) {
             return "SALES";
         }
         if (normalized.startsWith("/api/v1/dealers")

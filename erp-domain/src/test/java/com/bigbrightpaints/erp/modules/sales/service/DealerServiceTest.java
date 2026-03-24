@@ -8,11 +8,14 @@ import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.GstRegistrationType;
+import com.bigbrightpaints.erp.modules.accounting.dto.AgingBucketDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
+import com.bigbrightpaints.erp.modules.accounting.dto.OverdueInvoiceDto;
+import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
-import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
@@ -35,6 +38,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -69,7 +73,7 @@ class DealerServiceTest {
     @Mock
     private com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService dealerLedgerService;
     @Mock
-    private InvoiceRepository invoiceRepository;
+    private StatementService statementService;
     @Mock
     private SalesOrderRepository salesOrderRepository;
     @Mock
@@ -89,7 +93,7 @@ class DealerServiceTest {
                 emailService,
                 accountRepository,
                 dealerLedgerService,
-                invoiceRepository,
+                statementService,
                 salesOrderRepository,
                 companyClock
         );
@@ -126,8 +130,6 @@ class DealerServiceTest {
             }
             return account;
         });
-        lenient().when(invoiceRepository.findByCompanyAndDealerOrderByIssueDateDesc(eq(company), any(Dealer.class)))
-                .thenReturn(List.of());
         lenient().when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(
                         eq(company), any(Dealer.class), any(), eq(null)))
                 .thenReturn(BigDecimal.ZERO);
@@ -258,14 +260,183 @@ class DealerServiceTest {
     }
 
     @Test
+    void creditUtilization_clampsAvailableCreditWhenCreditLimitIsMissing() {
+        Dealer dealer = dealer("D-NO-LIMIT", null, "WEST");
+        when(dealerRepository.findByCompanyAndId(company, 99L)).thenReturn(Optional.of(dealer));
+        when(dealerLedgerService.currentBalance(99L)).thenReturn(new BigDecimal("75"));
+        when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(eq(company), eq(dealer), any(), eq(null)))
+                .thenReturn(new BigDecimal("25"));
+
+        var payload = dealerService.creditUtilization(99L);
+
+        assertThat(payload.get("creditLimit")).isEqualTo(BigDecimal.ZERO);
+        assertThat(payload.get("creditUsed")).isEqualTo(new BigDecimal("100"));
+        assertThat(payload.get("availableCredit")).isEqualTo(BigDecimal.ZERO);
+        assertThat(payload.get("creditStatus")).isEqualTo("OVER_LIMIT");
+    }
+
+    @Test
+    void creditUtilizationClampsNegativeLedgerBalanceWhenDealerHasCredit() {
+        Dealer dealer = dealer("D-CREDIT", new BigDecimal("1000"), "WEST");
+        when(dealerRepository.findByCompanyAndId(company, 109L)).thenReturn(Optional.of(dealer));
+        when(dealerLedgerService.currentBalance(109L)).thenReturn(new BigDecimal("-125"));
+        when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(eq(company), eq(dealer), any(), eq(null)))
+                .thenReturn(new BigDecimal("50"));
+
+        var payload = dealerService.creditUtilization(109L);
+
+        assertThat(payload.get("outstandingAmount")).isEqualTo(new BigDecimal("-125"));
+        assertThat(payload.get("creditUsed")).isEqualTo(new BigDecimal("50"));
+        assertThat(payload.get("availableCredit")).isEqualTo(new BigDecimal("950"));
+    }
+
+    @Test
     void agingSummary_returnsDealerPayloadWhenDealerExists() {
         Dealer dealer = dealer("D-AGING", new BigDecimal("1000"), "WEST");
         when(dealerRepository.findByCompanyAndId(company, 77L)).thenReturn(Optional.of(dealer));
         when(companyClock.today(company)).thenReturn(java.time.LocalDate.parse("2026-02-23"));
+        when(statementService.dealerAging(dealer, java.time.LocalDate.parse("2026-02-23"), "0-0,1-30,31-60,61-90,91"))
+                .thenReturn(new AgingSummaryResponse(
+                        77L,
+                        "D-AGING Name",
+                        new BigDecimal("275"),
+                        List.of(new AgingBucketDto("1-30 days", 1, 30, new BigDecimal("275")))
+                ));
+        when(statementService.dealerOverdueInvoices(dealer, java.time.LocalDate.parse("2026-02-23"))).thenReturn(List.of(
+                new OverdueInvoiceDto("INV-900", java.time.LocalDate.parse("2026-01-11"), java.time.LocalDate.parse("2026-02-10"), 13L, new BigDecimal("275"))
+        ));
 
         var payload = dealerService.agingSummary(77L);
 
-        assertThat(payload).containsEntry("dealerId", 99L).containsEntry("dealerName", "D-AGING Name");
+        assertThat(payload)
+                .containsEntry("dealerId", 99L)
+                .containsEntry("dealerName", "D-AGING Name")
+                .containsEntry("totalOutstanding", new BigDecimal("275"));
+        assertThat((List<java.util.Map<String, Object>>) payload.get("overdueInvoices"))
+                .singleElement()
+                .satisfies(entry -> assertThat((java.util.Map<String, Object>) entry)
+                        .containsEntry("invoiceNumber", "INV-900")
+                        .containsEntry("issueDate", java.time.LocalDate.parse("2026-01-11"))
+                        .containsEntry("daysOverdue", 13L));
+    }
+
+    @Test
+    void agingSummary_defaultsBucketsWhenLedgerBucketsAreMissing() {
+        Dealer dealer = dealer("D-AGING-EMPTY", new BigDecimal("1000"), "WEST");
+        when(dealerRepository.findByCompanyAndId(company, 98L)).thenReturn(Optional.of(dealer));
+        when(companyClock.today(company)).thenReturn(java.time.LocalDate.parse("2026-02-23"));
+        when(statementService.dealerAging(dealer, java.time.LocalDate.parse("2026-02-23"), "0-0,1-30,31-60,61-90,91"))
+                .thenReturn(new AgingSummaryResponse(98L, "D-AGING-EMPTY Name", null, null));
+        when(statementService.dealerOverdueInvoices(dealer, java.time.LocalDate.parse("2026-02-23"))).thenReturn(List.of());
+
+        var payload = dealerService.agingSummary(98L);
+
+        assertThat(payload.get("totalOutstanding")).isEqualTo(BigDecimal.ZERO);
+        assertThat((java.util.Map<String, Object>) payload.get("agingBuckets"))
+                .containsEntry("current", BigDecimal.ZERO)
+                .containsEntry("1-30 days", BigDecimal.ZERO)
+                .containsEntry("31-60 days", BigDecimal.ZERO)
+                .containsEntry("61-90 days", BigDecimal.ZERO)
+                .containsEntry("90+ days", BigDecimal.ZERO);
+        assertThat(payload.get("overdueInvoices")).isEqualTo(List.of());
+    }
+
+    @Test
+    void agingSummary_mapsLedgerBucketsAndSkipsUnknownOrNullEntries() {
+        Dealer dealer = dealer("D-AGING-MAP", new BigDecimal("1000"), "WEST");
+        when(dealerRepository.findByCompanyAndId(company, 97L)).thenReturn(Optional.of(dealer));
+        when(companyClock.today(company)).thenReturn(java.time.LocalDate.parse("2026-02-23"));
+        when(statementService.dealerAging(dealer, java.time.LocalDate.parse("2026-02-23"), "0-0,1-30,31-60,61-90,91"))
+                .thenReturn(new AgingSummaryResponse(
+                        97L,
+                        "D-AGING-MAP Name",
+                        new BigDecimal("625"),
+                        Arrays.asList(
+                                new AgingBucketDto("0-0 days", 0, 0, new BigDecimal("25")),
+                                new AgingBucketDto("1-30 days", 1, 30, new BigDecimal("100")),
+                                new AgingBucketDto("31-60 days", 31, 60, new BigDecimal("150")),
+                                new AgingBucketDto("61-90 days", 61, 90, new BigDecimal("175")),
+                                new AgingBucketDto("91+ days", 91, null, new BigDecimal("175")),
+                                new AgingBucketDto("Credit Balance", 0, 0, new BigDecimal("-15")),
+                                null,
+                                new AgingBucketDto("1-30 days", 1, 30, null),
+                                new AgingBucketDto("unknown", 10, 20, new BigDecimal("999"))
+                        )
+                ));
+        when(statementService.dealerOverdueInvoices(dealer, java.time.LocalDate.parse("2026-02-23"))).thenReturn(Arrays.asList(
+                null,
+                new OverdueInvoiceDto("INV-901", java.time.LocalDate.parse("2026-01-10"), java.time.LocalDate.parse("2026-02-01"), 22L, new BigDecimal("175"))
+        ));
+
+        var payload = dealerService.agingSummary(97L);
+
+        assertThat(payload).containsEntry("totalOutstanding", new BigDecimal("625"));
+        assertThat((java.util.Map<String, Object>) payload.get("agingBuckets"))
+                .containsEntry("current", new BigDecimal("25"))
+                .containsEntry("1-30 days", new BigDecimal("100"))
+                .containsEntry("31-60 days", new BigDecimal("150"))
+                .containsEntry("61-90 days", new BigDecimal("175"))
+                .containsEntry("90+ days", new BigDecimal("175"));
+        assertThat((List<java.util.Map<String, Object>>) payload.get("overdueInvoices"))
+                .singleElement()
+                .satisfies(entry -> assertThat((java.util.Map<String, Object>) entry)
+                        .containsEntry("invoiceNumber", "INV-901")
+                        .containsEntry("issueDate", java.time.LocalDate.parse("2026-01-10"))
+                        .containsEntry("daysOverdue", 22L));
+    }
+
+    @Test
+    void overdueInvoicePayloadReturnsEmptyListForNullInput() {
+        @SuppressWarnings("unchecked")
+        List<java.util.Map<String, Object>> payload = (List<java.util.Map<String, Object>>) ReflectionTestUtils.invokeMethod(
+                dealerService,
+                "toOverdueInvoicePayload",
+                new Object[]{null}
+        );
+
+        assertThat(payload).isEqualTo(List.of());
+    }
+
+    @Test
+    void portalAgingBucketsReturnDefaultsWhenResponseIsNull() {
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> buckets = (java.util.Map<String, Object>) ReflectionTestUtils.invokeMethod(
+                dealerService,
+                "toPortalAgingBuckets",
+                new Object[]{null}
+        );
+
+        assertThat(buckets)
+                .containsEntry("current", BigDecimal.ZERO)
+                .containsEntry("90+ days", BigDecimal.ZERO);
+    }
+
+    @Test
+    void portalAgingBucketsIgnoreSyntheticCreditBalanceBucket() {
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> buckets = (java.util.Map<String, Object>) ReflectionTestUtils.invokeMethod(
+                dealerService,
+                "toPortalAgingBuckets",
+                new AgingSummaryResponse(
+                        99L,
+                        "Dealer Name",
+                        BigDecimal.ZERO,
+                        List.of(new AgingBucketDto("Credit Balance", 0, 0, new BigDecimal("-25")))
+                )
+        );
+
+        assertThat(buckets).containsEntry("current", BigDecimal.ZERO);
+    }
+
+    @Test
+    void safeReturnsProvidedValueWhenPresent() {
+        BigDecimal value = (BigDecimal) ReflectionTestUtils.invokeMethod(
+                dealerService,
+                "safe",
+                new BigDecimal("25.00")
+        );
+
+        assertThat(value).isEqualByComparingTo("25.00");
     }
 
     @Test

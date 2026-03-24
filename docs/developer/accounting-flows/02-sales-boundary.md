@@ -77,7 +77,7 @@ flowchart LR
 - `SalesFulfillmentService` overlaps dispatch/invoice orchestration and looks transitional
 - `SalesService` is a broad compatibility shell around split services
 - `SalesController` dealer alias routes duplicate `DealerController`
-- `POST /api/v1/dealer-portal/credit-requests` is a permanent forbidden stub, not a workflow
+- `POST /api/v1/dealer-portal/credit-limit-requests` is the dealer-scoped durable credit-limit request workflow; keep dispatch-only exceptions on `/api/v1/credit/override-requests`
 - `POST /api/v1/sales/dispatch/reconcile-order-markers` is a repair utility, not a business path
 
 ## Review Hotspots

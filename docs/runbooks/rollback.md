@@ -1,5 +1,12 @@
 # Rollback Runbook
 
+## 2026-03-23 — `erp-32.credit-request-requester-identity`
+
+- **Scope:** revert `migration_v2/V164__credit_request_requester_identity.sql` and the ERP-32 dealer-portal durable credit-request path that now records `credit_requests.requester_user_id` and `credit_requests.requester_email`.
+- **Application rollback:** redeploy the previous backend build before reopening traffic so runtime code stops reading or writing requester identity on durable credit-limit requests and admin approvals return to the pre-identity contract.
+- **Database rollback:** after the reverted build is live, execute `ALTER TABLE public.credit_requests DROP COLUMN IF EXISTS requester_email; ALTER TABLE public.credit_requests DROP COLUMN IF EXISTS requester_user_id;`.
+- **Verification:** rerun `cd erp-domain && mvn -B -ntp -Dtest='CreditLimitRequestServiceTest,DealerPortalServiceTest,DealerPortalControllerExportAuditTest,AdminSettingsControllerApprovalsContractTest' test` and `export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock; cd erp-domain && mvn -B -ntp -Dtest='AdminApprovalRbacIT,DealerPortalReadOnlySecurityIT' test` against the reverted packet to confirm dealer-originated durable requests no longer depend on the removed requester-identity columns.
+
 ## 2026-03-22 — `opening-stock-results-json`
 
 - **Scope:** revert `migration_v2/V46__opening_stock_import_results_json.sql` and the strict opening-stock history/replay path that now depends on both `opening_stock_imports.results_json` and `opening_stock_imports.replay_protection_key`.

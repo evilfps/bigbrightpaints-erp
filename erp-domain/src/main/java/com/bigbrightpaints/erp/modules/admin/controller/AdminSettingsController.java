@@ -40,11 +40,11 @@ import java.util.stream.Stream;
 @RestController
 @RequestMapping("/api/v1/admin")
 public class AdminSettingsController {
-    private static final String CREDIT_REQUEST_APPROVAL_ACTION = "APPROVE_DEALER_CREDIT_REQUEST";
+    private static final String CREDIT_REQUEST_APPROVAL_ACTION = "APPROVE_DEALER_CREDIT_LIMIT_REQUEST";
     private static final String CREDIT_OVERRIDE_APPROVAL_ACTION = "APPROVE_DISPATCH_CREDIT_OVERRIDE";
     private static final String PAYROLL_APPROVAL_ACTION = "APPROVE_PAYROLL_RUN";
-    private static final String CREDIT_REQUEST_APPROVE_ENDPOINT = "/api/v1/sales/credit-requests/{id}/approve";
-    private static final String CREDIT_REQUEST_REJECT_ENDPOINT = "/api/v1/sales/credit-requests/{id}/reject";
+    private static final String CREDIT_REQUEST_APPROVE_ENDPOINT = "/api/v1/credit/limit-requests/{id}/approve";
+    private static final String CREDIT_REQUEST_REJECT_ENDPOINT = "/api/v1/credit/limit-requests/{id}/reject";
     private static final String CREDIT_OVERRIDE_APPROVE_ENDPOINT = "/api/v1/credit/override-requests/{id}/approve";
     private static final String CREDIT_OVERRIDE_REJECT_ENDPOINT = "/api/v1/credit/override-requests/{id}/reject";
     private static final String PAYROLL_APPROVE_ENDPOINT = "/api/v1/payroll/runs/{id}/approve";
@@ -157,11 +157,11 @@ public class AdminSettingsController {
     @Transactional(readOnly = true)
     public ApiResponse<AdminApprovalsResponse> approvals() {
         Company company = companyContextService.requireCurrentCompany();
-        boolean includeSensitiveExportApprovalDetails = canViewSensitiveExportApprovalDetails();
+        boolean includeSensitiveApprovalRequesterDetails = canViewSensitiveApprovalRequesterDetails();
         List<AdminApprovalItemDto> creditRequestApprovals = creditRequestRepository
                 .findPendingByCompanyOrderByCreatedAtDesc(company)
                 .stream()
-                .map(this::toCreditRequestApprovalItem)
+                .map(request -> toCreditRequestApprovalItem(request, includeSensitiveApprovalRequesterDetails))
                 .toList();
 
         List<AdminApprovalItemDto> creditOverrideApprovals = creditLimitOverrideRequestRepository
@@ -191,7 +191,7 @@ public class AdminSettingsController {
 
         List<AdminApprovalItemDto> exportApprovals = exportApprovalService.listPending()
                 .stream()
-                .map(request -> toExportApprovalItem(request, includeSensitiveExportApprovalDetails))
+                .map(request -> toExportApprovalItem(request, includeSensitiveApprovalRequesterDetails))
                 .toList();
 
         AdminApprovalsResponse response = new AdminApprovalsResponse(
@@ -209,7 +209,7 @@ public class AdminSettingsController {
                                               String actionLabel,
                                               String approveEndpoint, String rejectEndpoint,
                                               Instant createdAt) {
-        return new AdminApprovalItemDto(
+        return approvalItem(
                 originType,
                 ownerType,
                 id,
@@ -217,8 +217,6 @@ public class AdminSettingsController {
                 reference,
                 status,
                 summary,
-                null,
-                null,
                 null,
                 null,
                 actionType,
@@ -229,15 +227,52 @@ public class AdminSettingsController {
         );
     }
 
-    private AdminApprovalItemDto toCreditRequestApprovalItem(CreditRequest request) {
-        String reference = "CR-" + request.getId();
+    private AdminApprovalItemDto approvalItem(AdminApprovalItemDto.OriginType originType,
+                                              AdminApprovalItemDto.OwnerType ownerType,
+                                              Long id, UUID publicId, String reference,
+                                              String status, String summary,
+                                              Long requesterUserId, String requesterEmail,
+                                              String actionType,
+                                              String actionLabel,
+                                              String approveEndpoint, String rejectEndpoint,
+                                              Instant createdAt) {
+        return new AdminApprovalItemDto(
+                originType,
+                ownerType,
+                id,
+                publicId,
+                reference,
+                status,
+                summary,
+                null,
+                null,
+                requesterUserId,
+                requesterEmail,
+                actionType,
+                actionLabel,
+                approveEndpoint,
+                rejectEndpoint,
+                createdAt
+        );
+    }
+
+    private AdminApprovalItemDto toCreditRequestApprovalItem(CreditRequest request,
+                                                             boolean includeSensitiveRequesterDetails) {
+        String reference = "CLR-" + request.getId();
         String dealerLabel = request.getDealer() != null && StringUtils.hasText(request.getDealer().getName())
                 ? request.getDealer().getName()
                 : "Unknown dealer";
-        String summary = "Approve dealer credit-limit increase request " + reference + " for " + dealerLabel
+        String summary = "Approve permanent dealer credit-limit request " + reference + " for " + dealerLabel
                 + " amount " + toAmountString(request.getAmountRequested());
         if (StringUtils.hasText(request.getReason())) {
             summary = summary + " (reason: " + request.getReason().trim() + ")";
+        }
+        Long requesterUserId = includeSensitiveRequesterDetails ? request.getRequesterUserId() : null;
+        String requesterEmail = includeSensitiveRequesterDetails && StringUtils.hasText(request.getRequesterEmail())
+                ? request.getRequesterEmail().trim()
+                : null;
+        if (requesterEmail != null) {
+            summary = summary + " (requested by " + requesterEmail + ")";
         }
         return approvalItem(
                 AdminApprovalItemDto.OriginType.CREDIT_REQUEST,
@@ -247,8 +282,10 @@ public class AdminSettingsController {
                 reference,
                 normalizeStatus(request.getStatus()),
                 summary,
+                requesterUserId,
+                requesterEmail,
                 CREDIT_REQUEST_APPROVAL_ACTION,
-                "Approve dealer credit-limit increase",
+                "Approve permanent credit limit",
                 CREDIT_REQUEST_APPROVE_ENDPOINT,
                 CREDIT_REQUEST_REJECT_ENDPOINT,
                 request.getCreatedAt()
@@ -374,7 +411,7 @@ public class AdminSettingsController {
         );
     }
 
-    private boolean canViewSensitiveExportApprovalDetails() {
+    private boolean canViewSensitiveApprovalRequesterDetails() {
         org.springframework.security.core.Authentication authentication =
                 org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || authentication.getAuthorities() == null) {

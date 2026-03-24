@@ -23,6 +23,7 @@ com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingServiceStandardJournalTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditTrailServiceTest
+com.bigbrightpaints.erp.modules.accounting.service.StatementServiceTest
 com.bigbrightpaints.erp.modules.accounting.controller.AccountingCatalogControllerSecurityIT
 com.bigbrightpaints.erp.modules.accounting.service.CostingMethodServiceTest
 com.bigbrightpaints.erp.modules.admin.AdminApprovalRbacIT

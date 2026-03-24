@@ -2021,7 +2021,7 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 | `GET` | `/api/v1/dealer-portal/invoices` | `ROLE_DEALER` | — | `Map<String,Object>` |
 | `GET` | `/api/v1/dealer-portal/aging` | `ROLE_DEALER` | — | `Map<String,Object>` |
 | `GET` | `/api/v1/dealer-portal/orders` | `ROLE_DEALER` | — | `Map<String,Object>` |
-| `POST` | `/api/v1/dealer-portal/credit-requests` | `ROLE_DEALER` | `DealerPortalCreditRequestCreateRequest` | Compatibility path only; live runtime denies with read-only blocker |
+| `POST` | `/api/v1/dealer-portal/credit-limit-requests` | `ROLE_DEALER` | `DealerPortalCreditLimitRequestCreateRequest` | `CreditLimitRequestDto` for a new pending permanent credit-limit request scoped to the authenticated dealer |
 | `GET` | `/api/v1/dealer-portal/invoices/{invoiceId}/pdf` | `ROLE_DEALER` | — | `application/pdf` |
 | `GET` | `/api/v1/dispatch/preview/{slipId}` | `ROLE_ADMIN`/`ROLE_FACTORY` | — | `DispatchPreviewDto` |
 | `POST` | `/api/v1/dispatch/confirm` | `ROLE_ADMIN`/`ROLE_FACTORY` + `dispatch.confirm` | `DispatchConfirmationRequest` | `DispatchConfirmationResponse` |
@@ -2036,7 +2036,7 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 - `/api/v1/orchestrator/factory/dispatch/{batchId}` must not be used for shipment posting or inventory progression. It is retained only to fail closed with `410 Gone` and `canonicalPath=/api/v1/dispatch/confirm` so stale factory clients can be redirected safely.
 - `/api/v1/orchestrator/orders/{orderId}/fulfillment` still handles non-dispatch workflow states like `PROCESSING`, but dispatch-like target states (`SHIPPED`, `DISPATCHED`, `FULFILLED`, `COMPLETED`) now fail closed with `BUS_001` and instruct callers to use `/api/v1/dispatch/confirm`.
 - Credit override requests can still be created by sales/factory/admin on `/api/v1/credit/override-requests`, but approve/reject review is now limited to admin/accounting.
-- Dealer portal routes remain read-only: dashboard, ledger, invoices, aging, orders, and invoice PDF export are allowed for the authenticated dealer's own records, while `POST /api/v1/dealer-portal/credit-requests` now fails closed with the read-only blocker message.
+- Dealer portal routes remain dealer-scoped for reads, but dealers can now submit permanent credit-limit requests on `/api/v1/dealer-portal/credit-limit-requests`. Do not surface dispatch-override actions in the dealer portal.
 - Dealer invoice PDF export stays dealer-scoped and audited; cross-dealer invoice-id guessing returns `404`, and token/header company mismatches return `403`.
 - Super admin is platform-only in tenant-facing UX: do not route `ROLE_SUPER_ADMIN` users into tenant portal dashboards or tenant workflow execution screens.
 
@@ -2064,7 +2064,7 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
    1. Load summary from `GET /api/v1/dealer-portal/dashboard` (includes `creditStatus`, `pendingOrderExposure`, aging buckets).
    2. Load detailed ledgers/invoices/orders from `/ledger`, `/invoices`, `/orders`.
    3. Load overdue details from `GET /api/v1/dealer-portal/aging`.
-   4. Keep the portal read-only in UI. Dealers can download invoice PDFs via `/invoices/{invoiceId}/pdf`, but credit-limit or other workflow requests must be routed to sales/admin flows outside the dealer portal.
+   4. Expose a dealer CTA only for permanent credit-limit requests. Keep dispatch overrides and other tenant-internal workflow actions out of the dealer portal. Dealers can still download invoice PDFs via `/invoices/{invoiceId}/pdf`.
 
 5. **Dispatch reserve -> operational preview -> confirm**
    1. Reserve inventory during order creation/confirmation.
@@ -2226,7 +2226,7 @@ Frontend behavior: treat these as non-retryable user/action-state errors; surfac
 - Dealer forms must include payment terms + region dropdown/input and normalize state code/GST client-side before submit for better UX.
 - Dealer search table should expose independent filters: `status`, `region`, and `creditStatus`; do not derive `creditStatus` client-side.
 - Dealer portal dashboard should highlight `creditStatus` using thresholds from backend response and show `pendingOrderExposure` alongside outstanding dues.
-- Do not render dealer portal write CTAs for credit-limit requests or other tenant-internal workflow actions.
+- Render only the permanent credit-limit request CTA in the dealer portal. Do not render dispatch-override or other tenant-internal workflow CTAs there.
 - Dispatch confirmation modal for the factory/admin operational surface should not expect price/tax cards from preview; use the accounting/admin posting surface when finance totals are required.
 
 #### GST Fields

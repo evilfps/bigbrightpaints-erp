@@ -16,6 +16,7 @@ import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementS
 import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
 import com.bigbrightpaints.erp.modules.portal.service.TenantRuntimeEnforcementInterceptor;
 import com.bigbrightpaints.erp.modules.sales.controller.DealerPortalController;
+import com.bigbrightpaints.erp.modules.sales.service.CreditLimitRequestService;
 import com.bigbrightpaints.erp.modules.sales.service.DealerPortalService;
 import java.time.Instant;
 import java.util.List;
@@ -33,8 +34,12 @@ class TS_RuntimeDealerPortalControllerExportCoverageTest {
     @Test
     void getMyInvoicePdf_emitsDealerExportAuditMetadata() {
         DealerPortalService dealerPortalService = org.mockito.Mockito.mock(DealerPortalService.class);
+        CreditLimitRequestService creditLimitRequestService = org.mockito.Mockito.mock(CreditLimitRequestService.class);
         AuditService auditService = org.mockito.Mockito.mock(AuditService.class);
-        DealerPortalController controller = new DealerPortalController(dealerPortalService, auditService);
+        DealerPortalController controller = new DealerPortalController(
+                dealerPortalService,
+                creditLimitRequestService,
+                auditService);
 
         when(dealerPortalService.getMyInvoicePdf(88L)).thenReturn(
                 new InvoicePdfService.PdfDocument("dealer-invoice-88.pdf", "pdf".getBytes()));
@@ -54,8 +59,12 @@ class TS_RuntimeDealerPortalControllerExportCoverageTest {
     @Test
     void getMyInvoicePdf_handlesNullResourceMetadataFailClosed() {
         DealerPortalService dealerPortalService = org.mockito.Mockito.mock(DealerPortalService.class);
+        CreditLimitRequestService creditLimitRequestService = org.mockito.Mockito.mock(CreditLimitRequestService.class);
         AuditService auditService = org.mockito.Mockito.mock(AuditService.class);
-        DealerPortalController controller = new DealerPortalController(dealerPortalService, auditService);
+        DealerPortalController controller = new DealerPortalController(
+                dealerPortalService,
+                creditLimitRequestService,
+                auditService);
 
         when(dealerPortalService.getMyInvoicePdf(null)).thenReturn(
                 new InvoicePdfService.PdfDocument(null, new byte[0]));

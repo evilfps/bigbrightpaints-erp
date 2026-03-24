@@ -8,6 +8,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.*;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingBucketDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerBalanceView;
+import com.bigbrightpaints.erp.modules.accounting.dto.OverdueInvoiceDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerStatementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.StatementTransactionDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierBalanceView;
@@ -26,7 +27,11 @@ import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 public class StatementService {
@@ -36,6 +41,7 @@ public class StatementService {
     private final SupplierRepository supplierRepository;
     private final DealerLedgerRepository dealerLedgerRepository;
     private final SupplierLedgerRepository supplierLedgerRepository;
+    private final PartnerSettlementAllocationRepository settlementAllocationRepository;
     private final CompanyClock companyClock;
 
     public StatementService(CompanyContextService companyContextService,
@@ -43,12 +49,14 @@ public class StatementService {
                             SupplierRepository supplierRepository,
                             DealerLedgerRepository dealerLedgerRepository,
                             SupplierLedgerRepository supplierLedgerRepository,
+                            PartnerSettlementAllocationRepository settlementAllocationRepository,
                             CompanyClock companyClock) {
         this.companyContextService = companyContextService;
         this.dealerRepository = dealerRepository;
         this.supplierRepository = supplierRepository;
         this.dealerLedgerRepository = dealerLedgerRepository;
         this.supplierLedgerRepository = supplierLedgerRepository;
+        this.settlementAllocationRepository = settlementAllocationRepository;
         this.companyClock = companyClock;
     }
 
@@ -140,6 +148,11 @@ public class StatementService {
         Company company = companyContextService.requireCurrentCompany();
         Dealer dealer = dealerRepository.findByCompanyAndId(company, dealerId)
                 .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Dealer not found"));
+        return dealerAging(dealer, asOf, bucketParam);
+    }
+
+    public AgingSummaryResponse dealerAging(Dealer dealer, LocalDate asOf, String bucketParam) {
+        Company company = companyContextService.requireCurrentCompany();
         LocalDate ref = asOf == null ? companyClock.today(company) : asOf;
         List<int[]> buckets = parseBuckets(bucketParam);
         List<DealerLedgerEntry> entries =
@@ -202,6 +215,129 @@ public class StatementService {
         }
         appendResidualCreditBucket(bucketDtos, residualCredit);
         return new AgingSummaryResponse(dealer.getId(), dealer.getName(), balance, bucketDtos);
+    }
+
+    public List<OverdueInvoiceDto> dealerOverdueInvoices(Dealer dealer, LocalDate asOf) {
+        LocalDate ref = asOf == null ? companyClock.today(companyContextService.requireCurrentCompany()) : asOf;
+        return buildDealerInvoiceLines(dealer, ref).stream()
+                .filter(DealerOverdueInvoiceLine::overdue)
+                .filter(line -> line.outstandingAmount().compareTo(BigDecimal.ZERO) > 0)
+                .sorted(Comparator.comparing(
+                                DealerOverdueInvoiceLine::dueDate,
+                                Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(DealerOverdueInvoiceLine::issueDate)
+                        .thenComparing(DealerOverdueInvoiceLine::sequence))
+                .map(line -> new OverdueInvoiceDto(
+                        line.invoiceNumber(),
+                        line.issueDate(),
+                        line.dueDate(),
+                        line.daysOverdue(),
+                        line.outstandingAmount()))
+                .toList();
+    }
+
+    public long dealerOpenInvoiceCount(Dealer dealer, LocalDate asOf) {
+        LocalDate ref = asOf == null ? companyClock.today(companyContextService.requireCurrentCompany()) : asOf;
+        return buildDealerInvoiceLines(dealer, ref).stream()
+                .filter(line -> line.outstandingAmount().compareTo(BigDecimal.ZERO) > 0)
+                .count();
+    }
+
+    private List<DealerOverdueInvoiceLine> buildDealerInvoiceLines(Dealer dealer, LocalDate ref) {
+        Company company = companyContextService.requireCurrentCompany();
+        List<DealerLedgerEntry> entries = dealerLedgerRepository.findByCompanyAndDealerAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
+                company,
+                dealer,
+                ref
+        );
+        Map<Long, BigDecimal> unappliedCreditPoolByJournalEntry =
+                loadUnappliedDealerCreditByJournalEntry(company, entries, ref);
+        List<DealerOverdueInvoiceLine> invoiceLines = new ArrayList<>();
+        BigDecimal creditPool = BigDecimal.ZERO;
+        Set<Long> consumedNegativeJournals = new HashSet<>();
+        long sequence = 0L;
+        for (DealerLedgerEntry entry : entries) {
+            if (entry.getEntryDate().isAfter(ref)) {
+                continue;
+            }
+            BigDecimal delta = safe(entry.getDebit()).subtract(safe(entry.getCredit()));
+            if (delta.compareTo(BigDecimal.ZERO) < 0) {
+                Long journalEntryId = entry.getJournalEntry() != null ? entry.getJournalEntry().getId() : null;
+                if (journalEntryId == null) {
+                    creditPool = creditPool.add(delta.abs());
+                } else if (consumedNegativeJournals.add(journalEntryId)) {
+                    creditPool = creditPool.add(unappliedCreditPoolByJournalEntry.getOrDefault(journalEntryId, BigDecimal.ZERO));
+                }
+            }
+            BigDecimal outstandingAmount = entry.getOutstandingAmount();
+            if (!StringUtils.hasText(entry.getInvoiceNumber())
+                    || outstandingAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                sequence++;
+                continue;
+            }
+            invoiceLines.add(new DealerOverdueInvoiceLine(
+                    entry.getInvoiceNumber(),
+                    entry.getEntryDate(),
+                    entry.getDueDate(),
+                    resolveAgingDate(entry),
+                    entry.getDaysOverdue(ref),
+                    entry.isOverdue(ref),
+                    outstandingAmount,
+                    sequence++
+            ));
+        }
+        if (creditPool.compareTo(BigDecimal.ZERO) > 0) {
+            invoiceLines.sort(Comparator.comparing(
+                            DealerOverdueInvoiceLine::agingDate,
+                            Comparator.nullsLast(Comparator.naturalOrder()))
+                    .thenComparing(DealerOverdueInvoiceLine::sequence));
+            for (int i = 0; i < invoiceLines.size() && creditPool.compareTo(BigDecimal.ZERO) > 0; i++) {
+                DealerOverdueInvoiceLine line = invoiceLines.get(i);
+                BigDecimal applied = creditPool.min(line.outstandingAmount());
+                invoiceLines.set(i, line.withOutstandingAmount(line.outstandingAmount().subtract(applied)));
+                creditPool = creditPool.subtract(applied);
+            }
+        }
+        return invoiceLines;
+    }
+
+    private Map<Long, BigDecimal> loadUnappliedDealerCreditByJournalEntry(Company company,
+                                                                           List<DealerLedgerEntry> entries,
+                                                                           LocalDate ref) {
+        Map<Long, BigDecimal> negativeCreditByJournalEntry = new HashMap<>();
+        for (DealerLedgerEntry entry : entries) {
+            if (entry.getEntryDate().isAfter(ref)) {
+                continue;
+            }
+            BigDecimal delta = safe(entry.getDebit()).subtract(safe(entry.getCredit()));
+            if (delta.compareTo(BigDecimal.ZERO) >= 0 || entry.getJournalEntry() == null || entry.getJournalEntry().getId() == null) {
+                continue;
+            }
+            negativeCreditByJournalEntry.merge(entry.getJournalEntry().getId(), delta.abs(), BigDecimal::add);
+        }
+        if (negativeCreditByJournalEntry.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<Long, BigDecimal> allocatedByJournalEntry = new HashMap<>();
+        settlementAllocationRepository.findByCompanyAndJournalEntry_IdIn(company, List.copyOf(negativeCreditByJournalEntry.keySet()))
+                .stream()
+                .filter(allocation -> allocation.getInvoice() != null)
+                .filter(allocation -> allocation.getJournalEntry() != null && allocation.getJournalEntry().getId() != null)
+                .forEach(allocation -> allocatedByJournalEntry.merge(
+                        allocation.getJournalEntry().getId(),
+                        safe(allocation.getAllocationAmount()),
+                        BigDecimal::add
+                ));
+
+        Map<Long, BigDecimal> unappliedByJournalEntry = new HashMap<>();
+        negativeCreditByJournalEntry.forEach((journalEntryId, creditAmount) -> {
+            BigDecimal unapplied = creditAmount.subtract(allocatedByJournalEntry.getOrDefault(journalEntryId, BigDecimal.ZERO));
+            if (unapplied.compareTo(BigDecimal.ZERO) > 0) {
+                unappliedByJournalEntry.put(journalEntryId, unapplied);
+            }
+        });
+        return unappliedByJournalEntry;
     }
 
     public AgingSummaryResponse supplierAging(Long supplierId, LocalDate asOf, String bucketParam) {
@@ -395,6 +531,28 @@ public class StatementService {
     }
 
     private record AgingLine(LocalDate date, BigDecimal amount) {
+    }
+
+    private record DealerOverdueInvoiceLine(String invoiceNumber,
+                                            LocalDate issueDate,
+                                            LocalDate dueDate,
+                                            LocalDate agingDate,
+                                            long daysOverdue,
+                                            boolean overdue,
+                                            BigDecimal outstandingAmount,
+                                            long sequence) {
+        private DealerOverdueInvoiceLine withOutstandingAmount(BigDecimal amount) {
+            return new DealerOverdueInvoiceLine(
+                    invoiceNumber,
+                    issueDate,
+                    dueDate,
+                    agingDate,
+                    daysOverdue,
+                    overdue,
+                    amount,
+                    sequence
+            );
+        }
     }
 
     private BigDecimal safe(BigDecimal val) {

@@ -2,21 +2,23 @@ package com.bigbrightpaints.erp.modules.sales.dto;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-class CreditRequestDecisionRequestTest {
+@Tag("critical")
+class CreditLimitRequestDecisionRequestTest {
 
     @Test
     void canonicalConstructor_exposesReasonAccessor() {
-        CreditRequestDecisionRequest request = new CreditRequestDecisionRequest("Risk cleared by finance");
+        CreditLimitRequestDecisionRequest request = new CreditLimitRequestDecisionRequest("Risk cleared by finance");
 
         assertThat(request.reason()).isEqualTo("Risk cleared by finance");
     }
 
     @Test
     void equalsAndHashCode_sameReason_areEqual() {
-        CreditRequestDecisionRequest one = new CreditRequestDecisionRequest("Approved");
-        CreditRequestDecisionRequest two = new CreditRequestDecisionRequest("Approved");
+        CreditLimitRequestDecisionRequest one = new CreditLimitRequestDecisionRequest("Approved");
+        CreditLimitRequestDecisionRequest two = new CreditLimitRequestDecisionRequest("Approved");
 
         assertThat(one).isEqualTo(two);
         assertThat(one.hashCode()).isEqualTo(two.hashCode());
@@ -24,8 +26,8 @@ class CreditRequestDecisionRequestTest {
 
     @Test
     void equalsAndHashCode_differentReason_areNotEqual() {
-        CreditRequestDecisionRequest approved = new CreditRequestDecisionRequest("Approved");
-        CreditRequestDecisionRequest rejected = new CreditRequestDecisionRequest("Rejected");
+        CreditLimitRequestDecisionRequest approved = new CreditLimitRequestDecisionRequest("Approved");
+        CreditLimitRequestDecisionRequest rejected = new CreditLimitRequestDecisionRequest("Rejected");
 
         assertThat(approved).isNotEqualTo(rejected);
         assertThat(approved.hashCode()).isNotEqualTo(rejected.hashCode());
@@ -33,7 +35,7 @@ class CreditRequestDecisionRequestTest {
 
     @Test
     void toString_includesRecordComponentValue() {
-        CreditRequestDecisionRequest request = new CreditRequestDecisionRequest("Manual override");
+        CreditLimitRequestDecisionRequest request = new CreditLimitRequestDecisionRequest("Manual override");
 
         assertThat(request.toString()).contains("reason=Manual override");
     }

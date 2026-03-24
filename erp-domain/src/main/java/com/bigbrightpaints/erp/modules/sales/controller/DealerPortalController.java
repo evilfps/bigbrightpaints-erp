@@ -2,9 +2,12 @@ package com.bigbrightpaints.erp.modules.sales.controller;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
-import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.modules.sales.service.DealerPortalService;
+import com.bigbrightpaints.erp.modules.sales.service.CreditLimitRequestService;
+import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitRequestCreateRequest;
+import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitRequestDto;
+import com.bigbrightpaints.erp.modules.sales.dto.DealerPortalCreditLimitRequestCreateRequest;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,14 +15,15 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.HashMap;
 import java.util.Map;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -32,15 +36,15 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize(PortalRoleActionMatrix.DEALER_ONLY)
 public class DealerPortalController {
 
-    private static final String DEALER_PORTAL_READ_ONLY_MESSAGE =
-            "Dealer portal is read-only. Ask your sales or admin contact to review credit-limit changes.";
-
     private final DealerPortalService dealerPortalService;
+    private final CreditLimitRequestService creditLimitRequestService;
     private final AuditService auditService;
 
     public DealerPortalController(DealerPortalService dealerPortalService,
+                                  CreditLimitRequestService creditLimitRequestService,
                                   AuditService auditService) {
         this.dealerPortalService = dealerPortalService;
+        this.creditLimitRequestService = creditLimitRequestService;
         this.auditService = auditService;
     }
 
@@ -92,14 +96,18 @@ public class DealerPortalController {
     /**
      * Submit a dealer-scoped credit-limit increase request.
      */
-    @PostMapping("/credit-requests")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> createCreditRequest() {
-        Map<String, Object> data = new HashMap<>();
-        data.put("code", ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS.getCode());
-        data.put("message", DEALER_PORTAL_READ_ONLY_MESSAGE);
-        data.put("reason", "DEALER_PORTAL_READ_ONLY");
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.failure(DEALER_PORTAL_READ_ONLY_MESSAGE, data));
+    @PostMapping("/credit-limit-requests")
+    public ResponseEntity<ApiResponse<CreditLimitRequestDto>> createCreditLimitRequest(
+            @Valid @RequestBody DealerPortalCreditLimitRequestCreateRequest request) {
+        Long dealerId = dealerPortalService.getCurrentDealer().getId();
+        DealerPortalService.RequesterIdentity requesterIdentity = dealerPortalService.getCurrentRequesterIdentity();
+        CreditLimitRequestDto response = creditLimitRequestService.createRequest(new CreditLimitRequestCreateRequest(
+                dealerId,
+                request.amountRequested(),
+                request.reason()),
+                requesterIdentity.userId(),
+                requesterIdentity.email());
+        return ResponseEntity.ok(ApiResponse.success("Credit limit request submitted", response));
     }
 
     /**

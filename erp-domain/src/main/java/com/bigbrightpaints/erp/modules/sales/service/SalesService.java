@@ -27,8 +27,6 @@ import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderStatusHistoryRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesTargetRepository;
-import com.bigbrightpaints.erp.modules.sales.dto.CreditRequestDto;
-import com.bigbrightpaints.erp.modules.sales.dto.CreditRequestRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerDto;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
@@ -278,26 +276,6 @@ public class SalesService {
 
     public void deleteTarget(Long id, String reason) {
         salesCoreEngine.deleteTarget(id, reason);
-    }
-
-    public List<CreditRequestDto> listCreditRequests() {
-        return salesDealerCrudService.listCreditRequests();
-    }
-
-    public CreditRequestDto createCreditRequest(CreditRequestRequest request) {
-        return salesDealerCrudService.createCreditRequest(request);
-    }
-
-    public CreditRequestDto updateCreditRequest(Long id, CreditRequestRequest request) {
-        return salesDealerCrudService.updateCreditRequest(id, request);
-    }
-
-    public CreditRequestDto approveCreditRequest(Long id, String decisionReason) {
-        return salesDealerCrudService.approveCreditRequest(id, decisionReason);
-    }
-
-    public CreditRequestDto rejectCreditRequest(Long id, String decisionReason) {
-        return salesDealerCrudService.rejectCreditRequest(id, decisionReason);
     }
 
     @SuppressWarnings("unused")

@@ -36,11 +36,11 @@ class PortalRoleActionMatrixTest {
     }
 
     @Test
-    void resolveAccessDeniedMessage_marksDealerPortalAsReadOnly() {
+    void resolveAccessDeniedMessage_returnsNullForDealerCreditLimitRequestCreation() {
         assertThat(PortalRoleActionMatrix.resolveAccessDeniedMessage(
                 authentication("ROLE_DEALER"),
-                request("POST", "/api/v1/dealer-portal/credit-requests")))
-                .isEqualTo("Dealer portal is read-only. Ask your sales or admin contact to review credit-limit changes.");
+                request("POST", "/api/v1/dealer-portal/credit-limit-requests")))
+                .isNull();
     }
 
     @Test
@@ -90,12 +90,12 @@ class PortalRoleActionMatrixTest {
 
         assertThat(PortalRoleActionMatrix.resolveAccessDeniedMessage(
                 authentication("ROLE_DEALER"),
-                request("GET", "/api/v1/dealer-portal/credit-requests")))
+                request("GET", "/api/v1/dealer-portal/credit-limit-requests")))
                 .isNull();
 
         assertThat(PortalRoleActionMatrix.resolveAccessDeniedMessage(
                 authentication("ROLE_ADMIN"),
-                request("POST", "/api/v1/dealer-portal/credit-requests")))
+                request("POST", "/api/v1/dealer-portal/credit-limit-requests")))
                 .isNull();
 
         assertThat(PortalRoleActionMatrix.resolveAccessDeniedMessage(

@@ -7,13 +7,15 @@ import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.GstRegistrationType;
+import com.bigbrightpaints.erp.modules.accounting.dto.AgingBucketDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
+import com.bigbrightpaints.erp.modules.accounting.dto.OverdueInvoiceDto;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
+import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
-import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
-import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerPaymentTerms;
@@ -27,8 +29,6 @@ import jakarta.transaction.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.security.SecureRandom;
-import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -56,6 +56,7 @@ public class DealerService {
     private static final String SPECIAL = "!@#$%^&*";
     private static final String ALL = LOWER + UPPER + DIGITS + SPECIAL;
     private static final Pattern GSTIN_PATTERN = Pattern.compile("^[0-9]{2}[A-Z0-9]{13}$");
+    private static final String PORTAL_AGING_BUCKETS = "0-0,1-30,31-60,61-90,91";
 
     private final DealerRepository dealerRepository;
     private final CompanyContextService companyContextService;
@@ -65,7 +66,7 @@ public class DealerService {
     private final EmailService emailService;
     private final AccountRepository accountRepository;
     private final DealerLedgerService dealerLedgerService;
-    private final InvoiceRepository invoiceRepository;
+    private final StatementService statementService;
     private final SalesOrderRepository salesOrderRepository;
     private final CompanyClock companyClock;
 
@@ -77,7 +78,7 @@ public class DealerService {
                          EmailService emailService,
                          AccountRepository accountRepository,
                          DealerLedgerService dealerLedgerService,
-                         InvoiceRepository invoiceRepository,
+                         StatementService statementService,
                          SalesOrderRepository salesOrderRepository,
                          CompanyClock companyClock) {
         this.dealerRepository = dealerRepository;
@@ -88,7 +89,7 @@ public class DealerService {
         this.emailService = emailService;
         this.accountRepository = accountRepository;
         this.dealerLedgerService = dealerLedgerService;
-        this.invoiceRepository = invoiceRepository;
+        this.statementService = statementService;
         this.salesOrderRepository = salesOrderRepository;
         this.companyClock = companyClock;
     }
@@ -260,9 +261,10 @@ public class DealerService {
         Dealer dealer = requireDealerForRead(company, dealerId);
 
         BigDecimal outstanding = dealerLedgerService.currentBalance(dealerId);
+        BigDecimal creditOutstanding = outstanding.max(BigDecimal.ZERO);
         BigDecimal pendingOrderExposure = resolvePendingOrderExposure(dealer);
         BigDecimal creditLimit = dealer.getCreditLimit() != null ? dealer.getCreditLimit() : BigDecimal.ZERO;
-        BigDecimal creditUsed = outstanding.add(pendingOrderExposure);
+        BigDecimal creditUsed = creditOutstanding.add(pendingOrderExposure);
         BigDecimal availableCredit = creditLimit.subtract(creditUsed);
         if (availableCredit.compareTo(BigDecimal.ZERO) < 0) {
             availableCredit = BigDecimal.ZERO;
@@ -284,57 +286,14 @@ public class DealerService {
     public Map<String, Object> agingSummary(Long dealerId) {
         Company company = companyContextService.requireCurrentCompany();
         Dealer dealer = requireDealerForRead(company, dealerId);
-
-        LocalDate today = companyClock.today(company);
-        List<Invoice> invoices = invoiceRepository.findByCompanyAndDealerOrderByIssueDateDesc(company, dealer);
-
-        BigDecimal current = BigDecimal.ZERO;
-        BigDecimal days1to30 = BigDecimal.ZERO;
-        BigDecimal days31to60 = BigDecimal.ZERO;
-        BigDecimal days61to90 = BigDecimal.ZERO;
-        BigDecimal over90 = BigDecimal.ZERO;
-        BigDecimal totalOutstanding = BigDecimal.ZERO;
-        List<Map<String, Object>> overdueInvoices = new ArrayList<>();
-
-        for (Invoice invoice : invoices) {
-            BigDecimal outstanding = invoice.getOutstandingAmount();
-            if (outstanding == null || outstanding.compareTo(BigDecimal.ZERO) <= 0) {
-                continue;
-            }
-
-            totalOutstanding = totalOutstanding.add(outstanding);
-            LocalDate dueDate = invoice.getDueDate();
-            if (dueDate == null || !today.isAfter(dueDate)) {
-                current = current.add(outstanding);
-                continue;
-            }
-
-            long daysOverdue = ChronoUnit.DAYS.between(dueDate, today);
-            if (daysOverdue <= 30) {
-                days1to30 = days1to30.add(outstanding);
-            } else if (daysOverdue <= 60) {
-                days31to60 = days31to60.add(outstanding);
-            } else if (daysOverdue <= 90) {
-                days61to90 = days61to90.add(outstanding);
-            } else {
-                over90 = over90.add(outstanding);
-            }
-
-            Map<String, Object> overdueLine = new LinkedHashMap<>();
-            overdueLine.put("invoiceNumber", invoice.getInvoiceNumber());
-            overdueLine.put("issueDate", invoice.getIssueDate());
-            overdueLine.put("dueDate", dueDate);
-            overdueLine.put("daysOverdue", daysOverdue);
-            overdueLine.put("outstandingAmount", outstanding);
-            overdueInvoices.add(overdueLine);
-        }
-
-        Map<String, Object> buckets = new LinkedHashMap<>();
-        buckets.put("current", current);
-        buckets.put("1-30 days", days1to30);
-        buckets.put("31-60 days", days31to60);
-        buckets.put("61-90 days", days61to90);
-        buckets.put("90+ days", over90);
+        AgingSummaryResponse aging = statementService.dealerAging(
+                dealer,
+                companyClock.today(company),
+                PORTAL_AGING_BUCKETS);
+        Map<String, Object> buckets = toPortalAgingBuckets(aging);
+        List<Map<String, Object>> overdueInvoices = toOverdueInvoicePayload(
+                statementService.dealerOverdueInvoices(dealer, companyClock.today(company)));
+        BigDecimal totalOutstanding = aging.totalOutstanding() != null ? aging.totalOutstanding() : BigDecimal.ZERO;
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("dealerId", dealer.getId());
@@ -532,5 +491,69 @@ public class DealerService {
 
     private BigDecimal safe(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private Map<String, Object> toPortalAgingBuckets(AgingSummaryResponse aging) {
+        Map<String, Object> buckets = new LinkedHashMap<>();
+        buckets.put("current", BigDecimal.ZERO);
+        buckets.put("1-30 days", BigDecimal.ZERO);
+        buckets.put("31-60 days", BigDecimal.ZERO);
+        buckets.put("61-90 days", BigDecimal.ZERO);
+        buckets.put("90+ days", BigDecimal.ZERO);
+        if (aging == null || aging.buckets() == null) {
+            return buckets;
+        }
+        for (AgingBucketDto bucket : aging.buckets()) {
+            if (bucket == null || bucket.amount() == null) {
+                continue;
+            }
+            String key = resolvePortalAgingBucketKey(bucket);
+            if (key != null) {
+                buckets.put(key, bucket.amount());
+            }
+        }
+        return buckets;
+    }
+
+    private String resolvePortalAgingBucketKey(AgingBucketDto bucket) {
+        if (bucket == null || "Credit Balance".equals(bucket.label())) {
+            return null;
+        }
+        if (bucket.fromDays() == 0 && Integer.valueOf(0).equals(bucket.toDays())) {
+            return "current";
+        }
+        if (bucket.fromDays() == 1 && Integer.valueOf(30).equals(bucket.toDays())) {
+            return "1-30 days";
+        }
+        if (bucket.fromDays() == 31 && Integer.valueOf(60).equals(bucket.toDays())) {
+            return "31-60 days";
+        }
+        if (bucket.fromDays() == 61 && Integer.valueOf(90).equals(bucket.toDays())) {
+            return "61-90 days";
+        }
+        if (bucket.fromDays() == 91 && bucket.toDays() == null) {
+            return "90+ days";
+        }
+        return null;
+    }
+
+    private List<Map<String, Object>> toOverdueInvoicePayload(List<OverdueInvoiceDto> overdueInvoices) {
+        if (overdueInvoices == null || overdueInvoices.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (OverdueInvoiceDto overdueInvoice : overdueInvoices) {
+            if (overdueInvoice == null) {
+                continue;
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("invoiceNumber", overdueInvoice.invoiceNumber());
+            row.put("issueDate", overdueInvoice.issueDate());
+            row.put("dueDate", overdueInvoice.dueDate());
+            row.put("daysOverdue", overdueInvoice.daysOverdue());
+            row.put("outstandingAmount", overdueInvoice.outstandingAmount());
+            rows.add(row);
+        }
+        return rows;
     }
 }
