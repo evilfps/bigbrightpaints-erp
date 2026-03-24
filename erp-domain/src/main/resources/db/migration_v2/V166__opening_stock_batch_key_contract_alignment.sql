@@ -2,6 +2,12 @@ ALTER TABLE public.opening_stock_imports
     ADD COLUMN IF NOT EXISTS opening_stock_batch_key varchar(128),
     ADD COLUMN IF NOT EXISTS results_json text;
 
+DROP INDEX IF EXISTS idx_opening_stock_import_company_batch_key;
+DROP INDEX IF EXISTS idx_opening_stock_imports_company_batch_key;
+DROP INDEX IF EXISTS idx_opening_stock_imports_replay_protection;
+DROP INDEX IF EXISTS uq_opening_stock_imports_company_batch_key;
+DROP INDEX IF EXISTS uq_opening_stock_imports_company_replay_key;
+
 UPDATE public.opening_stock_imports
 SET opening_stock_batch_key = idempotency_key
 WHERE COALESCE(trim(opening_stock_batch_key), '') = ''
@@ -72,11 +78,6 @@ WHERE imports.id = deduplicated_batch_keys.id;
 ALTER TABLE public.opening_stock_imports
     ALTER COLUMN opening_stock_batch_key SET NOT NULL;
 
-DROP INDEX IF EXISTS idx_opening_stock_import_company_batch_key;
-DROP INDEX IF EXISTS idx_opening_stock_imports_company_batch_key;
-DROP INDEX IF EXISTS idx_opening_stock_imports_replay_protection;
-DROP INDEX IF EXISTS uq_opening_stock_imports_company_batch_key;
-DROP INDEX IF EXISTS uq_opening_stock_imports_company_replay_key;
 ALTER TABLE public.opening_stock_imports DROP COLUMN IF EXISTS replay_protection_key;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_opening_stock_import_company_batch_key
