@@ -2,7 +2,7 @@
 
 ## Scope
 - Feature: `ERP-36 opening-stock v2 contract alignment`
-- PR: `pending creation`
+- PR: `#140`
 - PR branch: `fix/erp-36-v166-ordering`
 - Review candidate: update `migration_v2/V166__opening_stock_batch_key_contract_alignment.sql` so it drops the legacy partial batch-key/replay indexes before rewriting rows, then strengthen the truth-suite contract guard to lock the critical migration order.
 - Why this is R2: this packet edits a merged `migration_v2` file in place to prevent tenant-upgrade failure on mixed legacy/new-history opening-stock data, while still dropping the legacy replay contract after the hard cut.
@@ -44,6 +44,6 @@
   - targeted truth-suite proof covers the critical order: drop legacy unique index before batch-key rewrite, keep replay column until the end, then recreate the final unique index
   - `bash ci/check-enterprise-policy.sh` passed locally after the follow-up packet refreshed the migration/rollback runbooks and R2 evidence
 - Artifacts/links:
-  - PR: `pending creation`
-  - Head commit: `pending local follow-up commit`
+  - PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/140`
+  - Head commit: `d1970d1c`
   - Worktree: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-36-strict-cleanup-followup`
