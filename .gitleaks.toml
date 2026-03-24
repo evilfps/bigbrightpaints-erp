@@ -1,0 +1,42 @@
+# Gitleaks configuration for BigBright Paints ERP
+# https://github.com/gitleaks/gitleaks#configuration
+
+title = "BigBright Paints ERP Gitleaks Config"
+
+[allowlist]
+description = "Allowlist for known non-secret placeholders in templates and examples"
+paths = [
+  # Example/template configuration files with placeholder values
+  '\.env\.example$',
+  '\.env\.prod\.template$',
+  'docker-compose\.yml$',
+  # Application config with placeholder defaults
+  'erp-domain/src/main/resources/application-dev\.yml$',
+  'erp-domain/src/main/resources/application-mock\.yml$',
+  'erp-domain/src/main/resources/application-validation-seed\.yml$',
+  # Test fixtures that may contain mock credentials
+  'erp-domain/src/test/.*',
+  # Documentation
+  'docs/.*\.md$',
+  'README\.md$',
+  'AGENTS\.md$',
+  # Historical evidence ledger (contains log excerpts)
+  'asyncloop$',
+]
+regexes = [
+  # Known placeholder patterns
+  'YOUR_JWT_SECRET_HERE',
+  'YOUR_ENCRYPTION_KEY_HERE',
+  'REPLACE_WITH_64_CHAR_RANDOM_SECRET',
+  'REPLACE_WITH_32_PLUS_BYTE_RANDOM_KEY',
+  'REPLACE_WITH_STRONG_AUDIT_PRIVATE_KEY',
+  'CHANGE-ME-LICENSE',
+  'change-me',
+  'replace-me',
+  'dev-audit-private-key',
+  # Default dev/test credentials
+  'erp$',  # default dev DB password
+  'guest$',  # default RabbitMQ password
+  'mailhog$',  # default Mailhog password
+  'postgres$',  # default dev DB password in application-dev.yml
+]
