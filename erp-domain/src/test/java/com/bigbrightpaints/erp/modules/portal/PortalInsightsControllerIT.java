@@ -6,6 +6,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyModule;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTask;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTaskRepository;
@@ -105,6 +106,7 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
         String codeSuffix = seedSuffix.substring(Math.max(0, seedSuffix.length() - 6));
 
         company = dataSeeder.ensureCompany(COMPANY_CODE, "Acme Corp");
+        company = enableModule(company, CompanyModule.HR_PAYROLL);
         dataSeeder.ensureUser(ADMIN_EMAIL, ADMIN_PASSWORD, "Admin", COMPANY_CODE, List.of("ROLE_ADMIN"));
         dataSeeder.ensureUser(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, "Super Admin", COMPANY_CODE, List.of("ROLE_SUPER_ADMIN"));
         userAccountRepository.findByEmailIgnoreCase(ADMIN_EMAIL).ifPresent(user -> {
