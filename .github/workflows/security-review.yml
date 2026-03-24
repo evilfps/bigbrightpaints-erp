@@ -1,0 +1,102 @@
+name: Security Review
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  schedule:
+    # Run weekly on Sundays at 03:00 UTC
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java
+          queries: security-extended,security-and-quality
+
+      - name: Build for CodeQL
+        run: |
+          set -euo pipefail
+          cd erp-domain
+          mvn -B -ntp -DskipTests compile
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:java"
+
+  gitleaks:
+    name: Gitleaks Secret Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: true
+
+  security-review-gate:
+    name: Security Review Gate
+    if: always()
+    needs: [codeql, gitleaks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Evaluate security gate
+        env:
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          blocking = {
+              name: data["result"]
+              for name, data in needs.items()
+              if data["result"] not in {"success", "skipped"}
+          }
+
+          if blocking:
+              print("[security-review-gate] FAIL: blocking jobs detected")
+              for name, result in sorted(blocking.items()):
+                  print(f"  - {name}: {result}")
+              sys.exit(1)
+
+          print("[security-review-gate] OK: all security checks passed or were skipped")
+          PY

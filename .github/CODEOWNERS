@@ -1,0 +1,23 @@
+# CODEOWNERS - BigBright Paints ERP
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repo
+* @anasibnanwar-XYE
+
+# CI/CD and GitHub automation - require review for workflow changes
+.github/ @anasibnanwar-XYE
+ci/ @anasibnanwar-XYE
+
+# Core domain source code
+erp-domain/ @anasibnanwar-XYE
+
+# Infrastructure and scripts
+scripts/ @anasibnanwar-XYE
+docker-compose.yml @anasibnanwar-XYE
+
+# Testing infrastructure
+testing/ @anasibnanwar-XYE
+
+# Documentation
+docs/ @anasibnanwar-XYE
+*.md @anasibnanwar-XYE

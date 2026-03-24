@@ -1,0 +1,56 @@
+version: 2
+updates:
+  # Maven dependencies in erp-domain
+  - package-ecosystem: "maven"
+    directory: "/erp-domain"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    groups:
+      spring-boot:
+        patterns:
+          - "org.springframework.boot:*"
+          - "org.springframework.security:*"
+        update-types:
+          - "minor"
+          - "patch"
+      testcontainers:
+        patterns:
+          - "org.testcontainers:*"
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+      - "java"
+    assignees:
+      - "anasibnanwar-XYE"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+  # GitHub Actions workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    assignees:
+      - "anasibnanwar-XYE"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
