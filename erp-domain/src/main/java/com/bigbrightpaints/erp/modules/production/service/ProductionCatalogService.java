@@ -213,8 +213,7 @@ public class ProductionCatalogService {
     this.skuReadinessService = skuReadinessService;
     this.transactionTemplate = new TransactionTemplate(transactionManager);
     this.rowTransactionTemplate = new TransactionTemplate(transactionManager);
-    this.rowTransactionTemplate.setPropagationBehavior(
-        TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    this.rowTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
   }
 
   public CatalogImportResponse importCatalog(MultipartFile file) {
@@ -254,10 +253,7 @@ public class ProductionCatalogService {
       if (!isDataIntegrityViolation(ex)) {
         throw ex;
       }
-      CatalogImport concurrent =
-          catalogImportRepository
-              .findByCompanyAndIdempotencyKey(company, normalizedKey)
-              .orElseThrow(() -> ex);
+      CatalogImport concurrent = catalogImportRepository.findByCompanyAndIdempotencyKey(company, normalizedKey).orElseThrow(() -> ex);
       assertIdempotencyMatch(concurrent, fileHash, normalizedKey);
       return toResponse(concurrent);
     }
@@ -378,8 +374,7 @@ public class ProductionCatalogService {
     RuntimeException lastError = null;
     for (int attempt = 1; attempt <= 2; attempt++) {
       try {
-        ProcessOutcome outcome =
-            rowTransactionTemplate.execute(status -> upsertProduct(company, importRow, context));
+        ProcessOutcome outcome = rowTransactionTemplate.execute(status -> upsertProduct(company, importRow, context));
         if (outcome == null) {
           throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
               "Catalog import row did not return an outcome");

@@ -252,11 +252,10 @@ public class PackagingMaterialService {
       PackingRecord packingRecord) {
     List<RawMaterialBatch> batches =
         rawMaterialBatchRepository.findAvailableBatchesFIFO(rawMaterial);
-    BigDecimal weightedAverageCost =
-        CostingMethodUtils.selectWeightedAverageValue(
-            rawMaterial.getCostingMethod(),
-            () -> rawMaterialBatchRepository.calculateWeightedAverageCost(rawMaterial),
-            () -> null);
+    BigDecimal weightedAverageCost = CostingMethodUtils.selectWeightedAverageValue(
+        rawMaterial.getCostingMethod(),
+        () -> rawMaterialBatchRepository.calculateWeightedAverageCost(rawMaterial),
+        () -> null);
     BigDecimal remaining = requiredQty;
     BigDecimal totalCost = BigDecimal.ZERO;
 
@@ -269,10 +268,7 @@ public class PackagingMaterialService {
         continue;
       }
       BigDecimal take = available.min(remaining);
-      BigDecimal unitCost =
-          weightedAverageCost != null
-              ? weightedAverageCost
-              : Optional.ofNullable(batch.getCostPerUnit()).orElse(BigDecimal.ZERO);
+      BigDecimal unitCost = weightedAverageCost != null ? weightedAverageCost : Optional.ofNullable(batch.getCostPerUnit()).orElse(BigDecimal.ZERO);
       BigDecimal movementCost = unitCost.multiply(take);
 
       // Atomic deduction

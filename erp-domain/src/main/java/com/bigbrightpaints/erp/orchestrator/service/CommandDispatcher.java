@@ -101,8 +101,7 @@ public class CommandDispatcher {
                   normalizedRequestId,
                   canonicalIdempotencyKey);
           eventPublisherService.enqueue(event);
-          traceService.record(
-              traceId,
+          traceService.record(traceId,
               "ORDER_APPROVED",
               companyId,
               Map.of("orderId", request.orderId(), "idempotencyKey", canonicalIdempotencyKey),
@@ -387,12 +386,8 @@ public class CommandDispatcher {
       String workflowName,
       String requestId) {
     String normalizedRequestId = normalizeRequestId(requestId, idempotencyKey);
-    OrchestratorIdempotencyService.CommandLease lease =
-        idempotencyService.start(
-            commandName,
-            idempotencyKey,
-            payload,
-            () -> workflowService.startWorkflow(workflowName));
+    OrchestratorIdempotencyService.CommandLease lease = idempotencyService.start(
+        commandName, idempotencyKey, payload, () -> workflowService.startWorkflow(workflowName));
     String canonicalIdempotencyKey = canonicalIdempotencyKey(lease, idempotencyKey);
     return new LeaseEnvelope(lease, normalizedRequestId, canonicalIdempotencyKey);
   }
