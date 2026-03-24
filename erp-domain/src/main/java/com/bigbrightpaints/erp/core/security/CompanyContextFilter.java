@@ -570,7 +570,8 @@ public class CompanyContextFilter extends OncePerRequestFilter {
                 : lifecycleState;
         return switch (resolvedState) {
             case ACTIVE -> false;
-            case SUSPENDED, DEACTIVATED -> true;
+            case SUSPENDED -> isMutatingRequest(method);
+            case DEACTIVATED -> true;
         };
     }
 
@@ -582,6 +583,16 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             case ACTIVE -> "Tenant lifecycle state allows access";
             case SUSPENDED -> "Tenant is suspended";
             case DEACTIVATED -> "Tenant is deactivated";
+        };
+    }
+
+    private boolean isMutatingRequest(String method) {
+        if (!StringUtils.hasText(method)) {
+            return true;
+        }
+        return switch (method.trim().toUpperCase()) {
+            case "GET", "HEAD", "OPTIONS", "TRACE" -> false;
+            default -> true;
         };
     }
 }

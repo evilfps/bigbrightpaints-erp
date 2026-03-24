@@ -286,7 +286,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void super_admin_can_hold_and_block_tenant_and_hold_lifecycle_denies_authenticated_access() throws InterruptedException {
+    void super_admin_can_hold_and_block_tenant_and_hold_lifecycle_allows_authenticated_reads_until_blocked() throws InterruptedException {
         String adminToken = login(ADMIN_EMAIL, TENANT_A);
         String superToken = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
         Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
@@ -320,10 +320,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 HttpMethod.GET,
                 new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
                 Map.class);
-        assertControlledAccessDenied(
-                meDuringHold,
-                "TENANT_LIFECYCLE_RESTRICTED",
-                "Tenant is suspended");
+        assertThat(meDuringHold.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         String blockReason = "Critical security incident";
         ResponseEntity<Map> blockResponse = updateLifecycleState(tenantAId, superToken, ROOT_TENANT, "BLOCKED", blockReason);
