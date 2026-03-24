@@ -1,0 +1,180 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'release-[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+jobs:
+  release-notes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          # Remove 'release-' prefix if present
+          VERSION="${VERSION#release-}"
+          # Remove 'v' prefix if present
+          VERSION="${VERSION#v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release notes
+        id: notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+
+          # Get the previous tag for comparison
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          # Generate release notes from commits
+          NOTES_FILE="release-notes.md"
+          {
+            echo "## Release ${VERSION}"
+            echo ""
+            echo "**Released:** $(date -u +"%Y-%m-%d")"
+            echo ""
+
+            if [[ -n "$PREVIOUS_TAG" ]]; then
+              echo "### Changes since ${PREVIOUS_TAG}"
+              echo ""
+              echo "#### Commits"
+              git log --pretty=format:"- %s (%h)" ${PREVIOUS_TAG}..HEAD --no-merges 2>/dev/null || echo "- Initial release"
+              echo ""
+              echo ""
+            else
+              echo "### Initial Release"
+              echo ""
+            fi
+
+            echo "### Contributors"
+            echo ""
+            if [[ -n "$PREVIOUS_TAG" ]]; then
+              git log --pretty=format:"- @%an" ${PREVIOUS_TAG}..HEAD --no-merges | sort -u | head -20
+            else
+              git log --pretty=format:"- @%an" --no-merges | sort -u | head -20
+            fi
+            echo ""
+          } > "$NOTES_FILE"
+
+          echo "notes_file=${NOTES_FILE}" >> "$GITHUB_OUTPUT"
+          cat "$NOTES_FILE"
+
+      - name: Update CHANGELOG
+        run: |
+          CHANGELOG_FILE="CHANGELOG.md"
+          NOTES_FILE="${{ steps.notes.outputs.notes_file }}"
+
+          # Create changelog header if file doesn't exist
+          if [[ ! -f "$CHANGELOG_FILE" ]]; then
+            {
+              echo "# Changelog"
+              echo ""
+              echo "All notable changes to this project will be documented in this file."
+              echo ""
+            } > "$CHANGELOG_FILE"
+          fi
+
+          # Prepend new release notes to changelog
+          TEMP_FILE=$(mktemp)
+          {
+            head -n 4 "$CHANGELOG_FILE"
+            echo ""
+            cat "$NOTES_FILE"
+            echo ""
+            tail -n +5 "$CHANGELOG_FILE"
+          } > "$TEMP_FILE"
+          mv "$TEMP_FILE" "$CHANGELOG_FILE"
+
+          # Clean up
+          rm -f "$NOTES_FILE"
+
+      - name: Commit changelog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git diff --cached --quiet || git commit -m "docs: update CHANGELOG for release ${{ steps.version.outputs.version }}"
+          git push origin HEAD:main || echo "Changelog push skipped (may be protected branch)"
+
+      - name: Create or update GitHub Release
+        if: github.event_name != 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          NOTES_FILE="release-notes.md"
+
+          # Regenerate notes file for the release
+          {
+            echo "## Release ${{ steps.version.outputs.version }}"
+            echo ""
+            echo "**Released:** $(date -u +"%Y-%m-%d")"
+            echo ""
+
+            PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+            if [[ -n "$PREVIOUS_TAG" ]]; then
+              echo "### Changes since ${PREVIOUS_TAG}"
+              echo ""
+              echo "#### Commits"
+              git log --pretty=format:"- %s (%h)" ${PREVIOUS_TAG}..HEAD --no-merges 2>/dev/null || echo "- Initial release"
+              echo ""
+              echo ""
+            else
+              echo "### Initial Release"
+              echo ""
+            fi
+
+            echo "### Contributors"
+            echo ""
+            if [[ -n "$PREVIOUS_TAG" ]]; then
+              git log --pretty=format:"- @%an" ${PREVIOUS_TAG}..HEAD --no-merges | sort -u | head -20
+            else
+              git log --pretty=format:"- @%an" --no-merges | sort -u | head -20
+            fi
+            echo ""
+          } > "$NOTES_FILE"
+
+          # Check if release already exists
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, updating notes..."
+            gh release edit "$TAG" --notes-file "$NOTES_FILE"
+          else
+            echo "Creating new release $TAG..."
+            gh release create "$TAG" \
+              --title "Release ${{ steps.version.outputs.version }}" \
+              --notes-file "$NOTES_FILE" \
+              --target main
+          fi
+
+          rm -f "$NOTES_FILE"
+
+      - name: Summary
+        run: |
+          echo "## Release Notes Generated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Changelog has been updated in CHANGELOG.md" >> $GITHUB_STEP_SUMMARY
