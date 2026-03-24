@@ -1,0 +1,44 @@
+{
+  "milestone": "recovery-local-ci",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [
+    {
+      "target": ".factory/validation/recovery-local-ci/scrutiny/synthesis.json",
+      "description": "Normalized the recorded validator commands to repo-relative paths so the scrutiny evidence is replayable from any checkout root instead of only `/home/realnigga/Desktop/Mission-control`.",
+      "source": "validator-command-portability"
+    }
+  ],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [
+    {
+      "observation": "The scrutiny-feature-reviewer Task droid failed to launch for both recovery-local-ci features with `Invalid model: custom:CLIProxyAPI-5.4-medium`, so the validator completed both feature reviews manually using mission handoffs and commit diffs and still wrote review artifacts.",
+      "reason": "outside-repo-tooling"
+    }
+  ],
+  "previousRound": null
+}

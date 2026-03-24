@@ -48,7 +48,6 @@ public class JwtTokenService {
                 .setId(UUID.randomUUID().toString())
                 .addClaims(claims)
                 .claim("companyCode", companyCode)
-                .claim("cid", companyCode)
                 .claim("iatMs", now.toEpochMilli())
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(expiry))

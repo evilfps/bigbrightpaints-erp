@@ -10,9 +10,11 @@ import org.springframework.data.repository.query.Param;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface ProductionProductRepository extends JpaRepository<ProductionProduct, Long>, JpaSpecificationExecutor<ProductionProduct> {
     Optional<ProductionProduct> findByCompanyAndSkuCode(Company company, String skuCode);
+    Optional<ProductionProduct> findByCompanyAndSkuCodeIgnoreCase(Company company, String skuCode);
     Optional<ProductionProduct> findByCompanyAndId(Company company, Long id);
     Optional<ProductionProduct> findByBrandAndProductNameIgnoreCase(ProductionBrand brand, String productName);
     Optional<ProductionProduct> findTopByCompanyAndSkuCodeStartingWithOrderBySkuCodeDesc(Company company, String prefix);
@@ -21,6 +23,11 @@ public interface ProductionProductRepository extends JpaRepository<ProductionPro
 
     @EntityGraph(attributePaths = "brand")
     List<ProductionProduct> findByBrandOrderByProductNameAsc(ProductionBrand brand);
+
+    @EntityGraph(attributePaths = "brand")
+    List<ProductionProduct> findByCompanyAndVariantGroupIdOrderByProductNameAsc(Company company, UUID variantGroupId);
+
+    long countByCompanyAndVariantGroupId(Company company, UUID variantGroupId);
 
     List<ProductionProduct> findByCompanyAndSkuCodeIn(Company company, Collection<String> skuCodes);
 

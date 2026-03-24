@@ -311,8 +311,12 @@ public class ProductionLogService {
                                                 ProductionLog log,
                                                 ProductionLogRequest.MaterialUsageRequest usage) {
         BigDecimal qty = positive(usage.quantity(), "materials.quantity");
-        RawMaterial rawMaterial = rawMaterialRepository.lockByCompanyAndId(company, usage.rawMaterialId())
-                .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Raw material not found"));
+        RawMaterial rawMaterial;
+        try {
+            rawMaterial = companyEntityLookup.lockActiveRawMaterial(company, usage.rawMaterialId());
+        } catch (IllegalArgumentException ex) {
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Raw material not found");
+        }
         if (rawMaterial.getCurrentStock().compareTo(qty) < 0) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                     "Insufficient stock for " + rawMaterial.getName());

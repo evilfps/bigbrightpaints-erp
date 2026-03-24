@@ -15,6 +15,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepan
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
+import com.bigbrightpaints.erp.modules.accounting.internal.AccountingPeriodServiceCore;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import java.time.LocalDate;
@@ -24,6 +25,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
@@ -160,9 +162,26 @@ public class AccountingPeriodService extends AccountingPeriodServiceCore {
     }
 
     @Override
+    @Transactional
     public AccountingPeriodDto reopenPeriod(Long periodId, AccountingPeriodReopenRequest request) {
         requireSuperAdminRole();
         return super.reopenPeriod(periodId, request);
+    }
+
+    @Override
+    @Transactional
+    public AccountingPeriodDto approvePeriodClose(Long periodId,
+                                                  com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest request) {
+        requireAdminRole();
+        return super.approvePeriodClose(periodId, request);
+    }
+
+    @Override
+    @Transactional
+    public com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestDto rejectPeriodClose(Long periodId,
+                                                                                                   com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest request) {
+        requireAdminRole();
+        return super.rejectPeriodClose(periodId, request);
     }
 
     @Override
@@ -180,6 +199,21 @@ public class AccountingPeriodService extends AccountingPeriodServiceCore {
                 .anyMatch(authority -> "ROLE_SUPER_ADMIN".equalsIgnoreCase(authority.getAuthority()));
         if (!hasSuperAdmin) {
             throw new ApplicationException(ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS, SUPER_ADMIN_REQUIRED_MESSAGE);
+        }
+    }
+
+    private void requireAdminRole() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new ApplicationException(ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS,
+                    "ROLE_ADMIN authority required to approve or reject period close requests");
+        }
+        boolean hasAdmin = authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equalsIgnoreCase(authority.getAuthority())
+                        || "ROLE_SUPER_ADMIN".equalsIgnoreCase(authority.getAuthority()));
+        if (!hasAdmin) {
+            throw new ApplicationException(ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS,
+                    "ROLE_ADMIN authority required to approve or reject period close requests");
         }
     }
 }

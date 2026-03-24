@@ -409,6 +409,7 @@ public class DealerPortalService {
     private boolean contributesPendingCreditExposure(SalesOrder order, Set<Long> activeInvoicedOrderIds) {
         return order != null
                 && (activeInvoicedOrderIds == null || !activeInvoicedOrderIds.contains(order.getId()))
+                && !"CASH".equalsIgnoreCase(order.getPaymentMode())
                 && SalesOrderCreditExposurePolicy.isPendingCreditExposureStatus(order.getStatus());
     }
 

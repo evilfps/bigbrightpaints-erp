@@ -28,7 +28,7 @@ set +e
 (
   cd "$ROOT_DIR/erp-domain"
   rm -rf target/pit-reports target/surefire-reports target/site/jacoco target/jacoco.exec
-  mvn -B -ntp -Pgate-quality -Dpitest.skip=false org.pitest:pitest-maven:mutationCoverage
+  mvn -B -ntp -Pgate-quality -Dpitest.skip=false test-compile org.pitest:pitest-maven:mutationCoverage
 )
 pit_cmd_status=$?
 set -e

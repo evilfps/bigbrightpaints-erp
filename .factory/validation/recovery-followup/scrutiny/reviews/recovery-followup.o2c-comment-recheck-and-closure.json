@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-followup.o2c-comment-recheck-and-closure",
+  "reviewedAt": "2026-03-09T20:52:02Z",
+  "commitId": "528f3e66",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review passed. Reviewed the worker handoff for commit 528f3e66, validated the reported scope and verification evidence, and checked the committed diff shape for the feature. Updated SalesCoreEngine so commercially clear create/update flows now sync factory dispatch readiness by reserving inventory-backed packaging slips when shortages are cleared and releasing stale reservations when shortages remain, keeping the factory queue workable without adding any SPLIT-era compatibility bridge. Updated DispatchController factory redaction to null out aggregate preview totals and defensively strip line unit costs from factory slip views, then refreshed unit/integration tests to cover the new behavior and removed stale InvoiceServiceTest stubs that no longer match the dispatch-owned invoice boundary. Non-blocking follow-up remains limited to remote PR reruns or stale GitHub checks, not local code defects.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Re-read PR #97 review threads on recovery/03-o2c-truth, kept the Hard-Cut stance on the SPLIT compatibility comment, and fixed the still-applicable factory dispatch/redaction gaps. Commercially clear orders now keep factory slips actionable, and factory-only dispatch surfaces no longer expose aggregate or line-level monetary data. Targeted O2C validators passed locally on commit 528f3e66."
+}

@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -34,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -42,6 +44,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class CompanyContextFilterControlPlaneBindingTest {
 
     private static final String CONTROL_PLANE_AUTH_DENIED_MESSAGE = "Access denied to company control request";
@@ -132,6 +135,45 @@ class CompanyContextFilterControlPlaneBindingTest {
     }
 
     @Test
+    void auditTenantWorkflowRequest_rejectsTenantAttachedSuperAdminAsPlatformOnly()
+            throws ServletException, IOException {
+        authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
+
+        MockHttpServletRequest request = request("GET", "/api/v1/audit/business-events");
+        request.setAttribute("jwtClaims", claimsFor("TENANT-A"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_TENANT_WORKFLOW_DENIED");
+        assertThat(response.getContentAsString()).contains("tenant audit workflow");
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
+    void supportTenantWorkflowRequest_rejectsTenantAttachedSuperAdminAsPlatformOnly()
+            throws ServletException, IOException {
+        authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
+
+        MockHttpServletRequest request = request("GET", "/api/v1/support/tickets");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+        assertThat(response.getContentAsString()).contains("platform control-plane operations");
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
     void lifecycleControlRequest_rejectsNonSuperAdminWhenPathTargetDiffersFromContextCompany()
             throws ServletException, IOException {
         authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ROOT"));
@@ -153,18 +195,18 @@ class CompanyContextFilterControlPlaneBindingTest {
     }
 
     @Test
-    void controlPlaneRequest_returnsUniformForbiddenMessageForForeignAndUnknownTargets()
+    void canonicalRuntimePolicyRequest_returnsUniformForbiddenMessageForForeignAndUnknownTargets()
             throws ServletException, IOException {
         authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ROOT"));
         when(companyService.resolveCompanyCodeById(42L)).thenReturn("TENANT-A");
         when(companyService.resolveCompanyCodeById(404L)).thenReturn(null);
 
-        MockHttpServletRequest foreignTenantRequest = request("PUT", "/api/v1/companies/42");
+        MockHttpServletRequest foreignTenantRequest = request("PUT", "/api/v1/companies/42/tenant-runtime/policy");
         foreignTenantRequest.setAttribute("jwtClaims", claimsFor("ROOT"));
         MockHttpServletResponse foreignTenantResponse = new MockHttpServletResponse();
         filter.doFilter(foreignTenantRequest, foreignTenantResponse, filterChain);
 
-        MockHttpServletRequest unknownTenantRequest = request("PUT", "/api/v1/companies/404");
+        MockHttpServletRequest unknownTenantRequest = request("PUT", "/api/v1/companies/404/tenant-runtime/policy");
         unknownTenantRequest.setAttribute("jwtClaims", claimsFor("ROOT"));
         MockHttpServletResponse unknownTenantResponse = new MockHttpServletResponse();
         filter.doFilter(unknownTenantRequest, unknownTenantResponse, filterChain);
@@ -263,6 +305,74 @@ class CompanyContextFilterControlPlaneBindingTest {
     }
 
     @Test
+    void companyScopedRequest_rejectsLegacyHeaderWithoutCanonicalCompanyCode()
+            throws ServletException, IOException {
+        MockHttpServletRequest request = request("GET", "/api/v1/private");
+        request.addHeader("X-Company-Id", "LEGACY-ONLY");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("COMPANY_CONTEXT_LEGACY_HEADER_UNSUPPORTED");
+        assertThat(response.getContentAsString()).contains("Use X-Company-Code for company context binding");
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
+    void authenticatedRequest_rejectsLegacyCidWithoutCanonicalCompanyCodeClaim()
+            throws ServletException, IOException {
+        authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ACME"));
+
+        Claims claims = mock(Claims.class);
+        when(claims.get("companyCode", String.class)).thenReturn(null);
+        when(claims.get("cid", String.class)).thenReturn("ACME");
+
+        MockHttpServletRequest request = request("GET", "/api/v1/private");
+        request.addHeader("X-Company-Code", "ACME");
+        request.setAttribute("jwtClaims", claims);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("COMPANY_CONTEXT_MISSING");
+        assertThat(response.getContentAsString()).contains("Authenticated token missing company context");
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
+    void authenticatedRequest_rejectsWhenCanonicalClaimDiffersFromHeader()
+            throws ServletException, IOException {
+        authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ACME"));
+
+        Claims claims = mock(Claims.class);
+        when(claims.get("companyCode", String.class)).thenReturn("ACME");
+        when(claims.get("cid", String.class)).thenReturn(null);
+
+        MockHttpServletRequest request = request("GET", "/api/v1/private");
+        request.addHeader("X-Company-Code", "OTHER");
+        request.setAttribute("jwtClaims", claims);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("COMPANY_CONTEXT_MISMATCH");
+        assertThat(response.getContentAsString()).contains("Company header does not match authenticated company context");
+        verifyNoInteractions(companyService);
+        verify(tenantRuntimeEnforcementService, never())
+                .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+        verify(filterChain, never()).doFilter(request, response);
+    }
+
+    @Test
     void extractCompanyIdFromLifecycleControlPath_handlesMalformedAndOverflowValues() {
         assertThat(extractCompanyId(null)).isNull();
         assertThat(extractCompanyId("   ")).isNull();
@@ -299,8 +409,8 @@ class CompanyContextFilterControlPlaneBindingTest {
 
     private Claims claimsFor(String companyCode) {
         Claims claims = mock(Claims.class);
-        when(claims.get("companyCode", String.class)).thenReturn(companyCode);
-        when(claims.get("cid", String.class)).thenReturn(null);
+        lenient().when(claims.get("companyCode", String.class)).thenReturn(companyCode);
+        lenient().when(claims.get("cid", String.class)).thenReturn(null);
         return claims;
     }
 

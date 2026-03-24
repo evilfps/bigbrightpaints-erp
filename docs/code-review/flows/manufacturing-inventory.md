@@ -25,13 +25,27 @@ Primary evidence:
 
 Supporting runtime evidence was degraded in this session: `curl -i -s http://localhost:8081/actuator/health` failed with exit code `7`, so this review relies on static inspection plus existing regression/e2e/truth-suite coverage. Baseline suite `mvn test -Pgate-fast -Djacoco.skip=true` passed before drafting.
 
+## Executable remediation handoff
+
+This review feeds:
+
+- [Lane 03 exec spec](../executable-specs/03-lane-accounting-truth-boundary/EXEC-SPEC.md)
+- [Lane 05 exec spec](../executable-specs/05-lane-catalog-manufacturing/EXEC-SPEC.md)
+
+Planning notes:
+
+- Lane 03 opens with the prove-first boundary note in [`../executable-specs/03-lane-accounting-truth-boundary/00-lane03-boundary-decision-note.md`](../executable-specs/03-lane-accounting-truth-boundary/00-lane03-boundary-decision-note.md); Packet 0 may map manufacturing, packing, dispatch, valuation, and listener surfaces as downstream consumers of accounting truth, but it must not turn this lane-opening slice into catalog/manufacturing runtime cleanup.
+- The downstream consumers called out for Packet 0 are `ProductionLogService`, `PackingService`, `PackingCompletionService`, `BulkPackingService`, `FinishedGoodsDispatchEngine`, and `InventoryValuationService`, all of which must inherit the chosen sales/purchase truth boundary instead of inventing a competing one.
+- `MFG-09` is a real execution blocker for stock-bearing create flows and should be closed before broad catalog authority cleanup.
+- Do not collapse packaging-workbench convergence into the same slice that fixes product, raw-material, or default-account authority paths.
+
 ## Entrypoints
 
 | Surface | Entrypoints | Controller | Notes |
 | --- | --- | --- | --- |
 | Generic catalog CRUD | `POST/GET/PUT/DELETE /api/v1/catalog/brands`, `POST/GET/PUT/DELETE /api/v1/catalog/products`, `POST /api/v1/catalog/products/bulk` | `CatalogController` | Commercial/product-admin surface that manages `ProductionBrand` and `ProductionProduct`, but does not enforce inventory/accounting linkage. |
 | Accounting-aware catalog | `POST /api/v1/accounting/catalog/import`, `GET/POST /api/v1/accounting/catalog/products`, `PUT /api/v1/accounting/catalog/products/{id}`, `POST /api/v1/accounting/catalog/products/bulk-variants` | `AccountingCatalogController` | Canonical manufacturing-aware product create/import path; auto-syncs stock-bearing rows and validates account metadata. |
-| Raw-material ops | `GET/POST/PUT/DELETE /api/v1/accounting/raw-materials`, `GET /api/v1/raw-materials/stock{,/inventory,/low-stock}`, `GET/POST /api/v1/raw-material-batches/{rawMaterialId}`, `POST /api/v1/raw-materials/intake`, `POST /api/v1/inventory/raw-materials/adjustments` | `RawMaterialController` | Raw-material master data, escape-hatch intake, batch creation, stock views, and raw-material adjustments. |
+| Raw-material ops | `GET/POST/PUT/DELETE /api/v1/catalog/products`, `GET /api/v1/raw-materials/stock{,/inventory,/low-stock}`, `GET/retired raw-material batch endpoint`, `retired raw-material intake endpoint`, `POST /api/v1/inventory/raw-materials/adjustments` | `RawMaterialController` | Raw-material master data, escape-hatch intake, batch creation, stock views, and raw-material adjustments. |
 | Opening stock | `POST/GET /api/v1/inventory/opening-stock` | `OpeningStockImportController` | Multipart CSV import with replay protection and journal linkage. |
 | Finished-goods ops | `GET/POST/PUT /api/v1/finished-goods`, `GET/POST /api/v1/finished-goods/{id}/batches`, `GET /api/v1/finished-goods/stock-summary`, `GET/PUT /api/v1/finished-goods/{id}/low-stock-threshold`, `GET /api/v1/finished-goods/low-stock` | `FinishedGoodController` | Finished-good CRUD, optional manual batch registration, and stock threshold views. |
 | Finished-good adjustments and traceability | `GET/POST /api/v1/inventory/adjustments`, `GET /api/v1/inventory/batches/{id}/movements` | `InventoryAdjustmentController`, `InventoryBatchController` | Stock corrections plus batch-level movement/journal traceability. |
@@ -345,7 +359,7 @@ Recovery is strongest where explicit replay anchors exist: catalog import, openi
 ### Hotspots
 
 - The codebase intentionally exposes multiple ways to create stock-bearing master data; only one of them is manufacturing-safe.
-- Runtime probing confirmed `POST /api/v1/raw-materials/intake` is intentionally blocked server-side with `BUS_004` and points callers back to `/api/v1/purchasing/raw-material-purchases`, so the purchasing receipt flow remains the canonical intake path even when the escape-hatch route is published.
+- Runtime probing confirmed `retired raw-material intake endpoint` is intentionally blocked server-side with `BUS_004` and points callers back to `/api/v1/purchasing/raw-material-purchases`, so the purchasing receipt flow remains the canonical intake path even when the escape-hatch route is published.
 - Production-log create is financially heavy but less replay-safe than neighboring operations.
 - Packaging-cost completeness depends on configuration, not just data quality.
 - Runtime verification was degraded in this session, so confidence comes mainly from code inspection plus tests rather than a live end-to-end walkthrough.

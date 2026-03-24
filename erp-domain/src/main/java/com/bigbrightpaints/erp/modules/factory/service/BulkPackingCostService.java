@@ -45,8 +45,8 @@ public class BulkPackingCostService {
     public BulkPackCostSummary consumePackagingIfRequired(Company company,
                                                           BulkPackRequest request,
                                                           String packReference) {
-        if (Boolean.TRUE.equals(request.skipPackagingConsumption())) {
-            return BulkPackCostSummary.empty();
+        if (request == null || !request.shouldConsumePackaging()) {
+            return new BulkPackCostSummary(BigDecimal.ZERO, Map.of(), Map.of());
         }
         return consumePackagingFromMappings(company, request.packs(), packReference);
     }
@@ -77,81 +77,6 @@ public class BulkPackingCostService {
             return BigDecimal.ZERO;
         }
         return linePackagingTotal.divide(line.quantity(), 6, COST_ROUNDING);
-    }
-
-    public BulkPackCostSummary consumePackagingMaterials(Company company,
-                                                         List<BulkPackRequest.MaterialConsumption> materials,
-                                                         String reference) {
-        BigDecimal totalCost = BigDecimal.ZERO;
-        Map<Long, BigDecimal> accountTotals = new HashMap<>();
-
-        for (BulkPackRequest.MaterialConsumption material : materials) {
-            RawMaterial rm = rawMaterialRepository.lockByCompanyAndId(company, material.materialId())
-                    .orElseThrow(() -> new ApplicationException(ErrorCode.BUSINESS_ENTITY_NOT_FOUND,
-                            "Raw material not found: " + material.materialId()));
-
-            if (rm.getInventoryAccountId() == null) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
-                        "Packaging material " + rm.getSku() + " missing inventory account");
-            }
-            if (rm.getCurrentStock().compareTo(material.quantity()) < 0) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        String.format("Insufficient %s. Available: %s, Required: %s",
-                                rm.getSku(), rm.getCurrentStock(), material.quantity()));
-            }
-
-            BigDecimal remaining = material.quantity();
-            BigDecimal consumedCost = BigDecimal.ZERO;
-            BigDecimal weightedAverageCost = CostingMethodUtils.selectWeightedAverageValue(
-                    rm.getCostingMethod(),
-                    () -> rawMaterialBatchRepository.calculateWeightedAverageCost(rm),
-                    () -> null);
-
-            List<RawMaterialBatch> batches = rawMaterialBatchRepository.findAvailableBatchesFIFO(rm);
-            for (RawMaterialBatch batch : batches) {
-                if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
-                    break;
-                }
-
-                BigDecimal available = batch.getQuantity();
-                BigDecimal toConsume = remaining.min(available);
-                int updated = rawMaterialBatchRepository.deductQuantityIfSufficient(batch.getId(), toConsume);
-                if (updated == 0) {
-                    throw new ApplicationException(ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
-                            "Concurrent modification detected for packaging batch " + batch.getBatchCode());
-                }
-
-                RawMaterialMovement movement = new RawMaterialMovement();
-                movement.setRawMaterial(rm);
-                movement.setRawMaterialBatch(batch);
-                movement.setReferenceType(InventoryReference.PACKING_RECORD);
-                movement.setReferenceId(reference);
-                movement.setMovementType("ISSUE");
-                movement.setQuantity(toConsume);
-                BigDecimal unitCost = weightedAverageCost != null
-                        ? weightedAverageCost
-                        : (batch.getCostPerUnit() != null ? batch.getCostPerUnit() : BigDecimal.ZERO);
-                movement.setUnitCost(unitCost);
-                rawMaterialMovementRepository.save(movement);
-
-                consumedCost = consumedCost.add(toConsume.multiply(unitCost));
-                remaining = remaining.subtract(toConsume);
-            }
-
-            if (remaining.compareTo(BigDecimal.ZERO) > 0) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                        "Insufficient batch availability for packaging material " + rm.getSku());
-            }
-
-            rm.setCurrentStock(rm.getCurrentStock().subtract(material.quantity()));
-            rawMaterialRepository.save(rm);
-
-            consumedCost = consumedCost.setScale(2, COST_ROUNDING);
-            totalCost = totalCost.add(consumedCost);
-            accountTotals.merge(rm.getInventoryAccountId(), consumedCost, BigDecimal::add);
-        }
-
-        return new BulkPackCostSummary(totalCost, accountTotals, Map.of());
     }
 
     private BulkPackCostSummary consumePackagingFromMappings(Company company,

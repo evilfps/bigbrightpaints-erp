@@ -1,0 +1,15 @@
+{
+  "featureId": "admin-foreign-user-lock-scope-hardening",
+  "reviewedAt": "2026-03-15T21:42:33+00:00",
+  "commitId": "13e3a05cf30aac436b1afaa476e120feb0f216a8",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Pass. The feature commit is test-only and the added coverage matches ADMIN-14's regression goals: AdminUserSecurityIT now holds a foreign app_users write lock and proves the masked 400 contract still returns within a bounded timeout for suspend, unsuspend, MFA disable, delete, force-reset, and status, while AdminUserServiceTest closes the remaining service-level proof that force-reset and status stay non-locking for out-of-scope users. Existing AuthTenantAuthorityIT evidence still covers the ACCESS_DENIED audit metadata requirement for the same privileged endpoints.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed commit 13e3a05cf30aac436b1afaa476e120feb0f216a8 for admin-foreign-user-lock-scope-hardening and found no blocking or non-blocking defects. Regression proof quality is sufficient for ADMIN-14: lock-taking endpoints are exercised under a held foreign row lock, non-locking endpoints are explicitly verified not to use repository lock methods, and the pre-existing audit-denial coverage remains intact."
+}

@@ -1,0 +1,21 @@
+{
+  "featureId": "lane01-canonicalize-company-runtime-writer",
+  "reviewedAt": "2026-03-15T03:07:17.959032Z",
+  "commitId": "ca51a973",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Pass. The diff cleanly retires the admin runtime-policy writer, keeps the company-scoped endpoint as the only public writer, and adds/updates coverage for canonical success, fail-closed validation, foreign/unknown target denial, privileged-path recognition, and OpenAPI contract removal.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "Shared auth-hardening guidance is stale after this feature: it still says company-scoped runtime-policy updates participate in the same policy-control tracking as `/api/v1/admin/tenant-runtime/policy`, even though this packet retires that admin writer and removes its privileged-path handling.",
+      "evidence": ".factory/library/auth-hardening.md:39 still references `/api/v1/admin/tenant-runtime/policy`, while .factory/library/frontend-handoff.md:236 records that the admin writer was retired and openapi.json no longer contains that path."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed commit ca51a973 and the worker transcript/handoff for lane01-canonicalize-company-runtime-writer. The implementation satisfies the feature scope and contract expectations; I found no code-level defects, only a stale shared-library note in `.factory/library/auth-hardening.md`."
+}

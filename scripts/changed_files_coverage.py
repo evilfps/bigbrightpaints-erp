@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import argparse
 import json
 import os
@@ -34,7 +36,7 @@ def resolve_diff_base(explicit_base: str) -> str:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Enforce changed-file JaCoCo coverage")
-    p.add_argument("--jacoco", required=True, help="Path to jacoco.xml")
+    p.add_argument("--jacoco", required=True, action="append", help="Path to jacoco.xml (repeatable)")
     p.add_argument(
         "--diff-base",
         default="",
@@ -46,13 +48,38 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--fail-on-vacuous",
         action="store_true",
-        help="Fail when changed-file coverage is vacuous (no files considered or no executable changed lines)",
+        help="Fail when changed-file coverage cannot make a trustworthy decision for changed source files",
     )
     p.add_argument("--output", default="", help="Optional JSON summary output")
     return p.parse_args()
 
 
+TYPE_DECL_RE = re.compile(
+    r"^\s*(?:public\s+|protected\s+|private\s+)?(?:sealed\s+|non-sealed\s+|abstract\s+|final\s+)?(?:class|interface|record|enum)\s+\w+"
+)
 INTERFACE_DECL_RE = re.compile(r"^\s*(?:public\s+)?(?:sealed\s+|non-sealed\s+)?(?:abstract\s+)?interface\s+\w+")
+FIELD_DECL_RE = re.compile(
+    r"^\s*(?:(?:private|protected|public)\s+)?(?:static\s+|final\s+|transient\s+|volatile\s+)*[\w<>\[\].,@? ]+\s+\w+\s*(?:=\s*.+)?;$"
+)
+LOCAL_DECL_RE = re.compile(r"^\s*(?:final\s+)?[\w<>\[\].,@? ]+\s+\w+\s*(?:=\s*.+)?;$")
+RECORD_COMPONENT_RE = re.compile(r"^\s*(?:@[\w.()\", =]+\s+)?[\w<>\[\], ?.]+\s+\w+\s*\)?$")
+QUERY_TEXT_RE = re.compile(r"^\s*(?:and|or|select|from|where|group by|order by|having)\b", re.IGNORECASE)
+BARE_IDENTIFIER_RE = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]*\s*$")
+METHOD_DECL_OPEN_RE = re.compile(
+    r"^\s*(?:public\s+|protected\s+|private\s+|static\s+|default\s+|abstract\s+|final\s+|sealed\s+|non-sealed\s+|synchronized\s+)*[\w<>\[\].,@?]+\s+\w+\s*\($"
+)
+METHOD_DECL_SEMICOLON_RE = re.compile(
+    r"^\s*(?:public\s+|protected\s+|private\s+|static\s+|default\s+|abstract\s+|final\s+|sealed\s+|non-sealed\s+|synchronized\s+)*[\w<>\[\].,@?]+\s+\w+\s*\([^;{}]*\)\s*(?:throws\s+[\w<>\[\].,@? ]+)?\s*;$"
+)
+PARAMETER_FRAGMENT_RE = re.compile(
+    r"^\s*(?:@\w[\w.]*?(?:\([^)]*\))?\s+)*(?:[\w<>\[\].,@?]+\s+)+\w+\s*,?$"
+)
+CALL_ARGUMENT_FRAGMENT_RE = re.compile(r"^\s*(?:[\w.<>?]+|null|true|false)\s*,?$")
+LITERAL_FIELD_INIT_RE = re.compile(
+    r"^\s*(?:public\s+|protected\s+|private\s+)(?:static\s+|final\s+|transient\s+|volatile\s+)*[\w<>\[\].,@?]+\s+\w+\s*=\s*(?:\".*\"|\d[\d._]*|true|false|null)\s*;$"
+)
+CONTROL_FLOW_PREFIXES = ("if ", "for ", "while ", "switch ", "catch ", "return ", "throw ", "new ")
+PACKAGE_DECL_RE = re.compile(r"^\s*package\s+([\w.]+)\s*;")
 
 
 def parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
@@ -76,50 +103,106 @@ def parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
     return changed
 
 
-def build_jacoco_line_map(jacoco_xml: str, src_root: str) -> dict[str, dict[int, tuple[int, int, int, int]]]:
-    tree = ET.parse(jacoco_xml)
-    root = tree.getroot()
+def merge_line_stats(
+    current: tuple[int, int, int, int] | None,
+    incoming: tuple[int, int, int, int],
+) -> tuple[int, int, int, int]:
+    if current is None:
+        return incoming
+
+    current_mi, current_ci, current_mb, current_cb = current
+    incoming_mi, incoming_ci, incoming_mb, incoming_cb = incoming
+
+    total_line = max(current_mi + current_ci, incoming_mi + incoming_ci)
+    covered_line = min(total_line, current_ci + incoming_ci)
+    missed_line = max(total_line - covered_line, 0)
+
+    total_branch = max(current_mb + current_cb, incoming_mb + incoming_cb)
+    covered_branch = min(total_branch, current_cb + incoming_cb)
+    missed_branch = max(total_branch - covered_branch, 0)
+
+    return missed_line, covered_line, missed_branch, covered_branch
+
+
+def build_jacoco_line_map(jacoco_xmls: list[str], src_root: str) -> dict[str, dict[int, tuple[int, int, int, int]]]:
     mapped: dict[str, dict[int, tuple[int, int, int, int]]] = {}
-    for pkg in root.findall(".//package"):
-        pkg_name = pkg.get("name", "")
-        for sf in pkg.findall("sourcefile"):
-            sf_name = sf.get("name", "")
-            rel_path = os.path.join(src_root, pkg_name, sf_name).replace("\\", "/")
-            lines: dict[int, tuple[int, int, int, int]] = {}
-            for line in sf.findall("line"):
-                nr = int(line.get("nr", "0"))
-                mi = int(line.get("mi", "0"))
-                ci = int(line.get("ci", "0"))
-                mb = int(line.get("mb", "0"))
-                cb = int(line.get("cb", "0"))
-                lines[nr] = (mi, ci, mb, cb)
-            mapped[rel_path] = lines
+    for jacoco_xml in jacoco_xmls:
+        tree = ET.parse(jacoco_xml)
+        root = tree.getroot()
+        for pkg in root.findall(".//package"):
+            pkg_name = pkg.get("name", "")
+            for sf in pkg.findall("sourcefile"):
+                sf_name = sf.get("name", "")
+                rel_path = os.path.join(src_root, pkg_name, sf_name).replace("\\", "/")
+                lines = mapped.setdefault(rel_path, {})
+                for line in sf.findall("line"):
+                    nr = int(line.get("nr", "0"))
+                    incoming = (
+                        int(line.get("mi", "0")),
+                        int(line.get("ci", "0")),
+                        int(line.get("mb", "0")),
+                        int(line.get("cb", "0")),
+                    )
+                    lines[nr] = merge_line_stats(lines.get(nr), incoming)
     return mapped
 
 
-def load_source_info(path: str, cache: dict[str, tuple[list[str], bool]]) -> tuple[list[str], bool]:
+def load_source_info(path: str, cache: dict[str, tuple[list[str], bool, str]]) -> tuple[list[str], bool, str]:
     info = cache.get(path)
     if info is not None:
         return info
     lines: list[str] = []
     is_interface = False
+    package_name = ""
     try:
         with open(path, "r", encoding="utf-8") as fh:
             lines = fh.readlines()
     except FileNotFoundError:
-        cache[path] = (lines, is_interface)
-        return lines, is_interface
+        cache[path] = (lines, is_interface, package_name)
+        return lines, is_interface, package_name
 
     for line in lines:
+        if not package_name:
+            match = PACKAGE_DECL_RE.match(line)
+            if match:
+                package_name = match.group(1)
         if INTERFACE_DECL_RE.match(line):
             is_interface = True
             break
-    cache[path] = (lines, is_interface)
-    return lines, is_interface
+    cache[path] = (lines, is_interface, package_name)
+    return lines, is_interface, package_name
 
 
-def is_structural_source_line(text: str, is_interface_file: bool) -> bool:
+def resolve_jacoco_line_map(
+    file_path: str,
+    src_root: str,
+    source_package: str,
+    jacoco: dict[str, dict[int, tuple[int, int, int, int]]],
+) -> dict[int, tuple[int, int, int, int]] | None:
+    line_map = jacoco.get(file_path)
+    if line_map is not None:
+        return line_map
+
+    if not source_package:
+        return None
+
+    package_relative_path = os.path.join(
+        src_root,
+        source_package.replace(".", os.sep),
+        os.path.basename(file_path),
+    ).replace("\\", "/")
+    return jacoco.get(package_relative_path)
+
+
+def is_structural_source_line(
+    text: str,
+    is_interface_file: bool,
+    previous_text: str = "",
+    next_text: str = "",
+) -> bool:
     stripped = text.strip()
+    prev_stripped = previous_text.strip()
+    next_stripped = next_text.strip()
     if not stripped:
         return True
     if stripped.startswith("//") or stripped.startswith("/*") or stripped.startswith("*") or stripped == "*/":
@@ -128,9 +211,77 @@ def is_structural_source_line(text: str, is_interface_file: bool) -> bool:
         return True
     if stripped.startswith("@"):
         return True
+    if stripped in {"try {", "else {", "} else {", "finally {", "} finally {", "})", "});"}:
+        return True
     if stripped in {"{", "}", ";", "};"}:
         return True
-    if is_interface_file and ";" in stripped and "{" not in stripped:
+    if stripped in {"try {", "})", "}),"}:
+        return True
+    if TYPE_DECL_RE.match(stripped):
+        return True
+    if FIELD_DECL_RE.match(stripped):
+        return True
+    if LITERAL_FIELD_INIT_RE.match(stripped):
+        return True
+    if LOCAL_DECL_RE.match(stripped) and not stripped.startswith(CONTROL_FLOW_PREFIXES):
+        return True
+    if QUERY_TEXT_RE.match(stripped):
+        return True
+    if BARE_IDENTIFIER_RE.match(stripped):
+        return True
+    if stripped.startswith("+ ") or stripped.startswith("+\"") or stripped.startswith("+\"") or stripped.startswith("+ ("):
+        return True
+    if stripped.startswith('"'):
+        return True
+    if stripped.endswith("(") and not stripped.startswith(CONTROL_FLOW_PREFIXES) and "=" not in stripped:
+        return True
+    if stripped.endswith("=") and previous_text and " class " not in previous_text:
+        return True
+    if stripped.startswith("\"") and prev_stripped.endswith("="):
+        return True
+    if stripped.endswith(",") and not stripped.startswith(CONTROL_FLOW_PREFIXES) and "->" not in stripped:
+        return True
+    if PARAMETER_FRAGMENT_RE.match(stripped) and not stripped.startswith(CONTROL_FLOW_PREFIXES):
+        return True
+    if is_interface_file and METHOD_DECL_OPEN_RE.match(stripped):
+        return True
+    if (
+        CALL_ARGUMENT_FRAGMENT_RE.match(stripped)
+        and (prev_stripped.endswith("(") or prev_stripped.endswith(","))
+        and next_stripped in {");", "));", ")", ") {", "){", "};"}
+    ):
+        return True
+    if (
+        stripped.endswith(")")
+        and (prev_stripped.endswith("(") or prev_stripped.endswith(","))
+        and next_stripped[:1] in {":", ")", ".", ";"}
+        and not stripped.startswith(CONTROL_FLOW_PREFIXES)
+    ):
+        return True
+    if (
+        "\"" in stripped
+        and (prev_stripped.endswith("(") or prev_stripped.endswith(",") or prev_stripped.endswith("="))
+        and next_stripped[:1] in {")", ".", ";", ":"}
+    ):
+        return True
+    if (
+        stripped.endswith("{")
+        and ")" in stripped
+        and not stripped.startswith(CONTROL_FLOW_PREFIXES)
+        and "=" not in stripped
+        and "->" not in stripped
+    ):
+        return True
+    if (
+        stripped.endswith(");")
+        and (prev_stripped.endswith("(") or prev_stripped.endswith(","))
+        and not stripped.startswith(CONTROL_FLOW_PREFIXES)
+        and "=" not in stripped
+    ):
+        return True
+    if RECORD_COMPONENT_RE.match(stripped) and "=" not in stripped and "{" not in stripped:
+        return True
+    if is_interface_file and METHOD_DECL_SEMICOLON_RE.match(stripped):
         return True
     return False
 
@@ -154,6 +305,8 @@ def main() -> int:
 
     jacoco = build_jacoco_line_map(args.jacoco, args.src_root)
 
+    changed_source_files = len(changed)
+
     line_cov = 0
     line_total = 0
     branch_cov = 0
@@ -164,16 +317,16 @@ def main() -> int:
     files_with_unmapped_lines: list[str] = []
     skipped_files: list[str] = []
 
-    source_cache: dict[str, tuple[list[str], bool]] = {}
+    source_cache: dict[str, tuple[list[str], bool, str]] = {}
 
     for file_path, changed_lines in changed.items():
         if not changed_lines:
             continue
-        line_map = jacoco.get(file_path)
+        lines, is_interface_file, source_package = load_source_info(file_path, source_cache)
+        line_map = resolve_jacoco_line_map(file_path, args.src_root, source_package, jacoco)
         if line_map is None:
             skipped_files.append(file_path)
             continue
-        lines, is_interface_file = load_source_info(file_path, source_cache)
         files_considered += 1
         f_line_cov = 0
         f_line_total = 0
@@ -184,7 +337,12 @@ def main() -> int:
         for ln in sorted(changed_lines):
             stats = line_map.get(ln)
             if stats is None:
-                if 1 <= ln <= len(lines) and is_structural_source_line(lines[ln - 1], is_interface_file):
+                if 1 <= ln <= len(lines) and is_structural_source_line(
+                    lines[ln - 1],
+                    is_interface_file,
+                    lines[ln - 2] if ln > 1 else "",
+                    lines[ln] if ln < len(lines) else "",
+                ):
                     f_structural_lines += 1
                 else:
                     f_unmapped_lines += 1
@@ -230,16 +388,28 @@ def main() -> int:
         and not files_with_unmapped_lines
         and not skipped_files
     )
-    vacuous = files_considered == 0 or (line_total == 0 and not structural_only)
+    no_changed_source_files = changed_source_files == 0
+    thresholds_met = line_ratio >= args.threshold_line and branch_ratio >= args.threshold_branch
+    unmapped_lines_blocking = bool(files_with_unmapped_lines) and not thresholds_met
+    missing_coverage = bool(skipped_files or unmapped_lines_blocking)
+    vacuous = (not no_changed_source_files) and (
+        missing_coverage or (line_total == 0 and not structural_only)
+    )
     vacuous_reason = ""
-    if files_considered == 0:
-        vacuous_reason = "no_files_considered"
+    if no_changed_source_files:
+        vacuous_reason = "no_changed_source_files"
+    elif skipped_files:
+        vacuous_reason = "coverage_skipped_files"
+    elif files_with_unmapped_lines:
+        vacuous_reason = "unmapped_changed_lines"
     elif line_total == 0 and not structural_only:
         vacuous_reason = "no_instrumented_lines"
 
     summary = {
         "diff_base": base,
+        "changed_source_files": changed_source_files,
         "files_considered": files_considered,
+        "no_changed_source_files": no_changed_source_files,
         "line_covered": line_cov,
         "line_total": line_total,
         "line_ratio": line_ratio,
@@ -250,12 +420,14 @@ def main() -> int:
         "branch_threshold": args.threshold_branch,
         "vacuous": vacuous,
         "vacuous_reason": vacuous_reason,
+        "missing_coverage": missing_coverage,
+        "unmapped_lines_blocking": unmapped_lines_blocking,
         "structural_only": structural_only,
         "structural_files": sorted(structural_files),
         "coverage_skipped_files": sorted(skipped_files),
         "files_with_unmapped_lines": sorted(files_with_unmapped_lines),
-        "passes": (line_ratio >= args.threshold_line
-                   and branch_ratio >= args.threshold_branch
+        "passes": (not missing_coverage
+                   and thresholds_met
                    and not (args.fail_on_vacuous and vacuous)),
         "per_file": per_file,
     }
@@ -268,10 +440,26 @@ def main() -> int:
         with open(args.output, "w", encoding="utf-8") as fh:
             json.dump(summary, fh, indent=2)
 
+    if missing_coverage:
+        print(
+            "[changed_files_coverage] FAIL: changed source files were not fully mapped into shard coverage "
+            f"(skipped_files={len(skipped_files)}, unmapped_files={len(files_with_unmapped_lines)})",
+            file=sys.stderr,
+        )
+        return 1
+
+    if files_with_unmapped_lines:
+        print(
+            "[changed_files_coverage] WARN: changed source files still include unmapped lines, "
+            "but mapped changed-line and branch thresholds were satisfied",
+            file=sys.stderr,
+        )
+
     if args.fail_on_vacuous and vacuous:
         print(
             "[changed_files_coverage] FAIL: vacuous changed-files coverage "
-            f"(files_considered={files_considered}, line_total={line_total}, reason={vacuous_reason})",
+            f"(changed_source_files={changed_source_files}, files_considered={files_considered}, "
+            f"line_total={line_total}, reason={vacuous_reason})",
             file=sys.stderr,
         )
         return 1

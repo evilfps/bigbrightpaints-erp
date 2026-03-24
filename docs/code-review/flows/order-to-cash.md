@@ -24,6 +24,20 @@ Primary evidence:
 
 Supporting runtime evidence was limited in this session: `curl -i -s http://localhost:8081/actuator/health` failed with exit code `7`, so this review relies on static inspection plus existing integration/truth-suite coverage.
 
+## Executable remediation handoff
+
+This review feeds:
+
+- [Lane 03 exec spec](../executable-specs/03-lane-accounting-truth-boundary/EXEC-SPEC.md)
+- [Lane 04 exec spec](../executable-specs/04-lane-commercial-workflows/EXEC-SPEC.md)
+
+Planning notes:
+
+- Lane 03 Packet 0 is now the prove-first boundary note in [`../executable-specs/03-lane-accounting-truth-boundary/00-lane03-boundary-decision-note.md`](../executable-specs/03-lane-accounting-truth-boundary/00-lane03-boundary-decision-note.md); it makes `SalesCoreEngine.confirmDispatch(...)` / dispatch confirmation the authoritative candidate for AR, revenue, tax, and COGS truth and records the exact proof pack that later runtime slices must preserve.
+- Downstream O2C consumers that must inherit that note rather than redefine truth are `InvoiceService.issueInvoiceForOrder(...)`, `DealerLedgerService.syncInvoiceLedger(...)`, `StatementService`, `AgingReportService`, `DunningService`, `DealerPortalService`, and `EnterpriseDashboardService`.
+- `O2C-09` should be treated as an early runtime repair packet inside Lane 04, not as a reason to redesign the sales workflow.
+- Keep dispatch as the canonical posting boundary from Lane 03, and keep the reservation prerequisite explicit before `POST /api/v1/sales/orders/{id}/confirm` succeeds.
+
 ## Entrypoints
 
 | Surface | Entrypoints | Controller | Notes |

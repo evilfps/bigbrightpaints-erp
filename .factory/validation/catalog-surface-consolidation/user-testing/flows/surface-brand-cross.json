@@ -1,0 +1,670 @@
+{
+  "groupId": "surface-brand-cross",
+  "surface": "api",
+  "testedAt": "2026-03-21T08:23:46.883297+00:00",
+  "toolsUsed": [
+    "python3",
+    "urllib.request",
+    "openapi.json"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-SURFACE-001",
+      "title": "Canonical public catalog host is `/api/v1/catalog/**`",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect repo-root openapi.json for canonical catalog operations",
+          "expected": "Only canonical public catalog brand/product routes are documented under /api/v1/catalog/**",
+          "observed": "Found documented operations for GET/POST /api/v1/catalog/brands and GET/POST /api/v1/catalog/products; no alternate public host required."
+        },
+        {
+          "action": "POST /api/v1/catalog/brands with admin auth",
+          "expected": "Canonical brand create handler is reachable",
+          "observed": "Returned 200 from canonical host with created brand id 16."
+        },
+        {
+          "action": "GET /api/v1/catalog/products?brandId=<existingBrandId> with admin auth",
+          "expected": "Canonical product browse handler is reachable",
+          "observed": "Returned 200 from canonical host for existing brand id 1."
+        },
+        {
+          "action": "POST /api/v1/catalog/products with admin auth after runtime account fix",
+          "expected": "Canonical product create handler persists products only on /api/v1/catalog/products",
+          "observed": "Returned 200 from /api/v1/catalog/products with candidateCount=4 and variantGroupId=6d91542e-588d-3725-82b0-812ff934d5d4."
+        }
+      ],
+      "evidence": {
+        "openApi": [
+          {
+            "path": "/api/v1/catalog/brands",
+            "method": "GET",
+            "requestSchema": null,
+            "responseCodes": [
+              "200"
+            ],
+            "responseSchema": "#/components/schemas/ApiResponseListCatalogBrandDto",
+            "parameters": [
+              "active"
+            ]
+          },
+          {
+            "path": "/api/v1/catalog/brands",
+            "method": "POST",
+            "requestSchema": "#/components/schemas/CatalogBrandRequest",
+            "responseCodes": [
+              "200"
+            ],
+            "responseSchema": "#/components/schemas/ApiResponseCatalogBrandDto",
+            "parameters": []
+          },
+          {
+            "path": "/api/v1/catalog/products",
+            "method": "GET",
+            "requestSchema": null,
+            "responseCodes": [
+              "200"
+            ],
+            "responseSchema": "#/components/schemas/ApiResponsePageResponseCatalogProductDto",
+            "parameters": [
+              "brandId",
+              "color",
+              "size",
+              "active",
+              "page",
+              "pageSize"
+            ]
+          },
+          {
+            "path": "/api/v1/catalog/products",
+            "method": "POST",
+            "requestSchema": "#/components/schemas/CatalogProductEntryRequest",
+            "responseCodes": [
+              "200"
+            ],
+            "responseSchema": "#/components/schemas/ApiResponseCatalogProductEntryResponse",
+            "parameters": [
+              "preview"
+            ]
+          }
+        ],
+        "network": [
+          "POST /api/v1/catalog/brands -> 200",
+          "GET /api/v1/catalog/brands?active=true -> 200",
+          "GET /api/v1/catalog/products?brandId=1&page=0&pageSize=100 -> 200",
+          "POST /api/v1/catalog/products -> 200"
+        ],
+        "files": [
+          {
+            "file": "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/controller/CatalogController.java",
+            "matches": [
+              {
+                "needle": "@RequestMapping(\"/api/v1/catalog\")",
+                "line": 29,
+                "text": "@RequestMapping(\"/api/v1/catalog\")"
+              },
+              {
+                "needle": "@PostMapping(\"/brands\")",
+                "line": 42,
+                "text": "@PostMapping(\"/brands\")"
+              },
+              {
+                "needle": "@GetMapping(\"/brands\")",
+                "line": 47,
+                "text": "@GetMapping(\"/brands\")"
+              },
+              {
+                "needle": "@PostMapping(\"/products\")",
+                "line": 69,
+                "text": "@PostMapping(\"/products\")"
+              },
+              {
+                "needle": "@GetMapping(\"/products\")",
+                "line": 78,
+                "text": "@GetMapping(\"/products\")"
+              }
+            ]
+          },
+          {
+            "file": "/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/OpenApiSnapshotIT.java",
+            "matches": [
+              {
+                "needle": "assertOperationContract(root, \"/api/v1/catalog/brands\", \"get\"",
+                "line": 89,
+                "text": "assertOperationContract(root, \"/api/v1/catalog/brands\", \"get\","
+              },
+              {
+                "needle": "assertOperationContract(root, \"/api/v1/catalog/products\", \"post\"",
+                "line": 98,
+                "text": "assertOperationContract(root, \"/api/v1/catalog/products\", \"post\","
+              },
+              {
+                "needle": "assertOperationMissing(root, \"/api/v1/accounting/catalog/import\", \"post\")",
+                "line": 101,
+                "text": "assertOperationMissing(root, \"/api/v1/accounting/catalog/import\", \"post\");"
+              },
+              {
+                "needle": "assertOperationMissing(root, \"/api/v1/production/brands\", \"get\")",
+                "line": 106,
+                "text": "assertOperationMissing(root, \"/api/v1/production/brands\", \"get\");"
+              }
+            ]
+          }
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SURFACE-002",
+      "title": "Retired accounting catalog host is absent",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect openapi.json for /api/v1/accounting/catalog/** paths",
+          "expected": "Retired accounting catalog routes are absent",
+          "observed": "OpenAPI has no documented operations for import, list/create/update, or bulk-variants under /api/v1/accounting/catalog/**."
+        },
+        {
+          "action": "Send authenticated negative probes to retired accounting catalog routes",
+          "expected": "Requests are unmapped/not supported, not legacy successes or aliases",
+          "observed": "POST /api/v1/accounting/catalog/import -> 404; GET /api/v1/accounting/catalog/products -> 404; POST /api/v1/accounting/catalog/products -> 404; PUT /api/v1/accounting/catalog/products/999 -> 404; POST /api/v1/accounting/catalog/products/bulk-variants -> 404"
+        }
+      ],
+      "evidence": {
+        "openApiAbsence": {
+          "/api/v1/accounting/catalog/import": true,
+          "/api/v1/accounting/catalog/products": true,
+          "/api/v1/accounting/catalog/products/{id}": true,
+          "/api/v1/accounting/catalog/products/bulk-variants": true
+        },
+        "network": [
+          "POST /api/v1/accounting/catalog/import -> 404",
+          "GET /api/v1/accounting/catalog/products -> 404",
+          "POST /api/v1/accounting/catalog/products -> 404",
+          "PUT /api/v1/accounting/catalog/products/999 -> 404",
+          "POST /api/v1/accounting/catalog/products/bulk-variants -> 404"
+        ],
+        "files": [
+          {
+            "file": "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingCatalogController.java",
+            "matches": [
+              {
+                "needle": "final class AccountingCatalogController",
+                "line": 3,
+                "text": "final class AccountingCatalogController {"
+              }
+            ]
+          },
+          {
+            "file": "/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/OpenApiSnapshotIT.java",
+            "matches": [
+              {
+                "needle": "assertOperationContract(root, \"/api/v1/catalog/brands\", \"get\"",
+                "line": 89,
+                "text": "assertOperationContract(root, \"/api/v1/catalog/brands\", \"get\","
+              },
+              {
+                "needle": "assertOperationContract(root, \"/api/v1/catalog/products\", \"post\"",
+                "line": 98,
+                "text": "assertOperationContract(root, \"/api/v1/catalog/products\", \"post\","
+              },
+              {
+                "needle": "assertOperationMissing(root, \"/api/v1/accounting/catalog/import\", \"post\")",
+                "line": 101,
+                "text": "assertOperationMissing(root, \"/api/v1/accounting/catalog/import\", \"post\");"
+              },
+              {
+                "needle": "assertOperationMissing(root, \"/api/v1/production/brands\", \"get\")",
+                "line": 106,
+                "text": "assertOperationMissing(root, \"/api/v1/production/brands\", \"get\");"
+              }
+            ]
+          }
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SURFACE-003",
+      "title": "Retired production browse host is absent",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect openapi.json for retired production browse paths",
+          "expected": "/api/v1/production/brands* paths are absent",
+          "observed": "OpenAPI does not document /api/v1/production/brands or /api/v1/production/brands/{brandId}/products."
+        },
+        {
+          "action": "Send authenticated GET probes to retired production browse routes",
+          "expected": "Requests are unmapped/not supported",
+          "observed": "GET /api/v1/production/brands -> 404; GET /api/v1/production/brands/999/products -> 404"
+        }
+      ],
+      "evidence": {
+        "openApiAbsence": {
+          "/api/v1/production/brands": true,
+          "/api/v1/production/brands/{brandId}/products": true
+        },
+        "network": [
+          "GET /api/v1/production/brands -> 404",
+          "GET /api/v1/production/brands/999/products -> 404"
+        ],
+        "files": [
+          {
+            "file": "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/controller/ProductionCatalogController.java",
+            "matches": [
+              {
+                "needle": "final class ProductionCatalogController",
+                "line": 3,
+                "text": "final class ProductionCatalogController {"
+              }
+            ]
+          },
+          {
+            "file": "/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/OpenApiSnapshotIT.java",
+            "matches": [
+              {
+                "needle": "assertOperationContract(root, \"/api/v1/catalog/brands\", \"get\"",
+                "line": 89,
+                "text": "assertOperationContract(root, \"/api/v1/catalog/brands\", \"get\","
+              },
+              {
+                "needle": "assertOperationContract(root, \"/api/v1/catalog/products\", \"post\"",
+                "line": 98,
+                "text": "assertOperationContract(root, \"/api/v1/catalog/products\", \"post\","
+              },
+              {
+                "needle": "assertOperationMissing(root, \"/api/v1/accounting/catalog/import\", \"post\")",
+                "line": 101,
+                "text": "assertOperationMissing(root, \"/api/v1/accounting/catalog/import\", \"post\");"
+              },
+              {
+                "needle": "assertOperationMissing(root, \"/api/v1/production/brands\", \"get\")",
+                "line": 106,
+                "text": "assertOperationMissing(root, \"/api/v1/production/brands\", \"get\");"
+              }
+            ]
+          }
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SURFACE-004",
+      "title": "No alternate public product-write route survives under `/api/v1/catalog/**`",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect openapi.json for /api/v1/catalog/products/bulk",
+          "expected": "No alternate public product-write route is documented",
+          "observed": "OpenAPI contains no /api/v1/catalog/products/bulk path."
+        },
+        {
+          "action": "POST /api/v1/catalog/products/bulk with admin auth",
+          "expected": "Route is unmapped/not supported",
+          "observed": "POST /api/v1/catalog/products/bulk -> 405 (method not supported), with no separate bulk create route mapped."
+        }
+      ],
+      "evidence": {
+        "openApiAbsence": {
+          "/api/v1/catalog/products/bulk": true
+        },
+        "network": [
+          "POST /api/v1/catalog/products/bulk -> 405"
+        ],
+        "files": [
+          {
+            "file": "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/controller/CatalogController.java",
+            "matches": [
+              {
+                "needle": "@RequestMapping(\"/api/v1/catalog\")",
+                "line": 29,
+                "text": "@RequestMapping(\"/api/v1/catalog\")"
+              },
+              {
+                "needle": "@PostMapping(\"/brands\")",
+                "line": 42,
+                "text": "@PostMapping(\"/brands\")"
+              },
+              {
+                "needle": "@GetMapping(\"/brands\")",
+                "line": 47,
+                "text": "@GetMapping(\"/brands\")"
+              },
+              {
+                "needle": "@PostMapping(\"/products\")",
+                "line": 69,
+                "text": "@PostMapping(\"/products\")"
+              },
+              {
+                "needle": "@GetMapping(\"/products\")",
+                "line": 78,
+                "text": "@GetMapping(\"/products\")"
+              }
+            ]
+          },
+          {
+            "file": "/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/OpenApiSnapshotIT.java",
+            "matches": [
+              {
+                "needle": "assertOperationContract(root, \"/api/v1/catalog/brands\", \"get\"",
+                "line": 89,
+                "text": "assertOperationContract(root, \"/api/v1/catalog/brands\", \"get\","
+              },
+              {
+                "needle": "assertOperationContract(root, \"/api/v1/catalog/products\", \"post\"",
+                "line": 98,
+                "text": "assertOperationContract(root, \"/api/v1/catalog/products\", \"post\","
+              },
+              {
+                "needle": "assertOperationMissing(root, \"/api/v1/accounting/catalog/import\", \"post\")",
+                "line": 101,
+                "text": "assertOperationMissing(root, \"/api/v1/accounting/catalog/import\", \"post\");"
+              },
+              {
+                "needle": "assertOperationMissing(root, \"/api/v1/production/brands\", \"get\")",
+                "line": 106,
+                "text": "assertOperationMissing(root, \"/api/v1/production/brands\", \"get\");"
+              }
+            ]
+          }
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-BRAND-001",
+      "title": "Canonical brand list supports existing-brand selection",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Create namespaced active brand on canonical host",
+          "expected": "Brand is created and marked active",
+          "observed": "POST /api/v1/catalog/brands -> 200 with id 16."
+        },
+        {
+          "action": "Create namespaced inactive brand on canonical host",
+          "expected": "Brand is created and marked inactive",
+          "observed": "POST /api/v1/catalog/brands -> 200 with id 17."
+        },
+        {
+          "action": "GET /api/v1/catalog/brands and GET /api/v1/catalog/brands?active=true",
+          "expected": "Active-filtered list excludes inactive brand",
+          "observed": "Unfiltered list contains inactive id 17; active=true list contains active id 16 and excludes inactive id 17."
+        }
+      ],
+      "evidence": {
+        "openApi": {
+          "path": "/api/v1/catalog/brands",
+          "method": "GET",
+          "requestSchema": null,
+          "responseCodes": [
+            "200"
+          ],
+          "responseSchema": "#/components/schemas/ApiResponseListCatalogBrandDto",
+          "parameters": [
+            "active"
+          ]
+        },
+        "network": [
+          "POST /api/v1/catalog/brands(active=true) -> 200",
+          "POST /api/v1/catalog/brands(active=false) -> 200",
+          "GET /api/v1/catalog/brands -> 200",
+          "GET /api/v1/catalog/brands?active=true -> 200"
+        ],
+        "files": [
+          {
+            "file": "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/controller/CatalogController.java",
+            "matches": [
+              {
+                "needle": "@RequestMapping(\"/api/v1/catalog\")",
+                "line": 29,
+                "text": "@RequestMapping(\"/api/v1/catalog\")"
+              },
+              {
+                "needle": "@PostMapping(\"/brands\")",
+                "line": 42,
+                "text": "@PostMapping(\"/brands\")"
+              },
+              {
+                "needle": "@GetMapping(\"/brands\")",
+                "line": 47,
+                "text": "@GetMapping(\"/brands\")"
+              },
+              {
+                "needle": "@PostMapping(\"/products\")",
+                "line": 69,
+                "text": "@PostMapping(\"/products\")"
+              },
+              {
+                "needle": "@GetMapping(\"/products\")",
+                "line": 78,
+                "text": "@GetMapping(\"/products\")"
+              }
+            ]
+          }
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-BRAND-002",
+      "title": "Canonical brand create produces a selectable brand",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "POST /api/v1/catalog/brands with namespaced active brand",
+          "expected": "Canonical brand create returns a stable brand identifier",
+          "observed": "Returned 200 with brand id 18 and code UTCATSURFACE05."
+        },
+        {
+          "action": "GET /api/v1/catalog/brands?active=true after create",
+          "expected": "Created brand is selectable without product-create fallback",
+          "observed": "Active brand list includes new brand id 18."
+        }
+      ],
+      "evidence": {
+        "openApi": {
+          "path": "/api/v1/catalog/brands",
+          "method": "POST",
+          "requestSchema": "#/components/schemas/CatalogBrandRequest",
+          "responseCodes": [
+            "200"
+          ],
+          "responseSchema": "#/components/schemas/ApiResponseCatalogBrandDto",
+          "parameters": []
+        },
+        "network": [
+          "POST /api/v1/catalog/brands -> 200",
+          "GET /api/v1/catalog/brands?active=true -> 200"
+        ],
+        "files": [
+          {
+            "file": "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/controller/CatalogController.java",
+            "matches": [
+              {
+                "needle": "@RequestMapping(\"/api/v1/catalog\")",
+                "line": 29,
+                "text": "@RequestMapping(\"/api/v1/catalog\")"
+              },
+              {
+                "needle": "@PostMapping(\"/brands\")",
+                "line": 42,
+                "text": "@PostMapping(\"/brands\")"
+              },
+              {
+                "needle": "@GetMapping(\"/brands\")",
+                "line": 47,
+                "text": "@GetMapping(\"/brands\")"
+              },
+              {
+                "needle": "@PostMapping(\"/products\")",
+                "line": 69,
+                "text": "@PostMapping(\"/products\")"
+              },
+              {
+                "needle": "@GetMapping(\"/products\")",
+                "line": 78,
+                "text": "@GetMapping(\"/products\")"
+              }
+            ]
+          }
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-001",
+      "title": "Existing-brand end-to-end create is downstream-ready on the canonical surface",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Select an existing active brand from GET /api/v1/catalog/brands?active=true",
+          "expected": "Use canonical brand list for selection",
+          "observed": "Selected existing active brand id 1 (Fixture Brand) from the canonical active brand list."
+        },
+        {
+          "action": "POST /api/v1/catalog/products with the selected active brandId",
+          "expected": "Create a SKU family on the canonical surface",
+          "observed": "POST /api/v1/catalog/products -> 200 with variantGroupId=6d91542e-588d-3725-82b0-812ff934d5d4 candidateCount=4."
+        },
+        {
+          "action": "GET /api/v1/catalog/products?brandId=<existingBrandId> as sales and factory users",
+          "expected": "Created SKU family is discoverable to downstream selectors without retired routes",
+          "observed": "Sales browse matched 4 created members and factory browse matched 4 created members on the canonical catalog surface."
+        },
+        {
+          "action": "POST /api/v1/sales/orders with one created SKU and then GET /api/v1/factory/tasks",
+          "expected": "Created SKU is usable in downstream sales flow and produces factory-facing follow-up work without manual repair",
+          "observed": "Sales order creation returned 200 with order id 2 status PENDING_PRODUCTION; factory tasks returned 1 matching task(s) for SKU FIX-BRAND-UTCATSURFACEBRANDRERUNEXISTINGFAMILY20260321T082346Z-WHITE-1L."
+        }
+      ],
+      "evidence": {
+        "network": [
+          "GET /api/v1/catalog/brands?active=true -> 200",
+          "POST /api/v1/catalog/products -> 200",
+          "GET /api/v1/catalog/products?brandId=1&page=0&pageSize=100 (sales) -> 200",
+          "GET /api/v1/catalog/products?brandId=1&page=0&pageSize=100 (factory) -> 200",
+          "POST /api/v1/sales/orders -> 200",
+          "GET /api/v1/factory/tasks -> 200"
+        ],
+        "retiredRouteProof": [
+          "GET /api/v1/accounting/catalog/products -> 404",
+          "GET /api/v1/production/brands -> 404",
+          "POST /api/v1/catalog/products/bulk -> 405"
+        ],
+        "files": [
+          {
+            "file": "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/controller/CatalogController.java",
+            "matches": [
+              {
+                "needle": "@RequestMapping(\"/api/v1/catalog\")",
+                "line": 29,
+                "text": "@RequestMapping(\"/api/v1/catalog\")"
+              },
+              {
+                "needle": "@PostMapping(\"/brands\")",
+                "line": 42,
+                "text": "@PostMapping(\"/brands\")"
+              },
+              {
+                "needle": "@GetMapping(\"/brands\")",
+                "line": 47,
+                "text": "@GetMapping(\"/brands\")"
+              },
+              {
+                "needle": "@PostMapping(\"/products\")",
+                "line": 69,
+                "text": "@PostMapping(\"/products\")"
+              },
+              {
+                "needle": "@GetMapping(\"/products\")",
+                "line": 78,
+                "text": "@GetMapping(\"/products\")"
+              }
+            ]
+          }
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-002",
+      "title": "New-brand end-to-end create is downstream-ready on the canonical surface",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Create a new brand via POST /api/v1/catalog/brands",
+          "expected": "Capture returned brandId for canonical new-brand flow",
+          "observed": "Created namespaced brand id 18 with response status 200."
+        },
+        {
+          "action": "POST /api/v1/catalog/products using the returned brandId",
+          "expected": "Create a SKU family on the canonical surface",
+          "observed": "POST /api/v1/catalog/products -> 200 with variantGroupId=ebdca28e-ef2f-3fb7-957e-461f67ea4d96 candidateCount=4."
+        },
+        {
+          "action": "GET /api/v1/catalog/products?brandId=<newBrandId> as sales and factory users",
+          "expected": "Created SKU family is discoverable to downstream selectors without retired routes",
+          "observed": "Sales browse matched 4 created members and factory browse matched 4 created members on the canonical catalog surface."
+        },
+        {
+          "action": "POST /api/v1/sales/orders with one created SKU and then GET /api/v1/factory/tasks",
+          "expected": "Created SKU is usable in downstream sales flow and produces factory-facing follow-up work without manual repair",
+          "observed": "Sales order creation returned 200 with order id 3 status PENDING_PRODUCTION; factory tasks returned 1 matching task(s) for SKU UTCATSURFACE05-UTCATSURFACEBRANDRERUNNEWFAMILY20260321T082346Z-GREEN-5L."
+        }
+      ],
+      "evidence": {
+        "network": [
+          "POST /api/v1/catalog/brands -> 200",
+          "POST /api/v1/catalog/products -> 200",
+          "GET /api/v1/catalog/products?brandId=18&page=0&pageSize=100 (sales) -> 200",
+          "GET /api/v1/catalog/products?brandId=18&page=0&pageSize=100 (factory) -> 200",
+          "POST /api/v1/sales/orders -> 200",
+          "GET /api/v1/factory/tasks -> 200"
+        ],
+        "retiredRouteProof": [
+          "GET /api/v1/accounting/catalog/products -> 404",
+          "GET /api/v1/production/brands -> 404",
+          "POST /api/v1/catalog/products/bulk -> 405"
+        ],
+        "files": [
+          {
+            "file": "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/controller/CatalogController.java",
+            "matches": [
+              {
+                "needle": "@RequestMapping(\"/api/v1/catalog\")",
+                "line": 29,
+                "text": "@RequestMapping(\"/api/v1/catalog\")"
+              },
+              {
+                "needle": "@PostMapping(\"/brands\")",
+                "line": 42,
+                "text": "@PostMapping(\"/brands\")"
+              },
+              {
+                "needle": "@GetMapping(\"/brands\")",
+                "line": 47,
+                "text": "@GetMapping(\"/brands\")"
+              },
+              {
+                "needle": "@PostMapping(\"/products\")",
+                "line": 69,
+                "text": "@PostMapping(\"/products\")"
+              },
+              {
+                "needle": "@GetMapping(\"/products\")",
+                "line": 78,
+                "text": "@GetMapping(\"/products\")"
+              }
+            ]
+          }
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 8 assertions: 8 passed, 0 failed, 0 blocked, 0 skipped. Canonical catalog surface remained the only surviving public host, retired routes stayed unmapped, and both existing-brand and new-brand end-to-end creates were downstream-ready via sales order creation plus factory task generation."
+}

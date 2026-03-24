@@ -4,6 +4,7 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningService;
@@ -365,7 +366,7 @@ public class CompanyService {
         int gracePeriodHours = resolveGracePeriodHours(request.gracePeriodHours());
         String warningMessage = request.message().trim();
         String actor = resolveActor(authentication);
-        Instant issuedAt = Instant.now();
+        Instant issuedAt = CompanyTime.now(company);
 
         if (auditService != null) {
             HashMap<String, String> metadata = new HashMap<>();

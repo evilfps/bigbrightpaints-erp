@@ -20,7 +20,8 @@ public record JournalEntryRequest(
         BigDecimal fxRate,
         String sourceModule,
         String sourceReference,
-        String journalType
+        String journalType,
+        List<String> attachmentReferences
 ) {
     public JournalEntryRequest(String referenceNumber,
                                @NotNull LocalDate entryDate,
@@ -29,7 +30,7 @@ public record JournalEntryRequest(
                                Long supplierId,
                                Boolean adminOverride,
                                @NotEmpty List<@Valid JournalLineRequest> lines) {
-        this(referenceNumber, entryDate, memo, dealerId, supplierId, adminOverride, lines, null, null, null, null, null);
+        this(referenceNumber, entryDate, memo, dealerId, supplierId, adminOverride, lines, null, null, null, null, null, List.of());
     }
 
     public JournalEntryRequest(String referenceNumber,
@@ -41,7 +42,22 @@ public record JournalEntryRequest(
                                @NotEmpty List<@Valid JournalLineRequest> lines,
                                String currency,
                                BigDecimal fxRate) {
-        this(referenceNumber, entryDate, memo, dealerId, supplierId, adminOverride, lines, currency, fxRate, null, null, null);
+        this(referenceNumber, entryDate, memo, dealerId, supplierId, adminOverride, lines, currency, fxRate, null, null, null, List.of());
+    }
+
+    public JournalEntryRequest(String referenceNumber,
+                               @NotNull LocalDate entryDate,
+                               String memo,
+                               Long dealerId,
+                               Long supplierId,
+                               Boolean adminOverride,
+                               @NotEmpty List<@Valid JournalLineRequest> lines,
+                               String currency,
+                               BigDecimal fxRate,
+                               String sourceModule,
+                               String sourceReference,
+                               String journalType) {
+        this(referenceNumber, entryDate, memo, dealerId, supplierId, adminOverride, lines, currency, fxRate, sourceModule, sourceReference, journalType, List.of());
     }
 
     public record JournalLineRequest(@NotNull Long accountId,

@@ -17,6 +17,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.security.access.AccessDeniedException;
@@ -56,6 +57,19 @@ public class RoleService {
                 .toList();
     }
 
+    @Transactional
+    public int synchronizeSystemRolePermissions() {
+        int updatedRoles = 0;
+        for (Role role : roleRepository.findByNameIn(SystemRole.roleNames())) {
+            SystemRole definition = SystemRole.fromName(role.getName()).orElse(null);
+            if (definition != null && synchronizeSystemRolePermissions(role, definition)) {
+                roleRepository.save(role);
+                updatedRoles++;
+            }
+        }
+        return updatedRoles;
+    }
+
     private List<RoleDto> allSystemRoles() {
         Map<String, Role> rolesByName = roleRepository.findByNameIn(SystemRole.roleNames())
                 .stream()
@@ -76,7 +90,7 @@ public class RoleService {
         return persistRole(request);
     }
 
-    public boolean canManageSharedRoleMutation(Authentication authentication, String roleName) {
+    public boolean canManageSharedRoleMutation(String roleName) {
         if (!StringUtils.hasText(roleName)) {
             return true;
         }
@@ -84,6 +98,7 @@ public class RoleService {
         if (SystemRole.fromName(normalizedName).isEmpty()) {
             return true;
         }
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         boolean granted = hasAuthority(authentication, "ROLE_SUPER_ADMIN");
         auditAuthorityDecision(granted, "shared-role-permission-mutation", normalizedName, authentication);
         return granted;
@@ -94,16 +109,20 @@ public class RoleService {
         String normalizedName = normalizeRoleName(roleName);
         enforceSuperAdminForPrivilegedRoles(normalizedName, "tenant-admin-role-management");
         SystemRole definition = SystemRole.fromName(normalizedName).orElse(null);
+        boolean[] created = {false};
         // Use pessimistic lock to prevent race condition on concurrent role creation
-        return roleRepository.lockByName(normalizedName).orElseGet(() -> {
-            Role role = new Role();
-            role.setName(normalizedName);
-            role.setDescription(definition != null ? definition.getDescription() : normalizedName);
-            if (definition != null) {
-                definition.getDefaultPermissions().forEach(code -> role.getPermissions().add(ensurePermissionExists(code)));
-            }
-            return roleRepository.save(role);
+        Role role = roleRepository.lockByName(normalizedName).orElseGet(() -> {
+            created[0] = true;
+            Role newRole = new Role();
+            newRole.setName(normalizedName);
+            newRole.setDescription(definition != null ? definition.getDescription() : normalizedName);
+            return newRole;
         });
+        boolean changed = definition != null && synchronizeSystemRolePermissions(role, definition);
+        if (created[0] || changed) {
+            return roleRepository.save(role);
+        }
+        return role;
     }
 
     public Permission ensurePermissionExists(String code) {
@@ -117,6 +136,18 @@ public class RoleService {
 
     public boolean isSystemRole(String roleName) {
         return SystemRole.fromName(roleName).isPresent();
+    }
+
+    @Transactional
+    public int synchronizeSystemRoles() {
+        Map<String, Permission> permissionCache = new HashMap<>();
+        int synchronizedRoles = 0;
+        for (SystemRole definition : SystemRole.values()) {
+            if (synchronizeSystemRole(definition, permissionCache)) {
+                synchronizedRoles++;
+            }
+        }
+        return synchronizedRoles;
     }
 
     private RoleDto persistRole(CreateRoleRequest request) {
@@ -148,11 +179,58 @@ public class RoleService {
         return toDto(saved);
     }
 
+    private boolean synchronizeSystemRole(SystemRole definition, Map<String, Permission> permissionCache) {
+        Role role = roleRepository.lockByName(definition.getRoleName()).orElseGet(Role::new);
+        boolean dirty = role.getId() == null;
+        if (!StringUtils.hasText(role.getName())) {
+            role.setName(definition.getRoleName());
+            dirty = true;
+        }
+        if (!StringUtils.hasText(role.getDescription())) {
+            role.setDescription(definition.getDescription());
+            dirty = true;
+        }
+        Set<String> existingPermissionCodes = role.getPermissions().stream()
+                .map(Permission::getCode)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toSet());
+        for (String permissionCode : definition.getDefaultPermissions()) {
+            if (existingPermissionCodes.add(permissionCode)) {
+                Permission permission = permissionCache.computeIfAbsent(permissionCode, this::ensurePermissionExists);
+                role.getPermissions().add(permission);
+                dirty = true;
+            }
+        }
+        if (!dirty) {
+            return false;
+        }
+        roleRepository.save(role);
+        return true;
+    }
+
     private String normalizeRoleName(String roleName) {
         if (!StringUtils.hasText(roleName)) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Role name is required");
         }
         return roleName.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private boolean synchronizeSystemRolePermissions(Role role, SystemRole definition) {
+        boolean changed = false;
+        if (!StringUtils.hasText(role.getDescription())) {
+            role.setDescription(definition.getDescription());
+            changed = true;
+        }
+        HashSet<String> existingCodes = role.getPermissions().stream()
+                .map(Permission::getCode)
+                .collect(Collectors.toCollection(HashSet::new));
+        for (String code : definition.getDefaultPermissions()) {
+            if (existingCodes.add(code)) {
+                role.getPermissions().add(ensurePermissionExists(code));
+                changed = true;
+            }
+        }
+        return changed;
     }
 
     private RoleDto toDto(Role role) {
@@ -203,16 +281,18 @@ public class RoleService {
 
     private void auditAuthorityDecision(boolean granted, String action, String targetRole, Authentication authentication) {
         HashMap<String, String> metadata = new HashMap<>();
-        metadata.put("actor", resolveActor(authentication));
+        String actor = resolveActor(authentication);
+        String tenantScope = resolveTenantScope(authentication);
+        metadata.put("actor", actor);
         metadata.put("reason", granted
                 ? action + "-approved"
                 : action + "-requires-super-admin");
-        metadata.put("tenantScope", resolveTenantScope(authentication));
+        metadata.put("tenantScope", tenantScope);
         metadata.put("targetRole", targetRole);
         if (granted) {
-            auditService.logSuccess(AuditEvent.ACCESS_GRANTED, metadata);
+            auditService.logAuthSuccess(AuditEvent.ACCESS_GRANTED, actor, tenantScope, metadata);
         } else {
-            auditService.logFailure(AuditEvent.ACCESS_DENIED, metadata);
+            auditService.logAuthFailure(AuditEvent.ACCESS_DENIED, actor, tenantScope, metadata);
         }
     }
 

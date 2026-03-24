@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.purchasing.service;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
@@ -22,6 +23,7 @@ import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptResponse;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderResponse;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnPreviewDto;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderStatusHistoryResponse;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseOrderVoidRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnRequest;
@@ -118,8 +120,7 @@ public class PurchasingService {
                              AccountingPeriodService accountingPeriodService,
                              GstService gstService,
                              PurchaseOrderStatusHistoryRepository purchaseOrderStatusHistoryRepository,
-                             PlatformTransactionManager transactionManager) {
-        PurchaseResponseMapper responseMapper = new PurchaseResponseMapper();
+                             PlatformTransactionManager transactionManager, PartnerSettlementAllocationRepository settlementAllocationRepository) { PurchaseResponseMapper responseMapper = new PurchaseResponseMapper(purchaseRepository, settlementAllocationRepository);
         PurchaseTaxPolicy purchaseTaxPolicy = new PurchaseTaxPolicy();
         this.purchaseOrderService = new PurchaseOrderService(
                 companyContextService,
@@ -139,7 +140,6 @@ public class PurchasingService {
                 accountingPeriodService,
                 responseMapper,
                 this.purchaseOrderService,
-                event -> {},
                 transactionManager
         );
         this.purchaseInvoiceService = new PurchaseInvoiceService(
@@ -169,6 +169,7 @@ public class PurchasingService {
                 rawMaterialBatchRepository,
                 movementRepository,
                 accountingFacade,
+                journalEntryRepository,
                 companyEntityLookup,
                 referenceNumberService,
                 companyClock,
@@ -254,5 +255,9 @@ public class PurchasingService {
 
     public JournalEntryDto recordPurchaseReturn(PurchaseReturnRequest request) {
         return purchaseReturnService.recordPurchaseReturn(request);
+    }
+
+    public PurchaseReturnPreviewDto previewPurchaseReturn(PurchaseReturnRequest request) {
+        return purchaseReturnService.previewPurchaseReturn(request);
     }
 }

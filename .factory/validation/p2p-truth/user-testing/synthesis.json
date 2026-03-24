@@ -1,0 +1,28 @@
+{
+  "milestone": "p2p-truth",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-P2P-001",
+    "VAL-P2P-002",
+    "VAL-P2P-003",
+    "VAL-P2P-004",
+    "VAL-P2P-005"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": ".factory/library/user-testing.md",
+      "description": "Documented the deterministic P2P validation suites and source files to use when the compose-backed runtime has no seeded tenant/user data, covering supplier lifecycle, stock-only GRN behavior, GRN-linked AP posting, and duplicate-posting containment.",
+      "source": "flow-report"
+    }
+  ],
+  "previousRound": null
+}

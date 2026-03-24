@@ -425,6 +425,19 @@ public class AccountingFacadeCore {
         Company company = companyContextService.requireCurrentCompany();
         Supplier supplier = requireSupplier(company, supplierId);
 
+        String baseReference = referenceNumberService.purchaseReferenceKey(company, supplier, invoiceNumber);
+        Optional<JournalEntry> existingByBase = journalReferenceResolver.findExistingEntry(company, baseReference);
+        if (existingByBase.isPresent()) {
+            return toSimpleDto(existingByBase.get());
+        }
+        Optional<JournalEntry> legacyByPrefix = findLegacyPurchaseCanonicalEntry(company, baseReference);
+        if (legacyByPrefix.isPresent()) {
+            ensurePurchaseReferenceMapping(company, baseReference, legacyByPrefix.get());
+            return toSimpleDto(legacyByPrefix.get());
+        }
+
+        supplier.requireTransactionalUsage("post purchase journals");
+
         if (inventoryLines == null || inventoryLines.isEmpty()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                     "Inventory lines are required for purchase journal");
@@ -438,17 +451,6 @@ public class AccountingFacadeCore {
                     "Supplier missing payable account")
                     .withDetail("supplierId", supplierId)
                     .withDetail("supplierName", supplier.getName());
-        }
-
-        String baseReference = referenceNumberService.purchaseReferenceKey(company, supplier, invoiceNumber);
-        Optional<JournalEntry> existingByBase = journalReferenceResolver.findExistingEntry(company, baseReference);
-        if (existingByBase.isPresent()) {
-            return toSimpleDto(existingByBase.get());
-        }
-        Optional<JournalEntry> legacyByPrefix = findLegacyPurchaseCanonicalEntry(company, baseReference);
-        if (legacyByPrefix.isPresent()) {
-            ensurePurchaseReferenceMapping(company, baseReference, legacyByPrefix.get());
-            return toSimpleDto(legacyByPrefix.get());
         }
 
         // Generate reference number

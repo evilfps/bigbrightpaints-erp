@@ -144,7 +144,7 @@ class OpeningBalanceImportControllerSecurityIT extends AbstractIntegrationTest {
         String token = (String) loginResponse.getBody().get("accessToken");
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
-        headers.set("X-Company-Id", companyCode);
+        headers.set("X-Company-Code", companyCode);
         return headers;
     }
 

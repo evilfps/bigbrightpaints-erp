@@ -12,6 +12,7 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.controller.AccountingController;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountHierarchyService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditTrailService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
@@ -39,16 +40,16 @@ class TS_AccountingControllerExportAuditRuntimeCoverageTest {
     @SuppressWarnings("unchecked")
     @Test
     void auditDigestCsv_logsDeterministicExportAuditEvidence() {
-        AccountingService accountingService = mock(AccountingService.class);
-        when(accountingService.auditDigestCsv(any(), any())).thenReturn("id,ref\n1,ABC");
-        AccountingController controller = newController(accountingService);
+        AccountingAuditService accountingAuditService = mock(AccountingAuditService.class);
+        when(accountingAuditService.auditDigestCsv(any(), any())).thenReturn("id,ref\n1,ABC");
+        AccountingController controller = newController(accountingAuditService);
         AuditService auditService = mock(AuditService.class);
         ReflectionTestUtils.setField(controller, "auditService", auditService);
 
         ResponseEntity<String> response = controller.auditDigestCsv("2026-02-01", "2026-02-28");
 
         assertThat(response.getBody()).isEqualTo("id,ref\n1,ABC");
-        verify(accountingService).auditDigestCsv(LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28));
+        verify(accountingAuditService).auditDigestCsv(LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28));
         ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
         verify(auditService).logSuccess(eq(AuditEvent.DATA_EXPORT), metadataCaptor.capture());
         assertThat(metadataCaptor.getValue())
@@ -61,7 +62,7 @@ class TS_AccountingControllerExportAuditRuntimeCoverageTest {
     @SuppressWarnings("unchecked")
     @Test
     void logAccountingExport_handlesMissingAuditService_andResourceIdBranch() {
-        AccountingController controller = newController(mock(AccountingService.class));
+        AccountingController controller = newController(mock(AccountingAuditService.class));
         ReflectionTestUtils.invokeMethod(controller, "logAccountingExport", "ACCOUNTING_AUDIT_DIGEST", 42L, "csv");
 
         AuditService auditService = mock(AuditService.class);
@@ -77,9 +78,15 @@ class TS_AccountingControllerExportAuditRuntimeCoverageTest {
                 .containsEntry("format", "csv");
     }
 
-    private static AccountingController newController(AccountingService accountingService) {
+    private static AccountingController newController(AccountingAuditService accountingAuditService) {
         return new AccountingController(
-                accountingService,
+                mock(AccountingService.class),
+                null,
+                null,
+                null,
+                null,
+                accountingAuditService,
+                null,
                 mock(AccountingFacade.class),
                 mock(SalesReturnService.class),
                 mock(AccountingPeriodService.class),
@@ -93,6 +100,7 @@ class TS_AccountingControllerExportAuditRuntimeCoverageTest {
                 mock(AccountingAuditTrailService.class),
                 mock(CompanyContextService.class),
                 mock(CompanyClock.class),
+                null,
                 null
         );
     }

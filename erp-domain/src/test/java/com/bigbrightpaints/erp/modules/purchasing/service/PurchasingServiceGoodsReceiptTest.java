@@ -5,12 +5,14 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
@@ -26,14 +28,18 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatus;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderStatusHistoryRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptLineRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptResponse;
+import com.bigbrightpaints.erp.shared.dto.LinkedBusinessReferenceDto;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -54,6 +60,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -61,12 +68,15 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class PurchasingServiceGoodsReceiptTest {
 
     @Mock
     private CompanyContextService companyContextService;
     @Mock
     private RawMaterialPurchaseRepository purchaseRepository;
+    @Mock
+    private PartnerSettlementAllocationRepository settlementAllocationRepository;
     @Mock
     private PurchaseOrderRepository purchaseOrderRepository;
     @Mock
@@ -121,7 +131,8 @@ class PurchasingServiceGoodsReceiptTest {
                 accountingPeriodService,
                 gstService,
                 purchaseOrderStatusHistoryRepository,
-                new ResourcelessTransactionManager()
+                new ResourcelessTransactionManager(),
+                settlementAllocationRepository
         );
 
         company = new Company();
@@ -132,6 +143,7 @@ class PurchasingServiceGoodsReceiptTest {
         supplier.setCompany(company);
         supplier.setCode("SUP-10");
         supplier.setName("Supplier 10");
+        supplier.setStatus(SupplierStatus.ACTIVE);
 
         rawMaterial = new RawMaterial();
         ReflectionTestUtils.setField(rawMaterial, "id", 20L);
@@ -157,7 +169,7 @@ class PurchasingServiceGoodsReceiptTest {
         orderLine.setLineTotal(new BigDecimal("50.00"));
         purchaseOrder.getLines().add(orderLine);
 
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
     }
 
     @Test
@@ -201,6 +213,74 @@ class PurchasingServiceGoodsReceiptTest {
     }
 
     @Test
+    @DisplayName("createGoodsReceipt rejects missing purchase order id")
+    void createGoodsReceipt_rejectsMissingPurchaseOrderId() {
+        GoodsReceiptRequest request = new GoodsReceiptRequest(
+                null,
+                "GRN-30-01",
+                LocalDate.of(2026, 2, 20),
+                "Goods receipt memo",
+                "idem-missing-po",
+                List.of(new GoodsReceiptLineRequest(20L, null, new BigDecimal("4.0000"), "KG", new BigDecimal("5.00"), "line note"))
+        );
+
+        assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD);
+                    assertThat(ex).hasMessage("Purchase order is required");
+                });
+
+        verifyNoInteractions(goodsReceiptRepository, accountingPeriodService, purchaseOrderRepository, rawMaterialRepository, rawMaterialService);
+    }
+
+    @Test
+    @DisplayName("createGoodsReceipt rejects blank receipt number")
+    void createGoodsReceipt_rejectsBlankReceiptNumber() {
+        GoodsReceiptRequest request = new GoodsReceiptRequest(
+                30L,
+                "   ",
+                LocalDate.of(2026, 2, 20),
+                "Goods receipt memo",
+                "idem-blank-receipt",
+                List.of(new GoodsReceiptLineRequest(20L, null, new BigDecimal("4.0000"), "KG", new BigDecimal("5.00"), "line note"))
+        );
+        assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD);
+                    assertThat(ex).hasMessage("Receipt number is required");
+                });
+
+        verifyNoInteractions(goodsReceiptRepository, accountingPeriodService, purchaseOrderRepository, rawMaterialRepository, rawMaterialService);
+    }
+
+    @Test
+    @DisplayName("createGoodsReceipt rejects suppliers that were suspended after purchase order approval")
+    void createGoodsReceipt_rejectsSuspendedSupplierWithExplicitReason() {
+        supplier.setStatus(SupplierStatus.SUSPENDED);
+        GoodsReceiptRequest request = request(
+                "idem-suspended-supplier",
+                LocalDate.of(2026, 2, 20),
+                List.of(new GoodsReceiptLineRequest(20L, null, new BigDecimal("4.0000"), "KG", new BigDecimal("5.00"), "line note"))
+        );
+
+        when(goodsReceiptRepository.findWithLinesByCompanyAndIdempotencyKey(company, "idem-suspended-supplier"))
+                .thenReturn(Optional.empty());
+        when(purchaseOrderRepository.lockByCompanyAndId(company, 30L))
+                .thenReturn(Optional.of(purchaseOrder));
+
+        assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> assertThat(((ApplicationException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.BUSINESS_INVALID_STATE))
+                .hasMessageContaining("suspended")
+                .hasMessageContaining("reference only");
+
+        verify(goodsReceiptRepository).findWithLinesByCompanyAndIdempotencyKey(company, "idem-suspended-supplier");
+        verify(accountingPeriodService).requireOpenPeriod(company, LocalDate.of(2026, 2, 20));
+        verifyNoInteractions(rawMaterialRepository, rawMaterialService, accountingFacade, journalEntryRepository);
+    }
+
+    @Test
     @DisplayName("createGoodsReceipt idempotency replay returns existing receipt")
     void createGoodsReceipt_idempotencyReplayReturnsExisting() {
         GoodsReceiptRequest request = request(
@@ -226,6 +306,50 @@ class PurchasingServiceGoodsReceiptTest {
         verify(goodsReceiptRepository).findWithLinesByCompanyAndIdempotencyKey(company, "idem-replay-ok");
         verify(goodsReceiptRepository, never()).save(any(GoodsReceipt.class));
         verifyNoInteractions(accountingPeriodService, purchaseOrderRepository, rawMaterialRepository, rawMaterialService);
+    }
+
+    @Test
+    @DisplayName("listGoodsReceipts batches linked purchase lookup for lifecycle mapping")
+    void listGoodsReceipts_batchesLinkedPurchaseLookup() {
+        GoodsReceipt firstReceipt = existingReceipt(request(
+                "idem-list-1",
+                LocalDate.of(2026, 2, 20),
+                List.of(new GoodsReceiptLineRequest(20L, "REQ-BATCH-1", new BigDecimal("4.0000"), "KG", new BigDecimal("5.00"), "line note"))
+        ));
+        ReflectionTestUtils.setField(firstReceipt, "id", 901L);
+
+        GoodsReceipt secondReceipt = existingReceipt(request(
+                "idem-list-2",
+                LocalDate.of(2026, 2, 21),
+                List.of(new GoodsReceiptLineRequest(20L, "REQ-BATCH-2", new BigDecimal("3.0000"), "KG", new BigDecimal("5.00"), "line note"))
+        ));
+        ReflectionTestUtils.setField(secondReceipt, "id", 902L);
+
+        RawMaterialPurchase linkedPurchase = new RawMaterialPurchase();
+        ReflectionTestUtils.setField(linkedPurchase, "id", 990L);
+        linkedPurchase.setCompany(company);
+        linkedPurchase.setSupplier(supplier);
+        linkedPurchase.setInvoiceNumber("PINV-990");
+        linkedPurchase.setStatus("POSTED");
+        linkedPurchase.setGoodsReceipt(firstReceipt);
+
+        when(goodsReceiptRepository.findByCompanyWithLinesOrderByReceiptDateDesc(company))
+                .thenReturn(List.of(firstReceipt, secondReceipt));
+        when(purchaseRepository.findByCompanyAndGoodsReceipt_IdIn(company, List.of(901L, 902L)))
+                .thenReturn(List.of(linkedPurchase));
+
+        List<GoodsReceiptResponse> responses = purchasingService.listGoodsReceipts();
+
+        assertThat(responses).hasSize(2);
+        assertThat(responses.get(0).linkedReferences())
+                .extracting(LinkedBusinessReferenceDto::relationType)
+                .contains("PURCHASE_ORDER", "PURCHASE_INVOICE", "SELF");
+        assertThat(responses.get(1).linkedReferences())
+                .extracting(LinkedBusinessReferenceDto::relationType)
+                .containsExactlyInAnyOrder("PURCHASE_ORDER", "SELF");
+
+        verify(purchaseRepository).findByCompanyAndGoodsReceipt_IdIn(company, List.of(901L, 902L));
+        verify(purchaseRepository, never()).findByCompanyAndGoodsReceipt(any(), any());
     }
 
     @Test
@@ -273,8 +397,8 @@ class PurchasingServiceGoodsReceiptTest {
                 .thenReturn(Optional.empty());
         when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
                 .thenReturn(List.of());
-        when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-                .thenReturn(Optional.of(rawMaterial));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenReturn(rawMaterial);
 
         RawMaterialBatch recordedBatch = new RawMaterialBatch();
         ReflectionTestUtils.setField(recordedBatch, "id", 702L);
@@ -327,6 +451,33 @@ class PurchasingServiceGoodsReceiptTest {
     }
 
     @Test
+    @DisplayName("createGoodsReceipt rejects unknown raw materials before receipt mutations")
+    void createGoodsReceipt_rejectsUnknownRawMaterial() {
+        GoodsReceiptRequest request = request(
+                "idem-missing-material",
+                LocalDate.of(2026, 2, 20),
+                List.of(new GoodsReceiptLineRequest(20L, "REQ-BATCH", new BigDecimal("4.0000"), "KG", new BigDecimal("5.00"), "line note"))
+        );
+
+        when(goodsReceiptRepository.findWithLinesByCompanyAndIdempotencyKey(company, "idem-missing-material"))
+                .thenReturn(Optional.empty());
+        when(purchaseOrderRepository.lockByCompanyAndId(company, 30L))
+                .thenReturn(Optional.of(purchaseOrder));
+        when(goodsReceiptRepository.lockByCompanyAndReceiptNumberIgnoreCase(company, "GRN-30-01"))
+                .thenReturn(Optional.empty());
+        when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
+                .thenReturn(List.of());
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenThrow(new IllegalArgumentException("Raw material not found: id=20"));
+
+        assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("Raw material not found");
+
+        verifyNoInteractions(rawMaterialService);
+    }
+
+    @Test
     @DisplayName("createGoodsReceipt partial receipt sets statuses and records batches")
     void createGoodsReceipt_partialReceipt_setsStatusesAndRecordsBatches() {
         LocalDate manufacturingDate = LocalDate.of(2026, 2, 15);
@@ -353,8 +504,8 @@ class PurchasingServiceGoodsReceiptTest {
                 .thenReturn(Optional.empty());
         when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
                 .thenReturn(List.of());
-        when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-                .thenReturn(Optional.of(rawMaterial));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenReturn(rawMaterial);
 
         RawMaterialBatch recordedBatch = new RawMaterialBatch();
         ReflectionTestUtils.setField(recordedBatch, "id", 701L);
@@ -389,7 +540,8 @@ class PurchasingServiceGoodsReceiptTest {
         assertThat(purchaseOrder.getStatus()).isEqualTo("PARTIALLY_RECEIVED");
 
         ArgumentCaptor<RawMaterialBatchRequest> batchRequestCaptor = ArgumentCaptor.forClass(RawMaterialBatchRequest.class);
-        verify(rawMaterialService).recordReceipt(eq(20L), batchRequestCaptor.capture(), any(RawMaterialService.ReceiptContext.class));
+        ArgumentCaptor<RawMaterialService.ReceiptContext> receiptContextCaptor = ArgumentCaptor.forClass(RawMaterialService.ReceiptContext.class);
+        verify(rawMaterialService).recordReceipt(eq(20L), batchRequestCaptor.capture(), receiptContextCaptor.capture());
         RawMaterialBatchRequest batchRequest = batchRequestCaptor.getValue();
         assertThat(batchRequest.batchCode()).isEqualTo("RM-20-GRN-30-01");
         assertThat(batchRequest.quantity()).isEqualByComparingTo("4.0000");
@@ -397,16 +549,149 @@ class PurchasingServiceGoodsReceiptTest {
         assertThat(batchRequest.supplierId()).isEqualTo(10L);
         assertThat(batchRequest.manufacturingDate()).isEqualTo(manufacturingDate);
         assertThat(batchRequest.expiryDate()).isEqualTo(expiryDate);
+        RawMaterialService.ReceiptContext receiptContext = receiptContextCaptor.getValue();
+        assertThat(receiptContext.referenceType()).isEqualTo(InventoryReference.GOODS_RECEIPT);
+        assertThat(receiptContext.referenceId()).isEqualTo("GRN-30-01");
+        assertThat(receiptContext.postJournal()).isFalse();
 
         verify(accountingPeriodService).requireOpenPeriod(company, LocalDate.of(2026, 2, 20));
         verify(purchaseOrderRepository).save(purchaseOrder);
 
         assertThat(response.id()).isEqualTo(950L);
         assertThat(response.status()).isEqualTo("PARTIAL");
+        assertThat(response.lifecycle().workflowStatus()).isEqualTo("PARTIAL");
+        assertThat(response.lifecycle().accountingStatus()).isEqualTo("PENDING");
         assertThat(response.receiptNumber()).isEqualTo("GRN-30-01");
         assertThat(response.lines()).hasSize(1);
         assertThat(response.lines().get(0).batchCode()).isEqualTo("RM-20-LOT-001");
         assertThat(response.totalAmount()).isEqualByComparingTo("20.00");
+        assertThat(response.linkedReferences())
+                .extracting(LinkedBusinessReferenceDto::relationType, LinkedBusinessReferenceDto::documentType)
+                .contains(org.assertj.core.groups.Tuple.tuple("PURCHASE_ORDER", "PURCHASE_ORDER"));
+    }
+
+    @Test
+    @DisplayName("createGoodsReceipt keeps AP truth out of receipt posting")
+    void createGoodsReceipt_doesNotPostApJournalOnSuccessfulReceipt() {
+        GoodsReceiptRequest request = request(
+                "idem-stock-only",
+                LocalDate.of(2026, 2, 20),
+                List.of(new GoodsReceiptLineRequest(
+                        20L,
+                        null,
+                        new BigDecimal("4.0000"),
+                        "KG",
+                        new BigDecimal("5.00"),
+                        "line note"))
+        );
+
+        when(goodsReceiptRepository.findWithLinesByCompanyAndIdempotencyKey(company, "idem-stock-only"))
+                .thenReturn(Optional.empty());
+        when(purchaseOrderRepository.lockByCompanyAndId(company, 30L))
+                .thenReturn(Optional.of(purchaseOrder));
+        when(goodsReceiptRepository.lockByCompanyAndReceiptNumberIgnoreCase(company, "GRN-30-01"))
+                .thenReturn(Optional.empty());
+        when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
+                .thenReturn(List.of());
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenReturn(rawMaterial);
+
+        RawMaterialBatch recordedBatch = new RawMaterialBatch();
+        ReflectionTestUtils.setField(recordedBatch, "id", 702L);
+        recordedBatch.setBatchCode("RM-20-LOT-002");
+        recordedBatch.setRawMaterial(rawMaterial);
+        recordedBatch.setQuantity(new BigDecimal("4.0000"));
+        recordedBatch.setUnit("KG");
+        recordedBatch.setCostPerUnit(new BigDecimal("5.00"));
+
+        when(rawMaterialService.recordReceipt(eq(20L), any(RawMaterialBatchRequest.class), any(RawMaterialService.ReceiptContext.class)))
+                .thenReturn(new RawMaterialService.ReceiptResult(recordedBatch, null, null));
+        when(goodsReceiptRepository.saveAndFlush(any(GoodsReceipt.class)))
+                .thenAnswer(invocation -> {
+                    GoodsReceipt receipt = invocation.getArgument(0);
+                    ReflectionTestUtils.setField(receipt, "id", 951L);
+                    ReflectionTestUtils.setField(receipt, "createdAt", Instant.parse("2026-02-20T00:00:00Z"));
+                    return receipt;
+                });
+        when(purchaseOrderRepository.save(any(PurchaseOrder.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        GoodsReceiptResponse response = purchasingService.createGoodsReceipt(request);
+
+        assertThat(response.id()).isEqualTo(951L);
+        assertThat(response.status()).isEqualTo("PARTIAL");
+        verifyNoInteractions(accountingFacade, journalEntryRepository);
+    }
+
+    @Test
+    @DisplayName("createGoodsReceipt rejects lines outside the purchase order")
+    void createGoodsReceipt_rejectsLinesOutsidePurchaseOrder() {
+        RawMaterial otherMaterial = new RawMaterial();
+        ReflectionTestUtils.setField(otherMaterial, "id", 21L);
+        otherMaterial.setCompany(company);
+        otherMaterial.setSku("RM-21");
+        otherMaterial.setName("Pigment");
+        otherMaterial.setUnitType("KG");
+
+        GoodsReceiptRequest request = request(
+                "idem-po-coverage",
+                LocalDate.of(2026, 2, 20),
+                List.of(new GoodsReceiptLineRequest(21L, null, new BigDecimal("4.0000"), "KG", new BigDecimal("5.00"), "line note"))
+        );
+
+        when(goodsReceiptRepository.findWithLinesByCompanyAndIdempotencyKey(company, "idem-po-coverage"))
+                .thenReturn(Optional.empty());
+        when(purchaseOrderRepository.lockByCompanyAndId(company, 30L))
+                .thenReturn(Optional.of(purchaseOrder));
+        when(goodsReceiptRepository.lockByCompanyAndReceiptNumberIgnoreCase(company, "GRN-30-01"))
+                .thenReturn(Optional.empty());
+        when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
+                .thenReturn(List.of());
+        when(companyEntityLookup.lockActiveRawMaterial(company, 21L))
+                .thenReturn(otherMaterial);
+
+        assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+                    assertThat(ex).hasMessage("Goods receipt line is not covered by purchase order");
+                    assertThat(ex.getDetails()).containsEntry("rawMaterialId", 21L);
+                });
+
+        verify(accountingPeriodService).requireOpenPeriod(company, LocalDate.of(2026, 2, 20));
+        verifyNoInteractions(rawMaterialService, accountingFacade, journalEntryRepository);
+    }
+
+    @Test
+    @DisplayName("createGoodsReceipt rejects unit mismatches against the purchase order")
+    void createGoodsReceipt_rejectsUnitMismatch() {
+        GoodsReceiptRequest request = request(
+                "idem-unit-mismatch",
+                LocalDate.of(2026, 2, 20),
+                List.of(new GoodsReceiptLineRequest(20L, null, new BigDecimal("4.0000"), "LTR", new BigDecimal("5.00"), "line note"))
+        );
+
+        when(goodsReceiptRepository.findWithLinesByCompanyAndIdempotencyKey(company, "idem-unit-mismatch"))
+                .thenReturn(Optional.empty());
+        when(purchaseOrderRepository.lockByCompanyAndId(company, 30L))
+                .thenReturn(Optional.of(purchaseOrder));
+        when(goodsReceiptRepository.lockByCompanyAndReceiptNumberIgnoreCase(company, "GRN-30-01"))
+                .thenReturn(Optional.empty());
+        when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
+                .thenReturn(List.of());
+        when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+                .thenReturn(rawMaterial);
+
+        assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+                    assertThat(ex).hasMessage("Goods receipt unit must match purchase order unit");
+                    assertThat(ex.getDetails()).containsEntry("rawMaterialId", 20L);
+                    assertThat(ex.getDetails()).containsEntry("orderUnit", "KG");
+                    assertThat(ex.getDetails()).containsEntry("receiptUnit", "LTR");
+                });
+
+        verify(accountingPeriodService).requireOpenPeriod(company, LocalDate.of(2026, 2, 20));
+        verifyNoInteractions(rawMaterialService, accountingFacade, journalEntryRepository);
     }
 
     private GoodsReceiptRequest request(String idempotencyKey, LocalDate receiptDate, List<GoodsReceiptLineRequest> lines) {

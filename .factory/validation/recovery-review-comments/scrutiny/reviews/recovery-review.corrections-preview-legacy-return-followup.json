@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-review.corrections-preview-legacy-return-followup",
+  "reviewedAt": "2026-03-11T11:40:00+05:30",
+  "commitId": "3e1fec743ae45acce77e3be13ba63af09ae2957e",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review of the corrections follow-up confirmed the packet addressed the live preview mismatch directly inside `SalesReturnService` and paired it with focused `SalesReturnServiceTest` coverage for legacy invoice-scoped return movements. The diff realigns `alreadyReturned` and `remainingQuantityAfterReturn` preview math without broadening the corrections/control surface, and the milestone validators passed on the propagated branch, so this feature passes on reachable commit `3e1fec743ae45acce77e3be13ba63af09ae2957e` (`fix(sales): keep legacy return preview balances accurate`).",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Legacy invoice-scoped return history is now reflected in preview balances on commit `3e1fec743ae45acce77e3be13ba63af09ae2957e`, with focused sales-return regression coverage."
+}

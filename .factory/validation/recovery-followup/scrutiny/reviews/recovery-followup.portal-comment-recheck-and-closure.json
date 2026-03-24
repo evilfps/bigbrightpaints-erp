@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-followup.portal-comment-recheck-and-closure",
+  "reviewedAt": "2026-03-09T20:52:02Z",
+  "commitId": "0fa17aedcca479ffce5289042f0f864841315af0",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review passed. Reviewed the worker handoff for commit 0fa17aedcca479ffce5289042f0f864841315af0, validated the reported scope and verification evidence, and checked the committed diff shape for the feature. Touched the live security/runtime surfaces at `/api/v1/dispatch/confirm` and `CompanyContextFilter` plus adjacent regression coverage. `DispatchController.confirmDispatch(...)` now invokes `validateFactoryDispatchMetadata(...)` before the legacy `DispatchMetadataValidator`, so pure factory users get the intended business-friendly transporter/vehicle/challan blocker messages from the actual endpoint path rather than only from helper tests. `CompanyContextFilter.writeAccessDenied(...)` now keeps top-level and nested `message` fields aligned on filter-generated 403 envelopes, which preserves the existing response shape while removing conflicting denial text for super-admin/company-context failures. In test coverage, `AdminApprovalRbacIT` now asserts concrete `400 VAL_001` payroll-run-not-found outcomes for admin/accounting approval/post/mark-paid paths instead of broad \u201cnot forbidden\u201d checks, and the auth/dispatch tests were updated to lock in the aligned denial contract and the live dispatch validator behavior. API shapes changed: no. Per packet scope and user instruction, I did not update `.factory/library` docs because the auth/admin request-response contracts did not change. Non-blocking follow-up remains limited to remote PR reruns or stale GitHub checks, not local code defects.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Closed the still-applicable PR #100 portal blockers on `recovery/06-portal-boundaries` by wiring the factory-friendly dispatch metadata validator into the live dispatch-confirm path, aligning filter-generated 403 message payloads, and tightening approval RBAC assertions to require deterministic business failures. Local compile, the exact feature test command, and `gate-fast` now pass; `gh pr checks 100` still shows the older remote run until the branch is pushed and rerun."
+}

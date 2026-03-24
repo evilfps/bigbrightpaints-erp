@@ -14,6 +14,7 @@ import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingReposi
 import com.bigbrightpaints.erp.modules.factory.dto.BulkPackRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.BulkPackResponse;
 import com.bigbrightpaints.erp.modules.factory.service.BulkPackingService;
+import com.bigbrightpaints.erp.modules.factory.service.PackingJournalLinkHelper;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
@@ -21,6 +22,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
@@ -47,8 +49,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.util.AopTestUtils;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -68,6 +68,7 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
     @Autowired private InventoryMovementRepository inventoryMovementRepository;
     @Autowired private RawMaterialMovementRepository rawMaterialMovementRepository;
     @Autowired private JournalEntryRepository journalEntryRepository;
+    @Autowired private PackingJournalLinkHelper packingJournalLinkHelper;
 
     private Company company;
     private Account bulkInventoryAccount;
@@ -109,7 +110,8 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
         );
         assertThat(importResponse.errors()).isEmpty();
 
-        RawMaterial packagingMaterial = rawMaterialRepository.findByCompanyAndSku(company, "PACK-RM-M13S2").orElseThrow();
+        RawMaterial packagingMaterial = markAsPackagingMaterial(
+                rawMaterialRepository.findByCompanyAndSku(company, "PACK-RM-M13S2").orElseThrow());
         assertThat(packagingMaterial.getInventoryAccountId()).isEqualTo(packagingInventoryAccount.getId());
         addRawMaterialBatch(packagingMaterial, new BigDecimal("50"), new BigDecimal("1.25"));
         createPackagingMapping(packagingMaterial, "1L");
@@ -121,8 +123,6 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
         BulkPackRequest request = new BulkPackRequest(
                 bulkBatch.getId(),
                 List.of(new BulkPackRequest.PackLine(childFg.getId(), new BigDecimal("5"), "1L", "L")),
-                null,
-                false,
                 LocalDate.now(),
                 "packer",
                 "import-linked pack",
@@ -225,7 +225,8 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
         assertThat(bulkFgImport.errors()).isEmpty();
         assertThat(childFgImport.errors()).isEmpty();
 
-        RawMaterial packagingMaterial = rawMaterialRepository.findByCompanyAndSku(company, "PACK-RM-M13S7").orElseThrow();
+        RawMaterial packagingMaterial = markAsPackagingMaterial(
+                rawMaterialRepository.findByCompanyAndSku(company, "PACK-RM-M13S7").orElseThrow());
         FinishedGood bulkFg = finishedGoodRepository.findByCompanyAndProductCode(company, "FG-BULK-M13S7").orElseThrow();
         FinishedGood childFg = finishedGoodRepository.findByCompanyAndProductCode(company, "FG-1L-M13S7").orElseThrow();
         assertThat(packagingMaterial.getInventoryAccountId()).isEqualTo(packagingInventoryAccount.getId());
@@ -239,8 +240,6 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
         BulkPackRequest request = new BulkPackRequest(
                 bulkBatch.getId(),
                 List.of(new BulkPackRequest.PackLine(childFg.getId(), new BigDecimal("4"), "1L", "L")),
-                null,
-                false,
                 LocalDate.now(),
                 "packer",
                 "imported account linkage",
@@ -301,7 +300,8 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
                 "M13-S7-CAT-IMPORT-DRIFT"
         );
         assertThat(importResponse.errors()).isEmpty();
-        RawMaterial packagingMaterial = rawMaterialRepository.findByCompanyAndSku(company, "PACK-RM-M13S7-DRIFT").orElseThrow();
+        RawMaterial packagingMaterial = markAsPackagingMaterial(
+                rawMaterialRepository.findByCompanyAndSku(company, "PACK-RM-M13S7-DRIFT").orElseThrow());
         addRawMaterialBatch(packagingMaterial, new BigDecimal("30"), new BigDecimal("1.00"));
         createPackagingMapping(packagingMaterial, "1L");
 
@@ -311,8 +311,6 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
         BulkPackRequest request = new BulkPackRequest(
                 bulkBatch.getId(),
                 List.of(new BulkPackRequest.PackLine(childFg.getId(), new BigDecimal("3"), "1L", "L")),
-                null,
-                false,
                 LocalDate.now(),
                 "packer",
                 "link drift guard",
@@ -333,10 +331,7 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
         assertThat(rawMovements).allSatisfy(movement -> assertThat(movement.getJournalEntryId()).isEqualTo(originalJournalId));
         assertThat(inventoryMovements).allSatisfy(movement -> assertThat(movement.getJournalEntryId()).isEqualTo(originalJournalId));
 
-        BulkPackingService targetService = AopTestUtils.getTargetObject(bulkPackingService);
-        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
-                targetService,
-                "linkPackagingMovementsToJournal",
+        assertThatThrownBy(() -> packingJournalLinkHelper.linkPackagingMovementsToJournal(
                 company,
                 packReference,
                 originalJournalId + 999L))
@@ -484,5 +479,10 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
                 "text/csv",
                 csv.getBytes(StandardCharsets.UTF_8)
         );
+    }
+
+    private RawMaterial markAsPackagingMaterial(RawMaterial rawMaterial) {
+        rawMaterial.setMaterialType(MaterialType.PACKAGING);
+        return rawMaterialRepository.save(rawMaterial);
     }
 }

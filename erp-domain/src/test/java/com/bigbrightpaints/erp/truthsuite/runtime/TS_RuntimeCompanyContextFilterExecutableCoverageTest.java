@@ -214,7 +214,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         authenticate("root@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of());
         assertThat(invokeHasSuperAdminAuthority()).isTrue();
         assertThat(invokeHasTenantRuntimePolicyControlAuthority("/api/v1/admin/tenant-runtime/policy", "PUT"))
-                .isTrue();
+                .isFalse();
         assertThat(invokeHasTenantRuntimePolicyControlAuthority("/api/v1/companies/77/tenant-runtime/policy", "PUT"))
                 .isTrue();
         assertThat(invokeHasTenantRuntimePolicyControlAuthority("/api/v1/admin/tenant-runtime/policy", "GET"))
@@ -311,6 +311,23 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
     }
 
     @Test
+    void helperMethods_coverSuperAdminTenantBusinessAndAuditGuards() {
+        assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin(null)).isFalse();
+        assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin("/api/v1/admin/approvals")).isTrue();
+        assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin("/api/v1/orchestrator/health")).isFalse();
+        assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin("/api/v1/orchestrator/jobs")).isTrue();
+        assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin("/api/v1/accounting/periods/2026-Q1/reopen")).isFalse();
+        assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin("/api/v1/accounting/journals")).isTrue();
+
+        assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/audit/business-events")).isTrue();
+        assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/audit;tenant=acme/business-events;mode=full")).isTrue();
+        assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/admin/settings")).isFalse();
+
+        assertThat(invokeNormalizePath("/api/v1/audit;tenant=acme/business-events;mode=full///"))
+                .isEqualTo("/api/v1/audit/business-events");
+    }
+
+    @Test
     void authControllerForgotPasswordEndpoint_delegatesToPasswordResetService() {
         AuthService authService = mock(AuthService.class);
         PasswordService passwordService = mock(PasswordService.class);
@@ -354,7 +371,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
 
         verify(tokenRepo).deleteByUser(superAdmin);
         verify(tokenRepo).saveAndFlush(any(PasswordResetToken.class));
-        verify(tokenRepo, never()).deleteByToken(anyString());
+        verify(tokenRepo, never()).deleteByTokenDigest(anyString());
         verify(emailService).sendSimpleEmail(eq("superadmin@example.com"), eq("Reset your BigBright ERP password"), anyString());
     }
 
@@ -418,7 +435,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
                 .doesNotThrowAnyException();
         verify(persistenceFailureTokenRepo).deleteByUser(superAdmin);
         verify(persistenceFailureTokenRepo).saveAndFlush(any(PasswordResetToken.class));
-        verify(persistenceFailureTokenRepo, never()).deleteByToken(anyString());
+        verify(persistenceFailureTokenRepo, never()).deleteByTokenDigest(anyString());
         verifyNoInteractions(persistenceFailureEmailService);
     }
 
@@ -431,7 +448,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         when(userRepo.findByEmailIgnoreCase("superadmin@example.com")).thenReturn(Optional.of(superAdmin));
         doThrow(new DataAccessResourceFailureException("cleanup failed"))
                 .when(tokenRepo)
-                .deleteByToken(anyString());
+                .deleteByTokenDigest(anyString());
         doThrow(new RuntimeException("smtp down"))
                 .when(emailService)
                 .sendSimpleEmail(eq("superadmin@example.com"), eq("Reset your BigBright ERP password"), anyString());
@@ -449,7 +466,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
 
         verify(tokenRepo).deleteByUser(superAdmin);
         verify(tokenRepo).saveAndFlush(any(PasswordResetToken.class));
-        verify(tokenRepo).deleteByToken(anyString());
+        verify(tokenRepo).deleteByTokenDigest(anyString());
         verify(emailService).sendSimpleEmail(eq("superadmin@example.com"), eq("Reset your BigBright ERP password"), anyString());
     }
 
@@ -493,7 +510,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         PasswordResetTokenRepository tokenRepository = mock(PasswordResetTokenRepository.class);
         doThrow(new DataAccessResourceFailureException("cleanup failed"))
                 .when(tokenRepository)
-                .deleteByToken("token-123");
+                .deleteByTokenDigest(anyString());
 
         PasswordResetService service = new PasswordResetService(
                 mock(UserAccountRepository.class),
@@ -507,7 +524,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
 
         assertThatCode(() -> invokeCleanupFailedSuperAdminResetToken(service, null, "token-123"))
                 .doesNotThrowAnyException();
-        verify(tokenRepository).deleteByToken("token-123");
+        verify(tokenRepository).deleteByTokenDigest(anyString());
     }
 
     @Test
@@ -525,7 +542,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
 
         assertThatCode(() -> invokeCleanupFailedSuperAdminResetToken(service, superAdminUser("superadmin@example.com"), "token-123"))
                 .doesNotThrowAnyException();
-        verify(tokenRepository).deleteByToken("token-123");
+        verify(tokenRepository).deleteByTokenDigest(anyString());
     }
 
     @Test
@@ -561,7 +578,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         assertThatCode(() -> service.requestResetForSuperAdmin("missing@example.com")).doesNotThrowAnyException();
 
         verify(tokenRepo, never()).deleteByUser(any(UserAccount.class));
-        verify(tokenRepo, never()).deleteByToken(anyString());
+        verify(tokenRepo, never()).deleteByTokenDigest(anyString());
         verify(tokenRepo, never()).saveAndFlush(any(PasswordResetToken.class));
         verifyNoInteractions(emailService);
     }
@@ -676,6 +693,18 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
 
     private String invokeNormalizePath(String path) {
         return ReflectionTestUtils.invokeMethod(filter, "normalizePath", path);
+    }
+
+    private boolean invokeIsTenantBusinessRequestBlockedForSuperAdmin(String path) {
+        Boolean result = ReflectionTestUtils.invokeMethod(filter, "isTenantBusinessRequestBlockedForSuperAdmin", path);
+        assertThat(result).isNotNull();
+        return result;
+    }
+
+    private boolean invokeIsTenantAuditWorkflowRequest(String path) {
+        Boolean result = ReflectionTestUtils.invokeMethod(filter, "isTenantAuditWorkflowRequest", path);
+        assertThat(result).isNotNull();
+        return result;
     }
 
     private UserAccount superAdminUser(String email) {

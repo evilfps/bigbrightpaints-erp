@@ -8,6 +8,8 @@ import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationReques
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.service.DealerReceiptService;
+import com.bigbrightpaints.erp.modules.accounting.service.SettlementService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -30,15 +32,21 @@ class AccountingControllerIdempotencyHeaderParityTest {
     @Mock
     private AccountingService accountingService;
 
+    @Mock
+    private DealerReceiptService dealerReceiptService;
+
+    @Mock
+    private SettlementService settlementService;
+
     @Test
     void recordDealerReceipt_appliesLegacyHeaderWhenPrimaryMissing() {
         AccountingController controller = controller();
-        when(accountingService.recordDealerReceipt(any())).thenReturn(null);
+        when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
 
         controller.recordDealerReceipt(dealerReceiptRequest(null), null, "legacy-001");
 
         ArgumentCaptor<DealerReceiptRequest> captor = ArgumentCaptor.forClass(DealerReceiptRequest.class);
-        verify(accountingService).recordDealerReceipt(captor.capture());
+        verify(dealerReceiptService).recordDealerReceipt(captor.capture());
         assertThat(captor.getValue().idempotencyKey()).isEqualTo("legacy-001");
     }
 
@@ -63,24 +71,24 @@ class AccountingControllerIdempotencyHeaderParityTest {
     @Test
     void recordDealerReceipt_blankBodyKeyFallsBackToHeader() {
         AccountingController controller = controller();
-        when(accountingService.recordDealerReceipt(any())).thenReturn(null);
+        when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
 
         controller.recordDealerReceipt(dealerReceiptRequest("   "), "hdr-blank-001", null);
 
         ArgumentCaptor<DealerReceiptRequest> captor = ArgumentCaptor.forClass(DealerReceiptRequest.class);
-        verify(accountingService).recordDealerReceipt(captor.capture());
+        verify(dealerReceiptService).recordDealerReceipt(captor.capture());
         assertThat(captor.getValue().idempotencyKey()).isEqualTo("hdr-blank-001");
     }
 
     @Test
     void recordDealerHybridReceipt_appliesLegacyHeaderWhenPrimaryMissing() {
         AccountingController controller = controller();
-        when(accountingService.recordDealerReceiptSplit(any())).thenReturn(null);
+        when(dealerReceiptService.recordDealerReceiptSplit(any())).thenReturn(null);
 
         controller.recordDealerHybridReceipt(dealerReceiptSplitRequest(null), null, "legacy-001");
 
         ArgumentCaptor<DealerReceiptSplitRequest> captor = ArgumentCaptor.forClass(DealerReceiptSplitRequest.class);
-        verify(accountingService).recordDealerReceiptSplit(captor.capture());
+        verify(dealerReceiptService).recordDealerReceiptSplit(captor.capture());
         assertThat(captor.getValue().idempotencyKey()).isEqualTo("legacy-001");
     }
 
@@ -106,24 +114,24 @@ class AccountingControllerIdempotencyHeaderParityTest {
     @Test
     void recordDealerHybridReceipt_blankBodyKeyFallsBackToHeader() {
         AccountingController controller = controller();
-        when(accountingService.recordDealerReceiptSplit(any())).thenReturn(null);
+        when(dealerReceiptService.recordDealerReceiptSplit(any())).thenReturn(null);
 
         controller.recordDealerHybridReceipt(dealerReceiptSplitRequest("   "), "hdr-blank-002", null);
 
         ArgumentCaptor<DealerReceiptSplitRequest> captor = ArgumentCaptor.forClass(DealerReceiptSplitRequest.class);
-        verify(accountingService).recordDealerReceiptSplit(captor.capture());
+        verify(dealerReceiptService).recordDealerReceiptSplit(captor.capture());
         assertThat(captor.getValue().idempotencyKey()).isEqualTo("hdr-blank-002");
     }
 
     @Test
     void recordSupplierPayment_appliesLegacyHeaderWhenPrimaryMissing() {
         AccountingController controller = controller();
-        when(accountingService.recordSupplierPayment(any())).thenReturn(null);
+        when(settlementService.recordSupplierPayment(any())).thenReturn(null);
 
         controller.recordSupplierPayment(supplierPaymentRequest(null), null, "legacy-001");
 
         ArgumentCaptor<SupplierPaymentRequest> captor = ArgumentCaptor.forClass(SupplierPaymentRequest.class);
-        verify(accountingService).recordSupplierPayment(captor.capture());
+        verify(settlementService).recordSupplierPayment(captor.capture());
         assertThat(captor.getValue().idempotencyKey()).isEqualTo("legacy-001");
     }
 
@@ -149,24 +157,24 @@ class AccountingControllerIdempotencyHeaderParityTest {
     @Test
     void recordSupplierPayment_blankBodyKeyFallsBackToHeader() {
         AccountingController controller = controller();
-        when(accountingService.recordSupplierPayment(any())).thenReturn(null);
+        when(settlementService.recordSupplierPayment(any())).thenReturn(null);
 
         controller.recordSupplierPayment(supplierPaymentRequest("   "), "hdr-blank-003", null);
 
         ArgumentCaptor<SupplierPaymentRequest> captor = ArgumentCaptor.forClass(SupplierPaymentRequest.class);
-        verify(accountingService).recordSupplierPayment(captor.capture());
+        verify(settlementService).recordSupplierPayment(captor.capture());
         assertThat(captor.getValue().idempotencyKey()).isEqualTo("hdr-blank-003");
     }
 
     @Test
     void settleSupplier_appliesLegacyHeaderWhenPrimaryMissing() {
         AccountingController controller = controller();
-        when(accountingService.settleSupplierInvoices(any())).thenReturn(null);
+        when(settlementService.settleSupplierInvoices(any())).thenReturn(null);
 
         controller.settleSupplier(supplierSettlementRequest(null), null, "legacy-001");
 
         ArgumentCaptor<SupplierSettlementRequest> captor = ArgumentCaptor.forClass(SupplierSettlementRequest.class);
-        verify(accountingService).settleSupplierInvoices(captor.capture());
+        verify(settlementService).settleSupplierInvoices(captor.capture());
         assertThat(captor.getValue().idempotencyKey()).isEqualTo("legacy-001");
     }
 
@@ -192,24 +200,24 @@ class AccountingControllerIdempotencyHeaderParityTest {
     @Test
     void settleSupplier_blankBodyKeyFallsBackToHeader() {
         AccountingController controller = controller();
-        when(accountingService.settleSupplierInvoices(any())).thenReturn(null);
+        when(settlementService.settleSupplierInvoices(any())).thenReturn(null);
 
         controller.settleSupplier(supplierSettlementRequest("   "), "hdr-blank-004", null);
 
         ArgumentCaptor<SupplierSettlementRequest> captor = ArgumentCaptor.forClass(SupplierSettlementRequest.class);
-        verify(accountingService).settleSupplierInvoices(captor.capture());
+        verify(settlementService).settleSupplierInvoices(captor.capture());
         assertThat(captor.getValue().idempotencyKey()).isEqualTo("hdr-blank-004");
     }
 
     @Test
     void settleDealer_appliesLegacyHeaderWhenPrimaryMissing() {
         AccountingController controller = controller();
-        when(accountingService.settleDealerInvoices(any())).thenReturn(null);
+        when(settlementService.settleDealerInvoices(any())).thenReturn(null);
 
         controller.settleDealer(dealerSettlementRequest(null), null, "legacy-001");
 
         ArgumentCaptor<DealerSettlementRequest> captor = ArgumentCaptor.forClass(DealerSettlementRequest.class);
-        verify(accountingService).settleDealerInvoices(captor.capture());
+        verify(settlementService).settleDealerInvoices(captor.capture());
         assertThat(captor.getValue().idempotencyKey()).isEqualTo("legacy-001");
     }
 
@@ -235,12 +243,12 @@ class AccountingControllerIdempotencyHeaderParityTest {
     @Test
     void settleDealer_blankBodyKeyFallsBackToHeader() {
         AccountingController controller = controller();
-        when(accountingService.settleDealerInvoices(any())).thenReturn(null);
+        when(settlementService.settleDealerInvoices(any())).thenReturn(null);
 
         controller.settleDealer(dealerSettlementRequest("   "), "hdr-blank-005", null);
 
         ArgumentCaptor<DealerSettlementRequest> captor = ArgumentCaptor.forClass(DealerSettlementRequest.class);
-        verify(accountingService).settleDealerInvoices(captor.capture());
+        verify(settlementService).settleDealerInvoices(captor.capture());
         assertThat(captor.getValue().idempotencyKey()).isEqualTo("hdr-blank-005");
     }
 
@@ -248,8 +256,8 @@ class AccountingControllerIdempotencyHeaderParityTest {
         return new AccountingController(
                 accountingService,
                 null,
-                null,
-                null,
+                dealerReceiptService,
+                settlementService,
                 null,
                 null,
                 null,

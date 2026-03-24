@@ -17,8 +17,36 @@ public record JournalCreationRequest(
         LocalDate entryDate,
         Long dealerId,
         Long supplierId,
-        Boolean adminOverride
+        Boolean adminOverride,
+        List<String> attachmentReferences
 ) {
+
+    public JournalCreationRequest(BigDecimal amount,
+                                  Long debitAccount,
+                                  Long creditAccount,
+                                  String narration,
+                                  String sourceModule,
+                                  String sourceReference,
+                                  GstBreakdown gstBreakdown,
+                                  List<LineRequest> lines,
+                                  LocalDate entryDate,
+                                  Long dealerId,
+                                  Long supplierId,
+                                  Boolean adminOverride) {
+        this(amount,
+                debitAccount,
+                creditAccount,
+                narration,
+                sourceModule,
+                sourceReference,
+                gstBreakdown,
+                lines,
+                entryDate,
+                dealerId,
+                supplierId,
+                adminOverride,
+                List.of());
+    }
 
     public List<JournalEntryRequest.JournalLineRequest> resolvedLines() {
         if (lines != null && !lines.isEmpty()) {

@@ -1,0 +1,78 @@
+{
+  "groupId": "listener-factory",
+  "surface": "api",
+  "assertions": [
+    {
+      "id": "VAL-LISTENER-001",
+      "status": "pass",
+      "reason": "Targeted method inventoryListenerSkipsSalesOrderAndPackagingSlipDispatchMovements passed, and InventoryAccountingEventListener.isCanonicalWorkflowMovement explicitly skips SALES_ORDER and PACKAGING_SLIP movement types before any listener journal posting.",
+      "evidence": [
+        {
+          "type": "command",
+          "detail": "MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=TS_O2CListenerProformaInvoiceBoundaryTest#inventoryListenerSkipsSalesOrderAndPackagingSlipDispatchMovements,TS_O2CDispatchProvenanceViewsAndEquivalenceTest#pureFactoryDispatchViews_redactPricingInvoiceGstCostAndJournalFields test -> BUILD SUCCESS; listener method passed (evidence copy: /home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/evidence/freeze-dispatch-seams/listener-factory/targeted-assertions.log)"
+        },
+        {
+          "type": "source",
+          "detail": "src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2CListenerProformaInvoiceBoundaryTest.java:79 defines inventoryListenerSkipsSalesOrderAndPackagingSlipDispatchMovements."
+        },
+        {
+          "type": "source",
+          "detail": "src/main/java/com/bigbrightpaints/erp/modules/accounting/event/InventoryAccountingEventListener.java:165,316-322 skips canonical workflow movements, including SALES_ORDER and PACKAGING_SLIP."
+        }
+      ]
+    },
+    {
+      "id": "VAL-FACTORY-001",
+      "status": "pass",
+      "reason": "Targeted method pureFactoryDispatchViews_redactPricingInvoiceGstCostAndJournalFields passed, confirming factory preview/confirm/slip responses redact pricing, GST, invoice, and journal fields while persisted records still keep canonical accounting truth.",
+      "evidence": [
+        {
+          "type": "command",
+          "detail": "MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=TS_O2CListenerProformaInvoiceBoundaryTest#inventoryListenerSkipsSalesOrderAndPackagingSlipDispatchMovements,TS_O2CDispatchProvenanceViewsAndEquivalenceTest#pureFactoryDispatchViews_redactPricingInvoiceGstCostAndJournalFields test -> BUILD SUCCESS; factory redaction method passed (evidence copy: /home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/evidence/freeze-dispatch-seams/listener-factory/targeted-assertions.log)"
+        },
+        {
+          "type": "source",
+          "detail": "src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2CDispatchProvenanceViewsAndEquivalenceTest.java:170 defines pureFactoryDispatchViews_redactPricingInvoiceGstCostAndJournalFields."
+        },
+        {
+          "type": "source",
+          "detail": "src/main/java/com/bigbrightpaints/erp/modules/inventory/controller/DispatchController.java:206-332 redacts operational factory preview/confirmation/slip financial fields when isOperationalFactoryView() is true."
+        }
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "mvn",
+    "Read",
+    "Grep"
+  ],
+  "frictions": [
+    {
+      "description": "The parent-specified class TS_O2CProvenanceAndOperationalViewTest does not exist in this checkout, so the exact initial Maven command only executed TS_O2CListenerProformaInvoiceBoundaryTest.",
+      "resolved": true,
+      "resolution": "Ran a second targeted Maven command against TS_O2CDispatchProvenanceViewsAndEquivalenceTest#pureFactoryDispatchViews_redactPricingInvoiceGstCostAndJournalFields, which matches the factory-view assertion coverage.",
+      "affectedAssertions": [
+        "VAL-FACTORY-001"
+      ]
+    }
+  ],
+  "blockers": [],
+  "commands": [
+    {
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=TS_O2CListenerProformaInvoiceBoundaryTest,TS_O2CProvenanceAndOperationalViewTest test",
+      "exitCode": 0,
+      "observation": "BUILD SUCCESS. Surefire ran TS_O2CListenerProformaInvoiceBoundaryTest (3 tests passed), but no TS_O2CProvenanceAndOperationalViewTest report was produced because that class name is absent in the repo."
+    },
+    {
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=TS_O2CListenerProformaInvoiceBoundaryTest#inventoryListenerSkipsSalesOrderAndPackagingSlipDispatchMovements,TS_O2CDispatchProvenanceViewsAndEquivalenceTest#pureFactoryDispatchViews_redactPricingInvoiceGstCostAndJournalFields test",
+      "exitCode": 0,
+      "observation": "BUILD SUCCESS. Both assertion-specific methods passed: 2 tests run, 0 failures, 0 errors."
+    }
+  ],
+  "artifacts": [
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/evidence/freeze-dispatch-seams/listener-factory/targeted-assertions.log",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/evidence/freeze-dispatch-seams/listener-factory/TS_O2CListenerProformaInvoiceBoundaryTest.txt",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/evidence/freeze-dispatch-seams/listener-factory/TS_O2CDispatchProvenanceViewsAndEquivalenceTest.txt",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/evidence/freeze-dispatch-seams/listener-factory/assertion-source-mapping.txt"
+  ]
+}

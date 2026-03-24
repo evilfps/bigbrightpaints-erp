@@ -23,6 +23,8 @@ import java.util.Map;
 public class BalanceSheetReportQueryService {
 
     private static final BigDecimal BALANCE_TOLERANCE = new BigDecimal("0.01");
+    private static final String CURRENT_EARNINGS_CODE = "CURRENT-EARNINGS";
+    private static final String CURRENT_EARNINGS_NAME = "Current Earnings";
 
     private final ReportQuerySupport reportQuerySupport;
     private final AccountingPeriodTrialBalanceLineRepository snapshotLineRepository;
@@ -118,6 +120,18 @@ public class BalanceSheetReportQueryService {
             }
         }
 
+        if (!usesClosedSnapshot(window)) {
+            BigDecimal currentEarnings = currentPeriodEarnings(window);
+            if (currentEarnings.compareTo(BigDecimal.ZERO) != 0) {
+                totalEquity = totalEquity.add(currentEarnings);
+                equityLines.add(new BalanceSheetDto.SectionLine(
+                        null,
+                        CURRENT_EARNINGS_CODE,
+                        CURRENT_EARNINGS_NAME,
+                        currentEarnings));
+            }
+        }
+
         boolean balanced = totalAssets.subtract(totalLiabilities.add(totalEquity))
                 .abs().compareTo(BALANCE_TOLERANCE) <= 0;
 
@@ -161,19 +175,22 @@ public class BalanceSheetReportQueryService {
         List<Account> accounts = accountRepository.findByCompanyOrderByCodeAsc(window.company());
         Map<Long, BigDecimal> debitByAccount = new HashMap<>();
         Map<Long, BigDecimal> creditByAccount = new HashMap<>();
-        List<Object[]> rows = journalLineRepository.summarizeByAccountWithin(
-                window.company(),
-                window.startDate(),
-                window.endDate());
-        for (Object[] row : rows) {
-            if (row == null || row.length < 3 || row[0] == null) {
-                continue;
-            }
-            Long accountId = (Long) row[0];
-            debitByAccount.put(accountId, safe((BigDecimal) row[1]));
-            creditByAccount.put(accountId, safe((BigDecimal) row[2]));
-        }
-
+        mergeSummaryRows(
+                debitByAccount,
+                creditByAccount,
+                journalLineRepository.summarizeByAccountWithin(
+                        window.company(),
+                        window.startDate(),
+                        window.endDate()),
+                false);
+        mergeSummaryRows(
+                debitByAccount,
+                creditByAccount,
+                journalLineRepository.summarizePostedPeriodCloseSystemJournalsByAccountWithin(
+                        window.company(),
+                        window.startDate(),
+                        window.endDate()),
+                true);
         List<BalanceLine> lines = new ArrayList<>();
         for (Account account : accounts) {
             if (!isBalanceSheetType(account.getType())) {
@@ -190,6 +207,47 @@ public class BalanceSheetReportQueryService {
             ));
         }
         return lines;
+    }
+
+    private void mergeSummaryRows(Map<Long, BigDecimal> debitByAccount,
+                                  Map<Long, BigDecimal> creditByAccount,
+                                  List<Object[]> rows,
+                                  boolean subtract) {
+        if (rows == null || rows.isEmpty()) {
+            return;
+        }
+        BigDecimal multiplier = subtract ? BigDecimal.valueOf(-1) : BigDecimal.ONE;
+        for (Object[] row : rows) {
+            if (row == null || row.length < 3 || row[0] == null) {
+                continue;
+            }
+            Long accountId = (Long) row[0];
+            debitByAccount.merge(accountId, safe((BigDecimal) row[1]).multiply(multiplier), BigDecimal::add);
+            creditByAccount.merge(accountId, safe((BigDecimal) row[2]).multiply(multiplier), BigDecimal::add);
+        }
+    }
+
+    private BigDecimal currentPeriodEarnings(ReportQuerySupport.FinancialQueryWindow window) {
+        List<Object[]> summarized = journalLineRepository.summarizeByAccountType(
+                window.company(),
+                window.startDate(),
+                window.endDate());
+
+        BigDecimal revenue = BigDecimal.ZERO;
+        BigDecimal expenses = BigDecimal.ZERO;
+        for (Object[] row : summarized) {
+            if (row == null || row.length < 3 || row[0] == null) {
+                continue;
+            }
+            AccountType type = (AccountType) row[0];
+            BigDecimal natural = toNatural(type, safe((BigDecimal) row[1]), safe((BigDecimal) row[2]));
+            if (type == AccountType.REVENUE || type == AccountType.OTHER_INCOME) {
+                revenue = revenue.add(natural);
+            } else if (type == AccountType.EXPENSE || type == AccountType.OTHER_EXPENSE || type == AccountType.COGS) {
+                expenses = expenses.add(natural);
+            }
+        }
+        return revenue.subtract(expenses);
     }
 
     private boolean isBalanceSheetType(AccountType type) {

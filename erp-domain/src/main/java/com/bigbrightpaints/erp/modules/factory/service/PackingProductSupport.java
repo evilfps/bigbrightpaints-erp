@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.factory.service;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingLineRequest;
@@ -17,9 +18,12 @@ import java.util.Optional;
 @Component
 public class PackingProductSupport {
 
+    private final CompanyEntityLookup companyEntityLookup;
     private final FinishedGoodRepository finishedGoodRepository;
 
-    public PackingProductSupport(FinishedGoodRepository finishedGoodRepository) {
+    public PackingProductSupport(CompanyEntityLookup companyEntityLookup,
+                                 FinishedGoodRepository finishedGoodRepository) {
+        this.companyEntityLookup = companyEntityLookup;
         this.finishedGoodRepository = finishedGoodRepository;
     }
 
@@ -36,10 +40,15 @@ public class PackingProductSupport {
         if (line.childFinishedGoodId() == null) {
             return defaultFinishedGood;
         }
-        FinishedGood target = finishedGoodRepository.lockByCompanyAndId(company, line.childFinishedGoodId())
-                .orElseThrow(() -> new ApplicationException(
-                        ErrorCode.VALIDATION_INVALID_REFERENCE,
-                        "Child finished good not found: " + line.childFinishedGoodId()));
+        FinishedGood target;
+        try {
+            target = companyEntityLookup.lockActiveFinishedGood(company, line.childFinishedGoodId());
+        } catch (IllegalArgumentException ex) {
+            throw new ApplicationException(
+                    ErrorCode.VALIDATION_INVALID_REFERENCE,
+                    "Child finished good not found: " + line.childFinishedGoodId(),
+                    ex);
+        }
 
         String productSku = Optional.ofNullable(log.getProduct())
                 .map(ProductionProduct::getSkuCode)

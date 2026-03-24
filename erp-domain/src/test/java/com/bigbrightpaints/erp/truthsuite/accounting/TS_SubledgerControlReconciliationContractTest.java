@@ -31,7 +31,7 @@ class TS_SubledgerControlReconciliationContractTest {
                 "public ReconciliationSummaryDto inventoryReconciliation()",
                 "public InventoryValuationDto inventoryValuationAsOf(LocalDate asOfDate)",
                 "public ReconciliationDashboardDto reconciliationDashboard(Long bankAccountId, BigDecimal statementBalance)",
-                "public List<AgedDebtorDto> agedDebtors()",
+                "public List<AgedDebtorDto> agedDebtors(FinancialReportQueryRequest request)",
                 "boolean inventoryBalanced = inventoryVariance.abs().compareTo(BALANCE_TOLERANCE) <= 0;");
     }
 

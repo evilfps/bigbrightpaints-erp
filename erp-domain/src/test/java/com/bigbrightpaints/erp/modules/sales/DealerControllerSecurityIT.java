@@ -29,7 +29,7 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
     private static final String DEALER_A_EMAIL = "dealer-a@bbp.com";
     private static final String DEALER_B_EMAIL = "dealer-b@bbp.com";
     private static final String ADMIN_EMAIL = "dealer-admin@bbp.com";
-    private static final String PASSWORD = "DealerPass123!";
+    private static final String PASSWORD = "changeme";
 
     @Autowired
     private TestRestTemplate rest;
@@ -154,7 +154,7 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Admin gets not-found for missing dealer read endpoints")
+    @DisplayName("Admin gets strict not-found for missing dealer read endpoints")
     void adminGetsNotFoundForMissingDealerReadEndpoints() {
         HttpHeaders headers = authHeaders(ADMIN_EMAIL, PASSWORD);
         long missingDealerId = 999_999_999L;
@@ -190,7 +190,7 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
         String token = (String) login.getBody().get("accessToken");
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
-        headers.set("X-Company-Id", COMPANY_CODE);
+        headers.set("X-Company-Code", COMPANY_CODE);
         return headers;
     }
 

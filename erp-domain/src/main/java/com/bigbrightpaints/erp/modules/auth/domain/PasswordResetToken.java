@@ -34,6 +34,9 @@ public class PasswordResetToken extends VersionedEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "delivered_at")
+    private Instant deliveredAt;
+
     protected PasswordResetToken() {
     }
 
@@ -81,8 +84,19 @@ public class PasswordResetToken extends VersionedEntity {
         return createdAt;
     }
 
+    public Instant getDeliveredAt() {
+        return deliveredAt;
+    }
+
     public void markUsed() {
         this.usedAt = Instant.now();
+    }
+
+    public void markDelivered(Instant deliveredAt) {
+        if (deliveredAt == null) {
+            return;
+        }
+        this.deliveredAt = deliveredAt;
     }
 
     public boolean isExpired(Instant now) {
@@ -101,4 +115,3 @@ public class PasswordResetToken extends VersionedEntity {
         this.token = null;
     }
 }
-

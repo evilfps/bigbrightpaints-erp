@@ -29,7 +29,8 @@ Use for any backend Java/Spring feature in the BigBright ERP, including:
 1. For bug fixes: write a test that reproduces the bug (should fail).
 2. For new features: write tests covering happy path, error cases, and edge cases (should fail).
 3. For refactoring: ensure existing tests pass first, then write any missing tests for the code being refactored.
-4. Run tests to confirm they fail as expected: `cd erp-domain && mvn test -Djacoco.skip=true -pl . -Dtest=YourTestClass`
+4. If the feature changes behavior in an already-covered area, update or replace the stale policy/contract/regression tests in that area as part of the same packet; do not leave drift behind.
+5. Run tests to confirm they fail as expected: `cd erp-domain && mvn test -Djacoco.skip=true -pl . -Dtest=YourTestClass`
 
 ### Step 3: Implement
 1. Make the minimal changes needed to satisfy the feature requirements.
@@ -39,26 +40,28 @@ Use for any backend Java/Spring feature in the BigBright ERP, including:
    - Single responsibility per service
    - Company-scoped queries
    - Event-driven cross-module communication
-3. For service decomposition:
+3. While touching O2C/P2P hotspots, remove dead code, unused branches, stale helpers, and retired duplicate-truth paths that are made obsolete by your feature. Do not leave known dead logic behind in the touched area.
+4. For service decomposition:
    - Create new focused service classes
    - Move methods from the god service to appropriate new services
    - Update the god service to delegate to new services (keep it as a facade initially if needed)
    - Update all controllers and other services that call the moved methods
    - Update all test imports and references
-4. For new Flyway migrations: continue from the highest existing version number.
+5. For new Flyway migrations: continue from the highest existing version number in `migration_v2` only.
 
 ### Step 4: Verify
 1. Run compilation check: `cd erp-domain && mvn compile -q`
 2. Run the baseline test suite: `cd erp-domain && mvn test -Pgate-fast -Djacoco.skip=true`
 3. For broader validation (optional, takes ~2.5min): `cd erp-domain && mvn test -Djacoco.skip=true '-Dtest=!*IT,!*ITCase,!*codered*' -pl .`
-3. Manually verify key behaviors using the approach appropriate for the feature:
+4. Manually verify key behaviors using the approach appropriate for the feature:
    - For new endpoints: document curl commands that demonstrate the endpoint works
    - For refactoring: confirm all callers are updated and tests pass
    - For bug fixes: confirm the specific bug is fixed via the test you wrote
-4. Check for any regressions in related modules.
+5. Check for any regressions in related modules.
+6. If your change exposed stale adjacent tests in the touched control surface, either fix them in the same feature or return a clearly tracked discovered issue tied to a pending feature.
 
 ### Step 5: Document Frontend Handoff
-If your feature adds or changes API endpoints, you MUST update `.factory/library/frontend-handoff.md` with:
+If your feature adds or changes frontend-facing API endpoints or contracts, you MUST update `.factory/library/frontend-handoff.md` with:
 1. **Endpoint map**: Every new/changed endpoint (method, path, auth, request/response types)
 2. **User flows**: Step-by-step API call sequences for each user-facing flow
 3. **State machines**: Entity lifecycle states and valid transitions with triggering API calls
@@ -68,10 +71,16 @@ If your feature adds or changes API endpoints, you MUST update `.factory/library
 
 This is a mandatory deliverable. A frontend developer should be able to build the UI from this documentation alone.
 
+Also update `.factory/library/frontend-v2.md` when the feature changes role surfaces, blocker semantics, generated artifacts, or backend-facing frontend assumptions.
+
+If a higher-priority instruction says to avoid doc updates for the packet and the feature preserves the existing frontend-facing contract, do not force a docs edit; instead, state explicitly in the handoff that no frontend-handoff/frontend-v2 update was required.
+If `mission.md`, `AGENTS.md`, or the feature description explicitly requires remediation-log, frontend-v2, frontend-handoff, or README updates, that counts as an explicit user request for those scoped docs and you should make them.
+
 ### Step 6: Update Shared Knowledge
 1. If you discovered important patterns, quirks, or conventions, update `.factory/library/architecture.md`.
 2. If you changed environment setup, update `.factory/library/environment.md`.
-3. If you found issues outside your feature scope, report them in `discoveredIssues`.
+3. If you removed duplicate-truth or dead code paths, append a concise dated note to `.factory/library/remediation-log.md`.
+4. If you found issues outside your feature scope, report them in `discoveredIssues`.
 
 ## Example Handoff
 

@@ -28,6 +28,7 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
+import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import java.math.BigDecimal;
@@ -268,19 +269,22 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         assertThat(traceAllowed.isAdmitted()).isTrue();
         service.completeRequest(traceAllowed, 200);
 
-        // Privileged policy control path bypasses hold/rate checks.
-        TenantRuntimeEnforcementService.TenantRequestAdmission policyControl =
+        TenantRuntimeEnforcementService.TenantRequestAdmission retiredAdminPolicyControl =
                 service.beginRequest("ACME", "/api/v1/admin/tenant-runtime/policy", "PUT", "super", true);
+        assertThat(retiredAdminPolicyControl.isAdmitted()).isFalse();
+        // Privileged canonical policy control path bypasses hold/rate checks.
+        TenantRuntimeEnforcementService.TenantRequestAdmission policyControl =
+                service.beginRequest("ACME", "/api/v1/companies/21/tenant-runtime/policy", "PUT", "super", true);
         assertThat(policyControl.isAdmitted()).isTrue();
         service.completeRequest(policyControl, 500);
         TenantRuntimeEnforcementService.TenantRequestAdmission nonPutPolicyControl =
-                service.beginRequest("ACME", "/api/v1/admin/tenant-runtime/policy", "PATCH", "super", true);
+                service.beginRequest("ACME", "/api/v1/companies/21/tenant-runtime/policy", "PATCH", "super", true);
         assertThat(nonPutPolicyControl.isAdmitted()).isFalse();
         TenantRuntimeEnforcementService.TenantRequestAdmission nullPathPolicyControl =
                 service.beginRequest("ACME", null, "PUT", "super", true);
         assertThat(nullPathPolicyControl.isAdmitted()).isFalse();
         TenantRuntimeEnforcementService.TenantRequestAdmission blankMethodPolicyControl =
-                service.beginRequest("ACME", "/api/v1/admin/tenant-runtime/policy", "   ", "super", true);
+                service.beginRequest("ACME", "/api/v1/companies/21/tenant-runtime/policy", "   ", "super", true);
         assertThat(blankMethodPolicyControl.isAdmitted()).isFalse();
         TenantRuntimeEnforcementService.TenantRequestAdmission wrongPrefixPolicyControl =
                 service.beginRequest("ACME", "/api/v1/company/21/tenant-runtime/policy", "PUT", "super", true);
@@ -396,6 +400,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     void tenantAdminProvisioningService_provisionInitialAdmin_covers_guards_and_fallback_display() {
         UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
         RoleService roleService = mock(RoleService.class);
+        RoleRepository roleRepository = mock(RoleRepository.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         EmailService emailService = mock(EmailService.class);
         TokenBlacklistService tokenBlacklistService = mock(TokenBlacklistService.class);
@@ -403,6 +408,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -411,7 +417,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         Role adminRole = new Role();
         adminRole.setName("ROLE_ADMIN");
         when(userAccountRepository.findByEmailIgnoreCase("new-admin@ske.com")).thenReturn(Optional.empty());
-        when(roleService.ensureRoleExists("ROLE_ADMIN")).thenReturn(adminRole);
+        when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(adminRole));
         when(passwordEncoder.encode(any())).thenReturn("encoded");
         when(userAccountRepository.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -444,6 +450,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     void tenantAdminProvisioningService_resetTenantAdminPassword_covers_authority_and_recovery_paths() {
         UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
         RoleService roleService = mock(RoleService.class);
+        RoleRepository roleRepository = mock(RoleRepository.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         EmailService emailService = mock(EmailService.class);
         TokenBlacklistService tokenBlacklistService = mock(TokenBlacklistService.class);
@@ -451,6 +458,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -513,6 +521,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     void tenantAdminProvisioningService_reportsCredentialEmailDeliveryReadiness() {
         UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
         RoleService roleService = mock(RoleService.class);
+        RoleRepository roleRepository = mock(RoleRepository.class);
         PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
         EmailService emailService = mock(EmailService.class);
         TokenBlacklistService tokenBlacklistService = mock(TokenBlacklistService.class);
@@ -520,6 +529,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         TenantAdminProvisioningService service = new TenantAdminProvisioningService(
                 userAccountRepository,
                 roleService,
+                roleRepository,
                 passwordEncoder,
                 emailService,
                 tokenBlacklistService,
@@ -581,6 +591,6 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
                 10,
                 100,
                 50,
-                new TenantRuntimeEnforcementService.TenantRuntimeMetrics(0, 0, 0, 0, 0, 0));
+                new TenantRuntimeEnforcementService.TenantRuntimeMetrics(0, 0, 0, 0, 0, 0, 0));
     }
 }

@@ -1,4 +1,4 @@
-package com.bigbrightpaints.erp.modules.accounting.service;
+package com.bigbrightpaints.erp.modules.accounting.internal;
 
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
@@ -25,8 +25,10 @@ import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingComplianceAuditService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodSnapshotService;
+import com.bigbrightpaints.erp.modules.accounting.service.ClosedPeriodPostingExceptionService;
 import com.bigbrightpaints.erp.modules.accounting.service.PeriodCloseHook;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
+import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationServiceCore;
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyStatus;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -35,6 +37,7 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptStatus;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto;
@@ -99,6 +102,9 @@ public class AccountingPeriodServiceCore {
 
     @Autowired(required = false)
     private AccountingComplianceAuditService accountingComplianceAuditService;
+
+    @Autowired(required = false)
+    private ClosedPeriodPostingExceptionService closedPeriodPostingExceptionService;
 
     public AccountingPeriodServiceCore(AccountingPeriodRepository accountingPeriodRepository,
                                    CompanyContextService companyContextService,
@@ -579,6 +585,31 @@ public class AccountingPeriodServiceCore {
         return period;
     }
 
+    public AccountingPeriod requirePostablePeriod(Company company,
+                                                  LocalDate referenceDate,
+                                                  String documentType,
+                                                  String documentReference,
+                                                  String reason,
+                                                  boolean overrideRequested) {
+        AccountingPeriod period = lockOrCreatePeriod(company, referenceDate);
+        if (period.getStatus() == AccountingPeriodStatus.OPEN) {
+            return period;
+        }
+        if (!overrideRequested) {
+            throw new ApplicationException(
+                    ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Accounting period " + period.getLabel()
+                            + " is locked/closed; an admin one-hour posting exception is required for this document");
+        }
+        if (closedPeriodPostingExceptionService == null) {
+            throw new ApplicationException(
+                    ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Closed-period posting exception workflow is not configured");
+        }
+        closedPeriodPostingExceptionService.authorize(company, period, documentType, documentReference, reason);
+        return period;
+    }
+
     private void assertChecklistMutable(AccountingPeriod period) {
         if (period.getStatus() == AccountingPeriodStatus.CLOSED
                 || period.getStatus() == AccountingPeriodStatus.LOCKED) {
@@ -759,7 +790,7 @@ public class AccountingPeriodServiceCore {
                     period.setStartDate(safeDate);
                     period.setEndDate(safeDate.plusMonths(1).minusDays(1));
                     period.setStatus(AccountingPeriodStatus.OPEN);
-                    period.setCostingMethod(CostingMethod.WEIGHTED_AVERAGE);
+                    period.setCostingMethod(CostingMethod.FIFO);
                     return accountingPeriodRepository.save(period);
                 });
     }
@@ -876,7 +907,7 @@ public class AccountingPeriodServiceCore {
     }
 
     private CostingMethod resolveCostingMethodOrDefault(CostingMethod costingMethod) {
-        return costingMethod != null ? costingMethod : CostingMethod.WEIGHTED_AVERAGE;
+        return costingMethod != null ? costingMethod : CostingMethod.FIFO;
     }
 
     private LocalDate resolveCurrentDate(Company company) {
@@ -1124,11 +1155,7 @@ public class AccountingPeriodServiceCore {
     }
 
     private long countUninvoicedReceipts(Company company, AccountingPeriod period) {
-        return goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
-                company,
-                period.getStartDate(),
-                period.getEndDate(),
-                "INVOICED");
+        return goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED);
     }
 
     private long countUnlinkedDocuments(Company company, AccountingPeriod period) {
@@ -1149,7 +1176,72 @@ public class AccountingPeriodServiceCore {
                         period.getEndDate(),
                         List.of(PayrollRun.PayrollStatus.POSTED, PayrollRun.PayrollStatus.PAID))
                 : 0L;
-        return invoiceUnlinked + purchaseUnlinked + payrollUnlinked;
+        long correctionLinkageGaps = countCorrectionLinkageGaps(company, period);
+        return invoiceUnlinked + purchaseUnlinked + payrollUnlinked + correctionLinkageGaps;
+    }
+
+    private long countCorrectionLinkageGaps(Company company, AccountingPeriod period) {
+        List<JournalEntry> periodEntries = journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
+                company,
+                period.getStartDate(),
+                period.getEndDate());
+        if (periodEntries == null || periodEntries.isEmpty()) {
+            return 0;
+        }
+        return periodEntries.stream()
+                .filter(this::isCorrectionJournal)
+                .filter(this::isMissingCorrectionLinkage)
+                .count();
+    }
+
+    private boolean isCorrectionJournal(JournalEntry entry) {
+        if (entry == null) {
+            return false;
+        }
+        if (entry.getCorrectionType() != null || entry.getReversalOf() != null) {
+            return true;
+        }
+        String reference = entry.getReferenceNumber();
+        if (!StringUtils.hasText(reference)) {
+            return false;
+        }
+        String normalized = reference.trim().toUpperCase();
+        return normalized.startsWith("CRN-")
+                || normalized.startsWith("CN-")
+                || normalized.startsWith("DN-")
+                || normalized.startsWith("PRN-");
+    }
+
+    private boolean isMissingCorrectionLinkage(JournalEntry entry) {
+        if (isLegacyReturnJournalWithoutModernCorrectionMetadata(entry)) {
+            return false;
+        }
+        return entry.getCorrectionType() == null
+                || !StringUtils.hasText(entry.getCorrectionReason())
+                || !StringUtils.hasText(entry.getSourceModule())
+                || !StringUtils.hasText(entry.getSourceReference());
+    }
+
+    private boolean isLegacyReturnJournalWithoutModernCorrectionMetadata(JournalEntry entry) {
+        if (entry == null
+                || entry.getCorrectionType() != null
+                || StringUtils.hasText(entry.getCorrectionReason())
+                || StringUtils.hasText(entry.getSourceModule())
+                || StringUtils.hasText(entry.getSourceReference())) {
+            return false;
+        }
+        String reference = entry.getReferenceNumber();
+        if (!StringUtils.hasText(reference)) {
+            return false;
+        }
+        String normalizedReference = reference.trim().toUpperCase();
+        if (normalizedReference.startsWith("CRN-")) {
+            return entry.getDealer() != null;
+        }
+        if (normalizedReference.startsWith("PRN-")) {
+            return entry.getSupplier() != null;
+        }
+        return false;
     }
 
     private boolean isHrPayrollEnabled(Company company) {

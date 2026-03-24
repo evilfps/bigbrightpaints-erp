@@ -1,0 +1,15 @@
+{
+  "featureId": "p2p-truth.grn-stock-truth-boundary",
+  "reviewedAt": "2026-03-08T09:13:00+05:30",
+  "commitId": "d5cf29b9ec5feafae1d6e3621ad980b25375f594",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature hardens the GRN boundary in the right seam: `GoodsReceiptService` now rejects missing purchase-order and receipt identifiers before persistence, and `RawMaterialService.recordReceipt` distinguishes stock-only receipt contexts from AP-posting contexts so GRN inventory truth no longer inherits payable-account requirements. The added unit and service tests explicitly verify `InventoryReference.GOODS_RECEIPT` with `postJournal=false`, absence of accounting-facade interaction for GRN stock receipts, and fail-closed validation for PO coverage and unit mismatches.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. GRN remains the stock truth boundary only, with explicit input validation, stock-only receipt context wiring, and regression coverage that prevents accidental AP posting or duplicate receipt-side effects."
+}

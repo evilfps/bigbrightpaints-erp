@@ -1,0 +1,100 @@
+{
+  "groupId": "orchestrator-cleanup",
+  "surface": "api",
+  "assertionResults": [
+    {
+      "id": "VAL-ORCH-001",
+      "status": "pass",
+      "reason": "IntegrationCoordinator no longer exposes independent dispatch journal posting methods; compile/test regression checks succeeded.",
+      "evidence": [
+        "grep src/main/java: no matches for postDispatchJournal( and createAccountingEntry(",
+        "mvn -q compile exited 0",
+        "TS_O2COrchestratorDispatchRemovalRegressionTest passed"
+      ]
+    },
+    {
+      "id": "VAL-ORCH-002",
+      "status": "pass",
+      "reason": "Orchestrator factory dispatch path fails closed with canonical pointer and no journal side effects.",
+      "evidence": [
+        "CommandDispatcher.dispatchBatch throws OrchestratorFeatureDisabledException with /api/v1/sales/dispatch/confirm",
+        "OrchestratorControllerIT passed (24 tests) including factory dispatch fail-closed contract"
+      ]
+    },
+    {
+      "id": "VAL-ORCH-003",
+      "status": "pass",
+      "reason": "Dispatch-like fulfillment statuses are now rejected with explicit canonical-path guidance.",
+      "evidence": [
+        "IntegrationCoordinator.updateFulfillment throws BUSINESS_INVALID_STATE for SHIPPED/DISPATCHED/FULFILLED/COMPLETED",
+        "IntegrationCoordinatorTest passed with dispatch-like status rejection assertions"
+      ]
+    },
+    {
+      "id": "VAL-ORCH-004",
+      "status": "pass",
+      "reason": "No orchestrator code can mint DISPATCH-prefixed journals after removal.",
+      "evidence": [
+        "grep erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator for 'DISPATCH-' returned no matches",
+        "guard_workflow_canonical_paths.sh exited 0"
+      ]
+    },
+    {
+      "id": "VAL-CLEANUP-001",
+      "status": "pass",
+      "reason": "Dead dispatch posting methods and related legacy service path were removed.",
+      "evidence": [
+        "No src/main match for postDispatchJournal( or createAccountingEntry(",
+        "SalesJournalService.java file is absent",
+        "mvn -q compile exited 0"
+      ]
+    },
+    {
+      "id": "VAL-CLEANUP-002",
+      "status": "pass",
+      "reason": "Tests now assert removal behavior rather than legacy dispatch-journal behavior.",
+      "evidence": [
+        "TS_O2COrchestratorDispatchRemovalRegressionTest asserts removed methods/files",
+        "No failing test compilation from removed symbol references"
+      ]
+    },
+    {
+      "id": "VAL-CLEANUP-003",
+      "status": "pass",
+      "reason": "No orphaned orchestrator dispatch journal helpers remain.",
+      "evidence": [
+        "No orchestrator source matches for DISPATCH- or postDispatchJournal",
+        "guard_workflow_canonical_paths.sh exited 0"
+      ]
+    },
+    {
+      "id": "VAL-CLEANUP-004",
+      "status": "pass",
+      "reason": "Legacy dispatch-journal config and health wiring are absent from runtime code.",
+      "evidence": [
+        "No src/main match for DispatchMappingHealthIndicator",
+        "No src/main match for erp.dispatch.debit-account-id / erp.dispatch.credit-account-id",
+        "No orchestrator match for dispatchDebitAccountId/dispatchCreditAccountId"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-002",
+      "status": "pass",
+      "reason": "Canonical dispatch posting path is enforced and alternate orchestrator dispatch accounting paths are absent.",
+      "evidence": [
+        "guard_workflow_canonical_paths.sh verifies SalesCoreEngine.confirmDispatch -> AccountingFacade",
+        "No orchestrator source matches for dispatch journal posting patterns"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "Execute",
+    "Read",
+    "Grep"
+  ],
+  "frictions": [
+    "Task subagent launch for user-testing-flow-validator failed once due invalid model alias; validation was completed in-session with direct evidence collection."
+  ],
+  "blockers": [],
+  "summary": "Orchestrator dispatch non-canonical posting paths are removed and guarded; cleanup and cross-path containment assertions passed."
+}

@@ -12,6 +12,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.BatchNumberService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -33,6 +34,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class BulkPackingServiceIdempotencyTest {
 
     @Mock private CompanyContextService companyContextService;
@@ -92,8 +94,6 @@ class BulkPackingServiceIdempotencyTest {
         BulkPackRequest request = new BulkPackRequest(
                 10L,
                 List.of(new BulkPackRequest.PackLine(200L, new BigDecimal("5"), "1L", "L")),
-                null,
-                true,
                 LocalDate.of(2026, 2, 12),
                 "factory-user",
                 "idempotent replay",
@@ -121,8 +121,6 @@ class BulkPackingServiceIdempotencyTest {
                         new BulkPackRequest.PackLine(200L, new BigDecimal("2"), "1L", "L"),
                         new BulkPackRequest.PackLine(200L, new BigDecimal("3"), "1L", "L")
                 ),
-                null,
-                true,
                 LocalDate.of(2026, 2, 12),
                 "factory-user",
                 "duplicate child line",
@@ -146,8 +144,6 @@ class BulkPackingServiceIdempotencyTest {
         BulkPackRequest request = new BulkPackRequest(
                 10L,
                 List.of(new BulkPackRequest.PackLine(200L, BigDecimal.ZERO, "1L", "L")),
-                null,
-                true,
                 LocalDate.of(2026, 2, 12),
                 "factory-user",
                 "zero quantity",

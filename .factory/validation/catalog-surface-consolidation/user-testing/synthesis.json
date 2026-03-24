@@ -1,0 +1,53 @@
+{
+  "milestone": "catalog-surface-consolidation",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 23,
+    "passed": 23,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-BRAND-001",
+    "VAL-BRAND-002",
+    "VAL-CONTRACT-001",
+    "VAL-CROSS-001",
+    "VAL-CROSS-002",
+    "VAL-PRODUCT-001",
+    "VAL-PRODUCT-002",
+    "VAL-PRODUCT-003",
+    "VAL-PRODUCT-004",
+    "VAL-PRODUCT-005",
+    "VAL-PRODUCT-006",
+    "VAL-PRODUCT-007",
+    "VAL-PRODUCT-008",
+    "VAL-PRODUCT-009",
+    "VAL-READY-001",
+    "VAL-READY-002",
+    "VAL-READY-003",
+    "VAL-READY-004",
+    "VAL-READY-005",
+    "VAL-SURFACE-001",
+    "VAL-SURFACE-002",
+    "VAL-SURFACE-003",
+    "VAL-SURFACE-004"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Documented that the reset validation runtime may require PUT /api/v1/accounting/default-accounts for MOCK before finished-good/cross-flow catalog probes, and that factory-readiness stock may need canonical purchasing flow when manual raw-material batch entry returns BUS_004.",
+      "source": "flow-report"
+    }
+  ],
+  "previousRound": null,
+  "flowReports": [
+    ".factory/validation/catalog-surface-consolidation/user-testing/flows/surface-brand-cross.json",
+    ".factory/validation/catalog-surface-consolidation/user-testing/flows/product-input-contract.json",
+    ".factory/validation/catalog-surface-consolidation/user-testing/flows/product-preview-conflict.json",
+    ".factory/validation/catalog-surface-consolidation/user-testing/flows/downstream-readiness.json",
+    ".factory/validation/catalog-surface-consolidation/user-testing/flows/contract-alignment.json"
+  ]
+}

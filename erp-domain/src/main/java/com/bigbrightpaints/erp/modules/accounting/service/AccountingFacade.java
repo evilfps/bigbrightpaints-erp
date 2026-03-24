@@ -27,6 +27,8 @@ import java.util.List;
 public class AccountingFacade extends AccountingFacadeCore {
 
     public static final String MANUAL_REFERENCE_PREFIX = AccountingFacadeCore.MANUAL_REFERENCE_PREFIX;
+    private final CompanyContextService companyContextService;
+    private final CompanyClock companyClock;
 
     public AccountingFacade(CompanyContextService companyContextService,
                             AccountRepository accountRepository,
@@ -52,6 +54,8 @@ public class AccountingFacade extends AccountingFacadeCore {
                 companyAccountingSettingsService,
                 journalReferenceResolver,
                 journalReferenceMappingRepository);
+        this.companyContextService = companyContextService;
+        this.companyClock = companyClock;
     }
 
     public static boolean isReservedReferenceNamespace(String referenceNumber) {
@@ -98,8 +102,11 @@ public class AccountingFacade extends AccountingFacadeCore {
                     .withDetail("totalCredit", totalCredit);
         }
 
-        LocalDate entryDate = request.entryDate() != null ? request.entryDate() : LocalDate.now();
-        String narration = StringUtils.hasText(request.narration()) ? request.narration().trim() : "Manual journal entry";
+        LocalDate entryDate = resolveManualEntryDate(request.entryDate());
+        if (!StringUtils.hasText(request.narration())) {
+            throw validationMissingField("Manual journal reason is required");
+        }
+        String narration = request.narration().trim();
         String idempotencyKey = StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey().trim() : null;
         String sourceReference = StringUtils.hasText(idempotencyKey) ? idempotencyKey : generatedManualSourceReference(entryDate);
 
@@ -115,7 +122,8 @@ public class AccountingFacade extends AccountingFacadeCore {
                 entryDate,
                 null,
                 null,
-                Boolean.TRUE.equals(request.adminOverride())
+                Boolean.TRUE.equals(request.adminOverride()),
+                request.attachmentReferences()
         );
 
         return createStandardJournal(journalRequest);
@@ -127,26 +135,31 @@ public class AccountingFacade extends AccountingFacadeCore {
         }
 
         String resolvedIdempotencyKey = StringUtils.hasText(idempotencyKey) ? idempotencyKey.trim() : null;
+        if (!StringUtils.hasText(request.memo())) {
+            throw validationMissingField("Manual journal reason is required");
+        }
+        LocalDate entryDate = resolveManualEntryDate(request.entryDate());
         String sourceReference = StringUtils.hasText(request.sourceReference())
                 ? request.sourceReference().trim()
                 : (StringUtils.hasText(resolvedIdempotencyKey)
                 ? resolvedIdempotencyKey
-                : generatedManualSourceReference(request.entryDate() != null ? request.entryDate() : LocalDate.now()));
+                : generatedManualSourceReference(entryDate));
 
         BigDecimal amount = resolveManualAmount(request.lines());
         JournalCreationRequest journalRequest = new JournalCreationRequest(
                 amount,
                 firstDebitAccountFromEntryLines(request.lines()),
                 firstCreditAccountFromEntryLines(request.lines()),
-                StringUtils.hasText(request.memo()) ? request.memo().trim() : "Manual journal entry",
+                request.memo().trim(),
                 "MANUAL",
                 sourceReference,
                 null,
                 toCreationLines(request.lines(), request.memo()),
-                request.entryDate() != null ? request.entryDate() : LocalDate.now(),
+                entryDate,
                 request.dealerId(),
                 request.supplierId(),
-                Boolean.TRUE.equals(request.adminOverride())
+                Boolean.TRUE.equals(request.adminOverride()),
+                request.attachmentReferences()
         );
 
         return createStandardJournal(journalRequest);
@@ -258,7 +271,16 @@ public class AccountingFacade extends AccountingFacadeCore {
         );
     }
 
-    private static String generatedManualSourceReference(LocalDate entryDate) {
-        return "MANUAL-" + (entryDate != null ? entryDate : LocalDate.now());
+    private LocalDate resolveManualEntryDate(LocalDate requestedEntryDate) {
+        if (requestedEntryDate != null) {
+            return requestedEntryDate;
+        }
+        return companyClock.today(companyContextService.requireCurrentCompany());
+    }
+
+    private String generatedManualSourceReference(LocalDate entryDate) {
+        LocalDate resolvedEntryDate = entryDate != null ? entryDate : resolveManualEntryDate(null);
+        String nonce = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        return "MANUAL-" + resolvedEntryDate + "-" + nonce;
     }
 }

@@ -4,7 +4,11 @@ This folder is the dedicated review surface for frontend follow-up from the `sec
 
 ## Overall contract summary
 
-- No auth/admin request-body shapes or success-response payload shapes were changed for the supported mission endpoints.
+- `GET /api/v1/admin/approvals` now returns typed approval items with `originType` and `ownerType`; the legacy `type` and `sourcePortal` fields are removed. Export approval rows keep machine-readable `reportType` for all inbox viewers, while `parameters`, `requesterUserId`, and `requesterEmail` are redacted for accounting-only viewers.
+- `GET /api/v1/admin/exports/pending` is retired. Tenant-scoped admin/accounting approval consumers should use `GET /api/v1/admin/approvals` as the single inbox; platform super-admins remain blocked from that tenant-admin prefix.
+- `POST /api/v1/superadmin/tenants/onboard` now makes seeded bootstrap explicit via `bootstrapMode`, `seededChartOfAccounts`, `defaultAccountingPeriodCreated`, and `tenantAdminProvisioned`.
+- `GET /api/v1/companies/superadmin/dashboard` is retired; `GET /api/v1/superadmin/dashboard` remains the public aggregate-count dashboard route and is not a drop-in replacement for the retired detailed tenant payload.
+- Supported mission request bodies are unchanged; this packet is a response-contract and route-surface cleanup.
 - The only request/response contract delta that may require endpoint migration is the retired compatibility alias `POST /api/v1/auth/password/forgot/superadmin`, which now returns `410 Gone` with canonical migration pointers.
 - `POST /api/v1/auth/password/forgot` still uses the same request body and generic success payload where masking is intended, but reset-token persistence failures now return a controlled non-success response instead of `200 OK`.
 - Tenant-admin foreign-target `suspend`, `unsuspend`, `mfa/disable`, and `delete` flows keep the same masked `400 User not found` contract; the latest regression fix only removes an internal cross-tenant lock side effect.
@@ -20,6 +24,7 @@ This folder is the dedicated review surface for frontend follow-up from the `sec
 | `reset-token-issuance-race-hardening` | Reset issuance | None | No frontend code change required | [reset-token-issuance-race-hardening.md](./reset-token-issuance-race-hardening.md) |
 | `must-change-password-corridor-hardening` | Auth workflow | Required workflow confirmation | Keep `mustChangePassword` users in the password-change corridor | [must-change-password-corridor-hardening.md](./must-change-password-corridor-hardening.md) |
 | `global-security-settings-authorization` | Admin settings RBAC | Required RBAC/UI follow-up | Hide or disable global settings mutation for tenant admins | [global-security-settings-authorization.md](./global-security-settings-authorization.md) |
+| `control-plane-approval-bootstrap-contract-cleanup` | Admin and tenant control plane | Required contract review | Switch tenant-scoped approval consumers to `originType`/`ownerType`, render export detail fields from the single inbox, stop calling retired aliases, and read explicit tenant bootstrap success fields | [control-plane-approval-bootstrap-contract-cleanup.md](./control-plane-approval-bootstrap-contract-cleanup.md) |
 | `controlled-auth-error-contracts` | Auth error handling | Review only | Optional UX mapping for new explicit error codes and reasons | [controlled-auth-error-contracts.md](./controlled-auth-error-contracts.md) |
 | `privileged-user-boundary-hardening` | Admin user controls | None | No frontend code change required; later masking refinement noted separately | [privileged-user-boundary-hardening.md](./privileged-user-boundary-hardening.md) |
 | `auth-compatibility-regression-handoff` | Contract verification | None | No frontend code change required; documentation alignment only | [auth-compatibility-regression-handoff.md](./auth-compatibility-regression-handoff.md) |

@@ -1,0 +1,15 @@
+{
+  "featureId": "portal-boundaries.role-action-matrix-and-blocker-language",
+  "reviewedAt": "2026-03-08T13:10:30+05:30",
+  "commitId": "a0394ea19e3120019528bd3b52081850cca0dcd3",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature centralizes the touched portal RBAC expressions into `PortalRoleActionMatrix`, splits operational versus financial dispatch ownership, routes access-denied responses through role-aware business-language copy, and updates the affected controller annotations without widening sales/dealer/factory privileges. The reviewed worker transcript shows the expected milestone-focused analysis and verification, and the commit backs it up with controller changes plus targeted tests covering dispatch, approvals, role defaults, and blocker-language behavior.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Admin/accounting now own final dispatch posting, factory-facing dispatch responses stay operationally redacted, and the touched blocker messages align with the mission's role-language boundary without exposing finance-only detail to sales or factory roles."
+}

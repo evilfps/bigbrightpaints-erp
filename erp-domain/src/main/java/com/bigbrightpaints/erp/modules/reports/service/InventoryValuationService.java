@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.reports.service;
 
 import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
@@ -124,8 +125,8 @@ public class InventoryValuationService {
         for (FinishedGood finishedGood : finishedGoods) {
             BigDecimal adjustedStock = applyAsOfStock(finishedGood.getCurrentStock(), finishedGood.getId(),
                     adjustments != null ? adjustments.finishedGoodQtyDelta() : null);
-            BigDecimal adjustedReserved = safe(finishedGood.getReservedStock()).min(adjustedStock);
-            BigDecimal available = adjustedStock.subtract(adjustedReserved);
+            BigDecimal adjustedReserved = safe(finishedGood.getReservedStock());
+            BigDecimal available = adjustedStock.subtract(adjustedReserved).max(BigDecimal.ZERO);
             FinishedGoodValuation valuation = valueFromFinishedGood(finishedGood, adjustedStock, costingMethodContext.method());
             totalValue = totalValue.add(valuation.totalValue());
             boolean isLowStock = adjustedReserved.compareTo(BigDecimal.ZERO) > 0
@@ -408,14 +409,14 @@ public class InventoryValuationService {
 
     private CostingMethodContext resolveCostingMethodContext(Company company, LocalDate asOfDate) {
         if (company == null) {
-            return new CostingMethodContext(null, "WEIGHTED_AVERAGE");
+            return new CostingMethodContext(null, "FIFO");
         }
-        LocalDate referenceDate = asOfDate != null ? asOfDate : LocalDate.now(resolveZone(company));
+        LocalDate referenceDate = asOfDate != null ? asOfDate : CompanyTime.today(company);
         AccountingPeriod period = accountingPeriodRepository
                 .findByCompanyAndYearAndMonth(company, referenceDate.getYear(), referenceDate.getMonthValue())
                 .orElse(null);
         if (period == null || period.getCostingMethod() == null) {
-            return new CostingMethodContext(null, "WEIGHTED_AVERAGE");
+            return new CostingMethodContext(null, "FIFO");
         }
         return new CostingMethodContext(period.getCostingMethod(), canonicalMethodLabel(period.getCostingMethod()));
     }
@@ -438,7 +439,7 @@ public class InventoryValuationService {
 
     private String canonicalMethodLabel(CostingMethod method) {
         if (method == null) {
-            return "WEIGHTED_AVERAGE";
+            return "FIFO";
         }
         return switch (method) {
             case FIFO -> "FIFO";

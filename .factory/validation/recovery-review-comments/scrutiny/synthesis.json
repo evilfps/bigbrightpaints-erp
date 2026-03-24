@@ -1,0 +1,46 @@
+{
+  "milestone": "recovery-review-comments",
+  "round": 1,
+  "status": "pass",
+  "scopeNote": "Recovery-review-comments scrutiny was completed manually after every `scrutiny-feature-reviewer` Task launch failed with an external custom-model configuration error. The required milestone validators still passed on the current branch, all twelve completed implementation features were reviewed from their propagated reachable diffs/commits, and each review artifact now records a branch-reachable commit id rather than a stale lower-branch anchor.",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 12,
+    "passed": 12,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "reviewCommitTraceability": {
+    "verifiedOnCurrentBranch": true,
+    "artifactsChecked": 12,
+    "resolvedCommitIds": 12,
+    "unresolvedCommitIds": 0,
+    "unresolvedArtifacts": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [
+    {
+      "observation": "The `scrutiny-feature-reviewer` Task droid failed to launch for every feature with `Invalid model: custom:CLIProxyAPI-5.4-medium`, so all feature reviews were completed manually from propagated commit diffs and mission artifacts instead.",
+      "reason": "outside-repo-tooling"
+    }
+  ],
+  "previousRound": null
+}

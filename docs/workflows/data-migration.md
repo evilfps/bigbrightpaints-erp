@@ -12,7 +12,7 @@ This guide complements **`docs/migration-guide.md`** by translating migration in
 |---|---|---|---|---|
 | 1 | Prepare migration checklist and owners | **Project Runbook** (internal) + reference `docs/migration-guide.md` | Clear owner per stream (accounts, stock, master data) and cutover date | No owner assigned, file formats mixed, or old templates used. Freeze template versions before upload day. |
 | 2 | Import opening accounting balances | `POST /api/v1/accounting/opening-balances` (CSV upload) | Opening journal posted; debits and credits are balanced | File rejected for unbalanced totals, bad account type, or missing account fields. Fix rows and re-upload. |
-| 3 | Import opening inventory stock | `POST /api/v1/inventory/opening-stock` (CSV upload), history via `GET /api/v1/inventory/opening-stock` | RM/FG opening stock and batch data load with per-row results | Duplicate batch/SKU rows, invalid dates, or quantity/cost format errors. Correct failed rows only and retry. |
+| 3 | Import opening inventory stock for prepared SKUs only | `POST /api/v1/inventory/opening-stock` (CSV upload; explicit `Idempotency-Key` required), history via `GET /api/v1/inventory/opening-stock` | RM/FG opening stock and batch data load only for already-prepared SKUs, with per-row `results[]` and `errors[]` including readiness detail | Missing idempotency key, orphan SKU, missing mirror truth, missing readiness prerequisites, duplicate batch/SKU rows, invalid dates, or quantity/cost format errors. Fix setup first, then retry only failed rows with a new explicit key. |
 | 4 | Optional Tally XML migration | `POST /api/v1/migration/tally-import` | Ledger + opening references are mapped into ERP structures | Unmapped groups/items returned; source Tally grouping needs correction before re-run. |
 | 5 | Validate post-migration balances and stock | Trial balance: `GET /api/v1/reports/trial-balance`; stock checks: `GET /api/v1/finished-goods/stock-summary`, `GET /api/v1/raw-materials/stock/inventory` | Financial opening and physical stock align with source system sign-off | Mismatch indicates missing rows or wrong mapping. Reconcile using migration error reports + statements before go-live. |
 
@@ -20,7 +20,7 @@ This guide complements **`docs/migration-guide.md`** by translating migration in
 
 1. **Master data freeze** in legacy system (customers, suppliers, SKUs)
 2. **Finance opening balance upload** and trial balance validation
-3. **Warehouse opening stock upload** and physical count sign-off
+3. **Warehouse opening stock upload for prepared SKUs only** and physical count sign-off
 4. **Optional Tally import reconciliation** for legacy ledgers
 5. **First controlled transaction in ERP** (one sale + one purchase)
 6. **Formal go-live approval** from finance and operations owners
@@ -35,9 +35,9 @@ This guide complements **`docs/migration-guide.md`** by translating migration in
 ## Fast Issue Triage During Migration
 
 1. **Import rejected immediately:** check required headers and value formats in `docs/migration-guide.md`.
-2. **Partial import success:** isolate failed rows from response and re-upload corrected subset.
+2. **Partial import success:** isolate failed rows from `errors[]`, fix the readiness/setup blocker, then re-upload only the corrected subset with a new explicit idempotency key.
 3. **Opening balances not matching source:** rerun trial balance after confirming no duplicate/replayed file upload.
-4. **Stock appears but dispatch fails:** verify SKU mapping and batch traceability before first sales dispatch.
+4. **Stock import is blocked for a SKU:** use the returned readiness stage and blockers to fix catalog or inventory truth before retrying; opening stock is not a repair path.
 
 ## Go-Live Acceptance Criteria
 

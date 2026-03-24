@@ -30,6 +30,7 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTaskRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipLine;
@@ -109,6 +110,8 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
     @Mock
     private FinishedGoodRepository finishedGoodRepository;
     @Mock
+    private FinishedGoodBatchRepository finishedGoodBatchRepository;
+    @Mock
     private AccountRepository accountRepository;
     @Mock
     private CompanyEntityLookup companyEntityLookup;
@@ -162,6 +165,7 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
                 productionProductRepository,
                 dealerLedgerService,
                 finishedGoodRepository,
+                finishedGoodBatchRepository,
                 accountRepository,
                 companyEntityLookup,
                 packagingSlipRepository,
@@ -183,6 +187,8 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
 
         when(finishedGoodsService.reserveForOrder(any()))
                 .thenReturn(new InventoryReservationResult(null, List.of()));
+        lenient().when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(any(), any(), any(), any()))
+                .thenReturn(BigDecimal.ZERO);
         when(companyDefaultAccountsService.requireDefaults())
                 .thenReturn(new CompanyDefaultAccountsService.DefaultAccounts(1L, 2L, 3L, 4L, 5L));
         when(companyDefaultAccountsService.getDefaults())

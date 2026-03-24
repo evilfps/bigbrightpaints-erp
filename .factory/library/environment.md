@@ -30,4 +30,14 @@ Environment variables, external dependencies, and setup notes.
 ## Security/Auth Mission Notes
 - Runtime validation for this mission expects the local PostgreSQL dependency to be available before starting the backend.
 - Mail and broker dependencies are only needed when a feature or validator requires runtime-assisted evidence.
-- The helper/subagent model alias is currently unreliable; workers should rely on direct compile/test/curl fallback when delegation fails.
+
+## ERP Truth-Stabilization Mission Notes
+- Treat Flyway `migration_v2` as the only valid migration track for this mission; do not inspect, modify, or depend on v1 migrations.
+- The approved review and integration base is `origin/Factory-droid`.
+- Mission-owned compose runtime must use host PostgreSQL port `5433`; host port `5432` belongs to another local database.
+- Custom project droids are the approved delegation path for orchestrator-side subagent work in this mission.
+
+## Catalog Surface Consolidation Notes
+- Primary validation path for this packet is Maven plus Testcontainers-backed API/integration evidence.
+- Use the compose-backed runtime on `5433/8081/9090` only when the feature needs explicit runtime API probes.
+- Do not use or depend on the unrelated local PostgreSQL instance on `5432`.

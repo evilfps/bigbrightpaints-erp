@@ -13,6 +13,7 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
@@ -25,6 +26,7 @@ import com.bigbrightpaints.erp.modules.invoice.service.InvoiceNumberService;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTaskRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.FactoryTask;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderDto;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerDto;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditRequestDto;
@@ -87,9 +89,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
+import org.junit.jupiter.api.Tag;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
+@Tag("critical")
 class SalesServiceTest {
 
     @Mock
@@ -116,6 +120,8 @@ class SalesServiceTest {
     private DealerLedgerService dealerLedgerService;
     @Mock
     private FinishedGoodRepository finishedGoodRepository;
+    @Mock
+    private FinishedGoodBatchRepository finishedGoodBatchRepository;
     @Mock
     private AccountRepository accountRepository;
     @Mock
@@ -169,6 +175,7 @@ class SalesServiceTest {
                 productionProductRepository,
                 dealerLedgerService,
                 finishedGoodRepository,
+                finishedGoodBatchRepository,
                 accountRepository,
                 companyEntityLookup,
                 packagingSlipRepository,
@@ -190,6 +197,9 @@ class SalesServiceTest {
 
         when(finishedGoodsService.reserveForOrder(any()))
                 .thenReturn(new InventoryReservationResult(null, List.of()));
+        lenient().when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(any(), any(), any(), any()))
+                .thenReturn(BigDecimal.ZERO);
+        lenient().when(factoryTaskRepository.findByCompanyAndSalesOrderId(any(), anyLong())).thenReturn(List.of());
         when(companyDefaultAccountsService.requireDefaults())
                 .thenReturn(new CompanyDefaultAccountsService.DefaultAccounts(1L, 2L, 3L, 4L, 5L));
         when(companyDefaultAccountsService.getDefaults())
@@ -1300,6 +1310,66 @@ class SalesServiceTest {
         DispatchConfirmRequest request = new DispatchConfirmRequest(null, 10L, List.of(), null, null, false, null, null);
 
         assertThrows(ApplicationException.class, () -> salesService.confirmDispatch(request));
+    }
+
+    @Test
+    void confirmDispatchIncludesShortagesWhenReservationStillProducesNoSlip() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setStatus("READY_TO_SHIP");
+        order.setTotalAmount(new BigDecimal("100.00"));
+
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L)).thenReturn(List.of(), List.of());
+        when(finishedGoodsService.reserveForOrder(order)).thenReturn(new InventoryReservationResult(
+                null,
+                List.of(new InventoryShortage("FG-1", BigDecimal.ONE, "Primer"))));
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> salesService.confirmDispatch(new DispatchConfirmRequest(null, 10L, List.of(), null, "admin", Boolean.FALSE, null, null)));
+
+        assertEquals(ErrorCode.VALIDATION_INVALID_REFERENCE, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("Packing slip not found for order 10"));
+        assertTrue(ex.getDetails().containsKey("shortages"));
+    }
+
+    @Test
+    void confirmDispatchRejectsNoSlipFallbackForDispatchedOrder() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 10L);
+        order.setCompany(company);
+        order.setStatus("DISPATCHED");
+
+        when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L)).thenReturn(List.of());
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> salesService.confirmDispatch(new DispatchConfirmRequest(null, 10L, List.of(), null, "admin", Boolean.FALSE, null, null)));
+
+        assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+        assertEquals("DISPATCHED", ex.getDetails().get("currentStatus"));
+        verify(finishedGoodsService, never()).reserveForOrder(any(SalesOrder.class));
+        verifyNoInteractions(dealerRepository);
+    }
+
+    @Test
+    void confirmDispatchRejectsNoSlipFallbackForDraftOrder() {
+        SalesOrder order = new SalesOrder();
+        setField(order, "id", 11L);
+        order.setCompany(company);
+        order.setStatus("DRAFT");
+
+        when(companyEntityLookup.requireSalesOrder(company, 11L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 11L)).thenReturn(List.of());
+
+        ApplicationException ex = assertThrows(ApplicationException.class,
+                () -> salesService.confirmDispatch(new DispatchConfirmRequest(null, 11L, List.of(), null, "admin", Boolean.FALSE, null, null)));
+
+        assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+        assertEquals("DRAFT", ex.getDetails().get("currentStatus"));
+        verify(finishedGoodsService, never()).reserveForOrder(any(SalesOrder.class));
+        verifyNoInteractions(dealerRepository);
     }
 
     @Test
@@ -3359,7 +3429,7 @@ class SalesServiceTest {
     }
 
     @Test
-    void createOrderCreditLimitIgnoresPendingOrderExposureProjection() {
+    void createOrderCreditLimitIncludesPendingOrderExposureProjection() {
         setupProduct("SKU3-EXPOSURE", BigDecimal.valueOf(200), BigDecimal.ZERO);
         FinishedGood finishedGood = buildFinishedGood("SKU3-EXPOSURE");
         finishedGood.setRevenueAccountId(5L);
@@ -3370,13 +3440,8 @@ class SalesServiceTest {
         when(dealerRepository.lockByCompanyAndId(company, dealer.getId())).thenReturn(Optional.of(dealer));
         when(orderNumberService.nextOrderNumber(company)).thenReturn("SO-EXPOSURE-42");
         when(dealerLedgerService.currentBalance(422L)).thenReturn(BigDecimal.valueOf(400));
-        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class))).thenAnswer(invocation -> {
-            SalesOrder entity = invocation.getArgument(0);
-            if (entity.getId() == null) {
-                setField(entity, "id", 4220L);
-            }
-            return entity;
-        });
+        when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(eq(company), eq(dealer), any(), eq(null)))
+                .thenReturn(BigDecimal.valueOf(450));
 
         SalesOrderRequest request = new SalesOrderRequest(
                 422L,
@@ -3389,19 +3454,11 @@ class SalesServiceTest {
                 null,
                 null);
 
-        SalesOrderDto dto = salesService.createOrder(request);
+        CreditLimitExceededException ex = assertThrows(CreditLimitExceededException.class,
+                () -> salesService.createOrder(request));
 
-        assertEquals("RESERVED", dto.status());
-        assertEquals(1.0d, meterRegistry.get("erp.business.orders.processed").counter().count(), 0.0001d);
-        assertEquals(1.0d, meterRegistry.get("erp.business.orders.processed.by_company")
-                .tag("company", "COMP")
-                .counter()
-                .count(), 0.0001d);
-        verify(salesOrderRepository, never()).sumPendingCreditExposureByCompanyAndDealer(
-                ArgumentMatchers.any(),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.anySet(),
-                ArgumentMatchers.any());
+        assertEquals(BigDecimal.valueOf(450), ex.getDetails().get("pendingOrderExposure"));
+        assertEquals(BigDecimal.valueOf(850), ex.getDetails().get("currentExposure"));
     }
 
     @Test
@@ -3469,7 +3526,7 @@ class SalesServiceTest {
     }
 
     @Test
-    void createOrderCashPaymentModeStillEnforcesDealerCreditLimit() {
+    void createOrderCashPaymentModeSkipsDealerCreditLimit() {
         setupProduct("SKU3-CASH", BigDecimal.valueOf(200), BigDecimal.ZERO);
         FinishedGood finishedGood = buildFinishedGood("SKU3-CASH");
         finishedGood.setRevenueAccountId(5L);
@@ -3500,12 +3557,16 @@ class SalesServiceTest {
                 null,
                 " cash ");
 
-        assertThrows(CreditLimitExceededException.class, () -> salesService.createOrder(request));
-        verify(dealerLedgerService).currentBalance(420L);
+        SalesOrderDto dto = salesService.createOrder(request);
+
+        assertEquals("RESERVED", dto.status());
+        assertEquals("CASH", dto.paymentMode());
+        verify(dealerLedgerService, never()).currentBalance(420L);
+        verify(finishedGoodsService, never()).reserveForOrder(any(SalesOrder.class));
     }
 
     @Test
-    void updateOrderCashPaymentModeStillEnforcesDealerCreditLimit() {
+    void updateOrderCashPaymentModeSkipsDealerCreditLimit() {
         setupProduct("SKU3-UPD-CASH", BigDecimal.valueOf(200), BigDecimal.ZERO);
         FinishedGood finishedGood = buildFinishedGood("SKU3-UPD-CASH");
         finishedGood.setRevenueAccountId(5L);
@@ -3544,12 +3605,153 @@ class SalesServiceTest {
                 null,
                 "CASH");
 
-        assertThrows(CreditLimitExceededException.class, () -> salesService.updateOrder(4300L, request));
-        verify(dealerLedgerService).currentBalance(430L);
+        SalesOrderDto dto = salesService.updateOrder(4300L, request);
+
+        assertEquals("CASH", dto.paymentMode());
+        verify(dealerLedgerService, never()).currentBalance(430L);
     }
 
     @Test
-    void createOrderSplitPaymentModeStillEnforcesDealerCreditLimit() {
+    void updateOrderPreservesExistingPaymentModeWhenRequestOmitsIt() {
+        setupProduct("SKU3-UPD-KEEP", BigDecimal.valueOf(200), BigDecimal.ZERO);
+        FinishedGood finishedGood = buildFinishedGood("SKU3-UPD-KEEP");
+        finishedGood.setRevenueAccountId(5L);
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU3-UPD-KEEP"))
+                .thenReturn(Optional.of(finishedGood));
+
+        Dealer dealer = dealerWithCreditLimit(431L, BigDecimal.valueOf(1000));
+        SalesOrder existing = new SalesOrder();
+        setField(existing, "id", 4303L);
+        existing.setCompany(company);
+        existing.setDealer(dealer);
+        existing.setStatus("BOOKED");
+        existing.setPaymentMode("CASH");
+        existing.setCurrency("INR");
+        existing.setGstTreatment("NONE");
+        existing.setGstInclusive(false);
+        existing.setGstRate(BigDecimal.ZERO);
+        existing.setSubtotalAmount(BigDecimal.valueOf(200));
+        existing.setGstTotal(BigDecimal.ZERO);
+        existing.setGstRoundingAdjustment(BigDecimal.ZERO);
+        existing.setTotalAmount(BigDecimal.valueOf(200));
+
+        when(companyEntityLookup.requireSalesOrder(company, 4303L)).thenReturn(existing);
+        when(dealerRepository.lockByCompanyAndId(company, dealer.getId())).thenReturn(Optional.of(dealer));
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 4303L)).thenReturn(List.of());
+
+        SalesOrderRequest request = new SalesOrderRequest(
+                null,
+                BigDecimal.valueOf(200),
+                "INR",
+                null,
+                List.of(new SalesOrderItemRequest("SKU3-UPD-KEEP", "Desc", BigDecimal.ONE, BigDecimal.valueOf(200), null)),
+                "NONE",
+                null,
+                null,
+                null,
+                null);
+
+        SalesOrderDto dto = salesService.updateOrder(4303L, request);
+
+        assertEquals("CASH", dto.paymentMode());
+        verify(dealerLedgerService, never()).currentBalance(431L);
+    }
+
+    @Test
+    void updateOrderMovesReservedOrdersBackToPendingProductionWhenShortageAppears() {
+        setupProduct("SKU-UPD-SHORT", BigDecimal.valueOf(100), BigDecimal.ZERO);
+        FinishedGood finishedGood = buildFinishedGood("SKU-UPD-SHORT");
+        finishedGood.setRevenueAccountId(5L);
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU-UPD-SHORT"))
+                .thenReturn(Optional.of(finishedGood));
+        when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood)).thenReturn(List.of());
+
+        SalesOrder existing = new SalesOrder();
+        setField(existing, "id", 4301L);
+        existing.setCompany(company);
+        existing.setStatus("RESERVED");
+        existing.setCurrency("INR");
+        existing.setGstTreatment("NONE");
+        existing.setGstInclusive(false);
+        existing.setGstRate(BigDecimal.ZERO);
+        existing.setSubtotalAmount(BigDecimal.valueOf(100));
+        existing.setGstTotal(BigDecimal.ZERO);
+        existing.setGstRoundingAdjustment(BigDecimal.ZERO);
+        existing.setTotalAmount(BigDecimal.valueOf(100));
+
+        when(companyEntityLookup.requireSalesOrder(company, 4301L)).thenReturn(existing);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 4301L)).thenReturn(List.of());
+        when(factoryTaskRepository.findByCompanyAndSalesOrderId(company, 4301L)).thenReturn(List.of());
+        when(companyClock.today(company)).thenReturn(java.time.LocalDate.of(2026, 3, 9));
+
+        SalesOrderRequest request = new SalesOrderRequest(
+                null,
+                BigDecimal.valueOf(100),
+                "INR",
+                null,
+                List.of(new SalesOrderItemRequest("SKU-UPD-SHORT", "Desc", BigDecimal.ONE, BigDecimal.valueOf(100), null)),
+                "NONE",
+                null,
+                null,
+                null,
+                "CASH");
+
+        SalesOrderDto dto = salesService.updateOrder(4301L, request);
+
+        assertEquals("PENDING_PRODUCTION", dto.status());
+        verify(finishedGoodsService, never()).releaseReservationsForOrder(4301L);
+        verify(finishedGoodsService, never()).reserveForOrder(existing);
+        verify(factoryTaskRepository).saveAll(any());
+    }
+
+    @Test
+    void updateOrderReturnsPendingProductionOrdersToReservedWhenShortageClears() {
+        setupProduct("SKU-UPD-CLEAR", BigDecimal.valueOf(100), BigDecimal.ZERO);
+        FinishedGood finishedGood = buildFinishedGood("SKU-UPD-CLEAR");
+        finishedGood.setRevenueAccountId(5L);
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU-UPD-CLEAR"))
+                .thenReturn(Optional.of(finishedGood));
+        when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
+                .thenReturn(List.of(batch(finishedGood, BigDecimal.ONE)));
+
+        SalesOrder existing = new SalesOrder();
+        setField(existing, "id", 4302L);
+        existing.setCompany(company);
+        existing.setStatus("PENDING_PRODUCTION");
+        existing.setCurrency("INR");
+        existing.setGstTreatment("NONE");
+        existing.setGstInclusive(false);
+        existing.setGstRate(BigDecimal.ZERO);
+        existing.setSubtotalAmount(BigDecimal.valueOf(100));
+        existing.setGstTotal(BigDecimal.ZERO);
+        existing.setGstRoundingAdjustment(BigDecimal.ZERO);
+        existing.setTotalAmount(BigDecimal.valueOf(100));
+
+        when(companyEntityLookup.requireSalesOrder(company, 4302L)).thenReturn(existing);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 4302L)).thenReturn(List.of());
+        when(factoryTaskRepository.findByCompanyAndSalesOrderId(company, 4302L)).thenReturn(List.of());
+
+        SalesOrderRequest request = new SalesOrderRequest(
+                null,
+                BigDecimal.valueOf(100),
+                "INR",
+                null,
+                List.of(new SalesOrderItemRequest("SKU-UPD-CLEAR", "Desc", BigDecimal.ONE, BigDecimal.valueOf(100), null)),
+                "NONE",
+                null,
+                null,
+                null,
+                "CASH");
+
+        SalesOrderDto dto = salesService.updateOrder(4302L, request);
+
+        assertEquals("RESERVED", dto.status());
+        verify(finishedGoodsService, never()).reserveForOrder(existing);
+        verify(finishedGoodsService, never()).releaseReservationsForOrder(4302L);
+    }
+
+    @Test
+    void createOrderHybridPaymentModeStillEnforcesDealerCreditLimit() {
         setupProduct("SKU3-SPLIT", BigDecimal.valueOf(200), BigDecimal.ZERO);
         FinishedGood finishedGood = buildFinishedGood("SKU3-SPLIT");
         finishedGood.setRevenueAccountId(5L);
@@ -3571,7 +3773,7 @@ class SalesServiceTest {
                 null,
                 null,
                 null,
-                "SPLIT");
+                "HYBRID");
 
         assertThrows(CreditLimitExceededException.class, () -> salesService.createOrder(request));
         verify(dealerLedgerService).currentBalance(421L);
@@ -3720,6 +3922,67 @@ class SalesServiceTest {
     }
 
     @Test
+    void createOrderIdempotentRetry_acceptsStoredLegacySplitSignature() {
+        setupProduct("SKU3-IDEMP", BigDecimal.valueOf(100), BigDecimal.ZERO);
+        FinishedGood finishedGood = buildFinishedGood("SKU3-IDEMP");
+        finishedGood.setRevenueAccountId(5L);
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU3-IDEMP"))
+                .thenReturn(Optional.of(finishedGood));
+        when(orderNumberService.nextOrderNumber(company)).thenReturn("SO-IDEMP-SPLIT");
+        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        SalesOrder existing = new SalesOrder();
+        setField(existing, "id", 903L);
+        existing.setCompany(company);
+        existing.setOrderNumber("SO-IDEMP-SPLIT");
+        existing.setStatus("RESERVED");
+        existing.setCurrency("INR");
+        existing.setGstTreatment("NONE");
+        existing.setGstInclusive(false);
+        existing.setGstRate(BigDecimal.ZERO);
+        existing.setSubtotalAmount(BigDecimal.valueOf(100));
+        existing.setGstTotal(BigDecimal.ZERO);
+        existing.setGstRoundingAdjustment(BigDecimal.ZERO);
+        existing.setTotalAmount(BigDecimal.valueOf(100));
+        existing.setPaymentMode("HYBRID");
+        existing.setIdempotencyHash(DigestUtils.sha256Hex("null|100|INR|NONE|false|0||SPLIT|SKU3-IDEMP:1:100:0"));
+        SalesOrderItem existingItem = new SalesOrderItem();
+        setField(existingItem, "id", 913L);
+        existingItem.setSalesOrder(existing);
+        existingItem.setProductCode("SKU3-IDEMP");
+        existingItem.setDescription("Desc");
+        existingItem.setQuantity(BigDecimal.ONE);
+        existingItem.setUnitPrice(BigDecimal.valueOf(100));
+        existingItem.setLineSubtotal(BigDecimal.valueOf(100));
+        existingItem.setGstRate(BigDecimal.ZERO);
+        existingItem.setGstAmount(BigDecimal.ZERO);
+        existingItem.setLineTotal(BigDecimal.valueOf(100));
+        existing.getItems().add(existingItem);
+
+        when(salesOrderRepository.findByCompanyAndIdempotencyKey(company, "SO-IDEMP-SPLIT-KEY"))
+                .thenReturn(Optional.of(existing));
+
+        SalesOrderRequest request = new SalesOrderRequest(
+                null,
+                BigDecimal.valueOf(100),
+                "INR",
+                null,
+                List.of(new SalesOrderItemRequest("SKU3-IDEMP", "Desc", BigDecimal.ONE, BigDecimal.valueOf(100), null)),
+                "NONE",
+                null,
+                null,
+                "SO-IDEMP-SPLIT-KEY",
+                "SPLIT");
+
+        SalesOrderDto dto = salesService.createOrder(request);
+
+        assertEquals(existing.getId(), dto.id());
+        verify(salesOrderRepository).save(existing);
+        assertEquals(DigestUtils.sha256Hex("null|100|INR|NONE|false|0||HYBRID|SKU3-IDEMP:1:100:0"), existing.getIdempotencyHash());
+    }
+
+    @Test
     void createOrderAutoIdempotencyRetry_acceptsLegacyDefaultCreditKeyShape() {
         SalesOrderItemRequest requestItem = new SalesOrderItemRequest("SKU3-IDEMP", "Desc", BigDecimal.ONE, BigDecimal.valueOf(100), null);
         SalesOrderRequest request = new SalesOrderRequest(
@@ -3774,6 +4037,64 @@ class SalesServiceTest {
         assertEquals(existing.getId(), dto.id());
         verify(salesOrderRepository, never()).findByCompanyAndIdempotencyKey(company, canonicalKey);
         assertEquals(DigestUtils.sha256Hex("null|100|INR|NONE|false|0||SKU3-IDEMP:1:100:0"), existing.getIdempotencyHash());
+    }
+
+    @Test
+    void createOrderAutoIdempotencyRetry_acceptsLegacySplitKeyShape() {
+        SalesOrderItemRequest requestItem = new SalesOrderItemRequest("SKU3-IDEMP", "Desc", BigDecimal.ONE, BigDecimal.valueOf(100), null);
+        SalesOrderRequest request = new SalesOrderRequest(
+                null,
+                BigDecimal.valueOf(100),
+                "INR",
+                null,
+                List.of(requestItem),
+                "NONE",
+                null,
+                null,
+                null,
+                "SPLIT");
+        String canonicalKey = request.resolveIdempotencyKey();
+        String legacySplitKey = request.resolveLegacySplitReplayIdempotencyKey();
+        assertTrue(!canonicalKey.equals(legacySplitKey));
+
+        SalesOrder existing = new SalesOrder();
+        setField(existing, "id", 904L);
+        existing.setCompany(company);
+        existing.setOrderNumber("SO-IDEMP-AUTO-SPLIT");
+        existing.setStatus("RESERVED");
+        existing.setCurrency("INR");
+        existing.setGstTreatment("NONE");
+        existing.setGstInclusive(false);
+        existing.setGstRate(BigDecimal.ZERO);
+        existing.setSubtotalAmount(BigDecimal.valueOf(100));
+        existing.setGstTotal(BigDecimal.ZERO);
+        existing.setGstRoundingAdjustment(BigDecimal.ZERO);
+        existing.setTotalAmount(BigDecimal.valueOf(100));
+        existing.setPaymentMode("HYBRID");
+        existing.setIdempotencyHash(DigestUtils.sha256Hex("null|100|INR|NONE|false|0||SPLIT|SKU3-IDEMP:1:100:0"));
+        SalesOrderItem existingItem = new SalesOrderItem();
+        setField(existingItem, "id", 914L);
+        existingItem.setSalesOrder(existing);
+        existingItem.setProductCode("SKU3-IDEMP");
+        existingItem.setDescription("Desc");
+        existingItem.setQuantity(BigDecimal.ONE);
+        existingItem.setUnitPrice(BigDecimal.valueOf(100));
+        existingItem.setLineSubtotal(BigDecimal.valueOf(100));
+        existingItem.setGstRate(BigDecimal.ZERO);
+        existingItem.setGstAmount(BigDecimal.ZERO);
+        existingItem.setLineTotal(BigDecimal.valueOf(100));
+        existing.getItems().add(existingItem);
+
+        when(salesOrderRepository.findByCompanyAndIdempotencyKey(company, legacySplitKey))
+                .thenReturn(Optional.of(existing));
+        when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        SalesOrderDto dto = salesService.createOrder(request);
+
+        assertEquals(existing.getId(), dto.id());
+        verify(salesOrderRepository, never()).findByCompanyAndIdempotencyKey(company, canonicalKey);
+        assertEquals(DigestUtils.sha256Hex("null|100|INR|NONE|false|0||HYBRID|SKU3-IDEMP:1:100:0"), existing.getIdempotencyHash());
     }
 
     @Test
@@ -4100,9 +4421,9 @@ class SalesServiceTest {
             setField(entity, "id", 901L);
             return entity;
         });
-
-        InventoryShortage shortage = new InventoryShortage("SKU10", BigDecimal.ONE, "Prod 10");
-        when(finishedGoodsService.reserveForOrder(any())).thenReturn(new InventoryReservationResult(null, List.of(shortage)));
+        when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(fg1)).thenReturn(List.of());
+        when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(fg2))
+                .thenReturn(List.of(batch(fg2, BigDecimal.ONE)));
 
         SalesOrderRequest request = new SalesOrderRequest(
                 null,
@@ -4121,7 +4442,111 @@ class SalesServiceTest {
         SalesOrderDto dto = salesService.createOrder(request);
 
         assertEquals("PENDING_PRODUCTION", dto.status());
-        verify(finishedGoodsService).reserveForOrder(any());
+        verify(finishedGoodsService, never()).reserveForOrder(any());
+        verify(factoryTaskRepository).saveAll(any());
+    }
+
+    @Test
+    void createOrderTreatsMissingFinishedGoodAsProductionShortage() {
+        SalesProformaBoundaryService boundaryService = new SalesProformaBoundaryService(
+                dealerRepository,
+                dealerLedgerService,
+                salesOrderRepository,
+                finishedGoodRepository,
+                finishedGoodBatchRepository,
+                factoryTaskRepository,
+                companyClock);
+
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setOrderNumber("SO-401");
+        setField(order, "id", 902L);
+
+        SalesOrderItem item = new SalesOrderItem();
+        item.setProductCode("SKU-MISSING");
+        item.setDescription("Missing SKU");
+        item.setQuantity(BigDecimal.ONE);
+        item.setSalesOrder(order);
+        order.getItems().add(item);
+
+        when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU-MISSING")).thenReturn(Optional.empty());
+        when(factoryTaskRepository.findByCompanyAndSalesOrderId(company, 902L)).thenReturn(List.of());
+        when(companyClock.today(company)).thenReturn(java.time.LocalDate.of(2026, 3, 9));
+
+        SalesProformaBoundaryService.CommercialAssessment assessment = boundaryService.assessCommercialAvailability(company, order);
+
+        assertEquals("PENDING_PRODUCTION", assessment.commercialStatus());
+        assertEquals(1, assessment.shortages().size());
+        assertEquals("SKU-MISSING", assessment.shortages().getFirst().productCode());
+        assertEquals(BigDecimal.ONE, assessment.shortages().getFirst().shortageQuantity());
+        ArgumentCaptor<List<FactoryTask>> tasksCaptor = ArgumentCaptor.forClass(List.class);
+        verify(factoryTaskRepository).saveAll(tasksCaptor.capture());
+        assertEquals(1, tasksCaptor.getValue().size());
+        assertEquals("Production requirement: SKU-MISSING", tasksCaptor.getValue().getFirst().getTitle());
+        assertTrue(tasksCaptor.getValue().getFirst().getDescription().contains("Missing SKU"));
+    }
+
+    @Test
+    void confirmOrderRejectsWhenProductionRequirementsRemainWithoutReservedSlip() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("READY_TO_SHIP");
+        order.setTotalAmount(new BigDecimal("100.00"));
+        order.setPaymentMode("CASH");
+        setField(order, "id", 904L);
+
+        FactoryTask requirement = new FactoryTask();
+        requirement.setCompany(company);
+        requirement.setTitle("Production requirement: SKU-OPEN");
+        requirement.setStatus("PENDING");
+        requirement.setSalesOrderId(904L);
+
+        when(companyEntityLookup.requireSalesOrder(company, 904L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 904L)).thenReturn(List.of());
+        when(factoryTaskRepository.findByCompanyAndSalesOrderId(company, 904L)).thenReturn(List.of(requirement));
+
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> salesService.confirmOrder(904L));
+
+        assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("production is still required"));
+        assertEquals(List.of("SKU-OPEN"), ex.getDetails().get("productionRequirementSkus"));
+    }
+
+    @Test
+    void confirmOrderRejectsWhenSlipLinesHaveNoReservedQuantity() {
+        SalesOrder order = new SalesOrder();
+        order.setCompany(company);
+        order.setStatus("READY_TO_SHIP");
+        order.setTotalAmount(new BigDecimal("100.00"));
+        order.setPaymentMode("CASH");
+        setField(order, "id", 905L);
+
+        FinishedGood finishedGood = buildFinishedGood("SKU-UNRESERVED");
+        FinishedGoodBatch batch = new FinishedGoodBatch();
+        batch.setFinishedGood(finishedGood);
+        batch.setBatchCode("BATCH-UNRESERVED");
+
+        PackagingSlipLine line = new PackagingSlipLine();
+        line.setFinishedGoodBatch(batch);
+        line.setOrderedQuantity(new BigDecimal("5.00"));
+        line.setBackorderQuantity(new BigDecimal("5.00"));
+        line.setShippedQuantity(BigDecimal.ZERO);
+        line.setQuantity(new BigDecimal("5.00"));
+
+        PackagingSlip slip = new PackagingSlip();
+        slip.setCompany(company);
+        slip.setSalesOrder(order);
+        slip.setStatus("RESERVED");
+        slip.getLines().add(line);
+
+        when(companyEntityLookup.requireSalesOrder(company, 905L)).thenReturn(order);
+        when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 905L)).thenReturn(List.of(slip));
+
+        ApplicationException ex = assertThrows(ApplicationException.class, () -> salesService.confirmOrder(905L));
+
+        assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+        assertTrue(ex.getMessage().contains("no stock is reserved"));
+        assertEquals(List.of("SKU-UNRESERVED"), ex.getDetails().get("unreservedSkus"));
     }
 
     @Test
@@ -4293,16 +4718,30 @@ class SalesServiceTest {
         finishedGood.setReservedStock(BigDecimal.ZERO);
         finishedGood.setValuationAccountId(10L);
         finishedGood.setCogsAccountId(11L);
+        lenient().when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(finishedGood))
+                .thenReturn(List.of(batch(finishedGood, new BigDecimal("1000"))));
         return finishedGood;
     }
 
     private Dealer dealerWithCreditLimit(long id, BigDecimal limit) {
         Dealer dealer = new Dealer();
+        Account receivableAccount = new Account();
+        receivableAccount.setActive(true);
         dealer.setCompany(company);
         dealer.setName("Dealer");
         dealer.setCreditLimit(limit);
+        dealer.setReceivableAccount(receivableAccount);
         setField(dealer, "id", id);
         return dealer;
+    }
+
+    private FinishedGoodBatch batch(FinishedGood finishedGood, BigDecimal quantityAvailable) {
+        FinishedGoodBatch batch = new FinishedGoodBatch();
+        batch.setFinishedGood(finishedGood);
+        batch.setQuantityAvailable(quantityAvailable);
+        batch.setQuantityTotal(quantityAvailable);
+        batch.setUnitCost(BigDecimal.ONE);
+        return batch;
     }
 
     private void setField(Object target, String name, Object value) {

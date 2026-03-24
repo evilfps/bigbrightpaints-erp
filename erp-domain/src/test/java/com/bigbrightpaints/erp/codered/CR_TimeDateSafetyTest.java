@@ -71,6 +71,10 @@ class CR_TimeDateSafetyTest extends AbstractIntegrationTest {
         ensureAccount(company, "WAGE-EXP", "Wage Expense", AccountType.EXPENSE);
         ensureAccount(company, "SALARY-PAYABLE", "Salary Payable", AccountType.LIABILITY);
         ensureAccount(company, "EMP-ADV", "Employee Advances", AccountType.ASSET);
+        ensureAccount(company, "PF-PAYABLE", "PF Payable", AccountType.LIABILITY);
+        ensureAccount(company, "ESI-PAYABLE", "ESI Payable", AccountType.LIABILITY);
+        ensureAccount(company, "TDS-PAYABLE", "TDS Payable", AccountType.LIABILITY);
+        ensureAccount(company, "PROFESSIONAL-TAX-PAYABLE", "Professional Tax Payable", AccountType.LIABILITY);
 
         CompanyContextHolder.setCompanyId(companyCode);
 

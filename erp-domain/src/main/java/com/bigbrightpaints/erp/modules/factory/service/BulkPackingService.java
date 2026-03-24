@@ -79,7 +79,6 @@ public class BulkPackingService {
             return idempotent;
         }
 
-        validateManualPackagingInputs(request);
         BigDecimal totalVolume = bulkPackingOrchestrator.calculateTotalVolume(request.packs());
         ensureSufficientBulkStock(bulkBatch, totalVolume);
 
@@ -145,8 +144,8 @@ public class BulkPackingService {
                 : String.valueOf(bulkBatch.getId());
 
         StringBuilder fingerprint = new StringBuilder();
-        fingerprint.append("bulkBatchId=").append(bulkBatch.getId() != null ? bulkBatch.getId() : "null")
-                .append("|skipPackaging=").append(Boolean.TRUE.equals(request.skipPackagingConsumption()));
+        fingerprint.append("bulkBatchId=").append(bulkBatch.getId() != null ? bulkBatch.getId() : "null");
+        fingerprint.append("|consumePackaging=").append(request != null && request.shouldConsumePackaging());
 
         List<BulkPackRequest.PackLine> lines = request.packs().stream()
                 .sorted(Comparator.comparing(BulkPackRequest.PackLine::childSkuId))
@@ -255,17 +254,6 @@ public class BulkPackingService {
         if (!batch.isBulk()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                     "Batch " + batch.getBatchCode() + " is not marked as bulk");
-        }
-        if (batch.getQuantityAvailable().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                    "Batch has no available quantity: " + batch.getBatchCode());
-        }
-    }
-
-    private void validateManualPackagingInputs(BulkPackRequest request) {
-        if (request.packagingMaterials() != null && !request.packagingMaterials().isEmpty()) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                    "Manual packaging materials are not supported; configure packaging BOM mappings instead");
         }
     }
 

@@ -2,9 +2,9 @@ package com.bigbrightpaints.erp.modules.sales.controller;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
 import com.bigbrightpaints.erp.modules.sales.service.DealerPortalService;
-import com.bigbrightpaints.erp.modules.sales.service.SalesDealerCrudService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,15 +29,13 @@ class DealerPortalControllerExportAuditTest {
     @Mock
     private DealerPortalService dealerPortalService;
     @Mock
-    private SalesDealerCrudService salesDealerCrudService;
-    @Mock
     private AuditService auditService;
 
     private DealerPortalController controller;
 
     @BeforeEach
     void setup() {
-        controller = new DealerPortalController(dealerPortalService, salesDealerCrudService, auditService);
+        controller = new DealerPortalController(dealerPortalService, auditService);
     }
 
     @Test
@@ -45,6 +43,22 @@ class DealerPortalControllerExportAuditTest {
         PreAuthorize preAuthorize = DealerPortalController.class.getAnnotation(PreAuthorize.class);
         assertThat(preAuthorize).isNotNull();
         assertThat(preAuthorize.value()).isEqualTo("hasAuthority('ROLE_DEALER')");
+    }
+
+    @Test
+    void createCreditRequest_returnsReadOnlyDealerPortalMessage() {
+        var response = controller.createCreditRequest();
+
+        assertThat(response.getStatusCode().value()).isEqualTo(403);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message())
+                .isEqualTo("Dealer portal is read-only. Ask your sales or admin contact to review credit-limit changes.");
+        assertThat(response.getBody().data())
+                .containsEntry("code", ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS.getCode())
+                .containsEntry(
+                        "message",
+                        "Dealer portal is read-only. Ask your sales or admin contact to review credit-limit changes.")
+                .containsEntry("reason", "DEALER_PORTAL_READ_ONLY");
     }
 
     @Test

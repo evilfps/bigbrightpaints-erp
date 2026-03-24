@@ -8,6 +8,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
@@ -145,13 +146,6 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
         );
         assertThat(replayTrace).isEqualTo("trace-replay");
 
-        OrchestratorCommand dispatchCommand = new OrchestratorCommand(1L, "ORCH.FACTORY.BATCH.DISPATCH", "idem-dispatch", "hash", "trace-dispatch");
-        OrchestratorIdempotencyService.CommandLease dispatchLease =
-                new OrchestratorIdempotencyService.CommandLease("trace-dispatch", dispatchCommand, true);
-        when(idempotencyService.start(eq("ORCH.FACTORY.BATCH.DISPATCH"), eq("idem-dispatch"), any(), any()))
-                .thenReturn(dispatchLease);
-        when(featureFlags.isFactoryDispatchEnabled()).thenReturn(false);
-
         assertThatThrownBy(() -> dispatcher.dispatchBatch(
                 new DispatchRequest("BATCH-1", "ops@bbp.com", new BigDecimal("50.00")),
                 "idem-dispatch",
@@ -159,9 +153,7 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
                 "C1",
                 "ops@bbp.com"
         )).isInstanceOf(OrchestratorFeatureDisabledException.class)
-                .hasMessageContaining("disabled (CODE-RED)");
-
-        verify(idempotencyService).markFailed(eq(dispatchCommand), any(RuntimeException.class));
+                .hasMessageContaining("/api/v1/dispatch/confirm");
 
         OrchestratorCommand payrollCommand = new OrchestratorCommand(1L, "ORCH.PAYROLL.RUN", "idem-payroll", "hash", "trace-payroll");
         OrchestratorIdempotencyService.CommandLease payrollLease =
@@ -335,21 +327,15 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
                 .hasMessageContaining("reserve failed");
         verify(idempotencyService).markFailed(eq(failingApprove), any(RuntimeException.class));
 
-        OrchestratorCommand invalidDispatch = new OrchestratorCommand(
-                1L, "ORCH.FACTORY.BATCH.DISPATCH", "idem-dispatch-zero", "hash", "trace-dispatch-zero");
-        when(idempotencyService.start(eq("ORCH.FACTORY.BATCH.DISPATCH"), eq("idem-dispatch-zero"), any(), any()))
-                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-dispatch-zero", invalidDispatch, true));
-        when(featureFlags.isFactoryDispatchEnabled()).thenReturn(true);
-
         assertThatThrownBy(() -> dispatcher.dispatchBatch(
                 new DispatchRequest("B-9", "ops@bbp.com", BigDecimal.ZERO),
                 "idem-dispatch-zero",
                 "req-dispatch-zero",
                 "C1",
                 "ops@bbp.com"))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("greater than zero for dispatch");
-        verify(idempotencyService).markFailed(eq(invalidDispatch), any(RuntimeException.class));
+                .isInstanceOf(OrchestratorFeatureDisabledException.class)
+                .hasMessageContaining("/api/v1/dispatch/confirm");
+        verifyNoInteractions(eventPublisherService, traceService);
     }
 
     @Test
@@ -469,7 +455,7 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
     }
 
     @Test
-    void commandDispatcher_replay_paths_short_circuit_feature_and_validation_guards() {
+    void commandDispatcher_dispatch_fails_closed_while_payroll_replay_still_short_circuits() {
         WorkflowService workflowService = mock(WorkflowService.class);
         IntegrationCoordinator integrationCoordinator = mock(IntegrationCoordinator.class);
         EventPublisherService eventPublisherService = mock(EventPublisherService.class);
@@ -488,25 +474,16 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
                 featureFlags
         );
 
-        OrchestratorCommand replayDispatch = new OrchestratorCommand(
-                201L,
-                "ORCH.FACTORY.BATCH.DISPATCH",
-                "idem-dispatch-replay",
-                "hash",
-                "trace-dispatch-replay");
-        when(idempotencyService.start(eq("ORCH.FACTORY.BATCH.DISPATCH"), eq("idem-dispatch-replay"), any(), any()))
-                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-dispatch-replay", replayDispatch, false));
-
-        String dispatchTrace = dispatcher.dispatchBatch(
+        assertThatThrownBy(() -> dispatcher.dispatchBatch(
                 new DispatchRequest("B-R1", "ops@bbp.com", BigDecimal.ZERO),
                 "idem-dispatch-replay",
                 "req-dispatch-replay",
                 "C1",
-                "ops@bbp.com");
-
-        assertThat(dispatchTrace).isEqualTo("trace-dispatch-replay");
+                "ops@bbp.com"))
+                .isInstanceOf(OrchestratorFeatureDisabledException.class)
+                .hasMessageContaining("/api/v1/dispatch/confirm");
         verify(featureFlags, never()).isFactoryDispatchEnabled();
-        verify(idempotencyService, never()).markFailed(eq(replayDispatch), any(RuntimeException.class));
+        verifyNoInteractions(idempotencyService);
 
         OrchestratorCommand replayPayroll = new OrchestratorCommand(
                 202L,

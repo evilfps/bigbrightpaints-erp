@@ -1,0 +1,15 @@
+{
+  "featureId": "lane01-unify-runtime-consumers-on-canonical-policy",
+  "reviewedAt": "2026-03-15T03:08:29.562359Z",
+  "commitId": "f95ac17521271215dd4f8b153c2366450305f3f7",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Pass. The diff routes the admin metrics reader and portal/report runtime enforcement through the canonical tenant runtime service, preserves same-node cache invalidation on successful canonical policy writes, and adds targeted auth, company, portal, report, and truthsuite coverage for canonical block/recovery behavior.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed commit f95ac17521271215dd4f8b153c2366450305f3f7 plus the worker handoff/transcript for lane01-unify-runtime-consumers-on-canonical-policy. I found no code-level defects in scope; the implementation and updated tests align with the feature contract for canonical runtime-policy reads, enforcement, and same-node recovery behavior."
+}

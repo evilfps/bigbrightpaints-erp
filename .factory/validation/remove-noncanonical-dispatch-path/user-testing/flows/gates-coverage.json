@@ -1,0 +1,66 @@
+{
+  "groupId": "gates-coverage",
+  "surface": "api",
+  "assertionResults": [
+    {
+      "id": "VAL-GATE-001",
+      "status": "pass",
+      "reason": "gate-core profile includes OrderFulfillmentE2ETest.",
+      "evidence": [
+        "pom.xml includes **/e2e/sales/OrderFulfillmentE2ETest.java"
+      ]
+    },
+    {
+      "id": "VAL-GATE-002",
+      "status": "pass",
+      "reason": "gate-core profile includes CR_SalesDispatchInvoiceAccounting.",
+      "evidence": [
+        "pom.xml includes **/codered/CR_SalesDispatchInvoiceAccounting.java"
+      ]
+    },
+    {
+      "id": "VAL-GATE-003",
+      "status": "pass",
+      "reason": "Guard script enforces canonical dispatch posting constraints and rejects orchestrator journal reintroduction.",
+      "evidence": [
+        "bash scripts/guard_workflow_canonical_paths.sh exited 0 with canonical-path verification"
+      ]
+    },
+    {
+      "id": "VAL-GATE-004",
+      "status": "pass",
+      "reason": "Changed-files coverage met threshold after combining gate-fast, gate-core, and targeted orchestrator JaCoCo evidence.",
+      "evidence": [
+        "mvn test -Pgate-fast -Djacoco.skip=false exited 0",
+        "mvn test -Pgate-core -Djacoco.skip=false exited 0",
+        "targeted orchestrator tests with jacoco exited 0",
+        "changed_files_coverage.py summary: line_ratio=1.0, branch_ratio=1.0, passes=true"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-003",
+      "status": "pass",
+      "reason": "gate-fast profile is green after milestone changes.",
+      "evidence": [
+        "mvn test -Pgate-fast -Djacoco.skip=true exited 0 (666 tests, 0 failures/errors)"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-004",
+      "status": "pass",
+      "reason": "gate-core profile is green with required O2C tests included.",
+      "evidence": [
+        "mvn test -Pgate-core -Djacoco.skip=true exited 0 (432 tests, 0 failures/errors)"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "Execute",
+    "Grep"
+  ],
+  "frictions": [
+    "Full-suite jacoco run (mvn test -Djacoco.skip=false) remains pre-existing red in unrelated suites; targeted/merged jacoco evidence was used to validate changed-files coverage for this milestone."
+  ],
+  "blockers": [],
+  "summary": "Gate and coverage assertions passed with explicit compile/test/guard/coverage evidence."
+}

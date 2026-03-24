@@ -1,0 +1,15 @@
+{
+  "featureId": "corrections-and-control.linked-corrections-and-close-blockers",
+  "reviewedAt": "2026-03-08T11:44:30+05:30",
+  "commitId": "1c696e4f061fe66958707276f951797d58751f3e",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The correction packet makes the posted-document correction flow explicit in both O2C and P2P: sales and purchase return previews are now surfaced through dedicated DTOs and endpoints, return posting paths enforce posted-source and remaining-quantity guards, and replayed returns relink movements back to the original correction journal instead of duplicating inventory truth. The period-close core also now counts correction-linkage gaps by inspecting correction journals for missing provenance fields, and the reviewed regression/controller/invariant tests cover over-return blocking, replay reuse, CRN prefix listing, and close failure on missing correction linkage.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Posted sales and purchase documents are corrected through linked preview-plus-return flows, replay keeps inventory and journal linkage single-sourced, and period close now fails closed when correction provenance drifts."
+}

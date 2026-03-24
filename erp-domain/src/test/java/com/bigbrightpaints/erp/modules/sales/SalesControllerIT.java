@@ -13,6 +13,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -25,11 +26,14 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Tag("critical")
 public class SalesControllerIT extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE = "ACME";
     private static final String ADMIN_EMAIL = "admin@bbp.com";
     private static final String ADMIN_PASSWORD = "admin123";
+    private static final String ADMIN_DISPATCH_EMAIL = "admin-dispatch@bbp.com";
+    private static final String ADMIN_DISPATCH_PASSWORD = "admindispatch123";
     private static final String SALES_EMAIL = "sales@bbp.com";
     private static final String SALES_PASSWORD = "sales123";
     private static final String SALES_DISPATCH_EMAIL = "sales-dispatch@bbp.com";
@@ -48,6 +52,12 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     @BeforeEach
     void seed() {
         dataSeeder.ensureUser(ADMIN_EMAIL, ADMIN_PASSWORD, "Admin", COMPANY_CODE, List.of("ROLE_ADMIN", "ROLE_SALES"));
+        dataSeeder.ensureUser(
+                ADMIN_DISPATCH_EMAIL,
+                ADMIN_DISPATCH_PASSWORD,
+                "Admin Dispatch User",
+                COMPANY_CODE,
+                List.of("ROLE_ADMIN", "dispatch.confirm"));
         dataSeeder.ensureUser(SALES_EMAIL, SALES_PASSWORD, "Sales User", COMPANY_CODE, List.of("ROLE_SALES"));
         dataSeeder.ensureUser(
                 SALES_DISPATCH_EMAIL,
@@ -125,7 +135,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-Company-Id", COMPANY_CODE);
+        headers.set("X-Company-Code", COMPANY_CODE);
         return headers;
     }
 
@@ -230,6 +240,12 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         return Long.parseLong(String.valueOf(value));
     }
 
+    private void assertFailureDataMessage(ResponseEntity<Map> response, String expectedMessage) {
+        Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
+        assertThat(data).isNotNull();
+        assertThat(data.get("message")).isEqualTo(expectedMessage);
+    }
+
     @Test
     void create_dealer_and_sales_order() {
         String token = loginToken();
@@ -237,7 +253,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-Company-Id", COMPANY_CODE);
+        headers.set("X-Company-Code", COMPANY_CODE);
 
         Map<String, Object> dealerReq = new HashMap<>();
         dealerReq.put("name", "Prime Dealer");
@@ -316,7 +332,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-Company-Id", COMPANY_CODE);
+        headers.set("X-Company-Code", COMPANY_CODE);
 
         Map<String, Object> line = Map.of(
                 "shipQty", new BigDecimal("1.00")
@@ -332,16 +348,23 @@ public class SalesControllerIT extends AbstractIntegrationTest {
                 new HttpEntity<>(payload, headers),
                 Map.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody()).containsEntry(
+                "message",
+                "Accounting must complete the final dispatch posting after the shipment is confirmed.");
+        assertFailureDataMessage(
+                response,
+                "Accounting must complete the final dispatch posting after the shipment is confirmed.");
     }
 
     @Test
-    void dispatch_confirm_allows_factory_with_dispatch_confirm_authority_to_reach_business_validation() {
+    void dispatch_confirm_allows_factory_to_reach_business_validation() {
         String token = loginToken(FACTORY_DISPATCH_EMAIL, FACTORY_DISPATCH_PASSWORD);
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-Company-Id", COMPANY_CODE);
+        headers.set("X-Company-Code", COMPANY_CODE);
 
         Map<String, Object> line = Map.of(
                 "shipQty", new BigDecimal("1.00")
@@ -356,8 +379,33 @@ public class SalesControllerIT extends AbstractIntegrationTest {
                 HttpMethod.POST,
                 new HttpEntity<>(payload, headers),
                 Map.class);
-        assertThat(response.getStatusCode()).isNotEqualTo(HttpStatus.FORBIDDEN);
-        assertThat(response.getStatusCode().is4xxClientError()).isTrue();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat((String) response.getBody().get("message"))
+                .contains("transporterName or driverName");
+    }
+
+    @Test
+    void dispatch_confirm_requires_logistics_metadata_on_admin_endpoint() {
+        String token = loginToken(ADMIN_DISPATCH_EMAIL, ADMIN_DISPATCH_PASSWORD);
+        HttpHeaders headers = authenticatedHeaders(token);
+
+        Map<String, Object> payload = Map.of(
+                "packingSlipId", 9999,
+                "lines", List.of(Map.of("shipQty", new BigDecimal("1.00")))
+        );
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/sales/dispatch/confirm",
+                HttpMethod.POST,
+                new HttpEntity<>(payload, headers),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat((String) response.getBody().get("message"))
+                .contains("transporterName or driverName");
     }
 
     @Test

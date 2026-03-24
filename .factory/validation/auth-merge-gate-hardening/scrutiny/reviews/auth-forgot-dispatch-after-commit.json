@@ -1,0 +1,28 @@
+{
+  "featureId": "auth-forgot-dispatch-after-commit",
+  "reviewedAt": "2026-03-15T22:55:47.486134+00:00",
+  "commitId": "1de17c93a976efaf734c7710ab319d12068553c0",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The fix does address the original blocking defect from auth-forgot-cleanup-failure-preservation: public forgot-password dispatch is now registered through TransactionSynchronization.afterCommit, so reset email is no longer sent before token issuance, superseded-token cleanup, and commit succeed. However, the after-commit recovery path regresses the prerequisite cleanup-failure preservation guarantee. If email dispatch fails after commit and deleteByTokenDigest also fails, the code returns the controlled 503/SYS_003 contract without sending mail, but the prior valid token has already been deleted and is not restored. The updated regression test now asserts that regressed state, so the fix does not fully satisfy the feature contract or safely preserve the prior AUTH-09 repair.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/service/PasswordResetService.java",
+        "line": 524,
+        "severity": "blocking",
+        "description": "restorePublicResetStateAfterDispatchFailure() deletes the just-issued token before it restores priorTokenSnapshot. Because cleanupSupersededPublicResetTokensWithinActiveTransaction() already removed the previously valid token before commit, any deleteByTokenDigest failure at this point leaves the request returning 503/SYS_003 with no email sent but no usable reset link remaining for the user. That reopens the cleanup-failure preservation bug that this feature's precondition depends on, even though the original email-before-commit leak is fixed."
+      },
+      {
+        "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/AuthPasswordResetPublicContractIT.java",
+        "line": 302,
+        "severity": "blocking",
+        "description": "forgotCleanupFailure_afterDispatchFailure_returnsControlledFailureWithoutEmailLeak() now asserts priorDigestCount == 0 and that resetting with the pre-existing token fails. This coverage change cements the cleanup-failure regression instead of proving the prerequisite behavior that a prior valid token remains usable when forgot-password recovery work fails."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/auth-merge-gate-hardening/scrutiny/reviews/auth-forgot-cleanup-failure-preservation.json",
+  "summary": "FAIL. Commit 1de17c93 fixes the original blocking ordering problem by dispatching forgot-password email only after commit, but it regresses the prerequisite cleanup-failure preservation behavior: a post-commit dispatch failure plus cleanup failure still strands the user without any usable reset token, and the new regression test now encodes that broken state."
+}

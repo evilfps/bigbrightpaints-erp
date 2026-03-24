@@ -5,6 +5,9 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import com.bigbrightpaints.erp.test.support.TestDateUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +40,7 @@ class SupplierStatementAgingIT extends AbstractIntegrationTest {
     @Autowired private TestRestTemplate rest;
     @Autowired private CompanyRepository companyRepository;
     @Autowired private AccountRepository accountRepository;
+    @Autowired private RawMaterialRepository rawMaterialRepository;
 
     private HttpHeaders headers;
     private Company company;
@@ -48,6 +52,10 @@ class SupplierStatementAgingIT extends AbstractIntegrationTest {
         dataSeeder.ensureUser(ADMIN_EMAIL, ADMIN_PASSWORD, "Supplier Statement Admin", COMPANY_CODE,
                 List.of("ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_FACTORY"));
         company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+        if (company.getStateCode() == null) {
+            company.setStateCode("27");
+            company = companyRepository.save(company);
+        }
         headers = authHeaders();
         inventory = ensureAccount("INV-SUP-STMT", "Supplier Inventory", AccountType.ASSET);
         cash = ensureAccount("CASH-SUP-STMT", "Supplier Cash", AccountType.ASSET);
@@ -166,6 +174,7 @@ class SupplierStatementAgingIT extends AbstractIntegrationTest {
                 "name", name,
                 "code", code,
                 "contactEmail", "stmt-supplier@bbp.com",
+                "stateCode", "27",
                 "creditLimit", new BigDecimal("10000.00")
         );
         ResponseEntity<Map> resp = rest.exchange(
@@ -174,27 +183,39 @@ class SupplierStatementAgingIT extends AbstractIntegrationTest {
                 new HttpEntity<>(req, headers),
                 Map.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
-        return (Map<String, Object>) resp.getBody().get("data");
+        Map<String, Object> data = (Map<String, Object>) resp.getBody().get("data");
+        Long supplierId = ((Number) data.get("id")).longValue();
+
+        ResponseEntity<Map> approveResp = rest.exchange(
+                "/api/v1/suppliers/" + supplierId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(approveResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> activateResp = rest.exchange(
+                "/api/v1/suppliers/" + supplierId + "/activate",
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(activateResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        return (Map<String, Object>) activateResp.getBody().get("data");
     }
 
     private Long createRawMaterial(String name, String sku, Long inventoryAccountId) {
-        Map<String, Object> req = Map.of(
-                "name", name,
-                "sku", sku,
-                "unitType", "KG",
-                "reorderLevel", new BigDecimal("1"),
-                "minStock", new BigDecimal("1"),
-                "maxStock", new BigDecimal("100"),
-                "inventoryAccountId", inventoryAccountId
-        );
-        ResponseEntity<Map> resp = rest.exchange(
-                "/api/v1/accounting/raw-materials",
-                HttpMethod.POST,
-                new HttpEntity<>(req, headers),
-                Map.class);
-        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
-        Map<String, Object> data = (Map<String, Object>) resp.getBody().get("data");
-        return ((Number) data.get("id")).longValue();
+        RawMaterial material = new RawMaterial();
+        material.setCompany(company);
+        material.setName(name);
+        material.setSku(sku);
+        material.setUnitType("KG");
+        material.setReorderLevel(new BigDecimal("1"));
+        material.setMinStock(new BigDecimal("1"));
+        material.setMaxStock(new BigDecimal("100"));
+        material.setMaterialType(MaterialType.PRODUCTION);
+        material.setInventoryAccountId(inventoryAccountId);
+        material.setCurrentStock(BigDecimal.ZERO);
+        return rawMaterialRepository.save(material).getId();
     }
 
     private PurchaseWorkflowIds createPurchaseOrderAndReceipt(Long supplierId,
@@ -222,6 +243,13 @@ class SupplierStatementAgingIT extends AbstractIntegrationTest {
         assertThat(poResp.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<String, Object> poData = (Map<String, Object>) poResp.getBody().get("data");
         Long purchaseOrderId = ((Number) poData.get("id")).longValue();
+
+        ResponseEntity<Map> approveResp = rest.exchange(
+                "/api/v1/purchasing/purchase-orders/" + purchaseOrderId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(approveResp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         Map<String, Object> grLine = new HashMap<>(line);
         grLine.put("batchCode", "GRN-" + shortSuffix());
@@ -271,7 +299,7 @@ class SupplierStatementAgingIT extends AbstractIntegrationTest {
         HttpHeaders h = new HttpHeaders();
         h.setBearerAuth(token);
         h.setContentType(MediaType.APPLICATION_JSON);
-        h.set("X-Company-Id", COMPANY_CODE);
+        h.set("X-Company-Code", COMPANY_CODE);
         return h;
     }
 

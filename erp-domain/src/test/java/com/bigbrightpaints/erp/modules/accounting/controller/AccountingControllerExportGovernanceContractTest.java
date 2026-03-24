@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.accounting.controller;
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import org.junit.jupiter.api.Test;
@@ -37,14 +38,21 @@ class AccountingControllerExportGovernanceContractTest {
     @Test
     void auditDigestCsv_logsDeterministicDataExportEvidence() {
         AccountingService accountingService = mock(AccountingService.class);
+        AccountingAuditService accountingAuditService = mock(AccountingAuditService.class);
         AuditService auditService = mock(AuditService.class);
         CompanyContextService companyContextService = mock(CompanyContextService.class);
         CompanyClock companyClock = mock(CompanyClock.class);
-        when(accountingService.auditDigestCsv(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31)))
+        when(accountingAuditService.auditDigestCsv(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31)))
                 .thenReturn("h1,h2\nv1,v2");
 
         AccountingController controller = new AccountingController(
                 accountingService,
+                null,
+                null,
+                null,
+                null,
+                accountingAuditService,
+                null,
                 null,
                 null,
                 null,
@@ -58,6 +66,7 @@ class AccountingControllerExportGovernanceContractTest {
                 null,
                 companyContextService,
                 companyClock,
+                null,
                 auditService
         );
 

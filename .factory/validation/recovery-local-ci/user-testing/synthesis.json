@@ -1,0 +1,20 @@
+{
+  "milestone": "recovery-local-ci",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null,
+  "notes": [
+    "No completed non-validator recovery-local-ci implementation features declare fulfills assertions, so there were no user-visible contract assertions to execute for this milestone.",
+    "No environment setup or flow-validator subagent runs were required because the milestone scope is CI/local-parity infrastructure and docs follow-up rather than runtime behavior changes."
+  ]
+}

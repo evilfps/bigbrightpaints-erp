@@ -1,9 +1,7 @@
 package com.bigbrightpaints.erp.modules.sales.service;
 
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
-import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
@@ -12,7 +10,6 @@ import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.In
 import com.bigbrightpaints.erp.modules.invoice.dto.InvoiceDto;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoiceService;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
-import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,30 +39,18 @@ public class SalesFulfillmentService {
     private static final Logger log = LoggerFactory.getLogger(SalesFulfillmentService.class);
 
     private final SalesService salesService;
-    private final SalesOrderRepository salesOrderRepository;
     private final FinishedGoodsService finishedGoodsService;
     private final PackagingSlipRepository packagingSlipRepository;
-    private final SalesJournalService salesJournalService;
-    private final AccountingFacade accountingFacade;
     private final InvoiceService invoiceService;
-    private final CompanyClock companyClock;
 
     public SalesFulfillmentService(SalesService salesService,
-                                   SalesOrderRepository salesOrderRepository,
                                    FinishedGoodsService finishedGoodsService,
                                    PackagingSlipRepository packagingSlipRepository,
-                                   SalesJournalService salesJournalService,
-                                   AccountingFacade accountingFacade,
-                                   InvoiceService invoiceService,
-                                   CompanyClock companyClock) {
+                                   InvoiceService invoiceService) {
         this.salesService = salesService;
-        this.salesOrderRepository = salesOrderRepository;
         this.finishedGoodsService = finishedGoodsService;
         this.packagingSlipRepository = packagingSlipRepository;
-        this.salesJournalService = salesJournalService;
-        this.accountingFacade = accountingFacade;
         this.invoiceService = invoiceService;
-        this.companyClock = companyClock;
     }
 
     /**
@@ -148,92 +133,39 @@ public class SalesFulfillmentService {
                 log.info("Reserved inventory for order {}", orderNumber);
             }
 
-            if (options.issueInvoice()) {
-                DispatchConfirmRequest dispatchRequest = new DispatchConfirmRequest(
-                        slipId,
-                        slipId != null ? null : orderId,
-                        null,
-                        null,
-                        null,
-                        Boolean.FALSE,
-                        null,
-                        null);
-                var dispatchResponse = salesService.confirmDispatch(dispatchRequest);
-                List<DispatchPosting> dispatches = dispatchResponse.cogsPostings().stream()
-                        .map(p -> new DispatchPosting(p.inventoryAccountId(), p.cogsAccountId(), p.cost()))
-                        .toList();
-                result.dispatches(dispatches);
-                BigDecimal totalCogs = dispatches.stream()
-                        .map(DispatchPosting::cost)
-                        .filter(c -> c != null)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
-                result.cogsAmount(totalCogs);
-                result.salesJournalId(dispatchResponse.arJournalEntryId());
-                if (dispatchResponse.finalInvoiceId() != null) {
-                    InvoiceDto invoice = invoiceService.getInvoice(dispatchResponse.finalInvoiceId());
-                    result.invoiceId(invoice.id());
-                    result.invoiceNumber(invoice.invoiceNumber());
-                }
-                List<Long> slipCogsIds = resolveSlipCogsJournalIds(dispatchResponse.packingSlipId(), order);
-                if (!slipCogsIds.isEmpty()) {
-                    result.cogsJournalIds(slipCogsIds);
-                }
-                result.status(FulfillmentStatus.COMPLETED);
-                log.info("Completed fulfillment for order {} - Revenue: {}, COGS: {}, Gross Profit: {}",
-                        orderNumber, order.getTotalAmount(), totalCogs,
-                        order.getTotalAmount().subtract(totalCogs));
-                return result.build();
-            }
-
-            // Step 2: Dispatch inventory and get COGS from actual cost layers
-            List<DispatchPosting> dispatches = finishedGoodsService.markSlipDispatched(orderId);
+            DispatchConfirmRequest dispatchRequest = new DispatchConfirmRequest(
+                    slipId,
+                    slipId != null ? null : orderId,
+                    null,
+                    null,
+                    null,
+                    Boolean.FALSE,
+                    null,
+                    null);
+            var dispatchResponse = salesService.confirmDispatch(dispatchRequest);
+            List<DispatchPosting> dispatches = dispatchResponse.cogsPostings().stream()
+                    .map(p -> new DispatchPosting(p.inventoryAccountId(), p.cogsAccountId(), p.cost()))
+                    .toList();
             result.dispatches(dispatches);
-            
             BigDecimal totalCogs = dispatches.stream()
                     .map(DispatchPosting::cost)
                     .filter(c -> c != null)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             result.cogsAmount(totalCogs);
-            log.info("Dispatched order {} - COGS: {}", orderNumber, totalCogs);
-
-            // Step 3: Post sales/revenue journal entry (ONLY if NOT issuing invoice)
-            // IDEMPOTENCY: Check marker first
-            if (options.postSalesJournal() && !order.hasSalesJournalPosted()) {
-                Long salesJournalId = salesJournalService.postSalesJournal(
-                        order,
-                        null,
-                        null,
-                        options.entryDate() != null ? options.entryDate() : companyClock.today(order.getCompany()),
-                        "Sales fulfillment for " + orderNumber
-                );
-                result.salesJournalId(salesJournalId);
-                order.setSalesJournalEntryId(salesJournalId);
-                log.info("Posted sales journal {} for order {}", salesJournalId, orderNumber);
-            } else if (order.hasSalesJournalPosted()) {
-                log.info("Sales journal already posted for order {} (id={})", orderNumber, order.getSalesJournalEntryId());
-                result.salesJournalId(order.getSalesJournalEntryId());
-            }
-
-            // Step 5: Issue invoice (IDEMPOTENCY: Check marker first)
-            if (options.issueInvoice() && !order.hasInvoiceIssued()) {
-                InvoiceDto invoice = invoiceService.issueInvoiceForOrder(orderId);
+            result.salesJournalId(dispatchResponse.arJournalEntryId());
+            if (dispatchResponse.finalInvoiceId() != null) {
+                InvoiceDto invoice = invoiceService.getInvoice(dispatchResponse.finalInvoiceId());
                 result.invoiceId(invoice.id());
                 result.invoiceNumber(invoice.invoiceNumber());
-                order.setFulfillmentInvoiceId(invoice.id());
-                log.info("Issued invoice {} for order {}", invoice.invoiceNumber(), orderNumber);
-            } else if (order.hasInvoiceIssued()) {
-                log.info("Invoice already issued for order {} (id={})", orderNumber, order.getFulfillmentInvoiceId());
-                result.invoiceId(order.getFulfillmentInvoiceId());
             }
-
-            // Step 6: Save idempotency markers and update order status
-            salesOrderRepository.save(order);
+            List<Long> slipCogsIds = resolveSlipCogsJournalIds(dispatchResponse.packingSlipId(), order);
+            if (!slipCogsIds.isEmpty()) {
+                result.cogsJournalIds(slipCogsIds);
+            }
             result.status(FulfillmentStatus.COMPLETED);
-            
             log.info("Completed fulfillment for order {} - Revenue: {}, COGS: {}, Gross Profit: {}",
                     orderNumber, order.getTotalAmount(), totalCogs,
                     order.getTotalAmount().subtract(totalCogs));
-
             return result.build();
 
         } catch (Exception e) {
@@ -256,20 +188,11 @@ public class SalesFulfillmentService {
                     "Fulfillment requires dispatch confirmation; issueInvoice must be true");
         }
         boolean reserveInventory = options.reserveInventory();
-        boolean postSalesJournal = options.postSalesJournal();
         boolean postCogsJournal = options.postCogsJournal();
         boolean changed = false;
         if (!reserveInventory) {
             log.warn("Fulfillment requires inventory reservation; forcing reserveInventory=true.");
             reserveInventory = true;
-            changed = true;
-        }
-        // DEFENSIVE: If issuing invoice, NEVER post sales journal separately
-        // Invoice will handle AR/Revenue/Tax posting
-        if (postSalesJournal) {
-            log.warn("Conflicting options: issueInvoice=true AND postSalesJournal=true. " +
-                     "Invoice owns AR/Revenue posting. Disabling postSalesJournal.");
-            postSalesJournal = false;
             changed = true;
         }
         if (postCogsJournal) {
@@ -280,7 +203,7 @@ public class SalesFulfillmentService {
         if (changed) {
             return FulfillmentOptions.builder()
                     .reserveInventory(reserveInventory)
-                    .postSalesJournal(postSalesJournal)
+                    .postSalesJournal(false)
                     .postCogsJournal(postCogsJournal)
                     .issueInvoice(true)
                     .allowPartialFulfillment(options.allowPartialFulfillment())

@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.reports.service;
 
+import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
@@ -14,6 +16,9 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionProductReposi
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -27,11 +32,14 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class InventoryValuationServiceTest {
 
     @Mock private RawMaterialRepository rawMaterialRepository;
@@ -42,8 +50,20 @@ class InventoryValuationServiceTest {
     @Mock private RawMaterialMovementRepository rawMaterialMovementRepository;
     @Mock private ProductionProductRepository productionProductRepository;
     @Mock private AccountingPeriodRepository accountingPeriodRepository;
+    @Mock private CompanyClock companyClock;
 
     @InjectMocks private InventoryValuationService inventoryValuationService;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(companyClock.today(any())).thenReturn(LocalDate.of(2026, 3, 18));
+        new CompanyTime(companyClock);
+    }
+
+    @AfterEach
+    void tearDown() {
+        ReflectionTestUtils.setField(CompanyTime.class, "companyClock", null);
+    }
 
     @Test
     void currentSnapshot_fifoUsesAvailableBatchQuantityWhenAvailableIsLower() {
@@ -84,7 +104,7 @@ class InventoryValuationServiceTest {
 
         assertThat(snapshot.totalValue()).isEqualByComparingTo("150.00");
         assertThat(snapshot.lowStockItems()).isZero();
-        assertThat(snapshot.costingMethod()).isEqualTo("WEIGHTED_AVERAGE");
+        assertThat(snapshot.costingMethod()).isEqualTo("FIFO");
         assertThat(snapshot.items()).hasSize(1);
     }
 
@@ -288,6 +308,46 @@ class InventoryValuationServiceTest {
 
         assertThat(snapshot.costingMethod()).isEqualTo("WEIGHTED_AVERAGE");
         assertThat(snapshot.totalValue()).isEqualByComparingTo("80.00");
+    }
+
+    @Test
+    void currentSnapshot_defaultsToFifoWhenAccountingPeriodHasNoCostingMethod() {
+        Company company = new Company();
+        company.setCode("CR-PERIOD-NULL");
+        company.setName("CR Period Null");
+        company.setTimezone("UTC");
+
+        AccountingPeriod period = new AccountingPeriod();
+        period.setCostingMethod(null);
+
+        when(rawMaterialRepository.findByCompanyOrderByNameAsc(company)).thenReturn(List.of());
+        when(finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company)).thenReturn(List.of());
+        when(productionProductRepository.findByCompanyOrderByProductNameAsc(company)).thenReturn(List.of());
+        when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3)).thenReturn(java.util.Optional.of(period));
+
+        InventoryValuationService.InventorySnapshot snapshot = inventoryValuationService.currentSnapshot(company);
+
+        assertThat(snapshot.costingMethod()).isEqualTo("FIFO");
+        assertThat(snapshot.totalValue()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void resolveCostingMethodContext_returnsFifoDefaultsWhenCompanyMissing() {
+        Object context = ReflectionTestUtils.invokeMethod(
+                inventoryValuationService,
+                "resolveCostingMethodContext",
+                null,
+                LocalDate.of(2026, 3, 15)
+        );
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(context, "canonicalMethod")).isEqualTo("FIFO");
+        assertThat((Object) ReflectionTestUtils.invokeMethod(context, "method")).isNull();
+    }
+
+    @Test
+    void canonicalMethodLabel_defaultsToFifoWhenMethodMissing() {
+        assertThat((String) ReflectionTestUtils.invokeMethod(inventoryValuationService, "canonicalMethodLabel", (Object) null))
+                .isEqualTo("FIFO");
     }
 
     @Test

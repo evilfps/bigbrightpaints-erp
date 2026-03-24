@@ -116,7 +116,9 @@ public class TrialBalanceReportQueryService {
         Map<Long, BigDecimal> creditByAccount = new HashMap<>();
 
         List<Object[]> rows;
-        if (window.startDate() != null && window.endDate() != null) {
+        if (window.source() == ReportSource.AS_OF) {
+            rows = journalLineRepository.summarizeByAccountUpTo(window.company(), window.asOfDate());
+        } else if (window.startDate() != null && window.endDate() != null) {
             rows = journalLineRepository.summarizeByAccountWithin(window.company(), window.startDate(), window.endDate());
         } else {
             rows = journalLineRepository.summarizeByAccountUpTo(window.company(), window.asOfDate());

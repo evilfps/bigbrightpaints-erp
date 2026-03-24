@@ -171,11 +171,13 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
             assertThat(line.getCredit()).isEqualByComparingTo("200.00");
         });
 
+        LocalDate statutoryStart = anchor.minusDays(20);
+        LocalDate statutoryEnd = anchor.minusDays(10);
         CompanyContextHolder.setCompanyId(companyCode);
         var runWithStatutoryDto = payrollService.createPayrollRun(new PayrollService.CreatePayrollRunRequest(
                 PayrollRun.RunType.MONTHLY,
-                start.minusMonths(1),
-                end.minusMonths(1),
+                statutoryStart,
+                statutoryEnd,
                 "CODE-RED monthly payroll statutory"
         ));
         CompanyContextHolder.clear();

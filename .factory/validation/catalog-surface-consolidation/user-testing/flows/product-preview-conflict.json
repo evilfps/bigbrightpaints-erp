@@ -1,0 +1,270 @@
+{
+  "groupId": "product-preview-conflict",
+  "surface": "api",
+  "testedAt": "2026-03-21T08:21:58Z",
+  "toolsUsed": [
+    "python3",
+    "curl-compatible HTTP via urllib",
+    "psql"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-PRODUCT-005",
+      "title": "Canonical 1 x 1 create returns one SKU member",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Create a canonical brand under the assigned namespace",
+          "expected": "Brand is created on /api/v1/catalog/brands",
+          "observed": "POST /api/v1/catalog/brands -> 200 with brandId=12"
+        },
+        {
+          "action": "Commit a 1 x 1 canonical product matrix on POST /api/v1/catalog/products",
+          "expected": "Exactly one member is returned with persisted identifiers",
+          "observed": "POST /api/v1/catalog/products -> 200 with candidateCount=1 and members=1; member id=17 sku=UTCATPRODUCT04-UTCATPRODUCTMATRIXSINGLEA3ACA857-WHITE-1L"
+        },
+        {
+          "action": "Browse and read back the created member on canonical catalog routes",
+          "expected": "Exactly one persisted SKU member is discoverable",
+          "observed": "GET list/detail returned the created member and DB checks found production_products=1 finished_goods=1 for sku UTCATPRODUCT04-UTCATPRODUCTMATRIXSINGLEA3ACA857-WHITE-1L"
+        }
+      ],
+      "evidence": {
+        "apiCalls": "POST /api/v1/catalog/brands -> 200; POST /api/v1/catalog/products -> 200; GET /api/v1/catalog/products?brandId=<brandId> -> 200; GET /api/v1/catalog/products/<id> -> 200",
+        "files": [
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/product-preview-conflict/val-product-005.json"
+        ],
+        "dbChecks": {
+          "productRows": 1,
+          "finishedGoodRows": 1,
+          "rawMaterialRows": 0,
+          "productSkus": [
+            "UTCATPRODUCT04-UTCATPRODUCTMATRIXSINGLEA3ACA857-WHITE-1L"
+          ],
+          "finishedGoodSkus": [
+            "UTCATPRODUCT04-UTCATPRODUCTMATRIXSINGLEA3ACA857-WHITE-1L"
+          ],
+          "rawMaterialSkus": [],
+          "variantGroupRows": 1
+        }
+      }
+    },
+    {
+      "id": "VAL-PRODUCT-006",
+      "title": "Canonical 4 x 4 create returns sixteen SKU members",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Create a canonical namespace brand for the matrix commit",
+          "expected": "Brand create succeeds",
+          "observed": "POST /api/v1/catalog/brands -> 200 with brandId=13"
+        },
+        {
+          "action": "Commit a 4 x 4 canonical product matrix",
+          "expected": "Sixteen members with unique ids and SKUs are returned",
+          "observed": "POST /api/v1/catalog/products -> 200 with candidateCount=16, members=16, uniqueIds=16, uniqueSkus=16"
+        },
+        {
+          "action": "Confirm persisted matrix members through canonical browse and targeted DB checks",
+          "expected": "All sixteen members persist with no duplicates",
+          "observed": "GET /api/v1/catalog/products?brandId=<brandId> -> 200 and DB checks found production_products=16 finished_goods=16 variant_group_rows=16"
+        }
+      ],
+      "evidence": {
+        "apiCalls": "POST /api/v1/catalog/brands -> 200; POST /api/v1/catalog/products -> 200; GET /api/v1/catalog/products?brandId=<brandId> -> 200",
+        "files": [
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/product-preview-conflict/val-product-006.json"
+        ],
+        "dbChecks": {
+          "productRows": 16,
+          "finishedGoodRows": 16,
+          "rawMaterialRows": 0,
+          "productSkus": [
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLACK-10L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLACK-1L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLACK-20L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLACK-4L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLUE-10L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLUE-1L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLUE-20L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLUE-4L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-GREEN-10L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-GREEN-1L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-GREEN-20L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-GREEN-4L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-WHITE-10L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-WHITE-1L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-WHITE-20L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-WHITE-4L"
+          ],
+          "finishedGoodSkus": [
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLACK-10L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLACK-1L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLACK-20L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLACK-4L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLUE-10L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLUE-1L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLUE-20L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-BLUE-4L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-GREEN-10L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-GREEN-1L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-GREEN-20L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-GREEN-4L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-WHITE-10L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-WHITE-1L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-WHITE-20L",
+            "UTCATPRODUCT05-UTCATPRODUCTMATRIXMATRIX1A0F1678-WHITE-4L"
+          ],
+          "rawMaterialSkus": [],
+          "variantGroupRows": 16
+        }
+      }
+    },
+    {
+      "id": "VAL-PRODUCT-007",
+      "title": "Canonical preview is non-mutating and matches commit planning",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Send preview on POST /api/v1/catalog/products?preview=true using the same payload later used for commit",
+          "expected": "Preview returns the full candidate plan without persistence",
+          "observed": "Preview returned status 200 with preview=True, candidateCount=16, members=16, conflicts=0, downstreamEffects={'finishedGoodMembers': 16, 'rawMaterialMembers': 0}"
+        },
+        {
+          "action": "Check persisted product and mirror state after preview-only execution",
+          "expected": "No production product, variant-group row, or finished-good mirror is persisted",
+          "observed": "Targeted DB checks after preview found production_products=0, finished_goods=0, variant_group_rows=0"
+        },
+        {
+          "action": "Commit the exact same payload on POST /api/v1/catalog/products",
+          "expected": "Commit returns the same candidate set and persists it",
+          "observed": "Commit returned status 200 with preview=False, candidateCount=16, sameVariantGroupId=True, sameSkuSet=True, persistedProducts=16, persistedFinishedGoods=16"
+        }
+      ],
+      "evidence": {
+        "apiCalls": "POST /api/v1/catalog/products?preview=true -> 200; POST /api/v1/catalog/products -> 200",
+        "files": [
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/product-preview-conflict/val-product-007.json"
+        ],
+        "previewDbChecks": {
+          "productRows": 0,
+          "finishedGoodRows": 0,
+          "rawMaterialRows": 0,
+          "productSkus": [],
+          "finishedGoodSkus": [],
+          "rawMaterialSkus": [],
+          "variantGroupRows": 0
+        },
+        "commitDbChecks": {
+          "productRows": 16,
+          "finishedGoodRows": 16,
+          "rawMaterialRows": 0,
+          "productSkus": [
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLACK-10L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLACK-1L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLACK-20L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLACK-4L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLUE-10L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLUE-1L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLUE-20L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLUE-4L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-GREEN-10L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-GREEN-1L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-GREEN-20L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-GREEN-4L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-WHITE-10L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-WHITE-1L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-WHITE-20L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-WHITE-4L"
+          ],
+          "finishedGoodSkus": [
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLACK-10L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLACK-1L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLACK-20L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLACK-4L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLUE-10L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLUE-1L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLUE-20L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-BLUE-4L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-GREEN-10L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-GREEN-1L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-GREEN-20L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-GREEN-4L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-WHITE-10L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-WHITE-1L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-WHITE-20L",
+            "UTCATPRODUCT06-UTCATPRODUCTMATRIXPREVIEW1068E163-WHITE-4L"
+          ],
+          "rawMaterialSkus": [],
+          "variantGroupRows": 16
+        }
+      }
+    },
+    {
+      "id": "VAL-PRODUCT-008",
+      "title": "Duplicate or conflicting commits fail closed with explicit diagnostics",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Preview a 4 x 4 canonical matrix to capture the candidate SKU set",
+          "expected": "Preview succeeds and shows the candidate plan",
+          "observed": "Preview returned 200 with candidateCount=16 and members=16"
+        },
+        {
+          "action": "Seed one conflicting SKU through the canonical commit route in the assigned namespace",
+          "expected": "A single existing SKU is persisted before the conflict attempt",
+          "observed": "Seed commit returned 200 and created sku=UTCATPRODUCT07-UTCATPRODUCTMATRIXCONFLICTF4C61F5E-WHITE-1L"
+        },
+        {
+          "action": "Commit the original 4 x 4 matrix after the seed exists",
+          "expected": "Request fails closed with explicit per-member diagnostics and no partial persistence",
+          "observed": "POST /api/v1/catalog/products -> 409 with code=CONC_001 and 1 conflict detail entries; DB checks afterward found only the pre-seeded sku persisted (production_products=1, finished_goods=1, raw_materials=0)"
+        }
+      ],
+      "evidence": {
+        "apiCalls": "POST /api/v1/catalog/products?preview=true -> 200; POST /api/v1/catalog/products (seed) -> 200; POST /api/v1/catalog/products (conflict) -> 409",
+        "files": [
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/product-preview-conflict/val-product-008.json"
+        ],
+        "dbChecks": {
+          "productRows": 1,
+          "finishedGoodRows": 1,
+          "rawMaterialRows": 0,
+          "productSkus": [
+            "UTCATPRODUCT07-UTCATPRODUCTMATRIXCONFLICTF4C61F5E-WHITE-1L"
+          ],
+          "finishedGoodSkus": [
+            "UTCATPRODUCT07-UTCATPRODUCTMATRIXCONFLICTF4C61F5E-WHITE-1L"
+          ],
+          "rawMaterialSkus": [],
+          "variantGroupRows": 0
+        },
+        "conflictCode": "CONC_001",
+        "conflictDetails": [
+          {
+            "sku": "UTCATPRODUCT07-UTCATPRODUCTMATRIXCONFLICTF4C61F5E-WHITE-1L",
+            "reason": "SKU_ALREADY_EXISTS",
+            "productName": "ut_cat_product_matrix_conflict_f4c61f5e WHITE 1L",
+            "color": "WHITE",
+            "size": "1L"
+          }
+        ]
+      }
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Actuator health returned 503 DOWN while the API runtime remained usable for authenticated catalog probes.",
+      "resolved": true,
+      "resolution": "Followed repository testing guidance and proceeded with direct API validation on localhost:8081 after confirming login succeeded.",
+      "affectedAssertions": [
+        "VAL-PRODUCT-005",
+        "VAL-PRODUCT-006",
+        "VAL-PRODUCT-007",
+        "VAL-PRODUCT-008"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 4 assertions: 4 passed, 0 failed, 0 blocked."
+}

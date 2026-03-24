@@ -1,0 +1,234 @@
+{
+  "groupId": "product-input-contract",
+  "surface": "api",
+  "testedAt": "2026-03-21T08:13:47.230920+00:00",
+  "toolsUsed": [
+    "python3",
+    "urllib",
+    "openapi.json"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-PRODUCT-001",
+      "title": "Canonical product-create accepts only a resolved active brandId",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect OpenAPI request schema",
+          "expected": "brandId is required on CatalogProductEntryRequest",
+          "observed": "required=['baseProductName', 'brandId', 'category', 'colors', 'gstRate', 'hsnCode', 'sizes', 'unitOfMeasure']"
+        },
+        {
+          "action": "POST /api/v1/catalog/products without brandId",
+          "expected": "Fail closed with validation error",
+          "observed": "HTTP 400 data.errors={'brandId': 'brandId is required'}"
+        },
+        {
+          "action": "POST /api/v1/catalog/products with nonexistent brandId",
+          "expected": "Fail closed for unknown brand",
+          "observed": "HTTP 404 data={'traceId': 'ab0d09db-6059-4949-808e-1be6215cfa1d', 'reason': 'Brand not found for id 999999999', 'path': '/api/v1/catalog/products', 'code': 'BUS_003', 'message': 'Brand not found for id 999999999', 'timestamp': [2026, 3, 21, 8, 13, 47, 17096210]}"
+        },
+        {
+          "action": "POST /api/v1/catalog/products with inactive brandId",
+          "expected": "Fail closed for inactive brand",
+          "observed": "HTTP 409 data={'traceId': '01bc2180-4398-4396-a7af-4df1a99668b0', 'reason': \"Brand 'ut_cat_product_inputs_brand_inactive_20260321T081346Z_f2f162' is inactive\", 'path': '/api/v1/catalog/products', 'code': 'BUS_001', 'message': \"Brand 'ut_cat_product_inputs_brand_inactive_20260321T081346Z_f2f162' is inactive\", 'timestamp': [2026, 3, 21, 8, 13, 47, 30633127]}"
+        },
+        {
+          "action": "POST /api/v1/catalog/products with active brandId",
+          "expected": "Create succeeds",
+          "observed": "HTTP 200 variantGroupId=93bd929b-81e1-3fbf-9c08-9c8b346004a5 memberSku=UTCATPRODUCT02-UTCATPRODUCTINPUTSSINGLE20260321T081346ZF2F162-NATURAL-25KG"
+        }
+      ],
+      "evidence": {
+        "files": [
+          "openapi-product-contract-summary.json",
+          "brand-active-create.json",
+          "brand-inactive-create.json",
+          "product-001-missing-brandId.json",
+          "product-001-nonexistent-brandId.json",
+          "product-001-inactive-brandId.json",
+          "product-001-004-single-create.json"
+        ],
+        "network": [
+          "POST /api/v1/catalog/products (missing brandId) -> 400",
+          "POST /api/v1/catalog/products (nonexistent brandId) -> 404",
+          "POST /api/v1/catalog/products (inactive brandId) -> 409",
+          "POST /api/v1/catalog/products (active brandId) -> 200"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PRODUCT-002",
+      "title": "Canonical product-create rejects inline brand fallback fields",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect OpenAPI request schema for legacy brand fallback fields",
+          "expected": "brandName, brandCode, and nested brand payload are absent",
+          "observed": "{'brandName': True, 'brandCode': True, 'brand': True}"
+        },
+        {
+          "action": "POST /api/v1/catalog/products with brandName, brandCode, and nested brand payload",
+          "expected": "Fail closed because inline fallback fields are unsupported",
+          "observed": "HTTP 400 data={'traceId': '91bfca8e-464e-41bd-af06-5769817a89ce', 'reason': 'Unsupported fields in canonical product request: brand, brandCode, brandName', 'path': '/api/v1/catalog/products', 'code': 'VAL_001', 'message': 'Unsupported fields in canonical product request: brand, brandCode, brandName', 'timestamp': [2026, 3, 21, 8, 13, 47, 103190583]}"
+        }
+      ],
+      "evidence": {
+        "files": [
+          "openapi-product-contract-summary.json",
+          "product-002-inline-fallback-fields.json"
+        ],
+        "network": [
+          "POST /api/v1/catalog/products (legacy inline brand fields) -> 400"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PRODUCT-003",
+      "title": "Canonical product-create uses array inputs only",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect OpenAPI request schema for sizes/colors types",
+          "expected": "Both fields are arrays",
+          "observed": "sizes.type=array colors.type=array"
+        },
+        {
+          "action": "POST /api/v1/catalog/products with canonical arrays",
+          "expected": "Create succeeds for canonical array inputs",
+          "observed": "HTTP 200 members=1"
+        },
+        {
+          "action": "POST /api/v1/catalog/products with packed token case slash-size",
+          "expected": "Fail closed instead of expanding packed tokens",
+          "observed": "HTTP 400 data={'traceId': '44cd0448-0c55-493a-9c25-0f259d53f4c4', 'reason': 'sizes entries must be single canonical values; packed multi-value tokens are not supported', 'path': '/api/v1/catalog/products', 'code': 'VAL_001', 'message': 'sizes entries must be single canonical values; packed multi-value tokens are not supported', 'timestamp': [2026, 3, 21, 8, 13, 47, 117591278]}"
+        },
+        {
+          "action": "POST /api/v1/catalog/products with packed token case comma-color",
+          "expected": "Fail closed instead of expanding packed tokens",
+          "observed": "HTTP 400 data={'traceId': '2b65a095-90c4-4d8b-9f1a-d2bf3b1a7685', 'reason': 'colors entries must be single canonical values; packed multi-value tokens are not supported', 'path': '/api/v1/catalog/products', 'code': 'VAL_001', 'message': 'colors entries must be single canonical values; packed multi-value tokens are not supported', 'timestamp': [2026, 3, 21, 8, 13, 47, 130528640]}"
+        },
+        {
+          "action": "POST /api/v1/catalog/products with packed token case semicolon-size",
+          "expected": "Fail closed instead of expanding packed tokens",
+          "observed": "HTTP 400 data={'traceId': 'feaf1246-16fb-4536-9b98-abd7eb50a1fb', 'reason': 'sizes entries must be single canonical values; packed multi-value tokens are not supported', 'path': '/api/v1/catalog/products', 'code': 'VAL_001', 'message': 'sizes entries must be single canonical values; packed multi-value tokens are not supported', 'timestamp': [2026, 3, 21, 8, 13, 47, 144482777]}"
+        },
+        {
+          "action": "POST /api/v1/catalog/products with packed token case newline-color",
+          "expected": "Fail closed instead of expanding packed tokens",
+          "observed": "HTTP 400 data={'traceId': '375c1df5-30b3-47b1-bf76-3ac24229167d', 'reason': 'colors entries must be single canonical values; packed multi-value tokens are not supported', 'path': '/api/v1/catalog/products', 'code': 'VAL_001', 'message': 'colors entries must be single canonical values; packed multi-value tokens are not supported', 'timestamp': [2026, 3, 21, 8, 13, 47, 158614603]}"
+        }
+      ],
+      "evidence": {
+        "files": [
+          "openapi-product-contract-summary.json",
+          "product-003-slash-size.json",
+          "product-003-comma-color.json",
+          "product-003-semicolon-size.json",
+          "product-003-newline-color.json",
+          "product-001-004-single-create.json"
+        ],
+        "network": [
+          "POST /api/v1/catalog/products (slash-size) -> 400",
+          "POST /api/v1/catalog/products (comma-color) -> 400",
+          "POST /api/v1/catalog/products (semicolon-size) -> 400",
+          "POST /api/v1/catalog/products (newline-color) -> 400"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PRODUCT-004",
+      "title": "Canonical request and response preserve base-product fields",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect OpenAPI request/response/read schemas",
+          "expected": "Required base-product fields remain in canonical request and response/readback contracts",
+          "observed": "requestProperties=['basePrice', 'baseProductName', 'brandId', 'category', 'colors', 'gstRate', 'hsnCode', 'metadata', 'minDiscountPercent', 'minSellingPrice', 'sizes', 'unitOfMeasure'] responseProperties=['basePrice', 'brandCode', 'brandId', 'brandName', 'candidateCount', 'category', 'conflicts', 'downstreamEffects', 'gstRate', 'hsnCode', 'members', 'metadata', 'minDiscountPercent', 'minSellingPrice', 'preview', 'productFamilyName', 'unitOfMeasure', 'variantGroupId'] readProperties=['active', 'basePrice', 'brandCode', 'brandId', 'brandName', 'cartonSizes', 'category', 'colors', 'gstRate', 'hsnCode', 'id', 'metadata', 'minDiscountPercent', 'minSellingPrice', 'name', 'productFamilyName', 'publicId', 'sizes', 'sku', 'unitOfMeasure', 'variantGroupId']"
+        },
+        {
+          "action": "POST /api/v1/catalog/products with all base-product fields populated",
+          "expected": "Response echoes persisted base-product fields",
+          "observed": "HTTP 200 data={'preview': False, 'variantGroupId': '93bd929b-81e1-3fbf-9c08-9c8b346004a5', 'productFamilyName': 'ut_cat_product_inputs_single_20260321T081346Z_f2f162', 'brandId': 7, 'brandName': 'ut_cat_product_inputs_brand_active_20260321T081346Z_f2f162', 'brandCode': 'UTCATPRODUCT02', 'category': 'RAW_MATERIAL', 'unitOfMeasure': 'KG', 'hsnCode': '320611', 'basePrice': 500.0, 'gstRate': 18.0, 'minDiscountPercent': 0.0, 'minSellingPrice': 500.0, 'metadata': {'inventoryAccountId': 5, 'namespace': 'ut_cat_product_inputs', 'runNonce': '20260321T081346Z_f2f162'}, 'candidateCount': 1, 'downstreamEffects': {'finishedGoodMembers': 0, 'rawMaterialMembers': 1}, 'members': [{'id': 8, 'publicId': '6a98619b-e1ca-4c97-8748-cefd0ab84a83', 'sku': 'UTCATPRODUCT02-UTCATPRODUCTINPUTSSINGLE20260321T081346ZF2F162-NATURAL-25KG', 'productName': 'ut_cat_product_inputs_single_20260321T081346Z_f2f162 NATURAL 25KG', 'color': 'NATURAL', 'size': '25KG'}], 'conflicts': []}"
+        },
+        {
+          "action": "GET /api/v1/catalog/products?brandId=<activeBrandId>",
+          "expected": "List readback preserves the same persisted fields",
+          "observed": "HTTP 200 matchedItem={'id': 8, 'publicId': '6a98619b-e1ca-4c97-8748-cefd0ab84a83', 'brandId': 7, 'brandName': 'ut_cat_product_inputs_brand_active_20260321T081346Z_f2f162', 'brandCode': 'UTCATPRODUCT02', 'name': 'ut_cat_product_inputs_single_20260321T081346Z_f2f162 NATURAL 25KG', 'sku': 'UTCATPRODUCT02-UTCATPRODUCTINPUTSSINGLE20260321T081346ZF2F162-NATURAL-25KG', 'category': 'RAW_MATERIAL', 'variantGroupId': '93bd929b-81e1-3fbf-9c08-9c8b346004a5', 'productFamilyName': 'ut_cat_product_inputs_single_20260321T081346Z_f2f162', 'colors': ['NATURAL'], 'sizes': ['25KG'], 'cartonSizes': [], 'unitOfMeasure': 'KG', 'hsnCode': '320611', 'basePrice': 500.0, 'gstRate': 18.0, 'minDiscountPercent': 0.0, 'minSellingPrice': 500.0, 'metadata': {'runNonce': '20260321T081346Z_f2f162', 'namespace': 'ut_cat_product_inputs', 'inventoryAccountId': 5}, 'active': True}"
+        },
+        {
+          "action": "GET /api/v1/catalog/products/{id}",
+          "expected": "Detail readback preserves the same persisted fields",
+          "observed": "HTTP 200 data={'id': 8, 'publicId': '6a98619b-e1ca-4c97-8748-cefd0ab84a83', 'brandId': 7, 'brandName': 'ut_cat_product_inputs_brand_active_20260321T081346Z_f2f162', 'brandCode': 'UTCATPRODUCT02', 'name': 'ut_cat_product_inputs_single_20260321T081346Z_f2f162 NATURAL 25KG', 'sku': 'UTCATPRODUCT02-UTCATPRODUCTINPUTSSINGLE20260321T081346ZF2F162-NATURAL-25KG', 'category': 'RAW_MATERIAL', 'variantGroupId': '93bd929b-81e1-3fbf-9c08-9c8b346004a5', 'productFamilyName': 'ut_cat_product_inputs_single_20260321T081346Z_f2f162', 'colors': ['NATURAL'], 'sizes': ['25KG'], 'cartonSizes': [], 'unitOfMeasure': 'KG', 'hsnCode': '320611', 'basePrice': 500.0, 'gstRate': 18.0, 'minDiscountPercent': 0.0, 'minSellingPrice': 500.0, 'metadata': {'runNonce': '20260321T081346Z_f2f162', 'namespace': 'ut_cat_product_inputs', 'inventoryAccountId': 5}, 'active': True}"
+        }
+      ],
+      "evidence": {
+        "files": [
+          "openapi-product-contract-summary.json",
+          "product-001-004-single-create.json",
+          "product-004-readback-list.json",
+          "product-004-readback-detail.json"
+        ],
+        "network": [
+          "POST /api/v1/catalog/products -> 200",
+          "GET /api/v1/catalog/products?brandId=7&page=0&pageSize=100 -> 200",
+          "GET /api/v1/catalog/products/8 -> 200"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PRODUCT-009",
+      "title": "Variant-group linkage is explicit, persisted, and returned",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "POST /api/v1/catalog/products with 2x2 matrix arrays",
+          "expected": "Response returns explicit shared family/group identity for all members",
+          "observed": "HTTP 200 variantGroupId=4543d3eb-348a-32fb-a458-4bcddbf38a55 productFamilyName=ut_cat_product_inputs_matrix_20260321T081346Z_f2f162 candidateCount=4 memberIds=[9, 10, 11, 12]"
+        },
+        {
+          "action": "GET /api/v1/catalog/products?brandId=<activeBrandId>",
+          "expected": "Follow-up canonical list returns all created members with the same persisted variantGroupId/family name",
+          "observed": "HTTP 200 matchedItems=[{'id': 9, 'publicId': '671fc35e-935a-48ae-83fc-e1231cc4cb56', 'brandId': 7, 'brandName': 'ut_cat_product_inputs_brand_active_20260321T081346Z_f2f162', 'brandCode': 'UTCATPRODUCT02', 'name': 'ut_cat_product_inputs_matrix_20260321T081346Z_f2f162 NATURAL 25KG', 'sku': 'UTCATPRODUCT02-UTCATPRODUCTINPUTSMATRIX20260321T081346ZF2F162-NATURAL-25KG', 'category': 'RAW_MATERIAL', 'variantGroupId': '4543d3eb-348a-32fb-a458-4bcddbf38a55', 'productFamilyName': 'ut_cat_product_inputs_matrix_20260321T081346Z_f2f162', 'colors': ['NATURAL'], 'sizes': ['25KG'], 'cartonSizes': [], 'unitOfMeasure': 'KG', 'hsnCode': '320611', 'basePrice': 500.0, 'gstRate': 18.0, 'minDiscountPercent': 0.0, 'minSellingPrice': 500.0, 'metadata': {'runNonce': '20260321T081346Z_f2f162', 'namespace': 'ut_cat_product_inputs', 'inventoryAccountId': 5}, 'active': True}, {'id': 10, 'publicId': '01d502ba-dce8-41ea-bcc7-ae21c6142081', 'brandId': 7, 'brandName': 'ut_cat_product_inputs_brand_active_20260321T081346Z_f2f162', 'brandCode': 'UTCATPRODUCT02', 'name': 'ut_cat_product_inputs_matrix_20260321T081346Z_f2f162 NATURAL 50KG', 'sku': 'UTCATPRODUCT02-UTCATPRODUCTINPUTSMATRIX20260321T081346ZF2F162-NATURAL-50KG', 'category': 'RAW_MATERIAL', 'variantGroupId': '4543d3eb-348a-32fb-a458-4bcddbf38a55', 'productFamilyName': 'ut_cat_product_inputs_matrix_20260321T081346Z_f2f162', 'colors': ['NATURAL'], 'sizes': ['50KG'], 'cartonSizes': [], 'unitOfMeasure': 'KG', 'hsnCode': '320611', 'basePrice': 500.0, 'gstRate': 18.0, 'minDiscountPercent': 0.0, 'minSellingPrice': 500.0, 'metadata': {'runNonce': '20260321T081346Z_f2f162', 'namespace': 'ut_cat_product_inputs', 'inventoryAccountId': 5}, 'active': True}, {'id': 11, 'publicId': '61929c4f-e5c7-4cb2-a554-1e68dc136452', 'brandId': 7, 'brandName': 'ut_cat_product_inputs_brand_active_20260321T081346Z_f2f162', 'brandCode': 'UTCATPRODUCT02', 'name': 'ut_cat_product_inputs_matrix_20260321T081346Z_f2f162 WHITE 25KG', 'sku': 'UTCATPRODUCT02-UTCATPRODUCTINPUTSMATRIX20260321T081346ZF2F162-WHITE-25KG', 'category': 'RAW_MATERIAL', 'variantGroupId': '4543d3eb-348a-32fb-a458-4bcddbf38a55', 'productFamilyName': 'ut_cat_product_inputs_matrix_20260321T081346Z_f2f162', 'colors': ['WHITE'], 'sizes': ['25KG'], 'cartonSizes': [], 'unitOfMeasure': 'KG', 'hsnCode': '320611', 'basePrice': 500.0, 'gstRate': 18.0, 'minDiscountPercent': 0.0, 'minSellingPrice': 500.0, 'metadata': {'runNonce': '20260321T081346Z_f2f162', 'namespace': 'ut_cat_product_inputs', 'inventoryAccountId': 5}, 'active': True}, {'id': 12, 'publicId': '5b85c486-a3c8-402c-881c-a9993a8d7cd2', 'brandId': 7, 'brandName': 'ut_cat_product_inputs_brand_active_20260321T081346Z_f2f162', 'brandCode': 'UTCATPRODUCT02', 'name': 'ut_cat_product_inputs_matrix_20260321T081346Z_f2f162 WHITE 50KG', 'sku': 'UTCATPRODUCT02-UTCATPRODUCTINPUTSMATRIX20260321T081346ZF2F162-WHITE-50KG', 'category': 'RAW_MATERIAL', 'variantGroupId': '4543d3eb-348a-32fb-a458-4bcddbf38a55', 'productFamilyName': 'ut_cat_product_inputs_matrix_20260321T081346Z_f2f162', 'colors': ['WHITE'], 'sizes': ['50KG'], 'cartonSizes': [], 'unitOfMeasure': 'KG', 'hsnCode': '320611', 'basePrice': 500.0, 'gstRate': 18.0, 'minDiscountPercent': 0.0, 'minSellingPrice': 500.0, 'metadata': {'runNonce': '20260321T081346Z_f2f162', 'namespace': 'ut_cat_product_inputs', 'inventoryAccountId': 5}, 'active': True}]"
+        },
+        {
+          "action": "GET /api/v1/catalog/products/{firstMemberId}",
+          "expected": "Canonical detail preserves the same persisted linkage",
+          "observed": "HTTP 200 data={'id': 11, 'publicId': '61929c4f-e5c7-4cb2-a554-1e68dc136452', 'brandId': 7, 'brandName': 'ut_cat_product_inputs_brand_active_20260321T081346Z_f2f162', 'brandCode': 'UTCATPRODUCT02', 'name': 'ut_cat_product_inputs_matrix_20260321T081346Z_f2f162 WHITE 25KG', 'sku': 'UTCATPRODUCT02-UTCATPRODUCTINPUTSMATRIX20260321T081346ZF2F162-WHITE-25KG', 'category': 'RAW_MATERIAL', 'variantGroupId': '4543d3eb-348a-32fb-a458-4bcddbf38a55', 'productFamilyName': 'ut_cat_product_inputs_matrix_20260321T081346Z_f2f162', 'colors': ['WHITE'], 'sizes': ['25KG'], 'cartonSizes': [], 'unitOfMeasure': 'KG', 'hsnCode': '320611', 'basePrice': 500.0, 'gstRate': 18.0, 'minDiscountPercent': 0.0, 'minSellingPrice': 500.0, 'metadata': {'runNonce': '20260321T081346Z_f2f162', 'namespace': 'ut_cat_product_inputs', 'inventoryAccountId': 5}, 'active': True}"
+        }
+      ],
+      "evidence": {
+        "files": [
+          "product-009-multi-create.json",
+          "product-009-readback-list.json",
+          "product-009-readback-detail.json"
+        ],
+        "network": [
+          "POST /api/v1/catalog/products -> 200",
+          "GET /api/v1/catalog/products?brandId=7&page=0&pageSize=100 -> 200",
+          "GET /api/v1/catalog/products/11 -> 200"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "MOCK runtime has no finished-good default accounts configured, so finished-good commit probes fail with VAL_007 in this reset. I validated the assigned product-input contract assertions using canonical RAW_MATERIAL creates that do not mutate shared company defaults.",
+      "resolved": true,
+      "resolution": "Used existing inventory account id 5 in raw-material metadata while keeping all tested writes on canonical /api/v1/catalog/** routes.",
+      "affectedAssertions": [
+        "VAL-PRODUCT-001",
+        "VAL-PRODUCT-003",
+        "VAL-PRODUCT-004",
+        "VAL-PRODUCT-009"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 5 assertions: 5 passed, 0 failed, 0 blocked, 0 skipped. Validation used canonical catalog routes plus read-only prerequisite discovery for an existing inventory account and created namespaced brands/products under ut_cat_product_inputs."
+}

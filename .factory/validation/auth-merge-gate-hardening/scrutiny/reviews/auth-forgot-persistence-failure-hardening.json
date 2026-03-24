@@ -1,0 +1,28 @@
+{
+  "featureId": "auth-forgot-persistence-failure-hardening",
+  "reviewedAt": "2026-03-15T21:44:01.647110+00:00",
+  "commitId": "a2e9ed47182fffe125e0c97ac3fb77a0a6744052",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature correctly converts save-time forgot-password token persistence failures into a controlled 503/SYS_003 contract and keeps unknown/disabled users masked, but it does not fully satisfy VAL-AUTH-003. In the email-failure cleanup path, the service deletes the prior token before committing the replacement token, then only surfaces cleanup persistence failure as SYS_003 if deleting the undispatched replacement fails. That leaves the previous token gone and the new undispatched token still persisted, so the failed reissue can strand the user and leave a usable token side effect. The added tests prove save-time failures, but they do not cover this cleanup-failure side-effect branch.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/service/PasswordResetService.java",
+        "line": 297,
+        "severity": "blocking",
+        "description": "`issueResetToken()` deletes any existing reset token before saving the replacement, and the public forgot path later only throws `SYSTEM_DATABASE_ERROR` when cleanup fails (`deleteByTokenDigest` after an email-dispatch exception). Because the issuance transaction has already committed by then, a cleanup DB failure leaves the old token deleted and the undispatched new token still persisted, violating VAL-AUTH-003 / the requirement to leave no unusable token side effects after a failed reissue."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The shared auth hardening note currently reads as though the forgot-password persistence failure hardening is fully closed, but it does not mention the remaining cleanup-failure branch that can strand users after a failed reissue.",
+      "evidence": ".factory/library/auth-hardening.md:31 says the persistence-failure regression is fixed, while PasswordResetService.java:262-275 and 297-304 still allow cleanup persistence failure to leave the newly issued undispatched token persisted after the previous token was deleted."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "FAIL. Save-time persistence failures are hardened, but cleanup persistence failure after email dispatch failure can still delete the previous token and leave an undispatched replacement persisted, so the feature does not yet prove or satisfy VAL-AUTH-003."
+}

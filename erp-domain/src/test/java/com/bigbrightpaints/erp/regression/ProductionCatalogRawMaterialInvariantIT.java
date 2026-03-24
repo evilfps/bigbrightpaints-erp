@@ -24,14 +24,23 @@ import com.bigbrightpaints.erp.modules.production.service.ProductionCatalogServi
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.AopTestUtils;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -39,8 +48,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("Regression: Catalog -> RawMaterial accounting invariants")
+@Tag("critical")
 class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
 
+    private static final String PASSWORD = "changeme";
+
+    @Autowired private TestRestTemplate rest;
     @Autowired private CompanyRepository companyRepository;
     @Autowired private AccountRepository accountRepository;
     @Autowired private ProductionCatalogService productionCatalogService;
@@ -54,6 +67,8 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
     private Account inventoryAccount;
     private Account alternateInventoryAccount;
     private String companyCode;
+    private HttpHeaders headers;
+    private String adminEmail;
 
     @BeforeEach
     void setUp() {
@@ -64,6 +79,10 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         alternateInventoryAccount = ensureAccount("RM-INV-ALT", "Raw Material Inventory Alt", AccountType.ASSET);
         company.setDefaultInventoryAccountId(inventoryAccount.getId());
         companyRepository.save(company);
+
+        adminEmail = "catalog-rm-" + companyCode.toLowerCase() + "@bbp.com";
+        dataSeeder.ensureUser(adminEmail, PASSWORD, "Catalog Raw Material Admin", companyCode, List.of("ROLE_ADMIN"));
+        headers = authHeaders();
     }
 
     @AfterEach
@@ -386,9 +405,11 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 null,
                 "FG Sync Product",
                 "FINISHED_GOOD",
-                null,
-                null,
+                "FINISHED_GOOD",
+                "WHITE",
+                "1L",
                 "LTR",
+                null,
                 sku,
                 BigDecimal.ZERO,
                 new BigDecimal("18.00"),
@@ -406,6 +427,9 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         finishedGoodRepository.save(afterCreate);
 
         productionCatalogService.updateProduct(created.id(), new ProductUpdateRequest(
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -455,9 +479,11 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 null,
                 "FG Unsupported Product",
                 "FINISHED_GOOD",
-                null,
-                null,
+                "FINISHED_GOOD",
+                "WHITE",
+                "1L",
                 "LTR",
+                null,
                 fgSku,
                 BigDecimal.ZERO,
                 new BigDecimal("18.00"),
@@ -472,6 +498,9 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         assertThat(afterFgCreate.getCostingMethod()).isEqualTo("CUSTOM_METHOD");
 
         productionCatalogService.updateProduct(createdFinishedGood.id(), new ProductUpdateRequest(
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -510,9 +539,11 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 null,
                 "RM Unsupported Product",
                 "RAW_MATERIAL",
-                null,
+                "RAW_MATERIAL",
+                "STANDARD",
                 null,
                 "KG",
+                null,
                 rmSku,
                 BigDecimal.ZERO,
                 new BigDecimal("12.00"),
@@ -534,6 +565,9 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
                 null
         ));
 
@@ -541,8 +575,82 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         assertThat(afterRmUpdate.getCostingMethod()).isEqualTo("CUSTOM_METHOD");
     }
 
+    @Test
+    void canonicalRawMaterialCreate_seedsInventoryTruthAndAccountLinkage() {
+        ProductionBrand brand = saveBrand("RM Ready " + UUID.randomUUID().toString().substring(0, 8).toUpperCase(), true);
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/catalog/items",
+                HttpMethod.POST,
+                new HttpEntity<>(canonicalRawMaterialPayload(brand.getId()), headers),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> responseData = data(response);
+        String sku = String.valueOf(responseData.get("code"));
+
+        RawMaterial material = rawMaterialRepository.findByCompanyAndSku(company, sku).orElseThrow();
+        assertThat(material.getName()).isEqualTo("Titanium Dioxide NATURAL");
+        assertThat(material.getUnitType()).isEqualTo("KG");
+        assertThat(material.getCurrentStock()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(material.getInventoryAccountId()).isEqualTo(alternateInventoryAccount.getId());
+        assertThat(material.getGstRate()).isEqualByComparingTo("18.00");
+        assertThat(finishedGoodRepository.findByCompanyAndProductCode(company, sku)).isEmpty();
+    }
+
     private Account ensureAccount(String code, String name, AccountType type) {
         return ensureAccountFor(company, code, name, type);
+    }
+
+    private ProductionBrand saveBrand(String name, boolean active) {
+        ProductionBrand brand = new ProductionBrand();
+        brand.setCompany(company);
+        brand.setName(name);
+        brand.setCode(("RM" + UUID.randomUUID().toString().replace("-", "")).substring(0, 10));
+        brand.setActive(active);
+        return productionBrandRepository.save(brand);
+    }
+
+    private HttpHeaders authHeaders() {
+        Map<String, Object> loginPayload = Map.of(
+                "email", adminEmail,
+                "password", PASSWORD,
+                "companyCode", companyCode
+        );
+        ResponseEntity<Map> loginResponse = rest.postForEntity("/api/v1/auth/login", loginPayload, Map.class);
+        assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        String token = String.valueOf(loginResponse.getBody().get("accessToken"));
+
+        HttpHeaders httpHeaders = new HttpHeaders();
+        httpHeaders.setBearerAuth(token);
+        httpHeaders.set("X-Company-Code", companyCode);
+        return httpHeaders;
+    }
+
+    private Map<String, Object> canonicalRawMaterialPayload(Long brandId) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("inventoryAccountId", alternateInventoryAccount.getId());
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("brandId", brandId);
+        payload.put("name", "Titanium Dioxide");
+        payload.put("itemClass", "RAW_MATERIAL");
+        payload.put("color", "NATURAL");
+        payload.put("size", "25KG");
+        payload.put("unitOfMeasure", "KG");
+        payload.put("hsnCode", "320611");
+        payload.put("gstRate", new BigDecimal("18.00"));
+        payload.put("basePrice", new BigDecimal("500.00"));
+        payload.put("minDiscountPercent", BigDecimal.ZERO);
+        payload.put("minSellingPrice", new BigDecimal("500.00"));
+        payload.put("metadata", metadata);
+        return payload;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> data(ResponseEntity<Map> response) {
+        assertThat(response.getBody()).isNotNull();
+        return (Map<String, Object>) response.getBody().get("data");
     }
 
     private Account ensureAccountFor(Company targetCompany, String code, String name, AccountType type) {

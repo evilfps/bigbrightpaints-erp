@@ -12,6 +12,7 @@ import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccounts
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTaskRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
@@ -90,6 +91,7 @@ public class SalesService {
                         ProductionProductRepository productionProductRepository,
                         DealerLedgerService dealerLedgerService,
                         FinishedGoodRepository finishedGoodRepository,
+                        FinishedGoodBatchRepository finishedGoodBatchRepository,
                         AccountRepository accountRepository,
                         CompanyEntityLookup companyEntityLookup,
                         PackagingSlipRepository packagingSlipRepository,
@@ -121,6 +123,7 @@ public class SalesService {
                 productionProductRepository,
                 dealerLedgerService,
                 finishedGoodRepository,
+                finishedGoodBatchRepository,
                 accountRepository,
                 companyEntityLookup,
                 packagingSlipRepository,

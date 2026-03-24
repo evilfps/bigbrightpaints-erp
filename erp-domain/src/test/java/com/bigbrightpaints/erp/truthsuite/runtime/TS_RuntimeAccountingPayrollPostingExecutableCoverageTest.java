@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
@@ -45,8 +46,8 @@ class TS_RuntimeAccountingPayrollPostingExecutableCoverageTest {
         when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 19));
 
         AccountingService service = spy(newAccountingService(companyContextService, companyClock));
-        ArgumentCaptor<JournalEntryRequest> requestCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
-        doReturn(null).when(service).createJournalEntry(requestCaptor.capture());
+        ArgumentCaptor<JournalCreationRequest> requestCaptor = ArgumentCaptor.forClass(JournalCreationRequest.class);
+        doReturn(null).when(service).createStandardJournal(requestCaptor.capture());
 
         List<JournalEntryRequest.JournalLineRequest> lines = List.of(
                 new JournalEntryRequest.JournalLineRequest(11L, "Payroll expense", new BigDecimal("1000.00"), BigDecimal.ZERO),
@@ -55,11 +56,13 @@ class TS_RuntimeAccountingPayrollPostingExecutableCoverageTest {
 
         service.postPayrollRun(" RUN-42 ", null, null, null, lines);
 
-        JournalEntryRequest posted = requestCaptor.getValue();
-        assertThat(posted.referenceNumber()).isEqualTo("PAYROLL-RUN-42");
+        JournalCreationRequest posted = requestCaptor.getValue();
+        assertThat(posted.sourceReference()).isEqualTo("PAYROLL-RUN-42");
         assertThat(posted.entryDate()).isEqualTo(LocalDate.of(2026, 2, 19));
-        assertThat(posted.memo()).isEqualTo("Payroll - RUN-42");
-        assertThat(posted.lines()).isEqualTo(lines);
+        assertThat(posted.narration()).isEqualTo("Payroll - RUN-42");
+        assertThat(posted.sourceModule()).isEqualTo("PAYROLL");
+        assertThat(posted.amount()).isEqualByComparingTo("1000.00");
+        assertThat(posted.resolvedLines()).isEqualTo(lines);
     }
 
     @Test
@@ -70,8 +73,8 @@ class TS_RuntimeAccountingPayrollPostingExecutableCoverageTest {
         when(companyContextService.requireCurrentCompany()).thenReturn(company);
 
         AccountingService service = spy(newAccountingService(companyContextService, companyClock));
-        ArgumentCaptor<JournalEntryRequest> requestCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
-        doReturn(null).when(service).createJournalEntry(requestCaptor.capture());
+        ArgumentCaptor<JournalCreationRequest> requestCaptor = ArgumentCaptor.forClass(JournalCreationRequest.class);
+        doReturn(null).when(service).createStandardJournal(requestCaptor.capture());
 
         LocalDate postingDate = LocalDate.of(2026, 2, 20);
         String memo = "Payroll explicit memo";
@@ -82,11 +85,13 @@ class TS_RuntimeAccountingPayrollPostingExecutableCoverageTest {
 
         service.postPayrollRun("   ", 77L, postingDate, memo, lines);
 
-        JournalEntryRequest posted = requestCaptor.getValue();
-        assertThat(posted.referenceNumber()).isEqualTo("PAYROLL-LEGACY-77");
+        JournalCreationRequest posted = requestCaptor.getValue();
+        assertThat(posted.sourceReference()).isEqualTo("PAYROLL-LEGACY-77");
         assertThat(posted.entryDate()).isEqualTo(postingDate);
-        assertThat(posted.memo()).isEqualTo(memo);
-        assertThat(posted.lines()).isEqualTo(lines);
+        assertThat(posted.narration()).isEqualTo(memo);
+        assertThat(posted.sourceModule()).isEqualTo("PAYROLL");
+        assertThat(posted.amount()).isEqualByComparingTo("900.00");
+        assertThat(posted.resolvedLines()).isEqualTo(lines);
     }
 
     @Test
@@ -133,7 +138,14 @@ class TS_RuntimeAccountingPayrollPostingExecutableCoverageTest {
                 mock(jakarta.persistence.EntityManager.class),
                 mock(com.bigbrightpaints.erp.core.config.SystemSettingsService.class),
                 mock(com.bigbrightpaints.erp.core.audit.AuditService.class),
-                mock(com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore.class)
+                mock(com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore.class),
+                mock(com.bigbrightpaints.erp.modules.accounting.service.JournalEntryService.class),
+                mock(com.bigbrightpaints.erp.modules.accounting.service.DealerReceiptService.class),
+                mock(com.bigbrightpaints.erp.modules.accounting.service.SettlementService.class),
+                mock(com.bigbrightpaints.erp.modules.accounting.service.CreditDebitNoteService.class),
+                mock(com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditService.class),
+                mock(com.bigbrightpaints.erp.modules.accounting.service.InventoryAccountingService.class),
+                mock(org.springframework.beans.factory.ObjectProvider.class)
         );
     }
 

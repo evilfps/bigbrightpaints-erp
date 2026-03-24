@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.inventory.service;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.accounting.service.CostingMethodService;
@@ -47,6 +48,7 @@ import java.util.Map;
 @Service
 public class FinishedGoodsWorkflowEngineService {
     private final CompanyContextService companyContextService;
+    private final CompanyEntityLookup companyEntityLookup;
     private final FinishedGoodRepository finishedGoodRepository;
     private final FinishedGoodBatchRepository finishedGoodBatchRepository;
     private final BatchNumberService batchNumberService;
@@ -59,6 +61,7 @@ public class FinishedGoodsWorkflowEngineService {
     private final FinishedGoodsDispatchEngine dispatchEngine;
     private final PackagingSlipService packagingSlipService;
     public FinishedGoodsWorkflowEngineService(CompanyContextService companyContextService,
+                                              CompanyEntityLookup companyEntityLookup,
                                               FinishedGoodRepository finishedGoodRepository,
                                               FinishedGoodBatchRepository finishedGoodBatchRepository,
                                               PackagingSlipRepository packagingSlipRepository,
@@ -74,6 +77,7 @@ public class FinishedGoodsWorkflowEngineService {
                                               Environment environment,
                                               @Value("${erp.inventory.finished-goods.batch.enabled:false}") boolean manualBatchEnabled) {
         this.companyContextService = companyContextService;
+        this.companyEntityLookup = companyEntityLookup;
         this.finishedGoodRepository = finishedGoodRepository;
         this.finishedGoodBatchRepository = finishedGoodBatchRepository;
         this.batchNumberService = batchNumberService;
@@ -84,7 +88,10 @@ public class FinishedGoodsWorkflowEngineService {
                 inventoryMovementRepository,
                 eventPublisher,
                 companyClock);
-        this.inventoryValuationService = new InventoryValuationService(finishedGoodBatchRepository, costingMethodService);
+        this.inventoryValuationService = new InventoryValuationService(
+                finishedGoodBatchRepository,
+                costingMethodService,
+                companyClock);
         this.packagingSlipService = new PackagingSlipService(
                 companyContextService,
                 packagingSlipRepository,
@@ -376,9 +383,12 @@ public class FinishedGoodsWorkflowEngineService {
     }
     private FinishedGood lockFinishedGood(Long id) {
         Company company = companyContextService.requireCurrentCompany();
-        return finishedGoodRepository.lockByCompanyAndId(company, id)
-                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils
-                        .invalidInput("Finished good not found"));
+        try {
+            return companyEntityLookup.lockActiveFinishedGood(company, id);
+        } catch (IllegalArgumentException ex) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils
+                    .invalidInput("Finished good not found");
+        }
     }
     private void assertManualBatchAllowed() {
         if (isProdProfile() && !manualBatchEnabled) {

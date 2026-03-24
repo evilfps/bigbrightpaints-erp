@@ -1,0 +1,101 @@
+{
+  "groupId": "final-abuse-replay",
+  "surface": "api",
+  "appUrl": "http://localhost:8081",
+  "testedAt": "2026-03-08T14:48:27+05:30",
+  "credentials": {
+    "account": "validation.superadmin@example.com / validation.rival.admin@example.com",
+    "companyCode": "MOCK / RIVAL",
+    "namespace": "ut_final_abuse_replay"
+  },
+  "toolsUsed": [
+    "Task droid launch attempt",
+    "live curl/python API probes",
+    "mvn final-validation-targeted-tests",
+    "mvn DealerPortalReadOnlySecurityIT,SuperAdminTenantWorkflowIsolationIT",
+    "repository inspection"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-FINAL-002",
+      "title": "Adversarial misuse is blocked without data leakage",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Probe the reset runtime with dealer write attempts, dealer backoffice attempts, and cross-tenant company-header mismatch requests.",
+          "expected": "Privilege escalation, tenant mismatch, and dealer write attempts should fail closed with no foreign business data leakage.",
+          "observed": "As `validation.dealer@example.com`, `POST /api/v1/dealer-portal/credit-requests` returned `403` with the read-only blocker message and no business payload. `GET /api/v1/sales/promotions` also returned `403` with the limited-access message. As `validation.rival.admin@example.com` logged into `RIVAL`, replaying the token against `GET /api/v1/auth/me` with `X-Company-Code: MOCK` returned `403` with `reason=COMPANY_CONTEXT_MISMATCH` and no foreign company data."
+        },
+        {
+          "action": "Run the targeted portal/super-admin denial suites alongside the curated final-hardening current-contract command.",
+          "expected": "Dealer portal boundaries, backoffice dealer isolation, and super-admin platform-only boundaries should all reject tenant-business misuse safely.",
+          "observed": "The focused 4-test security command passed `DealerPortalReadOnlySecurityIT` and `SuperAdminTenantWorkflowIsolationIT`, confirming dealer `POST /api/v1/dealer-portal/credit-requests` and `GET /api/v1/sales/promotions` stay `403`, while super-admin `POST /api/v1/sales/targets` and `GET /api/v1/portal/dashboard` also stay `403`. The broader 81-test final command additionally passed `DealerPortalControllerSecurityIT` and `DealerControllerSecurityIT`, proving cross-dealer invoice PDF enumeration returns `404`, token/header company mismatch returns `403`, non-dealer access to `/api/v1/dealer-portal/dashboard` returns `403`, and dealer access to backoffice `/api/v1/dealers/{id}/ledger|invoices|aging` remains forbidden."
+        }
+      ],
+      "evidence": {
+        "runtimeProbe": {
+          "result": "Live runtime denial probes returned 403/404 fail-closed envelopes with blocker reasons and no leaked foreign record payloads."
+        },
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='DealerPortalReadOnlySecurityIT,SuperAdminTenantWorkflowIsolationIT' test",
+          "result": "BUILD SUCCESS; Tests run: 4, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "crossCheck": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='OrderFulfillmentE2ETest,FinishedGoodsServiceTest,SalesReturnCreditNoteE2EIT,CreditDebitNoteIT,SettlementE2ETest,PeriodCloseLockIT,CR_PurchasingToApAccountingTest,DealerPortalControllerSecurityIT,DealerControllerSecurityIT,FactoryPackagingCostingIT,ReportInventoryParityIT' test",
+          "result": "BUILD SUCCESS; Tests run: 81, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerPortalReadOnlySecurityIT.java:54-91",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerPortalControllerSecurityIT.java:69-162",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerControllerSecurityIT.java:55-180",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/SuperAdminTenantWorkflowIsolationIT.java:29-62"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FINAL-004",
+      "title": "Concurrency and replay pressure preserve one canonical truth",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run the final-hardening O2C/P2P replay and concurrency suites and inspect the canonical journal/movement assertions.",
+          "expected": "Repeated callbacks, rapid retries, and bounded concurrent submissions should deduplicate to one canonical business truth and one canonical posting outcome.",
+          "observed": "`OrderFulfillmentE2ETest` replayed `POST /api/v1/sales/dispatch/confirm` and returned the same `finalInvoiceId`, `arJournalEntryId`, and `cogsJournalEntryId` while leaving dispatch movement count unchanged even after clearing stored artifact links. `CR_PurchasingToApAccountingTest` replayed the same goods-receipt request and got the same receipt id with stable inventory movement count, then ran a 2-way concurrent purchase-invoice submission and observed exactly one successful outcome, one persisted purchase invoice, one linked journal entry, and a balanced AP journal."
+        },
+        {
+          "action": "Cross-check the role-boundary denial results under mismatched tenant headers and bounded replay-style runtime probes.",
+          "expected": "Unsafe replays or mismatched tenant contexts should be rejected safely instead of creating split-brain state or unauthorized access.",
+          "observed": "The live runtime rejected a RIVAL admin token replayed with `X-Company-Code: MOCK` at the company-context layer (`403 COMPANY_CONTEXT_MISMATCH`). Combined with the passing dealer/super-admin denial suites, the final hardening run demonstrated safe rejection plus canonical deduplication rather than duplicate truth or leaked cross-tenant execution."
+        }
+      ],
+      "evidence": {
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='OrderFulfillmentE2ETest,FinishedGoodsServiceTest,SalesReturnCreditNoteE2EIT,CreditDebitNoteIT,SettlementE2ETest,PeriodCloseLockIT,CR_PurchasingToApAccountingTest,DealerPortalControllerSecurityIT,DealerControllerSecurityIT,FactoryPackagingCostingIT,ReportInventoryParityIT' test",
+          "result": "BUILD SUCCESS; Tests run: 81, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "runtimeProbe": {
+          "result": "Live cross-tenant token/header mismatch probe returned 403 with `COMPANY_CONTEXT_MISMATCH`, confirming fail-closed runtime behavior under replayed credentials."
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/sales/OrderFulfillmentE2ETest.java:405-588",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_PurchasingToApAccountingTest.java:134-245"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Launching the dedicated `user-testing-flow-validator` Task droid failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high-pro`.",
+      "resolved": true,
+      "resolution": "Completed the assigned final-hardening abuse/replay validation directly in-session and wrote the flow artifact manually, per mission guidance for helper-launch failures.",
+      "affectedAssertions": [
+        "VAL-FINAL-002",
+        "VAL-FINAL-004"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated `VAL-FINAL-002` and `VAL-FINAL-004` using live fail-closed runtime probes plus the current-contract portal, super-admin, dispatch-replay, GRN-replay, and concurrent purchase-invoice suites. Dealer write attempts, backoffice access, and cross-tenant header mismatch were rejected safely, while replay/concurrency coverage preserved one receipt, one invoice/journal outcome, and stable movement counts."
+}

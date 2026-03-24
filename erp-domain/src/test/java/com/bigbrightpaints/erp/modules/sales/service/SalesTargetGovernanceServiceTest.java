@@ -16,6 +16,7 @@ import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.FactoryTaskRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
@@ -93,6 +94,8 @@ class SalesTargetGovernanceServiceTest {
     @Mock
     private FinishedGoodRepository finishedGoodRepository;
     @Mock
+    private FinishedGoodBatchRepository finishedGoodBatchRepository;
+    @Mock
     private AccountRepository accountRepository;
     @Mock
     private CompanyEntityLookup companyEntityLookup;
@@ -146,6 +149,7 @@ class SalesTargetGovernanceServiceTest {
                 productionProductRepository,
                 dealerLedgerService,
                 finishedGoodRepository,
+                finishedGoodBatchRepository,
                 accountRepository,
                 companyEntityLookup,
                 packagingSlipRepository,

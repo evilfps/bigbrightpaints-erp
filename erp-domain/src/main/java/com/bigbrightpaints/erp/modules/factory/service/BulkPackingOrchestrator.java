@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.factory.service;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.factory.dto.BulkPackRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.BulkPackResponse;
@@ -26,13 +27,16 @@ public class BulkPackingOrchestrator {
 
     private static final RoundingMode COST_ROUNDING = RoundingMode.HALF_UP;
 
+    private final CompanyEntityLookup companyEntityLookup;
     private final FinishedGoodRepository finishedGoodRepository;
     private final FinishedGoodBatchRegistrar finishedGoodBatchRegistrar;
     private final PackingJournalBuilder packingJournalBuilder;
 
-    public BulkPackingOrchestrator(FinishedGoodRepository finishedGoodRepository,
+    public BulkPackingOrchestrator(CompanyEntityLookup companyEntityLookup,
+                                   FinishedGoodRepository finishedGoodRepository,
                                    FinishedGoodBatchRegistrar finishedGoodBatchRegistrar,
                                    PackingJournalBuilder packingJournalBuilder) {
+        this.companyEntityLookup = companyEntityLookup;
         this.finishedGoodRepository = finishedGoodRepository;
         this.finishedGoodBatchRegistrar = finishedGoodBatchRegistrar;
         this.packingJournalBuilder = packingJournalBuilder;
@@ -90,9 +94,13 @@ public class BulkPackingOrchestrator {
                                               BigDecimal packagingCostPerUnit,
                                               LocalDate packDate,
                                               String packReference) {
-        FinishedGood childFg = finishedGoodRepository.lockByCompanyAndId(company, line.childSkuId())
-                .orElseThrow(() -> new ApplicationException(ErrorCode.BUSINESS_ENTITY_NOT_FOUND,
-                        "Child SKU not found: " + line.childSkuId()));
+        FinishedGood childFg;
+        try {
+            childFg = companyEntityLookup.lockActiveFinishedGood(company, line.childSkuId());
+        } catch (IllegalArgumentException ex) {
+            throw new ApplicationException(ErrorCode.BUSINESS_ENTITY_NOT_FOUND,
+                    "Child SKU not found: " + line.childSkuId(), ex);
+        }
 
         BigDecimal sizeInLiters = extractSizeInLiters(line.sizeLabel(), line.unit());
         BigDecimal childUnitCost = bulkUnitCost.multiply(sizeInLiters)

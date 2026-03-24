@@ -91,12 +91,6 @@ public class InventoryAccountingService extends AccountingCoreEngine {
                 accountingEventStore);
     }
 
-    // Compatibility constructor used by controller bridge delegates.
-    public InventoryAccountingService(AccountingCoreEngine ignored) {
-        super(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null);
-    }
-
     public JournalEntryDto recordLandedCost(LandedCostRequest request) {
         LandedCostRequest normalized = normalizeLandedCostRequest(request);
         return super.recordLandedCost(normalized);

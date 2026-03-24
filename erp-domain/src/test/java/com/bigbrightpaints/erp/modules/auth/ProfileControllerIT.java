@@ -113,7 +113,7 @@ class ProfileControllerIT extends AbstractIntegrationTest {
         String token = (String) loginResponse.getBody().get("accessToken");
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(token);
-        headers.add("X-Company-Id", COMPANY);
+        headers.add("X-Company-Code", COMPANY);
         return headers;
     }
 }

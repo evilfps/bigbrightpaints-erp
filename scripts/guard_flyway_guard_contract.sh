@@ -95,8 +95,8 @@ exit 0
 STUB_CHECKSUM
 chmod +x "$TMP_ROOT/scripts/guard_flyway_v2_transient_checksum.sh"
 
-# Python preflight stubs used by gate_release.
-for py_stub in validate_test_catalog.py check_flaky_tags.py; do
+# Python preflight stubs used by gate_release/verify_local.
+for py_stub in validate_confidence_lanes.py validate_test_catalog.py check_flaky_tags.py; do
   cat > "$TMP_ROOT/scripts/$py_stub" <<'STUB_PY'
 #!/usr/bin/env python3
 import sys

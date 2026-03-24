@@ -33,9 +33,9 @@ import java.util.UUID;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-    private static final String BULK_VARIANT_PATH = "/api/v1/accounting/catalog/products/bulk-variants";
-    private static final String BULK_VARIANT_OPERATION = "catalog-bulk-variants";
-    private static final List<String> BULK_VARIANT_RESPONSE_DETAIL_ALLOWLIST =
+    private static final String CATALOG_PRODUCT_ENTRY_PATH = "/api/v1/catalog/items";
+    private static final String CATALOG_PRODUCT_ENTRY_OPERATION = "catalog-product-entry";
+    private static final List<String> CATALOG_CONFLICT_RESPONSE_DETAIL_ALLOWLIST =
             List.of("generated", "conflicts", "wouldCreate", "created", "operation");
     static final Set<String> SETTLEMENT_FAILURE_DETAIL_ALLOWLIST =
             SettlementExceptionHandler.SETTLEMENT_FAILURE_DETAIL_ALLOWLIST;
@@ -196,28 +196,36 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                                                        Map<String, Object> details) {
         if (details == null || details.isEmpty()) return Map.of();
         if (!isProductionMode()) return details;
-        return sanitizeBulkVariantConflictDetails(ex, request, details);
+        return sanitizeCatalogConflictDetails(ex, request, details);
     }
-    private Map<String, Object> sanitizeBulkVariantConflictDetails(ApplicationException ex,
-                                                                   HttpServletRequest request,
-                                                                   Map<String, Object> details) {
-        if (!isBulkVariantConflictDetailsSafeToExpose(ex, request, details)) return Map.of();
+    private Map<String, Object> sanitizeCatalogConflictDetails(ApplicationException ex,
+                                                               HttpServletRequest request,
+                                                               Map<String, Object> details) {
+        if (!isCatalogConflictDetailsSafeToExpose(ex, request, details)) return Map.of();
         Map<String, Object> sanitized = new LinkedHashMap<>();
-        for (String key : BULK_VARIANT_RESPONSE_DETAIL_ALLOWLIST) {
+        for (String key : CATALOG_CONFLICT_RESPONSE_DETAIL_ALLOWLIST) {
             if (details.containsKey(key)) sanitized.put(key, details.get(key));
         }
         return sanitized;
     }
-    private boolean isBulkVariantConflictDetailsSafeToExpose(ApplicationException ex,
-                                                             HttpServletRequest request,
-                                                             Map<String, Object> details) {
+    private boolean isCatalogConflictDetailsSafeToExpose(ApplicationException ex,
+                                                         HttpServletRequest request,
+                                                         Map<String, Object> details) {
         if (ex == null || request == null || ex.getErrorCode() != ErrorCode.CONCURRENCY_CONFLICT) return false;
-        if (!isBulkVariantEndpoint(request)) return false;
-        return BULK_VARIANT_OPERATION.equals(details.get("operation"));
+        return matchesSafeConflictContract(request, details, CATALOG_PRODUCT_ENTRY_PATH, CATALOG_PRODUCT_ENTRY_OPERATION);
     }
-    private boolean isBulkVariantEndpoint(HttpServletRequest request) {
+
+    private boolean matchesSafeConflictContract(HttpServletRequest request,
+                                                Map<String, Object> details,
+                                                String path,
+                                                String operation) {
+        if (!matchesEndpoint(request, path)) return false;
+        return operation.equals(details.get("operation"));
+    }
+
+    private boolean matchesEndpoint(HttpServletRequest request, String endpointPath) {
         for (String path : resolveNormalizedRequestPaths(request)) {
-            if (matchesEndpointPath(path, BULK_VARIANT_PATH)) return true;
+            if (matchesEndpointPath(path, endpointPath)) return true;
         }
         return false;
     }

@@ -104,13 +104,21 @@ class AccountingControllerActivityContractTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 temporalBalanceService,
                 null,
                 null,
                 null,
                 null,
                 companyContextService,
-                companyClock
+                companyClock,
+                null,
+                null
         );
     }
 }

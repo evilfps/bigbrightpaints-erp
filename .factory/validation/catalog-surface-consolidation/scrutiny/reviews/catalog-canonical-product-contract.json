@@ -1,0 +1,15 @@
+{
+  "featureId": "catalog-canonical-product-contract",
+  "reviewedAt": "2026-03-21T07:16:49Z",
+  "commitId": "5f1175dab801a5767760643cfb1d419c3c76a437",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Pass. The round-2 fix resolves the prior VAL-PRODUCT-009 blocker by extending the canonical follow-up read contract to expose persisted linkage and related canonical metadata. `CatalogProductDto` now includes `variantGroupId`, `productFamilyName`, category, pricing fields, and metadata (`CatalogProductDto.java:8-27`); `CatalogController` continues to serve both canonical follow-up reads through that DTO (`CatalogController.java:78-97`); and `CatalogService.toProductDto` now maps the persisted linkage onto both list and detail responses while falling back to singleton default color/size values when needed (`CatalogService.java:617-653`). The canonical create path still persists `variantGroupId`/`productFamilyName`, and now also stores singleton `colors`/`sizes` collections so browse/search stays consistent for newly created members (`ProductionCatalogService.java:482-488`). The fix commit adds API and service coverage proving list/detail readback of the persisted linkage and refreshed OpenAPI output now advertises the expanded read schema.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/catalog-surface-consolidation/scrutiny/reviews/catalog-canonical-product-contract.json",
+  "summary": "Pass. Commit `5f1175dab801a5767760643cfb1d419c3c76a437` closes the prior blocker by exposing persisted `variantGroupId`/`productFamilyName` on canonical list/detail reads, with regression coverage and OpenAPI updated to match."
+}

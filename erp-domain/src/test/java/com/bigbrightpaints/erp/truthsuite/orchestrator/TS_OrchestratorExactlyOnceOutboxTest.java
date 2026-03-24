@@ -50,12 +50,12 @@ class TS_OrchestratorExactlyOnceOutboxTest {
     }
 
     @Test
-    void legacyBypassPathsAreFailClosedBehindFeatureFlags() {
+    void legacyBatchDispatchPathFailsClosedWhilePayrollStillUsesFeatureGuards() {
         TruthSuiteFileAssert.assertContains(
                 COMMAND_DISPATCHER,
-                "return executeFeatureGuardedCommand(",
-                "\"ORCH.FACTORY.BATCH.DISPATCH\",",
-                "featureFlags::isFactoryDispatchEnabled,",
+                "private static final String CANONICAL_DISPATCH_PATH = \"/api/v1/dispatch/confirm\";",
+                "throw new OrchestratorFeatureDisabledException(",
+                "Orchestrator batch dispatch is deprecated; use ",
                 "\"ORCH.PAYROLL.RUN\",",
                 "featureFlags::isPayrollEnabled,",
                 "recordDeniedCommand(",
@@ -63,13 +63,12 @@ class TS_OrchestratorExactlyOnceOutboxTest {
     }
 
     @Test
-    void correlationIdentifiersPropagateAcrossSalesInventoryAndProductionLegs() {
+    void correlationIdentifiersPropagateAcrossRemainingOrchestratorWorkflowLegs() {
         TruthSuiteFileAssert.assertContains(
                 COMMAND_DISPATCHER,
                 "integrationCoordinator.reserveInventory(",
                 "integrationCoordinator.updateFulfillment(",
-                "integrationCoordinator.updateProductionStatus(",
-                "integrationCoordinator.releaseInventory(",
+                "integrationCoordinator.autoApproveOrder(",
                 "integrationCoordinator.syncEmployees(",
                 "integrationCoordinator.generatePayroll(");
     }

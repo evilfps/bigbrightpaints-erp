@@ -47,6 +47,8 @@ public class JournalEntryService extends AccountingCoreEngine {
     private static final BigDecimal JOURNAL_BALANCE_TOLERANCE = BigDecimal.ZERO;
 
     private final AccountingIdempotencyService accountingIdempotencyService;
+    private final CompanyContextService companyContextService;
+    private final CompanyClock companyClock;
 
     @Autowired
     public JournalEntryService(CompanyContextService companyContextService,
@@ -105,14 +107,8 @@ public class JournalEntryService extends AccountingCoreEngine {
                 auditService,
                 accountingEventStore);
         this.accountingIdempotencyService = accountingIdempotencyService;
-    }
-
-    // Compatibility constructor used by controller bridge delegates.
-    public JournalEntryService(AccountingCoreEngine ignored,
-                               AccountingIdempotencyService accountingIdempotencyService) {
-        super(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null);
-        this.accountingIdempotencyService = accountingIdempotencyService;
+        this.companyContextService = companyContextService;
+        this.companyClock = companyClock;
     }
 
     public List<JournalEntryDto> listJournalEntries(Long dealerId, Long supplierId, int page, int size) {
@@ -187,7 +183,7 @@ public class JournalEntryService extends AccountingCoreEngine {
                     .withDetail("totalCredit", totalCredit);
         }
 
-        LocalDate entryDate = request.entryDate() != null ? request.entryDate() : LocalDate.now();
+        LocalDate entryDate = resolveManualEntryDate(request.entryDate());
         String narration = request.narration().trim();
         String sourceModule = request.sourceModule().trim();
         String sourceReference = request.sourceReference().trim();
@@ -204,12 +200,20 @@ public class JournalEntryService extends AccountingCoreEngine {
                 null,
                 sourceModule,
                 sourceReference,
-                manualSource ? JournalEntryType.MANUAL.name() : JournalEntryType.AUTOMATED.name()
+                manualSource ? JournalEntryType.MANUAL.name() : JournalEntryType.AUTOMATED.name(),
+                request.attachmentReferences()
         );
         if (manualSource) {
             return super.createManualJournalEntry(journalRequest, sourceReference);
         }
         return createJournalEntry(journalRequest);
+    }
+
+    private LocalDate resolveManualEntryDate(LocalDate requestedEntryDate) {
+        if (requestedEntryDate != null) {
+            return requestedEntryDate;
+        }
+        return companyClock.today(companyContextService.requireCurrentCompany());
     }
 
     public List<JournalListItemDto> listJournals(LocalDate fromDate,

@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -49,9 +48,6 @@ public class RefreshTokenService {
         String tokenDigest = AuthTokenDigests.refreshTokenDigest(refreshToken);
         Optional<RefreshToken> record = refreshTokenRepository.findForUpdateByTokenDigest(tokenDigest);
         if (record.isEmpty()) {
-            record = refreshTokenRepository.findForUpdate(refreshToken);
-        }
-        if (record.isEmpty()) {
             return Optional.empty();
         }
         RefreshToken stored = record.get();
@@ -69,10 +65,7 @@ public class RefreshTokenService {
             return;
         }
         String tokenDigest = AuthTokenDigests.refreshTokenDigest(refreshToken);
-        int deleted = refreshTokenRepository.deleteByTokenDigest(tokenDigest);
-        if (deleted == 0) {
-            refreshTokenRepository.deleteByToken(refreshToken);
-        }
+        refreshTokenRepository.deleteByTokenDigest(tokenDigest);
     }
 
     @Transactional
@@ -81,16 +74,6 @@ public class RefreshTokenService {
             return;
         }
         refreshTokenRepository.deleteByUserEmail(userEmail);
-    }
-
-    @Transactional
-    public int backfillLegacyTokens() {
-        List<RefreshToken> legacyTokens = refreshTokenRepository.findAllByTokenIsNotNullAndTokenDigestIsNull();
-        legacyTokens.forEach(token -> token.migrateToDigest(AuthTokenDigests.refreshTokenDigest(token.getToken())));
-        if (!legacyTokens.isEmpty()) {
-            refreshTokenRepository.saveAll(legacyTokens);
-        }
-        return legacyTokens.size();
     }
 
     @Scheduled(fixedDelay = 3600000) // 1 hour

@@ -68,9 +68,11 @@ class ProductionCatalogDiscountDefaultRegressionIT extends AbstractIntegrationTe
                 null,
                 "LF-014 Product",
                 "FINISHED_GOOD",
+                "FINISHED_GOOD",
                 "WHITE",
                 "1L",
                 "UNIT",
+                null,
                 null,
                 new BigDecimal("100.00"),
                 new BigDecimal("18.00"),
@@ -106,9 +108,11 @@ class ProductionCatalogDiscountDefaultRegressionIT extends AbstractIntegrationTe
                 null,
                 "LF-014 Foreign Account Product",
                 "FINISHED_GOOD",
+                "FINISHED_GOOD",
                 "WHITE",
                 "1L",
                 "UNIT",
+                null,
                 null,
                 new BigDecimal("100.00"),
                 new BigDecimal("18.00"),
@@ -118,7 +122,7 @@ class ProductionCatalogDiscountDefaultRegressionIT extends AbstractIntegrationTe
         );
 
         assertThatThrownBy(() -> productionCatalogService.createProduct(request))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
                 .hasMessageContaining("invalid account id")
                 .hasMessageContaining("fgValuationAccountId");
     }

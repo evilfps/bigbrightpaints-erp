@@ -57,6 +57,12 @@ public class ProductionProduct extends VersionedEntity {
     @Column(name = "sku_code", nullable = false)
     private String skuCode;
 
+    @Column(name = "variant_group_id")
+    private UUID variantGroupId;
+
+    @Column(name = "product_family_name")
+    private String productFamilyName;
+
     @Column(name = "hsn_code")
     private String hsnCode;
 
@@ -188,6 +194,22 @@ public class ProductionProduct extends VersionedEntity {
 
     public void setSkuCode(String skuCode) {
         this.skuCode = skuCode;
+    }
+
+    public UUID getVariantGroupId() {
+        return variantGroupId;
+    }
+
+    public void setVariantGroupId(UUID variantGroupId) {
+        this.variantGroupId = variantGroupId;
+    }
+
+    public String getProductFamilyName() {
+        return productFamilyName;
+    }
+
+    public void setProductFamilyName(String productFamilyName) {
+        this.productFamilyName = productFamilyName;
     }
 
     public String getHsnCode() {

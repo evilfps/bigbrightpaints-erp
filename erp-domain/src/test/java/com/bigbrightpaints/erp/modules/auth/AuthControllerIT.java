@@ -1,19 +1,23 @@
 package com.bigbrightpaints.erp.modules.auth;
 
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetToken;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetTokenRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Base64;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +33,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 
 public class AuthControllerIT extends AbstractIntegrationTest {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
 
     @Autowired
     private TestRestTemplate rest;
@@ -81,6 +87,9 @@ public class AuthControllerIT extends AbstractIntegrationTest {
         assertThat(loginResp.getBody()).isNotNull();
         String accessToken = (String) loginResp.getBody().get("accessToken");
         assertThat(accessToken).isNotBlank();
+        Map<String, Object> accessClaims = decodeJwtClaims(accessToken);
+        assertThat(accessClaims).containsEntry("companyCode", COMPANY_CODE);
+        assertThat(accessClaims).doesNotContainKey("cid");
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(accessToken);
@@ -96,6 +105,41 @@ public class AuthControllerIT extends AbstractIntegrationTest {
         assertThat(roles).contains("ROLE_ADMIN");
         List<String> permissions = (List<String>) data.get("permissions");
         assertThat(permissions).isNotNull();
+    }
+
+    @Test
+    void decodeJwtClaims_acceptsUnpaddedPayloadSegment() {
+        String headerSegment = Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString("{\"alg\":\"none\"}".getBytes(StandardCharsets.UTF_8));
+        String payloadSegment = Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString("{\"companyCode\":\"ACME\",\"sub\":\"1\"}".getBytes(StandardCharsets.UTF_8));
+        assertThat(payloadSegment.length() % 4).isNotZero();
+
+        Map<String, Object> claims = decodeJwtClaims(headerSegment + "." + payloadSegment + ".signature");
+
+        assertThat(claims).containsEntry("companyCode", "ACME");
+        assertThat(claims).containsEntry("sub", "1");
+    }
+
+    @Test
+    void legacyCompanyIdHeader_doesNotEstablishAuthenticatedContext() {
+        String accessToken = login(ADMIN_EMAIL, ADMIN_PASSWORD).get("accessToken").toString();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(accessToken);
+        headers.set("X-Company-Id", COMPANY_CODE);
+
+        ResponseEntity<Map> response = rest.exchange(
+                "/api/v1/auth/me",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody()).containsEntry("success", false);
     }
 
     @Test
@@ -168,15 +212,16 @@ public class AuthControllerIT extends AbstractIntegrationTest {
 
         UserAccount user = userAccountRepository.findByEmailIgnoreCase(ADMIN_EMAIL).orElseThrow();
         passwordResetTokenRepository.deleteByUser(user);
-        passwordResetTokenRepository.save(new PasswordResetToken(
+        String resetToken = "digest-reset-token";
+        passwordResetTokenRepository.save(PasswordResetToken.digestOnly(
                 user,
-                "legacy-reset-token",
+                passwordResetDigest(resetToken),
                 Instant.now().plusSeconds(600)));
 
         ResponseEntity<Map> resetResponse = rest.postForEntity(
                 "/api/v1/auth/password/reset",
                 Map.of(
-                        "token", "legacy-reset-token",
+                        "token", resetToken,
                         "newPassword", "ResetAdmin123!",
                         "confirmPassword", "ResetAdmin123!"),
                 Map.class);
@@ -279,7 +324,7 @@ public class AuthControllerIT extends AbstractIntegrationTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> error = (Map<String, Object>) payload;
         assertThat(error).containsEntry("code", "AUTH_004");
-        assertThat(error).containsEntry("message", "Insufficient permissions for this operation");
+        assertThat(error).containsEntry("message", "Access denied");
         assertThat(error).containsEntry("reason", "COMPANY_CONTEXT_MISMATCH");
         assertThat(error).containsEntry(
                 "reasonDetail",
@@ -390,5 +435,28 @@ public class AuthControllerIT extends AbstractIntegrationTest {
         HttpHeaders headers = bearer(accessToken);
         headers.setContentType(MediaType.APPLICATION_JSON);
         return headers;
+    }
+
+    private Map<String, Object> decodeJwtClaims(String jwt) {
+        String[] parts = jwt.split("\\.");
+        assertThat(parts).hasSize(3);
+        byte[] decoded = Base64.getUrlDecoder().decode(padBase64UrlSegment(parts[1]));
+        try {
+            return OBJECT_MAPPER.readValue(new String(decoded, StandardCharsets.UTF_8), Map.class);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to decode JWT payload", ex);
+        }
+    }
+
+    private String padBase64UrlSegment(String segment) {
+        int remainder = segment.length() % 4;
+        if (remainder == 0) {
+            return segment;
+        }
+        return segment + "=".repeat(4 - remainder);
+    }
+
+    private String passwordResetDigest(String token) {
+        return IdempotencyUtils.sha256Hex("password-reset-token:" + token);
     }
 }

@@ -1,0 +1,130 @@
+{
+  "groupId": "portal-isolation",
+  "surface": "api",
+  "appUrl": "http://localhost:8081",
+  "testedAt": "2026-03-08T13:26:08+05:30",
+  "credentials": {
+    "account": "n/a (compose runtime rebuilt with empty local dataset)",
+    "companyCode": "n/a",
+    "namespace": "ut_portal_isolation_1"
+  },
+  "toolsUsed": [
+    "docker compose current-code runtime probe",
+    "docker exec psql dataset probes",
+    "mvn targeted portal isolation suites",
+    "repository inspection"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-PORTAL-002",
+      "title": "Dealer portal stays read-only and limited to own records",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run the dealer portal read-only and scoped-record suites.",
+          "expected": "Dealer users should only read their own portal records, should be blocked from tenant-internal write workflows, and should not enumerate other dealers' data through portal or backoffice endpoints.",
+          "observed": "The 19-test targeted portal isolation command passed `DealerPortalReadOnlySecurityIT`, method-scoped `DealerPortalControllerSecurityIT`, and method-scoped `DealerControllerSecurityIT`. `DealerPortalReadOnlySecurityIT` returned `403` for dealer `POST /api/v1/dealer-portal/credit-requests` and `GET /api/v1/sales/promotions`, proving the dealer portal remains read-only. `DealerPortalControllerSecurityIT` proved `/api/v1/dealer-portal/invoices` and `/aging` return the authenticated dealer's own `dealerId`, `invoiceA`, and exposure totals while excluding `invoiceB`; cross-dealer PDF enumeration returns `404`, token/header company mismatch returns `403`, non-dealer admin access to `/api/v1/dealer-portal/dashboard` returns `403`, and an unmapped dealer principal is denied with `403`. `DealerControllerSecurityIT` also kept dealers out of backoffice `/api/v1/dealers/{id}/ledger|invoices|aging` endpoints while admin access to those same read surfaces stayed `200 OK`."
+        }
+      ],
+      "evidence": {
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='DealerPortalReadOnlySecurityIT#dealerPortalCreditRequests_areForbidden+dealerRole_cannotReadTenantSalesPromotions,DealerPortalControllerSecurityIT#dealerPortalInvoices_areScopedToCurrentDealer+dealerPortalAging_isScopedToCurrentDealer+dealerPortalInvoicePdf_rejectsCrossDealerInvoiceId+dealerPortalRejectsCompanyHeaderMismatch+nonDealerRoleCannotAccessDealerPortal+dealerWithoutMappingIsForbidden,DealerControllerSecurityIT#dealerCannotReadAnotherDealerLedger+dealerCannotReadOwnLedgerFromBackofficeEndpoint+dealerCannotReadAnotherDealerInvoices+dealerCannotReadAnotherDealerAging+dealerCannotReadOwnInvoicesAndAgingFromBackofficeEndpoints+adminCanReadDealerBackofficeEndpoints,SuperAdminTenantWorkflowIsolationIT,CompanyContextFilterControlPlaneBindingTest#tenantBusinessRequest_rejectsSuperAdminBeforeTenantWorkflowExecution+controlPlaneRequest_returnsUniformForbiddenMessageForForeignAndUnknownTargets,AuthTenantAuthorityIT#control_plane_support_reset_denials_use_uniform_message_for_unknown_and_foreign_tenants' test",
+          "result": "BUILD SUCCESS; Tests run: 19, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerPortalReadOnlySecurityIT.java:57",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerPortalControllerSecurityIT.java:79",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerPortalControllerSecurityIT.java:132",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerPortalControllerSecurityIT.java:146",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerControllerSecurityIT.java:55",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerControllerSecurityIT.java:84",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerControllerSecurityIT.java:117"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-PORTAL-003",
+      "title": "Super Admin is isolated from tenant business execution",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run the super-admin workflow isolation suite and control-plane binding checks.",
+          "expected": "Super admins should keep control-plane abilities but be rejected from tenant business workflows and tenant portal surfaces.",
+          "observed": "Inside the same 19-test targeted command, `SuperAdminTenantWorkflowIsolationIT` returned `403` for super-admin `POST /api/v1/sales/targets` and `GET /api/v1/portal/dashboard`. `CompanyContextFilterControlPlaneBindingTest#tenantBusinessRequest_rejectsSuperAdminBeforeTenantWorkflowExecution` also proved the request is stopped at the company-context filter with `403` and `SUPER_ADMIN_PLATFORM_ONLY` before tenant workflow execution, while its paired control-plane test kept uniform company-control denials for foreign and unknown targets."
+        }
+      ],
+      "evidence": {
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='DealerPortalReadOnlySecurityIT#dealerPortalCreditRequests_areForbidden+dealerRole_cannotReadTenantSalesPromotions,DealerPortalControllerSecurityIT#dealerPortalInvoices_areScopedToCurrentDealer+dealerPortalAging_isScopedToCurrentDealer+dealerPortalInvoicePdf_rejectsCrossDealerInvoiceId+dealerPortalRejectsCompanyHeaderMismatch+nonDealerRoleCannotAccessDealerPortal+dealerWithoutMappingIsForbidden,DealerControllerSecurityIT#dealerCannotReadAnotherDealerLedger+dealerCannotReadOwnLedgerFromBackofficeEndpoint+dealerCannotReadAnotherDealerInvoices+dealerCannotReadAnotherDealerAging+dealerCannotReadOwnInvoicesAndAgingFromBackofficeEndpoints+adminCanReadDealerBackofficeEndpoints,SuperAdminTenantWorkflowIsolationIT,CompanyContextFilterControlPlaneBindingTest#tenantBusinessRequest_rejectsSuperAdminBeforeTenantWorkflowExecution+controlPlaneRequest_returnsUniformForbiddenMessageForForeignAndUnknownTargets,AuthTenantAuthorityIT#control_plane_support_reset_denials_use_uniform_message_for_unknown_and_foreign_tenants' test",
+          "result": "BUILD SUCCESS; Tests run: 19, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/SuperAdminTenantWorkflowIsolationIT.java:35",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/SuperAdminTenantWorkflowIsolationIT.java:54",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/CompanyContextFilterControlPlaneBindingTest.java:135"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-003",
+      "title": "Tenant data never leaks across company boundaries",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Cross-check portal-company mismatch, foreign-record denial, and uniform company-control denial envelopes.",
+          "expected": "Cross-tenant or foreign-record attempts should fail closed and should not disclose protected tenant data in the response body.",
+          "observed": "`DealerPortalControllerSecurityIT` returned `404` for dealer A requesting dealer B's invoice PDF and `403` when the authenticated dealer token carried `DEALER-PORTAL-SEC` but the request header was changed to `EVIL`, which prevents foreign-tenant access without exposing dealer B invoice content. `DealerControllerSecurityIT` kept dealer users blocked from foreign dealer ledger, invoices, and aging backoffice endpoints. `AuthTenantAuthorityIT#control_plane_support_reset_denials_use_uniform_message_for_unknown_and_foreign_tenants` also passed, proving foreign and unknown tenant control-plane attempts both return the same `403 Access denied` envelope with `AUTH_004`, `COMPANY_CONTROL_ACCESS_DENIED`, and the same reason detail instead of leaking whether the target tenant exists."
+        }
+      ],
+      "evidence": {
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='DealerPortalReadOnlySecurityIT#dealerPortalCreditRequests_areForbidden+dealerRole_cannotReadTenantSalesPromotions,DealerPortalControllerSecurityIT#dealerPortalInvoices_areScopedToCurrentDealer+dealerPortalAging_isScopedToCurrentDealer+dealerPortalInvoicePdf_rejectsCrossDealerInvoiceId+dealerPortalRejectsCompanyHeaderMismatch+nonDealerRoleCannotAccessDealerPortal+dealerWithoutMappingIsForbidden,DealerControllerSecurityIT#dealerCannotReadAnotherDealerLedger+dealerCannotReadOwnLedgerFromBackofficeEndpoint+dealerCannotReadAnotherDealerInvoices+dealerCannotReadAnotherDealerAging+dealerCannotReadOwnInvoicesAndAgingFromBackofficeEndpoints+adminCanReadDealerBackofficeEndpoints,SuperAdminTenantWorkflowIsolationIT,CompanyContextFilterControlPlaneBindingTest#tenantBusinessRequest_rejectsSuperAdminBeforeTenantWorkflowExecution+controlPlaneRequest_returnsUniformForbiddenMessageForForeignAndUnknownTargets,AuthTenantAuthorityIT#control_plane_support_reset_denials_use_uniform_message_for_unknown_and_foreign_tenants' test",
+          "result": "BUILD SUCCESS; Tests run: 19, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerPortalControllerSecurityIT.java:132",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerPortalControllerSecurityIT.java:146",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerControllerSecurityIT.java:55",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/AuthTenantAuthorityIT.java:218",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/CompanyContextFilterControlPlaneBindingTest.java:158"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Launching the delegated `user-testing-flow-validator` Task droid failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high-pro`.",
+      "resolved": true,
+      "resolution": "Completed the assigned dealer/super-admin/tenant-boundary validation directly in-session and wrote the flow artifact manually, per mission guidance for helper-launch failures.",
+      "affectedAssertions": [
+        "VAL-PORTAL-002",
+        "VAL-PORTAL-003",
+        "VAL-CROSS-003"
+      ]
+    },
+    {
+      "description": "The rebuilt compose-backed runtime booted successfully on `8081`, but the compose database was empty (`companies=0`, `app_users=0`), so there were no seeded tenant actors available for live login journeys.",
+      "resolved": true,
+      "resolution": "Used the runtime only as a reachability probe (`/api/v1/auth/me` returned 403 while MailHog was reachable) and relied on deterministic Spring Boot portal/auth suites that seed their own actors and data.",
+      "affectedAssertions": [
+        "VAL-PORTAL-002",
+        "VAL-PORTAL-003",
+        "VAL-CROSS-003"
+      ]
+    },
+    {
+      "description": "A broader exploratory portal security command that included full `DealerPortalControllerSecurityIT` and `DealerControllerSecurityIT` classes failed on unrelated pending-exposure and missing-dealer expectations rather than the tenant-boundary cases under validation.",
+      "resolved": true,
+      "resolution": "Recorded the preferred method-scoped portal validation suites in `.factory/library/user-testing.md` and based the milestone result on the passing targeted command above.",
+      "affectedAssertions": [
+        "VAL-PORTAL-002",
+        "VAL-CROSS-003"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated the three dealer/super-admin/tenant-boundary assertions for `portal-boundaries` with targeted Spring Boot API/security coverage because the rebuilt compose runtime had no seeded tenant data. The passing tests proved dealer access stays read-only and own-record scoped, super admins are rejected from tenant business workflows before execution, and foreign/unknown tenant requests return fail-closed no-leak envelopes instead of exposing whether protected records exist."
+}

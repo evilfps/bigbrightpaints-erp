@@ -26,6 +26,7 @@ import org.springframework.util.StringUtils;
 public class CommandDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(CommandDispatcher.class);
+    private static final String CANONICAL_DISPATCH_PATH = "/api/v1/dispatch/confirm";
 
     private final WorkflowService workflowService;
     private final IntegrationCoordinator integrationCoordinator;
@@ -187,57 +188,9 @@ public class CommandDispatcher {
                                 String companyId,
                                 String userId) {
         policyEnforcer.checkDispatchPermissions(userId, companyId);
-        LeaseEnvelope leaseEnvelope = startLease(
-                "ORCH.FACTORY.BATCH.DISPATCH",
-                idempotencyKey,
-                request,
-                "dispatch",
-                requestId);
-        OrchestratorIdempotencyService.CommandLease lease = leaseEnvelope.lease();
-        String normalizedRequestId = leaseEnvelope.normalizedRequestId();
-        String canonicalIdempotencyKey = leaseEnvelope.canonicalIdempotencyKey();
-        return executeFeatureGuardedCommand(
-                leaseEnvelope,
-                "ORCH.FACTORY.BATCH.DISPATCH",
-                companyId,
-                userId,
-                "/api/v1/factory",
-                "Orchestrator factory dispatch is disabled (CODE-RED).",
-                "Batch",
-                request != null ? request.batchId() : null,
-                request != null ? request.postingAmount() : null,
-                "dispatch",
-                featureFlags::isFactoryDispatchEnabled,
-                () -> {
-            String traceId = lease.traceId();
-            integrationCoordinator.updateProductionStatus(
-                    request.batchId(),
-                    companyId,
-                    traceId,
-                    canonicalIdempotencyKey);
-            integrationCoordinator.releaseInventory(
-                    request.batchId(),
-                    companyId,
-                    traceId,
-                    canonicalIdempotencyKey);
-            integrationCoordinator.postDispatchJournal(
-                    request.batchId(),
-                    companyId,
-                    request.postingAmount(),
-                    traceId,
-                    canonicalIdempotencyKey);
-            DomainEvent event = DomainEvent.of("ProductionBatchDispatchedEvent", companyId, userId, "Batch",
-                request.batchId(), Map.of("dispatchedBy", request.requestedBy(), "traceId", traceId,
-                        "idempotencyKey", canonicalIdempotencyKey),
-                traceId,
-                normalizedRequestId,
-                canonicalIdempotencyKey);
-            eventPublisherService.enqueue(event);
-            traceService.record(traceId, "BATCH_DISPATCHED", companyId,
-                    Map.of("batchId", request.batchId(), "idempotencyKey", canonicalIdempotencyKey),
-                    normalizedRequestId, canonicalIdempotencyKey);
-            return traceId;
-                });
+        throw new OrchestratorFeatureDisabledException(
+                "Orchestrator batch dispatch is deprecated; use " + CANONICAL_DISPATCH_PATH,
+                CANONICAL_DISPATCH_PATH);
     }
 
     @Transactional(noRollbackFor = OrchestratorFeatureDisabledException.class)

@@ -105,6 +105,7 @@ public class AdminUserService {
     public UserDto createUser(CreateUserRequest request) {
         Company company = companyContextService.requireCurrentCompany();
         List<Company> targetCompanies = resolveTargetCompaniesForCreate(company, request.companyIds());
+        assertActorCanAssignRoles(request.roles(), company);
         targetCompanies.forEach(targetCompany ->
                 tenantRuntimePolicyService.assertCanAddEnabledUser(targetCompany, "ADMIN_USER_CREATE"));
         boolean isTemporaryPassword = !StringUtils.hasText(request.password());
@@ -119,6 +120,11 @@ public class AdminUserService {
         attachCompanies(user, targetCompanies);
         attachRoles(user, request.roles());
         UserAccount saved = userRepository.save(user);
+        saved.getRoles().removeIf(java.util.Objects::isNull);
+        if (saved.getRoles().isEmpty() && request.roles() != null && !request.roles().isEmpty()) {
+            attachRoles(saved, request.roles());
+            saved = userRepository.save(saved);
+        }
         
         // Auto-create Dealer entity if user has ROLE_DEALER
         boolean isDealerUser = request.roles().stream()
@@ -134,7 +140,35 @@ public class AdminUserService {
                 company,
                 "admin_user_create",
                 Map.of("temporaryPasswordIssued", Boolean.toString(isTemporaryPassword)));
-        return toDto(saved, resolveLastLoginAt(saved.getEmail()));
+        Instant lastLoginAt = resolveLastLoginAt(saved.getEmail());
+        UserDto dto = toDto(saved, lastLoginAt);
+        if (!dto.roles().isEmpty()) {
+            return dto;
+        }
+        List<String> fallbackRoles = request.roles().stream()
+                .map(this::normalizeRequestedRoleName)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        if (fallbackRoles.isEmpty()) {
+            return dto;
+        }
+        List<String> fallbackCompanies = dto.companies().isEmpty()
+                ? targetCompanies.stream()
+                .map(Company::getCode)
+                .filter(StringUtils::hasText)
+                .toList()
+                : dto.companies();
+        return new UserDto(
+                dto.id(),
+                dto.publicId(),
+                dto.email(),
+                dto.displayName(),
+                dto.enabled(),
+                dto.mfaEnabled(),
+                fallbackRoles,
+                fallbackCompanies,
+                dto.lastLoginAt());
     }
     
     private void createDealerForUser(UserAccount user, Company company) {
@@ -453,6 +487,48 @@ public class AdminUserService {
                 .anyMatch(authority -> SUPER_ADMIN_ROLE.equalsIgnoreCase(authority.getAuthority()));
     }
 
+    private void assertActorCanAssignRoles(List<String> roles, Company actorCompany) {
+        if (roles == null || roles.isEmpty() || hasSuperAdminAuthority()) {
+            return;
+        }
+        String actor = resolveAuditActor();
+        String tenantScope = actorCompany != null && StringUtils.hasText(actorCompany.getCode())
+                ? actorCompany.getCode().trim()
+                : null;
+        for (String roleName : roles) {
+            String normalizedRoleName = normalizeRequestedRoleName(roleName);
+            if (!requiresSuperAdminRoleAssignment(normalizedRoleName)) {
+                continue;
+            }
+            Map<String, String> metadata = new LinkedHashMap<>();
+            metadata.put("actor", actor);
+            metadata.put("reason", "tenant-admin-role-management-requires-super-admin");
+            metadata.put("tenantScope", StringUtils.hasText(tenantScope) ? tenantScope : "none");
+            metadata.put("targetRole", normalizedRoleName);
+            auditService.logAuthFailure(AuditEvent.ACCESS_DENIED, actor, tenantScope, metadata);
+            throw new AccessDeniedException("SUPER_ADMIN authority required for role: " + normalizedRoleName);
+        }
+    }
+
+    private String normalizeRequestedRoleName(String roleName) {
+        if (!StringUtils.hasText(roleName)) {
+            return null;
+        }
+        String normalized = roleName.trim().toUpperCase(Locale.ROOT);
+        if (!normalized.startsWith("ROLE_")) {
+            String withPrefix = "ROLE_" + normalized;
+            if (roleService.isSystemRole(withPrefix)) {
+                normalized = withPrefix;
+            }
+        }
+        return normalized;
+    }
+
+    private boolean requiresSuperAdminRoleAssignment(String normalizedRoleName) {
+        return "ROLE_ADMIN".equalsIgnoreCase(normalizedRoleName)
+                || SUPER_ADMIN_ROLE.equalsIgnoreCase(normalizedRoleName);
+    }
+
     private void attachRoles(UserAccount user, List<String> roles) {
         roles.forEach(roleName -> {
             if (!StringUtils.hasText(roleName)) {
@@ -608,8 +684,16 @@ public class AdminUserService {
     }
 
     private UserDto toDto(UserAccount user, Instant lastLoginAt) {
-        List<String> companies = user.getCompanies().stream().map(Company::getCode).toList();
-        List<String> roles = user.getRoles().stream().map(Role::getName).toList();
+        List<String> companies = user.getCompanies().stream()
+                .filter(java.util.Objects::nonNull)
+                .map(Company::getCode)
+                .filter(StringUtils::hasText)
+                .toList();
+        List<String> roles = user.getRoles().stream()
+                .filter(java.util.Objects::nonNull)
+                .map(Role::getName)
+                .filter(StringUtils::hasText)
+                .toList();
         return new UserDto(user.getId(), user.getPublicId(), user.getEmail(), user.getDisplayName(),
                 user.isEnabled(), user.isMfaEnabled(), roles, companies, lastLoginAt);
     }

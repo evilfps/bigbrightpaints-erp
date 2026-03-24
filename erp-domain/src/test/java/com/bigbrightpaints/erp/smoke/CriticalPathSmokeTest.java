@@ -77,7 +77,7 @@ public class CriticalPathSmokeTest extends AbstractIntegrationTest {
         HttpHeaders h = new HttpHeaders();
         h.setBearerAuth(token);
         h.setContentType(MediaType.APPLICATION_JSON);
-        h.set("X-Company-Id", COMPANY_CODE);
+        h.set("X-Company-Code", COMPANY_CODE);
         return h;
     }
 
@@ -124,12 +124,19 @@ public class CriticalPathSmokeTest extends AbstractIntegrationTest {
     void createProductSuccess() {
         Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
 
-        // Create brand first
-        ProductionBrand brand = new ProductionBrand();
-        brand.setCompany(company);
-        brand.setCode("CP-BRAND");
-        brand.setName("Critical Path Brand");
-        brand = brandRepository.save(brand);
+        Map<String, Object> brandReq = Map.of(
+                "name", "Critical Path Brand"
+        );
+
+        ResponseEntity<Map> brandResponse = rest.exchange(
+                "/api/v1/catalog/brands",
+                HttpMethod.POST,
+                new HttpEntity<>(brandReq, headers),
+                Map.class
+        );
+
+        assertThat(brandResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Long brandId = ((Number) ((Map<?, ?>) brandResponse.getBody().get("data")).get("id")).longValue();
 
         // Provide required finished-good accounting metadata
         Long valuationId = accountRepository.findByCompanyAndCodeIgnoreCase(company, "ASSET-INV").orElseThrow().getId();
@@ -140,11 +147,13 @@ public class CriticalPathSmokeTest extends AbstractIntegrationTest {
 
         // Create product
         Map<String, Object> productReq = Map.of(
-                "customSkuCode", "CP-SKU-001",
-                "productName", "Critical Path Product",
-                "brandId", brand.getId(),
-                "category", "FINISHED_GOOD",
+                "brandId", brandId,
+                "name", "Critical Path Product",
+                "itemClass", "FINISHED_GOOD",
+                "color", "WHITE",
+                "size", "1L",
                 "unitOfMeasure", "UNIT",
+                "hsnCode", "320910",
                 "basePrice", new BigDecimal("150.00"),
                 "gstRate", new BigDecimal("18.00"),
                 "metadata", Map.of(
@@ -158,12 +167,14 @@ public class CriticalPathSmokeTest extends AbstractIntegrationTest {
                 )
         );
 
-        // FIX: Correct endpoint path is /api/v1/accounting/catalog/products
-        ResponseEntity<Map> response = rest.exchange("/api/v1/accounting/catalog/products",
+        ResponseEntity<Map> response = rest.exchange("/api/v1/catalog/items",
                 HttpMethod.POST, new HttpEntity<>(productReq, headers), Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody().get("data")).isNotNull();
+        Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
+        assertThat(((Number) data.get("brandId")).longValue()).isEqualTo(brandId);
+        assertThat(data.get("id")).isNotNull();
+        assertThat(data.get("code")).isNotNull();
     }
 
     @Test
@@ -275,14 +286,16 @@ public class CriticalPathSmokeTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("11. Dispatch Order - Success (Check Endpoint)")
     void dispatchOrderEndpointAvailable() {
-        // Test that the orchestrator dispatch endpoint is available
-        // Actual dispatch requires existing batch/account configuration
-        Map<String, Object> dispatchReq = Map.of("requestedBy", "smoke-test");
+        Map<String, Object> dispatchReq = Map.of(
+                "batchId", "TEST-BATCH-1",
+                "requestedBy", "smoke-test",
+                "postingAmount", new BigDecimal("100.00"));
         ResponseEntity<Map> response = rest.exchange("/api/v1/orchestrator/factory/dispatch/{batchId}",
                 HttpMethod.POST, new HttpEntity<>(dispatchReq, headers), Map.class, "TEST-BATCH-1");
 
-        // Should fail validation or batch lookup, but endpoint should exist
-        assertThat(response.getStatusCode()).isIn(HttpStatus.BAD_REQUEST, HttpStatus.UNPROCESSABLE_ENTITY, HttpStatus.NOT_FOUND);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.GONE);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody()).containsEntry("canonicalPath", "/api/v1/dispatch/confirm");
     }
 
     @Test

@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-review.shared-ci-baseline",
+  "reviewedAt": "2026-03-09T06:10:00+05:30",
+  "commitId": "f7488c669dcffac05ad4f105b01cea8ad83e1066",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review of the worker handoff, progress log, and commit diff confirmed this packet restored the shared recovery baseline cleanly: stale CODE-RED access/finance expectations were realigned to the shipped auth and maker-checker contracts, the small runtime fixes stayed scoped to GRN/accounting reopen behavior, and the required recovery gates all passed on the branch before commit.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Shared recovery-review CI baseline was restored with green codered-access, codered-finance, and gate-fast validation on commit f7488c66."
+}

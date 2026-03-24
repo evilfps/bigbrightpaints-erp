@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-review.o2c-dispatch-replay-metadata-followup",
+  "reviewedAt": "2026-03-11T11:40:00+05:30",
+  "commitId": "33d9ba4f601bdf1694bf9f9dfff4b8fd2a8a3430",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review found the dispatch replay follow-up stayed tightly scoped to the remaining PR #97 edge case: `DispatchController`, `SalesController`, and `DispatchMetadataValidator` were adjusted so already-dispatched slip replays reach the replay-safe branch before fresh metadata enforcement, and `SalesControllerIdempotencyHeaderTest` was expanded to pin that behavior. Fresh-dispatch metadata validation remains in place, so the packet passes on reachable commit `33d9ba4f601bdf1694bf9f9dfff4b8fd2a8a3430` (`fix(o2c): preserve dispatched-slip replay path before metadata checks`).",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Already-dispatched slip retries bypass fresh metadata checks as intended on commit `33d9ba4f601bdf1694bf9f9dfff4b8fd2a8a3430`, without weakening the new-dispatch contract."
+}

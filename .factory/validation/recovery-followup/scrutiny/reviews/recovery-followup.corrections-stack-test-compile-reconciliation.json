@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-followup.corrections-stack-test-compile-reconciliation",
+  "reviewedAt": "2026-03-09T20:52:02Z",
+  "commitId": "faa04f473c357fcd0b6162182d17d248f7655dc8",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review passed. Reviewed the worker handoff for commit faa04f473c357fcd0b6162182d17d248f7655dc8, validated the reported scope and verification evidence, and checked the committed diff shape for the feature. Updated `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/inventory/controller/DispatchControllerTest.java` to rewire the propagated assertion/import drift by restoring `com.bigbrightpaints.erp.core.exception.ApplicationException` and `assertThatThrownBy`. No production code, endpoint behavior, DTOs, roles, tenant/company boundary checks, token stores, or request/response shapes changed; this packet is compile/CI reconciliation only for the factory-dispatch controller test surface.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Reconciled the residual recovery/05 test-compile drift by restoring the missing AssertJ/ApplicationException imports in DispatchControllerTest. The branch now compiles and passes local gate-fast again, so PR #99 can produce JaCoCo artifacts once the new head is pushed and rerun."
+}

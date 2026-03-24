@@ -61,6 +61,9 @@ public class JournalEntry extends VersionedEntity {
     @Column(name = "source_reference")
     private String sourceReference;
 
+    @Column(name = "attachment_references", columnDefinition = "TEXT")
+    private String attachmentReferences;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reversal_of_id")
     private JournalEntry reversalOf;
@@ -159,6 +162,8 @@ public class JournalEntry extends VersionedEntity {
     public void setSourceModule(String sourceModule) { this.sourceModule = sourceModule; }
     public String getSourceReference() { return sourceReference; }
     public void setSourceReference(String sourceReference) { this.sourceReference = sourceReference; }
+    public String getAttachmentReferences() { return attachmentReferences; }
+    public void setAttachmentReferences(String attachmentReferences) { this.attachmentReferences = attachmentReferences; }
     public JournalEntry getReversalOf() { return reversalOf; }
     public void setReversalOf(JournalEntry reversalOf) { this.reversalOf = reversalOf; }
     public JournalEntry getReversalEntry() { return reversalEntry; }

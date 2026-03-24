@@ -1,0 +1,52 @@
+{
+  "milestone": "freeze-dispatch-seams",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 12,
+    "passed": 12,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-LISTENER-001",
+    "VAL-FACTORY-001",
+    "VAL-PROFORMA-001",
+    "VAL-INVOICE-001",
+    "VAL-PROV-001",
+    "VAL-PROV-002",
+    "VAL-CROSS-001",
+    "VAL-CROSS-005",
+    "VAL-REPLAY-001",
+    "VAL-REPLAY-002",
+    "VAL-REPLAY-003",
+    "VAL-REPLAY-004"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "toolsUsed": [
+    "Execute",
+    "Grep",
+    "Read",
+    "mvn"
+  ],
+  "frictions": [
+    {
+      "description": "The parent-specified class TS_O2CProvenanceAndOperationalViewTest does not exist in this checkout, so the exact initial Maven command only executed TS_O2CListenerProformaInvoiceBoundaryTest.",
+      "resolved": true,
+      "resolution": "Ran a second targeted Maven command against TS_O2CDispatchProvenanceViewsAndEquivalenceTest#pureFactoryDispatchViews_redactPricingInvoiceGstCostAndJournalFields, which matches the factory-view assertion coverage.",
+      "affectedAssertions": [
+        "VAL-FACTORY-001"
+      ]
+    },
+    "The narrow verification stayed within one truthsuite class, but Maven still recompiled the module before executing the targeted test class."
+  ],
+  "blockers": [],
+  "flowReports": [
+    "/home/realnigga/Desktop/Mission-control/.factory/validation/freeze-dispatch-seams/user-testing/flows/listener-factory.json",
+    "/home/realnigga/Desktop/Mission-control/.factory/validation/freeze-dispatch-seams/user-testing/flows/provenance-equivalence.json",
+    "/home/realnigga/Desktop/Mission-control/.factory/validation/freeze-dispatch-seams/user-testing/flows/replay-safety.json"
+  ],
+  "previousRound": null
+}

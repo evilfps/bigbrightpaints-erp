@@ -71,6 +71,9 @@ public class SalesOrder extends VersionedEntity {
     @Column(name = "idempotency_hash", length = 64)
     private String idempotencyHash;
 
+    @Column(name = "payment_mode", nullable = false, length = 32)
+    private String paymentMode = "CREDIT";
+
     // Idempotency markers to prevent double posting
     @Column(name = "sales_journal_entry_id")
     private Long salesJournalEntryId;
@@ -141,6 +144,8 @@ public class SalesOrder extends VersionedEntity {
     public void setNotes(String notes) { this.notes = notes; }
     public String getIdempotencyHash() { return idempotencyHash; }
     public void setIdempotencyHash(String idempotencyHash) { this.idempotencyHash = idempotencyHash; }
+    public String getPaymentMode() { return paymentMode; }
+    public void setPaymentMode(String paymentMode) { this.paymentMode = paymentMode; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public List<SalesOrderItem> getItems() { return items; }

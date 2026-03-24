@@ -1,0 +1,77 @@
+{
+  "groupId": "company-context-canonicalization",
+  "surface": "jvm-tests",
+  "testedAt": "2026-03-16T05:07:28+05:30",
+  "toolsUsed": ["mvn"],
+  "assertions": [
+    {
+      "id": "VAL-AUTHC-003",
+      "title": "Canonical company context only",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run `MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=CompanyContextFilterPasswordResetBypassTest,AuthControllerIT,CompanyContextFilterControlPlaneBindingTest test` and inspect `AuthControllerIT#login_and_me_flow_succeeds`.",
+          "expected": "Canonical login issues a JWT with `companyCode`, omits legacy `cid`, and authenticated `/auth/me` succeeds under canonical context.",
+          "observed": "`AuthControllerIT#login_and_me_flow_succeeds` passed; the issued access token contained `companyCode=ACME`, did not contain `cid`, and `/api/v1/auth/me` returned `200 OK` with `companyCode=ACME`."
+        },
+        {
+          "action": "Inspect `AuthControllerIT#legacyCompanyIdHeader_doesNotEstablishAuthenticatedContext` and `AuthControllerIT#tenantBindingMismatch_returnsControlledAuthErrorContract` from the same Maven run.",
+          "expected": "Legacy-only `X-Company-Id` does not establish authenticated context, and canonical mismatch fails closed with the controlled auth envelope.",
+          "observed": "Both tests passed: legacy-only `X-Company-Id` on `/api/v1/auth/me` returned `403` with `success=false`, and canonical mismatch returned the controlled `AUTH_004` / `COMPANY_CONTEXT_MISMATCH` denial."
+        },
+        {
+          "action": "Inspect `CompanyContextFilterControlPlaneBindingTest` in the same Maven run.",
+          "expected": "Control-plane requests bind via canonical path/company resolution and reject foreign or missing context instead of honoring legacy compatibility context.",
+          "observed": "All 12 `CompanyContextFilterControlPlaneBindingTest` cases passed, including canonical path-target binding for super-admin control-plane flows and uniform `403` fail-closed responses for foreign, unknown, anonymous, and malformed targets."
+        }
+      ],
+      "evidence": {
+        "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=CompanyContextFilterPasswordResetBypassTest,AuthControllerIT,CompanyContextFilterControlPlaneBindingTest test",
+        "result": "BUILD SUCCESS; Tests run: 26, Failures: 0, Errors: 0, Skipped: 0.",
+        "consoleErrors": "The scoped Maven run finished with `Tests run: 26, Failures: 0, Errors: 0` and `BUILD SUCCESS`. Negative-path logs showed the expected controlled company-mismatch rejection; newly issued JWTs omitted `cid`."
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-002",
+      "title": "Public reset bypass stays public, tenant binding stays canonical",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect `CompanyContextFilterPasswordResetBypassTest` from the scoped Maven run.",
+          "expected": "Public forgot/reset endpoints remain reachable without tenant binding, while non-public lookalikes or wrong methods are still blocked.",
+          "observed": "All 5 bypass tests passed: `POST /api/v1/auth/password/forgot`, `POST /api/v1/auth/password/reset`, and the retired alias bypassed company binding with `200`, while `GET /api/v1/auth/password/forgot` and `/forgot/extra` were rejected with `403`."
+        },
+        {
+          "action": "Run `MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=PasswordResetServiceTest#requestResetScopeUsesLegacyCompanyHeaderWhenPrimaryHeaderMissing test` to observe the legacy header variant on the public forgot flow.",
+          "expected": "Legacy `X-Company-Id` does not create tenant binding for the public forgot flow and is only ignored/observed for global-identity handling.",
+          "observed": "The targeted test passed and logged `event=password_reset.scope ... tenantContext=LEGACY_TENANT outcome=tenant_context_ignored`, confirming the legacy header variant did not establish tenant binding for forgot-password handling."
+        },
+        {
+          "action": "Reuse `AuthControllerIT#legacyCompanyIdHeader_doesNotEstablishAuthenticatedContext` and `AuthControllerIT#tenantBindingMismatch_returnsControlledAuthErrorContract` from the main Maven run.",
+          "expected": "Authenticated endpoints continue to require canonical `X-Company-Code` / `companyCode` context and fail closed on legacy-only or mismatched context.",
+          "observed": "Authenticated `/api/v1/auth/me` stayed canonical-only: legacy-only `X-Company-Id` returned `403`, and mismatched canonical context returned the controlled `AUTH_004` denial with `COMPANY_CONTEXT_MISMATCH`."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=CompanyContextFilterPasswordResetBypassTest,AuthControllerIT,CompanyContextFilterControlPlaneBindingTest test",
+          "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=PasswordResetServiceTest#requestResetScopeUsesLegacyCompanyHeaderWhenPrimaryHeaderMissing test"
+        ],
+        "result": "Both scoped Maven runs finished with BUILD SUCCESS; the follow-up method-level run confirmed `tenant_context_ignored` for the legacy header variant.",
+        "consoleErrors": "No unexpected console errors. The legacy-header follow-up run ended with `Tests run: 1, Failures: 0, Errors: 0` and logged `outcome=tenant_context_ignored`; the main scoped run ended with `BUILD SUCCESS`."
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "The prompt's suggested Maven selector did not directly exercise the public forgot flow with the legacy `X-Company-Id` header variant.",
+      "resolved": true,
+      "resolution": "Ran one additional narrow method-level Maven command for `PasswordResetServiceTest#requestResetScopeUsesLegacyCompanyHeaderWhenPrimaryHeaderMissing` and captured a separate evidence log/report.",
+      "affectedAssertions": ["VAL-CROSS-002"]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 2 assigned assertions on the jvm-tests surface: 2 passed, 0 failed, 0 blocked. Canonical company binding remained enforced for authenticated routes, legacy `X-Company-Id` / `cid` compatibility did not establish context, newly issued JWTs omitted `cid`, and public forgot/reset flows remained reachable without tenant binding while ignoring legacy header context."
+}

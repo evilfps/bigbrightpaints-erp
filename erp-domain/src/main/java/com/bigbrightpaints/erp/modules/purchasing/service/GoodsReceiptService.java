@@ -13,8 +13,6 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.dto.RawMaterialBatchRequest;
-import com.bigbrightpaints.erp.modules.inventory.event.InventoryMovementEvent;
-import com.bigbrightpaints.erp.modules.inventory.event.InventoryValuationChangedEvent;
 import com.bigbrightpaints.erp.modules.inventory.service.RawMaterialService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceipt;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptLine;
@@ -28,7 +26,6 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptLineRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.GoodsReceiptResponse;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -54,7 +51,6 @@ public class GoodsReceiptService {
     private final AccountingPeriodService accountingPeriodService;
     private final PurchaseResponseMapper responseMapper;
     private final PurchaseOrderService purchaseOrderService;
-    private final ApplicationEventPublisher applicationEventPublisher;
     private final IdempotencyReservationService idempotencyReservationService = new IdempotencyReservationService();
     private final TransactionTemplate transactionTemplate;
 
@@ -67,7 +63,6 @@ public class GoodsReceiptService {
                                AccountingPeriodService accountingPeriodService,
                                PurchaseResponseMapper responseMapper,
                                PurchaseOrderService purchaseOrderService,
-                               ApplicationEventPublisher applicationEventPublisher,
                                PlatformTransactionManager transactionManager) {
         this.companyContextService = companyContextService;
         this.purchaseOrderRepository = purchaseOrderRepository;
@@ -78,7 +73,6 @@ public class GoodsReceiptService {
         this.accountingPeriodService = accountingPeriodService;
         this.responseMapper = responseMapper;
         this.purchaseOrderService = purchaseOrderService;
-        this.applicationEventPublisher = applicationEventPublisher;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -92,9 +86,7 @@ public class GoodsReceiptService {
         List<GoodsReceipt> receipts = supplier == null
                 ? goodsReceiptRepository.findByCompanyWithLinesOrderByReceiptDateDesc(company)
                 : goodsReceiptRepository.findByCompanyAndSupplierWithLinesOrderByReceiptDateDesc(company, supplier);
-        return receipts.stream()
-                .map(responseMapper::toGoodsReceiptResponse)
-                .toList();
+        return responseMapper.toGoodsReceiptResponses(receipts);
     }
 
     public GoodsReceiptResponse getGoodsReceipt(Long id) {
@@ -107,6 +99,12 @@ public class GoodsReceiptService {
     public GoodsReceiptResponse createGoodsReceipt(GoodsReceiptRequest request) {
         if (request == null || request.lines() == null || request.lines().isEmpty()) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Goods receipt lines are required");
+        }
+        if (request.purchaseOrderId() == null) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Purchase order is required");
+        }
+        if (!StringUtils.hasText(request.receiptNumber())) {
+            throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Receipt number is required");
         }
         Company company = companyContextService.requireCurrentCompany();
         String idempotencyKey = normalizeIdempotencyKey(request.idempotencyKey());
@@ -153,6 +151,7 @@ public class GoodsReceiptService {
         PurchaseOrder purchaseOrder = purchaseOrderRepository.lockByCompanyAndId(company, request.purchaseOrderId())
                 .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Purchase order not found"));
         Supplier supplier = purchaseOrder.getSupplier();
+        supplier.requireTransactionalUsage("progress goods receipts");
 
         String receiptNumber = request.receiptNumber().trim();
         goodsReceiptRepository.lockByCompanyAndReceiptNumberIgnoreCase(company, receiptNumber)
@@ -338,7 +337,6 @@ public class GoodsReceiptService {
             RawMaterialService.ReceiptResult receiptResult = rawMaterialService.recordReceipt(rawMaterial.getId(), batchRequest, context);
             line.setRawMaterialBatch(receiptResult.batch());
             line.setBatchCode(receiptResult.batch().getBatchCode());
-            publishInventoryEvents(company, supplier, rawMaterial, line, receiptResult, receiptNumber);
         }
 
         GoodsReceipt savedReceipt = goodsReceiptRepository.saveAndFlush(receipt);
@@ -347,50 +345,12 @@ public class GoodsReceiptService {
         return responseMapper.toGoodsReceiptResponse(savedReceipt);
     }
 
-    private void publishInventoryEvents(Company company,
-                                        Supplier supplier,
-                                        RawMaterial rawMaterial,
-                                        GoodsReceiptLine line,
-                                        RawMaterialService.ReceiptResult receiptResult,
-                                        String receiptNumber) {
-        if (receiptResult == null || receiptResult.movement() == null) {
-            return;
-        }
-        BigDecimal totalCost = currency(MoneyUtils.safeMultiply(line.getQuantity(), line.getCostPerUnit()));
-        if (totalCost.compareTo(BigDecimal.ZERO) <= 0) {
-            return;
-        }
-
-        Long movementId = receiptResult.movement().getId();
-        Long destinationAccountId = rawMaterial.getInventoryAccountId();
-        Long sourceAccountId = supplier.getPayableAccount() != null ? supplier.getPayableAccount().getId() : null;
-
-        if (sourceAccountId != null && destinationAccountId != null) {
-            applicationEventPublisher.publishEvent(InventoryMovementEvent.builder()
-                    .companyId(company.getId())
-                    .movementType(InventoryMovementEvent.MovementType.RECEIPT)
-                    .inventoryType(InventoryValuationChangedEvent.InventoryType.RAW_MATERIAL)
-                    .itemId(rawMaterial.getId())
-                    .itemCode(rawMaterial.getSku())
-                    .itemName(rawMaterial.getName())
-                    .quantity(line.getQuantity())
-                    .unitCost(line.getCostPerUnit())
-                    .totalCost(totalCost)
-                    .sourceAccountId(sourceAccountId)
-                    .destinationAccountId(destinationAccountId)
-                    .movementId(movementId)
-                    .referenceNumber(receiptNumber)
-                    .movementDate(line.getGoodsReceipt().getReceiptDate())
-                    .memo("Goods receipt " + receiptNumber)
-                    .relatedEntityId(line.getGoodsReceipt().getId())
-                    .relatedEntityType("GOODS_RECEIPT")
-                    .build());
-        }
-    }
-
     private RawMaterial requireMaterial(Company company, Long rawMaterialId) {
-        return rawMaterialRepository.lockByCompanyAndId(company, rawMaterialId)
-                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Raw material not found"));
+        try {
+            return companyEntityLookup.lockActiveRawMaterial(company, rawMaterialId);
+        } catch (IllegalArgumentException ex) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Raw material not found");
+        }
     }
 
     private BigDecimal positive(BigDecimal value, String field) {

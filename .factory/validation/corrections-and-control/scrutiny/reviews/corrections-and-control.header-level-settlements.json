@@ -1,0 +1,15 @@
+{
+  "featureId": "corrections-and-control.header-level-settlements",
+  "reviewedAt": "2026-03-08T11:44:20+05:30",
+  "commitId": "7c24f97f28853a35d7951e6996bbe8ded27611d7",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The settlement refactor moves the milestone to explicit header-level behavior rather than legacy line inference: requests now carry amount-driven allocation rows with DOCUMENT, ON_ACCOUNT, and FUTURE_APPLICATION typing, controller helpers enforce header/body idempotency-key parity, and the settlement engine validates duplicate-target conflicts while reconstructing replay-safe results from stored allocations. The reviewed tests cover concurrent dealer replay, supplier/dealer allocation validation, and controller idempotency handling, and I did not find a blocking mismatch with the header-level settlement contract.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Dealer and supplier settlements now use replay-safe header allocations with explicit on-account or future-application rows, and the reviewed controller/runtime coverage supports FIFO or oldest-open defaults without duplicate settlement truth."
+}

@@ -159,6 +159,7 @@ public class CriticalFixtureService {
                     return supplierRepository.save(s);
                 });
         supplier.setPayableAccount(payable);
+        supplier.setStatus("ACTIVE");
         return supplierRepository.save(supplier);
     }
 

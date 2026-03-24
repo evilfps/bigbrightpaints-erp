@@ -8,6 +8,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodCloseRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -18,6 +19,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -187,6 +191,7 @@ class CR_PeriodCloseDriftScansTest extends AbstractIntegrationTest {
     @AfterEach
     void clearCompanyContext() {
         CompanyContextHolder.clear();
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -206,8 +211,7 @@ class CR_PeriodCloseDriftScansTest extends AbstractIntegrationTest {
                     line(revenue.getId(), BigDecimal.ZERO, new BigDecimal("100.00"))
             ));
 
-            accountingPeriodService.closePeriod(period.getId(),
-                    new AccountingPeriodCloseRequest(true, "CODE-RED scan clean"));
+            forceClosePeriod(period.getId(), "CODE-RED scan clean request", "CODE-RED scan clean approval");
 
             assertScanEmpty(MISSING_SNAPSHOT_SCAN, company.getId());
             assertScanEmpty(LATE_POSTING_SCAN, company.getId());
@@ -235,8 +239,10 @@ class CR_PeriodCloseDriftScansTest extends AbstractIntegrationTest {
                     line(revenue.getId(), BigDecimal.ZERO, new BigDecimal("50.00"))
             ));
 
-            AccountingPeriodDto closed = accountingPeriodService.closePeriod(period.getId(),
-                    new AccountingPeriodCloseRequest(true, "CODE-RED scan close"));
+            AccountingPeriodDto closed = forceClosePeriod(
+                    period.getId(),
+                    "CODE-RED scan close request",
+                    "CODE-RED scan close approval");
 
             Instant postedAt = closed.closedAt().plusSeconds(60);
             insertLateJournal(company, period, cash, revenue, postedAt, period.getEndDate().minusDays(1));
@@ -266,8 +272,7 @@ class CR_PeriodCloseDriftScansTest extends AbstractIntegrationTest {
                     line(revenue.getId(), BigDecimal.ZERO, new BigDecimal("75.00"))
             ));
 
-            accountingPeriodService.closePeriod(period.getId(),
-                    new AccountingPeriodCloseRequest(true, "CODE-RED scan missing"));
+            forceClosePeriod(period.getId(), "CODE-RED scan missing request", "CODE-RED scan missing approval");
 
             jdbcTemplate.update("delete from accounting_period_snapshots where accounting_period_id = ?", period.getId());
 
@@ -294,8 +299,10 @@ class CR_PeriodCloseDriftScansTest extends AbstractIntegrationTest {
                     line(revenue.getId(), BigDecimal.ZERO, new BigDecimal("125.00"))
             ));
 
-            accountingPeriodService.closePeriod(period.getId(),
-                    new AccountingPeriodCloseRequest(true, "CODE-RED scan snapshot totals"));
+            forceClosePeriod(
+                    period.getId(),
+                    "CODE-RED scan snapshot totals request",
+                    "CODE-RED scan snapshot totals approval");
 
             jdbcTemplate.update(
                     "update accounting_period_snapshots set trial_balance_total_debit = trial_balance_total_debit + 1 "
@@ -396,5 +403,24 @@ class CR_PeriodCloseDriftScansTest extends AbstractIntegrationTest {
                     account.setType(type);
                     return accountRepository.save(account);
                 });
+    }
+
+    private AccountingPeriodDto forceClosePeriod(Long periodId, String requestNote, String approvalNote) {
+        authenticate("maker.user", "ROLE_ACCOUNTING");
+        accountingPeriodService.requestPeriodClose(periodId, new PeriodCloseRequestActionRequest(requestNote, true));
+        authenticate("checker.user", "ROLE_ADMIN");
+        return accountingPeriodService.approvePeriodClose(periodId, new PeriodCloseRequestActionRequest(approvalNote, true));
+    }
+
+    private void authenticate(String username, String... roles) {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        username,
+                        "N/A",
+                        java.util.Arrays.stream(roles)
+                                .map(SimpleGrantedAuthority::new)
+                                .toList()
+                )
+        );
     }
 }

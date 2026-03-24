@@ -37,6 +37,9 @@ public interface RawMaterialPurchaseRepository extends JpaRepository<RawMaterial
     Optional<RawMaterialPurchase> findByCompanyAndGoodsReceipt(Company company, GoodsReceipt goodsReceipt);
 
     @EntityGraph(attributePaths = {"supplier", "journalEntry", "purchaseOrder", "goodsReceipt"})
+    List<RawMaterialPurchase> findByCompanyAndGoodsReceipt_IdIn(Company company, List<Long> goodsReceiptIds);
+
+    @EntityGraph(attributePaths = {"supplier", "journalEntry", "purchaseOrder", "goodsReceipt"})
     Optional<RawMaterialPurchase> findByCompanyAndJournalEntry(Company company, JournalEntry journalEntry);
 
     @EntityGraph(attributePaths = {"supplier", "journalEntry", "purchaseOrder", "goodsReceipt"})

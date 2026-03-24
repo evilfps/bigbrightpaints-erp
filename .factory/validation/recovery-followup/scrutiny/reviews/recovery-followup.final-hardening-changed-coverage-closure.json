@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-followup.final-hardening-changed-coverage-closure",
+  "reviewedAt": "2026-03-09T20:52:02Z",
+  "commitId": "f6bde8aa",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review passed. Reviewed the worker handoff for commit f6bde8aa, validated the reported scope and verification evidence, and checked the committed diff shape for the feature. Updated the PR manifest routing and focused tests so the final-hardening packet now exercises the changed auth, dispatch, accounting replay/header-idempotency, sales return, purchase return, validation-seed, and reservation paths. Added new focused test classes for portal-role matrix, settlement allocation application, closed-period posting exception service, and finished-goods reservation coverage; expanded existing accounting, sales-return, purchase-return, dispatch, company-context, and validation-seed tests; and compacted selected source signatures/continuations in ValidationSeedDataInitializer, AccountingCoreEngineCore, FinishedGoodsReservationEngine, GoodsReceiptRepository, and SalesReturnService so changed-files coverage is fully mapped and passes thresholds. Non-blocking follow-up remains limited to remote PR reruns or stale GitHub checks, not local code defects.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Closed the remaining final-hardening changed-coverage gaps by adding focused accounting/sales/validation/inventory tests, tightening PR manifests, and compacting a few source regions so JaCoCo maps the PR diff cleanly. Verified the packet with local gate-fast, policy checks, and an isolated PR-style changed-files coverage reproduction against diff base 11f13b07."
+}

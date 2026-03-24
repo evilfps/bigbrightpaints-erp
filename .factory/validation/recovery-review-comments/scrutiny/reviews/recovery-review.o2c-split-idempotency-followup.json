@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-review.o2c-split-idempotency-followup",
+  "reviewedAt": "2026-03-11T11:40:00+05:30",
+  "commitId": "6870bc6ca50924f5df13d67d90a0464e8a59a60d",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review confirmed the SPLIT/HYBRID follow-up solved the specific replay-compatibility concern without reopening broader payment-mode behavior: the diff is limited to `SalesOrderRequest`, `SalesCoreEngine`, and focused request/service tests that preserve canonical normalization for fresh requests while keeping legacy SPLIT retries hash-compatible. No widened mode acceptance or duplicate-order regression was evident in the reviewed diff, so the feature passes on reachable commit `6870bc6ca50924f5df13d67d90a0464e8a59a60d` (`fix(o2c): preserve legacy split idempotency replay`).",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Legacy SPLIT replay compatibility remains safely constrained on commit `6870bc6ca50924f5df13d67d90a0464e8a59a60d`, with targeted request/service coverage and no scope creep."
+}

@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -22,6 +23,7 @@ public interface PackagingSlipRepository extends JpaRepository<PackagingSlip, Lo
     @EntityGraph(attributePaths = {"salesOrder", "salesOrder.dealer", "lines", "lines.finishedGoodBatch", "lines.finishedGoodBatch.finishedGood"})
     Optional<PackagingSlip> findByCompanyAndSalesOrderId(Company company, Long orderId);
     List<PackagingSlip> findAllByCompanyAndSalesOrderId(Company company, Long orderId);
+    List<PackagingSlip> findAllByCompanyAndSalesOrderIdIn(Company company, Collection<Long> orderIds);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints({@QueryHint(name = "jakarta.persistence.lock.timeout", value = "5000")})

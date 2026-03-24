@@ -10,6 +10,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAlloca
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
@@ -78,7 +79,10 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         cash = ensureAccount("CASH-P2P-E2E", "P2P Cash", AccountType.ASSET);
         Account gstInput = ensureAccount("GST-IN-P2P-E2E", "GST Input Tax", AccountType.ASSET);
         Account gstOutput = ensureAccount("GST-OUT-P2P-E2E", "GST Output Tax", AccountType.LIABILITY);
-        if (company.getGstInputTaxAccountId() == null || company.getGstOutputTaxAccountId() == null) {
+        if (company.getStateCode() == null
+                || company.getGstInputTaxAccountId() == null
+                || company.getGstOutputTaxAccountId() == null) {
+            company.setStateCode("27");
             company.setGstInputTaxAccountId(gstInput.getId());
             company.setGstOutputTaxAccountId(gstOutput.getId());
             companyRepository.save(company);
@@ -100,7 +104,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         int receiptMovementsBefore = rawMaterialMovementRepository
                 .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
                         company,
-                        InventoryReference.RAW_MATERIAL_PURCHASE,
+                        InventoryReference.GOODS_RECEIPT,
                         goodsReceipt.getReceiptNumber())
                 .size();
 
@@ -135,14 +139,14 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         List<RawMaterialMovement> movements = rawMaterialMovementRepository.findByRawMaterialBatch(batch);
         assertThat(movements).hasSize(1);
         RawMaterialMovement movement = movements.get(0);
-        assertThat(movement.getReferenceType()).isEqualTo(InventoryReference.RAW_MATERIAL_PURCHASE);
+        assertThat(movement.getReferenceType()).isEqualTo(InventoryReference.GOODS_RECEIPT);
         assertThat(movement.getMovementType()).isEqualTo("RECEIPT");
         assertThat(movement.getQuantity()).isEqualByComparingTo(quantity);
         assertThat(movement.getJournalEntryId()).isNotNull();
         int receiptMovementsAfter = rawMaterialMovementRepository
                 .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
                         company,
-                        InventoryReference.RAW_MATERIAL_PURCHASE,
+                        InventoryReference.GOODS_RECEIPT,
                         goodsReceipt.getReceiptNumber())
                 .size();
         assertThat(receiptMovementsAfter).isEqualTo(receiptMovementsBefore);
@@ -356,11 +360,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
                 new HttpEntity<>(intakeReq, headers),
                 Map.class);
 
-        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(resp.getBody()).containsEntry("success", false);
-        Object message = resp.getBody().get("message");
-        assertThat(message).isInstanceOf(String.class);
-        assertThat(((String) message).toLowerCase()).contains("intake is disabled");
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
@@ -911,6 +911,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
                 "name", name,
                 "code", code,
                 "contactEmail", "p2p-" + shortSuffix() + "@bbp.com",
+                "stateCode", "27",
                 "creditLimit", new BigDecimal("25000.00")
         );
         ResponseEntity<Map> resp = rest.exchange(
@@ -920,27 +921,38 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
                 Map.class);
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<String, Object> data = (Map<String, Object>) resp.getBody().get("data");
-        return ((Number) data.get("id")).longValue();
+        Long supplierId = ((Number) data.get("id")).longValue();
+
+        ResponseEntity<Map> approveResp = rest.exchange(
+                "/api/v1/suppliers/" + supplierId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(approveResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<Map> activateResp = rest.exchange(
+                "/api/v1/suppliers/" + supplierId + "/activate",
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(activateResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        return supplierId;
     }
 
     private Long createRawMaterial(String name, String sku, Long inventoryAccountId) {
-        Map<String, Object> req = Map.of(
-                "name", name,
-                "sku", sku,
-                "unitType", "KG",
-                "reorderLevel", new BigDecimal("1"),
-                "minStock", new BigDecimal("1"),
-                "maxStock", new BigDecimal("100"),
-                "inventoryAccountId", inventoryAccountId
-        );
-        ResponseEntity<Map> resp = rest.exchange(
-                "/api/v1/accounting/raw-materials",
-                HttpMethod.POST,
-                new HttpEntity<>(req, headers),
-                Map.class);
-        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
-        Map<String, Object> data = (Map<String, Object>) resp.getBody().get("data");
-        return ((Number) data.get("id")).longValue();
+        RawMaterial material = new RawMaterial();
+        material.setCompany(company);
+        material.setName(name);
+        material.setSku(sku);
+        material.setUnitType("KG");
+        material.setReorderLevel(new BigDecimal("1"));
+        material.setMinStock(new BigDecimal("1"));
+        material.setMaxStock(new BigDecimal("100"));
+        material.setMaterialType(MaterialType.PRODUCTION);
+        material.setInventoryAccountId(inventoryAccountId);
+        material.setCurrentStock(BigDecimal.ZERO);
+        return rawMaterialRepository.save(material).getId();
     }
 
     private PurchaseWorkflowIds createPurchaseOrderAndReceipt(Long supplierId,
@@ -977,7 +989,16 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
                 Map.class);
         assertThat(poResp.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<String, Object> poData = (Map<String, Object>) poResp.getBody().get("data");
-        return ((Number) poData.get("id")).longValue();
+        Long purchaseOrderId = ((Number) poData.get("id")).longValue();
+
+        ResponseEntity<Map> approveResp = rest.exchange(
+                "/api/v1/purchasing/purchase-orders/" + purchaseOrderId + "/approve",
+                HttpMethod.POST,
+                new HttpEntity<>(headers),
+                Map.class);
+        assertThat(approveResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        return purchaseOrderId;
     }
 
     private Long createGoodsReceipt(Long purchaseOrderId,
@@ -1103,7 +1124,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         HttpHeaders h = new HttpHeaders();
         h.setBearerAuth(token);
         h.setContentType(MediaType.APPLICATION_JSON);
-        h.set("X-Company-Id", COMPANY_CODE);
+        h.set("X-Company-Code", COMPANY_CODE);
         return h;
     }
 

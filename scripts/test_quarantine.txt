@@ -1,10 +1,11 @@
 # Quarantined tests (one per line, relative path from repo root).
 # Rule: quarantined tests must not appear in gate-fast/core/release/reconciliation.
 # Enforced schema (fail-closed):
-#   <test_path> | owner=<owner> | repro_notes=<repro notes> | start_date=YYYY-MM-DD | expiry=YYYY-MM-DD
-# Required metadata keys: owner, repro_notes, start_date, expiry.
+#   <test_path> | owner=<owner> | repro_notes=<repro notes> | start_date=YYYY-MM-DD | expiry=YYYY-MM-DD | classification=<product-bug|bad-test|infra-coupled> | action=quarantine
+# Required metadata keys: owner, repro_notes, start_date, expiry, classification, action.
 # Accepted expiry aliases for backward compatibility: expires, expiry_date.
 # Expiry window must be within 14 days from start_date (inclusive).
+# Quarantine is only for explicitly classified broken tests; fix/delete/demote paths should not create entries here.
 #
 # Example:
-# erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_SampleFlakyIT.java | owner=release-ops | repro_notes=Intermittent deadlock under parallel runs | start_date=2026-02-10 | expiry=2026-02-20
+# erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_SampleFlakyIT.java | owner=release-ops | repro_notes=Intermittent deadlock under parallel runs | start_date=2026-02-10 | expiry=2026-02-20 | classification=infra-coupled | action=quarantine

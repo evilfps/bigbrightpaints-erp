@@ -1,0 +1,20 @@
+{
+  "featureId": "pr-review-round2-and-ci-fix",
+  "reviewedAt": "2026-03-14T10:21:39+00:00",
+  "commitId": "6c9cf52c802d607c9a45c633ab458f4f9e5c5b36",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Reviewed the handoff, worker transcript skeleton, commit `6c9cf52c802d607c9a45c633ab458f4f9e5c5b36`, and the touched source/tests. The packet correctly changes `IntegrationCoordinator.updateFulfillment` and its guard script/test assertions to direct dispatch-like fulfillment rejections to the factory-accessible `/api/v1/dispatch/confirm` path. It also adds the missing regression coverage for numeric, blank, and unknown `companyId` queue-production paths, and the handoff records passing compile, gate-fast, targeted JaCoCo, changed-files coverage (100% line / 100% branch), and canonical-path guard verification.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "observation": "The queueProduction fail-closed company guard was already present before this commit; this packet closes the round-two review concern by proving that behavior with focused regression coverage while aligning the remaining fulfillment canonical-path literal.",
+      "evidence": "`git show 6c9cf52c802d607c9a45c633ab458f4f9e5c5b36` only changes `IntegrationCoordinator.updateFulfillment`, `IntegrationCoordinatorTest`, `OrchestratorControllerIT`, and `scripts/guard_workflow_canonical_paths.sh`, while the parent version of `IntegrationCoordinator.java` already resolves `requireCompany(...)` through `orElseThrow(... \"Unknown companyId\")`. The new tests add numeric-company success plus blank/unknown-company rejection coverage."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Commit `6c9cf52c802d607c9a45c633ab458f4f9e5c5b36` cleanly aligns the fulfillment rejection path with the factory dispatch endpoint and supplies the regression coverage needed to satisfy the changed-files CI gate."
+}

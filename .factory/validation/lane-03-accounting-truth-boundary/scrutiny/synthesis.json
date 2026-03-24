@@ -1,0 +1,40 @@
+{
+  "milestone": "lane-03-accounting-truth-boundary",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd \"/home/realnigga/Desktop/Mission-control/erp-domain\" && MIGRATION_SET=v2 mvn -T8 test -Pgate-fast -Djacoco.skip=true",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd \"/home/realnigga/Desktop/Mission-control/erp-domain\" && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "bash \"/home/realnigga/Desktop/Mission-control/ci/lint-knowledgebase.sh\" && bash \"/home/realnigga/Desktop/Mission-control/ci/check-architecture.sh\" && bash \"/home/realnigga/Desktop/Mission-control/ci/check-enterprise-policy.sh\" && bash \"/home/realnigga/Desktop/Mission-control/ci/check-orchestrator-layer.sh\" && python3 \"/home/realnigga/Desktop/Mission-control/scripts/check_flaky_tags.py\" --tests-root \"/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java\" --gate gate-fast && bash \"/home/realnigga/Desktop/Mission-control/scripts/guard_openapi_contract_drift.sh\"",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "skills/scrutiny-validator",
+      "suggestion": "Repair the `scrutiny-feature-reviewer` Task model configuration or codify the direct manual-review fallback as a first-class step in the skill so scrutiny validators can complete per-feature review fan-out without subagent launch failures.",
+      "evidence": "This validation attempted a `scrutiny-feature-reviewer` Task launch for `lane03-prove-sales-dispatch-orders-accounting-truth`, but it failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high`, so the validator completed the review directly from the worker handoff JSON, transcript skeleton, commit diff, and generated packet artifacts.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}

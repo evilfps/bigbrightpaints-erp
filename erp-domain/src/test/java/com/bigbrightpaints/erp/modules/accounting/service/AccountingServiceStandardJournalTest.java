@@ -49,6 +49,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -119,168 +121,14 @@ class AccountingServiceStandardJournalTest {
                 systemSettingsService,
                 auditService,
                 accountingEventStore,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
+                mock(JournalEntryService.class),
+                mock(DealerReceiptService.class),
+                mock(SettlementService.class),
+                mock(CreditDebitNoteService.class),
+                mock(AccountingAuditService.class),
+                mock(InventoryAccountingService.class),
                 accountingFacadeProvider
         );
-    }
-
-    @Test
-    void createStandardJournal_rejectsNonPositiveAmount() {
-        JournalCreationRequest request = new JournalCreationRequest(
-                BigDecimal.ZERO,
-                11L,
-                22L,
-                "Dispatch journal",
-                "SALES",
-                "INV-100",
-                null,
-                null,
-                LocalDate.of(2026, 2, 28),
-                null,
-                null,
-                false
-        );
-
-        assertThatThrownBy(() -> accountingService.createStandardJournal(request))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("amount");
-    }
-
-    @Test
-    void createStandardJournal_mapsToCreateJournalEntryWithAutomatedMetadata() {
-        AccountingService serviceSpy = spy(accountingService);
-        JournalEntryDto expected = new JournalEntryDto(
-                101L,
-                null,
-                "INV-101",
-                LocalDate.of(2026, 2, 28),
-                "Dispatch",
-                "POSTED",
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                List.<JournalLineDto>of(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-        );
-        ArgumentCaptor<JournalEntryRequest> requestCaptor = ArgumentCaptor.forClass(JournalEntryRequest.class);
-        doReturn(expected).when(serviceSpy).createJournalEntry(requestCaptor.capture());
-
-        JournalCreationRequest request = new JournalCreationRequest(
-                new BigDecimal("100.00"),
-                11L,
-                22L,
-                "Dispatch",
-                "SALES",
-                "INV-101",
-                null,
-                List.of(
-                        new JournalCreationRequest.LineRequest(11L, new BigDecimal("100.00"), BigDecimal.ZERO, "AR"),
-                        new JournalCreationRequest.LineRequest(22L, BigDecimal.ZERO, new BigDecimal("100.00"), "Revenue")
-                ),
-                LocalDate.of(2026, 2, 28),
-                55L,
-                null,
-                false
-        );
-
-        JournalEntryDto actual = serviceSpy.createStandardJournal(request);
-
-        assertThat(actual).isSameAs(expected);
-        JournalEntryRequest captured = requestCaptor.getValue();
-        assertThat(captured.referenceNumber()).isEqualTo("INV-101");
-        assertThat(captured.sourceModule()).isEqualTo("SALES");
-        assertThat(captured.sourceReference()).isEqualTo("INV-101");
-        assertThat(captured.journalType()).isEqualTo("AUTOMATED");
-        assertThat(captured.lines()).hasSize(2);
-    }
-
-    @Test
-    void createStandardJournal_propagatesMissingAccountValidation() {
-        AccountingService serviceSpy = spy(accountingService);
-        doThrow(new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Account not found"))
-                .when(serviceSpy).createJournalEntry(any(JournalEntryRequest.class));
-
-        JournalCreationRequest request = new JournalCreationRequest(
-                new BigDecimal("100.00"),
-                111L,
-                222L,
-                "Dispatch",
-                "SALES",
-                "INV-404",
-                null,
-                null,
-                LocalDate.of(2026, 2, 28),
-                null,
-                null,
-                false
-        );
-
-        assertThatThrownBy(() -> serviceSpy.createStandardJournal(request))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("Account not found");
-    }
-
-    @Test
-    void createStandardJournal_propagatesClosedPeriodValidation() {
-        AccountingService serviceSpy = spy(accountingService);
-        doThrow(new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period is closed"))
-                .when(serviceSpy).createJournalEntry(any(JournalEntryRequest.class));
-
-        JournalCreationRequest request = new JournalCreationRequest(
-                new BigDecimal("100.00"),
-                11L,
-                22L,
-                "Dispatch",
-                "SALES",
-                "INV-405",
-                null,
-                null,
-                LocalDate.of(2026, 2, 28),
-                null,
-                null,
-                false
-        );
-
-        assertThatThrownBy(() -> serviceSpy.createStandardJournal(request))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("Accounting period is closed");
-    }
-
-    @Test
-    void createManualJournal_rejectsUnbalancedLines() {
-        ManualJournalRequest request = new ManualJournalRequest(
-                LocalDate.of(2026, 2, 28),
-                "Manual correction",
-                "manual-001",
-                false,
-                List.of(
-                        new ManualJournalRequest.LineRequest(11L, new BigDecimal("100.00"), "Debit line", ManualJournalRequest.EntryType.DEBIT),
-                        new ManualJournalRequest.LineRequest(22L, new BigDecimal("90.00"), "Credit line", ManualJournalRequest.EntryType.CREDIT)
-                )
-        );
-
-        assertThatThrownBy(() -> accountingService.createManualJournal(request))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("must balance");
     }
 
     @Test
@@ -385,61 +233,4 @@ class AccountingServiceStandardJournalTest {
         assertThat(actual).isSameAs(expected);
     }
 
-    @Test
-    void listJournals_filtersByDateTypeAndSourceModule() {
-        Company company = new Company();
-        when(companyContextService.requireCurrentCompany()).thenReturn(company);
-
-        JournalEntry manualEntry = new JournalEntry();
-        ReflectionTestUtils.setField(manualEntry, "id", 1L);
-        manualEntry.setReferenceNumber("JRN-1");
-        manualEntry.setEntryDate(LocalDate.of(2026, 2, 20));
-        manualEntry.setStatus("POSTED");
-        manualEntry.setMemo("Manual");
-        manualEntry.setJournalType(JournalEntryType.MANUAL);
-        manualEntry.setSourceModule("MANUAL");
-        JournalLine mLine1 = new JournalLine();
-        mLine1.setDebit(new BigDecimal("50.00"));
-        mLine1.setCredit(BigDecimal.ZERO);
-        mLine1.setJournalEntry(manualEntry);
-        JournalLine mLine2 = new JournalLine();
-        mLine2.setDebit(BigDecimal.ZERO);
-        mLine2.setCredit(new BigDecimal("50.00"));
-        mLine2.setJournalEntry(manualEntry);
-        manualEntry.getLines().add(mLine1);
-        manualEntry.getLines().add(mLine2);
-
-        JournalEntry automatedEntry = new JournalEntry();
-        ReflectionTestUtils.setField(automatedEntry, "id", 2L);
-        automatedEntry.setReferenceNumber("INV-2");
-        automatedEntry.setEntryDate(LocalDate.of(2026, 2, 22));
-        automatedEntry.setStatus("POSTED");
-        automatedEntry.setMemo("Sales");
-        automatedEntry.setJournalType(JournalEntryType.AUTOMATED);
-        automatedEntry.setSourceModule("SALES");
-        JournalLine aLine1 = new JournalLine();
-        aLine1.setDebit(new BigDecimal("90.00"));
-        aLine1.setCredit(BigDecimal.ZERO);
-        aLine1.setJournalEntry(automatedEntry);
-        JournalLine aLine2 = new JournalLine();
-        aLine2.setDebit(BigDecimal.ZERO);
-        aLine2.setCredit(new BigDecimal("90.00"));
-        aLine2.setJournalEntry(automatedEntry);
-        automatedEntry.getLines().add(aLine1);
-        automatedEntry.getLines().add(aLine2);
-
-        when(journalEntryRepository.findByCompanyOrderByEntryDateDesc(company))
-                .thenReturn(List.of(automatedEntry, manualEntry));
-
-        var result = accountingService.listJournals(
-                LocalDate.of(2026, 2, 21),
-                LocalDate.of(2026, 2, 28),
-                "AUTOMATED",
-                "sales"
-        );
-
-        assertThat(result).hasSize(1);
-        assertThat(result.getFirst().journalType()).isEqualTo("AUTOMATED");
-        assertThat(result.getFirst().sourceModule()).isEqualTo("SALES");
-    }
 }

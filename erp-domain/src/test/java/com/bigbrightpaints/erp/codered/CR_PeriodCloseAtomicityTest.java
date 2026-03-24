@@ -13,6 +13,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
@@ -30,6 +31,9 @@ import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -66,6 +70,7 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
     @AfterEach
     void clearCompanyContext() {
         CompanyContextHolder.clear();
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -89,11 +94,10 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
             CompletableFuture<AccountingPeriodDto> closeFuture = CompletableFuture.supplyAsync(() -> {
                 CompanyContextHolder.setCompanyId(companyCode);
                 try {
-                    return accountingPeriodService.closePeriod(
-                            period.getId(),
-                            new AccountingPeriodCloseRequest(true, "CODE-RED close"));
+                    return forceClosePeriod(period.getId(), "CODE-RED close request", "CODE-RED close approval");
                 } finally {
                     CompanyContextHolder.clear();
+                    SecurityContextHolder.clearContext();
                 }
             }, executor);
 
@@ -129,7 +133,7 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void closeAndReopen_areIdempotent() {
+    void requestCloseAndReopen_areIdempotent() {
         String companyCode = "CR-CLOSE-IDEMP-" + System.nanoTime();
         Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
         CompanyContextHolder.setCompanyId(companyCode);
@@ -149,15 +153,22 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
                     line(cash.getId(), BigDecimal.ZERO, new BigDecimal("50.00"))
             ));
 
-            AccountingPeriodDto first = accountingPeriodService.closePeriod(
+            authenticate("maker.user", "ROLE_ACCOUNTING");
+            var firstRequest = accountingPeriodService.requestPeriodClose(
                     period.getId(),
-                    new AccountingPeriodCloseRequest(true, "CODE-RED close"));
-            AccountingPeriodDto second = accountingPeriodService.closePeriod(
+                    new PeriodCloseRequestActionRequest("CODE-RED close request", true));
+            var secondRequest = accountingPeriodService.requestPeriodClose(
                     period.getId(),
-                    new AccountingPeriodCloseRequest(true, "CODE-RED close retry"));
+                    new PeriodCloseRequestActionRequest("CODE-RED close request retry", true));
 
-            assertThat(second.status()).isEqualTo("CLOSED");
-            assertThat(second.closingJournalEntryId()).isEqualTo(first.closingJournalEntryId());
+            assertThat(secondRequest.id()).isEqualTo(firstRequest.id());
+
+            authenticate("checker.user", "ROLE_ADMIN");
+            AccountingPeriodDto closed = accountingPeriodService.approvePeriodClose(
+                    period.getId(),
+                    new PeriodCloseRequestActionRequest("CODE-RED close approval", true));
+
+            assertThat(closed.status()).isEqualTo("CLOSED");
             assertThat(countClosingJournals(company, period)).isEqualTo(1);
             verify(accountingFacade).createStandardJournal(argThat(request ->
                     request != null
@@ -165,12 +176,14 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
                             && Boolean.TRUE.equals(request.adminOverride())
                             && "ACCOUNTING_PERIOD".equals(request.sourceModule())));
 
+            authenticate("super.admin", "ROLE_SUPER_ADMIN");
             AccountingPeriodDto reopened = accountingPeriodService.reopenPeriod(
                     period.getId(),
                     new AccountingPeriodReopenRequest("CODE-RED reopen"));
             assertThat(reopened.status()).isEqualTo("OPEN");
             assertThat(reopened.closingJournalEntryId()).isNull();
 
+            authenticate("super.admin", "ROLE_SUPER_ADMIN");
             AccountingPeriodDto reopenedAgain = accountingPeriodService.reopenPeriod(
                     period.getId(),
                     new AccountingPeriodReopenRequest("CODE-RED reopen retry"));
@@ -184,7 +197,12 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
             JournalEntry closing = journalEntryRepository.findByCompanyAndReferenceNumber(
                     company, closingReference(period)).orElseThrow();
             assertThat(closing.getStatus()).isEqualTo("REVERSED");
-            assertThat(closing.getReversalEntry()).isNotNull();
+            Integer reversalCount = jdbcTemplate.queryForObject(
+                    "select count(*) from journal_entries where reversal_of_id = ?",
+                    Integer.class,
+                    closing.getId()
+            );
+            assertThat(reversalCount).isNotNull().isEqualTo(1);
         } finally {
             CompanyContextHolder.clear();
         }
@@ -231,6 +249,25 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
                 closingReference(period)
         );
         return count != null ? count : 0;
+    }
+
+    private AccountingPeriodDto forceClosePeriod(Long periodId, String requestNote, String approvalNote) {
+        authenticate("maker.user", "ROLE_ACCOUNTING");
+        accountingPeriodService.requestPeriodClose(periodId, new PeriodCloseRequestActionRequest(requestNote, true));
+        authenticate("checker.user", "ROLE_ADMIN");
+        return accountingPeriodService.approvePeriodClose(periodId, new PeriodCloseRequestActionRequest(approvalNote, true));
+    }
+
+    private void authenticate(String username, String... roles) {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        username,
+                        "N/A",
+                        java.util.Arrays.stream(roles)
+                                .map(SimpleGrantedAuthority::new)
+                                .toList()
+                )
+        );
     }
 
     @TestConfiguration

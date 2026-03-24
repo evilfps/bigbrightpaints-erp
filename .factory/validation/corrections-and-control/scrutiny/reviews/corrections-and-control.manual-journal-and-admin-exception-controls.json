@@ -1,0 +1,15 @@
+{
+  "featureId": "corrections-and-control.manual-journal-and-admin-exception-controls",
+  "reviewedAt": "2026-03-08T11:44:10+05:30",
+  "commitId": "1ec579dc214efce563da73998124a362fbefb963",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature hardens manual journal and exception control paths in the expected seams: manual journals now require explicit balanced lines plus attachment references, closed-period posting routes through a document-scoped one-hour exception service, and period-close or override endpoints were re-aligned to admin-only approval contracts. The reviewed worker transcript shows targeted accounting/control analysis and the diff backs it up with the new closed-period exception entity/service, tightened journal creation payloads, audit metadata wiring, and focused policy/security/runtime coverage.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Manual journals remain controlled adjustments with required reason/attachments, closed-period posting now needs a document-scoped one-hour admin exception, and the reviewed policy/security tests cover the admin-only approval paths without surfacing a blocking regression."
+}

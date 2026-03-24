@@ -4,9 +4,11 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventRepository;
+import com.bigbrightpaints.erp.modules.accounting.internal.AccountingAuditTrailServiceCore;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
-import jakarta.persistence.EntityManager;
+import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -33,19 +35,5 @@ public class AccountingAuditTrailService extends AccountingAuditTrailServiceCore
      * return "ACCOUNTING";
      */
 
-    public AccountingAuditTrailService(CompanyContextService companyContextService,
-                                       JournalEntryRepository journalEntryRepository,
-                                       JournalLineRepository journalLineRepository,
-                                       AccountingEventRepository accountingEventRepository,
-                                       PartnerSettlementAllocationRepository settlementAllocationRepository,
-                                       InvoiceRepository invoiceRepository,
-                                       EntityManager entityManager) {
-        super(companyContextService,
-                journalEntryRepository,
-                journalLineRepository,
-                accountingEventRepository,
-                settlementAllocationRepository,
-                invoiceRepository,
-                entityManager);
-    }
+    public AccountingAuditTrailService(CompanyContextService companyContextService, JournalEntryRepository journalEntryRepository, JournalLineRepository journalLineRepository, AccountingEventRepository accountingEventRepository, PartnerSettlementAllocationRepository settlementAllocationRepository, InvoiceRepository invoiceRepository, RawMaterialPurchaseRepository rawMaterialPurchaseRepository, PackagingSlipRepository packagingSlipRepository) { super(companyContextService, journalEntryRepository, journalLineRepository, accountingEventRepository, settlementAllocationRepository, invoiceRepository, rawMaterialPurchaseRepository, packagingSlipRepository); }
 }

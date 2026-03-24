@@ -1,0 +1,22 @@
+{
+  "featureId": "freeze-dispatch-replay-seams",
+  "milestone": "freeze-dispatch-seams",
+  "status": "pass",
+  "summary": "Pass. Commit 918319a adds a single self-contained truthsuite class that directly covers VAL-REPLAY-001 through VAL-REPLAY-004: replay reuses the existing invoice, preserves unique AR/COGS journal references, short-circuits finished-goods dispatch movement creation, and fails closed with an explicit reconciliation error when invoice resolution is ambiguous. Mission transcript and handoff evidence align with the diff, and I did not find a contract gap in the touched file.",
+  "issues": [],
+  "sharedStateObservations": [],
+  "reviewedArtifacts": [
+    "/home/realnigga/Desktop/Mission-control/README.md",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/AGENTS.md",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/features.json",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/validation-contract.md",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/progress_log.jsonl",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/worker-transcripts.jsonl",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/handoffs/2026-03-13T21-28-21-465Z__freeze-dispatch-replay-seams__6765ba77-4f40-4495-a420-7c2ff72092a0.json",
+    "/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2CDispatchReplaySafetyTest.java",
+    "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesCoreEngine.java",
+    "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsDispatchEngine.java",
+    "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/domain/InvoiceRepository.java",
+    "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/domain/InventoryMovementRepository.java"
+  ]
+}

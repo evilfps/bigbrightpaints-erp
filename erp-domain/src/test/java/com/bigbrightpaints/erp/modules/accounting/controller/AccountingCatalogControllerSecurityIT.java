@@ -1,17 +1,24 @@
 package com.bigbrightpaints.erp.modules.accounting.controller;
 
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
-import com.bigbrightpaints.erp.modules.production.domain.CatalogImport;
-import com.bigbrightpaints.erp.modules.production.domain.CatalogImportRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
@@ -20,990 +27,414 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
-import jakarta.persistence.EntityManager;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.atLeast;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
 
+@Tag("critical")
 class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
 
-    private static final String COMPANY_CODE = "CAT-SEC-A1";
-    private static final String OTHER_COMPANY_CODE = "CAT-SEC-B1";
-    private static final String PASSWORD = "CatalogSec123!";
-    private static final String ADMIN_EMAIL = "catalog-sec-admin@bbp.com";
-    private static final String ACCOUNTING_EMAIL = "catalog-sec-accounting@bbp.com";
-    private static final String OTHER_ACCOUNTING_EMAIL = "catalog-sec-accounting-b@bbp.com";
-    private static final String SALES_EMAIL = "catalog-sec-sales@bbp.com";
+    private static final String COMPANY_CODE = "CAT-SURFACE-RETIRE";
+    private static final String PASSWORD = "changeme";
+    private static final String ADMIN_EMAIL = "catalog-surface-retire@bbp.com";
+    private static final String ACCOUNTING_EMAIL = "catalog-surface-accounting@bbp.com";
+    private static final String SALES_EMAIL = "catalog-surface-sales@bbp.com";
+    private static final String FACTORY_EMAIL = "catalog-surface-factory@bbp.com";
 
-    @Autowired
-    private TestRestTemplate rest;
+    @Autowired private TestRestTemplate rest;
+    @Autowired private CompanyRepository companyRepository;
+    @Autowired private AccountRepository accountRepository;
+    @Autowired private ProductionBrandRepository productionBrandRepository;
+    @Autowired private ProductionProductRepository productionProductRepository;
+    @Autowired private FinishedGoodRepository finishedGoodRepository;
+    @Autowired private RawMaterialRepository rawMaterialRepository;
+    @Autowired private RawMaterialBatchRepository rawMaterialBatchRepository;
 
-    @Autowired
-    private CatalogImportRepository catalogImportRepository;
-
-    @SpyBean(proxyTargetAware = true)
-    private RawMaterialRepository rawMaterialRepository;
-
-    @Autowired
-    private ProductionBrandRepository productionBrandRepository;
-
-    @Autowired
-    private ProductionProductRepository productionProductRepository;
-
-    @Autowired
-    private EntityManager entityManager;
+    private Company company;
+    private Account inventoryAccount;
+    private Account cogsAccount;
+    private Account revenueAccount;
+    private Account discountAccount;
+    private Account taxAccount;
+    private Account wipAccount;
+    private Account laborAppliedAccount;
+    private Account overheadAppliedAccount;
+    private HttpHeaders headers;
 
     @BeforeEach
-    void setUpUsers() {
-        dataSeeder.ensureUser(ADMIN_EMAIL, PASSWORD, "Catalog Sec Admin", COMPANY_CODE, List.of("ROLE_ADMIN"));
-        dataSeeder.ensureUser(ACCOUNTING_EMAIL, PASSWORD, "Catalog Sec Accounting", COMPANY_CODE, List.of("ROLE_ACCOUNTING"));
-        dataSeeder.ensureUser(SALES_EMAIL, PASSWORD, "Catalog Sec Sales", COMPANY_CODE, List.of("ROLE_SALES"));
-        dataSeeder.ensureCompany(OTHER_COMPANY_CODE, "Catalog Sec Other Co");
-        dataSeeder.ensureUser(OTHER_ACCOUNTING_EMAIL, PASSWORD, "Catalog Sec Accounting B", OTHER_COMPANY_CODE,
-                List.of("ROLE_ACCOUNTING"));
+    void setUp() {
+        company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Surface Retirement Co");
+        inventoryAccount = ensureAccount("INV", "Inventory", AccountType.ASSET);
+        cogsAccount = ensureAccount("COGS", "COGS", AccountType.COGS);
+        revenueAccount = ensureAccount("REV", "Revenue", AccountType.REVENUE);
+        discountAccount = ensureAccount("DISC", "Discount", AccountType.EXPENSE);
+        taxAccount = ensureAccount("GST-OUT", "GST Output", AccountType.LIABILITY);
+        wipAccount = ensureAccount("WIP", "Work In Progress", AccountType.ASSET);
+        laborAppliedAccount = ensureAccount("LAB", "Labor Applied", AccountType.ASSET);
+        overheadAppliedAccount = ensureAccount("OVH", "Overhead Applied", AccountType.ASSET);
+
+        company.setDefaultInventoryAccountId(inventoryAccount.getId());
+        company.setDefaultCogsAccountId(cogsAccount.getId());
+        company.setDefaultRevenueAccountId(revenueAccount.getId());
+        company.setDefaultDiscountAccountId(discountAccount.getId());
+        company.setDefaultTaxAccountId(taxAccount.getId());
+        company.setGstOutputTaxAccountId(taxAccount.getId());
+        companyRepository.save(company);
+
+        dataSeeder.ensureUser(ADMIN_EMAIL, PASSWORD, "Catalog Surface Admin", COMPANY_CODE, List.of("ROLE_ADMIN"));
+        dataSeeder.ensureUser(ACCOUNTING_EMAIL, PASSWORD, "Catalog Surface Accounting", COMPANY_CODE, List.of("ROLE_ACCOUNTING"));
+        dataSeeder.ensureUser(SALES_EMAIL, PASSWORD, "Catalog Surface Sales", COMPANY_CODE, List.of("ROLE_SALES"));
+        dataSeeder.ensureUser(FACTORY_EMAIL, PASSWORD, "Catalog Surface Factory", COMPANY_CODE, List.of("ROLE_FACTORY"));
+        headers = authHeaders();
     }
 
     @Test
-    void accountingCatalogImport_allowsAdminAndAccounting_only() {
+    void existingBrandFlow_usesCanonicalBrandList_andRemainsDownstreamReady() {
+        ProductionBrand activeBrand = saveBrand("Existing Flow Active " + shortId(), true);
+        ProductionBrand inactiveBrand = saveBrand("Existing Flow Inactive " + shortId(), false);
+
+        ResponseEntity<Map> brandListResponse = rest.exchange(
+                "/api/v1/catalog/brands?active=true",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+
+        assertThat(brandListResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        List<Map<String, Object>> brandList = dataList(brandListResponse);
+        assertThat(brandList)
+                .extracting(brand -> ((Number) brand.get("id")).longValue())
+                .contains(activeBrand.getId())
+                .doesNotContain(inactiveBrand.getId());
+        assertThat(brandList)
+                .allMatch(brand -> Boolean.TRUE.equals(brand.get("active")));
+
+        DownstreamFlowResult flow = runDownstreamReadyFlow(activeBrand.getId(), "Existing Flow Primer " + shortId());
+        assertThat(flow.brandId()).isEqualTo(activeBrand.getId());
+        assertThat(flow.sku()).startsWith("FG-");
+    }
+
+    @Test
+    void newBrandFlow_usesCanonicalBrandCreate_andRemainsDownstreamReady() {
+        ResponseEntity<Map> createBrandResponse = rest.exchange(
+                "/api/v1/catalog/brands",
+                HttpMethod.POST,
+                new HttpEntity<>(Map.of(
+                        "name", "New Flow Brand " + shortId(),
+                        "description", "Created on canonical host",
+                        "active", true
+                ), headers),
+                Map.class);
+
+        assertThat(createBrandResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> createdBrand = data(createBrandResponse);
+        Long brandId = ((Number) createdBrand.get("id")).longValue();
+        assertThat(createdBrand.get("code")).isNotNull();
+
+        ResponseEntity<Map> brandListResponse = rest.exchange(
+                "/api/v1/catalog/brands?active=true",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+
+        assertThat(brandListResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(dataList(brandListResponse))
+                .extracting(brand -> ((Number) brand.get("id")).longValue())
+                .contains(brandId);
+
+        DownstreamFlowResult flow = runDownstreamReadyFlow(brandId, "New Flow Primer " + shortId());
+        assertThat(flow.brandId()).isEqualTo(brandId);
+    }
+
+    @Test
+    void retiredAccountingAndProductionRoutes_areUnmappedForAuthenticatedCallers() {
+        assertRetiredRouteNotFound(HttpMethod.POST, "/api/v1/accounting/catalog/import", Map.of("ignored", true));
+        assertRetiredRouteNotFound(HttpMethod.GET, "/api/v1/accounting/catalog/products", null);
+        assertRetiredRouteNotFound(HttpMethod.POST, "/api/v1/accounting/catalog/products", Map.of("ignored", true));
+        assertRetiredRouteNotFound(HttpMethod.PUT, "/api/v1/accounting/catalog/products/999", Map.of("ignored", true));
+        assertRetiredRouteNotFound(HttpMethod.POST, "/api/v1/accounting/catalog/products/bulk-variants", Map.of("ignored", true));
+        assertRetiredRouteNotFound(HttpMethod.POST, "/api/v1/accounting/catalog/products/bulk-variants?dryRun=true", Map.of("ignored", true));
+        assertRetiredRouteNotFound(HttpMethod.GET, "/api/v1/production/brands", null);
+        assertRetiredRouteNotFound(HttpMethod.GET, "/api/v1/production/brands/999/products", null);
+    }
+
+    @Test
+    void canonicalImportRoute_allowsAdminAndAccounting_only() {
+        String csvRows = "brand,product_name,sku,category,unit_of_measure,hsn_code,gst_rate,base_price,color,size\n"
+                + "Surface Brand,Surface Primer,SURFACE-PRIMER-001,FINISHED_GOOD,LITER,320910,18,1200,WHITE,1L\n";
+
         ResponseEntity<Map> adminResponse = importCatalog(
                 authHeaders(ADMIN_EMAIL, PASSWORD, COMPANY_CODE),
-                "RBAC-RM-" + shortId(),
-                "CAT-RBAC-ADMIN-" + shortId());
+                csvRows,
+                "catalog-import-admin.csv");
         assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         ResponseEntity<Map> accountingResponse = importCatalog(
                 authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE),
-                "RBAC-RM-" + shortId(),
-                "CAT-RBAC-ACC-" + shortId());
+                csvRows,
+                "catalog-import-accounting.csv");
         assertThat(accountingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         ResponseEntity<Map> salesResponse = importCatalog(
                 authHeaders(SALES_EMAIL, PASSWORD, COMPANY_CODE),
-                "RBAC-RM-" + shortId(),
-                "CAT-RBAC-SALES-" + shortId());
+                csvRows,
+                "catalog-import-sales.csv");
         assertThat(salesResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> factoryResponse = importCatalog(
+                authHeaders(FACTORY_EMAIL, PASSWORD, COMPANY_CODE),
+                csvRows,
+                "catalog-import-factory.csv");
+        assertThat(factoryResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test
-    void accountingCatalogImport_rejectsCrossCompanyHeaderMismatch() {
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        accountingHeaders.set("X-Company-Id", OTHER_COMPANY_CODE);
-
-        ResponseEntity<Map> mismatchResponse = importCatalog(
-                accountingHeaders,
-                "RBAC-RM-MISMATCH-" + shortId(),
-                "CAT-RBAC-MISMATCH-" + shortId());
-
-        assertThat(mismatchResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-    }
-
-    @Test
-    void accountingCatalogImport_sameIdempotencyKeyAcrossCompaniesRemainsCompanyScoped() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        Company otherCompany = dataSeeder.ensureCompany(OTHER_COMPANY_CODE, "Catalog Sec Other Co");
-        HttpHeaders companyHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        HttpHeaders otherCompanyHeaders = authHeaders(OTHER_ACCOUNTING_EMAIL, PASSWORD, OTHER_COMPANY_CODE);
-        String idempotencyKey = "CAT-XCOMP-" + shortId();
-        String companyWinnerSku = "RM-XCOMP-A-" + shortId();
-        String otherCompanyWinnerSku = "RM-XCOMP-B-" + shortId();
-        String companyLoserSku = "RM-XCOMP-A-LOSER-" + shortId();
-        String otherCompanyLoserSku = "RM-XCOMP-B-LOSER-" + shortId();
-
-        ResponseEntity<Map> companyWinnerResponse = importCatalog(companyHeaders, companyWinnerSku, idempotencyKey);
-        ResponseEntity<Map> otherCompanyWinnerResponse = importCatalog(otherCompanyHeaders, otherCompanyWinnerSku, idempotencyKey);
-        assertThat(companyWinnerResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(otherCompanyWinnerResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        CatalogImport companyWinnerRecord = catalogImportRepository
-                .findByCompanyAndIdempotencyKey(company, idempotencyKey)
-                .orElseThrow();
-        CatalogImport otherCompanyWinnerRecord = catalogImportRepository
-                .findByCompanyAndIdempotencyKey(otherCompany, idempotencyKey)
-                .orElseThrow();
-        assertThat(companyWinnerRecord.getId()).isNotEqualTo(otherCompanyWinnerRecord.getId());
-
-        ResponseEntity<Map> companyLoserResponse = importCatalog(companyHeaders, companyLoserSku, idempotencyKey);
-        ResponseEntity<Map> otherCompanyLoserResponse = importCatalog(otherCompanyHeaders, otherCompanyLoserSku, idempotencyKey);
-        assertThat(companyLoserResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(otherCompanyLoserResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, companyWinnerSku)).isPresent();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(otherCompany, otherCompanyWinnerSku)).isPresent();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, otherCompanyWinnerSku)).isEmpty();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(otherCompany, companyWinnerSku)).isEmpty();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, companyLoserSku)).isEmpty();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(otherCompany, otherCompanyLoserSku)).isEmpty();
-    }
-
-    @Test
-    void accountingCatalogImport_idempotencyKeyWhitespaceVariantsReplayDeterministically() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String baseKey = "CAT-IDEM-WS-" + shortId();
-        String paddedKey = "   " + baseKey + "   ";
-        String winnerSku = "RM-IDEM-WS-WIN-" + shortId();
-        String loserSku = "RM-IDEM-WS-LOSE-" + shortId();
-
-        ResponseEntity<Map> winnerResponse = importCatalog(accountingHeaders, winnerSku, paddedKey);
-        ResponseEntity<Map> replayResponse = importCatalog(accountingHeaders, winnerSku, baseKey);
-        assertThat(winnerResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(replayResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        CatalogImport winnerRecord = catalogImportRepository.findByCompanyAndIdempotencyKey(company, baseKey)
-                .orElseThrow();
-        assertThat(winnerRecord.getIdempotencyKey()).isEqualTo(baseKey);
-        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, paddedKey)).isEmpty();
-        Long matchingRows = entityManager.createQuery(
-                        "select count(ci) from CatalogImport ci where ci.company = :company and ci.idempotencyKey in :keys",
-                        Long.class)
-                .setParameter("company", company)
-                .setParameter("keys", List.of(baseKey, paddedKey))
-                .getSingleResult();
-        assertThat(matchingRows).isEqualTo(1L);
-
-        ResponseEntity<Map> mismatchResponse = importCatalog(accountingHeaders, loserSku, paddedKey);
-        assertThat(mismatchResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, winnerSku)).isPresent();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, loserSku)).isEmpty();
-    }
-
-    @Test
-    void accountingCatalogImport_idempotencyKeyCaseVariantsStayDeterministicPerVariant() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String upperKey = "CAT-IDEM-CASE-" + shortId();
-        String lowerKey = upperKey.toLowerCase(Locale.ROOT);
-        String upperWinnerSku = "RM-IDEM-CASE-UP-" + shortId();
-        String lowerWinnerSku = "RM-IDEM-CASE-LO-" + shortId();
-        String upperLoserSku = "RM-IDEM-CASE-UP-LOSE-" + shortId();
-        String lowerLoserSku = "RM-IDEM-CASE-LO-LOSE-" + shortId();
-
-        ResponseEntity<Map> upperWinnerResponse = importCatalog(accountingHeaders, upperWinnerSku, upperKey);
-        ResponseEntity<Map> lowerWinnerResponse = importCatalog(accountingHeaders, lowerWinnerSku, lowerKey);
-        assertThat(upperWinnerResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(lowerWinnerResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        CatalogImport upperRecord = catalogImportRepository.findByCompanyAndIdempotencyKey(company, upperKey).orElseThrow();
-        CatalogImport lowerRecord = catalogImportRepository.findByCompanyAndIdempotencyKey(company, lowerKey).orElseThrow();
-        assertThat(upperRecord.getId()).isNotEqualTo(lowerRecord.getId());
-
-        ResponseEntity<Map> upperLoserResponse = importCatalog(accountingHeaders, upperLoserSku, upperKey);
-        ResponseEntity<Map> lowerLoserResponse = importCatalog(accountingHeaders, lowerLoserSku, lowerKey);
-        assertThat(upperLoserResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(lowerLoserResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, upperWinnerSku)).isPresent();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, lowerWinnerSku)).isPresent();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, upperLoserSku)).isEmpty();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, lowerLoserSku)).isEmpty();
-    }
-
-    @Test
-    void accountingCatalogImport_rejectsIdempotencyKeyPayloadMismatchWithoutPartialMutations() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-IDEMP-MISMATCH-" + shortId();
-        String firstSku = "RM-IDEMP-A-" + shortId();
-        String secondSku = "RM-IDEMP-B-" + shortId();
-
-        ResponseEntity<Map> firstResponse = importCatalog(accountingHeaders, firstSku, idempotencyKey);
-        assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        Optional<CatalogImport> firstRecord = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey);
-        assertThat(firstRecord).isPresent();
-        CatalogImport winnerRecord = firstRecord.get();
-        int brandsAfterWinner = productionBrandRepository.findByCompanyOrderByNameAsc(company).size();
-        int productsAfterWinner = productionProductRepository.findByCompanyOrderByProductNameAsc(company).size();
-
-        ResponseEntity<Map> secondResponse = importCatalog(accountingHeaders, secondSku, idempotencyKey);
-        assertThat(secondResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(secondResponse.getBody()).isNotNull();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> errorData = (Map<String, Object>) secondResponse.getBody().get("data");
-        assertThat(errorData).containsEntry("code", "CONC_001");
-
-        Optional<CatalogImport> persistedRecord = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey);
-        assertThat(persistedRecord).isPresent();
-        assertThat(persistedRecord.get().getId()).isEqualTo(winnerRecord.getId());
-        assertThat(persistedRecord.get().getRowsProcessed()).isEqualTo(winnerRecord.getRowsProcessed());
-        assertThat(persistedRecord.get().getBrandsCreated()).isEqualTo(winnerRecord.getBrandsCreated());
-        assertThat(persistedRecord.get().getProductsCreated()).isEqualTo(winnerRecord.getProductsCreated());
-        assertThat(persistedRecord.get().getProductsUpdated()).isEqualTo(winnerRecord.getProductsUpdated());
-        assertThat(persistedRecord.get().getRawMaterialsSeeded()).isEqualTo(winnerRecord.getRawMaterialsSeeded());
-        assertThat(persistedRecord.get().getErrorsJson()).isEqualTo(winnerRecord.getErrorsJson());
-        assertThat(productionBrandRepository.findByCompanyOrderByNameAsc(company)).hasSize(brandsAfterWinner);
-        assertThat(productionProductRepository.findByCompanyOrderByProductNameAsc(company)).hasSize(productsAfterWinner);
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, firstSku)).isPresent();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, secondSku)).isEmpty();
-    }
-
-    @Test
-    void accountingCatalogImport_sameSkuMismatchDoesNotMutateWinnerRows() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-IDEMP-SAME-SKU-" + shortId();
-        String sharedSku = "RM-IDEMP-SHARED-" + shortId();
-        String winnerProductName = "RBAC Winner " + shortId();
-        String loserProductName = "RBAC Loser " + shortId();
-
-        ResponseEntity<Map> firstResponse = importCatalogWithCustomFile(
-                accountingHeaders,
-                catalogCsvContent(sharedSku, winnerProductName),
-                "catalog-" + sharedSku + "-winner.csv",
-                "text/csv",
-                idempotencyKey);
-        assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        CatalogImport winnerImport = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)
-                .orElseThrow();
-        var winnerProduct = productionProductRepository.findByCompanyAndSkuCode(company, sharedSku).orElseThrow();
-        var winnerMaterial = rawMaterialRepository.findByCompanyAndSku(company, sharedSku).orElseThrow();
-        Long winnerProductId = winnerProduct.getId();
-        String winnerPersistedProductName = winnerProduct.getProductName();
-        Long winnerMaterialId = winnerMaterial.getId();
-        String winnerPersistedMaterialName = winnerMaterial.getName();
-
-        ResponseEntity<Map> secondResponse = importCatalogWithCustomFile(
-                accountingHeaders,
-                catalogCsvContent(sharedSku, loserProductName),
-                "catalog-" + sharedSku + "-loser.csv",
-                "text/csv",
-                idempotencyKey);
-        assertThat(secondResponse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(secondResponse.getBody()).isNotNull();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> errorData = (Map<String, Object>) secondResponse.getBody().get("data");
-        assertThat(errorData).containsEntry("code", "CONC_001");
-
-        CatalogImport persistedImport = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)
-                .orElseThrow();
-        assertThat(persistedImport.getId()).isEqualTo(winnerImport.getId());
-        assertThat(persistedImport.getRowsProcessed()).isEqualTo(winnerImport.getRowsProcessed());
-        assertThat(persistedImport.getProductsCreated()).isEqualTo(winnerImport.getProductsCreated());
-        assertThat(persistedImport.getProductsUpdated()).isEqualTo(winnerImport.getProductsUpdated());
-
-        var productAfterConflict = productionProductRepository.findByCompanyAndSkuCode(company, sharedSku).orElseThrow();
-        var materialAfterConflict = rawMaterialRepository.findByCompanyAndSku(company, sharedSku).orElseThrow();
-        assertThat(productAfterConflict.getId()).isEqualTo(winnerProductId);
-        assertThat(productAfterConflict.getProductName()).isEqualTo(winnerPersistedProductName);
-        assertThat(productAfterConflict.getProductName()).isEqualTo(winnerProductName);
-        assertThat(materialAfterConflict.getId()).isEqualTo(winnerMaterialId);
-        assertThat(materialAfterConflict.getName()).isEqualTo(winnerPersistedMaterialName);
-    }
-
-    @Test
-    void accountingCatalogImport_concurrentMismatchProducesSingleWinnerAndConflict() throws Exception {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-IDEMP-RACE-" + shortId();
-        String firstSku = "RM-RACE-A-" + shortId();
-        String secondSku = "RM-RACE-B-" + shortId();
-
-        CountDownLatch ready = new CountDownLatch(2);
-        CountDownLatch start = new CountDownLatch(1);
-        ExecutorService pool = Executors.newFixedThreadPool(2);
-        try {
-            Future<ResponseEntity<Map>> firstFuture = pool.submit(() ->
-                    importCatalogAfterBarrier(accountingHeaders, firstSku, idempotencyKey, ready, start));
-            Future<ResponseEntity<Map>> secondFuture = pool.submit(() ->
-                    importCatalogAfterBarrier(accountingHeaders, secondSku, idempotencyKey, ready, start));
-
-            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
-            start.countDown();
-
-            ResponseEntity<Map> firstResponse = firstFuture.get(30, TimeUnit.SECONDS);
-            ResponseEntity<Map> secondResponse = secondFuture.get(30, TimeUnit.SECONDS);
-            List<ResponseEntity<Map>> responses = List.of(firstResponse, secondResponse);
-
-            long okCount = responses.stream().filter(response -> response.getStatusCode() == HttpStatus.OK).count();
-            long conflictCount = responses.stream().filter(response -> response.getStatusCode() == HttpStatus.CONFLICT).count();
-            assertThat(okCount).isEqualTo(1);
-            assertThat(conflictCount).isEqualTo(1);
-
-            ResponseEntity<Map> conflictResponse = responses.stream()
-                    .filter(response -> response.getStatusCode() == HttpStatus.CONFLICT)
-                    .findFirst()
-                    .orElseThrow();
-            assertThat(conflictResponse.getBody()).isNotNull();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> errorData = (Map<String, Object>) conflictResponse.getBody().get("data");
-            assertThat(errorData).containsEntry("code", "CONC_001");
-
-            Optional<CatalogImport> persistedRecord = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey);
-            assertThat(persistedRecord).isPresent();
-
-            boolean firstCreated = rawMaterialRepository.findByCompanyAndSku(company, firstSku).isPresent();
-            boolean secondCreated = rawMaterialRepository.findByCompanyAndSku(company, secondSku).isPresent();
-            assertThat(firstCreated ^ secondCreated).isTrue();
-        } finally {
-            pool.shutdownNow();
-        }
-    }
-
-    @Test
-    void accountingCatalogImport_concurrentMismatchWinnerReplayStaysStableAndLoserNeverMaterializes() throws Exception {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-IDEMP-RACE-REPLAY-" + shortId();
-        String firstSku = "RM-RACE-R1-" + shortId();
-        String secondSku = "RM-RACE-R2-" + shortId();
-
-        CountDownLatch ready = new CountDownLatch(2);
-        CountDownLatch start = new CountDownLatch(1);
-        ExecutorService pool = Executors.newFixedThreadPool(2);
-        try {
-            Future<ResponseEntity<Map>> firstFuture = pool.submit(() ->
-                    importCatalogAfterBarrier(accountingHeaders, firstSku, idempotencyKey, ready, start));
-            Future<ResponseEntity<Map>> secondFuture = pool.submit(() ->
-                    importCatalogAfterBarrier(accountingHeaders, secondSku, idempotencyKey, ready, start));
-
-            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
-            start.countDown();
-
-            ResponseEntity<Map> firstResponse = firstFuture.get(30, TimeUnit.SECONDS);
-            ResponseEntity<Map> secondResponse = secondFuture.get(30, TimeUnit.SECONDS);
-            List<ResponseEntity<Map>> responses = List.of(firstResponse, secondResponse);
-
-            long okCount = responses.stream().filter(response -> response.getStatusCode() == HttpStatus.OK).count();
-            long conflictCount = responses.stream().filter(response -> response.getStatusCode() == HttpStatus.CONFLICT).count();
-            assertThat(okCount).isEqualTo(1);
-            assertThat(conflictCount).isEqualTo(1);
-
-            boolean firstWon = firstResponse.getStatusCode() == HttpStatus.OK;
-            String winnerSku = firstWon ? firstSku : secondSku;
-            String loserSku = firstWon ? secondSku : firstSku;
-
-            CatalogImport winnerRecord = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)
-                    .orElseThrow();
-            Long winnerRecordId = winnerRecord.getId();
-            Integer winnerRowsProcessed = winnerRecord.getRowsProcessed();
-            Integer winnerProductsCreated = winnerRecord.getProductsCreated();
-            Integer winnerProductsUpdated = winnerRecord.getProductsUpdated();
-            Integer winnerRawMaterialsSeeded = winnerRecord.getRawMaterialsSeeded();
-            String winnerErrorsJson = winnerRecord.getErrorsJson();
-
-            ResponseEntity<Map> winnerReplay = importCatalog(accountingHeaders, winnerSku, idempotencyKey);
-            assertThat(winnerReplay.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(winnerReplay.getBody()).isNotNull();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> winnerReplayData = (Map<String, Object>) winnerReplay.getBody().get("data");
-            assertThat(winnerReplayData).containsEntry("rowsProcessed", winnerRowsProcessed);
-            assertThat(winnerReplayData).containsEntry("productsCreated", winnerProductsCreated);
-            assertThat(winnerReplayData).containsEntry("productsUpdated", winnerProductsUpdated);
-            assertThat(winnerReplayData).containsEntry("rawMaterialsSeeded", winnerRawMaterialsSeeded);
-
-            ResponseEntity<Map> loserReplayFirst = importCatalog(accountingHeaders, loserSku, idempotencyKey);
-            assertThat(loserReplayFirst.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-            assertThat(loserReplayFirst.getBody()).isNotNull();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> loserReplayFirstError = (Map<String, Object>) loserReplayFirst.getBody().get("data");
-            assertThat(loserReplayFirstError).containsEntry("code", "CONC_001");
-
-            ResponseEntity<Map> loserReplaySecond = importCatalog(accountingHeaders, loserSku, idempotencyKey);
-            assertThat(loserReplaySecond.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-            assertThat(loserReplaySecond.getBody()).isNotNull();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> loserReplaySecondError = (Map<String, Object>) loserReplaySecond.getBody().get("data");
-            assertThat(loserReplaySecondError).containsEntry("code", "CONC_001");
-
-            CatalogImport persistedAfterReplays = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)
-                    .orElseThrow();
-            assertThat(persistedAfterReplays.getId()).isEqualTo(winnerRecordId);
-            assertThat(persistedAfterReplays.getRowsProcessed()).isEqualTo(winnerRowsProcessed);
-            assertThat(persistedAfterReplays.getProductsCreated()).isEqualTo(winnerProductsCreated);
-            assertThat(persistedAfterReplays.getProductsUpdated()).isEqualTo(winnerProductsUpdated);
-            assertThat(persistedAfterReplays.getRawMaterialsSeeded()).isEqualTo(winnerRawMaterialsSeeded);
-            assertThat(persistedAfterReplays.getErrorsJson()).isEqualTo(winnerErrorsJson);
-
-            assertThat(rawMaterialRepository.findByCompanyAndSku(company, winnerSku)).isPresent();
-            assertThat(rawMaterialRepository.findByCompanyAndSku(company, loserSku)).isEmpty();
-        } finally {
-            pool.shutdownNow();
-        }
-    }
-
-    @Test
-    void accountingCatalogImport_staleRetryReplayKeepsWinnerPayloadStable() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-STALE-RETRY-" + shortId();
-        String winnerSku = "RM-STALE-" + shortId();
-        String winnerProductName = "RBAC Stale Winner " + shortId();
-        AtomicBoolean failFirstSave = new AtomicBoolean(true);
-
-        doAnswer(invocation -> {
-            RawMaterial material = invocation.getArgument(0);
-            if (material != null
-                    && winnerSku.equalsIgnoreCase(material.getSku())
-                    && failFirstSave.compareAndSet(true, false)) {
-                throw new ObjectOptimisticLockingFailureException(
-                        RawMaterial.class,
-                        material.getId() == null ? -1L : material.getId());
-            }
-            return persistRawMaterial(material);
-        }).when(rawMaterialRepository).save(any(RawMaterial.class));
-
-        try {
-            ResponseEntity<Map> firstResponse = importCatalogWithCustomFile(
-                    accountingHeaders,
-                    catalogCsvContent(winnerSku, winnerProductName),
-                    "catalog-" + winnerSku + ".csv",
-                    "text/csv",
-                    idempotencyKey);
-            assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(failFirstSave).isFalse();
-            verify(rawMaterialRepository, atLeast(2))
-                    .save(argThat(material -> material != null && winnerSku.equalsIgnoreCase(material.getSku())));
-
-            CatalogImport winnerRecord = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)
-                    .orElseThrow();
-            Long winnerRecordId = winnerRecord.getId();
-            Integer winnerRowsProcessed = winnerRecord.getRowsProcessed();
-            Integer winnerProductsCreated = winnerRecord.getProductsCreated();
-            Integer winnerProductsUpdated = winnerRecord.getProductsUpdated();
-            Integer winnerRawMaterialsSeeded = winnerRecord.getRawMaterialsSeeded();
-            String winnerErrorsJson = winnerRecord.getErrorsJson();
-
-            var winnerProduct = productionProductRepository.findByCompanyAndSkuCode(company, winnerSku).orElseThrow();
-            var winnerMaterial = rawMaterialRepository.findByCompanyAndSku(company, winnerSku).orElseThrow();
-            Long winnerProductId = winnerProduct.getId();
-            String winnerPersistedProductName = winnerProduct.getProductName();
-            Long winnerMaterialId = winnerMaterial.getId();
-            String winnerPersistedMaterialName = winnerMaterial.getName();
-
-            ResponseEntity<Map> replayResponse = importCatalogWithCustomFile(
-                    accountingHeaders,
-                    catalogCsvContent(winnerSku, winnerProductName),
-                    "catalog-" + winnerSku + "-replay.csv",
-                    "text/csv",
-                    idempotencyKey);
-            assertThat(replayResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(replayResponse.getBody()).isNotNull();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> replayData = (Map<String, Object>) replayResponse.getBody().get("data");
-            assertThat(replayData).containsEntry("rowsProcessed", winnerRowsProcessed);
-            assertThat(replayData).containsEntry("productsCreated", winnerProductsCreated);
-            assertThat(replayData).containsEntry("productsUpdated", winnerProductsUpdated);
-            assertThat(replayData).containsEntry("rawMaterialsSeeded", winnerRawMaterialsSeeded);
-
-            CatalogImport persistedAfterReplay = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)
-                    .orElseThrow();
-            assertThat(persistedAfterReplay.getId()).isEqualTo(winnerRecordId);
-            assertThat(persistedAfterReplay.getRowsProcessed()).isEqualTo(winnerRowsProcessed);
-            assertThat(persistedAfterReplay.getProductsCreated()).isEqualTo(winnerProductsCreated);
-            assertThat(persistedAfterReplay.getProductsUpdated()).isEqualTo(winnerProductsUpdated);
-            assertThat(persistedAfterReplay.getRawMaterialsSeeded()).isEqualTo(winnerRawMaterialsSeeded);
-            assertThat(persistedAfterReplay.getErrorsJson()).isEqualTo(winnerErrorsJson);
-
-            var productAfterReplay = productionProductRepository.findByCompanyAndSkuCode(company, winnerSku).orElseThrow();
-            var materialAfterReplay = rawMaterialRepository.findByCompanyAndSku(company, winnerSku).orElseThrow();
-            assertThat(productAfterReplay.getId()).isEqualTo(winnerProductId);
-            assertThat(productAfterReplay.getProductName()).isEqualTo(winnerPersistedProductName);
-            assertThat(materialAfterReplay.getId()).isEqualTo(winnerMaterialId);
-            assertThat(materialAfterReplay.getName()).isEqualTo(winnerPersistedMaterialName);
-        } finally {
-            reset(rawMaterialRepository);
-        }
-    }
-
-    private RawMaterial persistRawMaterial(RawMaterial material) {
-        if (material == null) {
-            return null;
-        }
-        if (material.getId() == null) {
-            entityManager.persist(material);
-            entityManager.flush();
-            return material;
-        }
-        RawMaterial merged = entityManager.merge(material);
-        entityManager.flush();
-        return merged;
-    }
-
-    @Test
-    void accountingCatalogImport_rejectsMissingFilePartWithoutMutations() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-MISSING-FILE-" + shortId();
-
-        ResponseEntity<Map> response = importCatalogWithoutFile(accountingHeaders, idempotencyKey);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isEmpty();
-    }
-
-    @Test
-    void accountingCatalogImport_rejectsEmptyFileWithoutMutations() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-EMPTY-FILE-" + shortId();
-
-        ResponseEntity<Map> response = importCatalogWithCustomFile(
-                accountingHeaders,
-                "",
-                "empty.csv",
-                "text/csv",
-                idempotencyKey);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isEmpty();
-    }
-
-    @Test
-    void accountingCatalogImport_rejectsWrongFileContentTypeWithoutMutations() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-WRONG-TYPE-" + shortId();
-        String sku = "RM-WRONG-TYPE-" + shortId();
-
-        ResponseEntity<Map> response = importCatalogWithCustomFile(
-                accountingHeaders,
-                catalogCsvContent(sku),
-                "catalog-" + sku + ".txt",
-                "text/plain",
-                idempotencyKey);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isEmpty();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
-    }
-
-    @Test
-    void accountingCatalogImport_acceptsApplicationCsvContentType() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-ALLOW-APPLICATION-CSV-" + shortId();
-        String sku = "RM-ALLOW-APPLICATION-CSV-" + shortId();
-
-        ResponseEntity<Map> response = importCatalogWithCustomFile(
-                accountingHeaders,
-                catalogCsvContent(sku),
-                "catalog-" + sku + ".csv",
-                "application/csv",
-                idempotencyKey);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isPresent();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isPresent();
-    }
-
-    @Test
-    void accountingCatalogImport_acceptsVndMsExcelContentType() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-ALLOW-VND-MS-EXCEL-" + shortId();
-        String sku = "RM-ALLOW-VND-MS-EXCEL-" + shortId();
-
-        ResponseEntity<Map> response = importCatalogWithCustomFile(
-                accountingHeaders,
-                catalogCsvContent(sku),
-                "catalog-" + sku + ".csv",
-                "application/vnd.ms-excel",
-                idempotencyKey);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isPresent();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isPresent();
-    }
-
-    @Test
-    void accountingCatalogImport_acceptsMixedCaseParameterizedTextCsvContentType() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-ALLOW-MIXED-TEXT-CSV-" + shortId();
-        String sku = "RM-ALLOW-MIXED-TEXT-CSV-" + shortId();
-
-        ResponseEntity<Map> response = importCatalogWithRawPartContentType(
-                accountingHeaders,
-                catalogCsvContent(sku),
-                "catalog-" + sku + ".csv",
-                "TeXT/CSV; CHARSET=UTF-8",
-                idempotencyKey);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isPresent();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isPresent();
-    }
-
-    @Test
-    void accountingCatalogImport_acceptsMixedCaseParameterizedVndMsExcelAlias() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-ALLOW-MIXED-VND-MS-EXCEL-" + shortId();
-        String sku = "RM-ALLOW-MIXED-VND-MS-EXCEL-" + shortId();
-
-        ResponseEntity<Map> response = importCatalogWithRawPartContentType(
-                accountingHeaders,
-                catalogCsvContent(sku),
-                "catalog-" + sku + ".csv",
-                "Application/VnD.Ms-Excel; charset=UTF-8; profile=legacy",
-                idempotencyKey);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isPresent();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isPresent();
-    }
-
-    @Test
-    void accountingCatalogImport_rejectsNearMissMimeEvenWithParameters() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-REJECT-NEAR-MISS-MIME-" + shortId();
-        String sku = "RM-REJECT-NEAR-MISS-MIME-" + shortId();
-
-        ResponseEntity<Map> response = importCatalogWithRawPartContentType(
-                accountingHeaders,
-                catalogCsvContent(sku),
-                "catalog-" + sku + ".csv",
-                "text/csvx; charset=UTF-8",
-                idempotencyKey);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isEmpty();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
-    }
-
-    @Test
-    void accountingCatalogImport_rejectsAllowedMimeWithMalformedParameterTail() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-REJECT-MALFORMED-TAIL-" + shortId();
-        String sku = "RM-REJECT-MALFORMED-TAIL-" + shortId();
-
-        ResponseEntity<Map> response = importCatalogWithRawPartContentType(
-                accountingHeaders,
-                catalogCsvContent(sku),
-                "catalog-" + sku + ".csv",
-                "text/csv; charset=UTF-8; profile",
-                idempotencyKey);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isEmpty();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
-    }
-
-    @Test
-    void accountingCatalogImport_rejectsAllowedMimeWithTrailingSemicolonParameterTail() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-REJECT-TRAILING-SEMICOLON-" + shortId();
-        String sku = "RM-REJECT-TRAILING-SEMICOLON-" + shortId();
-
-        ResponseEntity<Map> response = importCatalogWithRawPartContentType(
-                accountingHeaders,
-                catalogCsvContent(sku),
-                "catalog-" + sku + ".csv",
-                "text/csv; charset=UTF-8;",
-                idempotencyKey);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isEmpty();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
-    }
-
-    @Test
-    void accountingCatalogImport_rejectsPrefixedAllowedMimeTokenWithParameters() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-REJECT-PREFIX-MIME-" + shortId();
-        String sku = "RM-REJECT-PREFIX-MIME-" + shortId();
-
-        ResponseEntity<Map> response = importCatalogWithRawPartContentType(
-                accountingHeaders,
-                catalogCsvContent(sku),
-                "catalog-" + sku + ".csv",
-                "xtext/csv; charset=UTF-8",
-                idempotencyKey);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isEmpty();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
-    }
-
-    @Test
-    void accountingCatalogImport_rejectsDisallowedMimeEvenWhenFileNameLooksCsv() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-WRONG-MIME-CSV-" + shortId();
-        String sku = "RM-WRONG-MIME-CSV-" + shortId();
-
-        ResponseEntity<Map> response = importCatalogWithCustomFile(
-                accountingHeaders,
-                catalogCsvContent(sku),
-                "catalog-" + sku + ".csv",
-                "text/plain",
-                idempotencyKey);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isEmpty();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
-    }
-
-    @Test
-    void accountingCatalogImport_acceptsMissingFileContentTypeWhenFileNameIsCsv() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-MISSING-TYPE-CSV-" + shortId();
-        String sku = "RM-MISSING-TYPE-CSV-" + shortId();
-
-        ResponseEntity<Map> response = importCatalogWithoutPartContentType(
-                accountingHeaders,
-                catalogCsvContent(sku),
-                "catalog-" + sku + ".csv",
-                idempotencyKey);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
-        assertThat(data).containsEntry("rowsProcessed", 1);
-        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isPresent();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isPresent();
-    }
-
-    @Test
-    void accountingCatalogImport_rejectsMissingFileContentTypeWhenFileNameIsNotCsv() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-MISSING-TYPE-TXT-" + shortId();
-        String sku = "RM-MISSING-TYPE-TXT-" + shortId();
-
-        ResponseEntity<Map> response = importCatalogWithoutPartContentType(
-                accountingHeaders,
-                catalogCsvContent(sku),
-                "catalog-" + sku + ".txt",
-                idempotencyKey);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-        assertThat(response.getBody()).isNotNull();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> errorData = (Map<String, Object>) response.getBody().get("data");
-        assertThat(errorData).containsEntry("code", "FILE_003");
-        assertThat(catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isEmpty();
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
-    }
-
-    @Test
-    void accountingCatalogImport_rejectsOversizedRowWithoutInventoryMutation() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-OVERSIZED-" + shortId();
-        String oversizedName = "P".repeat(2100);
-        String sku = "RM-OVERSIZE-" + shortId();
-        String csv = String.join("\n",
-                "brand,product_name,sku_code,category,unit_of_measure,gst_rate",
-                "RBAC Brand," + oversizedName + "," + sku + ",RAW_MATERIAL,KG,18.00");
-
-        ResponseEntity<Map> response = importCatalogWithCustomFile(
-                accountingHeaders,
-                csv,
-                "catalog-" + sku + ".csv",
-                "text/csv",
-                idempotencyKey);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
-        assertThat(data).containsEntry("rowsProcessed", 0);
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> errors = (List<Map<String, Object>>) data.get("errors");
-        assertThat(errors).isNotEmpty();
-        assertThat(errors.getFirst().get("message").toString()).contains("exceeds max length");
-        assertThat(rawMaterialRepository.findByCompanyAndSku(company, sku)).isEmpty();
-    }
-
-    @Test
-    void accountingCatalogImport_rejectsMalformedLegacyRawMaterialCostingAndReplayStaysStable() {
-        Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Catalog Sec Co");
-        HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE);
-        String idempotencyKey = "CAT-LEGACY-BAD-COST-" + shortId();
-        String sku = "RM-LEGACY-BAD-COST-" + shortId();
-        String legacyName = "Legacy Raw Material " + shortId();
-        String incomingName = "Incoming Name " + shortId();
-
-        RawMaterial legacy = new RawMaterial();
-        legacy.setCompany(company);
-        legacy.setName(legacyName);
-        legacy.setSku(sku);
-        legacy.setUnitType("KG");
-        legacy.setCostingMethod("FIFO/WAC");
-        rawMaterialRepository.saveAndFlush(legacy);
-
-        ResponseEntity<Map> firstResponse = importCatalogWithCustomFile(
-                accountingHeaders,
-                catalogCsvContent(sku, incomingName),
-                "catalog-" + sku + ".csv",
-                "text/csv",
-                idempotencyKey);
-        ResponseEntity<Map> replayResponse = importCatalogWithCustomFile(
-                accountingHeaders,
-                catalogCsvContent(sku, incomingName),
-                "catalog-" + sku + ".csv",
-                "text/csv",
-                idempotencyKey);
-
-        assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(replayResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertImportResponseContainsCostingMethodError(firstResponse);
-        assertImportResponseContainsCostingMethodError(replayResponse);
-
-        RawMaterial persisted = rawMaterialRepository.findByCompanyAndSku(company, sku).orElseThrow();
-        assertThat(persisted.getName()).isEqualTo(legacyName);
-        assertThat(persisted.getCostingMethod()).isEqualTo("FIFO/WAC");
-        assertThat(productionProductRepository.findByCompanyAndSkuCode(company, sku)).isEmpty();
-        CatalogImport importRecord = catalogImportRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)
-                .orElseThrow();
-        assertThat(importRecord.getRowsProcessed()).isZero();
-    }
-
-    @SuppressWarnings("unchecked")
-    private void assertImportResponseContainsCostingMethodError(ResponseEntity<Map> response) {
-        assertThat(response.getBody()).isNotNull();
-        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
-        assertThat(data).containsEntry("rowsProcessed", 0);
-        List<Map<String, Object>> errors = (List<Map<String, Object>>) data.get("errors");
-        assertThat(errors).isNotEmpty();
-        boolean containsUnsupportedCostingError = errors.stream()
-                .map(error -> String.valueOf(error.get("message")))
-                .anyMatch(message -> message.contains("Unsupported costing method"));
-        assertThat(containsUnsupportedCostingError).isTrue();
-    }
-
-    private ResponseEntity<Map> importCatalog(HttpHeaders headers, String sku, String idempotencyKey) {
-        return importCatalogWithCustomFile(
-                headers,
-                catalogCsvContent(sku),
-                "catalog-" + sku + ".csv",
-                "text/csv",
-                idempotencyKey);
-    }
-
-    private ResponseEntity<Map> importCatalogAfterBarrier(HttpHeaders headers,
-                                                          String sku,
-                                                          String idempotencyKey,
-                                                          CountDownLatch ready,
-                                                          CountDownLatch start) {
-        ready.countDown();
-        try {
-            if (!start.await(5, TimeUnit.SECONDS)) {
-                throw new IllegalStateException("Timed out waiting to start concurrent import");
-            }
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted while awaiting concurrent import start", ex);
-        }
-        HttpHeaders perCallHeaders = new HttpHeaders();
-        perCallHeaders.putAll(headers);
-        return importCatalog(perCallHeaders, sku, idempotencyKey);
-    }
-
-    private ResponseEntity<Map> importCatalogWithCustomFile(HttpHeaders headers,
-                                                            String csvContent,
-                                                            String fileName,
-                                                            String fileContentType,
-                                                            String idempotencyKey) {
-        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        HttpHeaders fileHeaders = new HttpHeaders();
-        if (fileContentType != null) {
-            fileHeaders.setContentType(MediaType.parseMediaType(fileContentType));
-        }
-        body.add("file", new HttpEntity<>(catalogCsvResource(fileName, csvContent), fileHeaders));
-
-        HttpHeaders requestHeaders = new HttpHeaders();
-        requestHeaders.putAll(headers);
-        requestHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
-        requestHeaders.set("Idempotency-Key", idempotencyKey);
-
-        return rest.exchange(
-                "/api/v1/accounting/catalog/import",
+    void canonicalItemEntryRoute_allowsAdminAndAccounting_only() {
+        ProductionBrand activeBrand = saveBrand("Single Route Brand " + shortId(), true);
+
+        ResponseEntity<Map> adminResponse = rest.exchange(
+                "/api/v1/catalog/items",
                 HttpMethod.POST,
-                new HttpEntity<>(body, requestHeaders),
+                new HttpEntity<>(canonicalFinishedGoodPayload(activeBrand.getId(), "Canonical Entry " + shortId()), authHeaders()),
                 Map.class);
+        assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(data(adminResponse)).containsKeys("id", "code");
+
+        ResponseEntity<Map> accountingResponse = rest.exchange(
+                "/api/v1/catalog/items",
+                HttpMethod.POST,
+                new HttpEntity<>(canonicalFinishedGoodPayload(activeBrand.getId(), "Canonical Preview " + shortId()),
+                        authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE)),
+                Map.class);
+        assertThat(accountingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(data(accountingResponse)).containsKeys("id", "code");
+
+        ResponseEntity<Map> salesResponse = rest.exchange(
+                "/api/v1/catalog/items",
+                HttpMethod.POST,
+                new HttpEntity<>(canonicalFinishedGoodPayload(activeBrand.getId(), "Canonical Sales Block " + shortId()),
+                        authHeaders(SALES_EMAIL, PASSWORD, COMPANY_CODE)),
+                Map.class);
+        assertThat(salesResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> factoryResponse = rest.exchange(
+                "/api/v1/catalog/items",
+                HttpMethod.POST,
+                new HttpEntity<>(canonicalFinishedGoodPayload(activeBrand.getId(), "Canonical Factory Block " + shortId()),
+                        authHeaders(FACTORY_EMAIL, PASSWORD, COMPANY_CODE)),
+                Map.class);
+        assertThat(factoryResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
-    private ResponseEntity<Map> importCatalogWithoutPartContentType(HttpHeaders headers,
-                                                                    String csvContent,
-                                                                    String fileName,
-                                                                    String idempotencyKey) {
-        String boundary = "----CatalogBoundary" + shortId();
-        String multipartBody = "--" + boundary + "\r\n"
-                + "Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"\r\n"
-                + "\r\n"
-                + csvContent + "\r\n"
-                + "--" + boundary + "--\r\n";
-
-        HttpHeaders requestHeaders = new HttpHeaders();
-        requestHeaders.putAll(headers);
-        requestHeaders.set("Content-Type", "multipart/form-data; boundary=" + boundary);
-        requestHeaders.set("Idempotency-Key", idempotencyKey);
-
-        return rest.exchange(
-                "/api/v1/accounting/catalog/import",
-                HttpMethod.POST,
-                new HttpEntity<>(multipartBody, requestHeaders),
-                Map.class);
+    @Test
+    void retiredSingleAndBulkVariantRoutes_areUnavailableForAuthenticatedCallers() {
+        ProductionBrand activeBrand = saveBrand("Retired Route Brand " + shortId(), true);
+        assertRetiredWriteRouteUnavailable("/api/v1/catalog/products/single",
+                singleProductPayload(activeBrand.getId(), "CAT-SINGLE-" + shortId()));
+        assertRetiredWriteRouteUnavailable("/api/v1/catalog/products/bulk-variants?dryRun=true",
+                bulkVariantPayload("Dry Run Brand " + shortId(), "N" + shortId().substring(0, 5)));
     }
 
-    private ResponseEntity<Map> importCatalogWithRawPartContentType(HttpHeaders headers,
-                                                                    String csvContent,
-                                                                    String fileName,
-                                                                    String fileContentType,
-                                                                    String idempotencyKey) {
-        String boundary = "----CatalogBoundary" + shortId();
-        String multipartBody = "--" + boundary + "\r\n"
-                + "Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"\r\n"
-                + "Content-Type: " + fileContentType + "\r\n"
-                + "\r\n"
-                + csvContent + "\r\n"
-                + "--" + boundary + "--\r\n";
+    @Test
+    void catalogReadiness_masksAccountingSpecificBlockersForNonAccountingReaders() {
+        ProductionBrand brand = saveBrand("Readiness Mask " + shortId(), true);
 
-        HttpHeaders requestHeaders = new HttpHeaders();
-        requestHeaders.putAll(headers);
-        requestHeaders.set("Content-Type", "multipart/form-data; boundary=" + boundary);
-        requestHeaders.set("Idempotency-Key", idempotencyKey);
-
-        return rest.exchange(
-                "/api/v1/accounting/catalog/import",
+        ResponseEntity<Map> createResponse = rest.exchange(
+                "/api/v1/catalog/items",
                 HttpMethod.POST,
-                new HttpEntity<>(multipartBody, requestHeaders),
+                new HttpEntity<>(canonicalFinishedGoodPayload(brand.getId(), "Readiness Mask Product " + shortId()), headers),
                 Map.class);
+        assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Map<String, Object> createdItem = data(createResponse);
+        String sku = String.valueOf(createdItem.get("code"));
+        Long productId = ((Number) createdItem.get("id")).longValue();
+
+        Map<String, Object> browsedProduct = browseProduct(authHeaders(), brand.getId(), sku);
+
+        ProductionProduct product = productionProductRepository.findByCompanyAndSkuCode(company, sku).orElseThrow();
+        Map<String, Object> degradedMetadata = new LinkedHashMap<>(product.getMetadata());
+        degradedMetadata.remove("wipAccountId");
+        product.setMetadata(degradedMetadata);
+        productionProductRepository.save(product);
+
+        finishedGoodRepository.findByCompanyAndProductCode(company, sku).ifPresentOrElse(finishedGood -> {
+            finishedGood.setValuationAccountId(null);
+            finishedGood.setCogsAccountId(null);
+            finishedGood.setRevenueAccountId(null);
+            finishedGood.setTaxAccountId(null);
+            finishedGoodRepository.save(finishedGood);
+        }, () -> {
+            throw new AssertionError("expected finished-good mirror for sku " + sku);
+        });
+
+        ResponseEntity<Map> salesBrowseResponse = rest.exchange(
+                "/api/v1/catalog/items?q=" + sku + "&includeReadiness=true",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders(SALES_EMAIL, PASSWORD, COMPANY_CODE)),
+                Map.class);
+        ResponseEntity<Map> accountingBrowseResponse = rest.exchange(
+                "/api/v1/catalog/items?q=" + sku + "&includeReadiness=true",
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE)),
+                Map.class);
+        ResponseEntity<Map> salesReadResponse = rest.exchange(
+                "/api/v1/catalog/items/" + productId,
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders(SALES_EMAIL, PASSWORD, COMPANY_CODE)),
+                Map.class);
+        ResponseEntity<Map> accountingReadResponse = rest.exchange(
+                "/api/v1/catalog/items/" + productId,
+                HttpMethod.GET,
+                new HttpEntity<>(authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE)),
+                Map.class);
+
+        Map<String, Object> salesBrowseProduct = browseProduct(salesBrowseResponse, sku);
+        Map<String, Object> accountingBrowseProduct = browseProduct(accountingBrowseResponse, sku);
+        Map<String, Object> salesReadProduct = data(salesReadResponse);
+        Map<String, Object> accountingReadProduct = data(accountingReadResponse);
+
+        assertThat(readinessBlockers(salesBrowseProduct, "inventoryReady"))
+                .containsExactly("ACCOUNTING_CONFIGURATION_REQUIRED");
+        assertThat(readinessBlockers(salesBrowseProduct, "productionReady"))
+                .containsExactly("ACCOUNTING_CONFIGURATION_REQUIRED");
+        assertThat(readinessBlockers(salesBrowseProduct, "salesReady"))
+                .containsExactly("NO_FINISHED_GOOD_BATCH_STOCK", "ACCOUNTING_CONFIGURATION_REQUIRED");
+        assertThat(readinessBlockers(salesReadProduct, "inventoryReady"))
+                .containsExactly("ACCOUNTING_CONFIGURATION_REQUIRED");
+        assertThat(readinessBlockers(salesReadProduct, "productionReady"))
+                .containsExactly("ACCOUNTING_CONFIGURATION_REQUIRED");
+        assertThat(readinessBlockers(salesReadProduct, "salesReady"))
+                .containsExactly("NO_FINISHED_GOOD_BATCH_STOCK", "ACCOUNTING_CONFIGURATION_REQUIRED");
+
+        assertThat(readinessBlockers(accountingBrowseProduct, "inventoryReady"))
+                .containsExactlyInAnyOrder(
+                        "FINISHED_GOOD_VALUATION_ACCOUNT_MISSING",
+                        "FINISHED_GOOD_COGS_ACCOUNT_MISSING",
+                        "FINISHED_GOOD_REVENUE_ACCOUNT_MISSING",
+                        "FINISHED_GOOD_TAX_ACCOUNT_MISSING");
+        assertThat(readinessBlockers(accountingBrowseProduct, "productionReady"))
+                .containsExactlyInAnyOrder(
+                        "FINISHED_GOOD_VALUATION_ACCOUNT_MISSING",
+                        "FINISHED_GOOD_COGS_ACCOUNT_MISSING",
+                        "FINISHED_GOOD_REVENUE_ACCOUNT_MISSING",
+                        "FINISHED_GOOD_TAX_ACCOUNT_MISSING",
+                        "WIP_ACCOUNT_MISSING");
+        assertThat(readinessBlockers(accountingReadProduct, "inventoryReady"))
+                .containsExactlyInAnyOrder(
+                        "FINISHED_GOOD_VALUATION_ACCOUNT_MISSING",
+                        "FINISHED_GOOD_COGS_ACCOUNT_MISSING",
+                        "FINISHED_GOOD_REVENUE_ACCOUNT_MISSING",
+                        "FINISHED_GOOD_TAX_ACCOUNT_MISSING");
+        assertThat(readinessBlockers(accountingReadProduct, "productionReady"))
+                .containsExactlyInAnyOrder(
+                        "FINISHED_GOOD_VALUATION_ACCOUNT_MISSING",
+                        "FINISHED_GOOD_COGS_ACCOUNT_MISSING",
+                        "FINISHED_GOOD_REVENUE_ACCOUNT_MISSING",
+                        "FINISHED_GOOD_TAX_ACCOUNT_MISSING",
+                        "WIP_ACCOUNT_MISSING");
     }
 
-    private ResponseEntity<Map> importCatalogWithoutFile(HttpHeaders headers, String idempotencyKey) {
-        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-
-        HttpHeaders requestHeaders = new HttpHeaders();
-        requestHeaders.putAll(headers);
-        requestHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
-        requestHeaders.set("Idempotency-Key", idempotencyKey);
-
-        return rest.exchange(
-                "/api/v1/accounting/catalog/import",
+    private DownstreamFlowResult runDownstreamReadyFlow(Long brandId, String baseProductName) {
+        ResponseEntity<Map> createResponse = rest.exchange(
+                "/api/v1/catalog/items",
                 HttpMethod.POST,
-                new HttpEntity<>(body, requestHeaders),
+                new HttpEntity<>(canonicalFinishedGoodPayload(brandId, baseProductName), headers),
                 Map.class);
+
+        assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> createData = data(createResponse);
+        String sku = String.valueOf(createData.get("code"));
+        assertThat(finishedGoodRepository.findByCompanyAndProductCode(company, sku)).isPresent();
+
+        ResponseEntity<Map> browseResponse = rest.exchange(
+                "/api/v1/catalog/items?q=" + sku + "&includeReadiness=true",
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
+                Map.class);
+
+        assertThat(browseResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> browseContent = (List<Map<String, Object>>) data(browseResponse).get("content");
+        Map<String, Object> browsedProduct = browseContent.stream()
+                .filter(candidate -> sku.equals(String.valueOf(candidate.get("code"))))
+                .findFirst()
+                .orElseThrow();
+
+        Long productId = ((Number) browsedProduct.get("id")).longValue();
+        Long browsedBrandId = ((Number) browsedProduct.get("brandId")).longValue();
+
+        ResponseEntity<Map> salesOrderResponse = rest.exchange(
+                "/api/v1/sales/orders",
+                HttpMethod.POST,
+                new HttpEntity<>(salesOrderPayload(sku), headers),
+                Map.class);
+        assertThat(salesOrderResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(data(salesOrderResponse)).containsKeys("id", "orderNumber", "status");
+
+        RawMaterial rawMaterial = createRawMaterialWithBatch(
+                "RM-SURFACE-" + shortId(),
+                "Surface Binder " + shortId(),
+                new BigDecimal("50.00"));
+
+        ResponseEntity<Map> productionLogResponse = rest.exchange(
+                "/api/v1/factory/production/logs",
+                HttpMethod.POST,
+                new HttpEntity<>(productionLogPayload(browsedBrandId, productId, rawMaterial.getId()), headers),
+                Map.class);
+        assertThat(productionLogResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(data(productionLogResponse)).containsKeys("id", "productionCode");
+        assertThat(finishedGoodRepository.findByCompanyAndProductCode(company, sku + "-BULK")).isPresent();
+
+        return new DownstreamFlowResult(sku, productId, browsedBrandId);
+    }
+
+    private void assertRetiredRouteNotFound(HttpMethod method, String path, Object body) {
+        HttpEntity<?> entity = body == null ? new HttpEntity<>(headers) : new HttpEntity<>(body, headers);
+        ResponseEntity<Map> response = rest.exchange(path, method, entity, Map.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    private void assertRetiredWriteRouteUnavailable(String path, Object body) {
+        ResponseEntity<Map> response = rest.exchange(
+                path,
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                Map.class);
+        assertThat(response.getStatusCode()).isIn(HttpStatus.NOT_FOUND, HttpStatus.METHOD_NOT_ALLOWED);
+    }
+
+    private Account ensureAccount(String code, String name, AccountType type) {
+        return accountRepository.findByCompanyAndCodeIgnoreCase(company, code)
+                .orElseGet(() -> {
+                    Account account = new Account();
+                    account.setCompany(company);
+                    account.setCode(code);
+                    account.setName(name);
+                    account.setType(type);
+                    return accountRepository.save(account);
+                });
+    }
+
+    private ProductionBrand saveBrand(String name, boolean active) {
+        ProductionBrand brand = new ProductionBrand();
+        brand.setCompany(company);
+        brand.setName(name);
+        brand.setCode(("CSR" + shortId()).substring(0, 10));
+        brand.setActive(active);
+        return productionBrandRepository.save(brand);
+    }
+
+    private HttpHeaders authHeaders() {
+        return authHeaders(ADMIN_EMAIL, PASSWORD, COMPANY_CODE);
     }
 
     private HttpHeaders authHeaders(String email, String password, String companyCode) {
@@ -1015,26 +446,32 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
         ResponseEntity<Map> loginResponse = rest.postForEntity("/api/v1/auth/login", loginPayload, Map.class);
         assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        String token = (String) loginResponse.getBody().get("accessToken");
-        HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(token);
-        headers.set("X-Company-Id", companyCode);
-        return headers;
+        HttpHeaders authHeaders = new HttpHeaders();
+        authHeaders.setBearerAuth(String.valueOf(loginResponse.getBody().get("accessToken")));
+        authHeaders.set("X-Company-Code", companyCode);
+        authHeaders.setContentType(MediaType.APPLICATION_JSON);
+        return authHeaders;
     }
 
-    private String catalogCsvContent(String sku) {
-        return catalogCsvContent(sku, "RBAC Product " + sku);
+    private ResponseEntity<Map> importCatalog(HttpHeaders requestHeaders, String csvPayload, String fileName) {
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        HttpHeaders fileHeaders = new HttpHeaders();
+        fileHeaders.setContentType(MediaType.parseMediaType("text/csv"));
+        body.add("file", new HttpEntity<>(csvResource(fileName, csvPayload), fileHeaders));
+
+        HttpHeaders multipartHeaders = new HttpHeaders();
+        multipartHeaders.putAll(requestHeaders);
+        multipartHeaders.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        return rest.exchange(
+                "/api/v1/catalog/import",
+                HttpMethod.POST,
+                new HttpEntity<>(body, multipartHeaders),
+                Map.class);
     }
 
-    private String catalogCsvContent(String sku, String productName) {
-        return String.join("\n",
-                "brand,product_name,sku_code,category,unit_of_measure,gst_rate",
-                "RBAC Brand," + productName + "," + sku + ",RAW_MATERIAL,KG,18.00"
-        );
-    }
-
-    private ByteArrayResource catalogCsvResource(String fileName, String csvContent) {
-        return new ByteArrayResource(csvContent.getBytes(StandardCharsets.UTF_8)) {
+    private ByteArrayResource csvResource(String fileName, String csvPayload) {
+        return new ByteArrayResource(csvPayload.getBytes(StandardCharsets.UTF_8)) {
             @Override
             public String getFilename() {
                 return fileName;
@@ -1042,7 +479,181 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
         };
     }
 
+    private Map<String, Object> canonicalFinishedGoodPayload(Long brandId, String baseProductName) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("wipAccountId", wipAccount.getId());
+        metadata.put("laborAppliedAccountId", laborAppliedAccount.getId());
+        metadata.put("overheadAppliedAccountId", overheadAppliedAccount.getId());
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("brandId", brandId);
+        payload.put("name", baseProductName);
+        payload.put("itemClass", "FINISHED_GOOD");
+        payload.put("color", "WHITE");
+        payload.put("size", "1L");
+        payload.put("unitOfMeasure", "LITER");
+        payload.put("hsnCode", "320910");
+        payload.put("gstRate", new BigDecimal("18.00"));
+        payload.put("basePrice", new BigDecimal("1200.00"));
+        payload.put("minDiscountPercent", new BigDecimal("5.00"));
+        payload.put("minSellingPrice", new BigDecimal("1140.00"));
+        payload.put("metadata", metadata);
+        return payload;
+    }
+
+    private Map<String, Object> singleProductPayload(Long brandId, String customSkuCode) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("wipAccountId", wipAccount.getId());
+        metadata.put("productType", "decorative");
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("brandId", brandId);
+        payload.put("productName", "Single Route Primer " + shortId());
+        payload.put("category", "FINISHED_GOOD");
+        payload.put("defaultColour", "WHITE");
+        payload.put("sizeLabel", "1L");
+        payload.put("unitOfMeasure", "LITER");
+        payload.put("hsnCode", "320910");
+        payload.put("customSkuCode", customSkuCode);
+        payload.put("basePrice", new BigDecimal("1200.00"));
+        payload.put("gstRate", new BigDecimal("18.00"));
+        payload.put("minDiscountPercent", new BigDecimal("5.00"));
+        payload.put("minSellingPrice", new BigDecimal("1140.00"));
+        payload.put("metadata", metadata);
+        return payload;
+    }
+
+    private Map<String, Object> bulkVariantPayload(String brandName, String brandCode) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("brandName", brandName);
+        payload.put("brandCode", brandCode);
+        payload.put("baseProductName", "Dry Run Primer");
+        payload.put("category", "FINISHED_GOOD");
+        payload.put("colors", List.of("WHITE", "BLUE"));
+        payload.put("colorSizeMatrix", List.of(
+                Map.of("color", "WHITE", "sizes", List.of("1L", "4L")),
+                Map.of("color", "BLUE", "sizes", List.of("10L"))));
+        payload.put("unitOfMeasure", "LITER");
+        payload.put("skuPrefix", "DRYRUN");
+        payload.put("basePrice", new BigDecimal("1500.00"));
+        payload.put("gstRate", new BigDecimal("18.00"));
+        payload.put("minDiscountPercent", new BigDecimal("4.00"));
+        payload.put("minSellingPrice", new BigDecimal("1380.00"));
+        payload.put("metadata", Map.of("productType", "decorative"));
+        return payload;
+    }
+
+    private Map<String, Object> salesOrderPayload(String sku) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("productCode", sku);
+        item.put("description", "Catalog public surface flow");
+        item.put("quantity", BigDecimal.ONE);
+        item.put("unitPrice", new BigDecimal("1200.00"));
+        item.put("gstRate", new BigDecimal("18.00"));
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("totalAmount", new BigDecimal("1416.00"));
+        payload.put("currency", "INR");
+        payload.put("notes", "catalog public surface retirement");
+        payload.put("items", List.of(item));
+        payload.put("gstTreatment", "PER_ITEM");
+        payload.put("gstInclusive", false);
+        payload.put("paymentMode", "CASH");
+        return payload;
+    }
+
+    private Map<String, Object> productionLogPayload(Long brandId, Long productId, Long rawMaterialId) {
+        Map<String, Object> material = new LinkedHashMap<>();
+        material.put("rawMaterialId", rawMaterialId);
+        material.put("quantity", new BigDecimal("2.50"));
+        material.put("unitOfMeasure", "KG");
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("brandId", brandId);
+        payload.put("productId", productId);
+        payload.put("batchColour", "WHITE");
+        payload.put("batchSize", new BigDecimal("10.00"));
+        payload.put("unitOfMeasure", "LITER");
+        payload.put("mixedQuantity", new BigDecimal("10.00"));
+        payload.put("createdBy", "catalog-public-surface-retirement");
+        payload.put("laborCost", BigDecimal.ZERO);
+        payload.put("overheadCost", BigDecimal.ZERO);
+        payload.put("materials", List.of(material));
+        return payload;
+    }
+
+    private RawMaterial createRawMaterialWithBatch(String sku, String name, BigDecimal stock) {
+        RawMaterial material = new RawMaterial();
+        material.setCompany(company);
+        material.setSku(sku);
+        material.setName(name);
+        material.setUnitType("KG");
+        material.setCurrentStock(stock);
+        material.setInventoryAccountId(inventoryAccount.getId());
+        material.setGstRate(new BigDecimal("5.00"));
+        RawMaterial saved = rawMaterialRepository.save(material);
+
+        RawMaterialBatch batch = new RawMaterialBatch();
+        batch.setRawMaterial(saved);
+        batch.setBatchCode("BATCH-" + sku);
+        batch.setQuantity(stock);
+        batch.setUnit("KG");
+        batch.setCostPerUnit(new BigDecimal("25.00"));
+        batch.setReceivedAt(Instant.now());
+        rawMaterialBatchRepository.save(batch);
+        return saved;
+    }
+
+    private Map<String, Object> browseProduct(HttpHeaders requestHeaders, Long brandId, String sku) {
+        ResponseEntity<Map> browseResponse = rest.exchange(
+                "/api/v1/catalog/items?q=" + sku + "&includeReadiness=true",
+                HttpMethod.GET,
+                new HttpEntity<>(requestHeaders),
+                Map.class);
+        assertThat(browseResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        return browseProduct(browseResponse, sku);
+    }
+
+    private Map<String, Object> browseProduct(ResponseEntity<Map> response, String sku) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> browseContent = (List<Map<String, Object>>) data(response).get("content");
+        return browseContent.stream()
+                .filter(candidate -> sku.equals(String.valueOf(candidate.get("code"))))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> readinessBlockers(Map<String, Object> product, String stage) {
+        Map<String, Object> readiness = (Map<String, Object>) product.get("readiness");
+        assertThat(readiness).isNotNull();
+        Map<String, Object> stageData = (Map<String, Object>) readiness.get(stage);
+        assertThat(stageData).isNotNull();
+        return (List<String>) stageData.get("blockers");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> data(ResponseEntity<Map> response) {
+        assertThat(response.getBody()).isNotNull();
+        return (Map<String, Object>) response.getBody().get("data");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> dataList(ResponseEntity<Map> response) {
+        assertThat(response.getBody()).isNotNull();
+        return (List<Map<String, Object>>) response.getBody().get("data");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> dataListMap(ResponseEntity<Map> response, String key) {
+        assertThat(response.getBody()).isNotNull();
+        return (List<Map<String, Object>>) data(response).get(key);
+    }
+
     private String shortId() {
         return UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
+    private record DownstreamFlowResult(String sku, Long productId, Long brandId) {
     }
 }

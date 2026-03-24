@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PAYROLL_SERVICE="$ROOT_DIR/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/PayrollService.java"
+PAYROLL_POSTING_SERVICE="$ROOT_DIR/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/PayrollPostingService.java"
 PAYROLL_TEST="$ROOT_DIR/erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_PayrollIdempotencyConcurrencyTest.java"
 
 fail() {
@@ -28,21 +28,21 @@ require_absent_literal() {
   fi
 }
 
-for file in "$PAYROLL_SERVICE" "$PAYROLL_TEST"; do
+for file in "$PAYROLL_POSTING_SERVICE" "$PAYROLL_TEST"; do
   [[ -f "$file" ]] || fail "missing required file: $file"
 done
 
 for code in SALARY-EXP WAGE-EXP SALARY-PAYABLE EMP-ADV; do
-  require_literal "$PAYROLL_SERVICE" "\"$code\"" "payroll required account contract"
+  require_literal "$PAYROLL_POSTING_SERVICE" "\"$code\"" "payroll required account contract"
 done
 
-require_literal "$PAYROLL_SERVICE" "expectedAccountType" "deterministic missing-account type detail"
-require_literal "$PAYROLL_SERVICE" "requiredPayrollAccounts" "required-account inventory detail"
-require_literal "$PAYROLL_SERVICE" "migrationSet" "v2 migration-set detail"
-require_literal "$PAYROLL_SERVICE" "\"v2\"" "v2 migration marker"
-require_literal "$PAYROLL_SERVICE" "manualProvisioningRequired" "manual provisioning detail for non-legacy bootstrap accounts"
-require_literal "$PAYROLL_SERVICE" "/api/v1/accounting/accounts" "chart of accounts canonical path"
-require_absent_literal "$PAYROLL_SERVICE" "V79__payroll_gl_accounts.sql" "v1 migration reference"
+require_literal "$PAYROLL_POSTING_SERVICE" "expectedAccountType" "deterministic missing-account type detail"
+require_literal "$PAYROLL_POSTING_SERVICE" "requiredPayrollAccounts" "required-account inventory detail"
+require_literal "$PAYROLL_POSTING_SERVICE" "migrationSet" "v2 migration-set detail"
+require_literal "$PAYROLL_POSTING_SERVICE" "\"v2\"" "v2 migration marker"
+require_literal "$PAYROLL_POSTING_SERVICE" "manualProvisioningRequired" "manual provisioning detail for non-legacy bootstrap accounts"
+require_literal "$PAYROLL_POSTING_SERVICE" "/api/v1/accounting/accounts" "chart of accounts canonical path"
+require_absent_literal "$PAYROLL_POSTING_SERVICE" "V79__payroll_gl_accounts.sql" "v1 migration reference"
 
 require_literal "$PAYROLL_TEST" "payrollPosting_missingSalaryExpenseAccount_failsWithDeterministicProvisioningGuidance" "missing SALARY-EXP regression coverage"
 require_literal "$PAYROLL_TEST" "payrollPosting_missingEmployeeAdvanceAccount_requiresManualProvisioningGuidance" "missing EMP-ADV regression coverage"

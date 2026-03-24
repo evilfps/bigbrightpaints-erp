@@ -1,0 +1,48 @@
+{
+  "groupId": "docs-contract",
+  "surface": "api",
+  "assertionResults": [
+    {
+      "id": "VAL-DOCS-001",
+      "status": "pass",
+      "reason": "Remediation log contains dated orchestrator dispatch journal removal entry with evidence scope.",
+      "evidence": [
+        ".factory/library/remediation-log.md includes 2026-03-14 entry describing postDispatchJournal removal and containment"
+      ]
+    },
+    {
+      "id": "VAL-DOCS-002",
+      "status": "pass",
+      "reason": "Frontend handoff reflects canonical sales dispatch endpoint and fail-closed orchestrator compatibility behavior.",
+      "evidence": [
+        ".factory/library/frontend-handoff.md records /api/v1/orchestrator/factory/dispatch/{batchId} as 410 compatibility path",
+        ".factory/library/frontend-handoff.md points callers to /api/v1/sales/dispatch/confirm for canonical posting"
+      ]
+    },
+    {
+      "id": "VAL-DOCS-003",
+      "status": "pass",
+      "reason": "Architecture docs define SalesCoreEngine.confirmDispatch -> AccountingFacade as sole dispatch posting path.",
+      "evidence": [
+        ".factory/library/architecture.md line documenting canonical dispatch posting path and orchestrator fail-closed requirement"
+      ]
+    },
+    {
+      "id": "VAL-DOCS-004",
+      "status": "pass",
+      "reason": "API metadata aligns with canonical dispatch contract and does not advertise legacy orchestrator posting path.",
+      "evidence": [
+        "openapi.json contains /api/v1/sales/dispatch/confirm and /api/v1/dispatch/confirm",
+        "openapi.json has no /api/v1/orchestrator/factory/dispatch/{batchId} path",
+        "erp-domain/docs/endpoint_inventory.tsv lists canonical dispatch endpoints and no orchestrator factory dispatch posting path"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "Read",
+    "Grep"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Documentation/API contract assertions passed and match the final canonical dispatch behavior."
+}

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
@@ -25,8 +26,8 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepos
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,10 +36,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class PackagingMaterialServiceTest {
 
     @Mock
     private CompanyContextService companyContextService;
+    @Mock
+    private CompanyEntityLookup companyEntityLookup;
     @Mock
     private PackagingSizeMappingRepository mappingRepository;
     @Mock
@@ -55,6 +59,7 @@ class PackagingMaterialServiceTest {
     void setUp() {
         packagingMaterialService = new PackagingMaterialService(
                 companyContextService,
+                companyEntityLookup,
                 mappingRepository,
                 rawMaterialRepository,
                 rawMaterialBatchRepository,
@@ -69,7 +74,7 @@ class PackagingMaterialServiceTest {
     void createMapping_rejectsNonPackagingMaterial() {
         RawMaterial material = rawMaterial(15L, 900L, new BigDecimal("10"), null);
         material.setMaterialType(MaterialType.PRODUCTION);
-        when(rawMaterialRepository.findByCompanyAndId(company, 15L)).thenReturn(Optional.of(material));
+        when(companyEntityLookup.requireActiveRawMaterial(company, 15L)).thenReturn(material);
 
         assertThatThrownBy(() -> packagingMaterialService.createMapping(new PackagingSizeMappingRequest(
                 "1L",
@@ -87,22 +92,41 @@ class PackagingMaterialServiceTest {
     }
 
     @Test
-    void consumePackagingMaterial_returnsNoMappingWhenOptional() {
-        ReflectionTestUtils.setField(packagingMaterialService, "requirePackaging", false);
+    void createMapping_rejectsMissingActiveRawMaterial() {
+        when(companyEntityLookup.requireActiveRawMaterial(company, 99L))
+                .thenThrow(new IllegalArgumentException("inactive"));
+
+        assertThatThrownBy(() -> packagingMaterialService.createMapping(new PackagingSizeMappingRequest(
+                "1L",
+                99L,
+                1,
+                12,
+                BigDecimal.ONE
+        )))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> {
+                    ApplicationException appEx = (ApplicationException) ex;
+                    assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_REFERENCE);
+                    assertThat(appEx.getMessage()).contains("Raw material not found");
+                });
+    }
+
+    @Test
+    void consumePackagingMaterial_throwsWhenMappingMissing() {
         when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
                 .thenReturn(List.of());
 
-        PackagingConsumptionResult result = packagingMaterialService.consumePackagingMaterial("1L", 2, "PACK-REF");
-
-        assertThat(result.mappingFound()).isFalse();
-        assertThat(result.totalCost()).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(result.quantity()).isEqualByComparingTo(BigDecimal.ZERO);
-        assertThat(result.accountTotalsOrEmpty()).isEmpty();
+        assertThatThrownBy(() -> packagingMaterialService.consumePackagingMaterial("1L", 2, "PACK-REF"))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> {
+                    ApplicationException appEx = (ApplicationException) ex;
+                    assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+                    assertThat(appEx.getMessage()).contains("Packaging BOM is required");
+                });
     }
 
     @Test
     void consumePackagingMaterial_throwsWhenMappingRequiredAndMissing() {
-        ReflectionTestUtils.setField(packagingMaterialService, "requirePackaging", true);
         when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
                 .thenReturn(List.of());
 
@@ -117,7 +141,6 @@ class PackagingMaterialServiceTest {
 
     @Test
     void consumePackagingMaterial_usesUnitsPerPackAndFifoCosts() {
-        ReflectionTestUtils.setField(packagingMaterialService, "requirePackaging", false);
         RawMaterial material = rawMaterial(11L, 500L, new BigDecimal("10"), null);
         PackagingSizeMapping mapping = packagingMapping(material, 2);
 
@@ -126,7 +149,7 @@ class PackagingMaterialServiceTest {
 
         when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
                 .thenReturn(List.of(mapping));
-        when(rawMaterialRepository.lockByCompanyAndId(company, 11L)).thenReturn(Optional.of(material));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 11L)).thenReturn(material);
         when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material))
                 .thenReturn(List.of(batchA, batchB));
         when(rawMaterialBatchRepository.deductQuantityIfSufficient(eq(101L), any())).thenReturn(1);
@@ -148,7 +171,6 @@ class PackagingMaterialServiceTest {
 
     @Test
     void consumePackagingMaterial_usesWeightedAverageCostWhenConfigured() {
-        ReflectionTestUtils.setField(packagingMaterialService, "requirePackaging", false);
         RawMaterial material = rawMaterial(12L, 600L, new BigDecimal("10"), "WAC");
         PackagingSizeMapping mapping = packagingMapping(material, 1);
 
@@ -157,7 +179,7 @@ class PackagingMaterialServiceTest {
 
         when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
                 .thenReturn(List.of(mapping));
-        when(rawMaterialRepository.lockByCompanyAndId(company, 12L)).thenReturn(Optional.of(material));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 12L)).thenReturn(material);
         when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material))
                 .thenReturn(List.of(batchA, batchB));
         when(rawMaterialBatchRepository.calculateWeightedAverageCost(material))
@@ -180,7 +202,6 @@ class PackagingMaterialServiceTest {
 
     @Test
     void consumePackagingMaterial_wacNullAverageFallsBackToBatchCostDeterministically() {
-        ReflectionTestUtils.setField(packagingMaterialService, "requirePackaging", false);
         RawMaterial material = rawMaterial(13L, 700L, new BigDecimal("10"), "WAC");
         PackagingSizeMapping mapping = packagingMapping(material, 1);
 
@@ -189,7 +210,7 @@ class PackagingMaterialServiceTest {
 
         when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
                 .thenReturn(List.of(mapping));
-        when(rawMaterialRepository.lockByCompanyAndId(company, 13L)).thenReturn(Optional.of(material));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 13L)).thenReturn(material);
         when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material))
                 .thenReturn(List.of(batchA, batchB));
         when(rawMaterialBatchRepository.calculateWeightedAverageCost(material))
@@ -224,14 +245,13 @@ class PackagingMaterialServiceTest {
 
     @Test
     void consumePackagingMaterial_wacNullAverageRejectsZeroCostWhenPackagingRequired() {
-        ReflectionTestUtils.setField(packagingMaterialService, "requirePackaging", true);
         RawMaterial material = rawMaterial(14L, 800L, new BigDecimal("5"), "WAC");
         PackagingSizeMapping mapping = packagingMapping(material, 1);
         RawMaterialBatch batchA = batch(401L, new BigDecimal("2"), null);
 
         when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
                 .thenReturn(List.of(mapping));
-        when(rawMaterialRepository.lockByCompanyAndId(company, 14L)).thenReturn(Optional.of(material));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 14L)).thenReturn(material);
         when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material))
                 .thenReturn(List.of(batchA));
         when(rawMaterialBatchRepository.calculateWeightedAverageCost(material))
@@ -248,6 +268,25 @@ class PackagingMaterialServiceTest {
                     ApplicationException appEx = (ApplicationException) ex;
                     assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
                     assertThat(appEx.getMessage()).contains("produced zero cost");
+                });
+    }
+
+    @Test
+    void consumePackagingMaterial_rejectsInactivePackagingMaterial() {
+        RawMaterial material = rawMaterial(16L, 900L, new BigDecimal("5"), null);
+        PackagingSizeMapping mapping = packagingMapping(material, 1);
+
+        when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
+                .thenReturn(List.of(mapping));
+        when(companyEntityLookup.lockActiveRawMaterial(company, 16L))
+                .thenThrow(new IllegalArgumentException("inactive"));
+
+        assertThatThrownBy(() -> packagingMaterialService.consumePackagingMaterial("1L", 1, "PACK-REF"))
+                .isInstanceOf(ApplicationException.class)
+                .satisfies(ex -> {
+                    ApplicationException appEx = (ApplicationException) ex;
+                    assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_REFERENCE);
+                    assertThat(appEx.getMessage()).contains("Raw material not found");
                 });
     }
 

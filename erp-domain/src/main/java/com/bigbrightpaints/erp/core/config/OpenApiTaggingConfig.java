@@ -9,7 +9,6 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class OpenApiTaggingConfig {
-
     @Bean
     public OpenApiCustomizer moduleTagCustomizer() {
         return openApi -> {
@@ -54,7 +53,6 @@ public class OpenApiTaggingConfig {
                 || normalized.startsWith("/api/v1/inventory")
                 || normalized.startsWith("/api/v1/dispatch")
                 || normalized.startsWith("/api/v1/raw-materials")
-                || normalized.startsWith("/api/v1/raw-material-batches")
                 || normalized.startsWith("/api/v1/finished-goods")
                 || normalized.startsWith("/api/v1/packaging")
                 || normalized.startsWith("/api/v1/hr")

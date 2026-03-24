@@ -1,0 +1,5 @@
+com.bigbrightpaints.erp.codered.CR_DispatchOrderLookupReadOnlyIT
+com.bigbrightpaints.erp.codered.CR_PayrollLegacyEndpointGatedIT
+com.bigbrightpaints.erp.codered.CR_SwaggerProdHardeningIT
+com.bigbrightpaints.erp.codered.CR_HealthEndpointProdHardeningIT
+com.bigbrightpaints.erp.codered.CR_ActuatorProdHardeningIT

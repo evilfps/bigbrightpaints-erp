@@ -1,0 +1,21 @@
+{
+  "featureId": "catalog-contract-cleanup-valuation-revert",
+  "reviewedAt": "2026-03-21T13:28:46+05:30",
+  "commitId": "d443d04482abe8296a4c48dc23dbe2551996fa89",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix commit cleanly removes the only remaining out-of-scope valuation truthsuite edit that blocked `catalog-contract-cleanup-and-proof`. `git show 385cfadd -- erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeInventoryValuationExecutableCoverageTest.java` shows the catalog packet introduced the unrelated `LocalDate` import and `snapshotAsOf(...)` call, while `git show d443d044 -- .../TS_RuntimeInventoryValuationExecutableCoverageTest.java` removes those exact lines and restores `service.currentSnapshot(company)`. `git diff --name-status d7e11f0c..d443d044` changes only that file, so the in-scope catalog cleanup/docs/OpenAPI work from the failed feature remains intact, and `git diff --exit-code c2bf6503^ d443d044 -- .../TS_RuntimeInventoryValuationExecutableCoverageTest.java` confirms the file is back to its pre-packet state.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The worker had to use an isolated git worktree to land this one-file remediation because the shared mission checkout already contained unrelated validation-artifact edits, but the packet workflow guidance does not document that worktree path as an approved way to keep a fix commit scoped and non-disruptive.",
+      "evidence": "`/home/realnigga/Desktop/Mission-control/.factory/skills/catalog-surface-worker/SKILL.md` describes the standard shared-checkout flow only; the fix transcript skeleton shows `git -C \"/home/realnigga/Desktop/Mission-control\" worktree add -b \"worker/catalog-contract-cleanup-valuation-revert\" \"/tmp/catalog-contract-cleanup-valuation-revert\" HEAD`, and the handoff for session `991df618-0665-46b6-b884-d27258ca5e76` records `skillFeedback.followedProcedure=false` with the explanation that the shared checkout was already dirty from unrelated `.factory/validation/**` files."
+    }
+  ],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/catalog-surface-consolidation/scrutiny/reviews/catalog-contract-cleanup-and-proof.json",
+  "summary": "Pass: `d443d04482abe8296a4c48dc23dbe2551996fa89` removes the unrelated `TS_RuntimeInventoryValuationExecutableCoverageTest` band-aid, restores that file to its pre-packet state, and is the only delta on top of the already-reviewed catalog cleanup commit, so it clears the prior scrutiny blocker without disturbing the in-scope catalog contract cleanup work."
+}

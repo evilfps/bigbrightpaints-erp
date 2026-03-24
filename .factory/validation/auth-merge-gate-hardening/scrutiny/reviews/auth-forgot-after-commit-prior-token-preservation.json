@@ -1,0 +1,15 @@
+{
+  "featureId": "auth-forgot-after-commit-prior-token-preservation",
+  "reviewedAt": "2026-03-15T23:21:13.232523+00:00",
+  "commitId": "43ef80a333b6184cf4ab9739638f584a5dbeaa10",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Reviewed the fix commit alongside the original failed commit. The original blocking defect was that the after-commit recovery path tried to delete the newly issued digest and restore the prior snapshot in the same cleanup transaction, so a delete failure stranded the user without any usable token. This fix resolves that by surfacing the prior snapshot through PublicResetCleanupFailureException and restoring it in a separate fallback transaction from the outer catch path, while still returning the controlled 503/SYS_003 contract. The updated integration and service tests now prove the intended behavior: the prior digest is present again and the pre-existing raw token successfully resets the password in the dispatch-plus-cleanup failure path, so the tests are validating the repair rather than re-encoding the prior regression. I did not find remaining blocking or non-blocking issues in the reviewed scope.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/auth-merge-gate-hardening/scrutiny/reviews/auth-forgot-dispatch-after-commit.json",
+  "summary": "PASS. Commit 43ef80a333b6184cf4ab9739638f584a5dbeaa10 fixes the prior failure from 1de17c93a976efaf734c7710ab319d12068553c0 by restoring the preserved prior reset-token snapshot outside the failed after-commit cleanup transaction, and the updated contract/service tests now verify prior-token usability instead of asserting the old regression." 
+}

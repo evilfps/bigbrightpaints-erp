@@ -886,14 +886,14 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
                 HttpHeaders h = new HttpHeaders();
                 h.setBearerAuth(token);
                 h.setContentType(MediaType.APPLICATION_JSON);
-                h.set("X-Company-Id", COMPANY_CODE_A);
+                h.set("X-Company-Code", COMPANY_CODE_A);
                 return h;
             }
         } catch (Exception ignored) {
         }
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.APPLICATION_JSON);
-        h.set("X-Company-Id", COMPANY_CODE_A);
+        h.set("X-Company-Code", COMPANY_CODE_A);
         return h;
     }
 

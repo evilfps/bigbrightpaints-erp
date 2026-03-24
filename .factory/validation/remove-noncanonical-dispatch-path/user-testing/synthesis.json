@@ -1,0 +1,52 @@
+{
+  "milestone": "remove-noncanonical-dispatch-path",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 19,
+    "passed": 19,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-CLEANUP-001",
+    "VAL-CLEANUP-002",
+    "VAL-CLEANUP-003",
+    "VAL-CLEANUP-004",
+    "VAL-CROSS-002",
+    "VAL-CROSS-003",
+    "VAL-CROSS-004",
+    "VAL-DOCS-001",
+    "VAL-DOCS-002",
+    "VAL-DOCS-003",
+    "VAL-DOCS-004",
+    "VAL-GATE-001",
+    "VAL-GATE-002",
+    "VAL-GATE-003",
+    "VAL-GATE-004",
+    "VAL-ORCH-001",
+    "VAL-ORCH-002",
+    "VAL-ORCH-003",
+    "VAL-ORCH-004"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "toolsUsed": [
+    "Execute",
+    "Read",
+    "Grep",
+    "mvn"
+  ],
+  "frictions": [
+    "Task launch for user-testing-flow-validator failed once with invalid model alias (custom:CLIProxyAPI-5.3-codex-high); validation completed directly in-session using the same evidence requirements.",
+    "Full-suite jacoco run (`mvn test -Djacoco.skip=false`) remains pre-existing red in unrelated suites; changed-files coverage was validated with merged gate-fast/gate-core/targeted orchestrator jacoco reports, yielding 100% line and 100% branch over changed lines."
+  ],
+  "blockers": [],
+  "flowReports": [
+    "/home/realnigga/Desktop/Mission-control/.factory/validation/remove-noncanonical-dispatch-path/user-testing/flows/orchestrator-cleanup.json",
+    "/home/realnigga/Desktop/Mission-control/.factory/validation/remove-noncanonical-dispatch-path/user-testing/flows/gates-coverage.json",
+    "/home/realnigga/Desktop/Mission-control/.factory/validation/remove-noncanonical-dispatch-path/user-testing/flows/docs-contract.json"
+  ],
+  "previousRound": null
+}

@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.orchestrator.controller;
 
+import io.swagger.v3.oas.annotations.Hidden;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.orchestrator.dto.ApproveOrderRequest;
@@ -106,6 +107,7 @@ public class OrchestratorController {
 
     @PostMapping("/factory/dispatch/{batchId}")
     @PreAuthorize("hasAuthority('ROLE_ADMIN') or (hasAuthority('ROLE_FACTORY') and hasAuthority('factory.dispatch'))")
+    @Hidden
     public ResponseEntity<Map<String, Object>> dispatch(@PathVariable String batchId,
                                                          @Valid @RequestBody DispatchRequest request,
                                                          @org.springframework.web.bind.annotation.RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
@@ -140,6 +142,7 @@ public class OrchestratorController {
      */
     @PostMapping("/dispatch")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES')")
+    @Hidden
     public ResponseEntity<Map<String, Object>> dispatchOrder() {
         return goneToCanonical(
                 "Orchestrator dispatch is deprecated; use " + SALES_DISPATCH_CANONICAL_PATH,
@@ -148,6 +151,7 @@ public class OrchestratorController {
 
     @PostMapping("/dispatch/{orderId}")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES')")
+    @Hidden
     public ResponseEntity<Map<String, Object>> dispatchOrderAlias(@PathVariable String orderId) {
         return goneToCanonical(
                 "Orchestrator dispatch is deprecated; use " + SALES_DISPATCH_CANONICAL_PATH,

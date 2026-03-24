@@ -22,7 +22,7 @@ public enum SystemRole {
             "dispatch.confirm", "factory.dispatch", "payroll.run"
     )),
     ACCOUNTING("ROLE_ACCOUNTING", "Accounting, finance, HR, and inventory operator", List.of(
-            "portal:accounting", "payroll.run"
+            "portal:accounting", "dispatch.confirm", "payroll.run"
     )),
     FACTORY("ROLE_FACTORY", "Factory, production, and dispatch operator", List.of(
             "portal:factory", "dispatch.confirm", "factory.dispatch"

@@ -1,34 +1,48 @@
 # R2 Checkpoint
 
 ## Scope
-- Feature: `auth-reset-recovery-contract-hardening`
-- Branch: `security-auth-hardening`
-- High-risk paths touched: auth controller/service/repository code, security matcher/context filter code, and auth/admin contract tests.
-- Why this is R2: the change set modifies password recovery behavior across public, tenant-admin, and root-support flows in security-sensitive auth paths.
+- Feature: `ERP-34 hard-cut stock setup readiness`
+- PR: `#133`
+- PR branch: `anas/erp-36-hard-cut-stock-setup`
+- Review candidate: current ERP-34 umbrella packet on PR `#133`
+- Why this is R2: this packet hard-cuts stock setup onto canonical item classes, removes stale raw-material write paths, and tightens opening-stock replay protection with migration-backed persistence plus DB-level uniqueness.
 
 ## Risk Trigger
-- Triggered by edits under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/` and `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/`.
-- Contract surfaces affected: public forgot/reset, tenant-admin force reset, and root support tenant-admin password reset.
-- Main risks being controlled: stale alias drift, silent undispatched reset tokens, and temporary-credential exposure in API responses.
+- Triggered by inventory/accounting runtime behavior changes plus `migration_v2/V46__opening_stock_import_results_json.sql` updates.
+- Contract surfaces affected: `POST|GET /api/v1/catalog/products`, `POST|GET /api/v1/inventory/opening-stock`, and catalog readiness/read-model behavior for stock-bearing SKUs.
+- Failure mode if wrong: catalog create/update can drift item classes or mirror seeding, packaging raw materials can collapse back into heuristic classification, or opening-stock replay protection can admit duplicate payloads under concurrency.
 
 ## Approval Authority
-- Mode: orchestrator
-- Approver: security/auth hardening mission orchestration
-- Basis: compatibility-preserving remediation within the active security auth mission scope.
+- Mode: human
+- Approver: `Anas ibn Anwar`
+- Canary owner: `Anas ibn Anwar`
+- Approval status: `pending green CI and explicit merge approval`
+- Basis: focused compile proof, replay-protection regression proof, canonical catalog regression proof, and `git diff --check` are green locally for PR `#133`.
 
 ## Escalation Decision
-- Human escalation required: no
-- Reason: the only intentional contract break is a controlled retirement of a stale compatibility alias, and the remaining behavior hardens existing supported flows without widening privileges.
+- Human escalation required: yes
+- Reason: this packet changes migration-backed replay protection and canonical inventory/accounting behavior, so merge remains gated on explicit human approval after CI settles on PR `#133`.
 
 ## Rollback Owner
-- Owner: security-auth-hardening mission worker
-- Rollback method: revert the feature commit, then rerun the targeted auth/reset suites and `mvn test -Pgate-fast -Djacoco.skip=true` before merge.
+- Owner: `Anas ibn Anwar`
+- Rollback method: revert the ERP-34 follow-up commit(s), redeploy the previous backend build, and rerun the focused catalog/opening-stock proof before reopening operator traffic.
+- Rollback trigger:
+  - canonical catalog writes stop seeding the correct stock mirror or account linkage
+  - packaging raw materials lose explicit `PACKAGING_RAW_MATERIAL` classification
+  - opening-stock imports allow duplicate payloads under fresh idempotency keys or concurrent writes
 
 ## Expiry
-- Valid until: 2026-03-13
-- Re-evaluate if: additional auth/company/orchestrator endpoints, persistence migrations, or response-shape changes are added.
+- Valid until: `2026-03-29`
+- Re-evaluate if: scope grows beyond ERP-34 stock setup/opening-stock hard-cut behavior or CI reruns against a different candidate than PR `#133`.
 
 ## Verification Evidence
-- Commands run: `mvn test -Djacoco.skip=true -pl . -Dtest=AuthPasswordResetPublicContractIT,AuthControllerIT,CompanyContextFilterPasswordResetBypassTest,AdminUserServiceTest`; `mvn test -Djacoco.skip=true -pl . -Dtest=PasswordResetServiceTest,AuthTenantAuthorityIT#root_only_super_admin_can_reset_tenant_admin_password_for_support`; `mvn test -Djacoco.skip=true -pl . -Dtest=OpenApiSnapshotIT -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true`; `mvn compile -q`; `mvn test -Djacoco.skip=true -pl . -Dtest=OpenApiSnapshotIT -Derp.openapi.snapshot.verify=true`; `bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh`; `mvn test -Pgate-fast -Djacoco.skip=true`
-- Result summary: feature-specific contract tests passed, password reset service hardening tests passed, the isolated support reset integration check still excluded temporary credential fields, the OpenAPI snapshot was refreshed and then verified, repository lint/policy guards passed, and the full `gate-fast` suite finished green with 394 tests and 0 failures.
-- Artifacts/links: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/controller/AuthController.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/service/PasswordResetService.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/AuthPasswordResetPublicContractIT.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/service/PasswordResetServiceTest.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/AuthTenantAuthorityIT.java`
+- Compile gate:
+  - `cd "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-34-hard-cut-readiness/erp-domain" && export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock; mvn -B -ntp -DskipTests test-compile`
+  - result: `BUILD SUCCESS`
+- Focused regression suite:
+  - `cd "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-34-hard-cut-readiness/erp-domain" && export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock; mvn -B -ntp -Dtest='RawMaterialControllerTest,OpeningStockImportServiceTest,ProductionCatalogServiceCanonicalEntryTest,CR_CatalogImportDeterminismIT,ProductionCatalogDiscountDefaultRegressionIT,ProductionCatalogFinishedGoodInvariantIT,ProductionCatalogRawMaterialInvariantIT' test`
+  - result: `BUILD SUCCESS`
+  - tests: `79 run, 0 failures, 0 errors, 0 skipped`
+- Contract/hygiene guard:
+  - `git diff --check`
+  - result: clean

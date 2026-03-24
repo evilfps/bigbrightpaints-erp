@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-local-ci.pr-parity-runner-and-services",
+  "reviewedAt": "2026-03-11T01:50:00Z",
+  "commitId": "b98245f2512232ae8554fac0c36dd5d702e58b21",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review passed. Reviewed the worker handoff for commit `b98245f2512232ae8554fac0c36dd5d702e58b21`, the commit diff, and the new validation entrypoints. The implementation adds a focused repo-local PR parity runner in `scripts/pr_ci_parity.py`, exposes it through `.factory/services.yaml`, teaches `scripts/ci_risk_router.py` to classify the runner and services manifest as CI-infrastructure changes, and extends `testing/ci/test_pr_review_ci_packet.py` with contract coverage for routing, changed-coverage skip summaries, and merge-gate behavior. The runner mirrors the intended `pull_request` workflow shape by executing baseline checks, routed shard manifests, changed-files coverage aggregation, and a merge-gate style summary without widening product behavior. The single non-green parity execution reported in the handoff was the expected proof that the new runner surfaces a real changed-coverage gap on the active branch rather than masking it, so there are no blocking review issues in this feature.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Added a reusable local PR CI parity runner plus services-manifest wiring and CI contract tests, and verified it reproduces routed shard, changed-files coverage, and merge-gate behavior locally during the GitHub Actions billing outage."
+}

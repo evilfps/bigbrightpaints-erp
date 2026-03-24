@@ -82,6 +82,12 @@ public class AccountingComplianceAuditService {
 
         Map<String, String> metadata = baseMetadata(company, beforeState, afterState, manualJournal);
         metadata.put("journalSource", manualJournal ? "MANUAL" : "SYSTEM_GENERATED");
+        if (StringUtils.hasText(entry.getSourceReference())) {
+            metadata.put("sourceReference", entry.getSourceReference().trim());
+        }
+        if (StringUtils.hasText(entry.getAttachmentReferences())) {
+            metadata.put("attachmentReferences", entry.getAttachmentReferences().trim());
+        }
 
         record(
                 company,

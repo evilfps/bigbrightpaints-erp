@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ActiveProfiles(value = {"test", "prod"}, inheritProfiles = false)
 @TestPropertySource(properties = {
-        "jwt.secret=test-secret-should-be-at-least-32-bytes-long-1234",
+        "jwt.secret=2f4f8a6c9b1d4e7f8a2c5d9e3f6b7c1a4d8e2f5a9c3b6d7e",
         "spring.mail.host=localhost",
         "spring.mail.username=test-smtp-user",
         "spring.mail.password=test-smtp-password",
@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class CR_OpeningStockImportProdGatingIT extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE = "CR-OPEN-PROD";
+    private static final String OPENING_STOCK_BATCH_KEY = "OPEN-STOCK-BATCH-PROD-001";
 
     @Autowired
     private OpeningStockImportService openingStockImportService;
@@ -89,7 +90,7 @@ class CR_OpeningStockImportProdGatingIT extends AbstractIntegrationTest {
         MockMultipartFile file = csvFile();
 
         ApplicationException ex = assertThrows(ApplicationException.class,
-                () -> openingStockImportService.importOpeningStock(file, "OPEN-PROD-001"));
+                () -> openingStockImportService.importOpeningStock(file, "OPEN-PROD-001", OPENING_STOCK_BATCH_KEY));
         assertThat(ex.getMessage()).contains("Opening stock import is disabled");
 
         assertThat(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "OPEN-PROD-001")).isEmpty();

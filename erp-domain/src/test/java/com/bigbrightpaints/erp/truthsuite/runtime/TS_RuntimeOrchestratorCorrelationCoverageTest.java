@@ -11,19 +11,15 @@ import static org.mockito.Mockito.when;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
-import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.service.FactoryService;
 import com.bigbrightpaints.erp.modules.hr.service.HrService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
-import com.bigbrightpaints.erp.modules.invoice.service.InvoiceService;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
-import com.bigbrightpaints.erp.modules.sales.service.SalesJournalService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
 import com.bigbrightpaints.erp.orchestrator.config.OrchestratorFeatureFlags;
 import com.bigbrightpaints.erp.orchestrator.controller.OrchestratorController;
@@ -333,21 +329,15 @@ class TS_RuntimeOrchestratorCorrelationCoverageTest {
                 salesService,
                 mock(FactoryService.class),
                 mock(FinishedGoodsService.class),
-                mock(InvoiceService.class),
                 mock(AccountingService.class),
-                mock(SalesJournalService.class),
                 mock(HrService.class),
                 mock(ReportService.class),
                 mock(OrderAutoApprovalStateRepository.class),
                 mock(AccountingFacade.class),
-                mock(CompanyEntityLookup.class),
-                mock(CompanyDefaultAccountsService.class),
-                mock(CompanyContextService.class),
+                mock(CompanyRepository.class),
                 mock(CompanyClock.class),
                 featureFlags,
-                new ResourcelessTransactionManager(),
-                10L,
-                20L);
+                new ResourcelessTransactionManager());
     }
 
     private Company company(Long id) {

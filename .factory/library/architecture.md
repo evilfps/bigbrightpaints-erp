@@ -41,3 +41,27 @@ Each module follows: `domain/` (entities + repos), `service/`, `controller/`, `d
 - `SUSPENDED` tenants are read-only (write operations are denied).
 - Module access gates treat `AUTH`, `ACCOUNTING`, `SALES`, and `INVENTORY` as always-on core modules.
 - Optional modules are controlled via company `enabled_modules` and enforced by `ModuleGatingInterceptor` + `ModuleGatingService`.
+
+## ERP Truth-Stabilization Mission Notes
+- Highest-risk O2C/P2P hotspots are `SalesCoreEngine`, `InvoiceService`, `GoodsReceiptService`, `PurchaseInvoiceEngine`, `InventoryAccountingEventListener`, `SupplierService`, and `DealerService`.
+- For this mission, workflow state and accounting state must stay separate in touched documents.
+- Posting truth must have one canonical trigger per touched workflow boundary; duplicate-truth listeners and dead fallback paths should be removed when a feature makes them obsolete.
+- O2C dispatch posting has one allowed accounting path: `SalesCoreEngine.confirmDispatch -> AccountingFacade.postCogsJournal/postSalesJournal`. Orchestrator batch-dispatch and fulfillment endpoints must fail closed or redirect callers to the canonical sales dispatch confirm endpoint; they must never mint `DISPATCH-*` journals.
+- The mission normalizes linked business references across order or proforma, production requirement, packaging slip, dispatch, invoice, journal, settlement, return, note, and reversal artifacts.
+- Flyway `migration_v2` is the only valid migration track for this mission.
+
+## Lane 01 Tenant Runtime Canonicalization Notes
+- Canonical tenant/runtime policy writer: `PUT /api/v1/companies/{id}/tenant-runtime/policy`.
+- Canonical persistence/enforcement source for this slice: `modules.company.service.TenantRuntimeEnforcementService`.
+- The stale admin-side writer (`PUT /api/v1/admin/tenant-runtime/policy`) and any separate privileged-path recognition must be retired or collapsed in the same packet when touched.
+- Admin runtime metrics remain an in-scope tenant-scoped reader, but they must map canonical `auditChainId`/`updatedAt` to `policyReference`/`policyUpdatedAt` and align defaults with the canonical source.
+- `CompanyContextFilter`, `TenantRuntimeEnforcementService`, `AuthService`, and `TenantRuntimeEnforcementInterceptor` are the critical code surfaces for this packet.
+- See `.factory/library/tenant-runtime-control-plane.md` for the worker-facing packet contract and catching-lane notes.
+
+## Catalog Surface Consolidation Notes
+- Historically, the catalog flow was split across three public hosts: `/api/v1/accounting/catalog/**`, `/api/v1/catalog/**`, and `/api/v1/production/**`. The surviving canonical public host is now `/api/v1/catalog/**`.
+- `ProductionCatalogService` remains the downstream-ready write path behind the canonical public host, and duplicate product mutation behavior on retired hosts must stay removed.
+- The packet contract is to keep only `/api/v1/catalog/**` as the public host, keep `POST /api/v1/catalog/brands` separate from product create, and keep `POST /api/v1/catalog/products` as the only public product-create surface.
+- Explicit persisted family/group linkage is required for multi-SKU creates; do not rely on naming conventions alone.
+- Preserve reserved SKU semantics such as `-BULK` and keep downstream finished-good/raw-material readiness in the same write path.
+- See `.factory/library/catalog-surface-consolidation.md` for mission-specific hotspots, cleanup targets, and packet guardrails.

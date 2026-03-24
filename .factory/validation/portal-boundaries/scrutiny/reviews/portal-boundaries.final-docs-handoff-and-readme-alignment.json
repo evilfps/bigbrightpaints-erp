@@ -1,0 +1,15 @@
+{
+  "featureId": "portal-boundaries.final-docs-handoff-and-readme-alignment",
+  "reviewedAt": "2026-03-08T13:11:00+05:30",
+  "commitId": "e1c8d2be31ee77dd9b522feda676f749139a35c8",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The documentation packet aligns README and the frontend/remediation handoff notes with the merged portal-boundary behavior: dealer portal is documented as read-only and own-record scoped, operational dispatch redaction is separated from accounting dispatch posting, and Flyway v2 plus the `5433` local-runtime boundary are explicit. The reviewed transcript skeleton shows the worker cross-checked the docs against code/tests and validation state rather than inventing new behavior, and the diff removes stale statements that previously implied dealer write flows or finance data on factory dispatch views.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. The portal-boundaries docs now reflect delivered behavior without overstating unfinished work, and they correctly preserve the distinction between current milestone outcomes and the still-pending final-hardening validation milestone."
+}

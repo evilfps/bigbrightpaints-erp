@@ -265,7 +265,7 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void dispatchUsesWeightedAverageCostWhenConfigured() {
+    void dispatchUsesFifoCostWhenWeightedAverageAliasIsConfigured() {
         Company company = dataSeeder.ensureCompany("DISP-WAC", "Dispatch WAC");
 
         FinishedGood fg = new FinishedGood();
@@ -328,8 +328,7 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
 
         List<DispatchPosting> postings = finishedGoodsService.markSlipDispatched(order.getId(), slip);
 
-        BigDecimal expectedWac = new BigDecimal("15");
-        BigDecimal expectedCost = expectedWac.multiply(new BigDecimal("4"));
+        BigDecimal expectedCost = new BigDecimal("10").multiply(new BigDecimal("4"));
         assertEquals(1, postings.size());
         assertEquals(0, postings.getFirst().cost().compareTo(expectedCost));
     }
@@ -342,7 +341,8 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
 
         CompanyContextHolder.setCompanyId(companyA.getCode());
 
-        assertThrows(IllegalArgumentException.class, () -> salesService.getOrderWithItems(orderB.getId()));
+        assertThrows(com.bigbrightpaints.erp.core.exception.ApplicationException.class,
+                () -> salesService.getOrderWithItems(orderB.getId()));
     }
 
     @Test
@@ -353,6 +353,7 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
         var created = rawMaterialService.createRawMaterial(new RawMaterialRequest(
                 "Titanium Dioxide",
                 "RM-TIO2",
+                null,
                 "KG",
                 new BigDecimal("5"),
                 new BigDecimal("2"),
@@ -364,6 +365,7 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
         rawMaterialService.updateRawMaterial(created.id(), new RawMaterialRequest(
                 "Titanium Dioxide",
                 "RM-TIO2",
+                null,
                 "KG",
                 null,
                 null,
@@ -402,11 +404,13 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
         supplier.setCode("SUP-DUP");
         supplier.setName("Dup Supplier");
         supplier.setPayableAccount(payable);
+        supplier.setStatus("ACTIVE");
         supplier = supplierRepository.save(supplier);
 
         var material = rawMaterialService.createRawMaterial(new RawMaterialRequest(
                 "Duplicate Test Material",
                 "RM-DUP-001",
+                null,
                 "KG",
                 new BigDecimal("5"),
                 new BigDecimal("2"),
@@ -428,7 +432,8 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
 
         rawMaterialService.createBatch(material.id(), request, "RM-DUP-KEY-1");
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        com.bigbrightpaints.erp.core.exception.ApplicationException ex = assertThrows(
+                com.bigbrightpaints.erp.core.exception.ApplicationException.class,
                 () -> rawMaterialService.createBatch(material.id(), request, "RM-DUP-KEY-2"));
         assertTrue(ex.getMessage().contains("Batch code"));
     }

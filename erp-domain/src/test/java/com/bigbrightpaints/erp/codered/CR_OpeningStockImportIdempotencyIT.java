@@ -6,15 +6,23 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.OpeningStockImport;
 import com.bigbrightpaints.erp.modules.inventory.domain.OpeningStockImportRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.dto.OpeningStockImportResponse;
 import com.bigbrightpaints.erp.modules.inventory.service.OpeningStockImportService;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -31,11 +39,20 @@ class CR_OpeningStockImportIdempotencyIT extends AbstractIntegrationTest {
 
     private static final String COMPANY_CODE = "CR-OPEN-IDEMP";
     private static final String IDEMPOTENCY_KEY = "OPEN-STOCK-IDEMP-001";
+    private static final String OPENING_STOCK_BATCH_KEY = "OPEN-STOCK-BATCH-IDEMP-001";
 
     @Autowired
     private CompanyRepository companyRepository;
     @Autowired
     private AccountRepository accountRepository;
+    @Autowired
+    private ProductionBrandRepository productionBrandRepository;
+    @Autowired
+    private ProductionProductRepository productionProductRepository;
+    @Autowired
+    private RawMaterialRepository rawMaterialRepository;
+    @Autowired
+    private FinishedGoodRepository finishedGoodRepository;
     @Autowired
     private OpeningStockImportService openingStockImportService;
     @Autowired
@@ -58,15 +75,19 @@ class CR_OpeningStockImportIdempotencyIT extends AbstractIntegrationTest {
                     return companyRepository.save(created);
                 });
         Account inventory = ensureAccount(company, "INV-OPEN", "Inventory", AccountType.ASSET);
-        ensureAccount(company, "COGS-OPEN", "COGS", AccountType.COGS);
-        ensureAccount(company, "REV-OPEN", "Revenue", AccountType.REVENUE);
-        ensureAccount(company, "GST-OPEN", "GST Output", AccountType.LIABILITY);
+        Account cogs = ensureAccount(company, "COGS-OPEN", "COGS", AccountType.COGS);
+        Account revenue = ensureAccount(company, "REV-OPEN", "Revenue", AccountType.REVENUE);
+        Account tax = ensureAccount(company, "GST-OPEN", "GST Output", AccountType.LIABILITY);
+        ensureAccount(company, "OPEN-BAL", "Opening Balance", AccountType.EQUITY);
 
         company.setDefaultInventoryAccountId(inventory.getId());
-        company.setDefaultCogsAccountId(accountRepository.findByCompanyAndCodeIgnoreCase(company, "COGS-OPEN").orElseThrow().getId());
-        company.setDefaultRevenueAccountId(accountRepository.findByCompanyAndCodeIgnoreCase(company, "REV-OPEN").orElseThrow().getId());
-        company.setDefaultTaxAccountId(accountRepository.findByCompanyAndCodeIgnoreCase(company, "GST-OPEN").orElseThrow().getId());
+        company.setDefaultCogsAccountId(cogs.getId());
+        company.setDefaultRevenueAccountId(revenue.getId());
+        company.setDefaultTaxAccountId(tax.getId());
         companyRepository.save(company);
+
+        ensurePreparedRawMaterialSku("RM-OPEN-1", "Resin", inventory);
+        ensurePreparedFinishedGoodSku("FG-OPEN-1", "Paint 1L", inventory, cogs, revenue, tax);
         CompanyContextHolder.setCompanyId(COMPANY_CODE);
     }
 
@@ -79,8 +100,14 @@ class CR_OpeningStockImportIdempotencyIT extends AbstractIntegrationTest {
     void openingStockImport_isIdempotentForSameKeyAndFile() {
         MockMultipartFile file = csvFile();
 
-        OpeningStockImportResponse first = openingStockImportService.importOpeningStock(file, IDEMPOTENCY_KEY);
-        OpeningStockImportResponse second = openingStockImportService.importOpeningStock(file, IDEMPOTENCY_KEY);
+        OpeningStockImportResponse first = openingStockImportService.importOpeningStock(
+                file,
+                IDEMPOTENCY_KEY,
+                OPENING_STOCK_BATCH_KEY);
+        OpeningStockImportResponse second = openingStockImportService.importOpeningStock(
+                file,
+                IDEMPOTENCY_KEY,
+                OPENING_STOCK_BATCH_KEY);
 
         assertThat(second).isEqualTo(first);
 
@@ -122,6 +149,67 @@ class CR_OpeningStockImportIdempotencyIT extends AbstractIntegrationTest {
                     account.setName(name);
                     account.setType(type);
                     return accountRepository.save(account);
+                });
+    }
+
+    private void ensurePreparedRawMaterialSku(String sku, String name, Account inventoryAccount) {
+        ensureProductMaster(sku, name, "RAW_MATERIAL", "KG", null);
+        RawMaterial material = rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, sku).orElseGet(RawMaterial::new);
+        material.setCompany(company);
+        material.setSku(sku);
+        material.setName(name);
+        material.setUnitType("KG");
+        material.setInventoryAccountId(inventoryAccount.getId());
+        rawMaterialRepository.save(material);
+    }
+
+    private void ensurePreparedFinishedGoodSku(String sku,
+                                               String name,
+                                               Account inventoryAccount,
+                                               Account cogsAccount,
+                                               Account revenueAccount,
+                                               Account taxAccount) {
+        ensureProductMaster(sku, name, "FINISHED_GOOD", "L", "1L");
+        FinishedGood finishedGood = finishedGoodRepository.findByCompanyAndProductCodeIgnoreCase(company, sku)
+                .orElseGet(FinishedGood::new);
+        finishedGood.setCompany(company);
+        finishedGood.setProductCode(sku);
+        finishedGood.setName(name);
+        finishedGood.setUnit("L");
+        finishedGood.setValuationAccountId(inventoryAccount.getId());
+        finishedGood.setCogsAccountId(cogsAccount.getId());
+        finishedGood.setRevenueAccountId(revenueAccount.getId());
+        finishedGood.setTaxAccountId(taxAccount.getId());
+        finishedGoodRepository.save(finishedGood);
+    }
+
+    private void ensureProductMaster(String sku, String name, String category, String unitOfMeasure, String sizeLabel) {
+        ProductionProduct product = productionProductRepository.findByCompanyAndSkuCodeIgnoreCase(company, sku)
+                .orElseGet(ProductionProduct::new);
+        product.setCompany(company);
+        product.setBrand(ensureBrand());
+        product.setProductName(name);
+        product.setCategory(category);
+        product.setSkuCode(sku);
+        product.setUnitOfMeasure(unitOfMeasure);
+        product.setSizeLabel(sizeLabel);
+        product.setHsnCode("320910");
+        product.setBasePrice(BigDecimal.ZERO);
+        product.setGstRate(BigDecimal.ZERO);
+        product.setMinDiscountPercent(BigDecimal.ZERO);
+        product.setMinSellingPrice(BigDecimal.ZERO);
+        product.setActive(true);
+        productionProductRepository.save(product);
+    }
+
+    private ProductionBrand ensureBrand() {
+        return productionBrandRepository.findByCompanyAndCodeIgnoreCase(company, "OPEN-STOCK")
+                .orElseGet(() -> {
+                    ProductionBrand brand = new ProductionBrand();
+                    brand.setCompany(company);
+                    brand.setCode("OPEN-STOCK");
+                    brand.setName("Opening Stock");
+                    return productionBrandRepository.save(brand);
                 });
     }
 }

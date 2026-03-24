@@ -11,6 +11,7 @@ Testing surface: tools, URLs, setup steps, isolation notes, known quirks.
 - Start the local app only when a feature or validator needs runtime-assisted evidence.
 - Preserve auth/admin contracts wherever possible; if a shape changes, verify the documented handoff note matches the runtime/API behavior.
 - If delegated helper launches fail, perform the validation directly in-session and emit the expected validation artifacts manually.
+- For orchestrator-side delegation, prefer the custom project droids approved by the user instead of built-in helper subagents.
 
 ## Testing Surface
 - **Type**: REST API
@@ -23,20 +24,43 @@ Testing surface: tools, URLs, setup steps, isolation notes, known quirks.
 - `curl` for auth/admin API verification
 - Docker Compose for `rabbitmq` and `mailhog` when runtime validation is needed
 
+## Validation Concurrency
+- **api**: max concurrent validators **1** unless each validator gets its own isolated runtime, because shared compose services and MailHog state can make assertions interfere.
+- **jvm-tests**: use **1 validator at a time** against a shared checkout because concurrent Maven runs collide on `erp-domain/target`, Surefire reports, and `artifacts/gate-fast/` outputs. Raise concurrency only when each validator has an isolated clone or separate build directory.
+
 ## Setup Steps
-1. Run `/home/realnigga/Desktop/Mission-control/.factory/init.sh`.
-2. Confirm the local PostgreSQL dependency on `5432` is reachable.
-3. When runtime evidence is needed, start `rabbitmq` and `mailhog`.
-4. Start the backend on `8081/9090`.
-5. Wait for health: `curl -sf http://localhost:9090/actuator/health`.
+1. From the repository root, run `bash .factory/init.sh`.
+2. When runtime evidence is needed, start the compose-backed mission services on `5433/5672/1025/8081/9090` rather than touching the unrelated local PostgreSQL on `5432`.
+3. Start `db`, `rabbitmq`, and `mailhog` with `DB_PORT=5433 docker compose up -d db rabbitmq mailhog`.
+4. Start the backend on `8081/9090` with the explicit Flyway v2 overrides from `.factory/services.yaml`.
+5. Wait for health using either `curl -sf http://localhost:9090/actuator/health` or the fallback auth probe on `http://localhost:8081/api/v1/auth/me`.
 6. Exercise auth/admin endpoints with `curl`.
 7. For the compose-backed auth runtime currently on `8081`, the seeded `MOCK` tenant already has usable UAT actors (`uat.admin@example.com`, `uat.sales@example.com`, `uat.superadmin@example.com`). If their passwords drift, reset them directly in the local `erp_db` container with `crypt('<password>', gen_salt('bf'))` before user-testing.
 8. To validate the **current code** on the compose-backed runtime after this milestone, rebuild and restart the app with explicit overrides so it uses Flyway v2, passes production CORS validation, and forces MailHog instead of any `.env` SMTP credentials: `SPRING_PROFILES_ACTIVE='prod,flyway-v2' ERP_CORS_ALLOWED_ORIGINS='https://app.bigbrightpaints.com' ERP_CORS_ALLOW_TAILSCALE_HTTP_ORIGINS='true' DB_PORT=5433 SPRING_MAIL_HOST='mailhog' SPRING_MAIL_PORT='1025' SPRING_MAIL_USERNAME='' SPRING_MAIL_PASSWORD='' SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH='false' SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE='false' SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED='false' docker compose up -d --build app`.
+9. For final adversarial validation, prefer the repo-local reset harness from the repository root: `bash scripts/reset_final_validation_runtime.sh`. It rebuilds the compose runtime on `5433/8081` with `prod,flyway-v2,mock,validation-seed`, recreates the DB volume, and reseeds deterministic actors for `MOCK`, `RIVAL`, and `SKE`.
+
+## Final Validation Runtime Reset
+- Canonical reset command: `bash scripts/reset_final_validation_runtime.sh`
+- Equivalent factory command: `.factory/services.yaml -> commands.final-validation-reset` (it resolves the current clone root with `git rev-parse --show-toplevel` before invoking the script)
+- Seeded actor password: export `ERP_VALIDATION_SEED_PASSWORD` before running the reset if you want a deterministic local password; otherwise the script generates a strong local-only password and prints it before listing the seeded actors.
+- Seeded actors:
+  - `validation.admin@example.com` -> `MOCK` admin/accounting/sales
+  - `validation.accounting@example.com` -> `MOCK` accounting
+  - `validation.sales@example.com` -> `MOCK` sales
+  - `validation.factory@example.com` -> `MOCK` factory
+  - `validation.dealer@example.com` -> `MOCK` dealer portal user (`VALID-DEALER`)
+  - `validation.superadmin@example.com` -> `SKE` superadmin plus `MOCK` admin membership
+  - `validation.rival.admin@example.com` -> `RIVAL` admin
+  - `validation.rival.dealer@example.com` -> `RIVAL` dealer portal user (`RIVAL-DEALER`)
 
 ## Known Issues
-- Delegated validator/reviewer helpers may fail with `Invalid model: custom:CLIProxyAPI-5.4-xhigh` or `Invalid model: custom:CLIProxyAPI-5.4-high`; attempt once if required by procedure, then fall back to direct in-session validation.
+- Built-in helper subagent launches may fail with invalid model-alias errors; attempt once only when necessary, then fall back to direct in-session validation or approved custom project droids.
 - Local runtime surfaces may be down until the backend is started explicitly for this mission.
-- Local PostgreSQL on `5432` is reused by this mission; do not start another database on the same port.
+- Local PostgreSQL on `5432` belongs to another local database; mission-owned compose runtime must use `5433` instead.
+- The compose-backed `MOCK` runtime currently seeds UAT users, roles, and baseline master data, but does **not** preload linked invoice/GRN/purchase chains; milestone validators for workflow-truth assertions should expect to combine live login/API probes with targeted Maven truthsuite or service-contract evidence unless they deliberately create fresh transactional data.
+- The final-validation reset harness keeps that same baseline master data (`mock` profile) and adds deterministic actor identities (`validation-seed` profile). It still intentionally leaves transactional O2C/P2P documents to be created live during validation so replay/idempotency probes start from a clean slate.
+- The rebuilt `backend-compose-v2` runtime on `prod,flyway-v2` can also boot against an empty local database with no seeded companies or UAT actors at all; if `docker exec erp_db psql -U erp -d erp_domain -c "select id,code from companies;"` and the same check against `app_users` both return zero rows, do **not** block on live login. Instead, use deterministic Spring Boot API/e2e suites (for example `DispatchOperationalBoundaryIT`, `DispatchConfirmationIT`, `ErpInvariantsSuiteIT`, `FactoryPackagingCostingIT`, `ReportInventoryParityIT`) or explicitly seed/reset the runtime first.
+- For accounting provenance probes on the current `MOCK` runtime, prefer the canonical `/api/v1/accounting/audit/transactions` and `/api/v1/accounting/audit/transactions/{journalEntryId}` endpoints. The older `/api/v1/accounting/audit-trail` surface currently returns `500 SYS_001` in this environment.
 - Starting a second local Spring Boot instance against the compose database on `127.0.0.1:5433/erp_domain` currently fails at Flyway startup because the schema is populated but only `flyway_schema_history_v2` exists; prefer the already-running compose app on `8081/9090` for runtime auth validation instead of a parallel local app process.
 - Plain `docker compose up -d --build app` currently picks up `.env` `SPRING_PROFILES_ACTIVE=dev`, localhost HTTP CORS origins, and any persisted SMTP credentials, which makes the rebuilt app fail on either Flyway history detection, prod-profile origin validation, or runtime reset-email delivery. Use the explicit override command above when you need the runtime to reflect current repository code, and keep the `--build` flag because `up -d app` alone can leave you probing a stale image.
 - The compose-backed app can report `503 {"status":"DOWN"}` on `http://localhost:9090/actuator/health` even while the auth/admin APIs on `8081` are usable; if that happens, confirm the target API endpoints directly before treating the runtime as unavailable.
@@ -47,7 +71,126 @@ Testing surface: tools, URLs, setup steps, isolation notes, known quirks.
 - Verify login, refresh, logout, public forgot/reset, admin force-reset, support reset, must-change-password corridor, privileged user-control boundaries, and admin settings authz when the relevant feature claims those assertions.
 - Preserve evidence for both allowed and denied boundary cases.
 - Re-check frontend-sensitive auth/admin payloads whenever a DTO or error contract changes.
+- For `o2c-truth` assertions, pair runtime-accessible API probes with deterministic O2C integration coverage: use `DealerServiceTest`/`SalesServiceTest` for dealer provisioning, credit posture, payment-mode, and shortage-to-production seams; use `DispatchControllerTest`, `DispatchOperationalBoundaryIT`, `DispatchConfirmationIT`, and `ErpInvariantsSuiteIT` for factory redaction, dispatch-owned invoicing, challan metadata/artifacts, and replay safety; use `FactoryPackagingCostingIT` plus `ReportInventoryParityIT` for carried-cost and valuation proof.
+- For `p2p-truth` assertions, pair runtime-accessible API probes with deterministic P2P coverage: use `SupplierServiceTest` plus `SupplierController`/`SupplierService`/`Supplier` for payable-account provisioning, visible lifecycle state, and reference-only blocker messaging; use `PurchasingServiceGoodsReceiptTest` for stock-only GRN posting, receipt lifecycle state, and idempotent replay; use `PurchaseInvoiceEngineLifecycleTest`, `RawMaterialPurchaseController`, and `InventoryAccountingEventListenerIT` for GRN-linked AP posting and duplicate-posting containment.
+- For `corrections-and-control` assertions, pair the empty-runtime auth/data probe with deterministic correction/control coverage: use `CR_ManualJournalSafetyTest`, `InvoiceSettlementPolicyTest`, `CR_DealerReceiptSettlementAuditTrailTest`, `AccountingServiceTest` targeted supplier-settlement methods, and `AccountingPeriodServicePolicyTest` for manual-journal controls, admin-only overrides, header-level settlement replay, and maker-checker closed-period exceptions; use `SalesReturnServiceTest`, `PurchaseReturnIdempotencyRegressionIT`, `PurchaseInvoiceEngineLifecycleTest`, `AccountingController`, `RawMaterialPurchaseController`, and `ErpInvariantsSuiteIT` for linked sales/purchase return previews, posted-document immutability, credit-note linkage, supplier-settlement replay, purchase-return replay, and period-close blocker evidence.
+- The curated final-validation targeted suite in `.factory/services.yaml -> commands.final-validation-targeted-tests` now keeps those historical class names but narrows them to current-contract assertions; use it when you need one command that exercises the legacy surface area without reintroducing obsolete assumptions.
 - For `VAL-RESET-003`, a temporary local `BEFORE INSERT` trigger on `password_reset_tokens` is a safe way to induce a real runtime persistence failure for a dedicated test user; the current fixed runtime surfaces that path as a controlled non-success `503 SYS_003` response instead of the normal `200 OK` forgot-password success contract.
+- For `portal-boundaries` assertions, pair the empty-runtime compose probe with targeted portal/auth suites: use `SalesControllerIT`, `InvoiceControllerSecurityContractTest`, and `DealerPortalControllerExportAuditTest` for the role-action matrix plus business-language blocker copy on dispatch/finance surfaces; use `DealerPortalReadOnlySecurityIT`, method-scoped `DealerPortalControllerSecurityIT`, method-scoped `DealerControllerSecurityIT`, `SuperAdminTenantWorkflowIsolationIT`, `CompanyContextFilterControlPlaneBindingTest`, and `AuthTenantAuthorityIT#control_plane_support_reset_denials_use_uniform_message_for_unknown_and_foreign_tenants` for dealer read-only scope, super-admin platform-only isolation, and no-leak cross-tenant denial envelopes.
+- Broad `DealerPortalControllerSecurityIT` and `DealerControllerSecurityIT` runs currently include unrelated pending-exposure/admin-not-found expectations that fail against the current contracts; for milestone validation prefer the specific passing methods above instead of treating those adjacent failures as portal-boundary regressions.
 - For `VAL-AUTHZ-005`, you can hold `SELECT ... FOR UPDATE` on the foreign target row in the local Postgres container while issuing the tenant-admin deny probe (for example `PATCH /api/v1/admin/users/3/suspend`); the fixed runtime should still return the masked `400 User not found` contract immediately rather than blocking on the foreign row lock.
 - For shared-role mutation guard validation on `POST /api/v1/admin/roles`, use a system role name such as `ROLE_ADMIN` or `ROLE_SUPER_ADMIN`; arbitrary role names bypass the controller guard and fail later with `400 Unknown platform role ...`, which does not validate the intended authz boundary.
 - For unknown stored tenant-lifecycle validation, protected endpoints such as `GET /api/v1/auth/me` and `GET /api/v1/admin/users` reflect the fail-closed behavior once the stored lifecycle is corrupted locally; restore both the row value and the `chk_companies_lifecycle_state` constraint after the probe.
+
+## Flow Validator Guidance: jvm-tests
+- Lane `auth-merge-gate-hardening` is validated primarily through deterministic Maven integration/unit suites and repo gate scripts; prefer those over ad-hoc runtime mutation.
+- Stay inside the assigned assertion group and evidence directory. Do not edit source files unless the parent validator explicitly assigns artifact-writing work.
+- Use `MIGRATION_SET=v2` for every Maven invocation.
+- Because the shared checkout is not isolated, run only the commands assigned in the prompt and assume no other Maven validator is running in parallel.
+- Treat `AuthTenantAuthorityIT` full-class failures outside the assigned auth-merge methods as pre-existing mission guidance; use the targeted methods or paired suites named in the prompt instead of broad exploratory reruns.
+- For gate/governance assertions, preserve the exact command output and artifact paths (`artifacts/gate-fast/**`, enterprise policy, Codex review guidelines) needed to map each assertion to evidence.
+
+## Lane 01 Tenant Runtime Canonicalization Packet Guidance
+
+### Validation Surface
+- **Primary:** targeted Maven suites plus the exact PR catching lane `pr-auth-tenant`
+- **Secondary:** `gate-fast` and `gate-core`
+- **Optional runtime proof:** `curl` against the compose-backed backend on `8081/9090` when a validator needs canonical company write -> auth or portal/report evidence
+
+### Validation Concurrency
+- **CLI validators:** max 3 concurrent validators
+- **Runtime validators:** max 1 concurrent validator (fixed ports `5433/8081/9090`)
+
+### Key Commands
+- `.factory/services.yaml -> commands.lane01-targeted`
+- `.factory/services.yaml -> commands.pr-auth-tenant`
+- `.factory/services.yaml -> commands.gate-fast`
+- `.factory/services.yaml -> commands.gate-core`
+- `.factory/services.yaml -> commands.lane01-router-check`
+
+### High-Signal Proof For This Packet
+- Canonical writer / control-plane binding:
+  - `CompanyControllerIT`
+  - `CompanyContextFilterControlPlaneBindingTest`
+  - `OpenApiSnapshotIT`
+- Same-node invalidation / recovery:
+  - `TenantRuntimeEnforcementServiceTest`
+  - `TS_RuntimeTenantRuntimeEnforcementTest`
+  - `TS_RuntimeTenantPolicyControlExecutableCoverageTest`
+- Canonical-write-driven auth/runtime proof:
+  - `TenantRuntimeEnforcementAuthIT`
+- Canonical-write-driven tenant-scoped read parity:
+  - `TenantRuntimePolicyServiceTest`
+  - `AdminSettingsControllerTenantRuntimeContractTest`
+- Canonical-write-driven portal/report proof:
+  - `PortalInsightsControllerIT`
+  - `ReportControllerSecurityIT`
+
+### Runtime Probe Guidance
+- Prefer `http://localhost:9090/actuator/health` for runtime readiness; if it is degraded, verify the target API endpoints on `8081` directly before treating the runtime as unavailable.
+- For manual API proof in this packet, start from a canonical company-path write and then probe:
+  - `GET /api/v1/auth/me` for immediate deny/re-allow
+  - a runtime-intercepted endpoint such as `GET /api/v1/portal/dashboard`
+  - `GET /api/v1/admin/tenant-runtime/metrics` for tenant-scoped read parity
+- `GET /api/v1/admin/tenant-runtime/metrics` is itself runtime-gated for blocked tenants in the seeded lane01 runtime. If a tenant is BLOCKED, expect `403 TENANT_BLOCKED`; verify the blocked state with auth/login denial first, then recover the tenant before reading metrics again.
+
+## Flow Validator Guidance: cli
+- Lane 01 CLI validators are read-only with respect to repository contents: run manifest/router or targeted Maven commands, but do not edit source files or validation artifacts.
+- Reuse the already-prepared repo root `/home/realnigga/Desktop/Mission-control`; do not create alternate clones or reset the shared runtime.
+- It is safe to run CLI validation in parallel with a single runtime/API validator, but do not start additional compose services or a second backend instance on `5433/8081/9090`.
+- Capture the exact command lines, whether the manifest includes the expected runtime-policy classes, and any router output proving `run_auth_tenant=true` for lane01-relevant changes.
+
+## O2C Dispatch Canonicalization Packet Guidance
+
+### Validation Surface
+- **Primary:** Maven test suites (`gate-fast`, `gate-core`, targeted test runs)
+- **Secondary:** `curl` against running backend on `localhost:8081` if runtime probes needed
+- Runtime app is NOT required for most assertions in this packet — they are provable through test output and source inspection
+
+### Validation Concurrency
+- **Max concurrent validators:** 3
+- **Rationale:** 16 cores, 15GB RAM (~10GB available). Maven test runs are CPU/memory intensive on this codebase. Conservative limit preserves headroom for test JVMs + Docker services if needed.
+
+### Key Test Suites for O2C Dispatch Assertions
+- **Replay safety:** `CR_SalesDispatchInvoiceAccounting`, `ErpInvariantsSuiteIT`, new truthsuite/o2c/ characterization tests
+- **Listener containment:** `InventoryAccountingEventListenerIT`, new truthsuite/o2c/ tests
+- **Proforma boundary:** `SalesServiceTest`, new truthsuite/o2c/ tests
+- **Provenance linkage:** `TS_CrossModuleLinkageContractTest`, `TS_InventoryCogsLinkageScanContractTest`
+- **Factory view redaction:** `DispatchOperationalBoundaryIT`, `DispatchControllerTest`
+- **Invoice boundary:** `InvoiceServiceTest`
+- **Endpoint equivalence:** `OrderFulfillmentE2ETest`, `DispatchControllerTest`
+- **Orchestrator removal:** New regression tests proving removed paths are gone
+- **Gate-fast:** `cd erp-domain && MIGRATION_SET=v2 mvn test -Pgate-fast -Djacoco.skip=true`
+- **Gate-core:** `cd erp-domain && MIGRATION_SET=v2 mvn test -Pgate-core -Djacoco.skip=true`
+
+## Catalog Surface Consolidation Packet Guidance
+
+### Validation Surface
+- **Primary:** targeted Maven/API evidence for canonical catalog routes, downstream readiness, and OpenAPI snapshot alignment.
+- **Secondary:** authenticated `curl` probes against the compose-backed backend on `8081/9090` when a validator needs runtime proof for surviving or retired catalog routes.
+- No browser surface is required for this packet.
+
+### Validation Concurrency
+- **api-catalog-surface:** max concurrent validators **2**.
+  - Dry run: `OpenApiSnapshotIT` completed successfully in about 43s with ~4.15 CPU average and ~950 MiB max RSS on a 16-core / ~15.2 GiB machine.
+  - 70% CPU-headroom budgeting supports 2 concurrent API validators conservatively.
+- **jvm-tests (shared checkout):** keep at **1** concurrent validator because concurrent Maven runs collide on `erp-domain/target`, Surefire reports, and gate artifacts.
+
+### Key Commands
+- `.factory/services.yaml -> commands.catalog-consolidation-targeted`
+- `.factory/services.yaml -> commands.gate-fast`
+
+### Runtime Probe Guidance
+- Prefer targeted Maven evidence first.
+- When runtime API proof is required, use the compose-backed runtime on `5433/8081/9090`; do not touch localhost PostgreSQL `5432`.
+- For retired-route proof, use authenticated negative requests and prove the route is unmapped/not-supported rather than merely unauthorized.
+- For existing-brand selection proof, seed active and inactive brands and use `GET /api/v1/catalog/brands?active=true`.
+- For new-brand proof, call `POST /api/v1/catalog/brands`, capture the returned `brandId`, and then call `POST /api/v1/catalog/products`; do not validate inline brand creation inside the product request.
+- For preview proof, confirm the preview and commit payloads produce the same candidate SKU set and that preview does not persist products, family/group rows, or mirrors.
+- After `bash scripts/reset_final_validation_runtime.sh`, verify `GET /api/v1/accounting/default-accounts` before finished-good or cross-flow probes. In the current reset runtime, `MOCK` may come up with all five default account ids unset; fix the local validation runtime by `PUT /api/v1/accounting/default-accounts` with `inventory=5`, `cogs=6`, `revenue=7`, `discount=10`, and `tax=8` before expecting canonical finished-good creates to persist.
+- Manual raw-material batch entry can return `409 BUS_004` in this runtime. For factory-readiness proof, seed namespaced raw-material stock through the canonical purchasing flow (`POST /api/v1/suppliers` -> approve/activate -> `POST /api/v1/purchasing/purchase-orders` -> approve -> `POST /api/v1/purchasing/goods-receipts`) instead of using a manual batch shortcut.
+
+### Known Broad-Gate Reds Outside This Packet
+- `SalesControllerIT.dispatch_confirm_allows_factory_to_reach_business_validation` is currently red before catalog changes in the sales dispatch authorization path.
+- `TS_RuntimeInventoryValuationExecutableCoverageTest.fifoFinishedGoodValuation_usesQuantityAvailable_notQuantityTotal` is currently red before catalog changes in reports/inventory valuation coverage.
+- Do not widen catalog packet validation to fix these unrelated failures. If `bash scripts/gate_fast.sh` is run for broad-signal proof and only these exact failures remain, record them as known pre-existing blockers rather than catalog regressions.

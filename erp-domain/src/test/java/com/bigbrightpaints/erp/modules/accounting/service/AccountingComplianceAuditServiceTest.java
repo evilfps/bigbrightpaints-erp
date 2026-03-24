@@ -83,6 +83,20 @@ class AccountingComplianceAuditServiceTest {
     }
 
     @Test
+    void recordJournalCreation_includesSourceReferenceAndAttachmentsWhenPresent() {
+        Company company = company(84L, "BBP");
+        JournalEntry entry = journalEntry(106L, "JE-ATT-1", JournalEntryType.AUTOMATED);
+        entry.setSourceReference("  SRC-ATT-1  ");
+        entry.setAttachmentReferences("  att-1,att-2  ");
+
+        service.recordJournalCreation(company, entry);
+
+        AuditActionEventCommand command = captureCommand();
+        assertThat(command.metadata()).containsEntry("sourceReference", "SRC-ATT-1");
+        assertThat(command.metadata()).containsEntry("attachmentReferences", "att-1,att-2");
+    }
+
+    @Test
     void recordJournalReversal_includesBeforeAndAfterState() {
         Company company = company(79L, "BBP");
         JournalEntry original = journalEntry(103L, "INV-2026-0091", JournalEntryType.AUTOMATED);

@@ -563,8 +563,10 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
                 null,
                 UUID.randomUUID().toString()
         ));
+        SalesOrder order = salesOrderRepository.findById(orderDto.id()).orElseThrow();
+        finishedGoodsService.reserveForOrder(order);
         CompanyContextHolder.clear();
-        return salesOrderRepository.findById(orderDto.id()).orElseThrow();
+        return order;
     }
 
     private Long createApprovedDispatchOverride(String companyCode,

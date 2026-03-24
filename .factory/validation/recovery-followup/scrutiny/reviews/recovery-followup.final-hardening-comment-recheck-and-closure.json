@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-followup.final-hardening-comment-recheck-and-closure",
+  "reviewedAt": "2026-03-09T20:52:02Z",
+  "commitId": "f38dc90e8b534c9e687df146e175ba0578f04c0e",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review passed. Reviewed the worker handoff for commit f38dc90e8b534c9e687df146e175ba0578f04c0e, validated the reported scope and verification evidence, and checked the committed diff shape for the feature. Updated the final-hardening validation harness so `.factory/services.yaml` resolves the current clone root before invoking the reset/targeted-test commands, and aligned `.factory/library/user-testing.md` with the repo-relative workflow. Hardened `ValidationSeedDataInitializer` against duplicate role/company link inserts on reseed by matching existing memberships before adding them, added a characterization test covering the existing-user rerun path, refreshed `docs/approvals/R2-CHECKPOINT.md` with final-hardening-specific scope/evidence, and fixed branch-local compile/test drift in `AccountingPeriodService`, `DispatchController`, and the carried final-hardening test classes so the packet validates again without weakening current-contract assertions. Non-blocking follow-up remains limited to remote PR reruns or stale GitHub checks, not local code defects.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Closed the still-applicable PR #101 final-hardening blockers by making the reset/test harness clone-portable, preventing duplicate reseed role/company links, refreshing the R2 checkpoint, and repairing the branch-local compile/test regressions that were blocking validation. Verified the seeded runtime reset and a live seeded admin login, then committed the packet as a clean local fix on recovery/07-final-hardening."
+}

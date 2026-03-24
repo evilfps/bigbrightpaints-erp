@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-review.portal-envelope-and-audit-denial-followup",
+  "reviewedAt": "2026-03-11T11:40:00+05:30",
+  "commitId": "8fa09f3e15a7ceb232f78f7ea36d4d362e6e7d7c",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review confirmed the portal/auth follow-up restored the intended API contracts without widening access: `DealerService` again emits the standard structured error envelope for dealer read misses, the auth boundary tests keep the audit-specific denial path observable, and `docs/approvals/R2-CHECKPOINT.md` records the carried auth/company/RBAC hardening evidence. The changes are narrowly aligned to the review thread, so the packet passes on reachable commit `8fa09f3e15a7ceb232f78f7ea36d4d362e6e7d7c` (`fix(portal): restore dealer error and audit denial contracts`).",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Dealer error envelopes and audit-specific denial contracts were restored cleanly on commit `8fa09f3e15a7ceb232f78f7ea36d4d362e6e7d7c`."
+}

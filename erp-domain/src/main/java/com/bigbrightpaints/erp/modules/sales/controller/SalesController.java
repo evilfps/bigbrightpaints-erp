@@ -1,10 +1,14 @@
 package com.bigbrightpaints.erp.modules.sales.controller;
 
+import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
+import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
+import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.modules.sales.dto.*;
 import com.bigbrightpaints.erp.modules.sales.service.DealerService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesDashboardService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesDealerCrudService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesDispatchReconciliationService;
+import com.bigbrightpaints.erp.modules.sales.service.DispatchMetadataValidator;
 import com.bigbrightpaints.erp.modules.sales.service.SalesOrderCrudService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesOrderLifecycleService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
@@ -33,6 +37,7 @@ public class SalesController {
     private final SalesDispatchReconciliationService salesDispatchReconciliationService;
     private final SalesDashboardService salesDashboardService;
     private final DealerService dealerService;
+    private final FinishedGoodsService finishedGoodsService;
 
     public SalesController(SalesService salesService,
                            SalesOrderCrudService salesOrderCrudService,
@@ -40,7 +45,8 @@ public class SalesController {
                            SalesDealerCrudService salesDealerCrudService,
                            SalesDispatchReconciliationService salesDispatchReconciliationService,
                            SalesDashboardService salesDashboardService,
-                           DealerService dealerService) {
+                           DealerService dealerService,
+                           FinishedGoodsService finishedGoodsService) {
         this.salesService = salesService;
         this.salesOrderCrudService = salesOrderCrudService;
         this.salesOrderLifecycleService = salesOrderLifecycleService;
@@ -48,17 +54,18 @@ public class SalesController {
         this.salesDispatchReconciliationService = salesDispatchReconciliationService;
         this.salesDashboardService = salesDashboardService;
         this.dealerService = dealerService;
+        this.finishedGoodsService = finishedGoodsService;
     }
 
     /* Dealers alias - frontend calls /sales/dealers, backend has /dealers */
     @GetMapping("/sales/dealers")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
     public ResponseEntity<ApiResponse<List<DealerResponse>>> listDealers() {
         return ResponseEntity.ok(ApiResponse.success("Dealer directory", dealerService.listDealers()));
     }
 
     @GetMapping("/sales/dealers/search")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
     public ResponseEntity<ApiResponse<List<DealerLookupResponse>>> searchDealers(
             @RequestParam(defaultValue = "") String query,
             @RequestParam(required = false) String status,
@@ -70,7 +77,7 @@ public class SalesController {
     /* Sales Orders */
     @GetMapping("/sales/orders")
     @Timed(value = "erp.sales.orders.list", description = "List sales orders")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_FACTORY','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_FACTORY_ACCOUNTING)
     public ResponseEntity<ApiResponse<List<SalesOrderDto>>> orders(@RequestParam(required = false) String status,
                                                                    @RequestParam(required = false) Long dealerId,
                                                                    @RequestParam(defaultValue = "0") int page,
@@ -80,7 +87,7 @@ public class SalesController {
 
     @GetMapping("/sales/orders/search")
     @Timed(value = "erp.sales.orders.search", description = "Search sales orders")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_FACTORY','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_FACTORY_ACCOUNTING)
     public ResponseEntity<ApiResponse<PageResponse<SalesOrderDto>>> searchOrders(@RequestParam(required = false) String status,
                                                                                   @RequestParam(required = false) Long dealerId,
                                                                                   @RequestParam(required = false) String orderNumber,
@@ -100,7 +107,7 @@ public class SalesController {
     }
 
     @GetMapping("/sales/dashboard")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_FACTORY','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_FACTORY_ACCOUNTING)
     public ResponseEntity<ApiResponse<SalesDashboardDto>> dashboard() {
         return ResponseEntity.ok(ApiResponse.success("Sales dashboard", salesDashboardService.getDashboard()));
     }
@@ -152,7 +159,7 @@ public class SalesController {
     }
 
     @GetMapping("/sales/orders/{id}/timeline")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_FACTORY','ROLE_ACCOUNTING')")
+    @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_FACTORY_ACCOUNTING)
     public ResponseEntity<ApiResponse<List<SalesOrderStatusHistoryDto>>> orderTimeline(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(salesOrderLifecycleService.orderTimeline(id)));
     }
@@ -236,7 +243,7 @@ public class SalesController {
 
     /* Promotions */
     @GetMapping("/sales/promotions")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_DEALER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SALES')")
     public ResponseEntity<ApiResponse<List<PromotionDto>>> promotions() {
         return ResponseEntity.ok(ApiResponse.success(salesService.listPromotions()));
     }
@@ -327,13 +334,28 @@ public class SalesController {
 
     /* Dispatch confirmation (final invoice + AR at shipment) */
     @PostMapping("/sales/dispatch/confirm")
-    @PreAuthorize("hasAnyAuthority('ROLE_FACTORY','ROLE_ADMIN') and hasAuthority('dispatch.confirm')")
+    @PreAuthorize(PortalRoleActionMatrix.FINANCIAL_DISPATCH)
     public ResponseEntity<ApiResponse<DispatchConfirmResponse>> confirmDispatch(@Valid @RequestBody DispatchConfirmRequest request) {
+        if (DispatchMetadataValidator.shouldEnforceValidation(request, () -> isDispatchedSlipReplay(request.packingSlipId()))) {
+            DispatchMetadataValidator.validate(request);
+        }
         return ResponseEntity.ok(ApiResponse.success("Dispatch confirmed", salesDispatchReconciliationService.confirmDispatch(request)));
     }
 
+    private boolean isDispatchedSlipReplay(Long packingSlipId) {
+        if (packingSlipId == null) {
+            return false;
+        }
+        try {
+            PackagingSlipDto slip = finishedGoodsService.getPackagingSlip(packingSlipId);
+            return slip != null && "DISPATCHED".equalsIgnoreCase(slip.status());
+        } catch (RuntimeException ex) {
+            return false;
+        }
+    }
+
     @PostMapping("/sales/dispatch/reconcile-order-markers")
-    @PreAuthorize("hasAnyAuthority('ROLE_ACCOUNTING','ROLE_ADMIN') and hasAuthority('dispatch.confirm')")
+    @PreAuthorize(PortalRoleActionMatrix.FINANCIAL_DISPATCH)
     public ResponseEntity<ApiResponse<DispatchMarkerReconciliationResponse>> reconcileOrderMarkers(
             @RequestParam(defaultValue = "200") int limit) {
         return ResponseEntity.ok(ApiResponse.success(

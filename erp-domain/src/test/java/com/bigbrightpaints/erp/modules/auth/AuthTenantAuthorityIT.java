@@ -103,48 +103,48 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     void admin_cannot_bootstrap_new_tenant() {
         String token = login(ADMIN_EMAIL, TENANT_A);
         String newCode = "TEN-BOOT-" + System.nanoTime();
+        String firstAdminEmail = "blocked-bootstrap-" + System.nanoTime() + "@bbp.com";
 
         ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/companies",
+                "/api/v1/superadmin/tenants/onboard",
                 HttpMethod.POST,
-                new HttpEntity<>(Map.of(
-                        "name", "Blocked Bootstrap",
-                        "code", newCode,
-                        "timezone", "UTC",
-                        "defaultGstRate", 18.0
-                ), jsonHeaders(token, TENANT_A)),
+                new HttpEntity<>(tenantOnboardingPayload("Blocked Bootstrap", newCode, firstAdminEmail),
+                        jsonHeaders(token, TENANT_A)),
                 Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(companyRepository.findByCodeIgnoreCase(newCode)).isEmpty();
+        assertThat(userAccountRepository.findByEmailIgnoreCase(firstAdminEmail)).isEmpty();
     }
 
     @Test
-    void super_admin_can_bootstrap_new_tenant() throws InterruptedException {
+    void super_admin_can_bootstrap_new_tenant() {
         String token = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
         String newCode = "TEN-ALLOW-" + System.nanoTime();
+        String firstAdminEmail = "allowed-bootstrap-" + System.nanoTime() + "@bbp.com";
 
         ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/companies",
+                "/api/v1/superadmin/tenants/onboard",
                 HttpMethod.POST,
-                new HttpEntity<>(Map.of(
-                        "name", "Allowed Bootstrap",
-                        "code", newCode,
-                        "timezone", "UTC",
-                        "defaultGstRate", 18.0
-                ), jsonHeaders(token, ROOT_TENANT)),
+                new HttpEntity<>(tenantOnboardingPayload("Allowed Bootstrap", newCode, firstAdminEmail),
+                        jsonHeaders(token, ROOT_TENANT)),
                 Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         Company saved = companyRepository.findByCodeIgnoreCase(newCode).orElseThrow();
         assertThat(saved.getCode()).isEqualTo(newCode);
-
-        AuditLog granted = awaitAuditEvent(AuditEvent.ACCESS_GRANTED, log ->
-                SUPER_ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
-                        && "tenant-bootstrap-created".equals(log.getMetadata().get("reason"))
-                        && newCode.equalsIgnoreCase(log.getMetadata().get("targetCompanyCode")));
-        assertThat(granted.getMetadata()).containsEntry("actor", SUPER_ADMIN_EMAIL);
-        assertThat(granted.getMetadata().get("tenantScope")).contains(ROOT_TENANT);
+        assertThat(userAccountRepository.findByEmailIgnoreCase(firstAdminEmail)).isPresent();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+        assertThat(data)
+                .containsEntry("companyCode", newCode)
+                .containsEntry("templateCode", "MANUFACTURING")
+                .containsEntry("bootstrapMode", "SEEDED")
+                .containsEntry("seededChartOfAccounts", true)
+                .containsEntry("defaultAccountingPeriodCreated", true)
+                .containsEntry("tenantAdminProvisioned", true);
+        assertThat(data.get("adminEmail")).isEqualTo(firstAdminEmail);
+        assertThat(data.get("adminTemporaryPassword")).isNotNull();
     }
 
     @Test
@@ -152,16 +152,11 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         String token = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
         String newCode = "TEN-ADM-" + System.nanoTime();
         String firstAdminEmail = "first-admin-" + System.nanoTime() + "@bbp.com";
-
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("name", "Provisioned Tenant");
-        payload.put("code", newCode);
-        payload.put("timezone", "UTC");
-        payload.put("firstAdminEmail", firstAdminEmail);
+        Map<String, Object> payload = tenantOnboardingPayload("Provisioned Tenant", newCode, firstAdminEmail);
         payload.put("firstAdminDisplayName", "Provisioned Admin");
 
         ResponseEntity<Map> response = rest.exchange(
-                "/api/v1/companies",
+                "/api/v1/superadmin/tenants/onboard",
                 HttpMethod.POST,
                 new HttpEntity<>(payload, jsonHeaders(token, ROOT_TENANT)),
                 Map.class);
@@ -173,6 +168,14 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         assertThat(firstAdmin.isMustChangePassword()).isTrue();
         assertThat(firstAdmin.getCompanies()).anyMatch(company -> company.getCode().equalsIgnoreCase(newCode));
         assertThat(firstAdmin.getRoles()).anyMatch(role -> "ROLE_ADMIN".equalsIgnoreCase(role.getName()));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+        assertThat(data)
+                .containsEntry("companyCode", newCode)
+                .containsEntry("adminEmail", firstAdminEmail)
+                .containsEntry("tenantAdminProvisioned", true)
+                .containsEntry("templateCode", "MANUFACTURING");
+        assertThat(String.valueOf(data.get("adminTemporaryPassword"))).isNotBlank();
     }
 
     @Test
@@ -258,8 +261,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         assertThat(unknownTenantError).isNotNull();
         assertThat(foreignTenantError.get("code")).isEqualTo("AUTH_004");
         assertThat(unknownTenantError.get("code")).isEqualTo("AUTH_004");
-        assertThat(foreignTenantError.get("message")).isEqualTo("Insufficient permissions for this operation");
-        assertThat(unknownTenantError.get("message")).isEqualTo("Insufficient permissions for this operation");
+        assertThat(foreignTenantError.get("message")).isEqualTo("Access denied");
+        assertThat(unknownTenantError.get("message")).isEqualTo("Access denied");
         assertThat(foreignTenantError.get("reason")).isEqualTo("COMPANY_CONTROL_ACCESS_DENIED");
         assertThat(unknownTenantError.get("reason")).isEqualTo("COMPANY_CONTROL_ACCESS_DENIED");
         assertThat(foreignTenantError.get("reasonDetail")).isEqualTo(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
@@ -283,7 +286,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void super_admin_can_hold_and_block_tenant_and_runtime_enforcement_denies_access() throws InterruptedException {
+    void super_admin_can_hold_and_block_tenant_and_hold_lifecycle_denies_authenticated_access() throws InterruptedException {
         String adminToken = login(ADMIN_EMAIL, TENANT_A);
         String superToken = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
         Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
@@ -317,7 +320,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 HttpMethod.GET,
                 new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
                 Map.class);
-        assertThat(meDuringHold.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertControlledAccessDenied(
+                meDuringHold,
+                "TENANT_LIFECYCLE_RESTRICTED",
+                "Tenant is suspended");
 
         String blockReason = "Critical security incident";
         ResponseEntity<Map> blockResponse = updateLifecycleState(tenantAId, superToken, ROOT_TENANT, "BLOCKED", blockReason);
@@ -335,7 +341,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 HttpMethod.GET,
                 new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
                 Map.class);
-        assertThat(meDuringBlock.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertControlledAccessDenied(
+                meDuringBlock,
+                "TENANT_LIFECYCLE_RESTRICTED",
+                "Tenant is deactivated");
     }
 
     @Test
@@ -376,7 +385,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void super_admin_can_create_tenant_admin_user() {
+    void super_admin_tenant_context_cannot_create_tenant_admin_user_via_admin_workflow_surface() {
         String token = login(SUPER_ADMIN_EMAIL, TENANT_A);
         Long tenantAId = companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
         String candidateEmail = "super-candidate-" + System.nanoTime() + "@bbp.com";
@@ -393,19 +402,14 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 ), jsonHeaders(token, TENANT_A)),
                 Map.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        Map<String, Object> body = response.getBody();
-        assertThat(body).isNotNull();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) body.get("data");
-        assertThat(data.get("email")).isEqualTo(candidateEmail);
-        @SuppressWarnings("unchecked")
-        List<String> roles = (List<String>) data.get("roles");
-        assertThat(roles).contains("ROLE_ADMIN");
+        assertControlledAccessDenied(
+                response,
+                "SUPER_ADMIN_PLATFORM_ONLY",
+                "Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
     }
 
     @Test
-    void root_only_super_admin_can_create_tenant_admin_user_for_foreign_tenant() {
+    void root_only_super_admin_cannot_create_tenant_admin_user_for_foreign_tenant_via_admin_workflow_surface() {
         String rootOnlySuperAdminEmail = "root-only-create-super-admin@" + System.nanoTime() + ".bbp.com";
         dataSeeder.ensureUser(rootOnlySuperAdminEmail, PASSWORD, "Root Only Create Super Admin", ROOT_TENANT,
                 List.of("ROLE_SUPER_ADMIN"));
@@ -425,19 +429,14 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 ), jsonHeaders(token, ROOT_TENANT)),
                 Map.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        Map<String, Object> body = response.getBody();
-        assertThat(body).isNotNull();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) body.get("data");
-        assertThat(data.get("email")).isEqualTo(candidateEmail);
-        @SuppressWarnings("unchecked")
-        List<String> companies = (List<String>) data.get("companies");
-        assertThat(companies).contains(TENANT_A);
+        assertControlledAccessDenied(
+                response,
+                "SUPER_ADMIN_PLATFORM_ONLY",
+                "Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
     }
 
     @Test
-    void super_admin_without_admin_role_can_execute_admin_only_sales_target_flow() {
+    void super_admin_without_admin_role_is_still_blocked_from_admin_only_sales_target_flow() {
         String token = login(SUPER_ADMIN_HIERARCHY_EMAIL, TENANT_A);
         String targetName = "Hierarchy Target " + System.nanoTime();
 
@@ -454,13 +453,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 ), jsonHeaders(token, TENANT_A)),
                 Map.class);
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        Map<String, Object> body = response.getBody();
-        assertThat(body).isNotNull();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) body.get("data");
-        assertThat(data).isNotNull();
-        assertThat(data.get("name")).isEqualTo(targetName);
+        assertControlledAccessDenied(
+                response,
+                "SUPER_ADMIN_PLATFORM_ONLY",
+                "Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
     }
 
     @Test
@@ -685,7 +681,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 new HttpEntity<>(Map.of(
                         "name", "ROLE_FACTORY",
                         "description", "Tenant mutation attempt",
-                        "permissions", List.of("portal:factory")
+                        "permissions", factoryRolePermissionCodes()
                 ), jsonHeaders(adminToken, TENANT_A)),
                 Map.class);
 
@@ -713,7 +709,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 new HttpEntity<>(Map.of(
                         "name", "ROLE_FACTORY",
                         "description", description,
-                        "permissions", permissions
+                        "permissions", permissions.isEmpty() ? factoryRolePermissionCodes() : permissions
                 ), jsonHeaders(superAdminToken, TENANT_A)),
                 Map.class);
 
@@ -842,7 +838,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void super_admin_can_execute_privileged_user_action_matrix_across_tenants() {
+    void super_admin_tenant_context_cannot_execute_privileged_user_action_matrix_across_tenants() {
         String token = login(SUPER_ADMIN_EMAIL, TENANT_A);
         Long foreignUserId = userAccountRepository.findByEmailIgnoreCase("other-admin@bbp.com")
                 .map(UserAccount::getId)
@@ -853,57 +849,70 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 HttpMethod.POST,
                 new HttpEntity<>(jsonHeaders(token, TENANT_A)),
                 Map.class);
-        assertThat(forceResetResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertControlledAccessDenied(
+                forceResetResponse,
+                "SUPER_ADMIN_PLATFORM_ONLY",
+                "Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
 
-        ResponseEntity<Void> suspendResponse = rest.exchange(
+        ResponseEntity<Map> suspendResponse = rest.exchange(
                 "/api/v1/admin/users/" + foreignUserId + "/suspend",
                 HttpMethod.PATCH,
                 new HttpEntity<>(jsonHeaders(token, TENANT_A)),
-                Void.class);
-        assertThat(suspendResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        assertThat(userAccountRepository.findById(foreignUserId).orElseThrow().isEnabled()).isFalse();
+                Map.class);
+        assertControlledAccessDenied(
+                suspendResponse,
+                "SUPER_ADMIN_PLATFORM_ONLY",
+                "Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
 
-        ResponseEntity<Void> unsuspendResponse = rest.exchange(
+        ResponseEntity<Map> unsuspendResponse = rest.exchange(
                 "/api/v1/admin/users/" + foreignUserId + "/unsuspend",
                 HttpMethod.PATCH,
                 new HttpEntity<>(jsonHeaders(token, TENANT_A)),
-                Void.class);
-        assertThat(unsuspendResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        assertThat(userAccountRepository.findById(foreignUserId).orElseThrow().isEnabled()).isTrue();
+                Map.class);
+        assertControlledAccessDenied(
+                unsuspendResponse,
+                "SUPER_ADMIN_PLATFORM_ONLY",
+                "Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
 
         ResponseEntity<Map> disableResponse = rest.exchange(
                 "/api/v1/admin/users/" + foreignUserId + "/status",
                 HttpMethod.PUT,
                 new HttpEntity<>(Map.of("enabled", false), jsonHeaders(token, TENANT_A)),
                 Map.class);
-        assertThat(disableResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(userAccountRepository.findById(foreignUserId).orElseThrow().isEnabled()).isFalse();
+        assertControlledAccessDenied(
+                disableResponse,
+                "SUPER_ADMIN_PLATFORM_ONLY",
+                "Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
 
         ResponseEntity<Map> enableResponse = rest.exchange(
                 "/api/v1/admin/users/" + foreignUserId + "/status",
                 HttpMethod.PUT,
                 new HttpEntity<>(Map.of("enabled", true), jsonHeaders(token, TENANT_A)),
                 Map.class);
-        assertThat(enableResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(userAccountRepository.findById(foreignUserId).orElseThrow().isEnabled()).isTrue();
+        assertControlledAccessDenied(
+                enableResponse,
+                "SUPER_ADMIN_PLATFORM_ONLY",
+                "Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
 
-        ResponseEntity<Void> disableMfaResponse = rest.exchange(
+        ResponseEntity<Map> disableMfaResponse = rest.exchange(
                 "/api/v1/admin/users/" + foreignUserId + "/mfa/disable",
                 HttpMethod.PATCH,
                 new HttpEntity<>(jsonHeaders(token, TENANT_A)),
-                Void.class);
-        assertThat(disableMfaResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        UserAccount mfaDisabledUser = userAccountRepository.findById(foreignUserId).orElseThrow();
-        assertThat(mfaDisabledUser.isMfaEnabled()).isFalse();
-        assertThat(mfaDisabledUser.getMfaRecoveryCodeHashes()).isEmpty();
+                Map.class);
+        assertControlledAccessDenied(
+                disableMfaResponse,
+                "SUPER_ADMIN_PLATFORM_ONLY",
+                "Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
 
-        ResponseEntity<Void> deleteResponse = rest.exchange(
+        ResponseEntity<Map> deleteResponse = rest.exchange(
                 "/api/v1/admin/users/" + foreignUserId,
                 HttpMethod.DELETE,
                 new HttpEntity<>(jsonHeaders(token, TENANT_A)),
-                Void.class);
-        assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
-        assertThat(userAccountRepository.findById(foreignUserId)).isEmpty();
+                Map.class);
+        assertControlledAccessDenied(
+                deleteResponse,
+                "SUPER_ADMIN_PLATFORM_ONLY",
+                "Super Admin is limited to platform control-plane operations and cannot execute tenant business workflows");
     }
 
     private void assertTokenCanAccessMe(String token, String companyCode) {
@@ -926,7 +935,26 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> error = (Map<String, Object>) errorValue;
         assertThat(error.get("code")).isEqualTo("AUTH_004");
-        assertThat(error.get("message")).isEqualTo("Insufficient permissions for this operation");
+        assertThat(error.get("message")).isEqualTo("Access denied");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertControlledAccessDenied(ResponseEntity<Map> response,
+                                              String reason,
+                                              String reasonDetail) {
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        Map<String, Object> body = response.getBody();
+        assertThat(body).isNotNull();
+        assertThat(body.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(body.get("message")).isEqualTo("Access denied");
+        Object errorValue = body.get("data");
+        assertThat(errorValue).isInstanceOf(Map.class);
+        Map<String, Object> error = (Map<String, Object>) errorValue;
+        assertThat(error.get("code")).isEqualTo("AUTH_004");
+        assertThat(error.get("message")).isEqualTo("Access denied");
+        assertThat(error.get("reason")).isEqualTo(reason);
+        assertThat(error.get("reasonDetail")).isEqualTo(reasonDetail);
+        assertThat(error.get("traceId")).isNotNull();
     }
 
     private void assertMaskedPrivilegedUserActionPair(ResponseEntity<Map> foreignResponse,
@@ -1006,6 +1034,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 .filter(String.class::isInstance)
                 .map(String.class::cast)
                 .collect(Collectors.toSet());
+    }
+
+    private List<String> factoryRolePermissionCodes() {
+        return List.of("portal:factory", "dispatch.confirm", "factory.dispatch");
     }
 
     private HttpHeaders jsonHeaders(String token, String companyCode) {
@@ -1099,6 +1131,18 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 HttpMethod.PUT,
                 new HttpEntity<>(payload, jsonHeaders(token, companyCode)),
                 Map.class);
+    }
+
+    private Map<String, Object> tenantOnboardingPayload(String name, String code, String firstAdminEmail) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("name", name);
+        payload.put("code", code);
+        payload.put("timezone", "UTC");
+        payload.put("defaultGstRate", 18.0);
+        payload.put("firstAdminEmail", firstAdminEmail);
+        payload.put("firstAdminDisplayName", name + " Admin");
+        payload.put("coaTemplateCode", "MANUFACTURING");
+        return payload;
     }
 
     private AuditLog awaitAuditEvent(AuditEvent eventType, Predicate<AuditLog> matcher) throws InterruptedException {

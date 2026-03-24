@@ -90,13 +90,28 @@ resolve_base_ref() {
   printf '\n'
 }
 
-violations=()
-
-if [[ "$CHECK_UNCOMMITTED" == "true" ]]; then
+collect_worktree_violations() {
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
     violations+=("WORKTREE ${line}")
-  done < <(git -C "$ROOT_DIR" status --porcelain -- "$LEGACY_DIR")
+  done < <(git -C "$ROOT_DIR" diff --name-status --diff-filter=ACMRTUXB -- "$LEGACY_DIR")
+
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    violations+=("WORKTREE ${line}")
+  done < <(git -C "$ROOT_DIR" diff --cached --name-status --diff-filter=ACMRTUXB -- "$LEGACY_DIR")
+
+  while IFS= read -r path; do
+    [[ -z "$path" ]] && continue
+    violations+=($'WORKTREE ??\t'"${path}")
+  done < <(git -C "$ROOT_DIR" ls-files --others --exclude-standard -- "$LEGACY_DIR")
+}
+
+violations=()
+
+if [[ "$CHECK_UNCOMMITTED" == "true" ]]; then
+  # Deletion-only cleanup is allowed; new or edited legacy migrations are not.
+  collect_worktree_violations
 fi
 
 if [[ "$CHECK_RANGE" == "true" ]]; then
@@ -105,7 +120,7 @@ if [[ "$CHECK_RANGE" == "true" ]]; then
     while IFS= read -r line; do
       [[ -z "$line" ]] && continue
       violations+=("RANGE ${line}")
-    done < <(git -C "$ROOT_DIR" diff --name-status --diff-filter=ACDMRTUXB "${resolved_base}..${HEAD_REF}" -- "$LEGACY_DIR")
+    done < <(git -C "$ROOT_DIR" diff --name-status --diff-filter=ACMRTUXB "${resolved_base}..${HEAD_REF}" -- "$LEGACY_DIR")
   else
     echo "[guard_legacy_migration_freeze] warning: unable to resolve base ref; skipping range diff"
   fi

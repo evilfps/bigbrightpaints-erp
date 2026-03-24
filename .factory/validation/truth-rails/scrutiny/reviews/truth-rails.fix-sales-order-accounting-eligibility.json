@@ -1,0 +1,15 @@
+{
+  "featureId": "truth-rails.fix-sales-order-accounting-eligibility",
+  "reviewedAt": "2026-03-08T05:57:30+05:30",
+  "commitId": "19d129a432b856d500eb94dcbb660f743aa9d9ca",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix narrows sales-order accounting lifecycle mapping to canonical posting markers only: orders stay accounting-ineligible until dispatch-owned invoice truth exists, then advance to pending and posted only when the corresponding invoice and journal markers are present. The added helper and invoice-surface regressions directly cover the original failure and I did not find a new truth-rails regression in the reviewed diff.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": "truth-rails.shared-truth-contracts-and-state-split",
+  "summary": "Pass. The original overstatement bug in BusinessDocumentTruths is resolved and SOURCE_ORDER references now stay NOT_ELIGIBLE before posting truth exists."
+}

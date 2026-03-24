@@ -45,23 +45,37 @@ class RefreshTokenServiceTest extends AbstractIntegrationTest {
     void consume_expired_token_returns_empty_and_deletes() {
         Instant issuedAt = Instant.now().minusSeconds(120);
         Instant expiredAt = Instant.now().minusSeconds(60);
-        RefreshToken token = new RefreshToken("expired-token", "user@example.com", issuedAt, expiredAt);
+        String rawToken = "expired-token";
+        RefreshToken token = RefreshToken.digestOnly(
+                AuthTokenDigests.refreshTokenDigest(rawToken),
+                "user@example.com",
+                issuedAt,
+                expiredAt);
         refreshTokenRepository.save(token);
 
-        assertThat(refreshTokenService.consume("expired-token")).isEmpty();
-        assertThat(refreshTokenRepository.findByToken("expired-token")).isEmpty();
+        assertThat(refreshTokenService.consume(rawToken)).isEmpty();
+        assertThat(refreshTokenRepository.findByTokenDigest(AuthTokenDigests.refreshTokenDigest(rawToken))).isEmpty();
     }
 
     @Test
-    void consume_accepts_legacy_raw_token_during_transition() {
+    void consume_rejects_legacy_raw_token_rows() {
         Instant issuedAt = Instant.now().minusSeconds(30);
         Instant expiresAt = Instant.now().plusSeconds(300);
         refreshTokenRepository.save(new RefreshToken("legacy-token", "legacy@example.com", issuedAt, expiresAt));
 
-        RefreshTokenService.TokenRecord record = refreshTokenService.consume("legacy-token").orElseThrow();
+        assertThat(refreshTokenService.consume("legacy-token")).isEmpty();
+        assertThat(refreshTokenRepository.findAll()).hasSize(1);
+    }
 
-        assertThat(record.userEmail()).isEqualTo("legacy@example.com");
-        assertThat(refreshTokenRepository.findAll()).isEmpty();
+    @Test
+    void revoke_rejects_legacy_raw_token_rows() {
+        Instant issuedAt = Instant.now().minusSeconds(30);
+        Instant expiresAt = Instant.now().plusSeconds(300);
+        refreshTokenRepository.save(new RefreshToken("legacy-token", "legacy@example.com", issuedAt, expiresAt));
+
+        refreshTokenService.revoke("legacy-token");
+
+        assertThat(refreshTokenRepository.findAll()).hasSize(1);
     }
 
     @Test

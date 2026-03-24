@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-review.truth-rails-governance-and-feedback",
+  "reviewedAt": "2026-03-09T06:10:00+05:30",
+  "commitId": "a69342f6bba1b6ca0c0034e9ad42844e3ee15d2f",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review used the mission progress log plus the two truth-rails recovery commits (`e51c626c` and `a69342f6`) because the worker sessions exited before writing a final handoff artifact. The combined diff shows the required R2 checkpoint updates, targeted fixes in PurchaseResponseMapper/InvoiceService/accounting audit provenance, DTO cleanup, and substantial focused regression coverage that matches the PR #96 recovery scope without widening into unrelated behavior.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. The PR #96 recovery blockers were closed through the paired truth-rails commits, with governance evidence and focused runtime/test coverage aligned to the stated review comments."
+}

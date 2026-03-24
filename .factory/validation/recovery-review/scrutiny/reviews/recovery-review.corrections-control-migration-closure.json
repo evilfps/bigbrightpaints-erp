@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-review.corrections-control-migration-closure",
+  "reviewedAt": "2026-03-09T06:10:00+05:30",
+  "commitId": "02654ad7f839da7ffc24d0fa426904001f5acbe2",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review found the corrections/control recovery packet stayed tightly aligned to PR #99, and the current propagated stack now carries that reviewed work on reachable descendant commit `02654ad7f839da7ffc24d0fa426904001f5acbe2` (`fix(accounting): close PR #99 stale review threads`) instead of the stale pre-restack closure id. That reachable current-stack anchor preserves the earlier migration/R2 closure plus the legacy replay, reversal provenance, supplier-settlement, and purchase-return follow-ups that kept the branch review-clean.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Corrections/control replay, provenance, and migration-governance recovery work remains auditable on branch-reachable commit `02654ad7f839da7ffc24d0fa426904001f5acbe2`, which is the current propagated descendant of the earlier closure packet."
+}

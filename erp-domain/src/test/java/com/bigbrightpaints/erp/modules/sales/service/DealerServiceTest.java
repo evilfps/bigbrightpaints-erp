@@ -258,6 +258,62 @@ class DealerServiceTest {
     }
 
     @Test
+    void agingSummary_returnsDealerPayloadWhenDealerExists() {
+        Dealer dealer = dealer("D-AGING", new BigDecimal("1000"), "WEST");
+        when(dealerRepository.findByCompanyAndId(company, 77L)).thenReturn(Optional.of(dealer));
+        when(companyClock.today(company)).thenReturn(java.time.LocalDate.parse("2026-02-23"));
+
+        var payload = dealerService.agingSummary(77L);
+
+        assertThat(payload).containsEntry("dealerId", 99L).containsEntry("dealerName", "D-AGING Name");
+    }
+
+    @Test
+    void ledgerView_returnsDealerPayloadWhenDealerExists() {
+        Dealer dealer = dealer("D-LEDGER", new BigDecimal("1000"), "WEST");
+        when(dealerRepository.findByCompanyAndId(company, 78L)).thenReturn(Optional.of(dealer));
+        when(dealerLedgerService.entries(dealer)).thenReturn(List.of());
+
+        var payload = dealerService.ledgerView(78L);
+
+        assertThat(payload).containsEntry("dealerId", 99L).containsEntry("dealerName", "D-LEDGER Name");
+        assertThat(payload.get("entries")).isEqualTo(List.of());
+    }
+
+    @Test
+    void creditUtilization_returnsNotFoundWhenDealerDoesNotExist() {
+        when(dealerRepository.findByCompanyAndId(company, 404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> dealerService.creditUtilization(404L))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+                    assertThat(ex.getMessage()).isEqualTo("Dealer not found");
+                });
+    }
+
+    @Test
+    void agingSummary_returnsNotFoundWhenDealerDoesNotExist() {
+        when(dealerRepository.findByCompanyAndId(company, 405L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> dealerService.agingSummary(405L))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+                    assertThat(ex.getMessage()).isEqualTo("Dealer not found");
+                });
+    }
+
+    @Test
+    void ledgerView_returnsNotFoundWhenDealerDoesNotExist() {
+        when(dealerRepository.findByCompanyAndId(company, 406L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> dealerService.ledgerView(406L))
+                .isInstanceOfSatisfying(ApplicationException.class, ex -> {
+                    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+                    assertThat(ex.getMessage()).isEqualTo("Dealer not found");
+                });
+    }
+
+    @Test
     void createDealer_reusesExistingDealerByContactEmail() {
         Dealer existing = new Dealer();
         existing.setCompany(company);

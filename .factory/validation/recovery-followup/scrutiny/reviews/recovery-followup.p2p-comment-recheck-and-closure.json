@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-followup.p2p-comment-recheck-and-closure",
+  "reviewedAt": "2026-03-09T20:52:02Z",
+  "commitId": "be1a811a230083a9af59092a68b67aef4a59e1ee",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review passed. Reviewed the worker handoff for commit be1a811a230083a9af59092a68b67aef4a59e1ee, validated the reported scope and verification evidence, and checked the committed diff shape for the feature. Updated `PurchaseReturnService` so recorded purchase-return replays resolve from existing movements before enforcing mutable supplier transactional status or payable-account checks, preserving idempotent retries after a supplier becomes reference-only. Added `PurchaseReturnIdempotencyRegressionIT` coverage for retry-after-suspension, refreshed the P2P R2 checkpoint text/evidence to reflect the recovery-followup packet, and removed unnecessary InvoiceService test stubs that were breaking `gate-fast` on this branch. Non-blocking follow-up remains limited to remote PR reruns or stale GitHub checks, not local code defects.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Re-read PR #98 feedback against `recovery/04-p2p-truth`, confirmed the packet-local doc nit and R2 evidence were already present on head, and fixed the still-live purchase-return replay blocker by moving the supplier transactional gate behind replay resolution. Added regression coverage for retry-after-suspension and cleaned a pre-existing invoice test strict-stubbing issue so the branch\u2019s validators pass cleanly."
+}

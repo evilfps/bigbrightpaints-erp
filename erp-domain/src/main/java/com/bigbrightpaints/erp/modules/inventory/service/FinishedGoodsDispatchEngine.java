@@ -207,8 +207,7 @@ public class FinishedGoodsDispatchEngine {
 
             BigDecimal unitCost = inventoryValuationService.resolveDispatchUnitCost(
                     fg,
-                    batch,
-                    companyClock.today(slip.getCompany()));
+                    batch);
             inventoryValuationService.requireNonZeroDispatchCost(fg, unitCost, shipQty);
 
             BigDecimal reserved = inventoryValuationService.safeQuantity(fg.getReservedStock());
@@ -551,8 +550,7 @@ public class FinishedGoodsDispatchEngine {
             inventoryValuationService.invalidateWeightedAverageCost(fg.getId());
             BigDecimal unitCost = inventoryValuationService.resolveDispatchUnitCost(
                     fg,
-                    batch,
-                    companyClock.today(company));
+                    batch);
             inventoryValuationService.requireNonZeroDispatchCost(fg, unitCost, shipped);
             line.setUnitCost(unitCost);
 
@@ -635,6 +633,7 @@ public class FinishedGoodsDispatchEngine {
         slip.setConfirmedAt(now);
         slip.setConfirmedBy(username);
         slip.setDispatchNotes(request.notes());
+        applyDispatchLogistics(slip, request);
         packagingSlipRepository.save(slip);
 
         if (!reservationsToUpdate.isEmpty()) {
@@ -659,7 +658,13 @@ public class FinishedGoodsDispatchEngine {
                 slip.getJournalEntryId(),
                 slip.getCogsJournalEntryId(),
                 lineResults,
-                backorderSlipId
+                backorderSlipId,
+                slip.getTransporterName(),
+                slip.getDriverName(),
+                slip.getVehicleNumber(),
+                slip.getChallanReference(),
+                DispatchArtifactPaths.deliveryChallanNumber(slip.getSlipNumber()),
+                DispatchArtifactPaths.deliveryChallanPdfPath(slip.getId())
         );
     }
 
@@ -815,8 +820,31 @@ public class FinishedGoodsDispatchEngine {
                 slip.getJournalEntryId(),
                 slip.getCogsJournalEntryId(),
                 lineResults,
-                backorderSlipId
+                backorderSlipId,
+                slip.getTransporterName(),
+                slip.getDriverName(),
+                slip.getVehicleNumber(),
+                slip.getChallanReference(),
+                DispatchArtifactPaths.deliveryChallanNumber(slip.getSlipNumber()),
+                DispatchArtifactPaths.deliveryChallanPdfPath(slip.getId())
         );
+    }
+
+    private void applyDispatchLogistics(PackagingSlip slip, DispatchConfirmationRequest request) {
+        if (slip == null || request == null) {
+            return;
+        }
+        slip.setTransporterName(trimToNull(request.transporterName()));
+        slip.setDriverName(trimToNull(request.driverName()));
+        slip.setVehicleNumber(trimToNull(request.vehicleNumber()));
+        slip.setChallanReference(trimToNull(request.challanReference()));
+    }
+
+    private String trimToNull(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim();
     }
 
     private List<InventoryMovement> findLegacyDispatchMovements(Company company, Long packingSlipId) {

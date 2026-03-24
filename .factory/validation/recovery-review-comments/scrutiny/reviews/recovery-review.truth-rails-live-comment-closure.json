@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-review.truth-rails-live-comment-closure",
+  "reviewedAt": "2026-03-11T11:40:00+05:30",
+  "commitId": "65cd430c80f2e8189a8676cd63cc4291ed0c8752",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review of the propagated truth-rails closure confirmed the packet addressed the narrowed PR #96 surface without widening scope: purchase settlement lookups moved off the per-item path in `PurchasingService`, and the linked-reference/audit fixes stayed locked by expanded `InvoiceServiceTest`, `AccountingAuditTrailServiceTest`, `PurchaseResponseMapperTest`, and `PurchasingServiceTest` coverage. Validators remained green on the current branch, so the feature is review-clean on reachable commit `65cd430c80f2e8189a8676cd63cc4291ed0c8752` (`fix(truth-rails): close remaining purchase review blockers`).",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. The truth-rails PR #96 closure remains review-clean on reachable commit `65cd430c80f2e8189a8676cd63cc4291ed0c8752`, with purchase settlement batching and source-scoped linkage protected by targeted regression coverage."
+}

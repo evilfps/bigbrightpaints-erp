@@ -64,8 +64,6 @@ class BulkPackingFractionalQuantityRegressionIT extends AbstractIntegrationTest 
         BulkPackRequest request = new BulkPackRequest(
                 bulkBatch.getId(),
                 List.of(new BulkPackRequest.PackLine(child.getId(), new BigDecimal("1.5"), "1L", "L")),
-                null,
-                true,
                 LocalDate.now(),
                 "packer",
                 null,

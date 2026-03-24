@@ -812,7 +812,7 @@ public class ReconciliationServiceCore {
                 reference,
                 null,
                 null,
-                LocalDate.now(),
+                CompanyTime.today(company),
                 discrepancy.getPartnerType() == PartnerType.DEALER ? discrepancy.getPartnerId() : null,
                 discrepancy.getPartnerType() == PartnerType.SUPPLIER ? discrepancy.getPartnerId() : null,
                 Boolean.FALSE

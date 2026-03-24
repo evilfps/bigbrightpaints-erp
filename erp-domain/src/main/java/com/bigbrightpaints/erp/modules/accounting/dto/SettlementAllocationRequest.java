@@ -12,6 +12,17 @@ public record SettlementAllocationRequest(
         @DecimalMin(value = "0.00") BigDecimal discountAmount,
         @DecimalMin(value = "0.00") BigDecimal writeOffAmount,
         BigDecimal fxAdjustment,
+        SettlementAllocationApplication applicationType,
         String memo
 ) {
+
+    public SettlementAllocationRequest(Long invoiceId,
+                                      Long purchaseId,
+                                      BigDecimal appliedAmount,
+                                      BigDecimal discountAmount,
+                                      BigDecimal writeOffAmount,
+                                      BigDecimal fxAdjustment,
+                                      String memo) {
+        this(invoiceId, purchaseId, appliedAmount, discountAmount, writeOffAmount, fxAdjustment, null, memo);
+    }
 }

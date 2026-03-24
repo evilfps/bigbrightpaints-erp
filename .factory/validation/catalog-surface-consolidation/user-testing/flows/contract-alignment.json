@@ -1,0 +1,80 @@
+{
+  "groupId": "contract-alignment",
+  "surface": "jvm-tests",
+  "testedAt": "2026-03-21T08:27:48Z",
+  "toolsUsed": [
+    "mvn",
+    "file-inspection",
+    "curl",
+    "git"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-CONTRACT-001",
+      "title": "OpenAPI, docs, handoff docs, and tests match the surviving catalog surface",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect mission guidance, validation contract, README, and catalog-consolidation hygiene docs",
+          "expected": "Named docs describe one surviving public catalog host and the canonical brand/product flow",
+          "observed": "docs/developer/catalog-consolidation/{README,01,02,03}.md and repo README all describe `/api/v1/catalog/**` only, with explicit `POST /api/v1/catalog/brands` then `POST /api/v1/catalog/products`."
+        },
+        {
+          "action": "Inspect `.factory/library/frontend-handoff.md` and `erp-domain/docs/endpoint_inventory.tsv` for catalog route inventory",
+          "expected": "Handoff and route inventory expose only canonical catalog paths and omit retired accounting/production hosts",
+          "observed": "frontend handoff lists only `/api/v1/catalog/brands` and `/api/v1/catalog/products*`; endpoint inventory contains only `CatalogController` mappings for those catalog routes."
+        },
+        {
+          "action": "Inspect route-anchored tests/helpers relevant to the packet",
+          "expected": "Tests assert canonical catalog operations and retirement of stale routes/inline fallback fields",
+          "observed": "`OpenApiSnapshotIT` asserts canonical catalog operations and missing retired routes; `AccountingCatalogControllerSecurityIT` asserts retired accounting/production paths are unmapped; `CatalogControllerCanonicalProductIT` rejects inline `brandName` fallback and treats `/api/v1/catalog/products/bulk` as retired."
+        },
+        {
+          "action": "Run `MIGRATION_SET=v2 mvn test -Djacoco.skip=true -Dtest=OpenApiSnapshotIT,AccountingCatalogControllerSecurityIT,CatalogControllerCanonicalProductIT`",
+          "expected": "Snapshot and route-anchored catalog tests pass against the checked-in contract",
+          "observed": "BUILD SUCCESS; 9 tests run, 0 failures, 0 errors, 0 skipped."
+        },
+        {
+          "action": "Inspect repo-root `openapi.json`, probe runtime OpenAPI, and run `git diff --check`",
+          "expected": "Snapshot contains canonical catalog routes only, runtime probe does not contradict the snapshot, and diff check is clean",
+          "observed": "`openapi.json` contains `/api/v1/catalog/brands` and `/api/v1/catalog/products` but not `/api/v1/accounting/catalog/**`, `/api/v1/production/brands*`, or `/api/v1/catalog/products/bulk`; runtime `GET /v3/api-docs` returned 403 in the compose-backed runtime; `git diff --check` produced no output."
+        }
+      ],
+      "evidence": {
+        "files": [
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/contract-alignment/mvn-targeted.log",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/contract-alignment/openapi-summary.txt",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/contract-alignment/runtime-openapi-probe.txt",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/contract-alignment/git-diff-check.txt",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/contract-alignment/route-doc-snippets.txt"
+        ],
+        "commands": [
+          "MIGRATION_SET=v2 mvn test -Djacoco.skip=true -Dtest=OpenApiSnapshotIT,AccountingCatalogControllerSecurityIT,CatalogControllerCanonicalProductIT",
+          "git diff --check",
+          "GET http://localhost:8081/v3/api-docs"
+        ],
+        "keyFindings": [
+          "Canonical OpenAPI routes present: GET/POST /api/v1/catalog/brands and GET/POST /api/v1/catalog/products.",
+          "Retired public routes absent from snapshot: /api/v1/accounting/catalog/import, /api/v1/accounting/catalog/products, /api/v1/accounting/catalog/products/{id}, /api/v1/accounting/catalog/products/bulk-variants, /api/v1/production/brands, /api/v1/production/brands/{brandId}/products, /api/v1/catalog/products/bulk.",
+          "Canonical request schema properties are basePrice, baseProductName, brandId, category, colors, gstRate, hsnCode, metadata, minDiscountPercent, minSellingPrice, sizes, unitOfMeasure; legacy fallback fields brandName/brandCode/brand are absent.",
+          "Named docs and packet tests are aligned to the surviving `/api/v1/catalog/**` surface."
+        ]
+      },
+      "issues": [
+        "Runtime OpenAPI probe on the compose-backed app returned HTTP 403, so runtime comparison relied on passing `OpenApiSnapshotIT` and live route-alignment tests rather than direct `/v3/api-docs` inspection."
+      ]
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Compose-backed runtime blocks anonymous `/v3/api-docs` with HTTP 403, limiting direct runtime snapshot comparison.",
+      "resolved": true,
+      "resolution": "Used `OpenApiSnapshotIT` plus route-anchored integration tests and file inspection as the primary contract-alignment proof; recorded the runtime probe result in evidence.",
+      "affectedAssertions": [
+        "VAL-CONTRACT-001"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "VAL-CONTRACT-001 passed. The checked-in OpenAPI snapshot, named catalog docs, frontend handoff, endpoint inventory, and route-anchored tests all align on the surviving `/api/v1/catalog/**` contract; retired accounting/production catalog routes and inline brand fallback references are removed from the validated surfaces."
+}

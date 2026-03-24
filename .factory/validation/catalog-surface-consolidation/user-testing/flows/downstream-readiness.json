@@ -1,0 +1,602 @@
+{
+  "groupId": "downstream-readiness",
+  "surface": "api",
+  "testedAt": "2026-03-21T08:38:44.228770+00:00",
+  "toolsUsed": [
+    "python3",
+    "urllib.request",
+    "openapi.json"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-READY-001",
+      "title": "Finished-good create seeds finished-good inventory truth",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "GET /api/v1/accounting/default-accounts as admin",
+          "expected": "MOCK default accounts expose the required finished-good readiness mapping.",
+          "observed": "Returned 200 with inventory=5, cogs=6, revenue=7, discount=10, tax=8."
+        },
+        {
+          "action": "POST /api/v1/catalog/products for a namespaced finished good",
+          "expected": "Canonical create returns one finished-good member.",
+          "observed": "Returned 200 with sku=UTCATREADYBR02-UTCATREADY-FINISHED-GOOD-20260321T083449Z-431827-WHITE-1L, candidateCount=1, downstreamEffects={'finishedGoodMembers': 1, 'rawMaterialMembers': 0}."
+        },
+        {
+          "action": "GET /api/v1/finished-goods and match the created SKU",
+          "expected": "Finished-good mirror has zero-stock defaults and valuation/COGS/revenue/discount/tax readiness fields mapped to the created SKU.",
+          "observed": "Matched finished-good row {'id': 54, 'publicId': '1de579ad-6950-4038-959a-a9fd4fc1483b', 'productCode': 'UTCATREADYBR02-UTCATREADY-FINISHED-GOOD-20260321T083449Z-431827-WHITE-1L', 'name': 'ut_cat_ready-finished-good-20260321T083449Z-431827 WHITE 1L', 'unit': 'LITER', 'currentStock': 0.0, 'reservedStock': 0.0, 'costingMethod': 'FIFO', 'valuationAccountId': 5, 'cogsAccountId': 6, 'revenueAccountId': 7, 'discountAccountId': 10, 'taxAccountId': 8} for sku=UTCATREADYBR02-UTCATREADY-FINISHED-GOOD-20260321T083449Z-431827-WHITE-1L."
+        }
+      ],
+      "evidence": {
+        "network": [
+          "POST /api/v1/auth/login -> 200",
+          "GET /api/v1/accounting/default-accounts -> 200",
+          "POST /api/v1/catalog/products -> 200",
+          "GET /api/v1/finished-goods -> 200"
+        ],
+        "files": [
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/default_accounts.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/create_fg_product.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/finished_goods_after.json"
+        ],
+        "finishedGood": {
+          "id": 54,
+          "publicId": "1de579ad-6950-4038-959a-a9fd4fc1483b",
+          "productCode": "UTCATREADYBR02-UTCATREADY-FINISHED-GOOD-20260321T083449Z-431827-WHITE-1L",
+          "name": "ut_cat_ready-finished-good-20260321T083449Z-431827 WHITE 1L",
+          "unit": "LITER",
+          "currentStock": 0.0,
+          "reservedStock": 0.0,
+          "costingMethod": "FIFO",
+          "valuationAccountId": 5,
+          "cogsAccountId": 6,
+          "revenueAccountId": 7,
+          "discountAccountId": 10,
+          "taxAccountId": 8
+        },
+        "createdMember": {
+          "id": 61,
+          "publicId": "a1ec005d-dd68-4608-bb5f-99b7c0ce9f4c",
+          "sku": "UTCATREADYBR02-UTCATREADY-FINISHED-GOOD-20260321T083449Z-431827-WHITE-1L",
+          "productName": "ut_cat_ready-finished-good-20260321T083449Z-431827 WHITE 1L",
+          "color": "WHITE",
+          "size": "1L"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-READY-002",
+      "title": "Raw-material create seeds raw-material inventory truth",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "POST /api/v1/catalog/products for a namespaced raw material with inventoryAccountId metadata",
+          "expected": "Canonical create returns one raw-material member.",
+          "observed": "Returned 200 with sku=UTCATREADYBR03-UTCATREADY-RAW-MATERIAL-20260321T083449Z-431827-NATURAL-25KG, candidateCount=1, downstreamEffects={'finishedGoodMembers': 0, 'rawMaterialMembers': 1}."
+        },
+        {
+          "action": "GET /api/v1/accounting/raw-materials and match the created SKU",
+          "expected": "Raw-material mirror has zero current stock and inventory/account linkage for downstream usage.",
+          "observed": "Matched raw-material row {'id': 11, 'publicId': '8221f328-24f0-4581-bc74-d51954e1612c', 'name': 'ut_cat_ready-raw-material-20260321T083449Z-431827 NATURAL 25KG', 'sku': 'UTCATREADYBR03-UTCATREADY-RAW-MATERIAL-20260321T083449Z-431827-NATURAL-25KG', 'unitType': 'KG', 'reorderLevel': 0.0, 'currentStock': 0.0, 'minStock': 0.0, 'maxStock': 0.0, 'stockStatus': 'CRITICAL', 'inventoryAccountId': 5, 'costingMethod': 'FIFO', 'materialType': 'PRODUCTION'} for sku=UTCATREADYBR03-UTCATREADY-RAW-MATERIAL-20260321T083449Z-431827-NATURAL-25KG."
+        }
+      ],
+      "evidence": {
+        "network": [
+          "POST /api/v1/catalog/products -> 200",
+          "GET /api/v1/accounting/raw-materials -> 200"
+        ],
+        "files": [
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/create_rm_product.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/raw_materials_after.json"
+        ],
+        "rawMaterial": {
+          "id": 11,
+          "publicId": "8221f328-24f0-4581-bc74-d51954e1612c",
+          "name": "ut_cat_ready-raw-material-20260321T083449Z-431827 NATURAL 25KG",
+          "sku": "UTCATREADYBR03-UTCATREADY-RAW-MATERIAL-20260321T083449Z-431827-NATURAL-25KG",
+          "unitType": "KG",
+          "reorderLevel": 0.0,
+          "currentStock": 0.0,
+          "minStock": 0.0,
+          "maxStock": 0.0,
+          "stockStatus": "CRITICAL",
+          "inventoryAccountId": 5,
+          "costingMethod": "FIFO",
+          "materialType": "PRODUCTION"
+        },
+        "createdMember": {
+          "id": 62,
+          "publicId": "b1d34277-97fa-4a84-a084-2ba9c0ed0ed0",
+          "sku": "UTCATREADYBR03-UTCATREADY-RAW-MATERIAL-20260321T083449Z-431827-NATURAL-25KG",
+          "productName": "ut_cat_ready-raw-material-20260321T083449Z-431827 NATURAL 25KG",
+          "color": "NATURAL",
+          "size": "25KG"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-READY-003",
+      "title": "New SKUs are discoverable through canonical catalog browse/search",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "GET /api/v1/catalog/products?brandId=21&page=0&pageSize=100 as sales",
+          "expected": "Sales brand-scoped canonical browse returns the new finished-good SKU with stable identifiers.",
+          "observed": "Returned 200 with match={'id': 61, 'publicId': 'a1ec005d-dd68-4608-bb5f-99b7c0ce9f4c', 'brandId': 21, 'brandName': 'ut_cat_ready-brand-fg-20260321T083449Z-431827', 'brandCode': 'UTCATREADYBR02', 'name': 'ut_cat_ready-finished-good-20260321T083449Z-431827 WHITE 1L', 'sku': 'UTCATREADYBR02-UTCATREADY-FINISHED-GOOD-20260321T083449Z-431827-WHITE-1L', 'category': 'FINISHED_GOOD', 'variantGroupId': '26ed840d-af75-3ae4-a81c-041f4b7b066c', 'productFamilyName': 'ut_cat_ready-finished-good-20260321T083449Z-431827', 'colors': ['WHITE'], 'sizes': ['1L'], 'cartonSizes': [], 'unitOfMeasure': 'LITER', 'hsnCode': '320910', 'basePrice': 1200.0, 'gstRate': 18.0, 'minDiscountPercent': 5.0, 'minSellingPrice': 1140.0, 'metadata': {'fgTaxAccountId': 8, 'fgValuationAccountId': 5, 'fgCogsAccountId': 6, 'fgRevenueAccountId': 7, 'fgDiscountAccountId': 10}, 'active': True}."
+        },
+        {
+          "action": "GET /api/v1/catalog/products?brandId=21&page=0&pageSize=100 as factory",
+          "expected": "Factory brand-scoped canonical browse returns the new finished-good SKU with stable identifiers.",
+          "observed": "Returned 200 with match={'id': 61, 'publicId': 'a1ec005d-dd68-4608-bb5f-99b7c0ce9f4c', 'brandId': 21, 'brandName': 'ut_cat_ready-brand-fg-20260321T083449Z-431827', 'brandCode': 'UTCATREADYBR02', 'name': 'ut_cat_ready-finished-good-20260321T083449Z-431827 WHITE 1L', 'sku': 'UTCATREADYBR02-UTCATREADY-FINISHED-GOOD-20260321T083449Z-431827-WHITE-1L', 'category': 'FINISHED_GOOD', 'variantGroupId': '26ed840d-af75-3ae4-a81c-041f4b7b066c', 'productFamilyName': 'ut_cat_ready-finished-good-20260321T083449Z-431827', 'colors': ['WHITE'], 'sizes': ['1L'], 'cartonSizes': [], 'unitOfMeasure': 'LITER', 'hsnCode': '320910', 'basePrice': 1200.0, 'gstRate': 18.0, 'minDiscountPercent': 5.0, 'minSellingPrice': 1140.0, 'metadata': {'fgTaxAccountId': 8, 'fgValuationAccountId': 5, 'fgCogsAccountId': 6, 'fgRevenueAccountId': 7, 'fgDiscountAccountId': 10}, 'active': True}."
+        },
+        {
+          "action": "GET /api/v1/catalog/products?brandId=22&page=0&pageSize=100 as factory",
+          "expected": "Factory canonical browse also returns the new raw-material SKU immediately after create.",
+          "observed": "Returned 200 with match={'id': 62, 'publicId': 'b1d34277-97fa-4a84-a084-2ba9c0ed0ed0', 'brandId': 22, 'brandName': 'ut_cat_ready-brand-rm-20260321T083449Z-431827', 'brandCode': 'UTCATREADYBR03', 'name': 'ut_cat_ready-raw-material-20260321T083449Z-431827 NATURAL 25KG', 'sku': 'UTCATREADYBR03-UTCATREADY-RAW-MATERIAL-20260321T083449Z-431827-NATURAL-25KG', 'category': 'RAW_MATERIAL', 'variantGroupId': '11da0f58-03c5-3782-9ded-c32e2cd42145', 'productFamilyName': 'ut_cat_ready-raw-material-20260321T083449Z-431827', 'colors': ['NATURAL'], 'sizes': ['25KG'], 'cartonSizes': [], 'unitOfMeasure': 'KG', 'hsnCode': '320611', 'basePrice': 500.0, 'gstRate': 18.0, 'minDiscountPercent': 0.0, 'minSellingPrice': 500.0, 'metadata': {'inventoryAccountId': 5}, 'active': True}."
+        }
+      ],
+      "evidence": {
+        "openApi": {
+          "file": "/home/realnigga/Desktop/Mission-control/openapi.json",
+          "evidenceFile": "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/openapi_catalog_products.json",
+          "getCatalogProducts": {
+            "parameters": [
+              "brandId",
+              "color",
+              "size",
+              "active",
+              "page",
+              "pageSize"
+            ],
+            "responseCodes": [
+              "200"
+            ]
+          }
+        },
+        "network": [
+          "GET /api/v1/catalog/products?brandId=21&page=0&pageSize=100 (sales) -> 200",
+          "GET /api/v1/catalog/products?brandId=21&page=0&pageSize=100 (factory) -> 200",
+          "GET /api/v1/catalog/products?brandId=22&page=0&pageSize=100 (factory) -> 200"
+        ],
+        "files": [
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/browse_fg_sales.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/browse_fg_factory.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/browse_rm_factory.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/openapi_catalog_products.json"
+        ],
+        "discoverability": {
+          "finishedGoodSales": {
+            "id": 61,
+            "publicId": "a1ec005d-dd68-4608-bb5f-99b7c0ce9f4c",
+            "brandId": 21,
+            "brandName": "ut_cat_ready-brand-fg-20260321T083449Z-431827",
+            "brandCode": "UTCATREADYBR02",
+            "name": "ut_cat_ready-finished-good-20260321T083449Z-431827 WHITE 1L",
+            "sku": "UTCATREADYBR02-UTCATREADY-FINISHED-GOOD-20260321T083449Z-431827-WHITE-1L",
+            "category": "FINISHED_GOOD",
+            "variantGroupId": "26ed840d-af75-3ae4-a81c-041f4b7b066c",
+            "productFamilyName": "ut_cat_ready-finished-good-20260321T083449Z-431827",
+            "colors": [
+              "WHITE"
+            ],
+            "sizes": [
+              "1L"
+            ],
+            "cartonSizes": [],
+            "unitOfMeasure": "LITER",
+            "hsnCode": "320910",
+            "basePrice": 1200.0,
+            "gstRate": 18.0,
+            "minDiscountPercent": 5.0,
+            "minSellingPrice": 1140.0,
+            "metadata": {
+              "fgTaxAccountId": 8,
+              "fgValuationAccountId": 5,
+              "fgCogsAccountId": 6,
+              "fgRevenueAccountId": 7,
+              "fgDiscountAccountId": 10
+            },
+            "active": true
+          },
+          "finishedGoodFactory": {
+            "id": 61,
+            "publicId": "a1ec005d-dd68-4608-bb5f-99b7c0ce9f4c",
+            "brandId": 21,
+            "brandName": "ut_cat_ready-brand-fg-20260321T083449Z-431827",
+            "brandCode": "UTCATREADYBR02",
+            "name": "ut_cat_ready-finished-good-20260321T083449Z-431827 WHITE 1L",
+            "sku": "UTCATREADYBR02-UTCATREADY-FINISHED-GOOD-20260321T083449Z-431827-WHITE-1L",
+            "category": "FINISHED_GOOD",
+            "variantGroupId": "26ed840d-af75-3ae4-a81c-041f4b7b066c",
+            "productFamilyName": "ut_cat_ready-finished-good-20260321T083449Z-431827",
+            "colors": [
+              "WHITE"
+            ],
+            "sizes": [
+              "1L"
+            ],
+            "cartonSizes": [],
+            "unitOfMeasure": "LITER",
+            "hsnCode": "320910",
+            "basePrice": 1200.0,
+            "gstRate": 18.0,
+            "minDiscountPercent": 5.0,
+            "minSellingPrice": 1140.0,
+            "metadata": {
+              "fgTaxAccountId": 8,
+              "fgValuationAccountId": 5,
+              "fgCogsAccountId": 6,
+              "fgRevenueAccountId": 7,
+              "fgDiscountAccountId": 10
+            },
+            "active": true
+          },
+          "rawMaterialFactory": {
+            "id": 62,
+            "publicId": "b1d34277-97fa-4a84-a084-2ba9c0ed0ed0",
+            "brandId": 22,
+            "brandName": "ut_cat_ready-brand-rm-20260321T083449Z-431827",
+            "brandCode": "UTCATREADYBR03",
+            "name": "ut_cat_ready-raw-material-20260321T083449Z-431827 NATURAL 25KG",
+            "sku": "UTCATREADYBR03-UTCATREADY-RAW-MATERIAL-20260321T083449Z-431827-NATURAL-25KG",
+            "category": "RAW_MATERIAL",
+            "variantGroupId": "11da0f58-03c5-3782-9ded-c32e2cd42145",
+            "productFamilyName": "ut_cat_ready-raw-material-20260321T083449Z-431827",
+            "colors": [
+              "NATURAL"
+            ],
+            "sizes": [
+              "25KG"
+            ],
+            "cartonSizes": [],
+            "unitOfMeasure": "KG",
+            "hsnCode": "320611",
+            "basePrice": 500.0,
+            "gstRate": 18.0,
+            "minDiscountPercent": 0.0,
+            "minSellingPrice": 500.0,
+            "metadata": {
+              "inventoryAccountId": 5
+            },
+            "active": true
+          }
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-READY-004",
+      "title": "Sales can use a new finished-good SKU without manual repair",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "POST /api/v1/dealers as sales to create a namespaced dealer",
+          "expected": "Sales flow gets a dealer target for the order without leaving the namespace.",
+          "observed": "Returned 200 with dealer={'id': 8, 'publicId': '698bb0c3-4b83-463d-bdb0-ed4ddc949f31', 'code': 'UTCATREADYDEALER20260321T083449Z431827', 'name': 'ut_cat_ready-dealer-20260321T083449Z-431827', 'companyName': 'ut_cat_ready-dealer-20260321T083449Z-431827', 'email': 'ut_cat_ready.20260321T083449Z-431827@example.com', 'phone': '9999999999', 'address': 'ut_cat_ready lane', 'creditLimit': 100000.0, 'outstandingBalance': 0, 'receivableAccountId': 38, 'receivableAccountCode': 'AR-UTCATREADYDEALER20260321T083449Z431827', 'portalEmail': 'ut_cat_ready.20260321T083449Z-431827@example.com', 'gstNumber': None, 'stateCode': None, 'gstRegistrationType': 'UNREGISTERED', 'paymentTerms': 'NET_30', 'region': 'UT_CAT_READY'}."
+        },
+        {
+          "action": "POST /api/v1/sales/orders as sales with the new finished-good SKU",
+          "expected": "Order resolution accepts the new SKU; only post-resolution stock shortage would be acceptable.",
+          "observed": "Returned 200 with body={'success': True, 'message': 'Order created', 'data': {'id': 5, 'publicId': '95e81f9a-7b8e-4915-a582-8c98d6ace9a0', 'orderNumber': 'MOCK-2026-00005', 'status': 'PENDING_PRODUCTION', 'totalAmount': 1416.0, 'subtotalAmount': 1200.0, 'gstTotal': 216.0, 'gstRate': 0, 'gstTreatment': 'PER_ITEM', 'gstInclusive': False, 'gstRoundingAdjustment': 0.0, 'currency': 'INR', 'dealerName': 'ut_cat_ready-dealer-20260321T083449Z-431827', 'paymentMode': 'CASH', 'traceId': None, 'createdAt': 1774082090.4222515, 'items': [{'id': 5, 'productCode': 'UTCATREADYBR02-UTCATREADY-FINISHED-GOOD-20260321T083449Z-431827-WHITE-1L', 'description': 'ut_cat_ready-finished-good-20260321T083449Z-431827', 'quantity': 1.0, 'unitPrice': 1200.0, 'lineSubtotal': 1200.0, 'gstRate': 18.0, 'gstAmount': 216.0, 'lineTotal': 1416.0}], 'timeline': []}, 'timestamp': 1774082090.450894}."
+        }
+      ],
+      "evidence": {
+        "network": [
+          "POST /api/v1/dealers -> 200",
+          "POST /api/v1/sales/orders -> 200"
+        ],
+        "files": [
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/create_dealer.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/create_sales_order.json"
+        ],
+        "salesOrder": {
+          "id": 5,
+          "publicId": "95e81f9a-7b8e-4915-a582-8c98d6ace9a0",
+          "orderNumber": "MOCK-2026-00005",
+          "status": "PENDING_PRODUCTION",
+          "totalAmount": 1416.0,
+          "subtotalAmount": 1200.0,
+          "gstTotal": 216.0,
+          "gstRate": 0,
+          "gstTreatment": "PER_ITEM",
+          "gstInclusive": false,
+          "gstRoundingAdjustment": 0.0,
+          "currency": "INR",
+          "dealerName": "ut_cat_ready-dealer-20260321T083449Z-431827",
+          "paymentMode": "CASH",
+          "traceId": null,
+          "createdAt": 1774082090.4222515,
+          "items": [
+            {
+              "id": 5,
+              "productCode": "UTCATREADYBR02-UTCATREADY-FINISHED-GOOD-20260321T083449Z-431827-WHITE-1L",
+              "description": "ut_cat_ready-finished-good-20260321T083449Z-431827",
+              "quantity": 1.0,
+              "unitPrice": 1200.0,
+              "lineSubtotal": 1200.0,
+              "gstRate": 18.0,
+              "gstAmount": 216.0,
+              "lineTotal": 1416.0
+            }
+          ],
+          "timeline": []
+        },
+        "dealer": {
+          "id": 8,
+          "publicId": "698bb0c3-4b83-463d-bdb0-ed4ddc949f31",
+          "code": "UTCATREADYDEALER20260321T083449Z431827",
+          "name": "ut_cat_ready-dealer-20260321T083449Z-431827",
+          "companyName": "ut_cat_ready-dealer-20260321T083449Z-431827",
+          "email": "ut_cat_ready.20260321T083449Z-431827@example.com",
+          "phone": "9999999999",
+          "address": "ut_cat_ready lane",
+          "creditLimit": 100000.0,
+          "outstandingBalance": 0,
+          "receivableAccountId": 38,
+          "receivableAccountCode": "AR-UTCATREADYDEALER20260321T083449Z431827",
+          "portalEmail": "ut_cat_ready.20260321T083449Z-431827@example.com",
+          "gstNumber": null,
+          "stateCode": null,
+          "gstRegistrationType": "UNREGISTERED",
+          "paymentTerms": "NET_30",
+          "region": "UT_CAT_READY"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-READY-005",
+      "title": "Factory can select a new product without manual repair",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Create and activate a namespaced supplier, then record a namespaced purchase order + goods receipt for the namespaced raw material",
+          "expected": "Canonical purchasing flow seeds stock for the namespaced raw material without any manual inventory backfill.",
+          "observed": "Supplier create/approve/activate statuses=200/200/200; PO status=200, PO approve=200, GRN status=200; raw material after GRN={'id': 11, 'publicId': '8221f328-24f0-4581-bc74-d51954e1612c', 'name': 'ut_cat_ready-raw-material-20260321T083449Z-431827 NATURAL 25KG', 'sku': 'UTCATREADYBR03-UTCATREADY-RAW-MATERIAL-20260321T083449Z-431827-NATURAL-25KG', 'unitType': 'KG', 'reorderLevel': 0.0, 'currentStock': 9.0, 'minStock': 0.0, 'maxStock': 0.0, 'stockStatus': 'IN_STOCK', 'inventoryAccountId': 5, 'costingMethod': 'FIFO', 'materialType': 'PRODUCTION'}."
+        },
+        {
+          "action": "POST /api/v1/catalog/products with wipAccountId + semiFinishedAccountId metadata for a new namespaced finished good",
+          "expected": "Canonical create returns a factory-ready product identity on the same write path.",
+          "observed": "Returned 200 with member={'id': 64, 'publicId': 'e446069e-e1d3-4f7b-98eb-953eaca9f0e3', 'sku': 'UTCATREADYBR02-UTCATREADYFG614669-WHITE-1L', 'productName': 'UTCATREADYFG614669 WHITE 1L', 'color': 'WHITE', 'size': '1L'} and metadata={'wipAccountId': 35, 'semiFinishedAccountId': 5}."
+        },
+        {
+          "action": "GET /api/v1/catalog/products?brandId=21&page=0&pageSize=100 as factory",
+          "expected": "Factory receives the stable brand/product identifiers from the canonical catalog surface.",
+          "observed": "Returned 200 with match={'id': 64, 'publicId': 'e446069e-e1d3-4f7b-98eb-953eaca9f0e3', 'brandId': 21, 'brandName': 'ut_cat_ready-brand-fg-20260321T083449Z-431827', 'brandCode': 'UTCATREADYBR02', 'name': 'UTCATREADYFG614669 WHITE 1L', 'sku': 'UTCATREADYBR02-UTCATREADYFG614669-WHITE-1L', 'category': 'FINISHED_GOOD', 'variantGroupId': '2b45a40f-4058-370b-a6d7-f3dbd07edd21', 'productFamilyName': 'UTCATREADYFG614669', 'colors': ['WHITE'], 'sizes': ['1L'], 'cartonSizes': [], 'unitOfMeasure': 'LITER', 'hsnCode': '320910', 'basePrice': 1200.0, 'gstRate': 18.0, 'minDiscountPercent': 5.0, 'minSellingPrice': 1140.0, 'metadata': {'semiFinishedAccountId': 5, 'fgCogsAccountId': 6, 'fgTaxAccountId': 8, 'fgRevenueAccountId': 7, 'fgValuationAccountId': 5, 'wipAccountId': 35, 'fgDiscountAccountId': 10}, 'active': True}."
+        },
+        {
+          "action": "POST /api/v1/factory/production/logs as factory using the canonical brandId/productId and the namespaced stocked raw material",
+          "expected": "Production selection succeeds without manual repair or alternate browse hosts.",
+          "observed": "Returned 200 with body={'success': True, 'message': 'Production logged', 'data': {'id': 3, 'publicId': '0e77ecbb-b510-4557-9b33-c4c739aed464', 'productionCode': 'PROD-20260321-002', 'producedAt': 1774082324.1921232, 'brandName': 'ut_cat_ready-brand-fg-20260321T083449Z-431827', 'productName': 'UTCATREADYFG614669 WHITE 1L', 'skuCode': 'UTCATREADYBR02-UTCATREADYFG614669-WHITE-1L', 'batchColour': 'WHITE', 'batchSize': 1.0, 'unitOfMeasure': 'LITER', 'mixedQuantity': 1.0, 'outputBatchCode': 'PROD-20260321-002', 'outputQuantity': 1.0, 'totalPackedQuantity': 0, 'wastageQuantity': 1.0, 'wastageReasonCode': 'PROCESS_LOSS', 'status': 'READY_TO_PACK', 'materialCostTotal': 25.0, 'laborCostTotal': 0, 'overheadCostTotal': 0, 'unitCost': 25.0, 'salesOrderId': None, 'salesOrderNumber': None, 'notes': None, 'createdBy': 'ut_cat_ready-factory-proof-20260321T083843Z-35036d', 'materials': [{'rawMaterialId': 11, 'rawMaterialBatchId': 4, 'rawMaterialBatchCode': 'BATCH-UTCATREADYPOC69688', 'rawMaterialMovementId': 5, 'materialName': 'ut_cat_ready-raw-material-20260321T083449Z-431827 NATURAL 25KG', 'quantity': 1.0, 'unitOfMeasure': 'KG', 'costPerUnit': 25.0, 'totalCost': 25.0}], 'packingRecords': []}, 'timestamp': 1774082324.2273197}."
+        }
+      ],
+      "evidence": {
+        "network": [
+          "POST /api/v1/suppliers -> 200",
+          "POST /api/v1/suppliers/6/approve -> 200",
+          "POST /api/v1/suppliers/6/activate -> 200",
+          "POST /api/v1/purchasing/purchase-orders -> 200",
+          "POST /api/v1/purchasing/purchase-orders/2/approve -> 200",
+          "POST /api/v1/purchasing/goods-receipts -> 200",
+          "POST /api/v1/catalog/products -> 200",
+          "GET /api/v1/catalog/products?brandId=21&page=0&pageSize=100 (factory) -> 200",
+          "POST /api/v1/factory/production/logs -> 200"
+        ],
+        "files": [
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/ready005_create_supplier.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/ready005_approve_supplier.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/ready005_activate_supplier.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/ready005_create_po.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/ready005_approve_po.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/ready005_create_grn.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/ready005_raw_materials_after_grn.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/ready005_create_fg_product.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/ready005_browse_fg_factory.json",
+          "/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/evidence/catalog-surface-consolidation/downstream-readiness/ready005_production_log.json"
+        ],
+        "factoryBrowseProduct": {
+          "id": 64,
+          "publicId": "e446069e-e1d3-4f7b-98eb-953eaca9f0e3",
+          "brandId": 21,
+          "brandName": "ut_cat_ready-brand-fg-20260321T083449Z-431827",
+          "brandCode": "UTCATREADYBR02",
+          "name": "UTCATREADYFG614669 WHITE 1L",
+          "sku": "UTCATREADYBR02-UTCATREADYFG614669-WHITE-1L",
+          "category": "FINISHED_GOOD",
+          "variantGroupId": "2b45a40f-4058-370b-a6d7-f3dbd07edd21",
+          "productFamilyName": "UTCATREADYFG614669",
+          "colors": [
+            "WHITE"
+          ],
+          "sizes": [
+            "1L"
+          ],
+          "cartonSizes": [],
+          "unitOfMeasure": "LITER",
+          "hsnCode": "320910",
+          "basePrice": 1200.0,
+          "gstRate": 18.0,
+          "minDiscountPercent": 5.0,
+          "minSellingPrice": 1140.0,
+          "metadata": {
+            "semiFinishedAccountId": 5,
+            "fgCogsAccountId": 6,
+            "fgTaxAccountId": 8,
+            "fgRevenueAccountId": 7,
+            "fgValuationAccountId": 5,
+            "wipAccountId": 35,
+            "fgDiscountAccountId": 10
+          },
+          "active": true
+        },
+        "productionLog": {
+          "id": 3,
+          "publicId": "0e77ecbb-b510-4557-9b33-c4c739aed464",
+          "productionCode": "PROD-20260321-002",
+          "producedAt": 1774082324.1921232,
+          "brandName": "ut_cat_ready-brand-fg-20260321T083449Z-431827",
+          "productName": "UTCATREADYFG614669 WHITE 1L",
+          "skuCode": "UTCATREADYBR02-UTCATREADYFG614669-WHITE-1L",
+          "batchColour": "WHITE",
+          "batchSize": 1.0,
+          "unitOfMeasure": "LITER",
+          "mixedQuantity": 1.0,
+          "outputBatchCode": "PROD-20260321-002",
+          "outputQuantity": 1.0,
+          "totalPackedQuantity": 0,
+          "wastageQuantity": 1.0,
+          "wastageReasonCode": "PROCESS_LOSS",
+          "status": "READY_TO_PACK",
+          "materialCostTotal": 25.0,
+          "laborCostTotal": 0,
+          "overheadCostTotal": 0,
+          "unitCost": 25.0,
+          "salesOrderId": null,
+          "salesOrderNumber": null,
+          "notes": null,
+          "createdBy": "ut_cat_ready-factory-proof-20260321T083843Z-35036d",
+          "materials": [
+            {
+              "rawMaterialId": 11,
+              "rawMaterialBatchId": 4,
+              "rawMaterialBatchCode": "BATCH-UTCATREADYPOC69688",
+              "rawMaterialMovementId": 5,
+              "materialName": "ut_cat_ready-raw-material-20260321T083449Z-431827 NATURAL 25KG",
+              "quantity": 1.0,
+              "unitOfMeasure": "KG",
+              "costPerUnit": 25.0,
+              "totalCost": 25.0
+            }
+          ],
+          "packingRecords": []
+        },
+        "supplier": {
+          "id": 6,
+          "publicId": "3b16bb23-24d6-4631-808d-f0d7f23db9c3",
+          "code": "UTCATREADYSUP5698DF",
+          "name": "UTCATREADYSUP5698DF",
+          "status": "ACTIVE",
+          "email": "utcatreadysup5698df@example.com",
+          "phone": "9999999999",
+          "address": "ut_cat_ready supplier",
+          "creditLimit": 0.0,
+          "outstandingBalance": 0,
+          "payableAccountId": 40,
+          "payableAccountCode": "AP-UTCATREADYSUP5698DF",
+          "gstNumber": null,
+          "stateCode": null,
+          "gstRegistrationType": "UNREGISTERED",
+          "paymentTerms": "NET_30",
+          "bankAccountName": null,
+          "bankAccountNumber": null,
+          "bankIfsc": null,
+          "bankBranch": null
+        },
+        "purchaseOrder": {
+          "id": 2,
+          "publicId": "6792d70b-8854-44bb-93b6-897bbdd6538b",
+          "orderNumber": "UTCATREADYPO18B070",
+          "orderDate": [
+            2026,
+            3,
+            21
+          ],
+          "totalAmount": 125.0,
+          "status": "DRAFT",
+          "memo": "ut_cat_ready po 20260321T083843Z-35036d",
+          "supplierId": 6,
+          "supplierCode": "UTCATREADYSUP5698DF",
+          "supplierName": "UTCATREADYSUP5698DF",
+          "createdAt": 1774082324.0930943,
+          "lines": [
+            {
+              "rawMaterialId": 11,
+              "rawMaterialName": "ut_cat_ready-raw-material-20260321T083449Z-431827 NATURAL 25KG",
+              "quantity": 5.0,
+              "unit": "KG",
+              "costPerUnit": 25.0,
+              "lineTotal": 125.0,
+              "notes": "ut_cat_ready po line"
+            }
+          ]
+        },
+        "goodsReceipt": {
+          "id": 2,
+          "publicId": "154978c3-8d3b-464b-9686-8c7a4a1914ef",
+          "receiptNumber": "GRN-UTCATREADYPO18B070",
+          "receiptDate": [
+            2026,
+            3,
+            21
+          ],
+          "totalAmount": 125.0,
+          "status": "RECEIVED",
+          "memo": "ut_cat_ready grn 20260321T083843Z-35036d",
+          "supplierId": 6,
+          "supplierCode": "UTCATREADYSUP5698DF",
+          "supplierName": "UTCATREADYSUP5698DF",
+          "purchaseOrderId": 2,
+          "purchaseOrderNumber": "UTCATREADYPO18B070",
+          "createdAt": 1774082324.1319335,
+          "lines": [
+            {
+              "rawMaterialId": 11,
+              "rawMaterialName": "ut_cat_ready-raw-material-20260321T083449Z-431827 NATURAL 25KG",
+              "batchCode": "BATCH-UTCATREADYPO18B070",
+              "quantity": 5.0,
+              "unit": "KG",
+              "costPerUnit": 25.0,
+              "lineTotal": 125.0,
+              "notes": "ut_cat_ready grn line"
+            }
+          ],
+          "lifecycle": {
+            "workflowStatus": "RECEIVED",
+            "accountingStatus": "PENDING"
+          },
+          "linkedReferences": [
+            {
+              "relationType": "PURCHASE_ORDER",
+              "documentType": "PURCHASE_ORDER",
+              "documentId": 2,
+              "documentNumber": "UTCATREADYPO18B070",
+              "lifecycle": {
+                "workflowStatus": "FULLY_RECEIVED",
+                "accountingStatus": "NOT_ELIGIBLE"
+              },
+              "journalEntryId": null
+            },
+            {
+              "relationType": "SELF",
+              "documentType": "GOODS_RECEIPT",
+              "documentId": 2,
+              "documentNumber": "GRN-UTCATREADYPO18B070",
+              "lifecycle": {
+                "workflowStatus": "RECEIVED",
+                "accountingStatus": "PENDING"
+              },
+              "journalEntryId": null
+            }
+          ]
+        }
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Manual raw material batch creation on `/api/v1/raw-material-batches/{rawMaterialId}` returned `409 BUS_004` because manual batch entry is disabled in this runtime, so I used the canonical purchasing flow (`POST /api/v1/purchasing/purchase-orders` + `POST /api/v1/purchasing/goods-receipts`) to stock the namespaced raw material before the factory proof.",
+      "resolved": true,
+      "resolution": "Seeded stock through a namespaced supplier, purchase order, and goods receipt, then retried the factory proof successfully.",
+      "affectedAssertions": [
+        "VAL-READY-005"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 5 assertions: 5 passed, 0 failed, 0 blocked."
+}

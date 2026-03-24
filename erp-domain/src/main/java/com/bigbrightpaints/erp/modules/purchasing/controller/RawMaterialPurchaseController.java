@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.purchasing.controller;
 
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
+import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnPreviewDto;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.RawMaterialPurchaseResponse;
@@ -45,5 +46,11 @@ public class RawMaterialPurchaseController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<JournalEntryDto>> recordPurchaseReturn(@Valid @RequestBody PurchaseReturnRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Purchase return recorded", purchasingService.recordPurchaseReturn(request)));
+    }
+
+    @PostMapping("/returns/preview")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<PurchaseReturnPreviewDto>> previewPurchaseReturn(@Valid @RequestBody PurchaseReturnRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Purchase return preview", purchasingService.previewPurchaseReturn(request)));
     }
 }

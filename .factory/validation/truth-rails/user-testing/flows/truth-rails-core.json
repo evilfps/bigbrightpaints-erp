@@ -1,0 +1,185 @@
+{
+  "groupId": "truth-rails-core",
+  "surface": "api",
+  "appUrl": "http://localhost:8081",
+  "testedAt": "2026-03-08T06:11:36+05:30",
+  "credentials": {
+    "account": "uat.admin@example.com",
+    "companyCode": "MOCK",
+    "namespace": "ut_truth_rails_core"
+  },
+  "toolsUsed": [
+    "python urllib runtime probes",
+    "docker compose current-code runtime",
+    "mvn test targeted suites",
+    "repository inspection"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-CTRL-001",
+      "title": "Every posted journal exposes provenance",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Probe the canonical accounting provenance surfaces on the compose-backed runtime as `uat.admin@example.com` in `MOCK`.",
+          "expected": "Authenticated users with admin authority can reach journal list and transaction-detail surfaces that expose provenance-oriented fields.",
+          "observed": "`POST /api/v1/auth/login` returned 200. `GET /api/v1/accounting/audit/transactions?page=0&size=20` returned 200 with 14 entries. `GET /api/v1/accounting/audit/transactions/1` returned 200 and the payload exposed provenance fields including `drivingDocument`, `linkedDocuments`, `eventTrail`, accounting-period metadata, and journal line detail. `GET /api/v1/accounting/journals?page=0&size=20` also returned 200 with 14 posted/reversed journal rows."
+        },
+        {
+          "action": "Run targeted provenance coverage: `cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='BusinessDocumentTruthsTest,InvoiceServiceTest,PurchaseInvoiceEngineLifecycleTest,PurchasingServiceGoodsReceiptTest,AccountingAuditTrailServiceTest,InventoryAccountingEventListenerIT' test`.",
+          "expected": "Mission-scoped accounting detail coverage proves posted purchase-invoice journals resolve back to driving business documents and linked references.",
+          "observed": "BUILD SUCCESS; 35 tests ran with 0 failures. `AccountingAuditTrailServiceTest` passed 6/6, including the purchase-invoice provenance case that asserts `drivingDocument.documentType == PURCHASE_INVOICE` and that the linked reference chain contains `GOODS_RECEIPT`, `PURCHASE_ORDER`, and `ACCOUNTING_ENTRY`."
+        }
+      ],
+      "evidence": {
+        "runtime": {
+          "loginStatus": 200,
+          "auditTransactionsStatus": 200,
+          "auditTransactionCount": 14,
+          "auditTransactionDetailStatus": 200,
+          "journalListStatus": 200
+        },
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='BusinessDocumentTruthsTest,InvoiceServiceTest,PurchaseInvoiceEngineLifecycleTest,PurchasingServiceGoodsReceiptTest,AccountingAuditTrailServiceTest,InventoryAccountingEventListenerIT' test",
+          "result": "BUILD SUCCESS; Tests run: 35, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingAuditTrailServiceTest.java:381-388",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java:1258-1278"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CTRL-003",
+      "title": "Document status and accounting status stay separate",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run the same targeted truth-lifecycle suite and inspect the returned lifecycle DTO assertions.",
+          "expected": "Commercial/workflow state remains distinct from accounting state for source orders, goods receipts, invoices, and purchases.",
+          "observed": "BUILD SUCCESS; `BusinessDocumentTruthsTest.salesOrderLifecycle_staysNotEligibleBeforeInvoiceOrJournalTruthExists` passed with workflow `READY_TO_SHIP` and accounting `NOT_ELIGIBLE`. `InvoiceServiceTest.getInvoice_sourceOrderReferenceStaysNotEligibleBeforePostingTruthExists` passed with the linked `SOURCE_ORDER` lifecycle still `NOT_ELIGIBLE`. `PurchasingServiceGoodsReceiptTest.createGoodsReceipt_doesNotPostApJournalOnSuccessfulReceipt` kept the goods receipt at workflow `PARTIAL` and accounting `PENDING`, while `PurchaseInvoiceEngineLifecycleTest` confirmed posted purchase invoices surface workflow/accounting `POSTED/POSTED`."
+        },
+        {
+          "action": "Inspect the shared lifecycle DTO and mapping helpers.",
+          "expected": "The user-facing DTO surface carries both workflow and accounting states explicitly rather than collapsing them into one field.",
+          "observed": "`DocumentLifecycleDto` is a two-field DTO (`workflowStatus`, `accountingStatus`) and is wired into invoice, goods-receipt, purchase, and accounting audit responses through `BusinessDocumentTruths` and `PurchaseResponseMapper`."
+        }
+      ],
+      "evidence": {
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='BusinessDocumentTruthsTest,InvoiceServiceTest,PurchaseInvoiceEngineLifecycleTest,PurchasingServiceGoodsReceiptTest,AccountingAuditTrailServiceTest,InventoryAccountingEventListenerIT' test",
+          "result": "BUILD SUCCESS; Tests run: 35, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/core/util/BusinessDocumentTruthsTest.java:11-29",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/invoice/service/InvoiceServiceTest.java:404-432",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingServiceGoodsReceiptTest.java:407-420",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseInvoiceEngineLifecycleTest.java:372-379",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/shared/dto/DocumentLifecycleDto.java:3-5"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CTRL-006",
+      "title": "Posting truth has one canonical trigger per workflow",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run the targeted duplicate-posting and linkage suite.",
+          "expected": "GRN remains stock-only, purchase invoice becomes the AP truth boundary, and replay/listener redelivery cannot create duplicate journals.",
+          "observed": "BUILD SUCCESS; `PurchasingServiceGoodsReceiptTest.createGoodsReceipt_doesNotPostApJournalOnSuccessfulReceipt` passed and explicitly verifies no AP journal is posted at receipt time. `PurchaseInvoiceEngineLifecycleTest` passed while linking the receipt movement to the purchase journal only at invoice creation. `InventoryAccountingEventListenerIT` passed 5/5 and logged `Journal entry INV-MOVE-TEST-1-652b7b2b238c2e12 already exists, skipping duplicate`, confirming duplicate listener delivery is short-circuited instead of creating overlapping truth."
+        },
+        {
+          "action": "Cross-check the canonical runtime audit surface.",
+          "expected": "User-facing accounting transaction queries remain available for the canonical posting path.",
+          "observed": "`GET /api/v1/accounting/audit/transactions?page=0&size=20` returned 200 on the compose-backed runtime, confirming the canonical audit surface is available for posted journal review even though the seeded runtime does not preload linked GRN/purchase chains."
+        }
+      ],
+      "evidence": {
+        "runtime": {
+          "auditTransactionsStatus": 200
+        },
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='BusinessDocumentTruthsTest,InvoiceServiceTest,PurchaseInvoiceEngineLifecycleTest,PurchasingServiceGoodsReceiptTest,AccountingAuditTrailServiceTest,InventoryAccountingEventListenerIT' test",
+          "result": "BUILD SUCCESS; Tests run: 35, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingServiceGoodsReceiptTest.java:420-456",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseInvoiceEngineLifecycleTest.java:372-389",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/regression/InventoryAccountingEventListenerIT.java"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-001",
+      "title": "Linked reference chain is navigable end-to-end",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run the targeted linked-reference suite across invoice, purchase, goods-receipt, and accounting audit services.",
+          "expected": "Touched O2C/P2P DTOs expose a navigable linked-reference chain from source documents through posting artifacts.",
+          "observed": "BUILD SUCCESS; `InvoiceServiceTest` passed with invoice DTO linked references containing `SOURCE_ORDER`, `DISPATCH`, and `ACCOUNTING_ENTRY`. `PurchaseInvoiceEngineLifecycleTest` passed with purchase-invoice linked references containing `PURCHASE_ORDER`, `GOODS_RECEIPT`, and `ACCOUNTING_ENTRY`. `AccountingAuditTrailServiceTest` passed with the transaction-detail linked reference chain containing `GOODS_RECEIPT`, `PURCHASE_ORDER`, and `ACCOUNTING_ENTRY` for the posted purchase journal. `PurchasingServiceGoodsReceiptTest` also verified goods-receipt responses retain linked purchase-order references while remaining pre-AP posting."
+        },
+        {
+          "action": "Check the canonical runtime audit-detail response shape.",
+          "expected": "The live API should expose transaction detail fields that can carry linked reference chain data for real posted documents.",
+          "observed": "`GET /api/v1/accounting/audit/transactions/1` returned 200 with provenance-oriented keys including `drivingDocument`, `linkedDocuments`, `eventTrail`, and journal line detail. The seeded `MOCK` dataset did not include a prebuilt linked invoice/GRN/purchase chain, so targeted tests supplied the end-to-end document-link evidence."
+        }
+      ],
+      "evidence": {
+        "runtime": {
+          "auditTransactionDetailStatus": 200
+        },
+        "tests": {
+          "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='BusinessDocumentTruthsTest,InvoiceServiceTest,PurchaseInvoiceEngineLifecycleTest,PurchasingServiceGoodsReceiptTest,AccountingAuditTrailServiceTest,InventoryAccountingEventListenerIT' test",
+          "result": "BUILD SUCCESS; Tests run: 35, Failures: 0, Errors: 0, Skipped: 0"
+        },
+        "codeRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/invoice/service/InvoiceServiceTest.java:341-347",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchaseInvoiceEngineLifecycleTest.java:372-379",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingServiceGoodsReceiptTest.java:407-414",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingAuditTrailServiceTest.java:381-388"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Launching the dedicated `user-testing-flow-validator` Task droid failed immediately with `Invalid model: custom:CLIProxyAPI-5.4-high-pro`.",
+      "resolved": true,
+      "resolution": "Completed the assigned flow validation directly in-session and wrote the expected flow artifact manually, per mission guidance for subagent-launch failures.",
+      "affectedAssertions": [
+        "VAL-CTRL-001",
+        "VAL-CTRL-003",
+        "VAL-CTRL-006",
+        "VAL-CROSS-001"
+      ]
+    },
+    {
+      "description": "The compose-backed `MOCK` runtime did not preload linked invoice/GRN/purchase chains needed for end-to-end workflow-truth probes.",
+      "resolved": true,
+      "resolution": "Used live login and accounting API probes for surface availability, then relied on focused Maven service/truth tests for linked-reference and canonical-posting evidence. Updated `.factory/library/user-testing.md` to document this constraint.",
+      "affectedAssertions": [
+        "VAL-CTRL-001",
+        "VAL-CTRL-003",
+        "VAL-CTRL-006",
+        "VAL-CROSS-001"
+      ]
+    },
+    {
+      "description": "The legacy `/api/v1/accounting/audit-trail` endpoint returned `500 SYS_001` on the current `MOCK` runtime during API discovery.",
+      "resolved": true,
+      "resolution": "Switched to the canonical `/api/v1/accounting/audit/transactions` and `/api/v1/accounting/audit/transactions/{journalEntryId}` endpoints, which returned 200, and documented that testing preference in `.factory/library/user-testing.md`.",
+      "affectedAssertions": [
+        "VAL-CTRL-001",
+        "VAL-CROSS-001"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated the four truth-rails user-testing assertions assigned from completed feature fulfills. Live API probes confirmed the current-code runtime and canonical accounting audit surfaces were reachable with seeded UAT credentials, while focused Maven suites (35 tests, 0 failures) supplied the decisive evidence for provenance, workflow/accounting state separation, canonical posting ownership, and linked-reference navigation across touched O2C/P2P truth boundaries."
+}

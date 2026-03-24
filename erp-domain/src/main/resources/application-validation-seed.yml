@@ -1,0 +1,4 @@
+erp:
+  validation-seed:
+    enabled: ${ERP_VALIDATION_SEED_ENABLED:false}
+    password: ${ERP_VALIDATION_SEED_PASSWORD:}

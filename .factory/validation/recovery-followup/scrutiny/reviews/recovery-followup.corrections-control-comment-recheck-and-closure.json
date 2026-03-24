@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-followup.corrections-control-comment-recheck-and-closure",
+  "reviewedAt": "2026-03-09T20:52:02Z",
+  "commitId": "eda98dd7",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review passed. Reviewed the worker handoff for commit eda98dd7, validated the reported scope and verification evidence, and checked the committed diff shape for the feature. Implemented the remaining corrections-control follow-up work on recovery/05-corrections-control: sales return listing and correction-journal detection now use only canonical CRN references, sales return replay now prefers the canonical marker path and fails closed on unsupported marker-less legacy state, dealer/supplier header-level settlement retries now reuse stable canonical idempotency keys and allow replay detection before supplier lifecycle rejection, and the R2 checkpoint plus migration runbook now describe the real V161/Hard-Cut recovery expectations. Tests were updated to cover CRN-only lookup, replay after invoice status drift, fail-closed legacy return handling, stable header-level settlement replays, and the adjacent InvoiceService Mockito stubbing cleanup needed for the full gate-fast suite to pass. Non-blocking follow-up remains limited to remote PR reruns or stale GitHub checks, not local code defects.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Re-checked PR #99 corrections/control comments against the restacked branch, applied the still-valid Hard-Cut fixes, updated governance notes, and brought the local validation gates back to green by removing stale invoice test stubs that were blocking gate-fast."
+}

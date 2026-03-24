@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,6 +17,11 @@ public interface RawMaterialRepository extends JpaRepository<RawMaterial, Long> 
     List<RawMaterial> findByCompanyOrderByNameAsc(Company company);
     Optional<RawMaterial> findByCompanyAndId(Company company, Long id);
     Optional<RawMaterial> findByCompanyAndSku(Company company, String sku);
+    Optional<RawMaterial> findByCompanyAndSkuIgnoreCase(Company company, String sku);
+    List<RawMaterial> findByCompanyAndSkuIn(Company company, Collection<String> skus);
+    @Query("select rm from RawMaterial rm where rm.company = :company and lower(rm.sku) in :skus")
+    List<RawMaterial> findByCompanyAndSkuInIgnoreCase(@Param("company") Company company,
+                                                      @Param("skus") Collection<String> skus);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select rm from RawMaterial rm where rm.company = :company and rm.id = :id")

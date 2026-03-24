@@ -1,0 +1,280 @@
+{
+  "groupId": "api-runtime",
+  "surface": "api",
+  "testedAt": "2026-03-15T03:33:27.398576+00:00",
+  "status": "pass",
+  "toolsUsed": [
+    "python3",
+    "http"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-RUNTIME-001",
+      "status": "pass",
+      "summary": "Canonical company-scoped runtime-policy PUT on MOCK returned the published snapshot fields, and the admin metrics surface mirrored the canonical snapshot immediately afterward.",
+      "steps": [
+        {
+          "action": "PUT /api/v1/companies/1/tenant-runtime/policy as validation.superadmin@example.com bound to SKE",
+          "expected": "200 canonical snapshot with companyCode/state/reasonCode/limits/auditChainId/updatedAt.",
+          "observed": "status 200; payload={'companyCode': 'MOCK', 'state': 'ACTIVE', 'reasonCode': 'LIVE_BASELINE', 'auditChainId': 'e315e32e-7ac4-4dcf-9a65-46a157f84402', 'updatedAt': 1773545606.5454164, 'maxConcurrentRequests': 17, 'maxRequestsPerMinute': 117, 'maxActiveUsers': 27, 'metrics': {'totalRequests': 1, 'rejectedRequests': 0, 'errorResponses': 0, 'inFlightRequests': 1, 'minuteRequestCount': 0, 'minuteRejectedCount': 0, 'activeUsers': 6}}"
+        },
+        {
+          "action": "GET /api/v1/admin/tenant-runtime/metrics for MOCK",
+          "expected": "Metrics map hold state/reason/limits and auditChainId->policyReference, updatedAt->policyUpdatedAt.",
+          "observed": "status 200; payload={'companyCode': 'MOCK', 'holdState': 'ACTIVE', 'holdReason': 'LIVE_BASELINE', 'maxActiveUsers': 27, 'maxRequestsPerMinute': 117, 'maxConcurrentRequests': 17, 'enabledUsers': 6, 'totalUsers': 6, 'requestsThisMinute': 1, 'blockedThisMinute': 0, 'inFlightRequests': 1, 'policyReference': 'e315e32e-7ac4-4dcf-9a65-46a157f84402', 'policyUpdatedAt': 1773545606.5454164}; metrics_match=True"
+        }
+      ],
+      "evidence": [
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-evidence.json",
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-summary.md"
+      ]
+    },
+    {
+      "id": "VAL-RUNTIME-002",
+      "status": "pass",
+      "summary": "Non-super-admin attempts against same-tenant, foreign-target, and unknown-target canonical company paths were denied without persisting policy changes.",
+      "steps": [
+        {
+          "action": "PUT /api/v1/companies/1/tenant-runtime/policy as validation.admin@example.com",
+          "expected": "Controlled denial for non-super-admin writer.",
+          "observed": "status 403; error=('AUTH_004', 'Access denied', None)"
+        },
+        {
+          "action": "PUT /api/v1/companies/2/tenant-runtime/policy as validation.admin@example.com bound to MOCK",
+          "expected": "Controlled denial for foreign-target mutation.",
+          "observed": "status 403; error=('AUTH_004', 'Access denied', None)"
+        },
+        {
+          "action": "PUT /api/v1/companies/999999/tenant-runtime/policy as validation.admin@example.com",
+          "expected": "Controlled denial for unknown target.",
+          "observed": "status 403; error=('AUTH_004', 'Access denied', None)"
+        },
+        {
+          "action": "Re-read tenant-runtime metrics after denied attempts",
+          "expected": "MOCK and RIVAL policies remain unchanged.",
+          "observed": "MOCK=('ACTIVE', 'LIVE_BASELINE', 17, 117, 27, 'e315e32e-7ac4-4dcf-9a65-46a157f84402', 1773545606.5454164); RIVAL=('ACTIVE', 'POLICY_ACTIVE', 200, 5000, 500, 'bootstrap', None); unchanged=True"
+        }
+      ],
+      "evidence": [
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-evidence.json",
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-summary.md"
+      ]
+    },
+    {
+      "id": "VAL-RUNTIME-003",
+      "status": "pass",
+      "summary": "The stale admin runtime-policy writer is retired in the live API: the old endpoint returned 404 and left the canonical MOCK policy unchanged.",
+      "steps": [
+        {
+          "action": "PUT /api/v1/admin/tenant-runtime/policy as validation.superadmin@example.com",
+          "expected": "404 retired outcome.",
+          "observed": "status 404; body={'type': 'about:blank', 'title': 'Not Found', 'status': 404, 'detail': 'No static resource api/v1/admin/tenant-runtime/policy.', 'instance': '/api/v1/admin/tenant-runtime/policy', 'properties': None}"
+        },
+        {
+          "action": "GET /api/v1/admin/tenant-runtime/metrics for MOCK after retired writer probe",
+          "expected": "Canonical state unchanged.",
+          "observed": "payload={'companyCode': 'MOCK', 'holdState': 'ACTIVE', 'holdReason': 'LIVE_BASELINE', 'maxActiveUsers': 27, 'maxRequestsPerMinute': 117, 'maxConcurrentRequests': 17, 'enabledUsers': 6, 'totalUsers': 6, 'requestsThisMinute': 3, 'blockedThisMinute': 0, 'inFlightRequests': 1, 'policyReference': 'e315e32e-7ac4-4dcf-9a65-46a157f84402', 'policyUpdatedAt': 1773545606.5454164}"
+        }
+      ],
+      "evidence": [
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-evidence.json",
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-summary.md"
+      ]
+    },
+    {
+      "id": "VAL-RUNTIME-004",
+      "status": "pass",
+      "summary": "Empty, reason-only, invalid-holdState, and non-positive quota payloads all failed closed with 400 responses and no stored-policy drift.",
+      "steps": [
+        {
+          "action": "PUT /api/v1/companies/1/tenant-runtime/policy with empty payload",
+          "expected": "400 validation failure.",
+          "observed": "status 400; error=('VAL_001', 'Runtime policy mutation payload is required', None)"
+        },
+        {
+          "action": "PUT /api/v1/companies/1/tenant-runtime/policy with reason-only payload",
+          "expected": "400 validation failure.",
+          "observed": "status 400; error=('VAL_001', 'Runtime policy mutation payload is required', None)"
+        },
+        {
+          "action": "PUT /api/v1/companies/1/tenant-runtime/policy with invalid holdState",
+          "expected": "400 validation failure.",
+          "observed": "status 400; error=('VAL_001', 'Unsupported runtime holdState: PAUSED', None)"
+        },
+        {
+          "action": "PUT /api/v1/companies/1/tenant-runtime/policy with zero maxConcurrentRequests",
+          "expected": "400 validation failure.",
+          "observed": "status 400; error=('VAL_001', 'Validation failed: maxConcurrentRequests maxConcurrentRequests must be at least 1', None)"
+        },
+        {
+          "action": "PUT /api/v1/companies/1/tenant-runtime/policy with zero maxRequestsPerMinute",
+          "expected": "400 validation failure.",
+          "observed": "status 400; error=('VAL_001', 'Validation failed: maxRequestsPerMinute maxRequestsPerMinute must be at least 1', None)"
+        },
+        {
+          "action": "PUT /api/v1/companies/1/tenant-runtime/policy with zero maxActiveUsers",
+          "expected": "400 validation failure.",
+          "observed": "status 400; error=('VAL_001', 'Validation failed: maxActiveUsers maxActiveUsers must be at least 1', None)"
+        },
+        {
+          "action": "Compare metrics before and after invalid canonical writes",
+          "expected": "Stored policy and policyReference remain unchanged.",
+          "observed": "before=('HOLD', 'VALIDATION_BASELINE', 19, 119, 29, '85060b9f-31b8-4307-9383-5315d854ebe1', 1773545606.696554); after=('HOLD', 'VALIDATION_BASELINE', 19, 119, 29, '85060b9f-31b8-4307-9383-5315d854ebe1', 1773545606.696554)"
+        }
+      ],
+      "evidence": [
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-evidence.json",
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-summary.md"
+      ]
+    },
+    {
+      "id": "VAL-RUNTIME-005",
+      "status": "pass",
+      "summary": "The next same-node authenticated auth request was denied immediately after a canonical BLOCKED write.",
+      "steps": [
+        {
+          "action": "PUT /api/v1/companies/1/tenant-runtime/policy -> BLOCKED",
+          "expected": "200 blocked snapshot.",
+          "observed": "status 200; payload={'companyCode': 'MOCK', 'state': 'BLOCKED', 'reasonCode': 'ABUSE_INCIDENT', 'auditChainId': '58fc5527-1882-404c-a781-e941edc53a84', 'updatedAt': 1773545606.9700642, 'maxConcurrentRequests': 50, 'maxRequestsPerMinute': 5000, 'maxActiveUsers': 500, 'metrics': {'totalRequests': 15, 'rejectedRequests': 0, 'errorResponses': 6, 'inFlightRequests': 1, 'minuteRequestCount': 5, 'minuteRejectedCount': 0, 'activeUsers': 6}}"
+        },
+        {
+          "action": "GET /api/v1/auth/me with the pre-block MOCK token",
+          "expected": "403 TENANT_BLOCKED denial.",
+          "observed": "status 403; error=('TENANT_BLOCKED', 'Tenant is currently blocked', 'ABUSE_INCIDENT')"
+        }
+      ],
+      "evidence": [
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-evidence.json",
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-summary.md"
+      ]
+    },
+    {
+      "id": "VAL-RUNTIME-006",
+      "status": "pass",
+      "summary": "The same previously denied /api/v1/auth/me request succeeded again immediately after canonical recovery to ACTIVE.",
+      "steps": [
+        {
+          "action": "PUT canonical recovery write on MOCK",
+          "expected": "200 active snapshot.",
+          "observed": "status 200; body={'success': True, 'message': 'Company tenant runtime policy updated', 'data': {'companyCode': 'MOCK', 'state': 'ACTIVE', 'reasonCode': 'RECOVERY_COMPLETE', 'auditChainId': 'ecd5a811-9abc-4c8a-9ea8-932bc45e029e', 'updatedAt': 1773545607.015083, 'maxConcurrentRequests': 50, 'maxRequestsPerMinute': 5000, 'maxActiveUsers': 500, 'metrics': {'totalRequests': 16, 'rejectedRequests': 2, 'errorResponses': 6, 'inFlightRequests': 1, 'minuteRequestCount': 5, 'minuteRejectedCount': 2, 'activeUsers': 6}}, 'timestamp': 1773545607.019631}"
+        },
+        {
+          "action": "GET /api/v1/auth/me again with the same token",
+          "expected": "200 success after recovery.",
+          "observed": "status 200; body={'success': True, 'data': {'email': 'validation.admin@example.com', 'displayName': 'Validation Admin', 'companyCode': 'MOCK', 'mfaEnabled': False, 'mustChangePassword': False, 'roles': ['ROLE_ACCOUNTING', 'ROLE_ADMIN', 'ROLE_SALES'], 'permissions': ['dispatch.confirm', 'factory.dispatch', 'payroll.run', 'portal:accounting', 'portal:dealer', 'portal:factory', 'portal:sales'], 'companyId': 'MOCK'}, 'timestamp': 1773545607.033503}"
+        }
+      ],
+      "evidence": [
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-evidence.json",
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-summary.md"
+      ]
+    },
+    {
+      "id": "VAL-RUNTIME-007",
+      "status": "pass",
+      "summary": "Auth login, refresh, and authenticated runtime requests followed the canonical blocked/hold/quota semantics after canonical writes.",
+      "steps": [
+        {
+          "action": "POST /api/v1/auth/refresh-token while MOCK is BLOCKED",
+          "expected": "403 TENANT_BLOCKED denial.",
+          "observed": "status 403; error=('TENANT_BLOCKED', 'Tenant is currently blocked', 'ABUSE_INCIDENT')"
+        },
+        {
+          "action": "POST /api/v1/auth/login while MOCK is HOLD",
+          "expected": "423/403 TENANT_ON_HOLD denial.",
+          "observed": "status 423; error=('TENANT_ON_HOLD', 'Tenant is currently on hold', 'COMPLIANCE_REVIEW')"
+        },
+        {
+          "action": "POST /api/v1/auth/login after canonical maxActiveUsers=1 write",
+          "expected": "429 TENANT_ACTIVE_USER_QUOTA_EXCEEDED denial.",
+          "observed": "status 429; error=('TENANT_ACTIVE_USER_QUOTA_EXCEEDED', 'Tenant active-user quota exceeded', 'MAX_USERS_LIVE')"
+        }
+      ],
+      "evidence": [
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-evidence.json",
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-summary.md"
+      ]
+    },
+    {
+      "id": "VAL-RUNTIME-008",
+      "status": "pass",
+      "summary": "Default tenant-runtime metrics for RIVAL matched the canonical ACTIVE/POLICY_ACTIVE bootstrap defaults before any live mutation.",
+      "steps": [
+        {
+          "action": "GET /api/v1/admin/tenant-runtime/metrics as validation.rival.admin@example.com",
+          "expected": "200 response with ACTIVE bootstrap defaults.",
+          "observed": "status 200; payload={'companyCode': 'RIVAL', 'holdState': 'ACTIVE', 'holdReason': 'POLICY_ACTIVE', 'maxActiveUsers': 500, 'maxRequestsPerMinute': 5000, 'maxConcurrentRequests': 200, 'enabledUsers': 2, 'totalUsers': 2, 'requestsThisMinute': 1, 'blockedThisMinute': 0, 'inFlightRequests': 1, 'policyReference': 'bootstrap', 'policyUpdatedAt': None}"
+        }
+      ],
+      "evidence": [
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-evidence.json",
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-summary.md"
+      ]
+    },
+    {
+      "id": "VAL-RUNTIME-009",
+      "status": "pass",
+      "summary": "The runtime-intercepted portal dashboard tracked canonical ACTIVE/BLOCKED/ACTIVE writes immediately.",
+      "steps": [
+        {
+          "action": "GET /api/v1/portal/dashboard while MOCK is ACTIVE",
+          "expected": "200 response.",
+          "observed": "status 200; body={'success': True, 'message': 'Dashboard insights', 'data': {'highlights': [{'label': 'Revenue run rate', 'value': '\u20b90.00', 'detail': 'Last 30d: \u20b90.00'}, {'label': 'Fulfilment SLA', 'value': '0.0%', 'detail': 'Awaiting fulfilment data'}, {'label': 'Active workforce', 'value': '0', 'detail': 'No workforce records'}, {'label': 'Dealer coverage', 'value': '3', 'detail': 'Connected dealer entities'}], 'pipeline': [], 'hrPulse': [{'label': 'Engagement', 'score': '0.0%', 'context': 'Active employees'}, {'label': 'Leave utilisation', 'score': '0.0%', 'context': 'Approved leave records'}, {'label': 'Payroll readiness', 'score': '0', 'context': 'Draft payroll runs awaiting approval'}]}, 'timestamp': 1773545607.270032}"
+        },
+        {
+          "action": "GET /api/v1/portal/dashboard after canonical BLOCKED write",
+          "expected": "403 TENANT_BLOCKED denial.",
+          "observed": "status 403; error=('TENANT_BLOCKED', 'Tenant is currently blocked', 'PORTAL_INCIDENT')"
+        },
+        {
+          "action": "GET /api/v1/portal/dashboard after canonical recovery",
+          "expected": "200 response again.",
+          "observed": "status 200; body={'success': True, 'message': 'Dashboard insights', 'data': {'highlights': [{'label': 'Revenue run rate', 'value': '\u20b90.00', 'detail': 'Last 30d: \u20b90.00'}, {'label': 'Fulfilment SLA', 'value': '0.0%', 'detail': 'Awaiting fulfilment data'}, {'label': 'Active workforce', 'value': '0', 'detail': 'No workforce records'}, {'label': 'Dealer coverage', 'value': '3', 'detail': 'Connected dealer entities'}], 'pipeline': [], 'hrPulse': [{'label': 'Engagement', 'score': '0.0%', 'context': 'Active employees'}, {'label': 'Leave utilisation', 'score': '0.0%', 'context': 'Approved leave records'}, {'label': 'Payroll readiness', 'score': '0', 'context': 'Draft payroll runs awaiting approval'}]}, 'timestamp': 1773545607.3268294}"
+        }
+      ],
+      "evidence": [
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-evidence.json",
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-summary.md"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-001",
+      "status": "pass",
+      "summary": "A non-member SKE-bound superadmin session could block and recover the RIVAL tenant through the canonical company path, while the non-super-admin RIVAL admin recovery attempt stayed denied and RIVAL remained blocked until the superadmin recovered it.",
+      "steps": [
+        {
+          "action": "PUT /api/v1/companies/2/tenant-runtime/policy as validation.superadmin@example.com bound to SKE",
+          "expected": "Cross-tenant canonical write succeeds for the non-member superadmin.",
+          "observed": "status 200; body={'success': True, 'message': 'Company tenant runtime policy updated', 'data': {'companyCode': 'RIVAL', 'state': 'BLOCKED', 'reasonCode': 'RIVAL_CONTAINMENT', 'auditChainId': '26197a6a-71cc-4648-9292-2eafb48270da', 'updatedAt': 1773545661.748794, 'maxConcurrentRequests': 50, 'maxRequestsPerMinute': 5000, 'maxActiveUsers': 500, 'metrics': {'totalRequests': 5, 'rejectedRequests': 1, 'errorResponses': 0, 'inFlightRequests': 1, 'minuteRequestCount': 2, 'minuteRejectedCount': 1, 'activeUsers': 2}}, 'timestamp': 1773545661.7517061}"
+        },
+        {
+          "action": "PUT /api/v1/companies/2/tenant-runtime/policy as validation.rival.admin@example.com",
+          "expected": "Non-super-admin recovery attempt is denied and does not persist.",
+          "observed": "status 403; body={'success': False, 'message': 'Access denied', 'data': {'traceId': 'e6132dc7-2823-4993-a96c-3c69a3ee51e1', 'code': 'AUTH_004', 'message': 'Access denied'}, 'timestamp': 1773545661.7622063}"
+        },
+        {
+          "action": "POST /api/v1/auth/login for validation.rival.admin@example.com while RIVAL is still blocked",
+          "expected": "Blocked tenant remains denied after the failed non-super-admin recovery attempt.",
+          "observed": "status 403; body={'success': False, 'message': 'Tenant is currently blocked', 'data': {'traceId': 'e07b3fb1-4f5b-4306-8453-69462872ea40', 'auditChainId': '26197a6a-71cc-4648-9292-2eafb48270da', 'reason': 'TENANT_BLOCKED', 'limitValue': 'ACTIVE', 'code': 'TENANT_BLOCKED', 'tenantReasonCode': 'RIVAL_CONTAINMENT', 'observedValue': 'BLOCKED', 'message': 'Tenant is currently blocked', 'limitType': 'TENANT_STATE'}, 'timestamp': 1773545661.8343122}"
+        },
+        {
+          "action": "Recover RIVAL through the canonical company path using the SKE-bound superadmin session",
+          "expected": "Recovery succeeds and RIVAL becomes active again.",
+          "observed": "status 200; body={'success': True, 'message': 'Company tenant runtime policy updated', 'data': {'companyCode': 'RIVAL', 'state': 'ACTIVE', 'reasonCode': 'RECOVERY_COMPLETE', 'auditChainId': 'a31850ab-96f3-4e4a-ad76-21cae1e2d364', 'updatedAt': 1773545661.8450086, 'maxConcurrentRequests': 50, 'maxRequestsPerMinute': 5000, 'maxActiveUsers': 500, 'metrics': {'totalRequests': 6, 'rejectedRequests': 2, 'errorResponses': 0, 'inFlightRequests': 1, 'minuteRequestCount': 0, 'minuteRejectedCount': 1, 'activeUsers': 2}}, 'timestamp': 1773545661.8476455}"
+        },
+        {
+          "action": "POST /api/v1/auth/login + GET /api/v1/admin/tenant-runtime/metrics after recovery",
+          "expected": "RIVAL login and metrics succeed again with ACTIVE holdState.",
+          "observed": "status {'login': 200, 'metrics': 200}; body={'login': {'tokenType': 'Bearer', 'accessToken': '<redacted>', 'refreshToken': '<redacted>', 'expiresIn': 900, 'companyCode': 'RIVAL', 'displayName': 'Rival Validation Admin', 'mustChangePassword': False}, 'metrics': {'success': True, 'message': 'Tenant runtime metrics', 'data': {'companyCode': 'RIVAL', 'holdState': 'ACTIVE', 'holdReason': 'RECOVERY_COMPLETE', 'maxActiveUsers': 500, 'maxRequestsPerMinute': 5000, 'maxConcurrentRequests': 50, 'enabledUsers': 2, 'totalUsers': 2, 'requestsThisMinute': 1, 'blockedThisMinute': 1, 'inFlightRequests': 1, 'policyReference': 'a31850ab-96f3-4e4a-ad76-21cae1e2d364', 'policyUpdatedAt': 1773545661.8450086}, 'timestamp': 1773545661.938751}}"
+        }
+      ],
+      "evidence": [
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/cross-001-evidence.json",
+        "/home/realnigga/.factory/missions/537a0e29-5ac5-4a24-8b7a-67bf56eaf048/evidence/lane01-tenant-runtime-canonicalization/api-runtime/live-api-summary.md"
+      ]
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "VAL-RUNTIME-001=pass ; VAL-RUNTIME-002=pass ; VAL-RUNTIME-003=pass ; VAL-RUNTIME-004=pass ; VAL-RUNTIME-005=pass ; VAL-RUNTIME-006=pass ; VAL-RUNTIME-007=pass ; VAL-RUNTIME-008=pass ; VAL-RUNTIME-009=pass ; VAL-CROSS-001=pass"
+}

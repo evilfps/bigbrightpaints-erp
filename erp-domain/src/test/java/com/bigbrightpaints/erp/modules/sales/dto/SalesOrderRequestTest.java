@@ -5,8 +5,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.util.List;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+@Tag("critical")
 class SalesOrderRequestTest {
 
     private SalesOrderRequest requestWithIdempotency(String key, String currency, String productCode, BigDecimal quantity) {
@@ -96,5 +98,32 @@ class SalesOrderRequestTest {
         String transitionalPayload = "7|100|INR|CREDIT|FG-1:2:10";
         assertThat(request.resolveIdempotencyKeyIncludingDefaultPaymentMode())
                 .isEqualTo(DigestUtils.sha256Hex(transitionalPayload));
+    }
+
+    @Test
+    void constructor_defaultsBlankPaymentModeToCredit() {
+        SalesOrderRequest request = requestWithIdempotency("key-default", "INR", "FG-1", BigDecimal.ONE);
+
+        assertThat(request.normalizedPaymentMode()).isEqualTo("CREDIT");
+    }
+
+    @Test
+    void constructor_mapsLegacySplitPaymentModeToHybrid() {
+        SalesOrderItemRequest item = new SalesOrderItemRequest("FG-1", "Item", new BigDecimal("2"), new BigDecimal("10"), null);
+        SalesOrderRequest request = new SalesOrderRequest(7L, new BigDecimal("100"), "INR", null, List.of(item),
+                "NONE", BigDecimal.ZERO, false, null, "split");
+
+        assertThat(request.normalizedPaymentMode()).isEqualTo("HYBRID");
+    }
+
+    @Test
+    void resolveLegacySplitReplayIdempotencyKey_preservesLegacySplitShape() {
+        SalesOrderItemRequest item = new SalesOrderItemRequest("FG-1", "Item", new BigDecimal("2"), new BigDecimal("10"), null);
+        SalesOrderRequest request = new SalesOrderRequest(7L, new BigDecimal("100"), "INR", null, List.of(item),
+                "NONE", BigDecimal.ZERO, false, null, "split");
+
+        assertThat(request.resolveIdempotencyKey()).isEqualTo(DigestUtils.sha256Hex("7|100|INR|HYBRID|FG-1:2:10"));
+        assertThat(request.resolveLegacySplitReplayIdempotencyKey())
+                .isEqualTo(DigestUtils.sha256Hex("7|100|INR|SPLIT|FG-1:2:10"));
     }
 }

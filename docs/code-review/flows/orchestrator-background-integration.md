@@ -55,7 +55,7 @@ Supporting runtime evidence in this session:
 | `order_auto_approval_state` | `V6__orchestrator.sql`, `OrderAutoApprovalState`, `OrderAutoApprovalStateRepository` | Partial progress tracker for inventory reservation and status updates during order auto-approval. |
 | `scheduled_jobs` / `shedlock` | `V6__orchestrator.sql`, `ScheduledJobDefinition`, `SchedulerService`, `ShedLockConfig` | Outbox scheduler registration metadata plus distributed lock state for the outbox publisher. |
 | `sales_orders.trace_id` | `SalesOrder`, `V3__sales_invoice.sql`, `SalesCoreEngine.attachTraceId(...)` | Cross-module link from orchestration trace ids back into the sales aggregate. |
-| Management health groups | `application-prod.yml`, `DispatchMappingHealthIndicator` | Readiness probes expose `db`, `rabbit`, `requiredConfig`, `configuration`, and `dispatchMapping`, but not outbox backlog age or GitHub sync state. |
+| Management health groups | `application-prod.yml` | Readiness probes expose `db`, `rabbit`, `requiredConfig`, and `configuration`, but not outbox backlog age or GitHub sync state. |
 | Runtime broker stub (non-prod) | `DevRabbitConfig` | In `dev` and `openapi` profiles, Rabbit sends are converted into debug logs rather than real broker delivery. |
 
 ## Flow narrative
@@ -247,7 +247,7 @@ Recovery posture is strongest where the repo has durable replay anchors (`orches
 - `markSuccess(...)` is commit-aware, so rollback does not leave false-success command rows behind.
 - Outbox publication uses fenced claims plus fail-closed ambiguous-state handling instead of optimistic blind retries.
 - Trace, request, and idempotency identifiers are sanitized before persistence and before log rendering.
-- The management readiness group includes `rabbit` and `dispatchMapping`, and the outbox publisher exports Micrometer gauges for pending/retrying/publishing/ambiguous/dead-letter counts.
+- The management readiness group includes `rabbit`, and the outbox publisher exports Micrometer gauges for pending/retrying/publishing/ambiguous/dead-letter counts.
 
 ### Gaps
 

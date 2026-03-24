@@ -495,7 +495,13 @@ public class PackagingSlipService {
                 slip.getDispatchNotes(),
                 slip.getJournalEntryId(),
                 slip.getCogsJournalEntryId(),
-                lines
+                lines,
+                slip.getTransporterName(),
+                slip.getDriverName(),
+                slip.getVehicleNumber(),
+                slip.getChallanReference(),
+                DispatchArtifactPaths.deliveryChallanNumber(slip.getSlipNumber()),
+                DispatchArtifactPaths.deliveryChallanPdfPath(slip.getId())
         );
     }
 }

@@ -4,6 +4,8 @@ import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
@@ -15,6 +17,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseLine;
@@ -60,6 +63,9 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
     @Autowired
     private RawMaterialPurchaseRepository purchaseRepository;
 
+    @Autowired
+    private JournalEntryRepository journalEntryRepository;
+
     private Company company;
     private Supplier supplier;
     private RawMaterial material;
@@ -87,10 +93,15 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
                     created.setCompany(company);
                     created.setName("LF-022 Supplier");
                     created.setCode("SUP-LF022");
+                    created.setStatus(SupplierStatus.ACTIVE);
                     created.setPayableAccount(payable);
                     created.setOutstandingBalance(BigDecimal.ZERO);
                     return supplierRepository.save(created);
                 });
+        supplier.setStatus(SupplierStatus.ACTIVE);
+        supplier.setPayableAccount(payable);
+        supplier.setOutstandingBalance(BigDecimal.ZERO);
+        supplier = supplierRepository.save(supplier);
 
         material = new RawMaterial();
         material.setCompany(company);
@@ -128,6 +139,14 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
         line.setLineTotal(new BigDecimal("20.00"));
         seeded.getLines().add(line);
 
+        JournalEntry purchaseJournal = new JournalEntry();
+        purchaseJournal.setCompany(company);
+        purchaseJournal.setReferenceNumber("PINV-LF022-" + seedSuffix);
+        purchaseJournal.setEntryDate(invoiceDate);
+        purchaseJournal.setMemo("Seeded purchase journal");
+        purchaseJournal.setStatus("POSTED");
+        seeded.setJournalEntry(journalEntryRepository.save(purchaseJournal));
+
         purchase = purchaseRepository.save(seeded);
     }
 
@@ -160,6 +179,14 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
         assertThat(movements).allMatch(movement -> movement.getJournalEntryId() != null);
         assertThat(purchaseAfterFirst.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(purchaseAfterFirst.getStatus()).isEqualTo("VOID");
+        assertThat(journalEntryRepository.findById(first.id()))
+                .get()
+                .satisfies(entry -> {
+                    assertThat(entry.getCorrectionType()).isNotNull();
+                    assertThat(entry.getCorrectionReason()).isEqualTo("PURCHASE_RETURN");
+                    assertThat(entry.getSourceModule()).isEqualTo("PURCHASING_RETURN");
+                    assertThat(entry.getSourceReference()).isEqualTo(purchase.getInvoiceNumber());
+                });
 
         JournalEntryDto second = purchasingService.recordPurchaseReturn(request);
         BigDecimal stockAfterSecond = rawMaterialRepository.findById(material.getId()).orElseThrow().getCurrentStock();
@@ -175,6 +202,38 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
         assertThat(movementsAfter).allMatch(movement -> movement.getJournalEntryId().equals(first.id()));
         assertThat(purchaseAfterSecond.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(purchaseAfterSecond.getStatus()).isEqualTo("VOID");
+    }
+
+    @Test
+    void purchaseReturnReplaySucceedsAfterSupplierBecomesReferenceOnly() {
+        PurchaseReturnRequest request = new PurchaseReturnRequest(
+                supplier.getId(),
+                purchase.getId(),
+                material.getId(),
+                new BigDecimal("4.00"),
+                new BigDecimal("5.00"),
+                "PR-LF022-002",
+                firstReturnDate,
+                "Damaged"
+        );
+
+        JournalEntryDto first = purchasingService.recordPurchaseReturn(request);
+
+        supplier = supplierRepository.findById(supplier.getId()).orElseThrow();
+        supplier.setStatus(SupplierStatus.SUSPENDED);
+        supplier = supplierRepository.saveAndFlush(supplier);
+
+        JournalEntryDto replay = purchasingService.recordPurchaseReturn(request);
+        List<RawMaterialMovement> movementsAfterReplay = movementRepository
+                .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(company,
+                        InventoryReference.PURCHASE_RETURN,
+                        "PR-LF022-002");
+
+        assertThat(replay.id()).isEqualTo(first.id());
+        assertThat(movementsAfterReplay).hasSize(1);
+        assertThat(movementsAfterReplay).allMatch(movement -> movement.getJournalEntryId().equals(first.id()));
+        assertThat(purchaseRepository.findById(purchase.getId()).orElseThrow().getOutstandingAmount())
+                .isEqualByComparingTo(BigDecimal.ZERO);
     }
 
     @Test

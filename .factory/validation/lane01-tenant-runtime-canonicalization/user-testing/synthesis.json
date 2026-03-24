@@ -1,0 +1,38 @@
+{
+  "milestone": "lane01-tenant-runtime-canonicalization",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 11,
+    "passed": 11,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-CROSS-001",
+    "VAL-CROSS-002",
+    "VAL-RUNTIME-001",
+    "VAL-RUNTIME-002",
+    "VAL-RUNTIME-003",
+    "VAL-RUNTIME-004",
+    "VAL-RUNTIME-005",
+    "VAL-RUNTIME-006",
+    "VAL-RUNTIME-007",
+    "VAL-RUNTIME-008",
+    "VAL-RUNTIME-009"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": ".factory/library/user-testing.md",
+      "description": "Added Flow Validator Guidance: cli for lane01 manifest/router validation and documented that admin tenant-runtime metrics are runtime-gated when a tenant is blocked.",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null,
+  "flowReports": [
+    "/home/realnigga/Desktop/Mission-control/.factory/validation/lane01-tenant-runtime-canonicalization/user-testing/flows/api-runtime.json",
+    "/home/realnigga/Desktop/Mission-control/.factory/validation/lane01-tenant-runtime-canonicalization/user-testing/flows/ci-lane.json"
+  ]
+}

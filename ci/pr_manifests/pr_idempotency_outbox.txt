@@ -1,0 +1,4 @@
+com.bigbrightpaints.erp.truthsuite.orchestrator.TS_OrchestratorExactlyOnceOutboxTest
+com.bigbrightpaints.erp.truthsuite.orchestrator.TS_OrchestratorIdempotencyCoverageTest
+com.bigbrightpaints.erp.truthsuite.p2p.TS_P2PGoodsReceiptIdempotencyTest
+com.bigbrightpaints.erp.truthsuite.manufacturing.TS_PackingIdempotencyAndFacadeBoundaryTest

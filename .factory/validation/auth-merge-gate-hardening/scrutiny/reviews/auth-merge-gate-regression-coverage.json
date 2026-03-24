@@ -1,0 +1,26 @@
+{
+  "featureId": "auth-merge-gate-regression-coverage",
+  "reviewedAt": "2026-03-15T21:43:20Z",
+  "commitId": "80fab95280974a4984190f3986515fe5e841a0ce",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Pass. The commit makes AUTH-09 and ADMIN-14 merge-gate eligible by tagging both regression classes as critical and adding both classes to the explicit pr-fast/gate-fast Surefire include lists, while the R2 checkpoint update records packet-specific approval and gate evidence. I found no blocking or non-blocking implementation defects in the reviewed diff.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Gate-fast's catalog/flaky artifacts only inspect the truthsuite tree, so merge-lane tests added through explicit Surefire includes outside truthsuite are not independently discoverable from catalog-validation.json or flake-guard.json.",
+      "evidence": "scripts/gate_fast.sh:6 defines TRUTH_TEST_ROOT as erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite, and lines 289-301 pass that root to validate_test_catalog.py and check_flaky_tags.py. The reviewed packet adds non-truthsuite includes at erp-domain/pom.xml:555-557 and 605-607 for AdminUserSecurityIT and AuthPasswordResetPublicContractIT."
+    },
+    {
+      "area": "skills",
+      "observation": "The security-backend-worker skill is more prescriptive than this gate-only packet needed, and transcript compliance tracking did not reflect that mismatch. The skill requires a compile step and frontend-v2 review, but the worker transcript omitted both while handoff.skillFeedback still marked followedProcedure=true.",
+      "evidence": ".factory/skills/security-backend-worker/SKILL.md:51-63 requires `mvn compile -q` plus frontend-handoff/frontend-v2 shared-knowledge review. The session 12cd9f51-a6f8-46ee-81a1-4c74c4b4c0e8 transcript skeleton shows reads for auth-hardening.md and frontend-handoff.md, but no frontend-v2 read and no compile command before handoff; the handoff JSON still records skillFeedback.followedProcedure=true."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed commit 80fab95280974a4984190f3986515fe5e841a0ce for auth-merge-gate-regression-coverage and found the feature implementation acceptable. No blocking findings; shared-state follow-up is limited to catalog/skill guidance gaps rather than defects in the packet itself."
+}

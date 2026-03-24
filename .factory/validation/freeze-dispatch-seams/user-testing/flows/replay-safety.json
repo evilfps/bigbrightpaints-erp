@@ -1,0 +1,102 @@
+{
+  "groupId": "replay-safety",
+  "surface": "api",
+  "assertions": [
+    {
+      "id": "VAL-REPLAY-001",
+      "status": "pass",
+      "reason": "Targeted truthsuite test confirmed replaying confirmDispatch reused the original invoice and left invoice row counts unchanged.",
+      "evidence": [
+        {
+          "type": "command",
+          "detail": "MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=TS_O2CDispatchReplaySafetyTest test -> BUILD SUCCESS; test method confirmDispatchReplay_returnsExistingInvoiceWithoutCreatingDuplicateInvoices passed."
+        },
+        {
+          "type": "source",
+          "detail": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2CDispatchReplaySafetyTest.java:84-108 asserts replay.finalInvoiceId equals first.finalInvoiceId, invoice list size stays constant, and only one invoice matches the slip dispatch note."
+        },
+        {
+          "type": "source",
+          "detail": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesCoreEngine.java:2529-2623 returns existing invoice/journal markers for already-dispatched slips instead of creating new financial records when markers are present."
+        }
+      ]
+    },
+    {
+      "id": "VAL-REPLAY-002",
+      "status": "pass",
+      "reason": "The replay safety suite proved AR and COGS journal references remain singletons on replay and total journal row count does not increase.",
+      "evidence": [
+        {
+          "type": "command",
+          "detail": "MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=TS_O2CDispatchReplaySafetyTest test -> BUILD SUCCESS; test method confirmDispatchReplay_reusesExistingArAndCogsJournalsWithoutDuplicateReferences passed."
+        },
+        {
+          "type": "source",
+          "detail": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2CDispatchReplaySafetyTest.java:111-141 asserts replay reuses first.arJournalEntryId, preserves the original COGS journal id, keeps uk_journal_company_reference counts at 1, and does not add journal rows."
+        },
+        {
+          "type": "source",
+          "detail": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesCoreEngine.java:2529-2623 checks for existing invoice, AR journal, and COGS journal markers and returns them on replay."
+        }
+      ]
+    },
+    {
+      "id": "VAL-REPLAY-003",
+      "status": "pass",
+      "reason": "Finished-goods dispatch replay short-circuited without creating new DISPATCH movements and preserved stock/reserved balances.",
+      "evidence": [
+        {
+          "type": "command",
+          "detail": "MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=TS_O2CDispatchReplaySafetyTest test -> BUILD SUCCESS; test method finishedGoodsReplay_shortCircuitsWithoutCreatingDuplicateDispatchMovements passed."
+        },
+        {
+          "type": "source",
+          "detail": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2CDispatchReplaySafetyTest.java:144-168 asserts the replayed movement id set exactly matches the pre-replay movement id set and stock quantities remain unchanged."
+        },
+        {
+          "type": "source",
+          "detail": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsDispatchEngine.java:107-113 returns List.of() immediately when the slip status is DISPATCHED, preventing duplicate movement creation."
+        }
+      ]
+    },
+    {
+      "id": "VAL-REPLAY-004",
+      "status": "pass",
+      "reason": "Ambiguous replay cases fail closed with an ApplicationException demanding manual reconciliation rather than minting another invoice.",
+      "evidence": [
+        {
+          "type": "command",
+          "detail": "MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=TS_O2CDispatchReplaySafetyTest test -> BUILD SUCCESS; test method confirmDispatchReplay_failsClosedWhenMultipleInvoicesMatchSlip passed."
+        },
+        {
+          "type": "source",
+          "detail": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2CDispatchReplaySafetyTest.java:171-205 seeds a second matching invoice, clears slip.invoiceId, and asserts ApplicationException contains 'manual reconciliation required' with packingSlipId and slipNumber details."
+        },
+        {
+          "type": "source",
+          "detail": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesCoreEngine.java:3967-3995 throws ApplicationException('Multiple invoices match dispatch slip; manual reconciliation required') when more than one invoice matches the dispatch note."
+        }
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Execute"
+  ],
+  "frictions": [
+    "The narrow verification stayed within one truthsuite class, but Maven still recompiled the module before executing the targeted test class."
+  ],
+  "blockers": [],
+  "commands": [
+    {
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=TS_O2CDispatchReplaySafetyTest test",
+      "exitCode": 0,
+      "observation": "Build succeeded; surefire reported Tests run: 4, Failures: 0, Errors: 0, Skipped: 0 for com.bigbrightpaints.erp.truthsuite.o2c.TS_O2CDispatchReplaySafetyTest."
+    }
+  ],
+  "artifacts": [
+    "/home/realnigga/Desktop/Mission-control/.factory/validation/freeze-dispatch-seams/user-testing/flows/replay-safety.json",
+    "/home/realnigga/Desktop/Mission-control/erp-domain/target/surefire-reports/com.bigbrightpaints.erp.truthsuite.o2c.TS_O2CDispatchReplaySafetyTest.txt"
+  ]
+}

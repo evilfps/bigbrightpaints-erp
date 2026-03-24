@@ -41,7 +41,7 @@ public class SuperAdminTenantOnboardingController {
     public ResponseEntity<ApiResponse<TenantOnboardingResponse>> onboardTenant(
             @Valid @RequestBody TenantOnboardingRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
-                "Tenant onboarded",
+                "Tenant onboarded with seeded chart of accounts, tenant admin, and default accounting period",
                 tenantOnboardingService.onboardTenant(request)));
     }
 }

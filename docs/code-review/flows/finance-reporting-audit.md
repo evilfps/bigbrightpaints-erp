@@ -25,6 +25,21 @@ Primary evidence:
 
 Supporting runtime evidence was degraded in this session: `curl -i http://localhost:8081/actuator/health` returned HTTP `404` with `"No static resource actuator/health."`, so this review relies on static inspection plus existing integration/regression coverage. Baseline suite `mvn test -Pgate-fast -Djacoco.skip=true` passed before drafting.
 
+## Executable remediation handoff
+
+This review feeds:
+
+- [Lane 03 exec spec](../executable-specs/03-lane-accounting-truth-boundary/EXEC-SPEC.md)
+- [Lane 06 exec spec](../executable-specs/06-lane-governance-finance/EXEC-SPEC.md)
+- [Lane 07 exec spec](../executable-specs/07-lane-orchestrator-ops/EXEC-SPEC.md)
+
+Planning notes:
+
+- Lane 03 Packet 0 is the prove-first boundary note in [`../executable-specs/03-lane-accounting-truth-boundary/00-lane03-boundary-decision-note.md`](../executable-specs/03-lane-accounting-truth-boundary/00-lane03-boundary-decision-note.md); it explicitly makes `AccountingPeriodServiceCore`, `ReconciliationServiceCore`, statements, and report services consumers of the chosen dispatch/purchase truth boundaries rather than alternate sources of accounting authority.
+- The downstream finance consumers that must inherit Packet 0 are `ReportService`, `TemporalBalanceService`, `InventoryValuationService`, statement/aging routes, reconciliation sessions/discrepancies, and the period-close checklist / snapshot flow.
+- `FIN-08` should be treated as an early runtime repair packet inside Lane 06, not as a reason to change the overall audit model prematurely.
+- Keep the inventory-accounting listener disabled until Lane 03 finishes the canonical posting-boundary decision.
+
 ## Entrypoints
 
 | Surface | Entrypoints | Controller | Notes |

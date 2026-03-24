@@ -1,0 +1,15 @@
+{
+  "featureId": "p2p-truth.purchase-invoice-ap-truth-and-linkage",
+  "reviewedAt": "2026-03-08T09:14:00+05:30",
+  "commitId": "1814eebbe4be9fd5f4842d9ecd3a0413741798c0",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature keeps purchase invoice issuance anchored to prior GRN stock truth by removing invoice-side receipt recreation and introducing `requireGoodsReceiptMovementsReadyForInvoicing`, which blocks AP posting when GRN movement provenance is missing, movement material sets drift, or batch linkage is absent. The lifecycle tests added for missing stock movement and missing batch linkage directly cover the failure modes that would otherwise allow overlapping AP truth or silent stock-side repair during invoice posting.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Purchase invoice posting now depends on existing GRN movement and batch provenance, links only the already-recorded receipt movements to the AP journal, and no longer recreates stock truth during invoicing."
+}

@@ -1,0 +1,26 @@
+{
+  "featureId": "recovery-review.p2p-r2-and-idempotency",
+  "reviewedAt": "2026-03-09T06:10:00+05:30",
+  "commitId": "39b73910e061a42deb23ddc16779b9be726e57f9",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review confirmed the P2P packet addressed the actual PR #98 blockers, and the current propagated stack now keeps that evidence traceable on reachable descendant commit `39b73910e061a42deb23ddc16779b9be726e57f9` (`fix(p2p): close remaining PR #98 live comments`). That current-stack anchor preserves the earlier replay-first supplier settlement/accounting recovery, R2 evidence, docs cleanup, and changed-files coverage closure while also carrying the final PurchaseInvoiceEngine linkage fix that landed later on the same recovery branch.",
+    "issues": [
+      {
+        "severity": "non_blocking",
+        "description": "The worker noted that running the full `python3 -m unittest testing.ci.test_pr_review_ci_packet` module still fails `RuntimeProbeContractTest.test_runtime_probe_fails_closed_on_health_status` because `.factory/services.yaml` does not yet match that runtime-probe expectation on this branch.",
+        "suggestedFix": "Resolve the runtime probe contract in the packet that owns `.factory/services.yaml` healthcheck semantics, then rerun the full CI packet unittest module if that contract becomes part of the required validator surface."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "location": ".factory/services.yaml and testing/ci/test_pr_review_ci_packet.py",
+      "observation": "The full CI packet unittest module still contains a runtime-probe contract expectation for a 9090 actuator healthcheck sequence that does not match the current backend-compose-v2 healthcheck in `.factory/services.yaml`, even though the required recovery validators for this packet passed."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass with non-blocking follow-up. PR #98 replay/governance/coverage blockers remain validated on branch-reachable commit `39b73910e061a42deb23ddc16779b9be726e57f9`, with the earlier coverage/R2 closure now traced through the current propagated descendant rather than the stale pre-restack commit id."
+}

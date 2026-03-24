@@ -1,0 +1,30 @@
+{
+  "featureId": "pr-review-comment-fixes",
+  "reviewedAt": "2026-03-14T10:27:35Z",
+  "commitId": "28531782fc84f97da49977eea325f7a79356ae0d",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "Re-reviewed commit `28531782fc84f97da49977eea325f7a79356ae0d`, the follow-up commit `6c9cf52c802d607c9a45c633ab458f4f9e5c5b36`, and the current branch tip. The follow-up packet remediates the original production/test/guard mismatch by changing `IntegrationCoordinator.updateFulfillment` and its assertions/guard checks to `/api/v1/dispatch/confirm`, but it does not update the frontend handoff documents that were part of the original failing evidence. The milestone therefore still carries stale canonical-path guidance for dispatch-like orchestrator fulfillment rejections.",
+    "issues": [
+      {
+        "severity": "blocking",
+        "description": "The follow-up fixes runtime/test/guard behavior, but the milestone still leaves stale frontend handoff guidance that tells orchestrator fulfillment callers to use the accounting-only `/api/v1/sales/dispatch/confirm` endpoint instead of the factory-operational `/api/v1/dispatch/confirm` endpoint.",
+        "evidence": "After follow-up commit `6c9cf52c802d607c9a45c633ab458f4f9e5c5b36`, the current branch runtime now throws `Use /api/v1/dispatch/confirm.` with `canonicalPath=/api/v1/dispatch/confirm` in `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinator.java:287-288`, and `scripts/guard_workflow_canonical_paths.sh:122-123` enforces that same path. But the current branch still documents the fulfillment rejection path as `/api/v1/sales/dispatch/confirm` in `.factory/library/frontend-v2.md:23` and `.factory/library/frontend-handoff.md:2120`. `git show --stat 6c9cf52c802d607c9a45c633ab458f4f9e5c5b36` shows the follow-up only touched `IntegrationCoordinator.java`, `OrchestratorControllerIT.java`, `IntegrationCoordinatorTest.java`, and `scripts/guard_workflow_canonical_paths.sh`, so the stale docs evidence from the original fail remains unresolved."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "observation": "The follow-up feature partially remediates the original failure by aligning runtime behavior, targeted regression tests, and the canonical-path guard with `/api/v1/dispatch/confirm`.",
+      "evidence": "`git show 6c9cf52c802d607c9a45c633ab458f4f9e5c5b36` changes `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinator.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/orchestrator/OrchestratorControllerIT.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinatorTest.java`, and `scripts/guard_workflow_canonical_paths.sh` from `/api/v1/sales/dispatch/confirm` to `/api/v1/dispatch/confirm`."
+    },
+    {
+      "observation": "Because the milestone tip still contains stale handoff documentation, the original review should remain a blocking fail for milestone synthesis rather than being downgraded to historical-only context.",
+      "evidence": "Current branch docs still say dispatch-like fulfillment requests should use `/api/v1/sales/dispatch/confirm` in `.factory/library/frontend-v2.md:23` and `.factory/library/frontend-handoff.md:2120`, which conflicts with the implemented rejection details in `IntegrationCoordinator.java:287-288`."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail. The follow-up feature fixes the fulfillment rejection path in code/tests/guard, but the current milestone still leaves stale frontend handoff guidance pointing dispatch-like orchestrator fulfillment callers at `/api/v1/sales/dispatch/confirm`, so the original issue remains unresolved and should still count as a blocking failure for synthesis."
+}

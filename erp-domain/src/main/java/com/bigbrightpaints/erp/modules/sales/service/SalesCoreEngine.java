@@ -9,6 +9,7 @@ import com.bigbrightpaints.erp.core.exception.CreditLimitExceededException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencySignatureBuilder;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
@@ -130,6 +131,14 @@ public class SalesCoreEngine {
             ORDER_STATUS_PENDING_PRODUCTION,
             ORDER_STATUS_RESERVED
     );
+    private static final Set<String> DISPATCH_AUTO_RESERVABLE_ORDER_STATUSES = Set.of(
+            ORDER_STATUS_CONFIRMED,
+            ORDER_STATUS_PROCESSING,
+            ORDER_STATUS_PENDING_INVENTORY,
+            ORDER_STATUS_RESERVED,
+            ORDER_STATUS_PENDING_PRODUCTION,
+            ORDER_STATUS_READY_TO_SHIP
+    );
     private static final Set<String> VALID_ORDER_STATUSES = Set.of(
             ORDER_STATUS_DRAFT,
             ORDER_STATUS_CONFIRMED,
@@ -156,9 +165,8 @@ public class SalesCoreEngine {
             "REJECTED"
     );
     private static final String CREDIT_REQUEST_STATUS_PENDING = "PENDING";
-    private static final String DEFAULT_ORDER_PAYMENT_MODE = "CREDIT";
-    private static final Set<String> VALID_ORDER_PAYMENT_MODES = Set.of("CASH", "CREDIT", "SPLIT");
-    private static final Set<String> CREDIT_EXPOSURE_PAYMENT_MODES = Set.of("CASH", "CREDIT", "SPLIT");
+    private static final String DEFAULT_ORDER_PAYMENT_MODE = SalesProformaBoundaryService.DEFAULT_PAYMENT_MODE;
+    private static final String LEGACY_HYBRID_PAYMENT_MODE = "SPLIT";
     private static final String DISPATCH_REASON_CODE_CREDIT_LIMIT = "CREDIT_LIMIT_EXCEPTION";
     private static final String DISPATCH_REASON_CODE_PRICE_OVERRIDE = "PRICE_OVERRIDE";
     private static final String DISPATCH_REASON_CODE_DISCOUNT_OVERRIDE = "DISCOUNT_OVERRIDE";
@@ -223,6 +231,7 @@ public class SalesCoreEngine {
     private final Counter ordersProcessedCounter;
     private final IdempotencyReservationService idempotencyReservationService = new IdempotencyReservationService();
     private final TransactionTemplate transactionTemplate;
+    private final SalesProformaBoundaryService salesProformaBoundaryService;
 
     @Autowired(required = false)
     private AccountingComplianceAuditService accountingComplianceAuditService;
@@ -239,6 +248,7 @@ public class SalesCoreEngine {
                         ProductionProductRepository productionProductRepository,
                         DealerLedgerService dealerLedgerService,
                         FinishedGoodRepository finishedGoodRepository,
+                        FinishedGoodBatchRepository finishedGoodBatchRepository,
                         AccountRepository accountRepository,
                         CompanyEntityLookup companyEntityLookup,
                         PackagingSlipRepository packagingSlipRepository,
@@ -295,6 +305,15 @@ public class SalesCoreEngine {
         template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
         template.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
         this.transactionTemplate = template;
+        this.salesProformaBoundaryService = new SalesProformaBoundaryService(
+                dealerRepository,
+                dealerLedgerService,
+                salesOrderRepository,
+                finishedGoodRepository,
+                finishedGoodBatchRepository,
+                factoryTaskRepository,
+                companyClock
+        );
     }
 
     /* Dealers */
@@ -578,18 +597,34 @@ public class SalesCoreEngine {
         String requestPaymentMode = request.paymentMode();
         String idempotencyKey = request.resolveIdempotencyKey();
         String legacyDefaultPaymentIdempotencyKey = resolveLegacyDefaultPaymentIdempotencyKey(request, idempotencyKey);
+        String legacySplitReplayIdempotencyKey = resolveLegacySplitReplayIdempotencyKey(request, idempotencyKey);
         String requestSignature = buildSalesOrderSignature(request);
         String legacyDefaultPaymentRequestSignature = buildSalesOrderSignatureIncludingDefaultPaymentMode(request);
+        String legacySplitReplayRequestSignature = resolveLegacySplitReplayRequestSignature(request, requestSignature);
         if (legacyDefaultPaymentIdempotencyKey != null) {
             Optional<SalesOrderDto> legacyDefaultMatch = resolveOrderByIdempotencyKey(
                     company,
                     legacyDefaultPaymentIdempotencyKey,
                     requestSignature,
                     legacyDefaultPaymentRequestSignature,
+                    legacySplitReplayRequestSignature,
                     requestPaymentMode
             );
             if (legacyDefaultMatch.isPresent()) {
                 return legacyDefaultMatch.get();
+            }
+        }
+        if (legacySplitReplayIdempotencyKey != null) {
+            Optional<SalesOrderDto> legacySplitMatch = resolveOrderByIdempotencyKey(
+                    company,
+                    legacySplitReplayIdempotencyKey,
+                    requestSignature,
+                    legacyDefaultPaymentRequestSignature,
+                    legacySplitReplayRequestSignature,
+                    requestPaymentMode
+            );
+            if (legacySplitMatch.isPresent()) {
+                return legacySplitMatch.get();
             }
         }
         try {
@@ -599,6 +634,7 @@ public class SalesCoreEngine {
                             request,
                             idempotencyKey,
                             requestSignature,
+                            legacySplitReplayRequestSignature,
                             legacyDefaultPaymentIdempotencyKey,
                             legacyDefaultPaymentRequestSignature,
                             requestPaymentMode
@@ -614,6 +650,7 @@ public class SalesCoreEngine {
                             idempotencyKey,
                             requestSignature,
                             legacyDefaultPaymentRequestSignature,
+                            legacySplitReplayRequestSignature,
                             requestPaymentMode,
                             ex
                     ));
@@ -628,6 +665,7 @@ public class SalesCoreEngine {
                                               SalesOrderRequest request,
                                               String idempotencyKey,
                                               String requestSignature,
+                                              String legacySplitReplayRequestSignature,
                                               String legacyDefaultPaymentIdempotencyKey,
                                               String legacyDefaultPaymentRequestSignature,
                                               String requestPaymentMode) {
@@ -638,6 +676,7 @@ public class SalesCoreEngine {
                     idempotencyKey,
                     requestSignature,
                     buildSalesOrderSignatureIncludingDefaultPaymentMode(request),
+                    legacySplitReplayRequestSignature,
                     requestPaymentMode
             );
         }
@@ -645,19 +684,12 @@ public class SalesCoreEngine {
         BigDecimal orderLevelRate = resolveOrderLevelRate(company, gstTreatment, request.gstRate());
         String paymentMode = normalizeOrderPaymentMode(request.paymentMode());
         boolean gstInclusive = Boolean.TRUE.equals(request.gstInclusive());
-        Dealer dealer = null;
-        if (request.dealerId() != null) {
-            // Lock dealer early to prevent concurrent credit limit races
-            dealer = dealerRepository.lockByCompanyAndId(company, request.dealerId())
-                    .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Dealer not found"));
-            if ("ON_HOLD".equalsIgnoreCase(dealer.getStatus())) {
-                throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState("Dealer " + dealer.getName() + " is on hold");
-            }
-        }
+        Dealer dealer = salesProformaBoundaryService.resolveDealerForProforma(company, request.dealerId(), paymentMode);
         List<PricedOrderLine> items = resolveOrderItems(company, request.items(), gstTreatment, orderLevelRate);
         SalesOrder order = new SalesOrder();
         order.setCompany(company);
         order.setDealer(dealer);
+        order.setPaymentMode(paymentMode);
         order.setOrderNumber(orderNumberService.nextOrderNumber(company));
         order.setStatus(ORDER_STATUS_DRAFT);
         order.setCurrency(request.currency() == null ? "INR" : request.currency());
@@ -669,7 +701,7 @@ public class SalesCoreEngine {
         validateTotalAmount(request.totalAmount(), amounts.total());
         if (requiresCreditLimitCheck(paymentMode)) {
             try {
-                enforceCreditLimit(company, order.getDealer(), amounts.total());
+                enforceCreditLimit(company, order.getDealer(), amounts.total(), paymentMode, null);
             } catch (CreditLimitExceededException | IllegalStateException ex) {
                 Optional<SalesOrderDto> replay = resolveCreateOrderReplayAfterCreditFailure(
                         company,
@@ -688,22 +720,19 @@ public class SalesCoreEngine {
         SalesOrder saved = salesOrderRepository.save(order);
         recordInitialOrderHistory(saved);
 
-        // Reserve available stock - shortages will be handled as production tasks
-        FinishedGoodsService.InventoryReservationResult reservationResult = finishedGoodsService.reserveForOrder(saved);
-
-        if (reservationResult != null && reservationResult.shortages() != null && !reservationResult.shortages().isEmpty()) {
-            Long packagingSlipId = reservationResult.packagingSlip() != null ? reservationResult.packagingSlip().id() : null;
-            createShortageTasksForOrder(company, saved, reservationResult.shortages(), packagingSlipId);
+        SalesProformaBoundaryService.CommercialAssessment commercialAssessment =
+                salesProformaBoundaryService.assessCommercialAvailability(company, saved);
+        if (!commercialAssessment.shortages().isEmpty()) {
             transitionOrderStatus(saved,
                     ORDER_STATUS_PENDING_PRODUCTION,
                     "ORDER_PENDING_PRODUCTION",
-                    "Order has shortages and awaits production",
+                    "Proforma recorded without stock reservation; shortages now require production",
                     "system");
         } else {
             transitionOrderStatus(saved,
                     ORDER_STATUS_RESERVED,
-                    "ORDER_RESERVED",
-                    "Order reserved successfully",
+                    "ORDER_COMMERCIAL_RECORDED",
+                    "Proforma recorded without stock or accounting side effects",
                     "system");
         }
         salesOrderRepository.save(saved);
@@ -724,6 +753,7 @@ public class SalesCoreEngine {
                 idempotencyKey,
                 requestSignature,
                 legacyDefaultPaymentRequestSignature,
+                null,
                 requestPaymentMode
         );
         if (canonicalReplay.isPresent()) {
@@ -737,6 +767,7 @@ public class SalesCoreEngine {
                 legacyDefaultPaymentIdempotencyKey,
                 requestSignature,
                 legacyDefaultPaymentRequestSignature,
+                null,
                 requestPaymentMode
         );
     }
@@ -745,19 +776,21 @@ public class SalesCoreEngine {
                                                          String idempotencyKey,
                                                          String requestSignature,
                                                          String legacyDefaultPaymentRequestSignature,
+                                                         String legacySplitReplayRequestSignature,
                                                          String requestPaymentMode,
                                                          DataIntegrityViolationException rootCause) {
         Optional<SalesOrder> existing = salesOrderRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey);
         if (existing.isEmpty()) {
             throw rootCause;
         }
-        return resolveExistingOrder(existing.get(), idempotencyKey, requestSignature, legacyDefaultPaymentRequestSignature, requestPaymentMode);
+        return resolveExistingOrder(existing.get(), idempotencyKey, requestSignature, legacyDefaultPaymentRequestSignature, legacySplitReplayRequestSignature, requestPaymentMode);
     }
 
     private Optional<SalesOrderDto> resolveOrderByIdempotencyKey(Company company,
                                                                  String idempotencyKey,
                                                                  String requestSignature,
                                                                  String legacyDefaultPaymentRequestSignature,
+                                                                 String legacySplitReplayRequestSignature,
                                                                  String requestPaymentMode) {
         return salesOrderRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)
                 .map(order -> resolveExistingOrder(
@@ -765,6 +798,7 @@ public class SalesCoreEngine {
                         idempotencyKey,
                         requestSignature,
                         legacyDefaultPaymentRequestSignature,
+                        legacySplitReplayRequestSignature,
                         requestPaymentMode
                 ));
     }
@@ -774,43 +808,74 @@ public class SalesCoreEngine {
                                                String requestSignature,
                                                String legacyDefaultPaymentRequestSignature,
                                                String requestPaymentMode) {
+        return resolveExistingOrder(order, idempotencyKey, requestSignature, legacyDefaultPaymentRequestSignature, null, requestPaymentMode);
+    }
+
+    private SalesOrderDto resolveExistingOrder(SalesOrder order,
+                                               String idempotencyKey,
+                                               String requestSignature,
+                                               String legacyDefaultPaymentRequestSignature,
+                                               String legacySplitReplayRequestSignature,
+                                               String requestPaymentMode) {
+        List<String> acceptedRequestSignatures = acceptedRequestSignatures(
+                requestSignature,
+                legacyDefaultPaymentRequestSignature,
+                legacySplitReplayRequestSignature
+        );
+        boolean paymentModeBackfilled = false;
+        if (!StringUtils.hasText(order.getPaymentMode()) && StringUtils.hasText(requestPaymentMode)) {
+            order.setPaymentMode(normalizeOrderPaymentMode(requestPaymentMode));
+            paymentModeBackfilled = true;
+        }
         String storedSignature = order.getIdempotencyHash();
         if (!StringUtils.hasText(storedSignature)) {
             String derivedSignature = buildSalesOrderSignature(order, requestPaymentMode);
             String legacyDefaultPaymentDerivedSignature = buildSalesOrderSignatureIncludingDefaultPaymentMode(order, requestPaymentMode);
-            if (!matchesSignature(derivedSignature, requestSignature, legacyDefaultPaymentRequestSignature)
-                    && !matchesSignature(legacyDefaultPaymentDerivedSignature, requestSignature, legacyDefaultPaymentRequestSignature)) {
+            String legacySplitReplayDerivedSignature = buildSalesOrderSignature(order, requestPaymentMode, false, true);
+            if (!matchesSignature(derivedSignature, acceptedRequestSignatures)
+                    && !matchesSignature(legacyDefaultPaymentDerivedSignature, acceptedRequestSignatures)
+                    && !matchesSignature(legacySplitReplayDerivedSignature, acceptedRequestSignatures)) {
                 throw idempotencyReservationService.payloadMismatch(idempotencyKey);
             }
             order.setIdempotencyHash(requestSignature);
             salesOrderRepository.save(order);
             return toDto(order);
         }
-        if (!matchesSignature(storedSignature, requestSignature, legacyDefaultPaymentRequestSignature)) {
+        if (!matchesSignature(storedSignature, acceptedRequestSignatures)) {
             throw idempotencyReservationService.payloadMismatch(idempotencyKey);
         }
-        if (!storedSignature.equals(requestSignature)) {
+        if (!storedSignature.equals(requestSignature) || paymentModeBackfilled) {
             order.setIdempotencyHash(requestSignature);
             salesOrderRepository.save(order);
         }
         return toDto(order);
     }
 
-    private boolean matchesSignature(String candidate,
-                                     String requestSignature,
-                                     String legacyDefaultPaymentRequestSignature) {
-        return candidate.equals(requestSignature) || candidate.equals(legacyDefaultPaymentRequestSignature);
+    private boolean matchesSignature(String candidate, List<String> acceptedRequestSignatures) {
+        return StringUtils.hasText(candidate) && acceptedRequestSignatures.contains(candidate);
+    }
+
+    private List<String> acceptedRequestSignatures(String... signatures) {
+        List<String> accepted = new ArrayList<>();
+        for (String signature : signatures) {
+            if (StringUtils.hasText(signature) && !accepted.contains(signature)) {
+                accepted.add(signature);
+            }
+        }
+        return accepted;
     }
 
     private String buildSalesOrderSignature(SalesOrderRequest request) {
-        return buildSalesOrderSignature(request, false);
+        return buildSalesOrderSignature(request, false, false);
     }
 
     private String buildSalesOrderSignatureIncludingDefaultPaymentMode(SalesOrderRequest request) {
-        return buildSalesOrderSignature(request, true);
+        return buildSalesOrderSignature(request, true, false);
     }
 
-    private String buildSalesOrderSignature(SalesOrderRequest request, boolean includeDefaultPaymentModeToken) {
+    private String buildSalesOrderSignature(SalesOrderRequest request,
+                                            boolean includeDefaultPaymentModeToken,
+                                            boolean preserveLegacySplitAlias) {
         IdempotencySignatureBuilder signature = IdempotencySignatureBuilder.create()
                 .add(request.dealerId() == null ? "null" : request.dealerId())
                 .add(amountToken(request.totalAmount()))
@@ -821,7 +886,7 @@ public class SalesCoreEngine {
                 .add(normalizeText(request.notes()));
         appendPaymentModeSignatureToken(
                 signature,
-                normalizeOrderPaymentMode(request.paymentMode()),
+                signaturePaymentModeToken(request.paymentMode(), preserveLegacySplitAlias),
                 includeDefaultPaymentModeToken
         );
         request.items().stream()
@@ -857,6 +922,16 @@ public class SalesCoreEngine {
     private String buildSalesOrderSignature(SalesOrder order,
                                             String requestPaymentMode,
                                             boolean includeDefaultPaymentModeToken) {
+        return buildSalesOrderSignature(order, requestPaymentMode, includeDefaultPaymentModeToken, false);
+    }
+
+    private String buildSalesOrderSignature(SalesOrder order,
+                                            String requestPaymentMode,
+                                            boolean includeDefaultPaymentModeToken,
+                                            boolean preserveLegacySplitAlias) {
+        String effectivePaymentMode = StringUtils.hasText(requestPaymentMode)
+                ? requestPaymentMode
+                : order.getPaymentMode();
         IdempotencySignatureBuilder signature = IdempotencySignatureBuilder.create()
                 .add(order.getDealer() != null ? order.getDealer().getId() : "null")
                 .add(amountToken(order.getTotalAmount()))
@@ -867,7 +942,7 @@ public class SalesCoreEngine {
                 .add(normalizeText(order.getNotes()));
         appendPaymentModeSignatureToken(
                 signature,
-                normalizeOrderPaymentMode(requestPaymentMode),
+                signaturePaymentModeToken(effectivePaymentMode, preserveLegacySplitAlias),
                 includeDefaultPaymentModeToken
         );
         order.getItems().stream()
@@ -913,19 +988,17 @@ public class SalesCoreEngine {
         assertOrderMutable(order, "update");
         GstTreatment gstTreatment = resolveGstTreatment(request.gstTreatment());
         BigDecimal orderLevelRate = resolveOrderLevelRate(order.getCompany(), gstTreatment, request.gstRate());
-        String paymentMode = normalizeOrderPaymentMode(request.paymentMode());
+        String paymentMode = StringUtils.hasText(request.paymentMode())
+                ? normalizeOrderPaymentMode(request.paymentMode())
+                : normalizeOrderPaymentMode(order.getPaymentMode());
         boolean gstInclusive = Boolean.TRUE.equals(request.gstInclusive());
-        Dealer dealer = null;
-        if (request.dealerId() != null) {
-            dealer = requireDealer(request.dealerId());
-            if ("ON_HOLD".equalsIgnoreCase(dealer.getStatus())) {
-                throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState("Dealer " + dealer.getName() + " is on hold");
-            }
-        }
+        Long dealerId = request.dealerId() != null
+                ? request.dealerId()
+                : order.getDealer() != null ? order.getDealer().getId() : null;
+        Dealer dealer = salesProformaBoundaryService.resolveDealerForProforma(order.getCompany(), dealerId, paymentMode);
         List<PricedOrderLine> items = resolveOrderItems(order.getCompany(), request.items(), gstTreatment, orderLevelRate);
-        if (dealer != null) {
-            order.setDealer(dealer);
-        }
+        order.setDealer(dealer);
+        order.setPaymentMode(paymentMode);
         String currency = StringUtils.hasText(request.currency()) ? request.currency() : order.getCurrency();
         if (!StringUtils.hasText(currency)) {
             currency = "INR";
@@ -936,23 +1009,56 @@ public class SalesCoreEngine {
         OrderAmountSummary amounts = mapOrderItems(order, items, gstTreatment, orderLevelRate, gstInclusive);
         validateTotalAmount(request.totalAmount(), amounts.total());
         if (requiresCreditLimitCheck(paymentMode)) {
-            enforceCreditLimit(order.getCompany(), order.getDealer(), amounts.total());
+            enforceCreditLimit(order.getCompany(), order.getDealer(), amounts.total(), paymentMode, order.getId());
         }
         salesOrderRepository.save(order);
-        FinishedGoodsService.InventoryReservationResult reservationResult = finishedGoodsService.reserveForOrder(order);
-        if (reservationResult != null) {
-            boolean noShortages = reservationResult.shortages() == null || reservationResult.shortages().isEmpty();
-            if (noShortages) {
-                cancelPendingFactoryTasksForOrder(order);
-            } else {
-                Long packagingSlipId = reservationResult.packagingSlip() != null
-                        ? reservationResult.packagingSlip().id()
-                        : null;
-                cancelPendingFactoryTasksForOrder(order);
-                createShortageTasksForOrder(order.getCompany(), order, reservationResult.shortages(), packagingSlipId);
-            }
+        SalesProformaBoundaryService.CommercialAssessment commercialAssessment =
+                salesProformaBoundaryService.assessCommercialAvailability(order.getCompany(), order);
+        if (ORDER_STATUS_PENDING_PRODUCTION.equals(commercialAssessment.commercialStatus())
+                && !ORDER_STATUS_PENDING_PRODUCTION.equals(canonicalOrderStatus(order.getStatus()))) {
+            transitionOrderStatus(order,
+                    ORDER_STATUS_PENDING_PRODUCTION,
+                    "ORDER_PENDING_PRODUCTION",
+                    "Proforma revision refreshed production requirements without reserving stock",
+                    currentActorIdentity());
+        } else if (ORDER_STATUS_RESERVED.equals(commercialAssessment.commercialStatus())
+                && ORDER_STATUS_PENDING_PRODUCTION.equals(canonicalOrderStatus(order.getStatus()))) {
+            transitionOrderStatus(order,
+                    ORDER_STATUS_RESERVED,
+                    "ORDER_COMMERCIAL_RECORDED",
+                    "Proforma revision cleared shortages without reserving stock",
+                    currentActorIdentity());
         }
         return toDto(order);
+    }
+
+    private SalesProformaBoundaryService.CommercialAssessment syncFactoryDispatchReadiness(
+            Company company,
+            SalesOrder order,
+            SalesProformaBoundaryService.CommercialAssessment assessment) {
+        if (company == null || order == null || order.getId() == null || assessment == null) {
+            return assessment;
+        }
+
+        SalesProformaBoundaryService.CommercialAssessment currentAssessment = assessment;
+        if (!currentAssessment.shortages().isEmpty()) {
+            if (ORDER_STATUS_DRAFT.equals(canonicalOrderStatus(order.getStatus()))) {
+                return currentAssessment;
+            }
+            finishedGoodsService.releaseReservationsForOrder(order.getId());
+            currentAssessment = salesProformaBoundaryService.assessCommercialAvailability(company, order);
+            if (!currentAssessment.shortages().isEmpty()) {
+                return currentAssessment;
+            }
+        }
+
+        FinishedGoodsService.InventoryReservationResult reservation = finishedGoodsService.reserveForOrder(order);
+        if (reservation == null || reservation.shortages() == null || reservation.shortages().isEmpty()) {
+            return currentAssessment;
+        }
+
+        finishedGoodsService.releaseReservationsForOrder(order.getId());
+        return salesProformaBoundaryService.assessCommercialAvailability(company, order);
     }
 
     public void deleteOrder(Long id) {
@@ -982,7 +1088,7 @@ public class SalesCoreEngine {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_STATE,
                     "Order total must be greater than zero before confirmation");
         }
-        enforceCreditLimit(order.getCompany(), order.getDealer(), requiredAmount);
+        enforceCreditLimit(order.getCompany(), order.getDealer(), requiredAmount, order.getPaymentMode(), order.getId());
         validateStockAvailabilityForConfirmation(order);
         transitionOrderStatus(order, ORDER_STATUS_CONFIRMED, "ORDER_CONFIRMED", "Order confirmed", currentActorIdentity());
         return toDto(order);
@@ -1165,6 +1271,26 @@ public class SalesCoreEngine {
                 .filter(slip -> !("CANCELLED".equalsIgnoreCase(slip.getStatus())))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private void assertDispatchAutoReservationAllowed(SalesOrder order) {
+        if (order == null) {
+            return;
+        }
+        String status = canonicalOrderStatus(order.getStatus());
+        if (!DISPATCH_AUTO_RESERVABLE_ORDER_STATUSES.contains(status)) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Cannot auto-create packing slip for dispatch from order status " + status)
+                    .withDetail("orderId", order.getId())
+                    .withDetail("currentStatus", status)
+                    .withDetail("allowedStatuses", DISPATCH_AUTO_RESERVABLE_ORDER_STATUSES);
+        }
+        if (order.hasInvoiceIssued() || order.hasSalesJournalPosted() || order.hasCogsJournalPosted()) {
+            throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                    "Cannot auto-create packing slip for dispatch when order already has accounting markers")
+                    .withDetail("orderId", order.getId())
+                    .withDetail("currentStatus", status);
+        }
     }
 
     private void assertOrderMutable(SalesOrder order, String action) {
@@ -1397,6 +1523,7 @@ public class SalesCoreEngine {
         return new SalesOrderDto(order.getId(), order.getPublicId(), order.getOrderNumber(), canonicalOrderStatus(order.getStatus()),
                 order.getTotalAmount(), order.getSubtotalAmount(), order.getGstTotal(), order.getGstRate(),
                 order.getGstTreatment(), order.isGstInclusive(), order.getGstRoundingAdjustment(), order.getCurrency(), dealerName,
+                normalizeOrderPaymentMode(order.getPaymentMode()),
                 order.getTraceId(), order.getCreatedAt(), items, List.of());
     }
 
@@ -1684,54 +1811,27 @@ public class SalesCoreEngine {
         }
     }
 
-    private void enforceCreditLimit(Company company, Dealer dealer, BigDecimal orderTotal) {
-        if (dealer == null || dealer.getId() == null) {
-            return;
-        }
-        Dealer lockedDealer = dealerRepository.lockByCompanyAndId(company, dealer.getId())
-                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Dealer not found"));
-        BigDecimal limit = lockedDealer.getCreditLimit();
-        if (limit == null || limit.compareTo(BigDecimal.ZERO) <= 0) {
-            return;
-        }
-        BigDecimal outstanding = dealerLedgerService.currentBalance(lockedDealer.getId());
-        if (outstanding == null) {
-            outstanding = BigDecimal.ZERO;
-        }
-        BigDecimal total = orderTotal == null ? BigDecimal.ZERO : orderTotal;
-        BigDecimal projected = outstanding.add(total);
-        if (projected.compareTo(limit) > 0) {
-            BigDecimal requiredHeadroom = projected.subtract(limit);
-            if (requiredHeadroom.compareTo(BigDecimal.ZERO) < 0) {
-                requiredHeadroom = BigDecimal.ZERO;
-            }
-            CreditLimitExceededException ex = new CreditLimitExceededException(String.format(
-                    "Dealer %s credit limit exceeded. Limit %.2f, outstanding %.2f, attempted order %.2f",
-                    lockedDealer.getName(),
-                    limit,
-                    outstanding,
-                    total));
-            ex.withDetail("dealerId", lockedDealer.getId())
-                    .withDetail("companyId", company.getId())
-                    .withDetail("currentExposure", outstanding)
-                    .withDetail("creditLimit", limit)
-                    .withDetail("orderAmount", total)
-                    .withDetail("requiredHeadroom", requiredHeadroom);
-            throw ex;
-        }
+    private void enforceCreditLimit(Company company,
+                                    Dealer dealer,
+                                    BigDecimal orderTotal,
+                                    String paymentMode,
+                                    Long excludeOrderId) {
+        salesProformaBoundaryService.enforceCreditPosture(company, dealer, orderTotal, paymentMode, excludeOrderId);
     }
 
     private String normalizeOrderPaymentMode(String rawMode) {
-        String normalized = StringUtils.hasText(rawMode)
-                ? rawMode.trim().toUpperCase(Locale.ROOT)
-                : DEFAULT_ORDER_PAYMENT_MODE;
-        if (!VALID_ORDER_PAYMENT_MODES.contains(normalized)) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
-                    "Unsupported sales order payment mode: " + normalized)
-                    .withDetail("paymentMode", normalized)
-                    .withDetail("allowedPaymentModes", VALID_ORDER_PAYMENT_MODES);
+        return salesProformaBoundaryService.normalizePaymentMode(rawMode);
+    }
+
+    private String signaturePaymentModeToken(String rawMode, boolean preserveLegacySplitAlias) {
+        String normalized = IdempotencyUtils.normalizeUpperToken(rawMode);
+        if (normalized.isBlank()) {
+            return DEFAULT_ORDER_PAYMENT_MODE;
         }
-        return normalized;
+        if (preserveLegacySplitAlias && LEGACY_HYBRID_PAYMENT_MODE.equals(normalized)) {
+            return LEGACY_HYBRID_PAYMENT_MODE;
+        }
+        return normalizeOrderPaymentMode(rawMode);
     }
 
     private String resolveLegacyDefaultPaymentIdempotencyKey(SalesOrderRequest request, String canonicalIdempotencyKey) {
@@ -1749,10 +1849,28 @@ public class SalesCoreEngine {
         return legacyDefaultPaymentIdempotencyKey;
     }
 
+    private String resolveLegacySplitReplayIdempotencyKey(SalesOrderRequest request, String canonicalIdempotencyKey) {
+        String legacySplitReplayIdempotencyKey = request.resolveLegacySplitReplayIdempotencyKey();
+        if (!StringUtils.hasText(legacySplitReplayIdempotencyKey)
+                || legacySplitReplayIdempotencyKey.equals(canonicalIdempotencyKey)) {
+            return null;
+        }
+        return legacySplitReplayIdempotencyKey;
+    }
+
+    private String resolveLegacySplitReplayRequestSignature(SalesOrderRequest request, String requestSignature) {
+        if (!request.usesLegacySplitReplayPaymentMode()) {
+            return null;
+        }
+        String legacySplitReplayRequestSignature = buildSalesOrderSignature(request, false, true);
+        if (legacySplitReplayRequestSignature.equals(requestSignature)) {
+            return null;
+        }
+        return legacySplitReplayRequestSignature;
+    }
+
     private boolean requiresCreditLimitCheck(String paymentMode) {
-        // Sales orders are fulfilled against receivable exposure; cash collection is settled
-        // through accounting receipts later, so order booking must always enforce credit policy.
-        return CREDIT_EXPOSURE_PAYMENT_MODES.contains(paymentMode);
+        return salesProformaBoundaryService.requiresCreditCheck(paymentMode);
     }
 
     private void appendPaymentModeSignatureToken(IdempotencySignatureBuilder signature,
@@ -1774,50 +1892,6 @@ public class SalesCoreEngine {
         meterRegistry.counter("erp.business.orders.processed.by_company", "company", companyTag).increment();
     }
 
-    /**
-     * Create production tasks for stock shortages.
-     * Tasks are prioritized based on shortage quantity - no pricing info shared with factory.
-     */
-    private void createShortageTasksForOrder(Company company,
-                                             SalesOrder order,
-                                             List<FinishedGoodsService.InventoryShortage> shortages,
-                                             Long packagingSlipId) {
-        LocalDate today = companyClock.today(company);
-        for (FinishedGoodsService.InventoryShortage shortage : shortages) {
-            BigDecimal shortageQty = shortage.shortageQuantity();
-
-            // Determine urgency based on shortage quantity
-            String urgencyPrefix;
-            LocalDate dueDate;
-            if (shortageQty.compareTo(new BigDecimal("100")) >= 0) {
-                urgencyPrefix = "[URGENT] ";
-                dueDate = today.plusDays(1); // Large shortage - due tomorrow
-            } else if (shortageQty.compareTo(new BigDecimal("50")) >= 0) {
-                urgencyPrefix = "[HIGH] ";
-                dueDate = today.plusDays(3); // Medium shortage - 3 days
-            } else {
-                urgencyPrefix = "";
-                dueDate = today.plusDays(7); // Small shortage - 1 week
-            }
-
-            FactoryTask task = new FactoryTask();
-            task.setCompany(company);
-            task.setTitle(urgencyPrefix + "Production required: " + shortage.productCode());
-            task.setDescription(String.format(
-                    "Order #%s requires production of %s (%s).\nQuantity needed: %s units",
-                    order.getOrderNumber(),
-                    shortage.productCode(),
-                    shortage.productName(),
-                    shortageQty
-            ));
-            task.setStatus("PENDING");
-            task.setDueDate(dueDate);
-            task.setSalesOrderId(order.getId());
-            task.setPackagingSlipId(packagingSlipId);
-            factoryTaskRepository.save(task);
-        }
-    }
-
     private void cancelFactoryTasksForOrder(SalesOrder order) {
         if (order == null || order.getId() == null) {
             return;
@@ -1830,27 +1904,6 @@ public class SalesCoreEngine {
             task.setStatus("CANCELLED");
         }
         factoryTaskRepository.saveAll(tasks);
-    }
-
-    private void cancelPendingFactoryTasksForOrder(SalesOrder order) {
-        if (order == null || order.getId() == null) {
-            return;
-        }
-        List<FactoryTask> tasks = factoryTaskRepository.findByCompanyAndSalesOrderId(order.getCompany(), order.getId());
-        if (tasks.isEmpty()) {
-            return;
-        }
-        boolean updated = false;
-        for (FactoryTask task : tasks) {
-            String status = task.getStatus();
-            if (status == null || "PENDING".equalsIgnoreCase(status)) {
-                task.setStatus("CANCELLED");
-                updated = true;
-            }
-        }
-        if (updated) {
-            factoryTaskRepository.saveAll(tasks);
-        }
     }
 
     private record PricedOrderLine(ProductionProduct product,
@@ -2335,6 +2388,7 @@ public class SalesCoreEngine {
         companyDefaultAccountsService.requireDefaults();
         Long requestedSlipId = request.packingSlipId();
         Long salesOrderId = request.orderId();
+        PackagingSlip referencedSlip = null;
         if (requestedSlipId == null && salesOrderId == null) {
             throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "packingSlipId or orderId is required");
         }
@@ -2343,7 +2397,7 @@ public class SalesCoreEngine {
             if (referencedSlipOpt == null) {
                 referencedSlipOpt = Optional.empty();
             }
-            PackagingSlip referencedSlip = referencedSlipOpt
+            referencedSlip = referencedSlipOpt
                     .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Packing slip not found"));
             salesOrderId = referencedSlip.getSalesOrder() != null ? referencedSlip.getSalesOrder().getId() : salesOrderId;
         }
@@ -2352,9 +2406,24 @@ public class SalesCoreEngine {
         }
         SalesOrder order = requireOrderForUpdate(company, salesOrderId);
         List<PackagingSlip> orderSlips = findOrderSlips(company, salesOrderId, true);
+        if (orderSlips.isEmpty() && referencedSlip != null) {
+            orderSlips = List.of(referencedSlip);
+        }
         if (orderSlips.isEmpty()) {
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
-                    "Packing slip not found for order " + salesOrderId);
+            FinishedGoodsService.InventoryReservationResult reservationResult = null;
+            if (requestedSlipId == null) {
+                assertDispatchAutoReservationAllowed(order);
+                reservationResult = finishedGoodsService.reserveForOrder(order);
+                orderSlips = findOrderSlips(company, salesOrderId, true);
+            }
+            if (orderSlips.isEmpty()) {
+                ApplicationException ex = new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
+                        "Packing slip not found for order " + salesOrderId);
+                if (reservationResult != null && reservationResult.shortages() != null && !reservationResult.shortages().isEmpty()) {
+                    ex.withDetail("shortages", reservationResult.shortages());
+                }
+                throw ex;
+            }
         }
         PackagingSlip slip;
         if (requestedSlipId != null) {
@@ -2998,7 +3067,11 @@ public class SalesCoreEngine {
                             confirmations,
                             dispatchNotes,
                             request.confirmedBy(),
-                            request.overrideRequestId()
+                            request.overrideRequestId(),
+                            request.transporterName(),
+                            request.driverName(),
+                            request.vehicleNumber(),
+                            request.challanReference()
                     ),
                     request.confirmedBy() != null ? request.confirmedBy() : "system"
             );
@@ -3707,6 +3780,12 @@ public class SalesCoreEngine {
         }
         List<PackagingSlip> slips = findOrderSlips(company, order.getId(), false);
         if (slips.isEmpty()) {
+            List<String> requirementSkus = salesProformaBoundaryService.openProductionRequirementSkus(company, order.getId());
+            if (!requirementSkus.isEmpty()) {
+                throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE,
+                        "Order cannot be confirmed because production is still required for shortage items")
+                        .withDetail("productionRequirementSkus", requirementSkus);
+            }
             return;
         }
         boolean hasAnyReserved = false;

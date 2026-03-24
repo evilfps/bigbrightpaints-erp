@@ -1,0 +1,22 @@
+{
+  "featureId": "catalog-contract-cleanup-and-proof",
+  "reviewedAt": "2026-03-21T13:14:03+05:30",
+  "commitId": "d7e11f0cfcec7c9f6a807b6ad185b7f7bc874b09",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The rerun cleaned the assigned contract surfaces: the inspected doc set, `.factory/library/frontend-handoff.md`, `openapi.json`, `erp-domain/docs/endpoint_inventory.tsv`, `RawMaterialAndProductUpdateIT`, and `CriticalPathSmokeTest` now describe only the surviving `/api/v1/catalog/**` flow with a separate brand-create step, and I did not find a remaining contract-cleanup gap in those surfaces. But the one round-2 blocker was not actually fixed: the out-of-scope valuation truth-suite edit is still present in the current repo state, and the rerun commits after `095cfe36243717ee56b21f63c7f00509f92808e4` do not touch that file.",
+    "issues": [
+      {
+        "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeInventoryValuationExecutableCoverageTest.java",
+        "line": 83,
+        "severity": "blocking",
+        "description": "The packet still contains the unrelated reports/valuation edit that changed the assertion to `service.snapshotAsOf(company, LocalDate.of(2026, 3, 1))`. Mission guidance keeps inventory valuation redesign out of scope and explicitly calls this truth-suite failure pre-existing (`/home/realnigga/.factory/missions/6976bae7-c2fe-4bf5-a28a-485480ce262a/AGENTS.md`). `git show 385cfadd -- erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeInventoryValuationExecutableCoverageTest.java` shows that `385cfadd` introduced this change, `git log --oneline -- erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeInventoryValuationExecutableCoverageTest.java` shows no later fix commit for the file, and `git diff --name-status 095cfe36243717ee56b21f63c7f00509f92808e4..HEAD` lists only docs/skill/scrutiny artifact updates. So the rerun did not remove the out-of-scope edit even though the rest of the cleanup proof now looks narrow."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/catalog-surface-consolidation/scrutiny/reviews/catalog-contract-cleanup-and-proof.json",
+  "summary": "Fail: the contract-cleanup surfaces are aligned, but the packet still contains the unrelated `TS_RuntimeInventoryValuationExecutableCoverageTest` change from `385cfadd`, so the rerun does not clear the only remaining out-of-scope blocker."
+}

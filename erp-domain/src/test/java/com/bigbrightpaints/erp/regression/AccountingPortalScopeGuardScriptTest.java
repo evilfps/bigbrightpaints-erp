@@ -235,18 +235,23 @@ class AccountingPortalScopeGuardScriptTest {
                 Count lock for parity checks: **4**
                 ## Purchasing & Payables
                 ### purchasing-workflow-controller
+                | `GET /api/v1/purchasing/purchase-orders` |
                 ## Inventory & Costing
                 ### raw-material-controller
                 ### inventory-adjustment-controller
+                | `GET /api/v1/finished-goods/stock-summary` |
                 ## HR & Payroll
                 ### hr-controller
                 ### hr-payroll-controller
+                | `GET /api/v1/hr/employees` |
                 ## Reports & Reconciliation
                 ### report-controller
-                | `GET /api/v1/purchasing/purchase-orders` |
-                | `GET /api/v1/finished-goods/stock-summary` |
                 | `GET /api/v1/reports/inventory-valuation` |
-                | `GET /api/v1/hr/employees` |
+                
+                Maker-checker period-close note:
+                - `POST /api/v1/accounting/periods/{periodId}/request-close` is the supported maker action for frontend close submission.
+                - `POST /api/v1/accounting/periods/{periodId}/approve-close` and `POST /api/v1/accounting/periods/{periodId}/reject-close` are surfaced through `GET /api/v1/admin/approvals`.
+                - `GET /api/v1/admin/approvals` is visible to `ROLE_ADMIN|ROLE_ACCOUNTING` in portal flows, and the backend also allows `ROLE_SUPER_ADMIN`.
                 """);
 
         Files.writeString(handoffDoc, """
@@ -254,6 +259,7 @@ class AccountingPortalScopeGuardScriptTest {
                 HR, PURCHASING, INVENTORY, and REPORTS come under the Accounting portal in frontend scope.
                 Scoped endpoint count: **4**
                 Current handoff inventory total is **13**
+                Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snapshot as admin-only deprecated exports and must not be treated as required APIs for new accountant-owned UI flows.
                 ## Purchasing & Payables
                 ## Inventory & Costing
                 ## HR & Payroll
@@ -271,6 +277,36 @@ class AccountingPortalScopeGuardScriptTest {
                 | `authLogout` | POST | `/api/v1/auth/logout` |
                 | `salesListDealers` | GET | `/api/v1/sales/dealers` |
                 | `salesSearchDealers` | GET | `/api/v1/sales/dealers/search` |
+
+                ### Accounting Core Workflow Supplements (Code-Verified, Outside Parity Lock)
+                | `approvals` | GET | `/api/v1/admin/approvals` |
+                | `requestPeriodClose` | POST | `/api/v1/accounting/periods/{periodId}/request-close` |
+                | `approvePeriodClose` | POST | `/api/v1/accounting/periods/{periodId}/approve-close` |
+                | `rejectPeriodClose` | POST | `/api/v1/accounting/periods/{periodId}/reject-close` |
+
+                ### `/accounting/period-close`
+                - Required API calls: `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, `acctLockPeriod`, `requestPeriodClose`, `approvePeriodClose`, `rejectPeriodClose`, `acctReopenPeriod`
+                - Period grid from `AccountingPeriodDto`
+                - Pending review state: derive it by joining `PeriodCloseRequestDto` / `approvals` data
+                - Direct close protection: do not wire `acctClosePeriod` as a frontend action
+                - `acctReopenPeriod` is `ROLE_SUPER_ADMIN` only
+                - Role/permission gate: Mixed by endpoint.
+
+                ### `/accounting/ar/invoices`
+                - Required API calls (shared accountant/sales/admin views): `salesListDealersForAccounting`, `salesSearchDealersForAccounting`, `invoiceListInvoices`, `invoiceGetInvoice`, `invoiceSendInvoiceEmail`, `invoiceDealerInvoices`
+                - Admin-only APIs (do not expose to accounting/sales roles): `invoiceDownloadInvoicePdf`
+                - Role/permission gate: Mixed by endpoint: list/detail/email/dealer views inherit `ROLE_ADMIN|ROLE_ACCOUNTING|ROLE_SALES`; `invoiceDownloadInvoicePdf` is `ROLE_ADMIN` only.
+
+                ### `/accounting/ar/collections-settlements`
+                - Required API calls (shared accountant-owned path): `acctRecordDealerReceipt`, `acctRecordDealerHybridReceipt`, `acctSettleDealer`, `acctGetDealerAging`, `acctGetDealerAgingDetailed`, `acctDealerStatement`, `acctListSalesReturns`, `acctRecordSalesReturn`, `acctPostCreditNote`, `acctWriteOffBadDebt`
+                - Admin-only exports (keep off accounting/sales action menus): `acctDealerStatementPdf`
+                - Role/permission gate: Mixed by endpoint: receipts/settlements/aging/statement reads use `ROLE_ADMIN|ROLE_ACCOUNTING`; `GET /api/v1/accounting/sales/returns` also permits `ROLE_SALES`; `acctDealerStatementPdf` is `ROLE_ADMIN` only.
+
+                ### `/accounting/reports/financial`
+                - Required API calls: `reportTrialBalance`, `acctGetTrialBalanceAsOf`, `reportProfitLoss`, `reportBalanceSheet`, `reportCashFlow`, `reportInventoryValuation`, `reportInventoryReconciliation`, `reportAgedDebtors`, `reportWastageReport`, `reportReconciliationDashboard`, `acctGenerateGstReturn`
+                - Admin-only legacy exports (do not treat as required for this route): `acctAuditDigest`, `acctAuditDigestCsv`
+                - Audit-trail route dependency: use `/accounting/audit-trail` with `acctAuditTransactions` and `acctAuditTransactionDetail` for new transaction-audit UX.
+                - Role/permission gate: Mixed by endpoint: financial reports and GST return use `ROLE_ADMIN|ROLE_ACCOUNTING`; deprecated digest exports are `ROLE_ADMIN` only.
                 """);
 
         Files.writeString(endpointInventoryDoc, """

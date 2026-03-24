@@ -1,0 +1,15 @@
+{
+  "featureId": "remove-orchestrator-dispatch-journal",
+  "reviewedAt": "2026-03-14T00:35:00Z",
+  "commitId": "f8754bc99937bf051211dbceb54058e5587f3008",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Commit removes the non-canonical orchestrator dispatch journaling path (`IntegrationCoordinator.postDispatchJournal` and related dead wiring), makes batch dispatch fail closed to the canonical sales dispatch endpoint, and replaces temporary characterization coverage with permanent regression tests. Scope and behavior align with milestone assertions for orchestrator canonicalization and cleanup.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass: non-canonical orchestrator dispatch posting path was removed and guarded by regression tests without introducing alternate dispatch-accounting paths."
+}

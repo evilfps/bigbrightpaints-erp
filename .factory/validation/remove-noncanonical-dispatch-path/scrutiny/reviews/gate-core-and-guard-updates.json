@@ -1,0 +1,20 @@
+{
+  "featureId": "gate-core-and-guard-updates",
+  "reviewedAt": "2026-03-14T00:36:00Z",
+  "commitId": "777ed9e4d23bca85ec8ece72e768b235e701ae1e",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Commit updates gate-core test inclusion (`OrderFulfillmentE2ETest`, `CR_SalesDispatchInvoiceAccounting`), hardens `guard_workflow_canonical_paths.sh` to enforce canonical dispatch posting constraints, and updates API artifacts to stop advertising legacy orchestrator dispatch posting routes. Validation evidence includes compile, gate-fast, gate-core, guard script, and changed-files coverage passing.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "observation": "Validation skills should explicitly document that targeted JaCoCo runs are acceptable evidence when repository-wide JaCoCo is pre-existing red outside the feature scope.",
+      "evidence": "Worker session 52255d9d-48a3-4eba-b992-ca0fd242ce01 recorded `mvn test -Djacoco.skip=false` failing in unrelated existing suites, then produced successful targeted JaCoCo plus `changed_files_coverage.py` evidence at 100%/100%."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass: gate-core and canonical-path guard hardening meet milestone requirements; coverage evidence is sufficient for changed files despite unrelated full-suite JaCoCo baseline failures."
+}

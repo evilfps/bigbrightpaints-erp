@@ -15,7 +15,11 @@ public interface FinishedGoodRepository extends JpaRepository<FinishedGood, Long
     List<FinishedGood> findByCompanyOrderByProductCodeAsc(Company company);
     Optional<FinishedGood> findByCompanyAndId(Company company, Long id);
     Optional<FinishedGood> findByCompanyAndProductCode(Company company, String productCode);
+    Optional<FinishedGood> findByCompanyAndProductCodeIgnoreCase(Company company, String productCode);
     List<FinishedGood> findByCompanyAndProductCodeIn(Company company, Collection<String> productCodes);
+    @Query("select fg from FinishedGood fg where fg.company = :company and lower(fg.productCode) in :productCodes")
+    List<FinishedGood> findByCompanyAndProductCodeInIgnoreCase(@Param("company") Company company,
+                                                               @Param("productCodes") Collection<String> productCodes);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select fg from FinishedGood fg where fg.company = :company and fg.id = :id")

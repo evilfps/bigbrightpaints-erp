@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.company.domain;
 
 import com.bigbrightpaints.erp.core.domain.VersionedEntity;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -46,7 +47,7 @@ public class CoATemplate extends VersionedEntity {
             publicId = UUID.randomUUID();
         }
         if (createdAt == null) {
-            createdAt = Instant.now();
+            createdAt = CompanyTime.now();
         }
     }
 

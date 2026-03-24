@@ -8,6 +8,8 @@ import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepos
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestStatus;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminApprovalItemDto;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminApprovalsResponse;
+import com.bigbrightpaints.erp.modules.admin.dto.ExportApprovalStatus;
+import com.bigbrightpaints.erp.modules.admin.dto.ExportRequestDto;
 import com.bigbrightpaints.erp.modules.admin.service.ExportApprovalService;
 import com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -24,7 +26,12 @@ import com.bigbrightpaints.erp.modules.sales.domain.CreditRequestRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -34,6 +41,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -41,6 +49,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@Tag("critical")
 class AdminSettingsControllerApprovalsContractTest {
 
     @Test
@@ -210,49 +219,46 @@ class AdminSettingsControllerApprovalsContractTest {
         assertThat(response.data().creditRequests()).hasSize(5);
 
         AdminApprovalItemDto overrideApproval = response.data().creditRequests().get(0);
-        assertThat(overrideApproval.type()).isEqualTo("CREDIT_LIMIT_OVERRIDE_REQUEST");
+        assertThat(overrideApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.CREDIT_LIMIT_OVERRIDE_REQUEST);
+        assertThat(overrideApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.SALES);
         assertThat(overrideApproval.reference()).isEqualTo("CLO-22");
         assertThat(overrideApproval.summary()).contains("request CLO-22");
         assertThat(overrideApproval.summary()).contains("Dealer Delta");
         assertThat(overrideApproval.summary()).contains("requested by ops.user@bbp.com");
         assertThat(overrideApproval.actionType()).isEqualTo("APPROVE_DISPATCH_CREDIT_OVERRIDE");
         assertThat(overrideApproval.actionLabel()).isEqualTo("Approve dispatch credit override");
-        assertThat(overrideApproval.sourcePortal()).isEqualTo("SALES_PORTAL");
         assertThat(overrideApproval.approveEndpoint()).isEqualTo("/api/v1/credit/override-requests/{id}/approve");
         assertThat(overrideApproval.rejectEndpoint()).isEqualTo("/api/v1/credit/override-requests/{id}/reject");
 
         AdminApprovalItemDto orderOverrideApproval = response.data().creditRequests().get(1);
-        assertThat(orderOverrideApproval.type()).isEqualTo("CREDIT_LIMIT_OVERRIDE_REQUEST");
+        assertThat(orderOverrideApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.CREDIT_LIMIT_OVERRIDE_REQUEST);
+        assertThat(orderOverrideApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.SALES);
         assertThat(orderOverrideApproval.reference()).isEqualTo("SO-55");
         assertThat(orderOverrideApproval.summary()).contains("request SO-55");
         assertThat(orderOverrideApproval.summary()).contains("Dealer Gamma");
         assertThat(orderOverrideApproval.summary()).contains("requested by factory.user@bbp.com");
-        assertThat(orderOverrideApproval.sourcePortal()).isEqualTo("SALES_PORTAL");
-
         AdminApprovalItemDto slipOverrideApproval = response.data().creditRequests().get(2);
-        assertThat(slipOverrideApproval.type()).isEqualTo("CREDIT_LIMIT_OVERRIDE_REQUEST");
+        assertThat(slipOverrideApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.CREDIT_LIMIT_OVERRIDE_REQUEST);
+        assertThat(slipOverrideApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.FACTORY);
         assertThat(slipOverrideApproval.reference()).isEqualTo("PS-66");
         assertThat(slipOverrideApproval.summary()).contains("request PS-66");
         assertThat(slipOverrideApproval.summary()).contains("Dealer Epsilon");
         assertThat(slipOverrideApproval.summary()).contains("requested by sales.manager@bbp.com");
-        assertThat(slipOverrideApproval.sourcePortal()).isEqualTo("FACTORY_PORTAL");
-
         AdminApprovalItemDto slipOnlyOverrideApproval = response.data().creditRequests().get(3);
-        assertThat(slipOnlyOverrideApproval.type()).isEqualTo("CREDIT_LIMIT_OVERRIDE_REQUEST");
+        assertThat(slipOnlyOverrideApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.CREDIT_LIMIT_OVERRIDE_REQUEST);
+        assertThat(slipOnlyOverrideApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.FACTORY);
         assertThat(slipOnlyOverrideApproval.reference()).isEqualTo("PS-44");
         assertThat(slipOnlyOverrideApproval.summary()).contains("Approve dispatch credit override");
         assertThat(slipOnlyOverrideApproval.summary()).contains("Dealer Beta");
         assertThat(slipOnlyOverrideApproval.summary()).contains("dispatch 300");
         assertThat(slipOnlyOverrideApproval.summary()).contains("requested by sales.user@bbp.com");
-        assertThat(slipOnlyOverrideApproval.sourcePortal()).isEqualTo("FACTORY_PORTAL");
-
         AdminApprovalItemDto creditApproval = response.data().creditRequests().get(4);
-        assertThat(creditApproval.type()).isEqualTo("CREDIT_REQUEST");
+        assertThat(creditApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.CREDIT_REQUEST);
+        assertThat(creditApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.SALES);
         assertThat(creditApproval.reference()).isEqualTo("CR-10");
         assertThat(creditApproval.summary()).contains("Approve dealer credit-limit increase request CR-10 for Dealer Alpha");
         assertThat(creditApproval.actionType()).isEqualTo("APPROVE_DEALER_CREDIT_REQUEST");
         assertThat(creditApproval.actionLabel()).isEqualTo("Approve dealer credit-limit increase");
-        assertThat(creditApproval.sourcePortal()).isEqualTo("DEALER_PORTAL");
         assertThat(creditApproval.approveEndpoint()).isEqualTo("/api/v1/sales/credit-requests/{id}/approve");
         assertThat(creditApproval.rejectEndpoint()).isEqualTo("/api/v1/sales/credit-requests/{id}/reject");
 
@@ -268,18 +274,19 @@ class AdminSettingsControllerApprovalsContractTest {
 
         assertThat(response.data().payrollRuns()).hasSize(1);
         AdminApprovalItemDto payrollApproval = response.data().payrollRuns().get(0);
-        assertThat(payrollApproval.type()).isEqualTo("PAYROLL_RUN");
+        assertThat(payrollApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.PAYROLL_RUN);
+        assertThat(payrollApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.HR);
         assertThat(payrollApproval.reference()).isEqualTo("PR-2026-02");
         assertThat(payrollApproval.summary()).contains("Approve payroll run PR-2026-02");
         assertThat(payrollApproval.actionType()).isEqualTo("APPROVE_PAYROLL_RUN");
         assertThat(payrollApproval.actionLabel()).isEqualTo("Approve payroll run");
-        assertThat(payrollApproval.sourcePortal()).isEqualTo("HR_PORTAL");
         assertThat(payrollApproval.approveEndpoint()).isEqualTo("/api/v1/payroll/runs/{id}/approve");
         assertThat(payrollApproval.rejectEndpoint()).isNull();
 
         assertThat(response.data().periodCloseRequests()).hasSize(1);
         AdminApprovalItemDto periodCloseApproval = response.data().periodCloseRequests().get(0);
-        assertThat(periodCloseApproval.type()).isEqualTo("PERIOD_CLOSE_REQUEST");
+        assertThat(periodCloseApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.PERIOD_CLOSE_REQUEST);
+        assertThat(periodCloseApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.ACCOUNTING);
         assertThat(periodCloseApproval.reference()).isEqualTo("February 2026");
         assertThat(periodCloseApproval.status()).isEqualTo("PENDING");
         assertThat(periodCloseApproval.summary()).contains("Approve accounting period close request for February 2026");
@@ -289,10 +296,393 @@ class AdminSettingsControllerApprovalsContractTest {
         assertThat(periodCloseApproval.summary()).contains("note: Close after reconciliation");
         assertThat(periodCloseApproval.actionType()).isEqualTo("APPROVE_ACCOUNTING_PERIOD_CLOSE");
         assertThat(periodCloseApproval.actionLabel()).isEqualTo("Approve accounting period close");
-        assertThat(periodCloseApproval.sourcePortal()).isEqualTo("ACCOUNTING");
         assertThat(periodCloseApproval.approveEndpoint()).isEqualTo("/api/v1/accounting/periods/{id}/approve-close");
         assertThat(periodCloseApproval.rejectEndpoint()).isEqualTo("/api/v1/accounting/periods/{id}/reject-close");
         assertThat(periodCloseApproval.createdAt()).isEqualTo(Instant.parse("2026-02-12T13:15:00Z"));
+    }
+
+    @Test
+    void approvals_includeTypedExportApprovalsInSingleInbox() {
+        SystemSettingsService systemSettingsService = mock(SystemSettingsService.class);
+        EmailService emailService = mock(EmailService.class);
+        CompanyContextService companyContextService = mock(CompanyContextService.class);
+        TenantRuntimePolicyService tenantRuntimePolicyService = mock(TenantRuntimePolicyService.class);
+        CreditRequestRepository creditRequestRepository = mock(CreditRequestRepository.class);
+        CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository =
+                mock(CreditLimitOverrideRequestRepository.class);
+        PeriodCloseRequestRepository periodCloseRequestRepository = mock(PeriodCloseRequestRepository.class);
+        PayrollRunRepository payrollRunRepository = mock(PayrollRunRepository.class);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        AdminSettingsController controller = new AdminSettingsController(
+                systemSettingsService,
+                emailService,
+                companyContextService,
+                tenantRuntimePolicyService,
+                exportApprovalService,
+                creditRequestRepository,
+                creditLimitOverrideRequestRepository,
+                periodCloseRequestRepository,
+                payrollRunRepository,
+                null,
+                mock(ModuleGatingService.class)
+        );
+
+        Company company = new Company();
+        ReflectionTestUtils.setField(company, "id", 502L);
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(creditRequestRepository.findPendingByCompanyOrderByCreatedAtDesc(company)).thenReturn(List.of());
+        when(creditLimitOverrideRequestRepository.findPendingByCompanyOrderByCreatedAtDesc(company)).thenReturn(List.of());
+        when(payrollRunRepository.findByCompanyAndStatusOrderByCreatedAtDesc(company, PayrollRun.PayrollStatus.CALCULATED))
+                .thenReturn(List.of());
+        when(periodCloseRequestRepository.findPendingByCompanyOrderByRequestedAtDesc(company)).thenReturn(List.of());
+        when(exportApprovalService.listPending()).thenReturn(List.of(
+                new ExportRequestDto(
+                        81L,
+                        7001L,
+                        "ops.reports@bbp.com",
+                        "SALES_SUMMARY",
+                        "{\"range\":\"MTD\"}",
+                        ExportApprovalStatus.PENDING,
+                        null,
+                        Instant.parse("2026-02-12T14:30:00Z"),
+                        null,
+                        null)
+        ));
+
+        authenticateAs("ROLE_ADMIN");
+        ApiResponse<AdminApprovalsResponse> response;
+        try {
+            response = controller.approvals();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        assertThat(response.success()).isTrue();
+        assertThat(response.data()).isNotNull();
+        assertThat(response.data().exportRequests()).hasSize(1);
+
+        AdminApprovalItemDto exportApproval = response.data().exportRequests().get(0);
+        assertThat(exportApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.EXPORT_REQUEST);
+        assertThat(exportApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.REPORTS);
+        assertThat(exportApproval.reference()).isEqualTo("EXP-81");
+        assertThat(exportApproval.status()).isEqualTo("PENDING");
+        assertThat(exportApproval.summary()).contains("report SALES_SUMMARY");
+        assertThat(exportApproval.reportType()).isEqualTo("SALES_SUMMARY");
+        assertThat(exportApproval.actionType()).isEqualTo("APPROVE_EXPORT_REQUEST");
+        assertThat(exportApproval.actionLabel()).isEqualTo("Approve data export");
+        assertThat(exportApproval.approveEndpoint()).isEqualTo("/api/v1/admin/exports/{id}/approve");
+        assertThat(exportApproval.rejectEndpoint()).isEqualTo("/api/v1/admin/exports/{id}/reject");
+        assertThat(exportApproval.createdAt()).isEqualTo(Instant.parse("2026-02-12T14:30:00Z"));
+    }
+
+    @Test
+    void approvals_redactsSensitiveExportDetailsForAccountingView() {
+        SystemSettingsService systemSettingsService = mock(SystemSettingsService.class);
+        EmailService emailService = mock(EmailService.class);
+        CompanyContextService companyContextService = mock(CompanyContextService.class);
+        TenantRuntimePolicyService tenantRuntimePolicyService = mock(TenantRuntimePolicyService.class);
+        CreditRequestRepository creditRequestRepository = mock(CreditRequestRepository.class);
+        CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository =
+                mock(CreditLimitOverrideRequestRepository.class);
+        PeriodCloseRequestRepository periodCloseRequestRepository = mock(PeriodCloseRequestRepository.class);
+        PayrollRunRepository payrollRunRepository = mock(PayrollRunRepository.class);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        AdminSettingsController controller = new AdminSettingsController(
+                systemSettingsService,
+                emailService,
+                companyContextService,
+                tenantRuntimePolicyService,
+                exportApprovalService,
+                creditRequestRepository,
+                creditLimitOverrideRequestRepository,
+                periodCloseRequestRepository,
+                payrollRunRepository,
+                null,
+                mock(ModuleGatingService.class)
+        );
+
+        Company company = new Company();
+        ReflectionTestUtils.setField(company, "id", 504L);
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(creditRequestRepository.findPendingByCompanyOrderByCreatedAtDesc(company)).thenReturn(List.of());
+        when(creditLimitOverrideRequestRepository.findPendingByCompanyOrderByCreatedAtDesc(company)).thenReturn(List.of());
+        when(payrollRunRepository.findByCompanyAndStatusOrderByCreatedAtDesc(company, PayrollRun.PayrollStatus.CALCULATED))
+                .thenReturn(List.of());
+        when(periodCloseRequestRepository.findPendingByCompanyOrderByRequestedAtDesc(company)).thenReturn(List.of());
+        when(exportApprovalService.listPending()).thenReturn(List.of(
+                new ExportRequestDto(
+                        91L,
+                        8100L,
+                        "ops.reports@bbp.com",
+                        "AGED_DEBTORS",
+                        "{\"range\":\"MTD\"}",
+                        ExportApprovalStatus.PENDING,
+                        null,
+                        Instant.parse("2026-02-13T09:15:00Z"),
+                        null,
+                        null)
+        ));
+
+        authenticateAs("ROLE_ACCOUNTING");
+        ApiResponse<AdminApprovalsResponse> response;
+        try {
+            response = controller.approvals();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        assertThat(response.success()).isTrue();
+        assertThat(response.data()).isNotNull();
+        assertThat(response.data().exportRequests()).hasSize(1);
+
+        AdminApprovalItemDto exportApproval = response.data().exportRequests().get(0);
+        assertThat(exportApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.EXPORT_REQUEST);
+        assertThat(exportApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.REPORTS);
+        assertThat(exportApproval.reference()).isEqualTo("EXP-91");
+        assertThat(exportApproval.summary()).contains("report AGED_DEBTORS");
+        assertThat(exportApproval.summary()).doesNotContain("ops.reports@bbp.com");
+        assertThat(exportApproval.reportType()).isEqualTo("AGED_DEBTORS");
+        assertThat(exportApproval.parameters()).isNull();
+        assertThat(exportApproval.requesterUserId()).isNull();
+        assertThat(exportApproval.requesterEmail()).isNull();
+        assertThat(exportApproval.actionType()).isNull();
+        assertThat(exportApproval.actionLabel()).isNull();
+        assertThat(exportApproval.approveEndpoint()).isNull();
+        assertThat(exportApproval.rejectEndpoint()).isNull();
+    }
+
+    @Test
+    void approvals_fallsBackToUnknownStatusForExportRequests() {
+        SystemSettingsService systemSettingsService = mock(SystemSettingsService.class);
+        EmailService emailService = mock(EmailService.class);
+        CompanyContextService companyContextService = mock(CompanyContextService.class);
+        TenantRuntimePolicyService tenantRuntimePolicyService = mock(TenantRuntimePolicyService.class);
+        CreditRequestRepository creditRequestRepository = mock(CreditRequestRepository.class);
+        CreditLimitOverrideRequestRepository creditLimitOverrideRequestRepository =
+                mock(CreditLimitOverrideRequestRepository.class);
+        PeriodCloseRequestRepository periodCloseRequestRepository = mock(PeriodCloseRequestRepository.class);
+        PayrollRunRepository payrollRunRepository = mock(PayrollRunRepository.class);
+        ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
+        AdminSettingsController controller = new AdminSettingsController(
+                systemSettingsService,
+                emailService,
+                companyContextService,
+                tenantRuntimePolicyService,
+                exportApprovalService,
+                creditRequestRepository,
+                creditLimitOverrideRequestRepository,
+                periodCloseRequestRepository,
+                payrollRunRepository,
+                null,
+                mock(ModuleGatingService.class)
+        );
+
+        Company company = new Company();
+        ReflectionTestUtils.setField(company, "id", 505L);
+        when(companyContextService.requireCurrentCompany()).thenReturn(company);
+        when(creditRequestRepository.findPendingByCompanyOrderByCreatedAtDesc(company)).thenReturn(List.of());
+        when(creditLimitOverrideRequestRepository.findPendingByCompanyOrderByCreatedAtDesc(company)).thenReturn(List.of());
+        when(payrollRunRepository.findByCompanyAndStatusOrderByCreatedAtDesc(company, PayrollRun.PayrollStatus.CALCULATED))
+                .thenReturn(List.of());
+        when(periodCloseRequestRepository.findPendingByCompanyOrderByRequestedAtDesc(company)).thenReturn(List.of());
+        when(exportApprovalService.listPending()).thenReturn(List.of(
+                new ExportRequestDto(
+                        92L,
+                        9100L,
+                        "ops.reports@bbp.com",
+                        "INVENTORY_LEDGER",
+                        "periodId=11",
+                        null,
+                        null,
+                        Instant.parse("2026-02-13T10:15:00Z"),
+                        null,
+                        null)
+        ));
+
+        ApiResponse<AdminApprovalsResponse> response = controller.approvals();
+
+        assertThat(response.success()).isTrue();
+        assertThat(response.data()).isNotNull();
+        assertThat(response.data().exportRequests()).hasSize(1);
+        assertThat(response.data().exportRequests().get(0).status()).isEqualTo("UNKNOWN");
+    }
+
+    @Test
+    void exportApprovalItem_omitsRequesterIdentityWhenPrivilegedViewHasNoRequesterEmail() {
+        AdminSettingsController controller = new AdminSettingsController(
+                mock(SystemSettingsService.class),
+                mock(EmailService.class),
+                mock(CompanyContextService.class),
+                mock(TenantRuntimePolicyService.class),
+                mock(ExportApprovalService.class),
+                mock(CreditRequestRepository.class),
+                mock(CreditLimitOverrideRequestRepository.class),
+                mock(PeriodCloseRequestRepository.class),
+                mock(PayrollRunRepository.class),
+                null,
+                mock(ModuleGatingService.class)
+        );
+
+        ExportRequestDto request = new ExportRequestDto(
+                93L,
+                9300L,
+                null,
+                "INVENTORY_LEDGER",
+                "periodId=11",
+                ExportApprovalStatus.PENDING,
+                null,
+                Instant.parse("2026-02-13T10:30:00Z"),
+                null,
+                null
+        );
+
+        AdminApprovalItemDto exportApproval = ReflectionTestUtils.invokeMethod(
+                controller,
+                "toExportApprovalItem",
+                request,
+                true
+        );
+
+        assertThat(exportApproval).isNotNull();
+        assertThat(exportApproval.summary()).contains("report INVENTORY_LEDGER");
+        assertThat(exportApproval.summary()).doesNotContain("requested by");
+        assertThat(exportApproval.reportType()).isEqualTo("INVENTORY_LEDGER");
+        assertThat(exportApproval.parameters()).isEqualTo("periodId=11");
+        assertThat(exportApproval.requesterUserId()).isEqualTo(9300L);
+        assertThat(exportApproval.requesterEmail()).isNull();
+    }
+
+    @Test
+    void sensitiveExportApprovalDetails_allowSuperAdminView() {
+        AdminSettingsController controller = new AdminSettingsController(
+                mock(SystemSettingsService.class),
+                mock(EmailService.class),
+                mock(CompanyContextService.class),
+                mock(TenantRuntimePolicyService.class),
+                mock(ExportApprovalService.class),
+                mock(CreditRequestRepository.class),
+                mock(CreditLimitOverrideRequestRepository.class),
+                mock(PeriodCloseRequestRepository.class),
+                mock(PayrollRunRepository.class),
+                null,
+                mock(ModuleGatingService.class)
+        );
+
+        authenticateAs("ROLE_SUPER_ADMIN");
+        try {
+            Boolean includeSensitiveDetails = ReflectionTestUtils.invokeMethod(
+                    controller,
+                    "canViewSensitiveExportApprovalDetails"
+            );
+            assertThat(includeSensitiveDetails).isTrue();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void sensitiveExportApprovalDetails_rejectWhenAuthenticationAuthoritiesMissing() {
+        AdminSettingsController controller = new AdminSettingsController(
+                mock(SystemSettingsService.class),
+                mock(EmailService.class),
+                mock(CompanyContextService.class),
+                mock(TenantRuntimePolicyService.class),
+                mock(ExportApprovalService.class),
+                mock(CreditRequestRepository.class),
+                mock(CreditLimitOverrideRequestRepository.class),
+                mock(PeriodCloseRequestRepository.class),
+                mock(PayrollRunRepository.class),
+                null,
+                mock(ModuleGatingService.class)
+        );
+
+        var authentication = mock(org.springframework.security.core.Authentication.class);
+        when(authentication.getAuthorities()).thenReturn(null);
+        var context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        SecurityContextHolder.setContext(context);
+
+        try {
+            Boolean includeSensitiveDetails = ReflectionTestUtils.invokeMethod(
+                    controller,
+                    "canViewSensitiveExportApprovalDetails"
+            );
+            assertThat(includeSensitiveDetails).isFalse();
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void adminApprovalItemSerialization_keepsStableNullQueueFields() throws Exception {
+        var mapper = JsonMapper.builder().findAndAddModules().build();
+        AdminApprovalItemDto payrollApproval = new AdminApprovalItemDto(
+                AdminApprovalItemDto.OriginType.PAYROLL_RUN,
+                AdminApprovalItemDto.OwnerType.HR,
+                41L,
+                UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+                "PR-41",
+                "PENDING",
+                "Approve payroll run PR-41",
+                null,
+                null,
+                null,
+                null,
+                "APPROVE_PAYROLL_RUN",
+                "Approve payroll run",
+                "/api/v1/payroll/runs/{id}/approve",
+                null,
+                Instant.parse("2026-02-13T11:00:00Z")
+        );
+
+        var json = mapper.readTree(mapper.writeValueAsString(payrollApproval));
+
+        assertThat(json.has("approveEndpoint")).isTrue();
+        assertThat(json.has("rejectEndpoint")).isTrue();
+        assertThat(json.get("rejectEndpoint").isNull()).isTrue();
+        assertThat(json.has("reportType")).isFalse();
+        assertThat(json.has("parameters")).isFalse();
+        assertThat(json.has("requesterUserId")).isFalse();
+        assertThat(json.has("requesterEmail")).isFalse();
+    }
+
+    @Test
+    void adminApprovalItemSerialization_keepsNullExportActionFieldsForAccountingRows() throws Exception {
+        var mapper = JsonMapper.builder().findAndAddModules().build();
+        AdminApprovalItemDto exportApproval = new AdminApprovalItemDto(
+                AdminApprovalItemDto.OriginType.EXPORT_REQUEST,
+                AdminApprovalItemDto.OwnerType.REPORTS,
+                51L,
+                UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+                "EXP-51",
+                ExportApprovalStatus.PENDING.name(),
+                "Review export request EXP-51 for report SALES_SUMMARY",
+                "SALES_SUMMARY",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                Instant.parse("2026-02-13T12:00:00Z")
+        );
+
+        var json = mapper.readTree(mapper.writeValueAsString(exportApproval));
+
+        assertThat(json.has("reportType")).isTrue();
+        assertThat(json.get("reportType").asText()).isEqualTo("SALES_SUMMARY");
+        assertThat(json.has("parameters")).isFalse();
+        assertThat(json.has("requesterUserId")).isFalse();
+        assertThat(json.has("requesterEmail")).isFalse();
+        assertThat(json.has("actionType")).isTrue();
+        assertThat(json.get("actionType").isNull()).isTrue();
+        assertThat(json.has("actionLabel")).isTrue();
+        assertThat(json.get("actionLabel").isNull()).isTrue();
+        assertThat(json.has("approveEndpoint")).isTrue();
+        assertThat(json.get("approveEndpoint").isNull()).isTrue();
+        assertThat(json.has("rejectEndpoint")).isTrue();
+        assertThat(json.get("rejectEndpoint").isNull()).isTrue();
     }
 
     @Test
@@ -386,30 +776,47 @@ class AdminSettingsControllerApprovalsContractTest {
         assertThat(response.data().creditRequests()).hasSize(2);
 
         AdminApprovalItemDto creditApproval = response.data().creditRequests().stream()
-                .filter(item -> "CREDIT_REQUEST".equals(item.type()))
+                .filter(item -> item.originType() == AdminApprovalItemDto.OriginType.CREDIT_REQUEST)
                 .findFirst()
                 .orElseThrow();
         assertThat(creditApproval.reference()).isEqualTo("CR-40");
         assertThat(creditApproval.status()).isEqualTo("UNKNOWN");
+        assertThat(creditApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.SALES);
         assertThat(creditApproval.summary()).contains("for Unknown dealer amount 0");
         assertThat(creditApproval.summary()).contains("(reason: Need urgent raw material)");
 
         AdminApprovalItemDto overrideApproval = response.data().creditRequests().stream()
-                .filter(item -> "CREDIT_LIMIT_OVERRIDE_REQUEST".equals(item.type()))
+                .filter(item -> item.originType() == AdminApprovalItemDto.OriginType.CREDIT_LIMIT_OVERRIDE_REQUEST)
                 .findFirst()
                 .orElseThrow();
         assertThat(overrideApproval.reference()).isEqualTo("CLO-41");
         assertThat(overrideApproval.status()).isEqualTo("UNKNOWN");
+        assertThat(overrideApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.FACTORY);
         assertThat(overrideApproval.summary()).contains("for Unknown dealer");
         assertThat(overrideApproval.summary()).contains("dispatch 0");
         assertThat(overrideApproval.summary()).doesNotContain("requested by");
-        assertThat(overrideApproval.sourcePortal()).isEqualTo("FACTORY_PORTAL");
 
         assertThat(response.data().payrollRuns()).hasSize(1);
         AdminApprovalItemDto payrollApproval = response.data().payrollRuns().get(0);
         assertThat(payrollApproval.reference()).isEqualTo("PR-NULL-STATUS");
         assertThat(payrollApproval.status()).isEqualTo("UNKNOWN");
+        assertThat(payrollApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.PAYROLL_RUN);
+        assertThat(payrollApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.HR);
         assertThat(response.data().periodCloseRequests()).isEmpty();
+    }
+
+    private void authenticateAs(String... authorities) {
+        TestingAuthenticationToken authentication = new TestingAuthenticationToken(
+                "approvals-contract-test",
+                "n/a",
+                Stream.of(authorities)
+                        .map(SimpleGrantedAuthority::new)
+                        .toList()
+        );
+        authentication.setAuthenticated(true);
+        var context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        SecurityContextHolder.setContext(context);
     }
 
     @Test
@@ -473,11 +880,11 @@ class AdminSettingsControllerApprovalsContractTest {
         assertThat(response.data().payrollRuns()).hasSize(1);
 
         AdminApprovalItemDto payrollApproval = response.data().payrollRuns().get(0);
-        assertThat(payrollApproval.type()).isEqualTo("PAYROLL_RUN");
+        assertThat(payrollApproval.originType()).isEqualTo(AdminApprovalItemDto.OriginType.PAYROLL_RUN);
+        assertThat(payrollApproval.ownerType()).isEqualTo(AdminApprovalItemDto.OwnerType.HR);
         assertThat(payrollApproval.reference()).isEqualTo("PR-31");
         assertThat(payrollApproval.summary()).contains("Approve payroll run PR-31");
         assertThat(payrollApproval.actionType()).isEqualTo("APPROVE_PAYROLL_RUN");
-        assertThat(payrollApproval.sourcePortal()).isEqualTo("HR_PORTAL");
         assertThat(response.data().periodCloseRequests()).isEmpty();
     }
 

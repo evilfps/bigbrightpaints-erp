@@ -36,4 +36,7 @@ public interface PackagingSizeMappingRepository extends JpaRepository<PackagingS
                                                                             String packagingSize,
                                                                             RawMaterial rawMaterial,
                                                                             Long id);
+
+    boolean existsByCompanyAndPackagingSizeIgnoreCaseAndActiveTrue(Company company,
+                                                                   String packagingSize);
 }

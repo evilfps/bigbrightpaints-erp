@@ -1,10 +1,14 @@
 package com.bigbrightpaints.erp.modules.inventory.service;
 
 import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
+import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
 import com.bigbrightpaints.erp.modules.accounting.service.CostingMethodService;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -25,12 +29,20 @@ public class InventoryValuationService {
 
     private final FinishedGoodBatchRepository finishedGoodBatchRepository;
     private final CostingMethodService costingMethodService;
+    private final CompanyClock companyClock;
     private final Map<Long, CachedWac> wacCache = new ConcurrentHashMap<>();
 
+    @Autowired
     public InventoryValuationService(FinishedGoodBatchRepository finishedGoodBatchRepository,
-                                     CostingMethodService costingMethodService) {
+                                     CostingMethodService costingMethodService,
+                                     CompanyClock companyClock) {
         this.finishedGoodBatchRepository = finishedGoodBatchRepository;
         this.costingMethodService = costingMethodService;
+        this.companyClock = companyClock;
+    }
+
+    public InventoryValuationService(FinishedGoodBatchRepository finishedGoodBatchRepository) {
+        this(finishedGoodBatchRepository, null, null);
     }
 
     public BigDecimal safeQuantity(BigDecimal value) {
@@ -87,8 +99,7 @@ public class InventoryValuationService {
         if (onHand.compareTo(BigDecimal.ZERO) <= 0) {
             return BigDecimal.ZERO;
         }
-        CostingMethodUtils.FinishedGoodBatchSelectionMethod selectionMethod =
-                CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod(finishedGood.getCostingMethod());
+        CostingMethodUtils.FinishedGoodBatchSelectionMethod selectionMethod = resolveSelectionMethod(finishedGood);
         if (selectionMethod == CostingMethodUtils.FinishedGoodBatchSelectionMethod.WAC) {
             return currentWeightedAverageCost(finishedGood);
         }
@@ -128,18 +139,18 @@ public class InventoryValuationService {
     }
 
     public BigDecimal resolveDispatchUnitCost(FinishedGood finishedGood,
-                                              FinishedGoodBatch batch,
-                                              LocalDate referenceDate) {
+                                              FinishedGoodBatch batch) {
         if (finishedGood == null) {
             return BigDecimal.ZERO;
         }
-        String activeMethod = costingMethodService.resolveActiveMethod(
-                finishedGood.getCompany(),
-                referenceDate).name();
-        if (CostingMethodUtils.isWeightedAverage(activeMethod)) {
+        CostingMethodUtils.FinishedGoodBatchSelectionMethod selectionMethod = resolveSelectionMethod(finishedGood);
+        if (selectionMethod == CostingMethodUtils.FinishedGoodBatchSelectionMethod.WAC) {
             return currentWeightedAverageCost(finishedGood);
         }
-        return batch != null && batch.getUnitCost() != null ? batch.getUnitCost() : BigDecimal.ZERO;
+        if (batch != null && batch.getUnitCost() != null) {
+            return batch.getUnitCost();
+        }
+        return currentWeightedAverageCost(finishedGood);
     }
 
     public void requireNonZeroDispatchCost(FinishedGood finishedGood, BigDecimal unitCost, BigDecimal shippedQuantity) {
@@ -171,6 +182,21 @@ public class InventoryValuationService {
         if (finishedGoodId != null) {
             wacCache.remove(finishedGoodId);
         }
+    }
+
+    private CostingMethodUtils.FinishedGoodBatchSelectionMethod resolveSelectionMethod(FinishedGood finishedGood) {
+        CostingMethod activeMethod = resolveActiveMethod(finishedGood);
+        String method = activeMethod != null ? activeMethod.name() : finishedGood.getCostingMethod();
+        return CostingMethodUtils.resolveFinishedGoodBatchSelectionMethod(method);
+    }
+
+    private CostingMethod resolveActiveMethod(FinishedGood finishedGood) {
+        Company company = finishedGood != null ? finishedGood.getCompany() : null;
+        if (company == null || costingMethodService == null || companyClock == null) {
+            return null;
+        }
+        LocalDate referenceDate = companyClock.today(company);
+        return costingMethodService.resolveActiveMethod(company, referenceDate);
     }
 
     private record CachedWac(BigDecimal cost, long cachedAtMillis) {

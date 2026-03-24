@@ -1,0 +1,48 @@
+{
+  "milestone": "catalog-surface-consolidation",
+  "round": 2,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CatalogServiceBrandCrudTest,CatalogServiceProductCrudTest,CatalogServiceBulkUpsertTest,ProductionCatalogServiceBulkVariantRaceTest,ProductionCatalogServiceRetryPolicyTest,ProductionCatalogFinishedGoodInvariantIT,ProductionCatalogRawMaterialInvariantIT,SalesCoreEngineCoverageTest,SalesProformaBoundaryServiceTest,SalesServiceTest,OpenApiSnapshotIT' test",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "bash /home/realnigga/Desktop/Mission-control/ci/lint-knowledgebase.sh && bash /home/realnigga/Desktop/Mission-control/ci/check-architecture.sh && bash /home/realnigga/Desktop/Mission-control/ci/check-enterprise-policy.sh && bash /home/realnigga/Desktop/Mission-control/ci/check-orchestrator-layer.sh && python3 /home/realnigga/Desktop/Mission-control/scripts/check_flaky_tags.py --tests-root /home/realnigga/Desktop/Mission-control/erp-domain/src/test/java --gate gate-fast && bash /home/realnigga/Desktop/Mission-control/scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 3,
+    "passed": 2,
+    "failed": 1,
+    "failedFeatures": [
+      "catalog-contract-cleanup-and-proof"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "catalog-contract-cleanup-and-proof",
+      "severity": "blocking",
+      "description": "The final packet still includes the out-of-scope valuation test edit in `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeInventoryValuationExecutableCoverageTest.java`, so the cleanup-proof feature remains broader than the mission allows."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "catalog-surface-worker skill",
+      "suggestion": "Clarify that rerun/fix features may continue after an initial targeted baseline failure when the failure is the exact in-scope regression the feature is assigned to repair, provided scoped validators pass after the fix.",
+      "evidence": "The rerun handoff for `catalog-public-surface-retirement` records a Step 1.3 baseline-validation deviation because the first targeted run failed on the exact stale-test regression the rerun was meant to fix, and the worker then repaired it and reran scoped validators successfully.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/catalog-surface-consolidation/scrutiny/synthesis.round1.json"
+}

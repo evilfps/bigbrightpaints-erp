@@ -101,7 +101,7 @@ public class AccrualBadDebtIT extends AbstractIntegrationTest {
         HttpHeaders h = new HttpHeaders();
         h.setBearerAuth(token);
         h.setContentType(MediaType.APPLICATION_JSON);
-        h.set("X-Company-Id", COMPANY_CODE);
+        h.set("X-Company-Code", COMPANY_CODE);
         return h;
     }
 
@@ -204,7 +204,9 @@ public class AccrualBadDebtIT extends AbstractIntegrationTest {
                 "invoiceId", invoice.getId(),
                 "expenseAccountId", badDebtExp.getId(),
                 "amount", new BigDecimal("300.00"),
-                "referenceNumber", "BDE-" + System.currentTimeMillis()
+                "referenceNumber", "BDE-" + System.currentTimeMillis(),
+                "memo", "Admin-approved bad debt write-off",
+                "adminOverride", true
         );
         ResponseEntity<Map> resp = rest.exchange("/api/v1/accounting/bad-debts/write-off",
                 HttpMethod.POST, new HttpEntity<>(payload, headers), Map.class);

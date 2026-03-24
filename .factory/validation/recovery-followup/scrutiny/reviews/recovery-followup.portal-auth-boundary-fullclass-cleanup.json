@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-followup.portal-auth-boundary-fullclass-cleanup",
+  "reviewedAt": "2026-03-09T20:52:02Z",
+  "commitId": "11f13b07",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review passed. Reviewed the worker handoff for commit 11f13b07, validated the reported scope and verification evidence, and checked the committed diff shape for the feature. Updated `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/AuthTenantAuthorityIT.java` so the broad auth-boundary suite matches the current production policy instead of stale assumptions. The HOLD/BLOCKED lifecycle coverage now asserts the controlled `TENANT_LIFECYCLE_RESTRICTED` denial contract for authenticated `/api/v1/auth/me` access, and the super-admin hierarchy sales-target case now asserts the `SUPER_ADMIN_PLATFORM_ONLY` fail-closed contract instead of expecting tenant workflow execution. Added a shared helper for controlled access-denied assertions; no runtime code, endpoints, DTOs, migrations, or request/response shapes changed.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Realigned the stale full-class auth-boundary integration assertions with the already-delivered platform-only super-admin policy and current tenant lifecycle denial behavior. The packet stayed test-only, kept the auth/admin API shapes unchanged, and now verifies fail-closed HOLD/BLOCKED and super-admin tenant-workflow denials without widening any execution rights."
+}

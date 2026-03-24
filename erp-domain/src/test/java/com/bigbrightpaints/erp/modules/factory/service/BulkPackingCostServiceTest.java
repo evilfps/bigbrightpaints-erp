@@ -2,34 +2,30 @@ package com.bigbrightpaints.erp.modules.factory.service;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.factory.dto.BulkPackRequest;
-import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
-import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
+import com.bigbrightpaints.erp.modules.factory.dto.PackagingConsumptionResult;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class BulkPackingCostServiceTest {
 
     @Mock private PackagingMaterialService packagingMaterialService;
@@ -53,58 +49,60 @@ class BulkPackingCostServiceTest {
     }
 
     @Test
-    void consumePackagingMaterials_wacNullAverageFallsBackToBatchUnitCosts() {
-        RawMaterial packaging = new RawMaterial();
-        ReflectionTestUtils.setField(packaging, "id", 901L);
-        packaging.setCompany(company);
-        packaging.setSku("PKG-901");
-        packaging.setCurrentStock(new BigDecimal("10"));
-        packaging.setInventoryAccountId(700L);
-        packaging.setCostingMethod("WAC");
+    void consumePackagingIfRequired_usesPackagingMappingsAndTracksPerLineCosts() {
+        when(packagingMaterialService.consumePackagingMaterial("1L", 3, "PACK-REF"))
+                .thenReturn(new PackagingConsumptionResult(
+                        true,
+                        new BigDecimal("7.00"),
+                        new BigDecimal("3"),
+                        Map.of(700L, new BigDecimal("7.00")),
+                        null));
 
-        RawMaterialBatch batchA = new RawMaterialBatch();
-        ReflectionTestUtils.setField(batchA, "id", 501L);
-        batchA.setBatchCode("PKG-A");
-        batchA.setQuantity(new BigDecimal("2"));
-        batchA.setCostPerUnit(new BigDecimal("1.00"));
-
-        RawMaterialBatch batchB = new RawMaterialBatch();
-        ReflectionTestUtils.setField(batchB, "id", 502L);
-        batchB.setBatchCode("PKG-B");
-        batchB.setQuantity(new BigDecimal("2"));
-        batchB.setCostPerUnit(new BigDecimal("5.00"));
-
-        when(rawMaterialRepository.lockByCompanyAndId(company, 901L)).thenReturn(Optional.of(packaging));
-        when(rawMaterialBatchRepository.findAvailableBatchesFIFO(packaging)).thenReturn(List.of(batchA, batchB));
-        when(rawMaterialBatchRepository.calculateWeightedAverageCost(packaging)).thenReturn(null);
-        when(rawMaterialBatchRepository.deductQuantityIfSufficient(eq(501L),
-                argThat(qty -> qty.compareTo(new BigDecimal("2")) == 0))).thenReturn(1);
-        when(rawMaterialBatchRepository.deductQuantityIfSufficient(eq(502L),
-                argThat(qty -> qty.compareTo(BigDecimal.ONE) == 0))).thenReturn(1);
-        when(rawMaterialMovementRepository.save(any(RawMaterialMovement.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(rawMaterialRepository.save(any(RawMaterial.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        BulkPackCostSummary summary = bulkPackingCostService.consumePackagingMaterials(
+        BulkPackCostSummary summary = bulkPackingCostService.consumePackagingIfRequired(
                 company,
-                List.of(new BulkPackRequest.MaterialConsumption(901L, new BigDecimal("3"), "UNIT")),
+                new BulkPackRequest(
+                        41L,
+                        List.of(new BulkPackRequest.PackLine(901L, new BigDecimal("3"), "1L", "L")),
+                        LocalDate.of(2026, 2, 1),
+                        "packer",
+                        null,
+                        null),
                 "PACK-REF");
 
         assertThat(summary.totalCost()).isEqualByComparingTo("7.00");
         assertThat(summary.accountTotals()).containsEntry(700L, new BigDecimal("7.00"));
+        assertThat(summary.lineCosts()).containsEntry(0, new BigDecimal("7.00"));
+        verify(packagingMaterialService).consumePackagingMaterial("1L", 3, "PACK-REF");
+    }
 
-        ArgumentCaptor<RawMaterialMovement> movementCaptor = ArgumentCaptor.forClass(RawMaterialMovement.class);
-        verify(rawMaterialMovementRepository, times(2)).save(movementCaptor.capture());
-        List<RawMaterialMovement> movements = movementCaptor.getAllValues();
-        assertThat(movements).anySatisfy(movement -> {
-            assertThat(movement.getUnitCost()).isEqualByComparingTo("1.00");
-            assertThat(movement.getQuantity()).isEqualByComparingTo("2");
-        });
-        assertThat(movements).anySatisfy(movement -> {
-            assertThat(movement.getUnitCost()).isEqualByComparingTo("5.00");
-            assertThat(movement.getQuantity()).isEqualByComparingTo("1");
-        });
+    @Test
+    void consumePackagingIfRequired_skipsConsumptionWhenAlreadyConsumedUpstream() {
+        BulkPackCostSummary summary = bulkPackingCostService.consumePackagingIfRequired(
+                company,
+                new BulkPackRequest(
+                        41L,
+                        List.of(new BulkPackRequest.PackLine(901L, new BigDecimal("3"), "1L", "L")),
+                        LocalDate.of(2026, 2, 1),
+                        "packer",
+                        null,
+                        null,
+                        true),
+                "PACK-REF");
+
+        assertThat(summary.totalCost()).isEqualByComparingTo("0.00");
+        assertThat(summary.accountTotals()).isEmpty();
+        assertThat(summary.lineCosts()).isEmpty();
+        verifyNoInteractions(packagingMaterialService);
+    }
+
+    @Test
+    void consumePackagingIfRequired_returnsEmptySummaryWhenRequestMissing() {
+        BulkPackCostSummary summary = bulkPackingCostService.consumePackagingIfRequired(company, null, "PACK-REF");
+
+        assertThat(summary.totalCost()).isEqualByComparingTo("0.00");
+        assertThat(summary.accountTotals()).isEmpty();
+        assertThat(summary.lineCosts()).isEmpty();
+        verifyNoInteractions(packagingMaterialService);
     }
 
     @Test

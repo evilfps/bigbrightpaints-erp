@@ -1,0 +1,21 @@
+{
+  "featureId": "freeze-provenance-views-and-equivalence",
+  "milestone": "freeze-dispatch-seams",
+  "status": "pass",
+  "summary": "Pass: commit 87f21b570ea4ff88a4972d60ef52d75f1dec9c8b adds one truthsuite class with four characterization tests that match the feature's fulfills set. The reviewed coverage exercises navigable slip->invoice->AR journal and slip->COGS provenance, InvoiceService linked references for dispatch-created invoices, pure factory redaction across preview/confirm/slip views, and cross-endpoint replay equivalence between /api/v1/dispatch/confirm and /api/v1/sales/dispatch/confirm. Mission artifacts show compile, focused test execution, and gate-fast all passed with no production-code changes.",
+  "issues": [],
+  "sharedStateObservations": [],
+  "reviewedArtifacts": [
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/AGENTS.md",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/validation-contract.md",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/features.json",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/progress_log.jsonl",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/worker-transcripts.jsonl",
+    "/home/realnigga/.factory/missions/d7e6cd26-f391-4380-bab8-8e9c76f1a3b6/handoffs/2026-03-13T21-56-34-751Z__freeze-provenance-views-and-equivalence__1b946d12-d99d-4423-b7ed-6ea098f43fad.json",
+    "/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2CDispatchProvenanceViewsAndEquivalenceTest.java",
+    "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/controller/DispatchController.java",
+    "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/service/InvoiceService.java",
+    "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesCoreEngine.java",
+    "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/FinishedGoodsDispatchEngine.java"
+  ]
+}

@@ -76,7 +76,7 @@ public class LeaveService {
     public List<LeaveBalanceDto> getLeaveBalances(Long employeeId, Integer year) {
         Company company = companyContextService.requireCurrentCompany();
         Employee employee = companyEntityLookup.requireEmployee(company, employeeId);
-        int targetYear = year != null ? year : LocalDate.now().getYear();
+        int targetYear = year != null ? year : CompanyTime.today(company).getYear();
 
         return leaveTypePolicyRepository.findByCompanyAndActiveTrueOrderByDisplayNameAsc(company)
                 .stream()

@@ -5,6 +5,7 @@ import com.bigbrightpaints.erp.modules.accounting.controller.AccountingControlle
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.service.DealerReceiptService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -27,74 +28,74 @@ class TS_AccountingControllerIdempotencyHeaderParityRuntimeCoverageTest {
 
     @Test
     void recordDealerReceipt_noBodyAndNoHeaders_keepsOriginalRequest() {
-        AccountingService accountingService = mock(AccountingService.class);
-        AccountingController controller = newController(accountingService);
+        DealerReceiptService dealerReceiptService = mock(DealerReceiptService.class);
+        AccountingController controller = newController(dealerReceiptService);
         DealerReceiptRequest request = dealerReceiptRequest(null);
-        when(accountingService.recordDealerReceipt(any())).thenReturn(null);
+        when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
 
         controller.recordDealerReceipt(request, null, null);
 
         ArgumentCaptor<DealerReceiptRequest> captor = ArgumentCaptor.forClass(DealerReceiptRequest.class);
-        verify(accountingService).recordDealerReceipt(captor.capture());
+        verify(dealerReceiptService).recordDealerReceipt(captor.capture());
         assertThat(captor.getValue()).isSameAs(request);
         assertThat(captor.getValue().idempotencyKey()).isNull();
     }
 
     @Test
     void recordDealerReceipt_appliesHeaderKeyWhenBodyMissing() {
-        AccountingService accountingService = mock(AccountingService.class);
-        AccountingController controller = newController(accountingService);
+        DealerReceiptService dealerReceiptService = mock(DealerReceiptService.class);
+        AccountingController controller = newController(dealerReceiptService);
         DealerReceiptRequest request = dealerReceiptRequest(null);
-        when(accountingService.recordDealerReceipt(any())).thenReturn(null);
+        when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
 
         controller.recordDealerReceipt(request, "hdr-001", null);
 
         ArgumentCaptor<DealerReceiptRequest> captor = ArgumentCaptor.forClass(DealerReceiptRequest.class);
-        verify(accountingService).recordDealerReceipt(captor.capture());
+        verify(dealerReceiptService).recordDealerReceipt(captor.capture());
         assertThat(captor.getValue()).isNotSameAs(request);
         assertThat(captor.getValue().idempotencyKey()).isEqualTo("hdr-001");
     }
 
     @Test
     void recordDealerReceipt_bodyPresent_resolveHeaderOnlyReturnsNullAndKeepsRequest() {
-        AccountingService accountingService = mock(AccountingService.class);
-        AccountingController controller = newController(accountingService);
+        DealerReceiptService dealerReceiptService = mock(DealerReceiptService.class);
+        AccountingController controller = newController(dealerReceiptService);
         DealerReceiptRequest request = dealerReceiptRequest("body-001");
-        when(accountingService.recordDealerReceipt(any())).thenReturn(null);
+        when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
 
         controller.recordDealerReceipt(request, "body-001", null);
 
         ArgumentCaptor<DealerReceiptRequest> captor = ArgumentCaptor.forClass(DealerReceiptRequest.class);
-        verify(accountingService).recordDealerReceipt(captor.capture());
+        verify(dealerReceiptService).recordDealerReceipt(captor.capture());
         assertThat(captor.getValue()).isSameAs(request);
         assertThat(captor.getValue().idempotencyKey()).isEqualTo("body-001");
     }
 
     @Test
     void recordDealerReceipt_primaryLegacyMismatch_throwsApplicationException() {
-        AccountingService accountingService = mock(AccountingService.class);
-        AccountingController controller = newController(accountingService);
+        DealerReceiptService dealerReceiptService = mock(DealerReceiptService.class);
+        AccountingController controller = newController(dealerReceiptService);
 
         assertThatThrownBy(() -> controller.recordDealerReceipt(
                 dealerReceiptRequest(null), "hdr-001", "legacy-001"))
                 .isInstanceOf(ApplicationException.class)
                 .hasMessageContaining("Idempotency key mismatch");
-        verifyNoInteractions(accountingService);
+        verifyNoInteractions(dealerReceiptService);
     }
 
     @Test
     void recordDealerReceipt_trimsNonBlankHeaders_andTreatsBlankHeadersAsMissing() {
-        AccountingService accountingService = mock(AccountingService.class);
-        AccountingController controller = newController(accountingService);
+        DealerReceiptService dealerReceiptService = mock(DealerReceiptService.class);
+        AccountingController controller = newController(dealerReceiptService);
         DealerReceiptRequest nonBlankHeaderRequest = dealerReceiptRequest(null);
         DealerReceiptRequest blankHeaderRequest = dealerReceiptRequest(null);
-        when(accountingService.recordDealerReceipt(any())).thenReturn(null);
+        when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
 
         controller.recordDealerReceipt(nonBlankHeaderRequest, "  hdr-trim-001  ", "hdr-trim-001");
         controller.recordDealerReceipt(blankHeaderRequest, "   ", "\t");
 
         ArgumentCaptor<DealerReceiptRequest> captor = ArgumentCaptor.forClass(DealerReceiptRequest.class);
-        verify(accountingService, org.mockito.Mockito.times(2)).recordDealerReceipt(captor.capture());
+        verify(dealerReceiptService, org.mockito.Mockito.times(2)).recordDealerReceipt(captor.capture());
         List<DealerReceiptRequest> captured = captor.getAllValues();
 
         assertThat(captured.get(0)).isNotSameAs(nonBlankHeaderRequest);
@@ -103,9 +104,15 @@ class TS_AccountingControllerIdempotencyHeaderParityRuntimeCoverageTest {
         assertThat(captured.get(1).idempotencyKey()).isNull();
     }
 
-    private AccountingController newController(AccountingService accountingService) {
+    private AccountingController newController(DealerReceiptService dealerReceiptService) {
         return new AccountingController(
-                accountingService,
+                mock(AccountingService.class),
+                null,
+                dealerReceiptService,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,

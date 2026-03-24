@@ -1,0 +1,14 @@
+{
+  "featureId": "o2c-truth.dealer-credit-and-proforma-boundary",
+  "reviewedAt": "2026-03-08T08:00:00+05:30",
+  "commitId": "ec73cef5981f703031e251cff8a9bdd03e1074dd",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature cleanly moves proforma-only concerns into `SalesProformaBoundaryService`, persists explicit payment mode on sales orders, keeps create/update flows commercial-only, and uses shortage-driven factory requirements instead of stock reservation. The reviewed diff and the recorded feature verification cover dealer provisioning continuity, credit posture enforcement, explicit payment modes, no stock/accounting side effects on proforma creation, and shortage-to-production behavior without showing a regression in the touched O2C truth boundary.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "summary": "Pass. Proformas stay commercial-only before dispatch, payment mode is explicit, and shortages now create refreshable production requirements instead of silently reserving stock."
+}

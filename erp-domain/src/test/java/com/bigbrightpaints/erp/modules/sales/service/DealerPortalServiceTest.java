@@ -14,6 +14,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -42,6 +43,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class DealerPortalServiceTest {
 
     @Mock
@@ -198,6 +200,20 @@ class DealerPortalServiceTest {
     }
 
     @Test
+    void getCurrentDealer_deniesWhenAuthenticationIsPresentButNotAuthenticated() {
+        var auth = new UsernamePasswordAuthenticationToken(
+                "dealer@tenant.com",
+                "token",
+                List.of(new SimpleGrantedAuthority("ROLE_DEALER")));
+        auth.setAuthenticated(false);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
+        assertThatThrownBy(() -> dealerPortalService.getCurrentDealer())
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("No authenticated user");
+    }
+
+    @Test
     void getCurrentDealer_deniesWhenPrincipalIdentityIsBlank() {
         var auth = new UsernamePasswordAuthenticationToken(
                 "   ",
@@ -239,6 +255,22 @@ class DealerPortalServiceTest {
         assertThat(dashboard.get("pendingOrderExposure")).isEqualTo(new BigDecimal("300"));
         assertThat(dashboard.get("creditUsed")).isEqualTo(new BigDecimal("850"));
         assertThat(dashboard.get("creditStatus")).isEqualTo("NEAR_LIMIT");
+    }
+
+    @Test
+    void contributesPendingCreditExposure_excludesCashOrders() {
+        SalesOrder cashOrder = new SalesOrder();
+        ReflectionTestUtils.setField(cashOrder, "id", 88L);
+        cashOrder.setStatus("CONFIRMED");
+        cashOrder.setPaymentMode("CASH");
+
+        Boolean contributes = (Boolean) ReflectionTestUtils.invokeMethod(
+                dealerPortalService,
+                "contributesPendingCreditExposure",
+                cashOrder,
+                Set.<Long>of());
+
+        assertThat(contributes).isFalse();
     }
 
     private void authenticate(UserAccount user, String... authorities) {

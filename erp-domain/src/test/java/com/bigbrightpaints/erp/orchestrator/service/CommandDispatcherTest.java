@@ -32,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -235,27 +236,12 @@ class CommandDispatcherTest {
     }
 
     @Test
-    void dispatchBatchFailsClosedWhenFactoryDispatchDisabled() {
-        CommandDispatcher disabledDispatcher = new CommandDispatcher(
-                workflowService,
-                integrationCoordinator,
-                eventPublisherService,
-                traceService,
-                policyEnforcer,
-                idempotencyService,
-                new OrchestratorFeatureFlags(true, false));
-
-        OrchestratorCommand command = new OrchestratorCommand(1L, "ORCH.FACTORY.BATCH.DISPATCH", "idem-2", "hash", "trace-456");
+    void dispatchBatchFailsClosedToCanonicalDispatchPath() {
         DispatchRequest request = new DispatchRequest("77", "orch@bbp.com", new BigDecimal("100"));
-        when(idempotencyService.start(
-                ArgumentMatchers.eq("ORCH.FACTORY.BATCH.DISPATCH"),
-                ArgumentMatchers.eq("idem-2"),
-                ArgumentMatchers.eq(request),
-                ArgumentMatchers.any()))
-                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-456", command, true));
 
-        assertThatThrownBy(() -> disabledDispatcher.dispatchBatch(request, "idem-2", "req-2", "COMP", "user-1"))
-                .isInstanceOf(OrchestratorFeatureDisabledException.class);
+        assertThatThrownBy(() -> commandDispatcher.dispatchBatch(request, "idem-2", "req-2", "COMP", "user-1"))
+                .isInstanceOf(OrchestratorFeatureDisabledException.class)
+                .hasMessageContaining("/api/v1/dispatch/confirm");
 
         verify(integrationCoordinator, never()).updateProductionStatus(ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
         verify(integrationCoordinator, never()).updateProductionStatus(
@@ -269,72 +255,18 @@ class CommandDispatcherTest {
                 ArgumentMatchers.anyString(),
                 ArgumentMatchers.anyString(),
                 ArgumentMatchers.anyString());
-        verify(integrationCoordinator, never()).postDispatchJournal(ArgumentMatchers.anyString(), ArgumentMatchers.anyString(), ArgumentMatchers.any());
-        verify(integrationCoordinator, never()).postDispatchJournal(
-                ArgumentMatchers.anyString(),
-                ArgumentMatchers.anyString(),
-                ArgumentMatchers.any(),
-                ArgumentMatchers.anyString(),
-                ArgumentMatchers.anyString());
-        verify(eventPublisherService).enqueue(ArgumentMatchers.argThat(event ->
-                "OrchestratorCommandDenied".equals(event.eventType())));
-        verify(traceService).record(
-                ArgumentMatchers.eq("trace-456"),
-                ArgumentMatchers.eq("ORCH_COMMAND_DENIED"),
-                ArgumentMatchers.eq("COMP"),
-                ArgumentMatchers.<Map<String, Object>>argThat(map ->
-                        "ORCH.FACTORY.BATCH.DISPATCH".equals(map.get("commandName"))),
-                ArgumentMatchers.eq("req-2"),
-                ArgumentMatchers.eq("idem-2"));
-        verify(idempotencyService).markFailed(ArgumentMatchers.eq(command), ArgumentMatchers.any(RuntimeException.class));
+        verify(policyEnforcer).checkDispatchPermissions("user-1", "COMP");
+        verifyNoInteractions(eventPublisherService, traceService, idempotencyService);
     }
 
     @Test
-    void dispatchBatchDisabledUsesCanonicalLeaseIdempotencyKeyInDeniedAudit() {
-        CommandDispatcher disabledDispatcher = new CommandDispatcher(
-                workflowService,
-                integrationCoordinator,
-                eventPublisherService,
-                traceService,
-                policyEnforcer,
-                idempotencyService,
-                new OrchestratorFeatureFlags(true, false));
+    void dispatchBatchNullRequestStillFailsClosedWithoutSideEffects() {
+        assertThatThrownBy(() -> commandDispatcher.dispatchBatch(null, "idem-null-dispatch", "req-null-dispatch", "COMP", "user-1"))
+                .isInstanceOf(OrchestratorFeatureDisabledException.class)
+                .hasMessageContaining("/api/v1/dispatch/confirm");
 
-        OrchestratorCommand command = new OrchestratorCommand(
-                1L, "ORCH.FACTORY.BATCH.DISPATCH", "idem-denied", "hash", "trace-denied");
-        DispatchRequest request = new DispatchRequest("77", "orch@bbp.com", new BigDecimal("100"));
-        when(idempotencyService.start(
-                ArgumentMatchers.eq("ORCH.FACTORY.BATCH.DISPATCH"),
-                ArgumentMatchers.eq("  idem-denied  "),
-                ArgumentMatchers.eq(request),
-                ArgumentMatchers.any()))
-                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-denied", command, true));
-
-        assertThatThrownBy(() -> disabledDispatcher.dispatchBatch(
-                request,
-                "  idem-denied  ",
-                "req-denied",
-                "COMP",
-                "user-1"))
-                .isInstanceOf(OrchestratorFeatureDisabledException.class);
-
-        ArgumentCaptor<DomainEvent> eventCaptor = ArgumentCaptor.forClass(DomainEvent.class);
-        verify(eventPublisherService).enqueue(eventCaptor.capture());
-        DomainEvent denied = eventCaptor.getValue();
-        assertThat(denied.idempotencyKey()).isEqualTo("idem-denied");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> payload = (Map<String, Object>) denied.payload();
-        assertThat(payload).containsEntry("idempotencyKey", "idem-denied");
-
-        verify(traceService).record(
-                ArgumentMatchers.eq("trace-denied"),
-                ArgumentMatchers.eq("ORCH_COMMAND_DENIED"),
-                ArgumentMatchers.eq("COMP"),
-                ArgumentMatchers.<Map<String, Object>>argThat(map ->
-                        "idem-denied".equals(map.get("idempotencyKey"))
-                                && "ORCH.FACTORY.BATCH.DISPATCH".equals(map.get("commandName"))),
-                ArgumentMatchers.eq("req-denied"),
-                ArgumentMatchers.eq("idem-denied"));
+        verify(policyEnforcer).checkDispatchPermissions("user-1", "COMP");
+        verifyNoInteractions(integrationCoordinator, eventPublisherService, traceService, idempotencyService);
     }
 
     @Test
@@ -392,66 +324,6 @@ class CommandDispatcherTest {
                 ArgumentMatchers.eq("req-3"),
                 ArgumentMatchers.eq("idem-3"));
         verify(idempotencyService).markFailed(ArgumentMatchers.eq(command), ArgumentMatchers.any(RuntimeException.class));
-    }
-
-    @Test
-    void dispatchBatchInvalidPostingAmountMarksFailedAndThrows() {
-        OrchestratorCommand command = new OrchestratorCommand(1L, "ORCH.FACTORY.BATCH.DISPATCH", "idem-invalid-dispatch", "hash", "trace-invalid-dispatch");
-        DispatchRequest request = new DispatchRequest("77", "orch@bbp.com", BigDecimal.ZERO);
-        when(idempotencyService.start(
-                ArgumentMatchers.eq("ORCH.FACTORY.BATCH.DISPATCH"),
-                ArgumentMatchers.eq("idem-invalid-dispatch"),
-                ArgumentMatchers.eq(request),
-                ArgumentMatchers.any()))
-                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-invalid-dispatch", command, true));
-
-        assertThatThrownBy(() -> commandDispatcher.dispatchBatch(request, "idem-invalid-dispatch", "req-invalid-dispatch", "COMP", "user-1"))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("greater than zero for dispatch");
-
-        verify(integrationCoordinator, never()).updateProductionStatus(ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
-        verify(integrationCoordinator, never()).updateProductionStatus(
-                ArgumentMatchers.anyString(),
-                ArgumentMatchers.anyString(),
-                ArgumentMatchers.anyString(),
-                ArgumentMatchers.anyString());
-        verify(integrationCoordinator, never()).releaseInventory(ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
-        verify(integrationCoordinator, never()).releaseInventory(
-                ArgumentMatchers.anyString(),
-                ArgumentMatchers.anyString(),
-                ArgumentMatchers.anyString(),
-                ArgumentMatchers.anyString());
-        verify(integrationCoordinator, never()).postDispatchJournal(ArgumentMatchers.anyString(), ArgumentMatchers.anyString(), ArgumentMatchers.any());
-        verify(idempotencyService).markFailed(
-                ArgumentMatchers.eq(command),
-                ArgumentMatchers.argThat((RuntimeException ex) ->
-                        ex instanceof ApplicationException
-                                && ex.getMessage() != null
-                                && ex.getMessage().contains("greater than zero for dispatch")));
-        verify(idempotencyService, never()).markSuccess(ArgumentMatchers.any());
-    }
-
-    @Test
-    void dispatchBatchNullRequestMarksFailedAndThrows() {
-        OrchestratorCommand command = new OrchestratorCommand(1L, "ORCH.FACTORY.BATCH.DISPATCH", "idem-null-dispatch", "hash", "trace-null-dispatch");
-        when(idempotencyService.start(
-                ArgumentMatchers.eq("ORCH.FACTORY.BATCH.DISPATCH"),
-                ArgumentMatchers.eq("idem-null-dispatch"),
-                ArgumentMatchers.isNull(),
-                ArgumentMatchers.any()))
-                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-null-dispatch", command, true));
-
-        assertThatThrownBy(() -> commandDispatcher.dispatchBatch(null, "idem-null-dispatch", "req-null-dispatch", "COMP", "user-1"))
-                .isInstanceOf(ApplicationException.class)
-                .hasMessageContaining("greater than zero for dispatch");
-
-        verify(idempotencyService).markFailed(
-                ArgumentMatchers.eq(command),
-                ArgumentMatchers.argThat((RuntimeException ex) ->
-                        ex instanceof ApplicationException
-                                && ex.getMessage() != null
-                                && ex.getMessage().contains("greater than zero for dispatch")));
-        verify(idempotencyService, never()).markSuccess(ArgumentMatchers.any());
     }
 
     @Test
@@ -520,64 +392,6 @@ class CommandDispatcherTest {
                                 && ex.getMessage() != null
                                 && ex.getMessage().contains("greater than zero for payroll")));
         verify(idempotencyService, never()).markSuccess(ArgumentMatchers.any());
-    }
-
-    @Test
-    void dispatchBatchDisabledAuditFailureStillMarksFailed() {
-        CommandDispatcher disabledDispatcher = new CommandDispatcher(
-                workflowService,
-                integrationCoordinator,
-                eventPublisherService,
-                traceService,
-                policyEnforcer,
-                idempotencyService,
-                new OrchestratorFeatureFlags(true, false));
-
-        OrchestratorCommand command = new OrchestratorCommand(1L, "ORCH.FACTORY.BATCH.DISPATCH", "idem-dispatch-audit-fail", "hash", "trace-dispatch-audit-fail");
-        DispatchRequest request = new DispatchRequest("77", "orch@bbp.com", new BigDecimal("100"));
-        when(idempotencyService.start(
-                ArgumentMatchers.eq("ORCH.FACTORY.BATCH.DISPATCH"),
-                ArgumentMatchers.eq("idem-dispatch-audit-fail"),
-                ArgumentMatchers.eq(request),
-                ArgumentMatchers.any()))
-                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-dispatch-audit-fail", command, true));
-        doThrow(new RuntimeException("outbox down"))
-                .when(eventPublisherService)
-                .enqueue(ArgumentMatchers.any(DomainEvent.class));
-
-        assertThatThrownBy(() -> disabledDispatcher.dispatchBatch(request, "idem-dispatch-audit-fail", "req-dispatch-audit-fail", "COMP", "user-1"))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("outbox down");
-
-        verify(idempotencyService).markFailed(ArgumentMatchers.eq(command), ArgumentMatchers.any(RuntimeException.class));
-        verify(idempotencyService, never()).markSuccess(ArgumentMatchers.any());
-    }
-
-    @Test
-    void dispatchBatchPropagatesTraceAndIdempotencyToDispatchJournal() {
-        OrchestratorCommand command =
-                new OrchestratorCommand(1L, "ORCH.FACTORY.BATCH.DISPATCH", "idem-dispatch", "hash", "trace-dispatch");
-        DispatchRequest request = new DispatchRequest("77", "orch@bbp.com", new BigDecimal("100"));
-        when(idempotencyService.start(
-                ArgumentMatchers.eq("ORCH.FACTORY.BATCH.DISPATCH"),
-                ArgumentMatchers.eq("idem-dispatch"),
-                ArgumentMatchers.eq(request),
-                ArgumentMatchers.any()))
-                .thenReturn(new OrchestratorIdempotencyService.CommandLease("trace-dispatch", command, true));
-
-        String traceId = commandDispatcher.dispatchBatch(request, "idem-dispatch", "req-dispatch", "COMP", "user-1");
-
-        assertThat(traceId).isEqualTo("trace-dispatch");
-        verify(policyEnforcer).checkDispatchPermissions("user-1", "COMP");
-        verify(integrationCoordinator).updateProductionStatus("77", "COMP", "trace-dispatch", "idem-dispatch");
-        verify(integrationCoordinator).releaseInventory("77", "COMP", "trace-dispatch", "idem-dispatch");
-        verify(integrationCoordinator).postDispatchJournal(
-                "77",
-                "COMP",
-                new BigDecimal("100"),
-                "trace-dispatch",
-                "idem-dispatch");
-        verify(idempotencyService).markSuccess(command);
     }
 
     @Test

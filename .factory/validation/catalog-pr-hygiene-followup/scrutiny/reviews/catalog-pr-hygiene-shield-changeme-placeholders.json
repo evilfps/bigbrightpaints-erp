@@ -1,0 +1,15 @@
+{
+  "featureId": "catalog-pr-hygiene-shield-changeme-placeholders",
+  "reviewedAt": "2026-03-21T10:52:43Z",
+  "commitId": "f55b0a3d1ea49e15404a5b9874e8222bb6c52f94",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Commit f55b0a3d1ea49e15404a5b9874e8222bb6c52f94 stays scoped to the four expected catalog test files and only swaps each class's shared PASSWORD constant to the inert placeholder `changeme`. In all four files, the same PASSWORD constant is still passed to `ensureUser(...)` during seeding and used again in the `/api/v1/auth/login` payload helper, so the seeded login flows remain aligned and the reviewed diff does not touch production code, API contracts, or catalog behavior.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. The reviewed follow-up is limited to the four specified test fixtures, preserves seeded-login alignment by keeping seeding and login on the same PASSWORD constant, and introduces no blocking or non-blocking issues."
+}

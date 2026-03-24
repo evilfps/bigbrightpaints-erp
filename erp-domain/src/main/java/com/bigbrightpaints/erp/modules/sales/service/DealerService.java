@@ -257,8 +257,7 @@ public class DealerService {
     @Transactional
     public Map<String, Object> creditUtilization(Long dealerId) {
         Company company = companyContextService.requireCurrentCompany();
-        Dealer dealer = dealerRepository.findByCompanyAndId(company, dealerId)
-                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Dealer not found"));
+        Dealer dealer = requireDealerForRead(company, dealerId);
 
         BigDecimal outstanding = dealerLedgerService.currentBalance(dealerId);
         BigDecimal pendingOrderExposure = resolvePendingOrderExposure(dealer);
@@ -284,8 +283,7 @@ public class DealerService {
     @Transactional
     public Map<String, Object> agingSummary(Long dealerId) {
         Company company = companyContextService.requireCurrentCompany();
-        Dealer dealer = dealerRepository.findByCompanyAndId(company, dealerId)
-                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Dealer not found"));
+        Dealer dealer = requireDealerForRead(company, dealerId);
 
         LocalDate today = companyClock.today(company);
         List<Invoice> invoices = invoiceRepository.findByCompanyAndDealerOrderByIssueDateDesc(company, dealer);
@@ -350,8 +348,7 @@ public class DealerService {
     @Transactional
     public Map<String, Object> ledgerView(Long dealerId) {
         Company company = companyContextService.requireCurrentCompany();
-        Dealer dealer = dealerRepository.findByCompanyAndId(company, dealerId)
-                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Dealer not found"));
+        Dealer dealer = requireDealerForRead(company, dealerId);
         var entries = dealerLedgerService.entries(dealer);
         BigDecimal running = BigDecimal.ZERO;
         var lines = new ArrayList<Map<String, Object>>();
@@ -476,6 +473,11 @@ public class DealerService {
 
     private DealerPaymentTerms resolvePaymentTerms(DealerPaymentTerms paymentTerms) {
         return paymentTerms == null ? DealerPaymentTerms.NET_30 : paymentTerms;
+    }
+
+    private Dealer requireDealerForRead(Company company, Long dealerId) {
+        return dealerRepository.findByCompanyAndId(company, dealerId)
+                .orElseThrow(() -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Dealer not found"));
     }
 
     private String normalizeOptionalToken(String value) {

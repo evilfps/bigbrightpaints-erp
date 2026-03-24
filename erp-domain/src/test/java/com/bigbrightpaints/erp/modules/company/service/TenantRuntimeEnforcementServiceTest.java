@@ -140,6 +140,19 @@ class TenantRuntimeEnforcementServiceTest {
     }
 
     @Test
+    void snapshot_usesBootstrapReferenceAndConfiguredDefaults_whenPolicyIsUnset() {
+        TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot = service.snapshot("ACME");
+
+        assertThat(snapshot.state()).isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
+        assertThat(snapshot.reasonCode()).isEqualTo("POLICY_ACTIVE");
+        assertThat(snapshot.auditChainId()).isEqualTo("bootstrap");
+        assertThat(snapshot.updatedAt()).isNull();
+        assertThat(snapshot.maxConcurrentRequests()).isEqualTo(3);
+        assertThat(snapshot.maxRequestsPerMinute()).isEqualTo(3);
+        assertThat(snapshot.maxActiveUsers()).isEqualTo(3);
+    }
+
+    @Test
     void holdTenant_rejectsNewRequests_withLockedStatusAndAuditFailure() {
         TenantRuntimeEnforcementService.TenantRuntimeSnapshot holdSnapshot =
                 service.holdTenant("ACME", "compliance_review", "ops@bbp.com");
@@ -177,7 +190,7 @@ class TenantRuntimeEnforcementServiceTest {
         service.holdTenant("ACME", "maintenance_hold", "ops@bbp.com");
         TenantRuntimeEnforcementService.TenantRequestAdmission heldAdmission = service.beginRequest(
                 "ACME",
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/1/tenant-runtime/policy",
                 "PUT",
                 "ops@bbp.com",
                 true);
@@ -186,32 +199,38 @@ class TenantRuntimeEnforcementServiceTest {
         service.blockTenant("ACME", "incident_block", "ops@bbp.com");
         TenantRuntimeEnforcementService.TenantRequestAdmission blockedAdmission = service.beginRequest(
                 "ACME",
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/1/tenant-runtime/policy",
                 "PUT",
                 "ops@bbp.com",
                 true);
         TenantRuntimeEnforcementService.TenantRequestAdmission blockedAdmissionWithContextPath = service.beginRequest(
                 "ACME",
-                "/erp/api/v1/admin/tenant-runtime/policy",
+                "/erp/api/v1/companies/1/tenant-runtime/policy",
                 "PUT",
                 "ops@bbp.com",
                 true);
         TenantRuntimeEnforcementService.TenantRequestAdmission blockedMalformedPrefixAdmission = service.beginRequest(
                 "ACME",
-                "/erpapi/v1/admin/tenant-runtime/policy",
+                "/erpapi/v1/companies/1/tenant-runtime/policy",
                 "PUT",
                 "ops@bbp.com",
                 true);
         TenantRuntimeEnforcementService.TenantRequestAdmission blockedUnprivilegedControl = service.beginRequest(
                 "ACME",
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/1/tenant-runtime/policy",
                 "PUT",
                 "ops@bbp.com",
                 false);
         TenantRuntimeEnforcementService.TenantRequestAdmission blockedPolicyRead = service.beginRequest(
                 "ACME",
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/1/tenant-runtime/policy",
                 "GET",
+                "ops@bbp.com",
+                true);
+        TenantRuntimeEnforcementService.TenantRequestAdmission retiredAdminPath = service.beginRequest(
+                "ACME",
+                "/api/v1/admin/tenant-runtime/policy",
+                "PUT",
                 "ops@bbp.com",
                 true);
         TenantRuntimeEnforcementService.TenantRequestAdmission blockedNonControl = service.beginRequest(
@@ -231,6 +250,8 @@ class TenantRuntimeEnforcementServiceTest {
         assertThat(blockedUnprivilegedControl.statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
         assertThat(blockedPolicyRead.isAdmitted()).isFalse();
         assertThat(blockedPolicyRead.statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(retiredAdminPath.isAdmitted()).isFalse();
+        assertThat(retiredAdminPath.statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
         assertThat(blockedNonControl.isAdmitted()).isFalse();
         assertThat(blockedNonControl.statusCode()).isEqualTo(HttpStatus.FORBIDDEN.value());
         assertThat(blockedNonControl.message()).isEqualTo("Tenant is currently blocked");
@@ -254,7 +275,7 @@ class TenantRuntimeEnforcementServiceTest {
                 "actor@bbp.com");
         TenantRuntimeEnforcementService.TenantRequestAdmission controlAdmission = service.beginRequest(
                 "ACME",
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/1/tenant-runtime/policy",
                 "PUT",
                 "ops@bbp.com",
                 true);
@@ -420,7 +441,7 @@ class TenantRuntimeEnforcementServiceTest {
 
         TenantRuntimeEnforcementService.TenantRequestAdmission controlAdmission = service.beginRequest(
                 "ACME",
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/1/tenant-runtime/policy",
                 "PUT",
                 "ops@bbp.com",
                 true);
@@ -455,7 +476,7 @@ class TenantRuntimeEnforcementServiceTest {
 
         TenantRuntimeEnforcementService.TenantRequestAdmission controlAdmission = service.beginRequest(
                 "ACME",
-                "/api/v1/admin/tenant-runtime/policy",
+                "/api/v1/companies/1/tenant-runtime/policy",
                 "PUT",
                 "ops@bbp.com",
                 true);
@@ -691,7 +712,7 @@ class TenantRuntimeEnforcementServiceTest {
                 "actor@bbp.com");
         TenantRuntimeEnforcementService.TenantRequestAdmission controlTrailingSlashAllowed = service.beginRequest(
                 "ACME",
-                "/api/v1/admin/tenant-runtime/policy///",
+                "/api/v1/companies/1/tenant-runtime/policy///",
                 "PUT",
                 "ops@bbp.com",
                 true);
@@ -714,7 +735,8 @@ class TenantRuntimeEnforcementServiceTest {
         assertThat(invokeIsPolicyControlRequest("/api/v1/admin/tenant-runtime/policy", null, true)).isFalse();
         assertThat(invokeIsPolicyControlRequest("/api/v1/admin/tenant-runtime/policy", "PATCH", true)).isFalse();
         assertThat(invokeIsPolicyControlRequest("/", "PUT", true)).isFalse();
-        assertThat(invokeIsPolicyControlRequest("/api/v1/admin/tenant-runtime/policy///", " put ", true)).isTrue();
+        assertThat(invokeIsPolicyControlRequest("/api/v1/admin/tenant-runtime/policy///", " put ", true)).isFalse();
+        assertThat(invokeIsPolicyControlRequest("/api/v1/companies/1/tenant-runtime/policy///", " put ", true)).isTrue();
     }
 
     @Test
@@ -854,7 +876,7 @@ class TenantRuntimeEnforcementServiceTest {
         assertThat(invokeParsePositiveInt("0", 5)).isEqualTo(5);
         assertThat(invokeParsePositiveInt("bad", 5)).isEqualTo(5);
 
-        assertThat(invokeParseInstantOrNow("bad-instant")).isEqualTo(Instant.parse("2026-01-01T00:00:10Z"));
+        assertThat(invokeParseInstantOrNull("bad-instant")).isNull();
         Object missingPolicy = ReflectionTestUtils.invokeMethod(service, "loadPersistedPolicy", "   ");
         assertThat(missingPolicy).isNull();
     }
@@ -1149,9 +1171,7 @@ class TenantRuntimeEnforcementServiceTest {
         return value;
     }
 
-    private Instant invokeParseInstantOrNow(String rawValue) {
-        Instant value = ReflectionTestUtils.invokeMethod(service, "parseInstantOrNow", rawValue);
-        assertThat(value).isNotNull();
-        return value;
+    private Instant invokeParseInstantOrNull(String rawValue) {
+        return ReflectionTestUtils.invokeMethod(service, "parseInstantOrNull", rawValue);
     }
 }

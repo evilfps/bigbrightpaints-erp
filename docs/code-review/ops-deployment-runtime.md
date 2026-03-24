@@ -115,7 +115,7 @@ Current session evidence matches that split:
 Health composition in `application-prod.yml` is substantial:
 
 - `liveness`: `livenessState`, `ping`, `diskSpace`
-- `readiness`: `readinessState`, `db`, `rabbit`, `diskSpace`, `requiredConfig`, `configuration`, `dispatchMapping`
+- `readiness`: `readinessState`, `db`, `rabbit`, `diskSpace`, `requiredConfig`, `configuration`
 
 That gives ops useful fail-closed signals for missing secrets, missing dispatch-account wiring, and company/accounting bootstrap problems, but two constraints matter:
 
@@ -163,7 +163,7 @@ The biggest structural blast-radius issue is that the repository's default deplo
 - Persistent volumes exist for Postgres and RabbitMQ, so container recreation does not automatically wipe database or broker state.
 - `EventPublisherService` + `OutboxPublisherJob` provide durable outbox retries, dead-letter accounting, and ShedLock-backed publish coordination.
 - `EnterpriseAuditTrailService` maintains retry queues for business-audit persistence.
-- Readiness includes `requiredConfig`, `configuration`, and `dispatchMapping`, so missing runtime prerequisites can fail closed before operators trust the node.
+- Readiness includes `requiredConfig` and `configuration`, so missing runtime prerequisites can fail closed before operators trust the node.
 
 ### Recovery limits and assumptions
 

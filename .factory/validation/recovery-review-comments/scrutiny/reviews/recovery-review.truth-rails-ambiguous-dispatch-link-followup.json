@@ -1,0 +1,15 @@
+{
+  "featureId": "recovery-review.truth-rails-ambiguous-dispatch-link-followup",
+  "reviewedAt": "2026-03-11T11:40:00+05:30",
+  "commitId": "09af399193b24d1ff5247d24ea50206fda12bf3f",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Manual scrutiny review confirmed the ambiguous-dispatch follow-up remains present on the propagated branch in the reachable descendant commit `09af399193b24d1ff5247d24ea50206fda12bf3f` (`fix(invoice): enforce single-slip gate before order-level invoice marker writes`). The narrowed `InvoiceService`/`InvoiceServiceTest` diff still implements the requested fail-closed behavior: dispatch references are withheld unless a concrete single-slip invoice link exists, so ambiguous legacy multi-slip shapes cannot overstate provenance.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Ambiguous invoice-to-dispatch linkage remains fail-closed on branch-reachable commit `09af399193b24d1ff5247d24ea50206fda12bf3f`, with focused `InvoiceService` and regression-test changes only."
+}
