@@ -1,7 +1,7 @@
 # Endpoint Inventory (OpenAPI)
 
 Source: `openapi.json`
-Updated: 2026-03-23
+Updated: 2026-03-24
 
 Related behavior contract:
 - `docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md`
@@ -15,7 +15,7 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `56d76e272e9f5e5a8088e868b58a0a71c9b7ead31ea77afa7e7df4b84ba5337b`)
+- OpenAPI snapshot: `openapi.json` (sha256 `5bed28bb5316752ced2c565502790633615b7419fb6af4ebc5c7813b3d0e3fe1`)
 - OpenAPI total paths: `295`
 - OpenAPI total operations: `349`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
