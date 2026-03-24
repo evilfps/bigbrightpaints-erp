@@ -1,5 +1,14 @@
 # Migration Runbook
 
+## 2026-03-24 — `migration_v2/V166__opening_stock_batch_key_contract_alignment.sql`
+
+- **Purpose:** align the v2 migration track with the already-merged ERP-36 opening-stock hard cut by rewriting legacy replay-backed rows onto the explicit `opening_stock_batch_key` contract, preserving newer v2 rows that already use batch keys, and dropping the obsolete `replay_protection_key`.
+- **Forward plan:** apply `V166__opening_stock_batch_key_contract_alignment.sql` after the existing `V46`/`V47` opening-stock migrations, verify every `opening_stock_imports` row now has a non-null batch key, confirm any collision cleanup preferred newer `replay_protection_key IS NULL` rows over legacy rows, then keep the ERP-36 hard-cut backend build live because it already serves the non-null batch-key contract.
+- **Dry-run commands:**
+  - `mvn -f "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-36-strict-cleanup-followup/erp-domain/pom.xml" -s "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-36-strict-cleanup-followup/erp-domain/.mvn/settings.xml" -Djacoco.skip=true -Dtest=com.bigbrightpaints.erp.truthsuite.inventory.TS_OpeningStockBatchKeyV2MigrationContractTest test`
+  - `cd "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-36-strict-cleanup-followup" && bash ci/check-enterprise-policy.sh`
+- **Rollback strategy:** treat `V166` as forward-only once executed against a tenant database because it rewrites historical batch keys and drops replay-protection data. If rollout must be abandoned after execution, keep a hard-cut-compatible backend deployed and restore the tenant from a pre-`V166` snapshot/PITR before attempting any broader ERP-36 rollback.
+
 ## 2026-03-24 — `migration_v2/V165__pause_hr_payroll_module.sql`
 
 - **Purpose:** default `HR_PAYROLL` off for new tenants and remove it from existing tenant `enabled_modules` so ERP-33 can hard-cut payroll/admin/portal/orchestrator HR surfaces behind the canonical tenant module gate.

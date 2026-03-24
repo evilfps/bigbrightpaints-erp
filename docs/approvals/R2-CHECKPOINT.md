@@ -1,52 +1,49 @@
 # R2 Checkpoint
 
 ## Scope
-- Feature: `ERP-33 pause HR/payroll behind tenant module gate`
-- PR: `#135`
-- PR branch: `erp-33-pause-hr-payroll-module`
-- Review candidate: hard-cut `HR_PAYROLL` behind the tenant module gate while refreshing the branch onto latest `main` and preserving the reviewed pause behavior.
-- Why this is R2: this packet changes tenant-scoped module-gated runtime surfaces, admin approval routing, payroll/accounting month-end behavior, portal/orchestrator HR visibility, and a `migration_v2` schema change that auto-pauses existing tenants.
+- Feature: `ERP-36 opening-stock v2 contract alignment`
+- PR: `#139`
+- PR branch: `fix/erp-36-v2-migration-followup`
+- Review candidate: add `migration_v2/V166__opening_stock_batch_key_contract_alignment.sql` so v2 tenants get the same opening-stock batch-key hard cut already merged on the primary migration track, while preserving any newer v2 rows already written with explicit batch keys.
+- Why this is R2: this packet rewrites durable opening-stock import history for existing v2 tenants, tightens the replay/idempotency contract to the non-null batch-key model, and drops the legacy `replay_protection_key` column after the backfill.
 
 ## Risk Trigger
-- Triggered by changes under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/`, `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/`, and `erp-domain/src/main/resources/db/migration_v2/V165__pause_hr_payroll_module.sql`.
-- Contract surfaces affected: `GET /api/v1/admin/approvals`, `/api/v1/payroll/**`, `/api/v1/accounting/payroll/**`, `/api/v1/portal/workforce`, portal dashboard HR metrics, orchestrator admin/health HR snapshots, and accounting period-close diagnostics that previously counted payroll backlog.
-- Failure mode if wrong: paused tenants can still see or act on payroll surfaces, month-end close can be blocked by stranded payroll diagnostics, or rollback/re-enable can leave tenant module state inconsistent across existing companies.
+- Triggered by changes under `erp-domain/src/main/resources/db/migration_v2/V166__opening_stock_batch_key_contract_alignment.sql`, `docs/runbooks/migrations.md`, and `docs/runbooks/rollback.md`.
+- Contract surfaces affected: the v2 `opening_stock_imports` persistence contract used by `OpeningStockImportService`, the opening-stock replay/idempotency path keyed by `opening_stock_batch_key`, and import-history rows that previously depended on `replay_protection_key`.
+- Failure mode if wrong: legacy v2 tenants can reject valid replays after the ERP-36 hard cut, duplicate batch-key collisions can be resolved against the wrong row, or rollback attempts can strand tenants on a schema/runtime mismatch.
 
 ## Approval Authority
 - Mode: human
 - Approver: `Anas ibn Anwar`
 - Canary owner: `Anas ibn Anwar`
 - Approval status: `pending green CI and explicit merge approval`
-- Basis: resolved review threads on PR `#135`, refreshed merge from latest `main`, focused local unit/integration proof on Colima-backed Testcontainers, and explicit acceptance of the hard-cut decision to hide paused payroll approvals until super-admin re-enables the module.
+- Basis: explicit user direction to fix the missing v2 migration follow-up, local proof on the new truth-suite guard, and scope-limited runbook/R2 evidence showing this is a forward-only parity migration for already-merged ERP-36 runtime code.
 
 ## Escalation Decision
 - Human escalation required: yes
-- Reason: this packet changes tenant runtime gating plus schema-driven default behavior for existing tenants, so merge remains gated on explicit human approval after CI settles on PR `#135`.
+- Reason: this packet mutates existing tenant inventory-import history on the `migration_v2` track and removes legacy replay data, so merge stays gated on explicit human approval once CI is green on PR `#139`.
 
 ## Rollback Owner
 - Owner: `Anas ibn Anwar`
-- Rollback method: revert PR `#135` (including merge-refresh follow-ups through `e97ceaaa`), redeploy the prior backend build, then follow the `erp-33.pause-hr-payroll-module` rollback entry in `docs/runbooks/rollback.md` to restore the pre-pause module default and tenant enablement state.
+- Rollback method: if this packet must be abandoned before rollout, revert PR `#139`; if `V166` has already executed for a tenant, keep the ERP-36 hard-cut backend active and restore that tenant from a pre-`V166` snapshot/PITR before attempting any broader ERP-36 revert, following the `erp-36.opening-stock-v2-contract-alignment` entry in `docs/runbooks/rollback.md`.
 - Rollback trigger:
-  - paused tenants can still access payroll, accounting-payroll, workforce, or orchestrator HR surfaces
-  - paused tenants lose the documented super-admin re-enable recovery path
-  - period close still counts payroll unposted/unlinked backlog after the hard cut
-  - the migration leaves tenant `enabled_modules` defaults or existing rows inconsistent after rollback
+  - opening-stock imports on v2 tenants start rejecting legitimate idempotent replays after the cutover
+  - post-merge v2 rows with explicit batch keys are renamed or invalidated by the backfill/dedupe pass
+  - operators need the dropped `replay_protection_key` data to diagnose or revert a tenant-specific incident
+  - migration execution reveals tenant data that cannot be normalized safely under the new unique batch-key contract
 
 ## Expiry
 - Valid until: `2026-03-31`
-- Re-evaluate if: PR `#135` head changes beyond commit `e97ceaaa`, CI reruns against a materially different candidate, or scope expands beyond the ERP-33 payroll-pause hard-cut and branch-refresh packet.
+- Re-evaluate if: PR `#139` head changes beyond commit `ec9673c6`, CI reruns against a materially different candidate, or scope expands beyond the v2 opening-stock contract-alignment packet.
 
 ## Verification Evidence
-- Branch refresh proof:
-  - `cd "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-33-merge-fix" && git merge origin/main`
-  - result: merge refresh applied on top of reviewed ERP-33 changes; remote PR head updated to `e97ceaaa`
-- Focused ERP-33 merge-validation proof:
-  - `cd "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-33-merge-fix/erp-domain" && DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn clean -Dtest=AccountingPeriodServiceTest,IntegrationCoordinatorTest,ModuleGatingInterceptorTest,ModuleGatingServiceTest,AdminSettingsControllerApprovalsContractTest,AdminSettingsControllerTenantRuntimeContractTest,AdminApprovalRbacIT,HrPayrollModulePauseIT test`
-  - result: `BUILD SUCCESS`
-- Policy / review proof:
-  - PR review threads on `#135` were checked after refresh and all review threads were confirmed resolved
-  - local secret scan over staged merge-freshness diff found no credential/private-key patterns before commit/push
+- Commands run:
+  - `mvn -f "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-36-strict-cleanup-followup/erp-domain/pom.xml" -s "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-36-strict-cleanup-followup/erp-domain/.mvn/settings.xml" -Djacoco.skip=true -Dtest=com.bigbrightpaints.erp.truthsuite.inventory.TS_OpeningStockBatchKeyV2MigrationContractTest test`
+  - `cd "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-36-strict-cleanup-followup" && bash ci/check-enterprise-policy.sh`
+- Result summary:
+  - targeted truth-suite proof passed locally for the new `migration_v2` contract guard
+  - `bash ci/check-enterprise-policy.sh` passed locally after the R2 packet and migration/rollback runbooks were refreshed in-tree
 - Artifacts/links:
-  - PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/135`
-  - Head commit: `e97ceaaa`
-  - Worktree: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-33-merge-fix`
+  - PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/139`
+  - Head commit: `ec9673c6`
+  - Worktree: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-36-strict-cleanup-followup`

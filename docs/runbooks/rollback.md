@@ -1,5 +1,12 @@
 # Rollback Runbook
 
+## 2026-03-24 — `erp-36.opening-stock-v2-contract-alignment`
+
+- **Scope:** revert `migration_v2/V166__opening_stock_batch_key_contract_alignment.sql` and the v2 parity fix that rewrites legacy `opening_stock_imports` rows onto `opening_stock_batch_key`, enforces the non-null batch-key uniqueness contract, and removes `replay_protection_key`.
+- **Application rollback:** do not redeploy a pre-hard-cut opening-stock build against a database that has already applied `V166`. Keep the ERP-36 batch-key backend active, or pair any broader ERP-36 app rollback with a pre-`V166` database restore.
+- **Database rollback:** restore the affected tenant/database from a snapshot or point-in-time backup taken before `V166`. Ad hoc SQL rollback is intentionally unsupported because `V166` rewrites historical batch keys and drops replay fingerprints that cannot be reconstructed losslessly after the fact.
+- **Verification:** after restore, confirm the old schema/runtime pair together by rerunning the pre-ERP-36 opening-stock replay regression packet before reopening traffic; if rollback is aborted and the tenant stays on the hard-cut build, rerun `mvn -f "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-36-strict-cleanup-followup/erp-domain/pom.xml" -s "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-36-strict-cleanup-followup/erp-domain/.mvn/settings.xml" -Djacoco.skip=true -Dtest=com.bigbrightpaints.erp.truthsuite.inventory.TS_OpeningStockBatchKeyV2MigrationContractTest test` to confirm the forward-compatible migration evidence still holds.
+
 ## 2026-03-24 — `erp-33.pause-hr-payroll-module`
 
 - **Scope:** revert `migration_v2/V165__pause_hr_payroll_module.sql` and the ERP-33 hard-cut runtime behavior that removes `HR_PAYROLL` from tenant defaults/existing companies while hiding payroll/admin/portal/orchestrator HR surfaces behind the module gate.
