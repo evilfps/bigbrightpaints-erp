@@ -23,7 +23,7 @@
         {
           "action": "Run the milestone-aligned dealer-settlement command and inspect the O2C invariant settlement path.",
           "expected": "Dealer settlement should stay header-level, support explicit FIFO/default allocation handling plus FUTURE_APPLICATION carry, and replay without duplicate allocations or journals.",
-          "observed": "`CR_DealerReceiptSettlementAuditTrailTest` passed inside the 47-test settlement/control run, including `dealerSettlement_isIdempotent_underConcurrency_andRejectsMismatch` and `dealerSettlement_headerLevelFutureApplication_replaysWithoutDuplicateAllocations`. The test proved replay reuses the same journal id, preserves a single invoice-allocation row, and records a second `FUTURE_APPLICATION` row instead of duplicating allocations. `ErpInvariantsSuiteIT` also passed its `/api/v1/accounting/settlements/dealers` path, returning a dealer-settlement journal that stayed balanced and replayed to the same journal id." 
+          "observed": "`CR_DealerReceiptSettlementAuditTrailTest` passed inside the 47-test settlement/control run, including `dealerSettlement_isIdempotent_underConcurrency_andRejectsMismatch` and `dealerSettlement_headerLevelFutureApplication_replaysWithoutDuplicateAllocations`. The test proved replay reuses the same journal id, preserves a single invoice-allocation row, and records a second `FUTURE_APPLICATION` row instead of duplicating allocations. `ErpInvariantsSuiteIT` also passed its `/api/v1/accounting/settlements/dealers` path, returning a dealer-settlement journal that stayed balanced and replayed to the same journal id."
         }
       ],
       "evidence": {
@@ -78,7 +78,7 @@
         {
           "action": "Run focused manual-journal validation and audit-metadata tests, then confirm replay-safe manual posting behavior.",
           "expected": "Manual journals should reject missing reasons, carry attachment/audit metadata through the posting surface, and remain explicit `MANUAL` adjustments instead of hidden workflow glue.",
-          "observed": "The targeted 2-test command passed: `AccountingServiceStandardJournalTest#createManualJournal_requiresReason` rejected blank reason text with `Manual journal reason is required`, and `AccountingComplianceAuditServiceTest#recordJournalCreation_manualJournal_flagsSensitiveOperation` recorded `MANUAL_JOURNAL_CREATED` with `sensitiveOperation=true`, `journalSource=MANUAL`, and before/after state metadata. The broader settlement/control run also passed `CR_ManualJournalSafetyTest`, whose concurrency and retry cases proved manual journals are persisted as `JournalEntryType.MANUAL` / `sourceModule=MANUAL`, remain balanced, and do not leave orphan mappings on retry." 
+          "observed": "The targeted 2-test command passed: `AccountingServiceStandardJournalTest#createManualJournal_requiresReason` rejected blank reason text with `Manual journal reason is required`, and `AccountingComplianceAuditServiceTest#recordJournalCreation_manualJournal_flagsSensitiveOperation` recorded `MANUAL_JOURNAL_CREATED` with `sensitiveOperation=true`, `journalSource=MANUAL`, and before/after state metadata. The broader settlement/control run also passed `CR_ManualJournalSafetyTest`, whose concurrency and retry cases proved manual journals are persisted as `JournalEntryType.MANUAL` / `sourceModule=MANUAL`, remain balanced, and do not leave orphan mappings on retry."
         }
       ],
       "evidence": {
@@ -111,7 +111,7 @@
         {
           "action": "Run the policy test suite for maker-checker close control and inspect the closed-period exception service.",
           "expected": "Direct period close should be blocked in favor of maker-checker approval, approvals should require admin authority and reason, and closed-period posting exceptions should be per-document, mandatory-reason, one-hour grants.",
-          "observed": "`AccountingPeriodServicePolicyTest` passed all 14 policy cases inside the 47-test run. `closePeriod_requiresApprovedMakerCheckerRequestForOpenPeriod` and the locked-period variant both rejected direct close with `submit /request-close and approve`, `approvePeriodClose_allowsLockedToClosedWhenReasonProvided` completed the approved path, `approvePeriodClose_requiresAdminRole` rejected non-admin approval, and `reopenPeriod_requiresReasonForClosedPeriod` enforced reason capture. The current closed-period exception service ties authorization to admin or super-admin actors, normalizes `documentType`, `documentReference`, and `reason`, and persists `expiresAt = now + 1 hour` per document." 
+          "observed": "`AccountingPeriodServicePolicyTest` passed all 14 policy cases inside the 47-test run. `closePeriod_requiresApprovedMakerCheckerRequestForOpenPeriod` and the locked-period variant both rejected direct close with `submit /request-close and approve`, `approvePeriodClose_allowsLockedToClosedWhenReasonProvided` completed the approved path, `approvePeriodClose_requiresAdminRole` rejected non-admin approval, and `reopenPeriod_requiresReasonForClosedPeriod` enforced reason capture. The current closed-period exception service ties authorization to admin or super-admin actors, normalizes `documentType`, `documentReference`, and `reason`, and persists `expiresAt = now + 1 hour` per document."
         }
       ],
       "evidence": {
@@ -138,7 +138,7 @@
         {
           "action": "Run the settlement-override policy tests and inspect the immutable audit metadata behavior.",
           "expected": "Out-of-policy settlement overrides should fail closed without approval, require the correct reason code and stable audit metadata, and only proceed when a scoped approval is present.",
-          "observed": "`InvoiceSettlementPolicyTest` passed all 11 cases in the settlement/control run. The suite proved `settlementOverrideFailsClosedWhenApprovalIsMissing`, `settlementOverrideRequiresOverrideReasonCode`, `settlementOverrideAppliesWhenApproved`, and `settlementApprovalMetadataRequiresSourceKey`. These checks required a `SETTLEMENT_OVERRIDE` approval record, rejected blank reference/metadata, and preserved immutable audit metadata for the approved business exception." 
+          "observed": "`InvoiceSettlementPolicyTest` passed all 11 cases in the settlement/control run. The suite proved `settlementOverrideFailsClosedWhenApprovalIsMissing`, `settlementOverrideRequiresOverrideReasonCode`, `settlementOverrideAppliesWhenApproved`, and `settlementApprovalMetadataRequiresSourceKey`. These checks required a `SETTLEMENT_OVERRIDE` approval record, rejected blank reference/metadata, and preserved immutable audit metadata for the approved business exception."
         }
       ],
       "evidence": {

@@ -56,7 +56,7 @@ BEGIN
     SELECT COUNT(*) INTO inv_count FROM sales_orders WHERE fulfillment_invoice_id IS NOT NULL;
     SELECT COUNT(*) INTO sales_je_count FROM sales_orders WHERE sales_journal_entry_id IS NOT NULL;
     SELECT COUNT(*) INTO cogs_je_count FROM sales_orders WHERE cogs_journal_entry_id IS NOT NULL;
-    
+
     RAISE NOTICE 'Backfill complete: % orders with invoice, % with sales journal, % with COGS journal',
         inv_count, sales_je_count, cogs_je_count;
 END $$;

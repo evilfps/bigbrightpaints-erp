@@ -10,6 +10,19 @@ Last reviewed: 2026-03-07
 - **CI integration**: Formatting check runs automatically during `verify` phase
 - **Style**: Google Java Format with import ordering (java, javax, org, com, com.bigbrightpaints)
 
+## Pre-commit Hooks
+
+- **Setup**: `pip install pre-commit && pre-commit install`
+- **Run manually**: `pre-commit run --all-files`
+- **Hooks configured**:
+  - Spotless format check (Java)
+  - Checkstyle (Java)
+  - Maven compile (syntax validation)
+  - Trailing whitespace, file endings
+  - YAML/JSON syntax checks
+  - Markdown linting
+  - Shell script linting (scripts/, ci/)
+
 ## Review Guidelines (Required)
 
 - Use `Factory-droid` as the integration base for remediation packet review unless a packet explicitly states a narrower stacked-review base.

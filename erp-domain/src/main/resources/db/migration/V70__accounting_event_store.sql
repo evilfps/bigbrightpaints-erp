@@ -11,27 +11,27 @@ CREATE TABLE IF NOT EXISTS accounting_events (
     sequence_number BIGINT NOT NULL,
     event_timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     effective_date DATE NOT NULL,
-    
+
     -- Denormalized for efficient queries
     account_id BIGINT,
     account_code VARCHAR(50),
     journal_entry_id BIGINT,
     journal_reference VARCHAR(100),
-    
+
     -- Amount tracking
     debit_amount NUMERIC(19, 4),
     credit_amount NUMERIC(19, 4),
     balance_before NUMERIC(19, 4),
     balance_after NUMERIC(19, 4),
-    
+
     -- Audit fields
     description VARCHAR(500),
     user_id VARCHAR(100),
     correlation_id UUID,
     payload TEXT,
-    
+
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
+
     CONSTRAINT uk_aggregate_sequence UNIQUE (aggregate_id, sequence_number)
 );
 

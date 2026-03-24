@@ -23,7 +23,7 @@
         {
           "action": "Run the linked-sales-return suites and inspect the invariant API flow.",
           "expected": "Sales return should preview impact from the original invoice, block over-return, post linked reversal truth, and restock inventory without mutating the source invoice in place.",
-          "observed": "The 31-test corrections command passed `SalesReturnServiceTest`, `PurchaseInvoiceEngineLifecycleTest`, `PurchaseReturnIdempotencyRegressionIT`, and `ErpInvariantsSuiteIT`. `SalesReturnServiceTest` covered `previewReturn_reportsLinkedImpactBeforePosting`, `processReturn_postsSalesAndCogsJournals`, `processReturn_rejectsWhenPriorReturnsExceedInvoiceQuantity`, and `processReturn_replaySkipsRestockAndReusesAccountingReplay`. `ErpInvariantsSuiteIT` exercised the live `/api/v1/accounting/sales/returns/preview` and `/api/v1/accounting/sales/returns` endpoints, then verified the posted sales-return journal exists, the returned quantity is restocked exactly once, and every return movement links back to the correction journal id." 
+          "observed": "The 31-test corrections command passed `SalesReturnServiceTest`, `PurchaseInvoiceEngineLifecycleTest`, `PurchaseReturnIdempotencyRegressionIT`, and `ErpInvariantsSuiteIT`. `SalesReturnServiceTest` covered `previewReturn_reportsLinkedImpactBeforePosting`, `processReturn_postsSalesAndCogsJournals`, `processReturn_rejectsWhenPriorReturnsExceedInvoiceQuantity`, and `processReturn_replaySkipsRestockAndReusesAccountingReplay`. `ErpInvariantsSuiteIT` exercised the live `/api/v1/accounting/sales/returns/preview` and `/api/v1/accounting/sales/returns` endpoints, then verified the posted sales-return journal exists, the returned quantity is restocked exactly once, and every return movement links back to the correction journal id."
         }
       ],
       "evidence": {
@@ -51,7 +51,7 @@
         {
           "action": "Validate the dedicated correction endpoints and the invariant credit-note flow tied back to the original invoice.",
           "expected": "Customer correction outcomes should use explicit note/return surfaces rather than hidden manual-journal repair, and the resulting correction must stay linked to the source invoice.",
-          "observed": "`ErpInvariantsSuiteIT` passed `orderToCash_creditNoteReversesInvoice`, which drove `POST /api/v1/accounting/credit-notes` from a dispatched invoice and verified the created credit-note journal linked back through `reversalOf` to the original invoice journal while zeroing the invoice outstanding balance. The milestone-aligned controller surface also exposes dedicated `POST /api/v1/accounting/credit-notes`, `POST /api/v1/accounting/debit-notes`, `POST /api/v1/accounting/sales/returns/preview`, and `POST /api/v1/accounting/sales/returns` endpoints, keeping note/return corrections explicit instead of silently mutating posted documents." 
+          "observed": "`ErpInvariantsSuiteIT` passed `orderToCash_creditNoteReversesInvoice`, which drove `POST /api/v1/accounting/credit-notes` from a dispatched invoice and verified the created credit-note journal linked back through `reversalOf` to the original invoice journal while zeroing the invoice outstanding balance. The milestone-aligned controller surface also exposes dedicated `POST /api/v1/accounting/credit-notes`, `POST /api/v1/accounting/debit-notes`, `POST /api/v1/accounting/sales/returns/preview`, and `POST /api/v1/accounting/sales/returns` endpoints, keeping note/return corrections explicit instead of silently mutating posted documents."
         }
       ],
       "evidence": {
@@ -77,7 +77,7 @@
         {
           "action": "Run the purchase-return regression suite and the invariant purchase-return API flow.",
           "expected": "Purchase return should preview and post from the original purchase, block over-return, reuse replay results, and leave linked reversal metadata instead of hidden mutation.",
-          "observed": "`PurchaseReturnIdempotencyRegressionIT` passed all 3 cases: `purchaseReturnReplayDoesNotDuplicateMovements`, `partialThenFinalReturn_marksPurchaseVoidOnlyWhenFullyReturned`, and `purchaseReturnRejectsQuantityAboveRemainingReturnable`. Those checks proved replay returns the same journal id, stock and movement counts stay single-sourced, purchase status moves `PARTIAL` to `VOID` only when fully returned, and over-return is rejected with `remaining returnable quantity`. `ErpInvariantsSuiteIT` also passed the live `/api/v1/purchasing/raw-material-purchases/returns/preview` and `/returns` flow, verified the purchase-return journal carries correction metadata (`PURCHASE_RETURN`, `PURCHASING_RETURN`, source reference invoice number), and confirmed stock is reduced through a single linked return movement." 
+          "observed": "`PurchaseReturnIdempotencyRegressionIT` passed all 3 cases: `purchaseReturnReplayDoesNotDuplicateMovements`, `partialThenFinalReturn_marksPurchaseVoidOnlyWhenFullyReturned`, and `purchaseReturnRejectsQuantityAboveRemainingReturnable`. Those checks proved replay returns the same journal id, stock and movement counts stay single-sourced, purchase status moves `PARTIAL` to `VOID` only when fully returned, and over-return is rejected with `remaining returnable quantity`. `ErpInvariantsSuiteIT` also passed the live `/api/v1/purchasing/raw-material-purchases/returns/preview` and `/returns` flow, verified the purchase-return journal carries correction metadata (`PURCHASE_RETURN`, `PURCHASING_RETURN`, source reference invoice number), and confirmed stock is reduced through a single linked return movement."
         }
       ],
       "evidence": {
@@ -106,7 +106,7 @@
         {
           "action": "Run the period-close policy suite against correction-linkage and checklist blockers.",
           "expected": "Period close should fail closed on unresolved checklist or provenance blockers such as missing journal links, uninvoiced receipts, and reconciliation gaps.",
-          "observed": "`AccountingPeriodServicePolicyTest` passed inside the 47-test settlement/control run, including `approvePeriodClose_failsWhenCorrectionJournalLinkageIsMissing` and the unresolved-checklist ordering cases. Those tests force missing correction provenance and unresolved reconciliation controls, and the service responds with deterministic blocker text such as `Documents missing journal links in this period (1)` and `Checklist controls unresolved for this period ...` rather than closing the period silently." 
+          "observed": "`AccountingPeriodServicePolicyTest` passed inside the 47-test settlement/control run, including `approvePeriodClose_failsWhenCorrectionJournalLinkageIsMissing` and the unresolved-checklist ordering cases. Those tests force missing correction provenance and unresolved reconciliation controls, and the service responds with deterministic blocker text such as `Documents missing journal links in this period (1)` and `Checklist controls unresolved for this period ...` rather than closing the period silently."
         }
       ],
       "evidence": {
@@ -130,7 +130,7 @@
         {
           "action": "Check sales and purchase correction tests for posted-source guards, replay reuse, and linked correction metadata.",
           "expected": "Posted invoices and purchases should refuse silent in-place mutation and instead route corrections through linked return/note/reversal flows.",
-          "observed": "`SalesReturnServiceTest#processReturn_rejectsDraftInvoiceMutationPath` explicitly blocks non-posted invoice mutation with `Only posted invoices can be corrected through sales return`, while the passing replay and preview cases confirm the correction stays anchored to the original posted invoice. On the purchasing side, `PurchaseReturnIdempotencyRegressionIT` proved posted purchase returns create linked correction metadata (`PURCHASE_RETURN`, `PURCHASING_RETURN`, source reference invoice number) and replay the same journal instead of mutating the original purchase in place. `ErpInvariantsSuiteIT` reinforced the same model for both credit-note and purchase-return flows." 
+          "observed": "`SalesReturnServiceTest#processReturn_rejectsDraftInvoiceMutationPath` explicitly blocks non-posted invoice mutation with `Only posted invoices can be corrected through sales return`, while the passing replay and preview cases confirm the correction stays anchored to the original posted invoice. On the purchasing side, `PurchaseReturnIdempotencyRegressionIT` proved posted purchase returns create linked correction metadata (`PURCHASE_RETURN`, `PURCHASING_RETURN`, source reference invoice number) and replay the same journal instead of mutating the original purchase in place. `ErpInvariantsSuiteIT` reinforced the same model for both credit-note and purchase-return flows."
         }
       ],
       "evidence": {

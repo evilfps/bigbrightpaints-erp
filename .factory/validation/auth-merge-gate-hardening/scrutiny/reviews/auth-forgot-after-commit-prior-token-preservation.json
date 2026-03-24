@@ -11,5 +11,5 @@
   },
   "sharedStateObservations": [],
   "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/auth-merge-gate-hardening/scrutiny/reviews/auth-forgot-dispatch-after-commit.json",
-  "summary": "PASS. Commit 43ef80a333b6184cf4ab9739638f584a5dbeaa10 fixes the prior failure from 1de17c93a976efaf734c7710ab319d12068553c0 by restoring the preserved prior reset-token snapshot outside the failed after-commit cleanup transaction, and the updated contract/service tests now verify prior-token usability instead of asserting the old regression." 
+  "summary": "PASS. Commit 43ef80a333b6184cf4ab9739638f584a5dbeaa10 fixes the prior failure from 1de17c93a976efaf734c7710ab319d12068553c0 by restoring the preserved prior reset-token snapshot outside the failed after-commit cleanup transaction, and the updated contract/service tests now verify prior-token usability instead of asserting the old regression."
 }

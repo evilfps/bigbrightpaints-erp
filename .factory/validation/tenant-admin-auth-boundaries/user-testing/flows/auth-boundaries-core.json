@@ -218,5 +218,5 @@
     }
   ],
   "blockers": [],
-  "summary": "Validated five tenant-admin-auth-boundaries assertions on the rebuilt current-code runtime plus targeted test suites. `VAL-AUTHZ-001`, `VAL-AUTHZ-003`, and `VAL-SEC-001` passed with matching runtime and regression evidence. `VAL-RESET-002` and `VAL-AUTHZ-002` remain failed because the dedicated `AuthTenantAuthorityIT` matrix still reports missing `ACCESS_DENIED` audit metadata for denied privileged actions and a remaining support-reset denial regression, even though representative runtime 403/200 boundary behavior is now visible." 
+  "summary": "Validated five tenant-admin-auth-boundaries assertions on the rebuilt current-code runtime plus targeted test suites. `VAL-AUTHZ-001`, `VAL-AUTHZ-003`, and `VAL-SEC-001` passed with matching runtime and regression evidence. `VAL-RESET-002` and `VAL-AUTHZ-002` remain failed because the dedicated `AuthTenantAuthorityIT` matrix still reports missing `ACCESS_DENIED` audit metadata for denied privileged actions and a remaining support-reset denial regression, even though representative runtime 403/200 boundary behavior is now visible."
 }

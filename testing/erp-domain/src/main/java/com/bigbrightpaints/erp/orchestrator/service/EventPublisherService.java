@@ -34,7 +34,7 @@ public class EventPublisherService {
 
     private static final int MAX_RETRY_ATTEMPTS = 5;
     private static final long RETRY_BASE_DELAY_SECONDS = 30;
-    
+
     // Mutex to prevent concurrent publishing in single-instance mode
     private final AtomicBoolean publishingInProgress = new AtomicBoolean(false);
 

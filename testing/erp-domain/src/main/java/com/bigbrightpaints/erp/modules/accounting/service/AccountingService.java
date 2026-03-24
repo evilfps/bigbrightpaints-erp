@@ -187,11 +187,11 @@ public class AccountingService {
         account.setCode(request.code());
         account.setName(request.name());
         account.setType(request.type());
-        
+
         // Handle parent-child hierarchy
         if (request.parentId() != null) {
             Account parent = accountRepository.findByCompanyAndId(company, request.parentId())
-                    .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, 
+                    .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE,
                             "Parent account not found"));
             if (parent.getType() != request.type()) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
@@ -199,7 +199,7 @@ public class AccountingService {
             }
             account.setParent(parent);
         }
-        
+
         Account saved = accountRepository.save(account);
         publishAccountCacheInvalidated(company.getId());
         return toDto(saved);
@@ -1175,18 +1175,18 @@ public class AccountingService {
 
     /**
      * Process payroll batch payment with proper accounting entries including liabilities.
-     * 
+     *
      * Creates journal entries:
      * 1. Payroll Expense Entry:
      *    Dr. Payroll Expense (gross wages)
      *    Cr. Cash (net pay)
      *    Cr. Tax Payable (employee tax withholding)
      *    Cr. PF/Pension Payable (employee contribution)
-     * 
+     *
      * 2. Employer Contribution Entry (if employer rates provided):
      *    Dr. Employer Tax Expense
      *    Cr. Tax Payable (employer portion)
-     *    Dr. Employer PF Expense  
+     *    Dr. Employer PF Expense
      *    Cr. PF Payable (employer portion)
      */
     @Transactional
@@ -1195,23 +1195,23 @@ public class AccountingService {
         if (request.lines() == null || request.lines().isEmpty()) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "At least one payroll line is required");
         }
-        
+
         // Required accounts
         Account cash = requireAccount(company, request.cashAccountId());
         Account expense = requireAccount(company, request.expenseAccountId());
-        
+
         // Optional liability accounts
-        Account taxPayable = request.taxPayableAccountId() != null 
+        Account taxPayable = request.taxPayableAccountId() != null
                 ? requireAccount(company, request.taxPayableAccountId()) : null;
-        Account pfPayable = request.pfPayableAccountId() != null 
+        Account pfPayable = request.pfPayableAccountId() != null
                 ? requireAccount(company, request.pfPayableAccountId()) : null;
-        
+
         // Optional employer expense accounts
-        Account employerTaxExpense = request.employerTaxExpenseAccountId() != null 
+        Account employerTaxExpense = request.employerTaxExpenseAccountId() != null
                 ? requireAccount(company, request.employerTaxExpenseAccountId()) : null;
-        Account employerPfExpense = request.employerPfExpenseAccountId() != null 
+        Account employerPfExpense = request.employerPfExpenseAccountId() != null
                 ? requireAccount(company, request.employerPfExpenseAccountId()) : null;
-        
+
         // Default rates
         BigDecimal defaultTaxRate = request.defaultTaxRate() != null ? request.defaultTaxRate() : BigDecimal.ZERO;
         BigDecimal defaultPfRate = request.defaultPfRate() != null ? request.defaultPfRate() : BigDecimal.ZERO;
@@ -1220,14 +1220,14 @@ public class AccountingService {
 
         List<PayrollBatchPaymentRequest.PayrollLine> lines = request.lines();
         List<PayrollBatchPaymentResponse.LineTotal> lineTotals = new ArrayList<>();
-        
+
         // Totals
         BigDecimal totalGross = BigDecimal.ZERO;
         BigDecimal totalTaxWithholding = BigDecimal.ZERO;
         BigDecimal totalPfWithholding = BigDecimal.ZERO;
         BigDecimal totalAdvances = BigDecimal.ZERO;
         BigDecimal totalNetPay = BigDecimal.ZERO;
-        
+
         for (PayrollBatchPaymentRequest.PayrollLine line : lines) {
             if (!StringUtils.hasText(line.name())) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Line name is required");
@@ -1244,39 +1244,39 @@ public class AccountingService {
             if (advances.compareTo(BigDecimal.ZERO) < 0) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Advances cannot be negative for " + line.name());
             }
-            
+
             // Calculate gross pay
             BigDecimal grossPay = wage.multiply(BigDecimal.valueOf(days)).setScale(2, RoundingMode.HALF_UP);
-            
+
             // Calculate tax withholding (use line-specific if provided, else use rate)
-            BigDecimal taxWithholding = line.taxWithholding() != null 
-                    ? line.taxWithholding() 
+            BigDecimal taxWithholding = line.taxWithholding() != null
+                    ? line.taxWithholding()
                     : grossPay.multiply(defaultTaxRate).setScale(2, RoundingMode.HALF_UP);
-            
+
             // Calculate PF withholding (use line-specific if provided, else use rate)
-            BigDecimal pfWithholding = line.pfWithholding() != null 
-                    ? line.pfWithholding() 
+            BigDecimal pfWithholding = line.pfWithholding() != null
+                    ? line.pfWithholding()
                     : grossPay.multiply(defaultPfRate).setScale(2, RoundingMode.HALF_UP);
-            
+
             // Calculate net pay: Gross - Tax - PF - Advances
             BigDecimal netPay = grossPay
                     .subtract(taxWithholding)
                     .subtract(pfWithholding)
                     .subtract(advances)
                     .setScale(2, RoundingMode.HALF_UP);
-            
+
             if (netPay.compareTo(BigDecimal.ZERO) < 0) {
-                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, 
+                throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                         "Net pay cannot be negative for " + line.name() + ". Deductions exceed gross pay.");
             }
-            
+
             // Accumulate totals
             totalGross = totalGross.add(grossPay);
             totalTaxWithholding = totalTaxWithholding.add(taxWithholding);
             totalPfWithholding = totalPfWithholding.add(pfWithholding);
             totalAdvances = totalAdvances.add(advances);
             totalNetPay = totalNetPay.add(netPay);
-            
+
             lineTotals.add(new PayrollBatchPaymentResponse.LineTotal(
                     line.name(),
                     days,
@@ -1289,7 +1289,7 @@ public class AccountingService {
                     line.notes()
             ));
         }
-        
+
         if (totalGross.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Total gross payroll amount must be greater than zero");
         }
@@ -1341,31 +1341,31 @@ public class AccountingService {
         // - Tax Payable (only if account provided AND withholding > 0)
         // - PF Payable (only if account provided AND withholding > 0)
         // Expense debit = sum of all credits (ensures balance)
-        
+
         List<JournalEntryRequest.JournalLineRequest> payrollLines = new ArrayList<>();
         BigDecimal totalCredits = BigDecimal.ZERO;
-        
+
         // Credit: Cash (net pay)
         if (totalNetPay.compareTo(BigDecimal.ZERO) > 0) {
             payrollLines.add(new JournalEntryRequest.JournalLineRequest(
                     cash.getId(), "Net payroll disbursement", BigDecimal.ZERO, totalNetPay));
             totalCredits = totalCredits.add(totalNetPay);
         }
-        
+
         // Credit: Tax Payable (employee tax withholding) - only if account provided
         if (taxPayable != null && totalTaxWithholding.compareTo(BigDecimal.ZERO) > 0) {
             payrollLines.add(new JournalEntryRequest.JournalLineRequest(
                     taxPayable.getId(), "Employee tax withholding (TDS)", BigDecimal.ZERO, totalTaxWithholding));
             totalCredits = totalCredits.add(totalTaxWithholding);
         }
-        
+
         // Credit: PF Payable (employee PF contribution) - only if account provided
         if (pfPayable != null && totalPfWithholding.compareTo(BigDecimal.ZERO) > 0) {
             payrollLines.add(new JournalEntryRequest.JournalLineRequest(
                     pfPayable.getId(), "Employee PF contribution", BigDecimal.ZERO, totalPfWithholding));
             totalCredits = totalCredits.add(totalPfWithholding);
         }
-        
+
         // Debit: Payroll Expense = total credits (ensures journal balances)
         // Note: When no tax/PF accounts provided, expense = net pay
         // When all accounts provided, expense = gross (tax + PF + net)
@@ -1383,14 +1383,14 @@ public class AccountingService {
                 payrollLines
         ));
         JournalEntry payrollEntry = companyEntityLookup.requireJournalEntry(company, payrollJe.id());
-        
+
         // Create employer contribution journal entry (if rates provided)
         Long employerContribJournalId = null;
         if ((employerTaxAmount.compareTo(BigDecimal.ZERO) > 0 && employerTaxExpense != null && taxPayable != null) ||
             (employerPfAmount.compareTo(BigDecimal.ZERO) > 0 && employerPfExpense != null && pfPayable != null)) {
-            
+
             List<JournalEntryRequest.JournalLineRequest> employerLines = new ArrayList<>();
-            
+
             // Dr. Employer Tax Expense, Cr. Tax Payable
             if (employerTaxAmount.compareTo(BigDecimal.ZERO) > 0 && employerTaxExpense != null && taxPayable != null) {
                 employerLines.add(new JournalEntryRequest.JournalLineRequest(
@@ -1398,7 +1398,7 @@ public class AccountingService {
                 employerLines.add(new JournalEntryRequest.JournalLineRequest(
                         taxPayable.getId(), "Employer tax payable", BigDecimal.ZERO, employerTaxAmount));
             }
-            
+
             // Dr. Employer PF Expense, Cr. PF Payable
             if (employerPfAmount.compareTo(BigDecimal.ZERO) > 0 && employerPfExpense != null && pfPayable != null) {
                 employerLines.add(new JournalEntryRequest.JournalLineRequest(
@@ -1406,7 +1406,7 @@ public class AccountingService {
                 employerLines.add(new JournalEntryRequest.JournalLineRequest(
                         pfPayable.getId(), "Employer PF payable", BigDecimal.ZERO, employerPfAmount));
             }
-            
+
             if (!employerLines.isEmpty()) {
                 String employerRef = reference + "-EMP";
                 JournalEntryDto employerJe = createJournalEntry(new JournalEntryRequest(
@@ -1421,7 +1421,7 @@ public class AccountingService {
                 employerContribJournalId = employerJe.id();
             }
         }
-        
+
         // Update PayrollRun status
         savedRun.setStatus("PAID");
         savedRun.setJournalEntryId(payrollEntry.getId());
@@ -2915,7 +2915,7 @@ public class AccountingService {
             if (future) {
                 throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Entry date cannot be in the future");
             }
-            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, 
+            throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT,
                     "Entry date cannot be more than 30 days old; posting to locked/closed periods requires admin override");
         }
     }
@@ -2945,40 +2945,40 @@ public class AccountingService {
             return "Adjustment";
         }
         StringBuilder reason = new StringBuilder();
-        
+
         // Add reason code if provided
         if (request.reasonCode() != null) {
             reason.append("[").append(request.reasonCode().name()).append("] ");
         }
-        
+
         // Add custom reason text
         if (StringUtils.hasText(request.reason())) {
             reason.append(request.reason().trim());
         } else {
             reason.append("Reversal of ").append(originalEntry.getReferenceNumber());
         }
-        
+
         // Add partial reversal info
         if (request.isPartialReversal()) {
             reason.append(" (").append(request.getEffectivePercentage()).append("% partial reversal)");
         }
-        
+
         // Add approval info for audit trail
         if (StringUtils.hasText(request.approvedBy())) {
             reason.append(" | Approved by: ").append(request.approvedBy());
         }
-        
+
         // Add supporting document reference
         if (StringUtils.hasText(request.supportingDocumentRef())) {
             reason.append(" | Doc: ").append(request.supportingDocumentRef());
         }
-        
+
         return reason.toString();
     }
-    
+
     /**
      * Cascade reverse related journal entries (COGS, tax, payments linked to the original)
-     * 
+     *
      * Related entries are found by:
      * 1. Reference number pattern: INV-001 finds INV-001-COGS, INV-001-TAX (same base ref)
      * 2. Explicitly listed entry IDs in request.relatedEntryIds()
@@ -2989,7 +2989,7 @@ public class AccountingService {
         JournalEntry primaryEntry = companyEntityLookup.requireJournalEntry(company, primaryEntryId);
         List<JournalEntryDto> reversedEntries = new java.util.ArrayList<>();
         java.util.Set<Long> processedIds = new java.util.HashSet<>();
-        
+
         // First reverse the primary entry
         JournalEntryDto primaryReversal = reverseJournalEntry(primaryEntryId, request);
         reversedEntries.add(primaryReversal);
@@ -2997,17 +2997,17 @@ public class AccountingService {
         if (primaryReversal != null && primaryReversal.id() != null) {
             processedIds.add(primaryReversal.id());
         }
-        
+
         // Find related entries by EXACT reference prefix (not just first segment)
         // e.g., "INV-001" finds "INV-001-COGS", "INV-001-TAX" but NOT "INV-002"
         String baseRef = primaryEntry.getReferenceNumber();
         List<JournalEntry> relatedEntries = journalEntryRepository.findByCompanyAndReferenceNumberStartingWith(
                 company, baseRef + "-"); // Append hyphen to ensure exact prefix match
-        
-        String cascadeReason = StringUtils.hasText(request.reason()) 
-                ? "Cascade reversal: " + request.reason() 
+
+        String cascadeReason = StringUtils.hasText(request.reason())
+                ? "Cascade reversal: " + request.reason()
                 : "Cascade reversal of " + baseRef;
-        
+
         for (JournalEntry related : relatedEntries) {
             if (processedIds.contains(related.getId())) {
                 continue; // Skip already processed
@@ -3019,7 +3019,7 @@ public class AccountingService {
             if (!"REVERSED".equalsIgnoreCase(related.getStatus()) &&
                 !"VOIDED".equalsIgnoreCase(related.getStatus())) {
                 try {
-                    JournalEntryDto relatedReversal = reverseJournalEntry(related.getId(), 
+                    JournalEntryDto relatedReversal = reverseJournalEntry(related.getId(),
                             new JournalEntryReversalRequest(
                                     request.reversalDate(),
                                     request.voidOnly(),
@@ -3039,7 +3039,7 @@ public class AccountingService {
                 }
             }
         }
-        
+
         // Also reverse explicitly listed related entries (avoid duplicates)
         if (request.relatedEntryIds() != null) {
             for (Long relatedId : request.relatedEntryIds()) {
@@ -3062,8 +3062,8 @@ public class AccountingService {
                 }
             }
         }
-        
-        log.info("Cascade reversal complete: {} entries reversed for primary entry {}", 
+
+        log.info("Cascade reversal complete: {} entries reversed for primary entry {}",
                 reversedEntries.size(), baseRef);
         return reversedEntries;
     }

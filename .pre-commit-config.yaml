@@ -1,0 +1,66 @@
+# Pre-commit hooks for BigBright ERP
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: trailing-whitespace
+        exclude: ^erp-domain/src/test/resources/.*\.json$
+      - id: end-of-file-fixer
+        exclude: ^erp-domain/src/test/resources/.*\.json$
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  # Java formatting with Spotless
+  - repo: local
+    hooks:
+      - id: spotless-check
+        name: Spotless Format Check
+        entry: bash -c 'cd erp-domain && MIGRATION_SET=v2 mvn spotless:check -q'
+        language: system
+        types: [java]
+        pass_filenames: false
+        verbose: true
+        description: Check Java code formatting with Spotless
+
+      - id: checkstyle
+        name: Checkstyle
+        entry: bash -c 'cd erp-domain && MIGRATION_SET=v2 mvn checkstyle:check -q'
+        language: system
+        types: [java]
+        pass_filenames: false
+        verbose: true
+        description: Check Java code style with Checkstyle
+
+      - id: maven-compile
+        name: Maven Compile
+        entry: bash -c 'cd erp-domain && MIGRATION_SET=v2 mvn compile -q -DskipTests'
+        language: system
+        types: [java]
+        pass_filenames: false
+        verbose: true
+        description: Compile Java code to catch syntax errors
+
+  # Markdown linting (documentation)
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.40.0
+    hooks:
+      - id: markdownlint
+        args: [--fix]
+        exclude: 'erp-domain/target|\.git|asyncloop'
+
+  # Shell script linting
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: [-x]
+        files: '(scripts|ci|\.factory)/.*\.sh$'

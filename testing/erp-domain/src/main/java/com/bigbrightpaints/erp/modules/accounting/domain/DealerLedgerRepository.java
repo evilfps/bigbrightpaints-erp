@@ -88,7 +88,7 @@ public interface DealerLedgerRepository extends JpaRepository<DealerLedgerEntry,
 
     // DSO calculation support - using native query for date arithmetic compatibility
     @Query(value = "SELECT AVG((paid_date - entry_date)::numeric) " +
-           "FROM dealer_ledger_entries WHERE company_id = :companyId AND dealer_id = :dealerId AND paid_date IS NOT NULL", 
+           "FROM dealer_ledger_entries WHERE company_id = :companyId AND dealer_id = :dealerId AND paid_date IS NOT NULL",
            nativeQuery = true)
     Double calculateAverageDSO(@Param("companyId") Long companyId, @Param("dealerId") Long dealerId);
 

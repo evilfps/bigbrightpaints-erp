@@ -3,7 +3,7 @@
 
 -- Insert payroll accounts for each company that doesn't have them
 INSERT INTO accounts (public_id, company_id, code, name, type, balance, active, hierarchy_level, version)
-SELECT 
+SELECT
     gen_random_uuid(),
     c.id,
     acc.code,
@@ -14,7 +14,7 @@ SELECT
     1,
     0
 FROM companies c
-CROSS JOIN (VALUES 
+CROSS JOIN (VALUES
     ('SALARY-EXP', 'Salary Expense', 'EXPENSE'),
     ('WAGE-EXP', 'Wage Expense', 'EXPENSE'),
     ('PF-PAYABLE', 'Provident Fund Payable', 'LIABILITY'),
@@ -22,6 +22,6 @@ CROSS JOIN (VALUES
     ('TAX-PAYABLE', 'Tax Payable', 'LIABILITY')
 ) AS acc(code, name, type)
 WHERE NOT EXISTS (
-    SELECT 1 FROM accounts a 
+    SELECT 1 FROM accounts a
     WHERE a.company_id = c.id AND UPPER(a.code) = UPPER(acc.code)
 );

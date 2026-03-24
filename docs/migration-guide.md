@@ -14,8 +14,8 @@ This guide covers end-to-end onboarding migration for a new company in BigBright
 
 ## 1.1 Opening Balance CSV (`POST /api/v1/accounting/opening-balances`)
 
-**Auth:** `ROLE_ADMIN`  
-**Upload type:** `multipart/form-data` with part name `file`  
+**Auth:** `ROLE_ADMIN`
+**Upload type:** `multipart/form-data` with part name `file`
 **Idempotency:** file content hash (same file bytes replay prior result)
 
 ### Required header row
@@ -57,8 +57,8 @@ OWNER-CAPITAL,Owner Capital,EQUITY,0,335000.00,Opening capital introduced
 
 ## 1.2 Opening Stock CSV (`POST /api/v1/inventory/opening-stock`)
 
-**Auth:** `ROLE_ADMIN` / `ROLE_ACCOUNTING` / `ROLE_FACTORY`  
-**Upload type:** `multipart/form-data` with part name `file`  
+**Auth:** `ROLE_ADMIN` / `ROLE_ACCOUNTING` / `ROLE_FACTORY`
+**Upload type:** `multipart/form-data` with part name `file`
 **Required replay inputs:** `Idempotency-Key` header plus `openingStockBatchKey` query parameter
 **Replay contract:** `Idempotency-Key` is the request replay key, and `openingStockBatchKey` is the opening-stock batch identity. Reuse the original `Idempotency-Key` to replay the same batch result. Use a new `openingStockBatchKey` only for a materially distinct follow-up import, or reverse the prior opening stock before rerunning the same batch from scratch.
 

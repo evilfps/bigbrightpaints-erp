@@ -171,14 +171,14 @@ public class AccountingController {
                                                                             @RequestBody(required = false) JournalEntryReversalRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Journal entry corrected", accountingService.reverseJournalEntry(entryId, request)));
     }
-    
+
     @PostMapping("/journal-entries/{entryId}/cascade-reverse")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<java.util.List<JournalEntryDto>>> cascadeReverseJournalEntry(
             @PathVariable Long entryId,
             @RequestBody JournalEntryReversalRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
-                "Journal entries reversed with related entries", 
+                "Journal entries reversed with related entries",
                 accountingService.cascadeReverseRelatedEntries(entryId, request)));
     }
 
@@ -370,7 +370,7 @@ public class AccountingController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_SALES')")
     public ResponseEntity<ApiResponse<List<JournalEntryDto>>> listSalesReturns() {
         // Returns are stored as credit note journal entries - filter by reference prefix
-        return ResponseEntity.ok(ApiResponse.success("Sales returns", 
+        return ResponseEntity.ok(ApiResponse.success("Sales returns",
             accountingService.listJournalEntriesByReferencePrefix("CN-")));
     }
 

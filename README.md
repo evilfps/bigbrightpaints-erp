@@ -77,6 +77,18 @@ Install these before running locally:
    MIGRATION_SET=v2 mvn spotless:apply
    ```
 
+9. **Set up pre-commit hooks (optional)**
+   ```bash
+   # Install pre-commit (requires Python)
+   pip install pre-commit
+
+   # Install the hooks
+   pre-commit install
+
+   # Run manually on all files
+   pre-commit run --all-files
+   ```
+
 7. **(Optional) Run the compose-backed app with the same Flyway v2 profile used by the mission**
    ```bash
    SPRING_PROFILES_ACTIVE='prod,flyway-v2' \
