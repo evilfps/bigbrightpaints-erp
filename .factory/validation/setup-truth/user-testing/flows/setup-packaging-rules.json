@@ -1,0 +1,148 @@
+{
+  "groupId": "setup-packaging-rules",
+  "surface": "api",
+  "testedAt": "2026-03-25T05:38:24.382379+00:00",
+  "credentials": {
+    "account": "validation.admin@example.com + validation.factory@example.com",
+    "namespace": "setup-truth-packaging"
+  },
+  "toolsUsed": [
+    "python3",
+    "urllib.request",
+    "mvn",
+    "openapi.json"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-SETUP-004",
+      "title": "Packaging Setup replaces unexplained BOM jargon",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Search workflow/inventory/frontend-handoff docs for BOM and Packaging Setup wording",
+          "expected": "Operator-facing docs use Packaging Setup / Rules wording and do not retain unexplained BOM jargon.",
+          "observed": "`docs_packaging_summary.json` shows zero `BOM` matches in `docs/workflows/manufacturing-and-packaging.md`, `docs/endpoint-inventory.md`, and `.factory/library/frontend-handoff.md`, while each file contains Packaging Setup / Rules wording tied to `/api/v1/factory/packaging-mappings`."
+        },
+        {
+          "action": "Review runtime-facing error text coverage in tests",
+          "expected": "Fail-closed pack/setup messaging should direct users back to Packaging Setup / Rules.",
+          "observed": "`BulkPackingManualPackagingRegressionIT.packagingSetupRulesAreRequired` and `PackagingMaterialServiceTest.consumePackagingMaterial_throwsWhenPackagingSetupMissing` both assert user-facing messages containing `Packaging Setup is required for size 1L` and `Packaging Rule`."
+        }
+      ],
+      "evidence": {
+        "files": [
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/setup-truth/setup-packaging-rules/docs_packaging_summary.json"
+        ],
+        "tests": [
+          "BulkPackingManualPackagingRegressionIT",
+          "PackagingMaterialServiceTest"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SETUP-005",
+      "title": "Packaging rule contract is explicit",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect packaging mapping schemas and paths in openapi.json",
+          "expected": "The contract explicitly models packaging size, packaging material, units-per-pack, optional carton size, optional liters-per-unit, and active status.",
+          "observed": "`openapi_packaging_contract.json` shows `PackagingSizeMappingRequest` requires `packagingSize`, `rawMaterialId`, and `unitsPerPack`, with optional `cartonSize` and `litersPerUnit`; `PackagingSizeMappingDto` exposes `active` plus mapping/material identity fields."
+        },
+        {
+          "action": "Run packaging mapping service/security/regression tests",
+          "expected": "Tests reject blank size, invalid/non-packaging materials, and duplicate mappings while keeping lifecycle explicit.",
+          "observed": "`mvn -Dtest=PackagingMaterialServiceTest,PackagingMappingControllerSecurityContractTest,BulkPackingManualPackagingRegressionIT test` passed 23 tests, including `createMapping_rejectsBlankPackagingSize`, `createMapping_rejectsMissingActiveRawMaterial`, `createMapping_rejectsNonPackagingMaterial`, `createMapping_rejectsDuplicateMapping`, `createMapping_defaultsOptionalLitersPerUnitFromPackagingSize`, `updateMapping_updatesPackagingSizeMaterialAndDerivedLiters`, and `deactivateMapping_marksMappingInactive`."
+        }
+      ],
+      "evidence": {
+        "files": [
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/setup-truth/setup-packaging-rules/openapi_packaging_contract.json"
+        ],
+        "tests": [
+          "PackagingMaterialServiceTest",
+          "PackagingMappingControllerSecurityContractTest",
+          "BulkPackingManualPackagingRegressionIT"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SETUP-006",
+      "title": "Packaging rule permissions and lifecycle are correct",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "GET /api/v1/factory/packaging-mappings and /active as admin and factory; POST /api/v1/factory/packaging-mappings as factory",
+          "expected": "Admin/factory users can inspect mappings, while write actions stay admin-only.",
+          "observed": "Both admin and factory list calls returned 200 (`Packaging setup rules` / `Active packaging setup rules`); a factory POST returned 403 with `AUTH_004 Access denied`."
+        },
+        {
+          "action": "Inspect controller security contract tests",
+          "expected": "Controller annotations enforce admin/factory reads and admin-only create/update/deactivate.",
+          "observed": "`PackagingMappingControllerSecurityContractTest` asserts `listMappings` and `listActiveMappings` require `hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY')`, while `createMapping`, `updateMapping`, and `deactivateMapping` require `hasAnyAuthority('ROLE_ADMIN')`."
+        },
+        {
+          "action": "Inspect lifecycle separation coverage in PackagingMaterialServiceTest",
+          "expected": "Inactive rules stay in the full list but disappear from the active list.",
+          "observed": "`listMappingsAndListActiveMappings_keepFullAndActiveViewsSeparate` verifies the full list returns both active and inactive mappings, while the active list only returns active mappings; `deactivateMapping_marksMappingInactive` proves the dedicated lifecycle route flips active=false."
+        }
+      ],
+      "evidence": {
+        "network": [
+          "GET /api/v1/factory/packaging-mappings (admin) -> 200",
+          "GET /api/v1/factory/packaging-mappings/active (admin) -> 200",
+          "GET /api/v1/factory/packaging-mappings (factory) -> 200",
+          "GET /api/v1/factory/packaging-mappings/active (factory) -> 200",
+          "POST /api/v1/factory/packaging-mappings (factory) -> 403"
+        ],
+        "files": [
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/setup-truth/setup-packaging-rules/packaging_runtime_permissions.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/setup-truth/setup-packaging-rules/openapi_packaging_contract.json"
+        ],
+        "tests": [
+          "PackagingMappingControllerSecurityContractTest",
+          "PackagingMaterialServiceTest"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SETUP-007",
+      "title": "Missing packaging setup blocks pack with a setup-directed error",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run negative packaging service tests for missing, inactive, invalid, and unusable setup",
+          "expected": "The pack-side consumption path fails closed with setup-directed validation errors instead of silently defaulting or zero-costing.",
+          "observed": "`PackagingMaterialServiceTest` passed targeted cases `consumePackagingMaterial_throwsWhenPackagingSetupMissing`, `consumePackagingMaterial_rejectsPackagingSetupWithoutInventoryAccount`, `consumePackagingMaterial_rejectsInactivePackagingMaterial`, `consumePackagingMaterial_rejectsPackagingSetupPointingToNonPackagingMaterial`, and `consumePackagingMaterial_wacNullAverageRejectsZeroCostWhenPackagingRequired`; each asserts messages such as `Packaging Setup is required for size 1L`, `Update Packaging Rules before packing`, and explicit unusable-material explanations."
+        },
+        {
+          "action": "Run end-to-end pack regression without packaging rules",
+          "expected": "The surviving pack flow itself fails closed with the same setup-directed message.",
+          "observed": "`BulkPackingManualPackagingRegressionIT.packagingSetupRulesAreRequired` passes by asserting `bulkPackingService.pack(...)` throws `VALIDATION_INVALID_INPUT` with message fragments `Packaging Setup is required for size 1L` and `Packaging Rule`."
+        }
+      ],
+      "evidence": {
+        "tests": [
+          "PackagingMaterialServiceTest",
+          "BulkPackingManualPackagingRegressionIT"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "The seeded validation runtime exposes the packaging mapping read surfaces but starts with zero packaging rules, so runtime GETs could confirm permissions/messages but not demonstrate active-vs-full-list divergence with live data.",
+      "resolved": true,
+      "resolution": "Used the deterministic service/security test coverage (`listMappingsAndListActiveMappings_keepFullAndActiveViewsSeparate`, `deactivateMapping_marksMappingInactive`) to verify lifecycle separation while keeping runtime proof for read permissions and admin-only writes.",
+      "affectedAssertions": [
+        "VAL-SETUP-006"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 4 assertions: 4 passed, 0 failed, 0 blocked."
+}

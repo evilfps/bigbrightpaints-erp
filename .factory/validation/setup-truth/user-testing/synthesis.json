@@ -1,0 +1,30 @@
+{
+  "milestone": "setup-truth",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 7,
+    "passed": 7,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-SETUP-001",
+    "VAL-SETUP-002",
+    "VAL-SETUP-003",
+    "VAL-SETUP-004",
+    "VAL-SETUP-005",
+    "VAL-SETUP-006",
+    "VAL-SETUP-007"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Added `Flow Validator Guidance: api` so setup-truth validators have explicit isolation and evidence rules for the shared seeded runtime.",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null
+}

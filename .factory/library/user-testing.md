@@ -64,6 +64,14 @@ If you need a deterministic password, export `ERP_VALIDATION_SEED_PASSWORD` befo
 - For dispatch validation, prove that `/api/v1/dispatch/**` is read-only and that `POST /api/v1/sales/dispatch/confirm` is the only write owner.
 - For cross-flow validation, prove that packed sellable output is what becomes dispatchable; unpacked/semi-finished output must not dispatch.
 
+## Flow Validator Guidance: api
+
+- Treat the validator-launched reset runtime on `http://localhost:8081` as the shared API surface; do not rerun Docker Compose or the reset harness from a subagent unless the parent validator explicitly instructs you to recover a broken session.
+- Stay inside repo-owned ports `5433`, `5672`, `8025`, `8081`, and `9090`, and do not touch other local services or the shared checkout outside this worktree.
+- Prefer deterministic proof in this order: targeted seeded runtime probes, OpenAPI/docs inspection, then targeted Maven suites listed in `.factory/services.yaml`.
+- If you must create runtime data, keep it namespaced for your assigned assertion group and avoid mutating global/shared settings that would affect later validators.
+- Record concrete request/response observations, exact docs/OpenAPI locations, and any friction or blocker details in the flow report so the parent validator can update synthesis without re-running your work.
+
 ## High-Signal Proof By Milestone
 
 ### setup-truth

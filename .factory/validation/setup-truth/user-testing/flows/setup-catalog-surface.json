@@ -1,0 +1,126 @@
+{
+  "groupId": "setup-catalog-surface",
+  "surface": "api",
+  "testedAt": "2026-03-25T05:38:24.382379+00:00",
+  "credentials": {
+    "account": "validation.admin@example.com",
+    "namespace": "setup-truth-catalog"
+  },
+  "toolsUsed": [
+    "python3",
+    "urllib.request",
+    "mvn",
+    "openapi.json"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-SETUP-001",
+      "title": "Canonical setup entrypoints are unambiguous",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect openapi.json for setup-facing item and packaging paths plus retired setup hosts",
+          "expected": "OpenAPI keeps `/api/v1/catalog/items` and `/api/v1/factory/packaging-mappings`, and does not advertise `/api/v1/catalog/products` or `/api/v1/accounting/catalog/products` as setup hosts.",
+          "observed": "`openapi_catalog_item_contract.json` shows `/api/v1/catalog/items` with GET/POST, `/api/v1/catalog/items/{itemId}` with GET/PUT/DELETE, `/api/v1/factory/packaging-mappings` with GET/POST, and both retired setup hosts absent."
+        },
+        {
+          "action": "Search README.md, docs/accounting-portal-endpoint-map.md, docs/accounting-portal-frontend-engineer-handoff.md, docs/endpoint-inventory.md, and .factory/library/frontend-handoff.md",
+          "expected": "Setup-facing docs/handoffs point stock-bearing setup to catalog items and packaging mappings without retired product hosts.",
+          "observed": "The docs summary file records repeated `/api/v1/catalog/items` references in all requested setup docs, packaging-mappings references in endpoint inventory/frontend handoff, and zero matches for `/api/v1/catalog/products` or `/api/v1/accounting/catalog/products` in those setup-facing files."
+        },
+        {
+          "action": "Review surviving `production-batches` mentions in frontend handoff for context",
+          "expected": "`/api/v1/factory/production-batches` may remain execution-only in this milestone but must not be described as setup.",
+          "observed": "The surviving `/api/v1/factory/production-batches` rows sit in the factory execution section of `.factory/library/frontend-handoff.md`, not in the catalog/setup guidance that now points to `/api/v1/catalog/items`."
+        }
+      ],
+      "evidence": {
+        "files": [
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/setup-truth/setup-catalog-surface/openapi_catalog_item_contract.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/setup-truth/setup-catalog-surface/docs_catalog_setup_summary.json"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SETUP-002",
+      "title": "Single-item setup hides internal family ids",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect `CatalogItemRequest` and `CatalogItemDto` in openapi.json",
+          "expected": "The public setup contract is single-item entry on `/api/v1/catalog/items` and does not require raw family/group identifiers.",
+          "observed": "`CatalogItemRequest` requires only `brandId`, `gstRate`, `hsnCode`, `itemClass`, `name`, and `unitOfMeasure`; its properties contain no `familyId`, `groupId`, or `variantGroupId`. `CatalogItemDto` also omits those raw grouping fields."
+        },
+        {
+          "action": "Inspect setup-facing handoff guidance for Product Family wording",
+          "expected": "If Product Family is mentioned, it is explanatory vocabulary only and not an operator input requirement.",
+          "observed": "`.factory/library/frontend-handoff.md` states that UI may label grouped sellable sizes as `Product Family`, but the public setup contract does not ask operators for raw family/group identifiers and no public `familyId`, `groupId`, or `variantGroupId` field is required."
+        },
+        {
+          "action": "Cross-check single-item create/update docs",
+          "expected": "Docs describe single-item create/update on `/api/v1/catalog/items` rather than the retired product host.",
+          "observed": "README plus accounting/frontend handoff docs consistently describe brand creation followed by single-item create/update on `/api/v1/catalog/items` and `/api/v1/catalog/items/{itemId}`."
+        }
+      ],
+      "evidence": {
+        "files": [
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/setup-truth/setup-catalog-surface/openapi_catalog_item_contract.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/setup-truth/setup-catalog-surface/docs_catalog_setup_summary.json"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SETUP-003",
+      "title": "Item readiness is visible before factory execution",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect `CatalogItemDto` and `SkuReadinessDto` in openapi.json",
+          "expected": "Catalog list/detail responses can include readiness information.",
+          "observed": "`CatalogItemDto` carries a `readiness` property referencing `SkuReadinessDto`, and both catalog list/detail GET operations document `includeReadiness` query parameters."
+        },
+        {
+          "action": "POST /api/v1/auth/login as validation.admin@example.com and GET /api/v1/catalog/items?page=0&pageSize=5&includeReadiness=true",
+          "expected": "The runtime list contract returns readiness snapshots before execution.",
+          "observed": "Login returned 200; the catalog list returned 200 with 4 items, and each row included readiness stages keyed by `masterReady`, `inventoryReady`, `productionReady`, `packingReady`, `salesReady`, and `accountingReady`."
+        },
+        {
+          "action": "GET /api/v1/catalog/items/6?includeReadiness=true",
+          "expected": "Item detail also exposes readiness for a specific item.",
+          "observed": "Returned 200 for `Fixture Finished Good` with readiness `sku=FG-FIXTURE`; `packingReady` was false with blocker `PACKAGING_SIZE_MISSING`, proving setup/factory users can see why the item is not execution-ready yet."
+        },
+        {
+          "action": "Run targeted readiness/catalog tests",
+          "expected": "Regression tests cover computed readiness on create/list/detail paths.",
+          "observed": "`mvn -Dtest=CatalogControllerCanonicalProductIT,CatalogServiceCanonicalCoverageTest,ProductionCatalogServiceCanonicalEntryTest,SkuReadinessServiceTest test` passed 101 tests, including `createItem_persistsFinishedGood_withStableCode_andComputedReadiness`, `searchItems_filtersByItemClass_andIncludesStockAndReadiness`, `createOrPreviewCatalogProducts_previewIncludesReadinessOnGeneratedMembers`, and `forProducts_batchesMirrorAndBatchLookupsForCatalogBrowse`."
+        }
+      ],
+      "evidence": {
+        "network": [
+          "POST /api/v1/auth/login -> 200",
+          "GET /api/v1/catalog/items?page=0&pageSize=5&includeReadiness=true -> 200",
+          "GET /api/v1/catalog/items/6?includeReadiness=true -> 200"
+        ],
+        "files": [
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/setup-truth/setup-catalog-surface/login_admin.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/setup-truth/setup-catalog-surface/catalog_items_list.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/setup-truth/setup-catalog-surface/catalog_item_detail.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/setup-truth/setup-catalog-surface/catalog_runtime_summary.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/setup-truth/setup-catalog-surface/openapi_catalog_item_contract.json"
+        ],
+        "tests": [
+          "CatalogControllerCanonicalProductIT",
+          "CatalogServiceCanonicalCoverageTest",
+          "ProductionCatalogServiceCanonicalEntryTest",
+          "SkuReadinessServiceTest"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 3 assertions: 3 passed, 0 failed, 0 blocked."
+}
