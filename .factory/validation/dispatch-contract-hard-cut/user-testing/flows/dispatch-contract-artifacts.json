@@ -1,0 +1,76 @@
+{
+  "groupId": "dispatch-contract-artifacts",
+  "surface": "api",
+  "testedAt": "2026-03-25T16:47:15Z",
+  "credentials": {
+    "account": "contract-artifact inspection",
+    "namespace": "dispatch-contract-hard-cut-contracts"
+  },
+  "toolsUsed": [
+    "docs/openapi scans",
+    "guard scripts"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-CROSS-001",
+      "title": "One explicit operator story is visible end-to-end",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Scan the requested workflow, endpoint-inventory, and handoff surfaces for canonical route presence",
+          "expected": "The surviving operator story should consistently read item setup -> production logs -> packing-records -> sales-owned dispatch confirm.",
+          "observed": "The requested contract surfaces all retain the canonical route chain (`/api/v1/catalog/items`, `POST /api/v1/factory/production/logs`, `POST /api/v1/factory/packing-records`, `POST /api/v1/sales/dispatch/confirm`) across the workflow docs, endpoint inventory, frontend handoff, and endpoint inventory TSV scan."
+        },
+        {
+          "action": "Run the workflow/openapi/accounting-portal guard bundle",
+          "expected": "Shared contract guards should accept the current canonical-path story.",
+          "observed": "check-codex-review-guidelines, guard_openapi_contract_drift, guard_workflow_canonical_paths, and guard_accounting_portal_scope_contract all completed successfully."
+        }
+      ],
+      "evidence": {
+        "files": [
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-contract-artifacts/requested_surface_scan.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-contract-artifacts/guard-results.log"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-002",
+      "title": "Removed routes and retired schemas are absent everywhere",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect the requested operator-facing surfaces for retired ERP-38 routes",
+          "expected": "The requested runtime contract artifacts should not present retired ERP-38 routes as supported behavior.",
+          "observed": "The requested-surface scan found no exact matches for `/api/v1/dispatch/confirm`, `/api/v1/factory/production-batches`, `/api/v1/factory/pack`, `/api/v1/factory/packing-records/{productionLogId}/complete`, `/api/v1/catalog/products`, or `/api/v1/accounting/catalog/products` in the requested workflow docs, endpoint inventory, accounting portal handoff, frontend handoff/frontend-v2 notes, or endpoint_inventory.tsv."
+        },
+        {
+          "action": "Cross-check contract guards",
+          "expected": "OpenAPI/workflow/accounting-portal drift guards should stay green after the hard cut.",
+          "observed": "guard_openapi_contract_drift, guard_workflow_canonical_paths, and guard_accounting_portal_scope_contract all returned OK in the saved guard log."
+        }
+      ],
+      "evidence": {
+        "files": [
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-contract-artifacts/requested_surface_scan.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-contract-artifacts/guard-results.log"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "The first attempt to spawn a user-testing flow-validator subagent failed with exit code 1 and no output.",
+      "resolved": true,
+      "resolution": "Collected the required runtime, OpenAPI, docs, and regression evidence directly in the parent validator and wrote the flow reports manually, following the mission AGENTS fallback guidance.",
+      "affectedAssertions": [
+        "VAL-CROSS-001",
+        "VAL-CROSS-002"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 2 assertions: 2 passed, 0 failed, 0 blocked."
+}

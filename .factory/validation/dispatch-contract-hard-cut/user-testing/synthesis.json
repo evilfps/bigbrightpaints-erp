@@ -1,0 +1,26 @@
+{
+  "milestone": "dispatch-contract-hard-cut",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 9,
+    "passed": 9,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-DISPATCH-001",
+    "VAL-DISPATCH-002",
+    "VAL-DISPATCH-003",
+    "VAL-DISPATCH-004",
+    "VAL-DISPATCH-005",
+    "VAL-CROSS-001",
+    "VAL-CROSS-002",
+    "VAL-CROSS-003",
+    "VAL-CROSS-004"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null
+}

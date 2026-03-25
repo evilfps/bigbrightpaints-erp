@@ -1,0 +1,139 @@
+{
+  "groupId": "dispatch-posting",
+  "surface": "api",
+  "testedAt": "2026-03-25T16:47:15Z",
+  "credentials": {
+    "account": "validation.sales@example.com + validation.factory@example.com",
+    "namespace": "dispatch-contract-hard-cut-posting"
+  },
+  "toolsUsed": [
+    "mvn",
+    "surefire XML reports",
+    "runtime auth probe"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-DISPATCH-003",
+      "title": "Prepared-slip confirmation still triggers canonical downstream posting",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify the canonical route remains sales-owned at the HTTP boundary",
+          "expected": "The surviving dispatch confirm owner is the sales route, not the factory surface.",
+          "observed": "The runtime auth probe reached business validation on POST /api/v1/sales/dispatch/confirm for the sales actor (400 VAL_001 on missing transporter/driver fields) while the factory actor was denied with 403 AUTH_004."
+        },
+        {
+          "action": "Review the targeted dispatch-posting regression suites",
+          "expected": "Canonical dispatch confirmation still reduces FG stock and posts invoice/accounting/COGS/linkage truth.",
+          "observed": "DispatchConfirmationIT passed both cases; TS_O2CDispatchCanonicalPostingTest passed `confirmDispatchUsesLockingAndCanonicalFacadePosting`, `cogsPostingPrecedesArPostingAndPersistsLinkage`, and `dispatchFlowAvoidsDirectAccountingServicePosting`; OrderFulfillmentE2ETest passed `dispatch_CreatesPackingSlip_Invoice_PostsCOGS`, `dispatchConfirm_idempotent_andRestoresArtifacts`, and `salesDispatchEndpoint_isIdempotent`, with surefire logs showing consolidated COGS journals and sales journals being posted."
+        }
+      ],
+      "evidence": {
+        "network": [
+          "POST /api/v1/sales/dispatch/confirm (sales, empty body) -> 400 VAL_001",
+          "POST /api/v1/sales/dispatch/confirm (factory, empty body) -> 403 AUTH_004"
+        ],
+        "files": [
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-reads/runtime_dispatch_probes.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-posting/dispatch_test_summary.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/targeted-dispatch-tests.log"
+        ],
+        "tests": [
+          "DispatchConfirmationIT",
+          "TS_O2CDispatchCanonicalPostingTest",
+          "OrderFulfillmentE2ETest"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-DISPATCH-004",
+      "title": "Recovery and orchestrator paths remain non-owners",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Review orchestrator/recovery regression coverage",
+          "expected": "Recovery and orchestrator seams must fail closed without alternate dispatch posting behavior.",
+          "observed": "TS_O2COrchestratorDispatchRemovalRegressionTest passed `commandDispatcherFailsClosedWithoutIndependentDispatchSideEffects`, `integrationCoordinatorNoLongerContainsLegacyDispatchJournalMethodsOrHelpers`, and `staleOrchestratorDispatchArtifactsAreRemovedFromSourceTree`."
+        },
+        {
+          "action": "Corroborate canonical-path guards",
+          "expected": "Shared workflow guards still point dispatch ownership to the canonical sales path only.",
+          "observed": "guard_workflow_canonical_paths.sh completed successfully and reported `verified canonical dispatch source path` during the contract-guard run."
+        }
+      ],
+      "evidence": {
+        "files": [
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-posting/dispatch_test_summary.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-contract-artifacts/guard-results.log"
+        ],
+        "tests": [
+          "TS_O2COrchestratorDispatchRemovalRegressionTest"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-003",
+      "title": "Automatic cross-module consequences stay aligned through batch -> pack -> dispatch",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Review end-to-end dispatch tests that include pack-to-dispatch handoff and posting evidence",
+          "expected": "Packed output should dispatch through the canonical route with aligned inventory/accounting consequences and no half-updated sibling state.",
+          "observed": "DispatchOperationalBoundaryIT passed `packedSellableOutput_mustExistBeforeOrderCanDispatch` and logged pack journals before dispatch-side COGS and sales journals; OrderFulfillmentE2ETest passed idempotent and COGS/invoice dispatch cases; ErpInvariantsSuiteIT passed `orderToCash_goldenPath`, `orderToCash_creditNoteReversesInvoice`, and `crossModule_tenantOnboardingFirstSaleProducesBalancedLinkedArtifacts`, all with COGS and sales journal output in the surefire logs."
+        },
+        {
+          "action": "Cross-check the canonical posting truthsuite",
+          "expected": "Dispatch posting should remain on the canonical sales/accounting path with replay safety.",
+          "observed": "TS_O2CDispatchCanonicalPostingTest and OrderFulfillmentE2ETest both passed replay/canonical posting cases, while the runtime route probe kept the factory actor from acting as an alternate owner."
+        }
+      ],
+      "evidence": {
+        "files": [
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-posting/dispatch_test_summary.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-reads/runtime_dispatch_probes.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/targeted-dispatch-tests.log"
+        ],
+        "tests": [
+          "DispatchOperationalBoundaryIT",
+          "OrderFulfillmentE2ETest",
+          "ErpInvariantsSuiteIT",
+          "TS_O2CDispatchCanonicalPostingTest"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-004",
+      "title": "Packed sellable output is the only dispatchable handoff",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect the operational-boundary dispatch suite",
+          "expected": "Only packed sellable output should become dispatchable; unpacked output must fail closed.",
+          "observed": "DispatchOperationalBoundaryIT passed `packedSellableOutput_mustExistBeforeOrderCanDispatch`, which proves packing journals occur before dispatch posting and that packed sellable output is required for dispatch."
+        },
+        {
+          "action": "Corroborate the broader end-to-end dispatch suites",
+          "expected": "The surviving dispatch flow should stay on packed sellable FG only with replay-safe canonical posting.",
+          "observed": "OrderFulfillmentE2ETest passed `dispatch_CreatesPackingSlip_Invoice_PostsCOGS` and `salesDispatchEndpoint_isIdempotent`, showing the surviving sales-owned dispatch flow operates on the finished-goods handoff only."
+        }
+      ],
+      "evidence": {
+        "files": [
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-posting/dispatch_test_summary.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/targeted-dispatch-tests.log"
+        ],
+        "tests": [
+          "DispatchOperationalBoundaryIT",
+          "OrderFulfillmentE2ETest"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 4 assertions: 4 passed, 0 failed, 0 blocked."
+}

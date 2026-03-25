@@ -1,0 +1,123 @@
+{
+  "groupId": "dispatch-reads",
+  "surface": "api",
+  "testedAt": "2026-03-25T16:47:15Z",
+  "credentials": {
+    "account": "validation.sales@example.com + validation.factory@example.com",
+    "namespace": "dispatch-contract-hard-cut-reads"
+  },
+  "toolsUsed": [
+    "curl-equivalent runtime probes",
+    "openapi.json",
+    "mvn surefire reports"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-DISPATCH-001",
+      "title": "Sales dispatch confirm is the only public write owner",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Probe the canonical sales route with sales vs factory actors using empty JSON bodies",
+          "expected": "The surviving canonical route is reachable for sales-owned dispatch validation while non-owner factory users are denied.",
+          "observed": "POST /api/v1/sales/dispatch/confirm returned 400 VAL_001 for validation.sales@example.com (`Dispatch confirmation requires transporterName or driverName`), proving the route is live past auth; the same request returned 403 AUTH_004 for validation.factory@example.com with denial copy telling the operator to use the factory dispatch workspace for reads and sales for final posting."
+        },
+        {
+          "action": "Probe the retired alias and inspect OpenAPI path ownership",
+          "expected": "No second public dispatch-confirm write route remains.",
+          "observed": "POST /api/v1/dispatch/confirm returned 404 Not Found, while openapi.json exposes /api/v1/sales/dispatch/confirm and does not list /api/v1/dispatch/confirm."
+        }
+      ],
+      "evidence": {
+        "network": [
+          "POST /api/v1/sales/dispatch/confirm (sales, empty body) -> 400 VAL_001",
+          "POST /api/v1/sales/dispatch/confirm (factory, empty body) -> 403 AUTH_004",
+          "POST /api/v1/dispatch/confirm -> 404"
+        ],
+        "files": [
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-reads/runtime_dispatch_probes.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-reads/openapi_dispatch_paths.json"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-DISPATCH-002",
+      "title": "Factory dispatch namespace is operational read-only",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect the dispatch namespace methods in openapi.json",
+          "expected": "The surviving /api/v1/dispatch/** surface exposes GET routes only for pending, preview, slip, and order lookup.",
+          "observed": "The OpenAPI summary lists only GET for /api/v1/dispatch/pending, /api/v1/dispatch/preview/{slipId}, /api/v1/dispatch/slip/{slipId}, and /api/v1/dispatch/order/{orderId}; no write verb exists under the dispatch namespace."
+        },
+        {
+          "action": "Send negative write probes to the dispatch namespace",
+          "expected": "POST/PUT/PATCH/DELETE writes under /api/v1/dispatch/** fail closed.",
+          "observed": "POST, PUT, PATCH, and DELETE against /api/v1/dispatch/pending all returned 405 Method Not Allowed; the retired POST /api/v1/dispatch/confirm alias returned 404."
+        }
+      ],
+      "evidence": {
+        "network": [
+          "POST /api/v1/dispatch/pending -> 405",
+          "PUT /api/v1/dispatch/pending -> 405",
+          "PATCH /api/v1/dispatch/pending -> 405",
+          "DELETE /api/v1/dispatch/pending -> 405",
+          "POST /api/v1/dispatch/confirm -> 404"
+        ],
+        "files": [
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-reads/runtime_dispatch_probes.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-reads/openapi_dispatch_paths.json"
+        ],
+        "tests": [
+          "DispatchControllerTest.dispatchNamespace_hasNoPublicWriteMappings"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-DISPATCH-005",
+      "title": "Surviving dispatch reads remain operational and redacted",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Probe the surviving pending-slip read on the seeded runtime",
+          "expected": "The factory/operator read surface remains reachable after the write hard-cut.",
+          "observed": "GET /api/v1/dispatch/pending returned 200 for both validation.factory@example.com and validation.sales@example.com; the seeded runtime currently has an empty pending list, but the read surface is operational."
+        },
+        {
+          "action": "Corroborate preview/slip/order redaction with targeted dispatch tests",
+          "expected": "Factory-facing dispatch reads stay redacted for commercial fields while sales views retain financial fields.",
+          "observed": "DispatchControllerTest passed redaction-focused cases `getPendingSlips_filtersDispatchedAndRedactsFactoryView`, `factoryViews_areRedactedForPreviewAndSlipDetails`, `factorySlipView_redactsLineUnitCost`, `salesViewsRetainFinancialFieldsWithoutFactoryRedaction`, and `getPackagingSlipByOrder_salesViewsRetainFinancialFields`; DispatchOperationalBoundaryIT also passed `factoryDispatchFlow_redactsCommercialFields_persistsLogistics_andReplaysWithoutDuplicateMovements`."
+        }
+      ],
+      "evidence": {
+        "network": [
+          "GET /api/v1/dispatch/pending (factory) -> 200 []",
+          "GET /api/v1/dispatch/pending (sales) -> 200 []"
+        ],
+        "files": [
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-reads/runtime_dispatch_probes.json",
+          "/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/evidence/dispatch-contract-hard-cut/dispatch-posting/dispatch_test_summary.json"
+        ],
+        "tests": [
+          "DispatchControllerTest",
+          "DispatchOperationalBoundaryIT"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "The seeded validation runtime did not start with any pending dispatch slips, so live preview/slip/order probes could not be completed from the default seed.",
+      "resolved": true,
+      "resolution": "Used the live 200 pending-surface probe plus deterministic DispatchControllerTest and DispatchOperationalBoundaryIT redaction coverage to prove the surviving read contract without fabricating runtime fixtures.",
+      "affectedAssertions": [
+        "VAL-DISPATCH-005"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 3 assertions: 3 passed, 0 failed, 0 blocked."
+}
