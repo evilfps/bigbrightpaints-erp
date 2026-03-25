@@ -32,6 +32,8 @@ import com.bigbrightpaints.erp.modules.factory.domain.PackingRecordRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogStatus;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.CostAllocationRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingLineRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingRequest;
@@ -66,6 +68,7 @@ class CR_ManufacturingWipCostingTest extends AbstractIntegrationTest {
   @Autowired private PackingService packingService;
   @Autowired private PackingRecordRepository packingRecordRepository;
   @Autowired private PackagingSizeMappingRepository packagingSizeMappingRepository;
+  @Autowired private SizeVariantRepository sizeVariantRepository;
   @Autowired private RawMaterialRepository rawMaterialRepository;
   @Autowired private RawMaterialBatchRepository rawMaterialBatchRepository;
   @Autowired private FinishedGoodsService finishedGoodsService;
@@ -111,6 +114,7 @@ class CR_ManufacturingWipCostingTest extends AbstractIntegrationTest {
         ensurePackagingMaterial(company, accounts.get("PACK_INV"), new BigDecimal("100"));
     ensureRawMaterialBatch(bucket, new BigDecimal("100"), new BigDecimal("2.00"));
     ensurePackagingSizeMapping(company, bucket, "1L");
+    FinishedGood packTarget = ensurePackTarget(company, product, accounts, "1L");
 
     CompanyContextHolder.setCompanyId(companyCode);
     LocalDate packingDate = LocalDate.of(2025, 3, 31);
@@ -119,7 +123,9 @@ class CR_ManufacturingWipCostingTest extends AbstractIntegrationTest {
             log.getId(),
             packingDate,
             "codered",
-            List.of(new PackingLineRequest("1L", new BigDecimal("5"), 5, null, null))));
+            List.of(
+                new PackingLineRequest(
+                    packTarget.getId(), null, "1L", new BigDecimal("5"), 5, null, null))));
     CompanyContextHolder.clear();
 
     PackingRecord record =
@@ -398,6 +404,27 @@ class CR_ManufacturingWipCostingTest extends AbstractIntegrationTest {
                 });
     CompanyContextHolder.clear();
     return fg;
+  }
+
+  private FinishedGood ensurePackTarget(
+      Company company, ProductionProduct product, Map<String, Account> accounts, String sizeLabel) {
+    SizeVariant variant =
+        sizeVariantRepository
+            .findByCompanyAndProductAndSizeLabelIgnoreCase(company, product, sizeLabel)
+            .orElseGet(
+                () -> {
+                  SizeVariant created = new SizeVariant();
+                  created.setCompany(company);
+                  created.setProduct(product);
+                  created.setSizeLabel(sizeLabel);
+                  created.setCartonQuantity(1);
+                  created.setLitersPerUnit(new BigDecimal(sizeLabel.replace("L", "")));
+                  created.setActive(true);
+                  return sizeVariantRepository.save(created);
+                });
+    variant.setActive(true);
+    sizeVariantRepository.save(variant);
+    return ensureFinishedGood(company, product.getSkuCode(), accounts.get("FG_INV"), accounts);
   }
 
   private RawMaterial ensurePackagingMaterial(

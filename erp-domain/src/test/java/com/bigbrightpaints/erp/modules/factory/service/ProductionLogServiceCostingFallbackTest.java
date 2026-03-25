@@ -51,6 +51,7 @@ class ProductionLogServiceCostingFallbackTest {
   @Mock private FinishedGoodRepository finishedGoodRepository;
   @Mock private FinishedGoodBatchRepository finishedGoodBatchRepository;
   @Mock private InventoryMovementRepository inventoryMovementRepository;
+  @Mock private PackingAllowedSizeService packingAllowedSizeService;
 
   private ProductionLogService productionLogService;
 
@@ -69,7 +70,8 @@ class ProductionLogServiceCostingFallbackTest {
             companyClock,
             finishedGoodRepository,
             finishedGoodBatchRepository,
-            inventoryMovementRepository);
+            inventoryMovementRepository,
+            packingAllowedSizeService);
   }
 
   @Test

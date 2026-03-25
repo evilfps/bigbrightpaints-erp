@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -352,10 +353,22 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertThat(detailProperties.has("id")).isTrue();
     assertThat(detailProperties.has("publicId")).isTrue();
     assertThat(detailProperties.has("productionCode")).isTrue();
+    assertThat(detailProperties.has("productFamilyName")).isTrue();
     assertThat(detailProperties.has("outputBatchCode")).isTrue();
     assertThat(detailProperties.has("outputQuantity")).isTrue();
     assertThat(detailProperties.has("totalPackedQuantity")).isTrue();
     assertThat(detailProperties.has("status")).isTrue();
+    assertThat(detailProperties.has("allowedSellableSizes")).isTrue();
+
+    JsonNode unpackedBatchDto = root.path("components").path("schemas").path("UnpackedBatchDto");
+    JsonNode unpackedProperties = unpackedBatchDto.path("properties");
+    assertThat(unpackedProperties.has("productFamilyName")).isTrue();
+    assertThat(unpackedProperties.has("allowedSellableSizes")).isTrue();
+
+    JsonNode packingLineRequest = root.path("components").path("schemas").path("PackingLineRequest");
+    List<String> packingLineRequired = new ArrayList<>();
+    packingLineRequest.path("required").forEach(node -> packingLineRequired.add(node.asText()));
+    assertThat(packingLineRequired).contains("childFinishedGoodId");
   }
 
   @Test

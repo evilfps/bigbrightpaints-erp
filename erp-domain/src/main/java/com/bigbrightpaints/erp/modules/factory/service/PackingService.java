@@ -48,6 +48,7 @@ public class PackingService {
   private final CompanyEntityLookup companyEntityLookup;
   private final PackagingMaterialService packagingMaterialService;
   private final PackingProductSupport packingProductSupport;
+  private final PackingAllowedSizeService packingAllowedSizeService;
   private final PackingLineResolver packingLineResolver;
   private final PackingIdempotencyService packingIdempotencyService;
   private final PackingInventoryService packingInventoryService;
@@ -70,6 +71,7 @@ public class PackingService {
       CompanyEntityLookup companyEntityLookup,
       PackagingMaterialService packagingMaterialService,
       PackingProductSupport packingProductSupport,
+      PackingAllowedSizeService packingAllowedSizeService,
       PackingLineResolver packingLineResolver,
       PackingIdempotencyService packingIdempotencyService,
       PackingInventoryService packingInventoryService,
@@ -87,6 +89,7 @@ public class PackingService {
     this.companyEntityLookup = companyEntityLookup;
     this.packagingMaterialService = packagingMaterialService;
     this.packingProductSupport = packingProductSupport;
+    this.packingAllowedSizeService = packingAllowedSizeService;
     this.packingLineResolver = packingLineResolver;
     this.packingIdempotencyService = packingIdempotencyService;
     this.packingInventoryService = packingInventoryService;
@@ -117,10 +120,7 @@ public class PackingService {
       return reservation.replayResult();
     }
 
-    FinishedGood defaultFinishedGood = packingProductSupport.ensureFinishedGood(company, log);
-    PackingExecution execution =
-        executePackingLines(
-            company, log, request, packedDate, defaultFinishedGood, request.packedBy());
+    PackingExecution execution = executePackingLines(company, log, request, packedDate, request.packedBy());
     applyPackedQuantity(log, execution.totalQuantity());
     updateLogStatus(log.getId());
     packingIdempotencyService.markCompleted(reservation, execution.firstPackingRecordId());
@@ -199,7 +199,6 @@ public class PackingService {
       ProductionLog log,
       PackingRequest request,
       LocalDate packedDate,
-      FinishedGood defaultFinishedGood,
       String packedBy) {
     BigDecimal sessionQuantity = BigDecimal.ZERO;
     Long firstPackingRecordId = null;
@@ -208,7 +207,7 @@ public class PackingService {
     for (PackingLineRequest line : request.lines()) {
       lineIndex++;
       PackingLineExecution lineExecution =
-          executeLine(company, log, line, lineIndex, packedDate, defaultFinishedGood, packedBy);
+          executeLine(company, log, line, lineIndex, packedDate, packedBy);
       if (firstPackingRecordId == null) {
         firstPackingRecordId = lineExecution.record().getId();
       }
@@ -228,11 +227,13 @@ public class PackingService {
       PackingLineRequest line,
       int lineIndex,
       LocalDate packedDate,
-      FinishedGood defaultFinishedGood,
       String packedBy) {
     String normalizedSize =
         packingLineResolver.normalizePackagingSize(line.packagingSize(), lineIndex);
-    SizeVariant sizeVariant = packingLineResolver.resolveSizeVariant(company, log, normalizedSize);
+    PackingAllowedSizeService.AllowedSellableSizeTarget allowedSizeTarget =
+        packingAllowedSizeService.requireAllowedSellableSize(
+            company, log, line.childFinishedGoodId(), normalizedSize, lineIndex);
+    SizeVariant sizeVariant = allowedSizeTarget.sizeVariant();
     Integer piecesPerBox = packingLineResolver.resolvePiecesPerBox(line, sizeVariant);
     int piecesCount = packingLineResolver.resolvePiecesCountForLine(line, piecesPerBox, lineIndex);
     BigDecimal lineQuantity =
@@ -245,8 +246,7 @@ public class PackingService {
     }
 
     int childBatchCount = packingLineResolver.resolveChildBatchCount(line, piecesCount);
-    FinishedGood targetFinishedGood =
-        packingProductSupport.resolveTargetFinishedGood(company, log, line, defaultFinishedGood);
+    FinishedGood targetFinishedGood = allowedSizeTarget.finishedGood();
 
     PackingRecord savedRecord =
         savePackingRecord(

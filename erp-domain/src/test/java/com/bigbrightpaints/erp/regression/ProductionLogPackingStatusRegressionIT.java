@@ -25,6 +25,8 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingLineRequest;
@@ -34,6 +36,8 @@ import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.UnpackedBatchDto;
 import com.bigbrightpaints.erp.modules.factory.service.PackingService;
 import com.bigbrightpaints.erp.modules.factory.service.ProductionLogService;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
@@ -58,9 +62,11 @@ class ProductionLogPackingStatusRegressionIT extends AbstractIntegrationTest {
   @Autowired private RawMaterialRepository rawMaterialRepository;
   @Autowired private RawMaterialBatchRepository rawMaterialBatchRepository;
   @Autowired private PackagingSizeMappingRepository packagingSizeMappingRepository;
+  @Autowired private SizeVariantRepository sizeVariantRepository;
   @Autowired private ProductionLogRepository productionLogRepository;
   @Autowired private ProductionLogService productionLogService;
   @Autowired private PackingService packingService;
+  @Autowired private FinishedGoodRepository finishedGoodRepository;
 
   private Company company;
   private Account rmInventory;
@@ -73,6 +79,7 @@ class ProductionLogPackingStatusRegressionIT extends AbstractIntegrationTest {
   private Account packagingInventory;
   private ProductionBrand brand;
   private ProductionProduct product;
+  private FinishedGood packTarget;
 
   @BeforeEach
   void setUp() {
@@ -90,6 +97,7 @@ class ProductionLogPackingStatusRegressionIT extends AbstractIntegrationTest {
 
     brand = ensureBrand();
     product = ensureProduct();
+    packTarget = ensureAllowedPackTarget();
   }
 
   @AfterEach
@@ -127,16 +135,27 @@ class ProductionLogPackingStatusRegressionIT extends AbstractIntegrationTest {
                     new ProductionLogRequest.MaterialUsageRequest(
                         material.getId(), new BigDecimal("5"), "KG"))));
 
+    assertThat(log.productFamilyName()).isEqualTo("LF-013 Family");
+    assertThat(log.allowedSellableSizes()).hasSize(1);
+    assertThat(log.allowedSellableSizes().getFirst().childFinishedGoodId())
+        .isEqualTo(packTarget.getId());
+    assertThat(log.allowedSellableSizes().getFirst().sizeLabel()).isEqualTo("1L");
+
     ProductionLogDetailDto packed =
         packingService.recordPacking(
             new PackingRequest(
                 log.id(),
                 LocalDate.now(),
                 "Packer",
-                List.of(new PackingLineRequest("1L", new BigDecimal("4"), 4, null, null))));
+                List.of(
+                    new PackingLineRequest(
+                        packTarget.getId(), null, "1L", new BigDecimal("4"), 4, null, null))));
 
     assertThat(packed.status()).isEqualTo("PARTIAL_PACKED");
     assertThat(packed.totalPackedQuantity()).isEqualByComparingTo(new BigDecimal("4"));
+    assertThat(packed.allowedSellableSizes()).hasSize(1);
+    assertThat(packed.allowedSellableSizes().getFirst().childFinishedGoodId())
+        .isEqualTo(packTarget.getId());
 
     ProductionLog refreshed = productionLogRepository.findById(log.id()).orElseThrow();
     assertThat(refreshed.getStatus().name()).isEqualTo("PARTIAL_PACKED");
@@ -145,6 +164,13 @@ class ProductionLogPackingStatusRegressionIT extends AbstractIntegrationTest {
     List<UnpackedBatchDto> batches = packingService.listUnpackedBatches();
     assertThat(batches)
         .anyMatch(batch -> batch.id().equals(log.id()) && "PARTIAL_PACKED".equals(batch.status()));
+    assertThat(batches)
+        .anyMatch(
+            batch ->
+                batch.id().equals(log.id())
+                    && "LF-013 Family".equals(batch.productFamilyName())
+                    && batch.allowedSellableSizes().stream()
+                        .anyMatch(size -> size.childFinishedGoodId().equals(packTarget.getId())));
   }
 
   private Account ensureAccount(String code, String name, AccountType type) {
@@ -175,8 +201,11 @@ class ProductionLogPackingStatusRegressionIT extends AbstractIntegrationTest {
     product.setBrand(brand);
     product.setSkuCode("SKU-" + UUID.randomUUID());
     product.setProductName("LF-013 Product");
+    product.setProductFamilyName("LF-013 Family");
     product.setCategory("FINISHED_GOOD");
+    product.setSizeLabel("1L");
     product.setUnitOfMeasure("L");
+    product.setCartonSizes(Map.of("1L", 1));
 
     Map<String, Object> metadata = new HashMap<>();
     metadata.put("wipAccountId", wipAccount.getId());
@@ -189,6 +218,29 @@ class ProductionLogPackingStatusRegressionIT extends AbstractIntegrationTest {
     product.setMetadata(metadata);
 
     return productRepository.save(product);
+  }
+
+  private FinishedGood ensureAllowedPackTarget() {
+    SizeVariant variant = new SizeVariant();
+    variant.setCompany(company);
+    variant.setProduct(product);
+    variant.setSizeLabel("1L");
+    variant.setCartonQuantity(1);
+    variant.setLitersPerUnit(BigDecimal.ONE);
+    variant.setActive(true);
+    sizeVariantRepository.save(variant);
+
+    FinishedGood finishedGood = new FinishedGood();
+    finishedGood.setCompany(company);
+    finishedGood.setProductCode(product.getSkuCode());
+    finishedGood.setName(product.getProductName());
+    finishedGood.setUnit("L");
+    finishedGood.setValuationAccountId(fgInventory.getId());
+    finishedGood.setCogsAccountId(cogsAccount.getId());
+    finishedGood.setRevenueAccountId(revenueAccount.getId());
+    finishedGood.setDiscountAccountId(discountAccount.getId());
+    finishedGood.setTaxAccountId(taxAccount.getId());
+    return finishedGoodRepository.save(finishedGood);
   }
 
   private RawMaterial createRawMaterial(

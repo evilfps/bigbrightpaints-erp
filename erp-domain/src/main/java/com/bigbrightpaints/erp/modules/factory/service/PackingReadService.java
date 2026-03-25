@@ -25,16 +25,19 @@ public class PackingReadService {
   private final ProductionLogRepository productionLogRepository;
   private final PackingRecordRepository packingRecordRepository;
   private final CompanyEntityLookup companyEntityLookup;
+  private final PackingAllowedSizeService packingAllowedSizeService;
 
   public PackingReadService(
       CompanyContextService companyContextService,
       ProductionLogRepository productionLogRepository,
       PackingRecordRepository packingRecordRepository,
-      CompanyEntityLookup companyEntityLookup) {
+      CompanyEntityLookup companyEntityLookup,
+      PackingAllowedSizeService packingAllowedSizeService) {
     this.companyContextService = companyContextService;
     this.productionLogRepository = productionLogRepository;
     this.packingRecordRepository = packingRecordRepository;
     this.companyEntityLookup = companyEntityLookup;
+    this.packingAllowedSizeService = packingAllowedSizeService;
   }
 
   public List<UnpackedBatchDto> listUnpackedBatches() {
@@ -60,7 +63,9 @@ public class PackingReadService {
                                 .orElse(BigDecimal.ZERO))
                         .max(BigDecimal.ZERO),
                     log.getStatus().name(),
-                    log.getProducedAt()))
+                    log.getProducedAt(),
+                    log.getProduct() != null ? log.getProduct().getProductFamilyName() : null,
+                    packingAllowedSizeService.listAllowedSellableSizes(company, log)))
         .toList();
   }
 

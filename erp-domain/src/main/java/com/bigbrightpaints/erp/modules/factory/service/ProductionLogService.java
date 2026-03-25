@@ -34,6 +34,7 @@ import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogMaterial;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogStatus;
+import com.bigbrightpaints.erp.modules.factory.dto.AllowedSellableSizeDto;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogDetailDto;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogDto;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogMaterialDto;
@@ -78,6 +79,7 @@ public class ProductionLogService {
   private final FinishedGoodRepository finishedGoodRepository;
   private final FinishedGoodBatchRepository finishedGoodBatchRepository;
   private final InventoryMovementRepository inventoryMovementRepository;
+  private final PackingAllowedSizeService packingAllowedSizeService;
 
   public ProductionLogService(
       CompanyContextService companyContextService,
@@ -91,7 +93,8 @@ public class ProductionLogService {
       CompanyClock companyClock,
       FinishedGoodRepository finishedGoodRepository,
       FinishedGoodBatchRepository finishedGoodBatchRepository,
-      InventoryMovementRepository inventoryMovementRepository) {
+      InventoryMovementRepository inventoryMovementRepository,
+      PackingAllowedSizeService packingAllowedSizeService) {
     this.companyContextService = companyContextService;
     this.companyRepository = companyRepository;
     this.logRepository = logRepository;
@@ -104,6 +107,7 @@ public class ProductionLogService {
     this.finishedGoodRepository = finishedGoodRepository;
     this.finishedGoodBatchRepository = finishedGoodBatchRepository;
     this.inventoryMovementRepository = inventoryMovementRepository;
+    this.packingAllowedSizeService = packingAllowedSizeService;
   }
 
   @Transactional
@@ -782,6 +786,10 @@ public class ProductionLogService {
                         record.getPackedDate(),
                         record.getPackedBy()))
             .toList();
+    List<AllowedSellableSizeDto> allowedSellableSizes =
+        packingAllowedSizeService.listAllowedSellableSizes(log.getCompany(), log);
+    String productFamilyName =
+        log.getProduct() != null ? log.getProduct().getProductFamilyName() : null;
     return new ProductionLogDetailDto(
         log.getId(),
         log.getPublicId(),
@@ -809,7 +817,9 @@ public class ProductionLogService {
         log.getNotes(),
         log.getCreatedBy(),
         materials,
-        packingRecords);
+        packingRecords,
+        productFamilyName,
+        allowedSellableSizes);
   }
 
   private BigDecimal positive(BigDecimal value, String field) {

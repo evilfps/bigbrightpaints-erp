@@ -25,6 +25,8 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogStatus;
@@ -64,6 +66,7 @@ public class CostAllocationVariancePolicyIT extends AbstractIntegrationTest {
   @Autowired private RawMaterialRepository rawMaterialRepository;
   @Autowired private RawMaterialBatchRepository rawMaterialBatchRepository;
   @Autowired private PackagingSizeMappingRepository packagingSizeMappingRepository;
+  @Autowired private SizeVariantRepository sizeVariantRepository;
   @Autowired private ProductionLogService productionLogService;
   @Autowired private PackingService packingService;
   @Autowired private CostAllocationService costAllocationService;
@@ -119,6 +122,7 @@ public class CostAllocationVariancePolicyIT extends AbstractIntegrationTest {
     addBatch(base, new BigDecimal("100"), new BigDecimal("10"));
     addBatch(bucket, new BigDecimal("10"), new BigDecimal("5"));
     mapPackagingSize("5L", bucket);
+    FinishedGood packTarget = ensurePackTarget(product, "5L");
 
     LocalDate periodDate = resolveClosedPeriodDate();
 
@@ -146,7 +150,9 @@ public class CostAllocationVariancePolicyIT extends AbstractIntegrationTest {
             log.id(),
             periodDate,
             "Packer",
-            List.of(new PackingLineRequest("5L", new BigDecimal("10"), 2, null, null))));
+            List.of(
+                new PackingLineRequest(
+                    packTarget.getId(), null, "5L", new BigDecimal("10"), 2, null, null))));
     ensureFullyPackedForPeriod(log.id(), periodDate);
 
     FinishedGood fg =
@@ -193,6 +199,7 @@ public class CostAllocationVariancePolicyIT extends AbstractIntegrationTest {
     addBatch(base, new BigDecimal("100"), new BigDecimal("10"));
     addBatch(bucket, new BigDecimal("10"), new BigDecimal("5"));
     mapPackagingSize("5L", bucket);
+    FinishedGood packTarget = ensurePackTarget(product, "5L");
 
     LocalDate periodDate = resolveClosedPeriodDate();
 
@@ -220,7 +227,9 @@ public class CostAllocationVariancePolicyIT extends AbstractIntegrationTest {
             log.id(),
             periodDate,
             "Packer",
-            List.of(new PackingLineRequest("5L", new BigDecimal("10"), 2, null, null))));
+            List.of(
+                new PackingLineRequest(
+                    packTarget.getId(), null, "5L", new BigDecimal("10"), 2, null, null))));
     ensureFullyPackedForPeriod(log.id(), periodDate);
 
     String periodKey = String.format("%04d%02d", periodDate.getYear(), periodDate.getMonthValue());
@@ -332,6 +341,42 @@ public class CostAllocationVariancePolicyIT extends AbstractIntegrationTest {
     metadata.put("overheadAppliedAccountId", overheadApplied.getId());
     product.setMetadata(metadata);
     return productionProductRepository.save(product);
+  }
+
+  private FinishedGood ensurePackTarget(ProductionProduct product, String sizeLabel) {
+    SizeVariant variant =
+        sizeVariantRepository
+            .findByCompanyAndProductAndSizeLabelIgnoreCase(company, product, sizeLabel)
+            .orElseGet(
+                () -> {
+                  SizeVariant created = new SizeVariant();
+                  created.setCompany(company);
+                  created.setProduct(product);
+                  created.setSizeLabel(sizeLabel);
+                  created.setCartonQuantity(1);
+                  created.setLitersPerUnit(new BigDecimal(sizeLabel.replace("L", "")));
+                  created.setActive(true);
+                  return sizeVariantRepository.save(created);
+                });
+    variant.setActive(true);
+    sizeVariantRepository.save(variant);
+
+    return finishedGoodRepository
+        .findByCompanyAndProductCode(company, product.getSkuCode())
+        .orElseGet(
+            () -> {
+              FinishedGood finishedGood = new FinishedGood();
+              finishedGood.setCompany(company);
+              finishedGood.setProductCode(product.getSkuCode());
+              finishedGood.setName(product.getProductName());
+              finishedGood.setUnit("L");
+              finishedGood.setValuationAccountId(fgInventory.getId());
+              finishedGood.setCogsAccountId(cogs.getId());
+              finishedGood.setRevenueAccountId(revenue.getId());
+              finishedGood.setDiscountAccountId(discount.getId());
+              finishedGood.setTaxAccountId(tax.getId());
+              return finishedGoodRepository.save(finishedGood);
+            });
   }
 
   private RawMaterial createRawMaterial(String sku, Account inventoryAccount, BigDecimal stock) {

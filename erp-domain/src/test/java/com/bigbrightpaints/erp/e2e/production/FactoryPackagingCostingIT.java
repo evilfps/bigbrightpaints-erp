@@ -30,6 +30,8 @@ import com.bigbrightpaints.erp.modules.factory.domain.PackingRecord;
 import com.bigbrightpaints.erp.modules.factory.domain.PackingRecordRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingLineRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogDetailDto;
@@ -87,6 +89,7 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
   @Autowired private RawMaterialRepository rawMaterialRepository;
   @Autowired private RawMaterialBatchRepository rawMaterialBatchRepository;
   @Autowired private PackagingSizeMappingRepository packagingSizeMappingRepository;
+  @Autowired private SizeVariantRepository sizeVariantRepository;
   @Autowired private ProductionLogRepository productionLogRepository;
   @Autowired private ProductionLogService productionLogService;
   @Autowired private PackingService packingService;
@@ -150,6 +153,7 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
         createRawMaterial("RM-BUCKET", "Bucket 20L", packagingInventory, new BigDecimal("10"));
     addBatch(bucket, new BigDecimal("10"), new BigDecimal("50")); // 10 buckets @ 50 each
     mapPackagingSize("20L", bucket);
+    FinishedGood packTarget = ensurePackTarget(product, "20L");
 
     // STEP 1: Mixing (consume 55 units @100 -> 5,500 production cost over 100L)
     ProductionLogDetailDto log =
@@ -178,7 +182,9 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
             log.id(),
             LocalDate.now(),
             "Packer",
-            List.of(new PackingLineRequest("20L", new BigDecimal("100"), 5, null, null))));
+            List.of(
+                new PackingLineRequest(
+                    packTarget.getId(), null, "20L", new BigDecimal("100"), 5, null, null))));
 
     FinishedGood fg =
         finishedGoodRepository
@@ -371,6 +377,42 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
     metadata.put("fgTaxAccountId", tax.getId());
     p.setMetadata(metadata);
     return productionProductRepository.save(p);
+  }
+
+  private FinishedGood ensurePackTarget(ProductionProduct product, String sizeLabel) {
+    SizeVariant variant =
+        sizeVariantRepository
+            .findByCompanyAndProductAndSizeLabelIgnoreCase(company, product, sizeLabel)
+            .orElseGet(
+                () -> {
+                  SizeVariant created = new SizeVariant();
+                  created.setCompany(company);
+                  created.setProduct(product);
+                  created.setSizeLabel(sizeLabel);
+                  created.setCartonQuantity(1);
+                  created.setLitersPerUnit(new BigDecimal(sizeLabel.replace("L", "")));
+                  created.setActive(true);
+                  return sizeVariantRepository.save(created);
+                });
+    variant.setActive(true);
+    sizeVariantRepository.save(variant);
+
+    return finishedGoodRepository
+        .findByCompanyAndProductCode(company, product.getSkuCode())
+        .orElseGet(
+            () -> {
+              FinishedGood finishedGood = new FinishedGood();
+              finishedGood.setCompany(company);
+              finishedGood.setProductCode(product.getSkuCode());
+              finishedGood.setName(product.getProductName());
+              finishedGood.setUnit("L");
+              finishedGood.setValuationAccountId(fgInventory.getId());
+              finishedGood.setCogsAccountId(cogs.getId());
+              finishedGood.setRevenueAccountId(revenue.getId());
+              finishedGood.setDiscountAccountId(revenue.getId());
+              finishedGood.setTaxAccountId(tax.getId());
+              return finishedGoodRepository.save(finishedGood);
+            });
   }
 
   private RawMaterial createRawMaterial(

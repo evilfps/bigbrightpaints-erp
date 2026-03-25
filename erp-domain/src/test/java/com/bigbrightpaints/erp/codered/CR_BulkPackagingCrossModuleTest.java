@@ -32,6 +32,8 @@ import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.BulkPackRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.BulkPackResponse;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingLineRequest;
@@ -76,6 +78,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
   @Autowired private RawMaterialRepository rawMaterialRepository;
   @Autowired private RawMaterialBatchRepository rawMaterialBatchRepository;
   @Autowired private PackagingSizeMappingRepository packagingSizeMappingRepository;
+  @Autowired private SizeVariantRepository sizeVariantRepository;
   @Autowired private JournalEntryRepository journalEntryRepository;
   @Autowired private JdbcTemplate jdbcTemplate;
 
@@ -107,6 +110,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
     ensureRawMaterialBatch(bucket, new BigDecimal("20"), new BigDecimal("2.00"));
     ensurePackagingSizeMapping(company, bucket, "1L");
     ensurePackagingSizeMapping(company, bucket, "4L");
+    FinishedGood packTarget = ensurePackTarget(company, bulkProduct, accounts, "1L");
 
     LocalDate packingDate = TestDateUtils.safeDate(company);
     CompanyContextHolder.setCompanyId(companyCode);
@@ -115,7 +119,9 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
             log.getId(),
             packingDate,
             "codered",
-            List.of(new PackingLineRequest("1L", new BigDecimal("10"), 10, null, null))));
+            List.of(
+                new PackingLineRequest(
+                    packTarget.getId(), null, "1L", new BigDecimal("10"), 10, null, null))));
     CompanyContextHolder.clear();
 
     FinishedGood bulkFg =
@@ -257,6 +263,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
         ensurePackagingMaterial(company, accounts.get("PACK_INV"), new BigDecimal("20"));
     ensureRawMaterialBatch(bucket, new BigDecimal("20"), new BigDecimal("1.50"));
     ensurePackagingSizeMapping(company, bucket, "1L");
+    FinishedGood packTarget = ensurePackTarget(company, bulkProduct, accounts, "1L");
 
     LocalDate packingDate = TestDateUtils.safeDate(company);
     CompanyContextHolder.setCompanyId(companyCode);
@@ -265,7 +272,9 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
             log.getId(),
             packingDate,
             "codered",
-            List.of(new PackingLineRequest("1L", new BigDecimal("5"), 5, null, null))));
+            List.of(
+                new PackingLineRequest(
+                    packTarget.getId(), null, "1L", new BigDecimal("5"), 5, null, null))));
     CompanyContextHolder.clear();
 
     FinishedGood bulkFg =
@@ -339,6 +348,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
     ensureRawMaterialBatch(bucket, new BigDecimal("20"), new BigDecimal("2.00"));
     ensurePackagingSizeMapping(company, bucket, "1L");
     ensurePackagingSizeMapping(company, bucket, "4L");
+    FinishedGood packTarget = ensurePackTarget(company, bulkProduct, accounts, "1L");
 
     LocalDate packingDate = TestDateUtils.safeDate(company);
     CompanyContextHolder.setCompanyId(companyCode);
@@ -347,7 +357,9 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
             log.getId(),
             packingDate,
             "codered",
-            List.of(new PackingLineRequest("1L", new BigDecimal("10"), 10, null, null))));
+            List.of(
+                new PackingLineRequest(
+                    packTarget.getId(), null, "1L", new BigDecimal("10"), 10, null, null))));
     CompanyContextHolder.clear();
 
     FinishedGood bulkFg =
@@ -435,6 +447,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
     ensureRawMaterialBatch(bucket, new BigDecimal("20"), new BigDecimal("2.00"));
     ensurePackagingSizeMapping(company, bucket, "1L");
     ensurePackagingSizeMapping(company, bucket, "4L");
+    FinishedGood packTarget = ensurePackTarget(company, bulkProduct, accounts, "1L");
 
     LocalDate packingDate = TestDateUtils.safeDate(company);
     CompanyContextHolder.setCompanyId(companyCode);
@@ -443,7 +456,9 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
             log.getId(),
             packingDate,
             "codered",
-            List.of(new PackingLineRequest("1L", new BigDecimal("10"), 10, null, null))));
+            List.of(
+                new PackingLineRequest(
+                    packTarget.getId(), null, "1L", new BigDecimal("10"), 10, null, null))));
     CompanyContextHolder.clear();
 
     FinishedGood bulkFg =
@@ -715,6 +730,31 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
                 });
     CompanyContextHolder.clear();
     return fg;
+  }
+
+  private FinishedGood ensurePackTarget(
+      Company company, ProductionProduct product, Map<String, Account> accounts, String sizeLabel) {
+    if (!sizeLabel.equalsIgnoreCase(product.getSizeLabel())) {
+      product.setSizeLabel(sizeLabel);
+      productionProductRepository.save(product);
+    }
+    SizeVariant variant =
+        sizeVariantRepository
+            .findByCompanyAndProductAndSizeLabelIgnoreCase(company, product, sizeLabel)
+            .orElseGet(
+                () -> {
+                  SizeVariant created = new SizeVariant();
+                  created.setCompany(company);
+                  created.setProduct(product);
+                  created.setSizeLabel(sizeLabel);
+                  created.setCartonQuantity(1);
+                  created.setLitersPerUnit(new BigDecimal(sizeLabel.replace("L", "")));
+                  created.setActive(true);
+                  return sizeVariantRepository.save(created);
+                });
+    variant.setActive(true);
+    sizeVariantRepository.save(variant);
+    return ensureFinishedGood(company, product.getSkuCode(), accounts.get("FG_INV"), accounts);
   }
 
   private void seedSemiFinishedBatch(

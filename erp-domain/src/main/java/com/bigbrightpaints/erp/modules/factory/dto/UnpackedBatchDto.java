@@ -12,4 +12,30 @@ public record UnpackedBatchDto(
     BigDecimal packedQuantity,
     BigDecimal remainingQuantity,
     String status,
-    Instant producedAt) {}
+    Instant producedAt,
+    String productFamilyName,
+    java.util.List<AllowedSellableSizeDto> allowedSellableSizes) {
+  public UnpackedBatchDto(
+      Long id,
+      String productionCode,
+      String productName,
+      String batchColour,
+      BigDecimal mixedQuantity,
+      BigDecimal packedQuantity,
+      BigDecimal remainingQuantity,
+      String status,
+      Instant producedAt) {
+    this(
+        id,
+        productionCode,
+        productName,
+        batchColour,
+        mixedQuantity,
+        packedQuantity,
+        remainingQuantity,
+        status,
+        producedAt,
+        null,
+        java.util.List.of());
+  }
+}
