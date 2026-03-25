@@ -264,6 +264,8 @@ Portal scope guardrail:
 - `PUT` `/api/v1/factory/tasks/{id}`
 - `GET` `/api/v1/factory/unpacked-batches`
 
+Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packaging Setup / Rules contract. Pack requests fail closed when a size is missing active, usable packaging setup.
+
 ## `finished-goods`
 
 - `GET` `/api/v1/finished-goods`

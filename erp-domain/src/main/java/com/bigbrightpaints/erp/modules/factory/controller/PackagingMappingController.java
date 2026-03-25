@@ -13,10 +13,7 @@ import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
 import jakarta.validation.Valid;
 
-/**
- * Controller for managing packaging size to raw material (bucket) mappings.
- * Used to configure automatic bucket deduction during packing.
- */
+/** Controller for managing Packaging Setup / Rules for automatic packing consumption. */
 @RestController
 @RequestMapping("/api/v1/factory/packaging-mappings")
 public class PackagingMappingController {
@@ -31,14 +28,14 @@ public class PackagingMappingController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY')")
   public ResponseEntity<ApiResponse<List<PackagingSizeMappingDto>>> listMappings() {
     List<PackagingSizeMappingDto> mappings = packagingMaterialService.listMappings();
-    return ResponseEntity.ok(ApiResponse.success("Packaging size mappings", mappings));
+    return ResponseEntity.ok(ApiResponse.success("Packaging setup rules", mappings));
   }
 
   @GetMapping("/active")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY')")
   public ResponseEntity<ApiResponse<List<PackagingSizeMappingDto>>> listActiveMappings() {
     List<PackagingSizeMappingDto> mappings = packagingMaterialService.listActiveMappings();
-    return ResponseEntity.ok(ApiResponse.success("Active packaging size mappings", mappings));
+    return ResponseEntity.ok(ApiResponse.success("Active packaging setup rules", mappings));
   }
 
   @PostMapping
@@ -46,7 +43,7 @@ public class PackagingMappingController {
   public ResponseEntity<ApiResponse<PackagingSizeMappingDto>> createMapping(
       @Valid @RequestBody PackagingSizeMappingRequest request) {
     PackagingSizeMappingDto created = packagingMaterialService.createMapping(request);
-    return ResponseEntity.ok(ApiResponse.success("Packaging mapping created", created));
+    return ResponseEntity.ok(ApiResponse.success("Packaging setup rule created", created));
   }
 
   @PutMapping("/{id}")
@@ -54,13 +51,13 @@ public class PackagingMappingController {
   public ResponseEntity<ApiResponse<PackagingSizeMappingDto>> updateMapping(
       @PathVariable Long id, @Valid @RequestBody PackagingSizeMappingRequest request) {
     PackagingSizeMappingDto updated = packagingMaterialService.updateMapping(id, request);
-    return ResponseEntity.ok(ApiResponse.success("Packaging mapping updated", updated));
+    return ResponseEntity.ok(ApiResponse.success("Packaging setup rule updated", updated));
   }
 
   @DeleteMapping("/{id}")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN')")
   public ResponseEntity<ApiResponse<Void>> deactivateMapping(@PathVariable Long id) {
     packagingMaterialService.deactivateMapping(id);
-    return ResponseEntity.ok(ApiResponse.success("Packaging mapping deactivated", null));
+    return ResponseEntity.ok(ApiResponse.success("Packaging setup rule deactivated", null));
   }
 }

@@ -10,6 +10,7 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
@@ -186,9 +187,7 @@ public class PackagingMaterialService {
         mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, normalizedSize);
 
     if (mappings.isEmpty()) {
-      throw new ApplicationException(
-          ErrorCode.VALIDATION_INVALID_INPUT,
-          "Packaging BOM is required for size: " + normalizedSize);
+      throw missingPackagingSetup(normalizedSize);
     }
 
     BigDecimal totalCost = BigDecimal.ZERO;
@@ -197,14 +196,15 @@ public class PackagingMaterialService {
     List<RawMaterial> consumedMaterials = new ArrayList<>();
 
     for (PackagingSizeMapping mapping : mappings) {
-      RawMaterial material =
-          requireActivePackagingRawMaterial(company, mapping.getRawMaterial().getId(), true);
-      requirePackagingMaterial(material);
+      RawMaterial material = requirePackagingSetupRawMaterial(company, mapping, normalizedSize);
+      requirePackagingSetupMaterial(normalizedSize, material);
 
       if (material.getInventoryAccountId() == null) {
-        throw new ApplicationException(
-            ErrorCode.VALIDATION_INVALID_REFERENCE,
-            "Packaging material " + material.getSku() + " missing inventory account");
+        throw invalidPackagingSetupReference(
+            normalizedSize,
+            "points to packaging material "
+                + describeRawMaterial(material)
+                + " without an inventory account");
       }
 
       int unitsPerPack = mapping.getUnitsPerPack() != null ? mapping.getUnitsPerPack() : 1;
@@ -230,9 +230,7 @@ public class PackagingMaterialService {
     }
 
     if (totalCost.compareTo(BigDecimal.ZERO) <= 0) {
-      throw new ApplicationException(
-          ErrorCode.VALIDATION_INVALID_INPUT,
-          "Packaging consumption produced zero cost for size: " + normalizedSize);
+      throw invalidPackagingSetupInput(normalizedSize, "resolved to zero packaging cost");
     }
 
     if (packingRecord != null && !consumedMaterials.isEmpty()) {
@@ -319,6 +317,31 @@ public class PackagingMaterialService {
     }
   }
 
+  private RawMaterial requirePackagingSetupRawMaterial(
+      Company company, PackagingSizeMapping mapping, String normalizedSize) {
+    Long rawMaterialId = mapping.getRawMaterial() != null ? mapping.getRawMaterial().getId() : null;
+    if (rawMaterialId == null) {
+      throw invalidPackagingSetupReference(
+          normalizedSize, "does not reference a packaging material");
+    }
+    try {
+      return companyEntityLookup.lockActiveRawMaterial(company, rawMaterialId);
+    } catch (IllegalArgumentException ex) {
+      throw invalidPackagingSetupReference(
+          normalizedSize, "points to an inactive or missing packaging material");
+    }
+  }
+
+  private void requirePackagingSetupMaterial(String normalizedSize, RawMaterial material) {
+    if (material == null || material.getMaterialType() != MaterialType.PACKAGING) {
+      throw invalidPackagingSetupReference(
+          normalizedSize,
+          "points to raw material "
+              + describeRawMaterial(material)
+              + " that is not marked as PACKAGING");
+    }
+  }
+
   private RawMaterial requireActivePackagingRawMaterial(
       Company company, Long rawMaterialId, boolean lock) {
     try {
@@ -329,6 +352,44 @@ public class PackagingMaterialService {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_REFERENCE, "Raw material not found", ex);
     }
+  }
+
+  private ApplicationException missingPackagingSetup(String normalizedSize) {
+    return new ApplicationException(
+        ErrorCode.VALIDATION_INVALID_INPUT,
+        "Packaging Setup is required for size "
+            + normalizedSize
+            + ". Create or reactivate a Packaging Rule before packing.");
+  }
+
+  private ApplicationException invalidPackagingSetupReference(String normalizedSize, String detail) {
+    return new ApplicationException(
+        ErrorCode.VALIDATION_INVALID_REFERENCE,
+        "Packaging Setup for size "
+            + normalizedSize
+            + ' '
+            + detail
+            + ". Update Packaging Rules before packing.");
+  }
+
+  private ApplicationException invalidPackagingSetupInput(String normalizedSize, String detail) {
+    return new ApplicationException(
+        ErrorCode.VALIDATION_INVALID_INPUT,
+        "Packaging Setup for size "
+            + normalizedSize
+            + ' '
+            + detail
+            + ". Update Packaging Rules before packing.");
+  }
+
+  private String describeRawMaterial(RawMaterial material) {
+    if (material == null) {
+      return "unknown";
+    }
+    if (StringUtils.hasText(material.getSku())) {
+      return material.getSku().trim();
+    }
+    return material.getId() != null ? "#" + material.getId() : "unknown";
   }
 
   private PackagingSizeMappingDto toDto(PackagingSizeMapping mapping) {

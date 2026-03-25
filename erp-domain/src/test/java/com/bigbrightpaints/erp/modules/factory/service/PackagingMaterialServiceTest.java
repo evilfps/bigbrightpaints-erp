@@ -104,7 +104,7 @@ class PackagingMaterialServiceTest {
   }
 
   @Test
-  void consumePackagingMaterial_throwsWhenMappingMissing() {
+  void consumePackagingMaterial_throwsWhenPackagingSetupMissing() {
     when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
         .thenReturn(List.of());
 
@@ -114,22 +114,31 @@ class PackagingMaterialServiceTest {
             ex -> {
               ApplicationException appEx = (ApplicationException) ex;
               assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
-              assertThat(appEx.getMessage()).contains("Packaging BOM is required");
+              assertThat(appEx.getMessage())
+                  .contains("Packaging Setup is required for size 1L")
+                  .contains("Packaging Rule");
             });
   }
 
   @Test
-  void consumePackagingMaterial_throwsWhenMappingRequiredAndMissing() {
-    when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
-        .thenReturn(List.of());
+  void consumePackagingMaterial_rejectsPackagingSetupWithoutInventoryAccount() {
+    RawMaterial material = rawMaterial(17L, null, new BigDecimal("5"), null);
+    PackagingSizeMapping mapping = packagingMapping(material, 1);
 
-    assertThatThrownBy(() -> packagingMaterialService.consumePackagingMaterial("1L", 2, "PACK-REF"))
+    when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
+        .thenReturn(List.of(mapping));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 17L)).thenReturn(material);
+
+    assertThatThrownBy(() -> packagingMaterialService.consumePackagingMaterial("1L", 1, "PACK-REF"))
         .isInstanceOf(ApplicationException.class)
         .satisfies(
             ex -> {
               ApplicationException appEx = (ApplicationException) ex;
-              assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
-              assertThat(appEx.getMessage()).contains("Packaging BOM is required");
+              assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_REFERENCE);
+              assertThat(appEx.getMessage())
+                  .contains(
+                      "Packaging Setup for size 1L points to packaging material PACK-17 without an inventory account")
+                  .contains("Update Packaging Rules before packing");
             });
   }
 
@@ -267,7 +276,9 @@ class PackagingMaterialServiceTest {
             ex -> {
               ApplicationException appEx = (ApplicationException) ex;
               assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
-              assertThat(appEx.getMessage()).contains("produced zero cost");
+              assertThat(appEx.getMessage())
+                  .contains("Packaging Setup for size 1L resolved to zero packaging cost")
+                  .contains("Update Packaging Rules before packing");
             });
   }
 
@@ -287,7 +298,33 @@ class PackagingMaterialServiceTest {
             ex -> {
               ApplicationException appEx = (ApplicationException) ex;
               assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_REFERENCE);
-              assertThat(appEx.getMessage()).contains("Raw material not found");
+              assertThat(appEx.getMessage())
+                  .contains(
+                      "Packaging Setup for size 1L points to an inactive or missing packaging material")
+                  .contains("Update Packaging Rules before packing");
+            });
+  }
+
+  @Test
+  void consumePackagingMaterial_rejectsPackagingSetupPointingToNonPackagingMaterial() {
+    RawMaterial material = rawMaterial(18L, 910L, new BigDecimal("5"), null);
+    material.setMaterialType(MaterialType.PRODUCTION);
+    PackagingSizeMapping mapping = packagingMapping(material, 1);
+
+    when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
+        .thenReturn(List.of(mapping));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 18L)).thenReturn(material);
+
+    assertThatThrownBy(() -> packagingMaterialService.consumePackagingMaterial("1L", 1, "PACK-REF"))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            ex -> {
+              ApplicationException appEx = (ApplicationException) ex;
+              assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_REFERENCE);
+              assertThat(appEx.getMessage())
+                  .contains(
+                      "Packaging Setup for size 1L points to raw material PACK-18 that is not marked as PACKAGING")
+                  .contains("Update Packaging Rules before packing");
             });
   }
 

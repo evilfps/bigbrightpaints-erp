@@ -1775,7 +1775,7 @@ Packing / traceability API notes:
 - `POST /api/v1/factory/pack` uses deterministic reference derivation (payload + idempotency key) and replays prior effects on retry instead of re-posting inventory/accounting side effects.
 - Packing history/detail payloads now surface size-variant identifiers (`sizeVariantId`, `sizeVariantLabel`) to support size-level filtering and chips in UI.
 
-##### Packaging mapping configuration (`/api/v1/factory/packaging-mappings`)
+##### Packaging Setup / Rules (`/api/v1/factory/packaging-mappings`)
 
 | Method | Path | Auth | Request | Response `data` |
 |---|---|---|---|---|
@@ -1784,6 +1784,8 @@ Packing / traceability API notes:
 | POST | `/api/v1/factory/packaging-mappings` | ADMIN | `PackagingSizeMappingRequest` | `PackagingSizeMappingDto` |
 | PUT | `/api/v1/factory/packaging-mappings/{id}` | ADMIN | `PackagingSizeMappingRequest` | `PackagingSizeMappingDto` |
 | DELETE | `/api/v1/factory/packaging-mappings/{id}` | ADMIN | — | `ApiResponse<Void>` |
+
+Frontend note: treat this surface as Packaging Setup / Rules. Packing fails closed when a size is missing active, usable packaging setup, so direct users back to Packaging Setup instead of retrying pack blindly.
 
 ##### Wastage/cost analytics endpoints
 

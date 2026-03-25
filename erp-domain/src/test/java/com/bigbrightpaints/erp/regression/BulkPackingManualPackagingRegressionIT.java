@@ -34,7 +34,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 
-@DisplayName("Regression: Bulk pack requires packaging BOM mappings")
+@DisplayName("Regression: Bulk pack requires Packaging Setup rules")
 class BulkPackingManualPackagingRegressionIT extends AbstractIntegrationTest {
 
   private static final String COMPANY_CODE = "LF-016";
@@ -66,7 +66,7 @@ class BulkPackingManualPackagingRegressionIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void packagingBomMappingsAreRequired() {
+  void packagingSetupRulesAreRequired() {
     FinishedGood bulkFg = createFinishedGood("FG-BULK-LF016", "Bulk Paint", "L", bulkInventory);
     FinishedGood child = createFinishedGood("FG-1L-LF016", "Paint 1L", "UNIT", fgInventory);
     FinishedGoodBatch bulkBatch =
@@ -87,7 +87,9 @@ class BulkPackingManualPackagingRegressionIT extends AbstractIntegrationTest {
             ex -> {
               ApplicationException appEx = (ApplicationException) ex;
               assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
-              assertThat(appEx.getMessage()).contains("Packaging BOM is required for size: 1L");
+              assertThat(appEx.getMessage())
+                  .contains("Packaging Setup is required for size 1L")
+                  .contains("Packaging Rule");
             });
   }
 
