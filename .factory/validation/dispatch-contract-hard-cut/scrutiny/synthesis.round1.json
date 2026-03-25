@@ -1,0 +1,97 @@
+{
+  "milestone": "dispatch-contract-hard-cut",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "ROOT=\"/home/realnigga/Desktop/orchestrator_erp_worktrees/ERP-38-canonical-factory-flow\" && cd \"$ROOT\" && bash scripts/gate_fast.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "ROOT=\"/home/realnigga/Desktop/orchestrator_erp_worktrees/ERP-38-canonical-factory-flow\" && cd \"$ROOT/erp-domain\" && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "ROOT=\"/home/realnigga/Desktop/orchestrator_erp_worktrees/ERP-38-canonical-factory-flow\" && cd \"$ROOT\" && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 9,
+    "passed": 6,
+    "failed": 3,
+    "failedFeatures": [
+      "dispatch-read-redaction-and-cross-flow-proof",
+      "dispatch-confirm-actor-ownership-alignment",
+      "close-allowed-size-coverage-and-stale-test-review"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "dispatch-confirm-actor-ownership-alignment",
+      "severity": "blocking",
+      "description": "Changing `SystemRole` moved `dispatch.confirm` ownership to `ROLE_SALES`, but `RoleService.synchronizeSystemRole(...)` and `synchronizeSystemRolePermissions(...)` are additive-only. Existing `ROLE_ACCOUNTING` and `ROLE_FACTORY` rows keep stale `dispatch.confirm` grants after startup synchronization, so upgraded tenants are not fully realigned to the sales-owned dispatch-confirm contract."
+    },
+    {
+      "featureId": "close-allowed-size-coverage-and-stale-test-review",
+      "severity": "blocking",
+      "description": "Tracked `.factory/validation/freeze-dispatch-seams/**` artifacts still describe retired `/api/v1/dispatch/confirm` replay/equivalence behavior as supported proof. The branch therefore still carries stale validation evidence for a removed ERP-38 route, which violates the cleanup feature's promise to leave no stale supported-behavior proof behind."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "services.yaml",
+      "description": "Added `erp38-targeted-factory-fast-gate` so future workers can rerun the exact promoted factory/packing coverage packet that closed the final `gate_fast` changed-files debt without reconstructing an ad-hoc Maven selector.",
+      "sourceFeature": "close-final-gate-fast-factory-coverage"
+    },
+    {
+      "target": "library",
+      "description": "Updated `.factory/library/architecture.md` to record that `SystemRole` ownership changes are not enough by themselves for upgraded tenants because `RoleService` synchronization only backfills missing permissions and does not prune retired ones.",
+      "sourceFeature": "dispatch-confirm-actor-ownership-alignment"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "factory-flow-worker skill",
+      "suggestion": "Add a proof-only validation branch explaining when existing required commands already satisfy the compile step, so workers do not have to mark harmless deviations after running `gate_fast` plus targeted Maven proof that already compiles the repo.",
+      "evidence": "The `seal-final-merge-gate-proof` review found the worker marked `followedProcedure=false` only because it skipped a redundant standalone compile after `scripts/gate_fast.sh` and the targeted production/pack/dispatch suite had already compiled the project.",
+      "isSystemic": false
+    },
+    {
+      "target": "milestone-shareout-worker skill",
+      "suggestion": "Clarify that checkpoint-only shareout features should prefer the shared `commands.milestone-shareout` command and avoid rerunning init or full validators unless the milestone instructions explicitly require fresh validation evidence.",
+      "evidence": "The `checkpoint-push-batch-pack-hard-cut` review found the worker re-ran `.factory/init.sh` and `bash scripts/gate_fast.sh` even though the feature only needed branch/shareout evidence and `.factory/services.yaml` already exposes `commands.milestone-shareout`.",
+      "isSystemic": false
+    },
+    {
+      "target": "factory-flow-worker skill",
+      "suggestion": "When a feature moves default permissions between system roles, explicitly require review of startup/backfill synchronizers and upgraded-tenant behavior, not just controller mappings, denial copy, and tests for fresh roles.",
+      "evidence": "The `dispatch-confirm-actor-ownership-alignment` review found `SystemRole` moved `dispatch.confirm` to `ROLE_SALES`, but `RoleService` synchronization stayed additive-only and preserved stale grants on existing `ROLE_ACCOUNTING` and `ROLE_FACTORY` rows.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "For hard-cut cleanup features that promise no stale supported-behavior proof, require the absence sweep to include tracked `.factory/validation/**` artifacts in addition to live code, tests, OpenAPI, docs, endpoint inventories, and `.factory/library` surfaces.",
+      "evidence": "The `close-allowed-size-coverage-and-stale-test-review` review found stale removed-route proof still tracked under `.factory/validation/freeze-dispatch-seams/**` even though the live code, tests, and docs had been cleaned up.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "The `dispatch-read-redaction-and-cross-flow-proof` review reported a blocking sales-actor ownership gap in that feature's own commit.",
+      "reason": "superseded as a standalone milestone blocker because the later `dispatch-confirm-actor-ownership-alignment` feature fixed the route owner, denial copy, and sales-role contract surfaces. The remaining unresolved blocker is narrower: upgraded-tenant RBAC synchronization still leaves stale `dispatch.confirm` grants, which is captured separately."
+    },
+    {
+      "observation": "Docs-only reviews for `cleanup-catalog-developer-packets` and `refresh-cross-flow-contract-artifacts` both suggested adjusting docs-only verification guidance because workers still ran `gate_fast`.",
+      "reason": "duplicate/ambiguous; both reports describe the same procedural tension, but they do not provide enough evidence that the current guidance is wrong rather than conservatively over-validated."
+    },
+    {
+      "observation": "The `dispatch-read-redaction-and-cross-flow-proof` review suggested mission/user-testing guidance was ahead of the reviewed code because it already expected sales-owned dispatch confirm.",
+      "reason": "rejected because the guidance matched the intended canonical contract and the code was the lagging surface. The issue is better handled as feature-level review evidence than as a shared-state correction to apply now."
+    }
+  ],
+  "previousRound": null
+}

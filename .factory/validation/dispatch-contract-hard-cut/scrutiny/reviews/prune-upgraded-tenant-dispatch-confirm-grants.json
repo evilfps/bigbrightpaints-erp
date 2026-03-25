@@ -1,0 +1,15 @@
+{
+  "featureId": "prune-upgraded-tenant-dispatch-confirm-grants",
+  "reviewedAt": "2026-03-25T16:14:20Z",
+  "commitId": "5e2443cc6cbf4cd8dcd895f49231631b3b84a197",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "I reviewed the fix feature metadata, handoff, transcript skeleton, mission guidance, `factory-flow-worker` skill, the prior failed review, and both relevant diffs (`3a8db8096d285146c288a31da3737f151e91b0bc` and `5e2443cc6cbf4cd8dcd895f49231631b3b84a197`). The original feature moved `dispatch.confirm` ownership to sales/admin in `SystemRole`, but left upgraded tenants stale because `RoleService` synchronization only added missing permissions. This fix closes that gap by explicitly marking `dispatch.confirm` as retired for `ROLE_ACCOUNTING` and `ROLE_FACTORY` in `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/domain/SystemRole.java:38-47` and by routing startup sync, backfill sync, and `ensureRoleExists(...)` through `reconcileSystemRolePermissions(...)` in `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/service/RoleService.java:56-64, 103-123, 203-274`, which now both restores required defaults and prunes retired grants while leaving unrelated permissions intact. The new regression coverage in `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/rbac/service/RoleServiceTest.java:115-170`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/rbac/config/RbacSynchronizationConfigTest.java:99-165`, and `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/AuthTenantAuthorityIT.java:882-903` directly exercises the previously missing upgraded-tenant path and confirms that effective authority views drop stale accounting/factory `dispatch.confirm` after synchronization while sales/admin keep ownership. I did not find any remaining in-scope blocking or non-blocking issues.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": "/home/realnigga/Desktop/orchestrator_erp_worktrees/ERP-38-canonical-factory-flow/.factory/validation/dispatch-contract-hard-cut/scrutiny/reviews/dispatch-confirm-actor-ownership-alignment.json",
+  "summary": "Pass: the fix adequately addresses the prior additive-only RBAC synchronization failure by pruning stale `dispatch.confirm` grants from persisted accounting/factory system roles during synchronization while preserving unrelated permissions and keeping sales/admin dispatch ownership intact."
+}

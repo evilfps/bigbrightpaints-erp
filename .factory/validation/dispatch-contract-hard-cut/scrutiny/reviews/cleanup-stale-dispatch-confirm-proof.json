@@ -1,0 +1,22 @@
+{
+  "featureId": "cleanup-stale-dispatch-confirm-proof",
+  "reviewedAt": "2026-03-25T16:06:53Z",
+  "commitId": "a2d448fdc2d9bd24749dc4fa2219a5bef585ca1d",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "I reviewed the fix feature metadata, prior failed review, both worker handoffs/transcript skeletons, `factory-flow-worker` guidance, the original failing commit `b4e4ddd542521c8368422d0a813df15d266fa9cc`, the fix commit `a2d448fdc2d9bd24749dc4fa2219a5bef585ca1d`, and the current `freeze-dispatch-seams` validation artifacts plus `DispatchController`/truthsuite state. The original blocking defect is fixed: the refreshed `freeze-provenance-views-and-equivalence.json`, `provenance-equivalence.json`, and `synthesis.json` artifacts no longer present `/api/v1/dispatch/confirm` replay/equivalence as supported proof, a repo scan over `.factory/validation/freeze-dispatch-seams` finds no remaining `/api/v1/dispatch/confirm` strings, and the updated evidence now points at `TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest` plus the read-only `DispatchController` surface. The Javadoc rewrite is accurate for the surviving GET-only controller responsibilities. I found no remaining blocking defect in the original failure scope, but one sibling validation artifact remains stale relative to the renamed truthsuite/current worktree paths.",
+    "issues": [
+      {
+        "file": ".factory/validation/freeze-dispatch-seams/user-testing/flows/listener-factory.json",
+        "line": 27,
+        "severity": "non_blocking",
+        "description": "This sibling `freeze-dispatch-seams` flow report still describes `pureFactoryDispatchViews_redactPricingInvoiceGstCostAndJournalFields` as covering factory `preview/confirm/slip` responses and still cites the pre-rename truthsuite/worktree details (`TS_O2CDispatchProvenanceViewsAndEquivalenceTest` and `Desktop/Mission-control` at lines 31-35, 53, 67, and 75). The live class is `TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest` and `DispatchController` is now GET-only, so this evidence is stale even though it no longer reintroduces the original blocking `/api/v1/dispatch/confirm` replay/equivalence proof."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": "/home/realnigga/Desktop/orchestrator_erp_worktrees/ERP-38-canonical-factory-flow/.factory/validation/dispatch-contract-hard-cut/scrutiny/reviews/close-allowed-size-coverage-and-stale-test-review.json",
+  "summary": "Pass: commit `a2d448fdc2d9bd24749dc4fa2219a5bef585ca1d` resolves the prior blocking issue by removing stale `/api/v1/dispatch/confirm` replay/equivalence proof from the tracked `freeze-dispatch-seams` evidence and aligning `DispatchController` Javadoc with the surviving GET-only read surface. Non-blocking: `listener-factory.json` still carries stale renamed-class/worktree references."
+}
