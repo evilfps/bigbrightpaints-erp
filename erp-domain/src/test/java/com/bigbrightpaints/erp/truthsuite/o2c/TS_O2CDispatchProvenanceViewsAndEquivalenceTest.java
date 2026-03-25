@@ -69,6 +69,7 @@ import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 class TS_O2CDispatchProvenanceViewsAndEquivalenceTest extends AbstractIntegrationTest {
 
   private static final String ADMIN_PASSWORD = "admin123";
+  private static final String SALES_PASSWORD = "sales123";
   private static final String FACTORY_PASSWORD = "factory123";
   private static final String COMPANY_STATE_CODE = "27";
 
@@ -105,7 +106,7 @@ class TS_O2CDispatchProvenanceViewsAndEquivalenceTest extends AbstractIntegratio
             HttpMethod.POST,
             new HttpEntity<>(
                 salesDispatchRequest(fixture, "provenance"),
-                authHeaders(loginAdmin(fixture), fixture.company().getCode())),
+                authHeaders(loginSales(fixture), fixture.company().getCode())),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -211,7 +212,7 @@ class TS_O2CDispatchProvenanceViewsAndEquivalenceTest extends AbstractIntegratio
             HttpMethod.POST,
             new HttpEntity<>(
                 salesDispatchRequest(fixture, "factory-redaction"),
-                authHeaders(loginAdmin(fixture), fixture.company().getCode())),
+                authHeaders(loginSales(fixture), fixture.company().getCode())),
             Map.class);
     assertThat(confirmResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     requireData(confirmResponse, "sales dispatch confirm");
@@ -252,7 +253,7 @@ class TS_O2CDispatchProvenanceViewsAndEquivalenceTest extends AbstractIntegratio
             HttpMethod.POST,
             new HttpEntity<>(
                 salesDispatchRequest(fixture, "sales-first"),
-                authHeaders(loginAdmin(fixture), fixture.company().getCode())),
+                authHeaders(loginSales(fixture), fixture.company().getCode())),
             Map.class);
     assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -272,7 +273,7 @@ class TS_O2CDispatchProvenanceViewsAndEquivalenceTest extends AbstractIntegratio
             HttpMethod.POST,
             new HttpEntity<>(
                 salesDispatchRequest(fixture, "sales-replay"),
-                authHeaders(loginAdmin(fixture), fixture.company().getCode())),
+                authHeaders(loginSales(fixture), fixture.company().getCode())),
             Map.class);
     assertThat(replayResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     Map<?, ?> replayData = requireData(replayResponse, "sales dispatch replay");
@@ -353,6 +354,7 @@ class TS_O2CDispatchProvenanceViewsAndEquivalenceTest extends AbstractIntegratio
         packagingSlipRepository.findByCompanyAndSalesOrderId(company, order.getId()).orElseThrow();
 
     String adminEmail = "admin+" + shortId() + "@truthsuite.test";
+    String salesEmail = "sales+" + shortId() + "@truthsuite.test";
     String factoryEmail = "factory+" + shortId() + "@truthsuite.test";
     dataSeeder.ensureUser(
         adminEmail,
@@ -361,14 +363,20 @@ class TS_O2CDispatchProvenanceViewsAndEquivalenceTest extends AbstractIntegratio
         companyCode,
         List.of("ROLE_ADMIN", "dispatch.confirm"));
     dataSeeder.ensureUser(
+        salesEmail,
+        SALES_PASSWORD,
+        "Truthsuite Sales",
+        companyCode,
+        List.of("ROLE_SALES", "dispatch.confirm"));
+    dataSeeder.ensureUser(
         factoryEmail,
         FACTORY_PASSWORD,
         "Truthsuite Factory",
         companyCode,
-        List.of("ROLE_FACTORY", "dispatch.confirm"));
+        List.of("ROLE_FACTORY"));
 
     return new DispatchFixture(
-        company, dealer, finishedGood, order, slip, adminEmail, factoryEmail);
+        company, dealer, finishedGood, order, slip, adminEmail, salesEmail, factoryEmail);
   }
 
   private Company bootstrapCompany(String companyCode, String stateCode) {
@@ -599,6 +607,10 @@ class TS_O2CDispatchProvenanceViewsAndEquivalenceTest extends AbstractIntegratio
     return loginToken(fixture.adminEmail(), ADMIN_PASSWORD, fixture.company().getCode());
   }
 
+  private String loginSales(DispatchFixture fixture) {
+    return loginToken(fixture.salesEmail(), SALES_PASSWORD, fixture.company().getCode());
+  }
+
   private String loginFactory(DispatchFixture fixture) {
     return loginToken(fixture.factoryEmail(), FACTORY_PASSWORD, fixture.company().getCode());
   }
@@ -758,5 +770,6 @@ class TS_O2CDispatchProvenanceViewsAndEquivalenceTest extends AbstractIntegratio
       SalesOrder order,
       PackagingSlip slip,
       String adminEmail,
+      String salesEmail,
       String factoryEmail) {}
 }

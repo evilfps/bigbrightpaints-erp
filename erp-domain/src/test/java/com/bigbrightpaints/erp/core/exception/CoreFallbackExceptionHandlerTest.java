@@ -30,7 +30,9 @@ class CoreFallbackExceptionHandlerTest {
     SecurityContextHolder.getContext()
         .setAuthentication(
             new UsernamePasswordAuthenticationToken(
-                "sales.user", "N/A", List.of(new SimpleGrantedAuthority("ROLE_SALES"))));
+                "accounting.user",
+                "N/A",
+                List.of(new SimpleGrantedAuthority("ROLE_ACCOUNTING"))));
     CoreFallbackExceptionHandler handler = new CoreFallbackExceptionHandler();
     MockHttpServletRequest request =
         new MockHttpServletRequest("POST", "/api/v1/sales/dispatch/confirm");
@@ -43,12 +45,12 @@ class CoreFallbackExceptionHandlerTest {
     assertThat(response.getBody()).isNotNull();
     assertThat(response.getBody().message())
         .isEqualTo(
-            "Accounting must complete the final dispatch posting after the shipment is confirmed.");
+            "Sales must complete the final dispatch posting from the sales dispatch workspace.");
     assertThat(response.getBody().data())
         .containsEntry("code", ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS.getCode())
         .containsEntry(
             "message",
-            "Accounting must complete the final dispatch posting after the shipment is confirmed.")
+            "Sales must complete the final dispatch posting from the sales dispatch workspace.")
         .containsKey("traceId");
   }
 

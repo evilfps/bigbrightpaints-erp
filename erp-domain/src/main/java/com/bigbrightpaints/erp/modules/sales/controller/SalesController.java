@@ -314,7 +314,7 @@ public class SalesController {
     return ResponseEntity.noContent().build();
   }
 
-  /* Dispatch confirmation (final invoice + AR at shipment) */
+  /* Sales-owned dispatch confirmation (final invoice + AR at shipment) */
   @PostMapping("/sales/dispatch/confirm")
   @PreAuthorize(PortalRoleActionMatrix.FINANCIAL_DISPATCH)
   public ResponseEntity<ApiResponse<DispatchConfirmResponse>> confirmDispatch(

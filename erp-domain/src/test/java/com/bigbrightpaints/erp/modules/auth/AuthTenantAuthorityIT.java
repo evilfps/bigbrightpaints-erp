@@ -1212,7 +1212,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   }
 
   private List<String> factoryRolePermissionCodes() {
-    return List.of("portal:factory", "dispatch.confirm", "factory.dispatch");
+    return List.of("portal:factory", "factory.dispatch");
   }
 
   private HttpHeaders jsonHeaders(String token, String companyCode) {

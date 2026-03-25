@@ -14,34 +14,35 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 class PortalRoleActionMatrixTest {
 
   @Test
-  void resolveAccessDeniedMessage_routesFinancialDispatchUsersToRoleSpecificMessages() {
+  void resolveAccessDeniedMessage_routesFinancialDispatchNonOwnersToRoleSpecificMessages() {
     assertThat(
             PortalRoleActionMatrix.resolveAccessDeniedMessage(
                 authentication("ROLE_FACTORY"), request("POST", "/api/v1/sales/dispatch/confirm")))
         .isEqualTo(
-            "Use the factory dispatch workspace to confirm the shipment. Accounting will complete"
-                + " the final dispatch posting.");
+            "Use the factory dispatch workspace for prepared-slip lookup and challan details."
+                + " Sales must complete the final dispatch posting.");
 
     assertThat(
             PortalRoleActionMatrix.resolveAccessDeniedMessage(
-                authentication("ROLE_SALES"), request("POST", "/api/v1/sales/dispatch/confirm")))
+                authentication("ROLE_ACCOUNTING"),
+                request("POST", "/api/v1/sales/dispatch/confirm")))
         .isEqualTo(
-            "Accounting must complete the final dispatch posting after the shipment is confirmed.");
+            "Sales must complete the final dispatch posting from the sales dispatch workspace.");
 
     assertThat(
             PortalRoleActionMatrix.resolveAccessDeniedMessage(
                 authentication("ROLE_FACTORY"),
                 request("POST", "/api/v1/sales/dispatch/reconcile-order-markers")))
         .isEqualTo(
-            "Use the factory dispatch workspace to confirm the shipment. Accounting will complete"
-                + " the final dispatch posting.");
+            "Use the factory dispatch workspace for prepared-slip lookup and challan details."
+                + " Sales must complete the final dispatch posting.");
 
     assertThat(
             PortalRoleActionMatrix.resolveAccessDeniedMessage(
-                authentication("ROLE_SALES"),
+                authentication("ROLE_ACCOUNTING"),
                 request("POST", "/api/v1/sales/dispatch/reconcile-order-markers")))
         .isEqualTo(
-            "Accounting must complete the final dispatch posting after the shipment is confirmed.");
+            "Sales must complete the final dispatch posting from the sales dispatch workspace.");
   }
 
   @Test
@@ -67,8 +68,7 @@ class PortalRoleActionMatrixTest {
             PortalRoleActionMatrix.resolveAccessDeniedMessage(
                 authentication("ROLE_SALES"), request("GET", "/api/v1/dispatch/preview/5")))
         .isEqualTo(
-            "Factory must complete shipment confirmation and challan details from the dispatch"
-                + " workspace.");
+            "Use the factory dispatch workspace for prepared-slip lookup and challan details.");
 
     assertThat(
             PortalRoleActionMatrix.resolveAccessDeniedMessage(

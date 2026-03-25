@@ -1813,7 +1813,7 @@ Auth for report controller endpoints: `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUN
    2. Resolve slip: `GET /api/v1/dispatch/order/{orderId}` (or list via `/pending`).
    3. Show the operational preview modal with `GET /api/v1/dispatch/preview/{slipId}` and expect redacted pricing/accounting fields.
    4. Use the read-only dispatch workspace for slip detail and challan access (`GET /api/v1/dispatch/slip/{slipId}` plus `/challan/pdf`).
-   5. Accounting/admin use `POST /api/v1/sales/dispatch/confirm` for the canonical shipment posting when the UI needs logistics capture plus finance posting / invoice results.
+   5. Sales/admin use `POST /api/v1/sales/dispatch/confirm` for the canonical shipment posting when the UI needs logistics capture plus finance posting / invoice results.
 
 4. **Inventory adjustment flow (finished goods)**
    1. Build adjustment payload with explicit type: `DAMAGED`, `SHRINKAGE`, `OBSOLETE`, or `RECOUNT_UP`.
@@ -1849,7 +1849,7 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 - Auto reservation path: shortages -> `PENDING_PRODUCTION`; no shortages -> `RESERVED`.
 - `PENDING_STOCK` is not an initial reservation state; it is used when dispatch confirmation results in zero shipped quantity while stock is still pending.
 - Manual status endpoint (`PATCH /dispatch/slip/{id}/status`) only allows transitions among: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVED`.
-- `POST /dispatch/confirm`:
+- `POST /api/v1/sales/dispatch/confirm`:
   - if any quantity shipped -> current slip `DISPATCHED`.
   - if partial shipment -> backorder slip is created in `BACKORDER`.
   - if no shipment and shortage persists -> `PENDING_STOCK`.
@@ -2006,14 +2006,14 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 | `GET` | `/api/v1/dealer-portal/invoices/{invoiceId}/pdf` | `ROLE_DEALER` | — | `application/pdf` |
 | `GET` | `/api/v1/dispatch/preview/{slipId}` | `ROLE_ADMIN`/`ROLE_FACTORY` | — | `DispatchPreviewDto` |
 | `GET` | `/api/v1/dispatch/slip/{slipId}/challan/pdf` | `ROLE_ADMIN`/`ROLE_FACTORY` | — | `application/pdf` |
-| `POST` | `/api/v1/sales/dispatch/confirm` | `ROLE_ACCOUNTING`/`ROLE_ADMIN` + `dispatch.confirm` | `DispatchConfirmRequest` | `DispatchConfirmResponse` |
-| `POST` | `/api/v1/sales/dispatch/reconcile-order-markers` | `ROLE_ACCOUNTING`/`ROLE_ADMIN` + `dispatch.confirm` | Query: `limit?` (default `200`) | `DispatchMarkerReconciliationResponse` |
+| `POST` | `/api/v1/sales/dispatch/confirm` | `ROLE_SALES`/`ROLE_ADMIN` + `dispatch.confirm` | `DispatchConfirmRequest` | `DispatchConfirmResponse` |
+| `POST` | `/api/v1/sales/dispatch/reconcile-order-markers` | `ROLE_SALES`/`ROLE_ADMIN` + `dispatch.confirm` | Query: `limit?` (default `200`) | `DispatchMarkerReconciliationResponse` |
 | `POST` | `/api/v1/orchestrator/factory/dispatch/{batchId}` | `ROLE_ADMIN` or `ROLE_FACTORY` + `factory.dispatch` | `DispatchRequest` | Deprecated compatibility path only; runtime returns `410 Gone` with `{ message, canonicalPath=/api/v1/sales/dispatch/confirm }` and does not post or release anything |
 
 #### Portal boundary notes (2026-03-08)
 
 - `/api/v1/dispatch/**` is now a read-only prepared-slip workspace for factory/operator lookup, preview, slip detail, order lookup, and challan download.
-- `/api/v1/sales/dispatch/confirm` is the only surviving dispatch-confirm write surface. Sales denials still say accounting must complete final dispatch posting; factory denials now direct users back to the read-only dispatch workspace.
+- `/api/v1/sales/dispatch/confirm` is the only surviving dispatch-confirm write surface. Accounting denials now point back to the sales dispatch owner, and factory denials direct users to the read-only dispatch workspace for lookup/challan details only.
 - `/api/v1/orchestrator/factory/dispatch/{batchId}` must not be used for shipment posting or inventory progression. It is retained only to fail closed with `410 Gone` and `canonicalPath=/api/v1/sales/dispatch/confirm` so stale clients can be redirected safely.
 - `/api/v1/orchestrator/orders/{orderId}/fulfillment` still handles non-dispatch workflow states like `PROCESSING`, but dispatch-like target states (`SHIPPED`, `DISPATCHED`, `FULFILLED`, `COMPLETED`) now fail closed with `BUS_001` and instruct callers to use `/api/v1/sales/dispatch/confirm`.
 - Credit override requests can still be created by sales/factory/admin on `/api/v1/credit/override-requests`, but approve/reject review is now limited to admin/accounting.
@@ -2051,7 +2051,7 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
    1. Reserve inventory during order creation/confirmation.
    2. Open modal with `GET /api/v1/dispatch/preview/{slipId}` and render operational shipment context only; do not expect price totals or GST breakdown on this factory/admin preview.
    3. Factory/admin use the read-only dispatch workspace for slip lookup, preview, challan download, and operator context.
-   4. Accounting/admin complete shipment posting with `POST /api/v1/sales/dispatch/confirm`, including transporter/driver, vehicle number, challan reference, and final invoice / AR-journal linkage.
+   4. Sales/admin complete shipment posting with `POST /api/v1/sales/dispatch/confirm`, including transporter/driver, vehicle number, challan reference, and final invoice / AR-journal linkage.
    5. Keep sales and factory users away from the accounting-only posting surface and surface backend deny text verbatim if a stale route is hit.
 
 6. **Cancel order with reason code**

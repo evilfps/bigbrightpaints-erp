@@ -343,7 +343,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void dispatch_confirm_denies_sales_even_with_dispatch_confirm_authority() {
+  void dispatch_confirm_allows_sales_to_reach_business_validation() {
     String token = loginToken(SALES_DISPATCH_EMAIL, SALES_DISPATCH_PASSWORD);
 
     HttpHeaders headers = new HttpHeaders();
@@ -360,19 +360,14 @@ public class SalesControllerIT extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(payload, headers),
             Map.class);
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(response.getBody()).isNotNull();
-    assertThat(response.getBody())
-        .containsEntry(
-            "message",
-            "Accounting must complete the final dispatch posting after the shipment is confirmed.");
-    assertFailureDataMessage(
-        response,
-        "Accounting must complete the final dispatch posting after the shipment is confirmed.");
+    assertThat((String) response.getBody().get("message"))
+        .contains("transporterName or driverName");
   }
 
   @Test
-  void dispatch_confirm_allows_factory_to_reach_business_validation() {
+  void dispatch_confirm_denies_factory_on_sales_owned_endpoint() {
     String token = loginToken(FACTORY_DISPATCH_EMAIL, FACTORY_DISPATCH_PASSWORD);
 
     HttpHeaders headers = new HttpHeaders();
@@ -390,10 +385,17 @@ public class SalesControllerIT extends AbstractIntegrationTest {
             new HttpEntity<>(payload, headers),
             Map.class);
 
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     assertThat(response.getBody()).isNotNull();
-    assertThat((String) response.getBody().get("message"))
-        .contains("transporterName or driverName");
+    assertThat(response.getBody())
+        .containsEntry(
+            "message",
+            "Use the factory dispatch workspace for prepared-slip lookup and challan details."
+                + " Sales must complete the final dispatch posting.");
+    assertFailureDataMessage(
+        response,
+        "Use the factory dispatch workspace for prepared-slip lookup and challan details."
+            + " Sales must complete the final dispatch posting.");
   }
 
   @Test

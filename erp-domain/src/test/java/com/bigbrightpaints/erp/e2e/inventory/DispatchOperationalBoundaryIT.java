@@ -74,6 +74,8 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
   private static final String COMPANY_CODE = "DISPATCH-OPS";
   private static final String FACTORY_EMAIL = "factory.ops@test.com";
   private static final String FACTORY_PASSWORD = "factory123";
+  private static final String SALES_EMAIL = "sales.ops@test.com";
+  private static final String SALES_PASSWORD = "sales123";
 
   @Autowired private TestRestTemplate rest;
   @Autowired private CompanyRepository companyRepository;
@@ -101,11 +103,13 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
   @BeforeEach
   void setup() {
     dataSeeder.ensureUser(
-        FACTORY_EMAIL,
-        FACTORY_PASSWORD,
-        "Factory Ops",
+        FACTORY_EMAIL, FACTORY_PASSWORD, "Factory Ops", COMPANY_CODE, List.of("ROLE_FACTORY"));
+    dataSeeder.ensureUser(
+        SALES_EMAIL,
+        SALES_PASSWORD,
+        "Sales Ops",
         COMPANY_CODE,
-        List.of("ROLE_FACTORY", "dispatch.confirm"));
+        List.of("ROLE_SALES", "dispatch.confirm"));
     CompanyContextHolder.setCompanyId(COMPANY_CODE);
     company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
     company.setBaseCurrency("INR");
@@ -170,12 +174,13 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
     PackagingSlip slip =
         packagingSlipRepository.findByCompanyAndSalesOrderId(company, orderId).orElseThrow();
 
-    HttpHeaders headers = authHeaders(loginToken());
+    HttpHeaders factoryHeaders = authHeaders(loginFactoryToken());
+    HttpHeaders salesHeaders = authHeaders(loginSalesToken());
     ResponseEntity<Map> previewResponse =
         rest.exchange(
             "/api/v1/dispatch/preview/" + slip.getId(),
             HttpMethod.GET,
-            new HttpEntity<>(headers),
+            new HttpEntity<>(factoryHeaders),
             Map.class);
     assertThat(previewResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     Map<?, ?> previewData = requireData(previewResponse);
@@ -187,7 +192,7 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> pendingResponse =
         rest.exchange(
-            "/api/v1/dispatch/pending", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+            "/api/v1/dispatch/pending", HttpMethod.GET, new HttpEntity<>(factoryHeaders), Map.class);
     assertThat(pendingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     List<Map<?, ?>> pendingSlips = requireListData(pendingResponse);
     assertThat(pendingSlips).hasSize(1);
@@ -220,7 +225,7 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
         rest.exchange(
             "/api/v1/sales/dispatch/confirm",
             HttpMethod.POST,
-            new HttpEntity<>(confirmRequest, headers),
+            new HttpEntity<>(confirmRequest, salesHeaders),
             Map.class);
     assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     requireData(firstResponse);
@@ -238,7 +243,7 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
         rest.exchange(
             "/api/v1/dispatch/slip/" + slip.getId(),
             HttpMethod.GET,
-            new HttpEntity<>(headers),
+            new HttpEntity<>(factoryHeaders),
             Map.class);
     assertThat(slipResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     Map<?, ?> slipData = requireData(slipResponse);
@@ -253,7 +258,7 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
         rest.exchange(
             "/api/v1/dispatch/order/" + orderId,
             HttpMethod.GET,
-            new HttpEntity<>(headers),
+            new HttpEntity<>(factoryHeaders),
             Map.class);
     assertThat(orderSlipResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     Map<?, ?> orderSlipData = requireData(orderSlipResponse);
@@ -271,7 +276,7 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
         rest.exchange(
             "/api/v1/sales/dispatch/confirm",
             HttpMethod.POST,
-            new HttpEntity<>(confirmRequest, headers),
+            new HttpEntity<>(confirmRequest, salesHeaders),
             Map.class);
     assertThat(replayResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     requireData(replayResponse);
@@ -291,7 +296,7 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
         rest.exchange(
             "/api/v1/dispatch/slip/" + slip.getId() + "/challan/pdf",
             HttpMethod.GET,
-            new HttpEntity<>(headers),
+            new HttpEntity<>(factoryHeaders),
             byte[].class);
     assertThat(challanResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(challanResponse.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_PDF);
@@ -453,11 +458,21 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
     return (List<Map<?, ?>>) response.getBody().get("data");
   }
 
-  private String loginToken() {
+  private String loginFactoryToken() {
     Map<String, Object> req =
         Map.of(
             "email", FACTORY_EMAIL,
             "password", FACTORY_PASSWORD,
+            "companyCode", COMPANY_CODE);
+    return (String)
+        rest.postForEntity("/api/v1/auth/login", req, Map.class).getBody().get("accessToken");
+  }
+
+  private String loginSalesToken() {
+    Map<String, Object> req =
+        Map.of(
+            "email", SALES_EMAIL,
+            "password", SALES_PASSWORD,
             "companyCode", COMPANY_CODE);
     return (String)
         rest.postForEntity("/api/v1/auth/login", req, Map.class).getBody().get("accessToken");

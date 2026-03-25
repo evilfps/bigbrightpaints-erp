@@ -38,12 +38,15 @@ public enum SystemRole {
   ACCOUNTING(
       "ROLE_ACCOUNTING",
       "Accounting, finance, HR, and inventory operator",
-      List.of("portal:accounting", "dispatch.confirm", "payroll.run")),
+      List.of("portal:accounting", "payroll.run")),
   FACTORY(
       "ROLE_FACTORY",
       "Factory, production, and dispatch operator",
-      List.of("portal:factory", "dispatch.confirm", "factory.dispatch")),
-  SALES("ROLE_SALES", "Sales operations and dealer management", List.of("portal:sales")),
+      List.of("portal:factory", "factory.dispatch")),
+  SALES(
+      "ROLE_SALES",
+      "Sales operations and dealer management",
+      List.of("portal:sales", "dispatch.confirm")),
   DEALER("ROLE_DEALER", "Dealer workspace user", List.of("portal:dealer"));
 
   private static final Map<String, SystemRole> LOOKUP =

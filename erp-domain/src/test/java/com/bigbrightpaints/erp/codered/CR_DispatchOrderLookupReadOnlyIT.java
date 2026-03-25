@@ -46,11 +46,7 @@ class CR_DispatchOrderLookupReadOnlyIT extends AbstractIntegrationTest {
   @BeforeEach
   void seedUser() {
     dataSeeder.ensureUser(
-        USER_EMAIL,
-        USER_PASSWORD,
-        "Dispatch Lookup",
-        COMPANY_CODE,
-        List.of("ROLE_FACTORY", "dispatch.confirm"));
+        USER_EMAIL, USER_PASSWORD, "Dispatch Lookup", COMPANY_CODE, List.of("ROLE_FACTORY"));
   }
 
   @AfterEach
