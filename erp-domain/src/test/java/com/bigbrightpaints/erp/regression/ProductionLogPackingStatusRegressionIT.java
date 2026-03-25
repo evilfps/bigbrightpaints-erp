@@ -120,7 +120,6 @@ class ProductionLogPackingStatusRegressionIT extends AbstractIntegrationTest {
                 LocalDate.now().toString(),
                 null,
                 "LF-013 Test",
-                true,
                 null,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,

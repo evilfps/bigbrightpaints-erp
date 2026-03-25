@@ -319,6 +319,41 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
   }
 
   @Test
+  void production_log_contract_stays_ready_to_pack_and_removes_dead_request_toggles()
+      throws IOException {
+    JsonNode root = fetchCurrentSpecNode();
+
+    assertOperationContract(
+        root,
+        "/api/v1/factory/production/logs",
+        "post",
+        "#/components/schemas/ProductionLogRequest",
+        "200",
+        "#/components/schemas/ApiResponseProductionLogDetailDto");
+
+    JsonNode productionLogRequest = root.path("components").path("schemas").path("ProductionLogRequest");
+    JsonNode requestProperties = productionLogRequest.path("properties");
+    assertThat(requestProperties.has("brandId")).isTrue();
+    assertThat(requestProperties.has("productId")).isTrue();
+    assertThat(requestProperties.has("mixedQuantity")).isTrue();
+    assertThat(requestProperties.has("materials")).isTrue();
+    assertThat(requestProperties.has("addToFinishedGoods"))
+        .withFailMessage(
+            "ProductionLogRequest must not expose retired addToFinishedGoods toggle")
+        .isFalse();
+
+    JsonNode detailDto = root.path("components").path("schemas").path("ProductionLogDetailDto");
+    JsonNode detailProperties = detailDto.path("properties");
+    assertThat(detailProperties.has("id")).isTrue();
+    assertThat(detailProperties.has("publicId")).isTrue();
+    assertThat(detailProperties.has("productionCode")).isTrue();
+    assertThat(detailProperties.has("outputBatchCode")).isTrue();
+    assertThat(detailProperties.has("outputQuantity")).isTrue();
+    assertThat(detailProperties.has("totalPackedQuantity")).isTrue();
+    assertThat(detailProperties.has("status")).isTrue();
+  }
+
+  @Test
   void openapi_snapshot_matches_repository_contract() throws IOException {
     Path openApiSnapshotPath = resolveRepoRoot().resolve("openapi.json");
     String currentSpec = canonicalizeJson(fetchCurrentSpecNode().toString());

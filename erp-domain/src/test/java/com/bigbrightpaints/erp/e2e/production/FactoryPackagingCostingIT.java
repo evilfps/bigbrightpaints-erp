@@ -164,7 +164,6 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
                 LocalDate.now().toString(),
                 "WE-2025-0001",
                 "Supervisor",
-                true,
                 null,
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,

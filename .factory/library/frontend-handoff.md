@@ -1938,7 +1938,7 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 - `ProductionPlanDto`: identity + plan/product/qty/date/status/notes.
 - `ProductionBatchRequest` (legacy path): `batchNumber*`, `quantityProduced*`, `loggedBy`, `notes`.
 - `ProductionBatchDto` (legacy path): identity + batch/qty/timestamp/user/notes.
-- `ProductionLogRequest`: `brandId*`, `productId*`, `batchColour`, `batchSize*`, `unitOfMeasure`, `mixedQuantity*`, `producedAt`, `notes`, `createdBy`, `addToFinishedGoods`, `salesOrderId`, `laborCost`, `overheadCost`, `materials*`.
+- `ProductionLogRequest`: `brandId*`, `productId*`, `batchColour`, `batchSize*`, `unitOfMeasure`, `mixedQuantity*`, `producedAt`, `notes`, `createdBy`, `salesOrderId`, `laborCost`, `overheadCost`, `materials*`.
 - `ProductionLogRequest.MaterialUsageRequest`: `rawMaterialId*`, `quantity* (>0)`, `unitOfMeasure`.
 - `ProductionLogDto`: lifecycle summary with output, packed quantity, wastage, status, cost totals.
 - `ProductionLogDetailDto`: `ProductionLogDto` fields + notes + `materials[]` + `packingRecords[]`.

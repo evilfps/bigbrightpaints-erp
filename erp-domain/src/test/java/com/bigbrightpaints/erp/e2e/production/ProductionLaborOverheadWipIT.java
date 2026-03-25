@@ -101,7 +101,6 @@ public class ProductionLaborOverheadWipIT extends AbstractIntegrationTest {
                 LocalDate.now().toString(),
                 "LAB-TEST",
                 "Supervisor",
-                true,
                 null,
                 new BigDecimal("1200.00"),
                 new BigDecimal("800.00"),

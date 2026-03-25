@@ -18,7 +18,6 @@ public record ProductionLogRequest(
     String producedAt,
     String notes,
     String createdBy,
-    Boolean addToFinishedGoods,
     Long salesOrderId,
     BigDecimal laborCost,
     BigDecimal overheadCost,

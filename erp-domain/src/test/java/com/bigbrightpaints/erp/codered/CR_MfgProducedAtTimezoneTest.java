@@ -87,7 +87,6 @@ class CR_MfgProducedAtTimezoneTest extends AbstractIntegrationTest {
                             "timezone-test",
                             "codered",
                             null,
-                            null,
                             BigDecimal.ZERO,
                             BigDecimal.ZERO,
                             List.of(
@@ -113,7 +112,6 @@ class CR_MfgProducedAtTimezoneTest extends AbstractIntegrationTest {
                             today.toString(),
                             "timezone-test",
                             "codered",
-                            null,
                             null,
                             BigDecimal.ZERO,
                             BigDecimal.ZERO,

@@ -117,7 +117,6 @@ class ProductionLogWipPostingRegressionIT extends AbstractIntegrationTest {
                 LocalDate.now().toString(),
                 null,
                 "LF-012 Test",
-                true,
                 null,
                 laborCost,
                 overheadCost,
