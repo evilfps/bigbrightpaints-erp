@@ -597,6 +597,7 @@
                                 <include>**/modules/admin/controller/AdminSettingsControllerApprovalsContractTest.java</include>
                                 <include>**/modules/accounting/service/AccountingAuditTrailServiceTest.java</include>
                                 <include>**/modules/auth/AuthPasswordResetPublicContractIT.java</include>
+                                <include>**/modules/factory/service/PackingAllowedSizeServiceTest.java</include>
                                 <include>**/modules/inventory/controller/DispatchControllerTest.java</include>
                                 <include>**/modules/inventory/domain/PackagingSlipTest.java</include>
                                 <include>**/modules/inventory/dto/DispatchConfirmationRequestTest.java</include>
@@ -650,6 +651,7 @@
                                 <include>**/modules/admin/AdminUserSecurityIT.java</include>
                                 <include>**/modules/accounting/service/AccountingAuditTrailServiceTest.java</include>
                                 <include>**/modules/auth/AuthPasswordResetPublicContractIT.java</include>
+                                <include>**/modules/factory/service/PackingAllowedSizeServiceTest.java</include>
                                 <include>**/modules/inventory/controller/DispatchControllerTest.java</include>
                                 <include>**/modules/inventory/domain/PackagingSlipTest.java</include>
                                 <include>**/modules/inventory/dto/DispatchConfirmationRequestTest.java</include>

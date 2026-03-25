@@ -66,7 +66,7 @@ import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 @Tag("critical")
 @Tag("reconciliation")
 @TestPropertySource(properties = "erp.auto-approval.enabled=false")
-class TS_O2CDispatchProvenanceViewsAndEquivalenceTest extends AbstractIntegrationTest {
+class TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest extends AbstractIntegrationTest {
 
   private static final String ADMIN_PASSWORD = "admin123";
   private static final String SALES_PASSWORD = "sales123";

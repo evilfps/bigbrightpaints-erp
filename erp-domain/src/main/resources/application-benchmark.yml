@@ -32,8 +32,6 @@ erp:
     override-date: ${ERP_BENCHMARK_OVERRIDE_DATE:2026-02-28}
     # Skip date validation for posting (allows any past/future date)
     skip-date-validation: ${ERP_BENCHMARK_SKIP_DATE_VALIDATION:true}
-    # Fail fast if packaging BOM is missing or consumes zero cost
-    require-packaging: ${ERP_BENCHMARK_REQUIRE_PACKAGING:true}
   security:
     encryption.key: ${ERP_SECURITY_ENCRYPTION_KEY}
     mfa.enabled: false

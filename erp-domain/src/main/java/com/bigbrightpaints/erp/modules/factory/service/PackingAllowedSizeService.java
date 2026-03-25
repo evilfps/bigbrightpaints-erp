@@ -58,16 +58,7 @@ public class PackingAllowedSizeService {
         loadAllowedTargets(company, log).stream()
             .filter(candidate -> childFinishedGoodId.equals(candidate.finishedGood().getId()))
             .findFirst()
-            .orElseThrow(
-                () ->
-                    new ApplicationException(
-                            ErrorCode.VALIDATION_INVALID_REFERENCE,
-                            "Sellable size target is not allowed for production batch "
-                                + log.getProductionCode()
-                                + ": "
-                                + childFinishedGoodId)
-                        .withDetail("productionLogId", log.getId())
-                        .withDetail("childFinishedGoodId", childFinishedGoodId));
+            .orElseThrow(() -> invalidAllowedSellableSizeTarget(log, childFinishedGoodId));
 
     String normalizedSize = normalizeRequiredSize(packagingSize, lineNumber);
     String targetSize = normalizeSize(target.sizeVariant().getSizeLabel());
@@ -114,8 +105,9 @@ public class PackingAllowedSizeService {
       if (sizeVariant == null || sizeVariant.getId() == null) {
         continue;
       }
-      allowedTargets.add(
-          new AllowedSellableSizeTarget(product, finishedGood, sizeVariant, productFamilyName));
+      AllowedSellableSizeTarget target =
+          allowedTarget(product, finishedGood, sizeVariant, productFamilyName);
+      allowedTargets.add(target);
     }
 
     return allowedTargets.stream()
@@ -155,8 +147,9 @@ public class PackingAllowedSizeService {
       return Map.of();
     }
     Map<String, FinishedGood> finishedGoodsBySku = new LinkedHashMap<>();
-    for (FinishedGood finishedGood :
-        finishedGoodRepository.findByCompanyAndProductCodeInIgnoreCase(company, normalizedCodes)) {
+    List<FinishedGood> finishedGoods =
+        finishedGoodRepository.findByCompanyAndProductCodeInIgnoreCase(company, normalizedCodes);
+    for (FinishedGood finishedGood : finishedGoods) {
       if (finishedGood == null || !StringUtils.hasText(finishedGood.getProductCode())) {
         continue;
       }
@@ -197,6 +190,26 @@ public class PackingAllowedSizeService {
         target.productFamilyName());
   }
 
+  private AllowedSellableSizeTarget allowedTarget(
+      ProductionProduct product,
+      FinishedGood finishedGood,
+      SizeVariant sizeVariant,
+      String productFamilyName) {
+    return new AllowedSellableSizeTarget(product, finishedGood, sizeVariant, productFamilyName);
+  }
+
+  private ApplicationException invalidAllowedSellableSizeTarget(
+      ProductionLog log, Long childFinishedGoodId) {
+    return new ApplicationException(
+            ErrorCode.VALIDATION_INVALID_REFERENCE,
+            "Sellable size target is not allowed for production batch "
+                + log.getProductionCode()
+                + ": "
+                + childFinishedGoodId)
+        .withDetail("productionLogId", log.getId())
+        .withDetail("childFinishedGoodId", childFinishedGoodId);
+  }
+
   private String resolveProductFamilyName(ProductionProduct product) {
     if (product == null) {
       return null;
@@ -229,5 +242,7 @@ public class PackingAllowedSizeService {
       ProductionProduct product,
       FinishedGood finishedGood,
       SizeVariant sizeVariant,
-      String productFamilyName) {}
+      String productFamilyName
+  ) {
+  }
 }

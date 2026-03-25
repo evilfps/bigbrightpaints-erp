@@ -359,8 +359,8 @@
       "cross_module_critical": false
     },
     {
-      "id": "test-catalog::o2c-ts-o2cdispatchprovenanceviewsandequivalencetest-java",
-      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2CDispatchProvenanceViewsAndEquivalenceTest.java",
+      "id": "test-catalog::o2c-ts-o2cdispatchprovenanceandretiredrouteboundarytest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest.java",
       "module": "o2c",
       "owner": "lane03-sales-dispatch-orders",
       "class": "critical",
