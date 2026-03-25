@@ -128,8 +128,9 @@ The same pattern appears in the legacy dispatch and payroll branches:
 If factory dispatch is ever re-enabled, its side effects are direct and synchronous:
 
 - `updateProductionStatus(...)` marks a production plan `COMPLETED` and can resume order auto-approval,
-- the retired release-batch bridge no longer exists, so the coordinator cannot create
-  `/api/v1/factory/production-batches` side effects on dispatch callers.
+- the retired release-batch bridge no longer exists, so the coordinator cannot recreate a second
+  factory batch-create seam alongside canonical `POST /api/v1/factory/production/logs` ownership
+  on dispatch callers.
 
 That keeps the fail-closed dispatch branch from reviving a second factory batch-create seam, but it also means any future dispatch re-enable would need its own canonical execution contract.
 
