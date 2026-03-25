@@ -161,7 +161,7 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
                     "C1",
                     "ops@bbp.com"))
         .isInstanceOf(OrchestratorFeatureDisabledException.class)
-        .hasMessageContaining("/api/v1/dispatch/confirm");
+        .hasMessageContaining("/api/v1/sales/dispatch/confirm");
 
     OrchestratorCommand payrollCommand =
         new OrchestratorCommand(1L, "ORCH.PAYROLL.RUN", "idem-payroll", "hash", "trace-payroll");
@@ -368,7 +368,7 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
                     "C1",
                     "ops@bbp.com"))
         .isInstanceOf(OrchestratorFeatureDisabledException.class)
-        .hasMessageContaining("/api/v1/dispatch/confirm");
+        .hasMessageContaining("/api/v1/sales/dispatch/confirm");
     verifyNoInteractions(eventPublisherService, traceService);
   }
 
@@ -508,7 +508,7 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
                     "C1",
                     "ops@bbp.com"))
         .isInstanceOf(OrchestratorFeatureDisabledException.class)
-        .hasMessageContaining("/api/v1/dispatch/confirm");
+        .hasMessageContaining("/api/v1/sales/dispatch/confirm");
     verify(featureFlags, never()).isFactoryDispatchEnabled();
     verifyNoInteractions(idempotencyService);
 

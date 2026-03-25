@@ -630,8 +630,8 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
   }
 
   @Test
-  @DisplayName("Both dispatch endpoints are equivalent and idempotent")
-  void dispatchEndpoints_areEquivalent() {
+  @DisplayName("Sales dispatch endpoint is idempotent")
+  void salesDispatchEndpoint_isIdempotent() {
     Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
 
     Dealer dealer =
@@ -641,43 +641,29 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
     Long orderId = createOrder(dealer, fg, new BigDecimal("4"), new BigDecimal("1000.00"));
 
     PackagingSlip slip = reserveSlip(company, orderId);
-    List<Map<String, Object>> lines =
-        slip.getLines().stream()
-            .map(
-                line ->
-                    Map.<String, Object>of(
-                        "lineId",
-                        line.getId(),
-                        "shippedQuantity",
-                        line.getOrderedQuantity() != null
-                            ? line.getOrderedQuantity()
-                            : line.getQuantity(),
-                        "notes",
-                        "ship"))
-            .toList();
+    Map<String, Object> salesDispatchReq = new java.util.HashMap<>();
+    salesDispatchReq.put("orderId", orderId);
+    salesDispatchReq.put("confirmedBy", "e2e");
+    addDispatchMetadata(salesDispatchReq, "dispatch-equivalent-sales");
 
-    Map<String, Object> dispatchReq = new java.util.HashMap<>();
-    dispatchReq.put("packagingSlipId", slip.getId());
-    dispatchReq.put("lines", lines);
-    dispatchReq.put("notes", "factory confirm");
-    dispatchReq.put("confirmedBy", "e2e");
-    addDispatchMetadata(dispatchReq, "dispatch-equivalent-factory");
-
-    ResponseEntity<Map> factoryResponse =
+    ResponseEntity<Map> firstResponse =
         rest.exchange(
-            "/api/v1/dispatch/confirm",
+            "/api/v1/sales/dispatch/confirm",
             HttpMethod.POST,
-            new HttpEntity<>(dispatchReq, headers),
+            new HttpEntity<>(salesDispatchReq, headers),
             Map.class);
-    assertThat(factoryResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> firstData = requireData(firstResponse, "initial sales dispatch confirm");
 
-    PackagingSlip afterFactory = packagingSlipRepository.findById(slip.getId()).orElseThrow();
-    Long invoiceId = afterFactory.getInvoiceId();
-    Long arJournalId = afterFactory.getJournalEntryId();
-    Long cogsJournalId = afterFactory.getCogsJournalEntryId();
+    PackagingSlip afterFirst = packagingSlipRepository.findById(slip.getId()).orElseThrow();
+    Long invoiceId = afterFirst.getInvoiceId();
+    Long arJournalId = afterFirst.getJournalEntryId();
+    Long cogsJournalId = afterFirst.getCogsJournalEntryId();
     assertThat(invoiceId).isNotNull();
     assertThat(arJournalId).isNotNull();
     assertThat(cogsJournalId).isNotNull();
+    assertThat(((Number) firstData.get("finalInvoiceId")).longValue()).isEqualTo(invoiceId);
+    assertThat(((Number) firstData.get("arJournalEntryId")).longValue()).isEqualTo(arJournalId);
 
     long dispatchMovementsBefore =
         inventoryMovementRepository
@@ -685,10 +671,6 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
                 company, slip.getId(), "DISPATCH")
             .size();
 
-    Map<String, Object> salesDispatchReq = new java.util.HashMap<>();
-    salesDispatchReq.put("orderId", orderId);
-    salesDispatchReq.put("confirmedBy", "e2e");
-    addDispatchMetadata(salesDispatchReq, "dispatch-equivalent-sales");
     ResponseEntity<Map> salesResponse =
         rest.exchange(
             "/api/v1/sales/dispatch/confirm",

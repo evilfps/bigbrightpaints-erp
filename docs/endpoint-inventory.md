@@ -15,9 +15,9 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `f212774d02a83df5b5ae8bf1cf72344cbe4f338a697599be9d313c1610f32c78`)
-- OpenAPI total paths: `292`
-- OpenAPI total operations: `345`
+- OpenAPI snapshot: `openapi.json` (sha256 `88108b02ade2781ce7ebeb6800fb5a9b952b43da4e4eebff5ebc514fb6824f77`)
+- OpenAPI total paths: `289`
+- OpenAPI total operations: `342`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
 
 ## Summary by module
@@ -35,7 +35,7 @@ Portal scope guardrail:
 | `dealer-portal` | 7 | /api/v1/dealer-portal/aging, /api/v1/dealer-portal/credit-limit-requests, /api/v1/dealer-portal/dashboard |
 | `dealers` | 8 | /api/v1/dealers, /api/v1/dealers/search, /api/v1/dealers/{dealerId} |
 | `demo` | 1 | /api/v1/demo/ping |
-| `dispatch` | 8 | /api/v1/dispatch/backorder/{slipId}/cancel, /api/v1/dispatch/confirm, /api/v1/dispatch/order/{orderId} |
+| `dispatch` | 5 | /api/v1/dispatch/order/{orderId}, /api/v1/dispatch/pending, /api/v1/dispatch/preview/{slipId} |
 | `exports` | 2 | /api/v1/exports/request, /api/v1/exports/{requestId}/download |
 | `factory` | 19 | /api/v1/factory/bulk-batches/{finishedGoodId}, /api/v1/factory/bulk-batches/{parentBatchId}/children, /api/v1/factory/cost-allocation |
 | `finished-goods` | 6 | /api/v1/finished-goods, /api/v1/finished-goods/low-stock, /api/v1/finished-goods/stock-summary |
@@ -227,14 +227,11 @@ Portal scope guardrail:
 
 ## `dispatch`
 
-- `POST` `/api/v1/dispatch/backorder/{slipId}/cancel`
-- `POST` `/api/v1/dispatch/confirm`
 - `GET` `/api/v1/dispatch/order/{orderId}`
 - `GET` `/api/v1/dispatch/pending`
 - `GET` `/api/v1/dispatch/preview/{slipId}`
 - `GET` `/api/v1/dispatch/slip/{slipId}`
 - `GET` `/api/v1/dispatch/slip/{slipId}/challan/pdf`
-- `PATCH` `/api/v1/dispatch/slip/{slipId}/status`
 
 ## `exports`
 

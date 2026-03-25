@@ -50,6 +50,8 @@ import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.Employee;
 import com.bigbrightpaints.erp.modules.hr.domain.EmployeeRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
@@ -130,6 +132,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
   @Autowired private TemporalBalanceService temporalBalanceService;
   @Autowired private ProductionLogRepository productionLogRepository;
   @Autowired private PackagingSizeMappingRepository packagingSizeMappingRepository;
+  @Autowired private SizeVariantRepository sizeVariantRepository;
   @Autowired private ReportService reportService;
 
   private CanonicalErpDatasetBuilder datasetBuilder;
@@ -1121,6 +1124,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
     logRequest.put("producedAt", entryDate.toString());
     logRequest.put("createdBy", "prod-test");
     logRequest.put("materials", List.of(material1, material2));
+    ensureSellablePackTarget(product, prod, "10L");
 
     ResponseEntity<Map> logResp =
         rest.exchange(
@@ -1131,9 +1135,17 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
     Map<?, ?> logData = requireData(logResp, "create production log");
     Long logId = ((Number) logData.get("id")).longValue();
     String productionCode = (String) logData.get("productionCode");
+    List<Map<String, Object>> allowedSellableSizes =
+        (List<Map<String, Object>>) logData.get("allowedSellableSizes");
+    assertThat(allowedSellableSizes).isNotNull().isNotEmpty();
+    Map<String, Object> allowedSellableSize = allowedSellableSizes.getFirst();
+    Long childFinishedGoodId =
+        ((Number) allowedSellableSize.get("childFinishedGoodId")).longValue();
+    String packagingSize = (String) allowedSellableSize.get("sizeLabel");
 
     Map<String, Object> packingLine = new HashMap<>();
-    packingLine.put("packagingSize", "10L");
+    packingLine.put("childFinishedGoodId", childFinishedGoodId);
+    packingLine.put("packagingSize", packagingSize);
     packingLine.put("quantityLiters", new BigDecimal("80"));
     packingLine.put("piecesCount", 80);
     packingLine.put("boxesCount", 8);
@@ -1966,6 +1978,63 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
     mapping.setLitersPerUnit(new BigDecimal(size.replace("L", "")));
     mapping.setActive(true);
     packagingSizeMappingRepository.save(mapping);
+  }
+
+  private FinishedGood ensureSellablePackTarget(
+      ProductionProduct product, CanonicalErpDataset dataset, String sizeLabel) {
+    boolean productUpdated = false;
+    if (product.getSizeLabel() == null || !product.getSizeLabel().equalsIgnoreCase(sizeLabel)) {
+      product.setSizeLabel(sizeLabel);
+      productUpdated = true;
+    }
+    Map<String, Integer> cartonSizes =
+        product.getCartonSizes() == null ? new HashMap<>() : new HashMap<>(product.getCartonSizes());
+    cartonSizes.putIfAbsent(sizeLabel, 10);
+    if (product.getCartonSizes() == null || !product.getCartonSizes().containsKey(sizeLabel)) {
+      product.setCartonSizes(cartonSizes);
+      productUpdated = true;
+    }
+    if (productUpdated) {
+      productRepository.save(product);
+    }
+
+    SizeVariant variant =
+        sizeVariantRepository
+            .findByCompanyAndProductAndSizeLabelIgnoreCase(product.getCompany(), product, sizeLabel)
+            .orElseGet(
+                () -> {
+                  SizeVariant created = new SizeVariant();
+                  created.setCompany(product.getCompany());
+                  created.setProduct(product);
+                  created.setSizeLabel(sizeLabel);
+                  created.setCartonQuantity(10);
+                  created.setLitersPerUnit(new BigDecimal(sizeLabel.replace("L", "")));
+                  created.setActive(true);
+                  return sizeVariantRepository.save(created);
+                });
+    if (!variant.isActive()) {
+      variant.setActive(true);
+      sizeVariantRepository.save(variant);
+    }
+    return finishedGoodRepository
+        .findByCompanyAndProductCode(product.getCompany(), product.getSkuCode())
+        .orElseGet(
+            () -> {
+              FinishedGood finishedGood = new FinishedGood();
+              finishedGood.setCompany(product.getCompany());
+              finishedGood.setProductCode(product.getSkuCode());
+              finishedGood.setName(product.getProductName());
+              finishedGood.setUnit("UNIT");
+              finishedGood.setCostingMethod("FIFO");
+              finishedGood.setValuationAccountId(dataset.requireAccount("INV").getId());
+              finishedGood.setCogsAccountId(dataset.requireAccount("COGS").getId());
+              finishedGood.setRevenueAccountId(dataset.requireAccount("REV").getId());
+              finishedGood.setDiscountAccountId(dataset.requireAccount("DISC").getId());
+              finishedGood.setTaxAccountId(dataset.requireAccount("GST_OUT").getId());
+              finishedGood.setCurrentStock(BigDecimal.ZERO);
+              finishedGood.setReservedStock(BigDecimal.ZERO);
+              return finishedGoodRepository.save(finishedGood);
+            });
   }
 
   private RawMaterial createPackagingMaterialWithBatch(

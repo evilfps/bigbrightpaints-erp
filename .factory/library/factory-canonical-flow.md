@@ -21,7 +21,7 @@ Mission-specific route ownership, cleanup targets, and worker guardrails for the
 - internal callers that still route through the legacy batch seam
 - pack legacy idempotency compatibility (`X-Idempotency-Key`, `X-Request-Id`, payload-derived fallback, auto-generated fallback keys)
 - `POST /api/v1/dispatch/confirm`
-- stale orchestrator dispatch aliases or canonicalPath pointers to `/api/v1/dispatch/confirm`
+- stale orchestrator dispatch aliases or canonicalPath pointers to `/api/v1/sales/dispatch/confirm`
 - stale tests/docs/OpenAPI/frontend-handoff entries for retired surfaces, including any leftover references to retired pack routes or pack-completion semantics
 
 ## Terminology Rules

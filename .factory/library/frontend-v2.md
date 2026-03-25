@@ -17,11 +17,11 @@ Final backend-facing handoff for frontend-v2 consumers after the merged `truth-r
 
 - Dealer onboarding now provisions the dealer record, receivable account, and portal identity together.
 - Commercial ordering stays separate from stock/accounting truth until canonical dispatch/invoice boundaries execute.
-- The factory operational dispatch surface is `GET /api/v1/dispatch/preview/{slipId}` plus `POST /api/v1/dispatch/confirm`.
+- The factory operational dispatch surface is the read-only prepared-slip namespace `GET /api/v1/dispatch/{pending,preview/{slipId},slip/{slipId},order/{orderId}}`.
 - The accounting/admin financial posting surface is `POST /api/v1/sales/dispatch/confirm` plus `POST /api/v1/sales/dispatch/reconcile-order-markers`.
-- The legacy orchestrator batch-dispatch surface `POST /api/v1/orchestrator/factory/dispatch/{batchId}` is no longer a posting path; it now fails closed with `410 Gone` and `canonicalPath=/api/v1/dispatch/confirm`.
-- The orchestrator fulfillment endpoint must not be used to force `SHIPPED`/`DISPATCHED`/`FULFILLED`/`COMPLETED`; those requests now fail closed with `BUS_001` and direct callers back to `/api/v1/dispatch/confirm`.
-- Factory-facing dispatch responses must be treated as operational-only: logistics metadata and challan access are exposed, while pricing/accounting fields are intentionally redacted.
+- The legacy orchestrator batch-dispatch surface `POST /api/v1/orchestrator/factory/dispatch/{batchId}` is no longer a posting path; it now fails closed with `410 Gone` and `canonicalPath=/api/v1/sales/dispatch/confirm`.
+- The orchestrator fulfillment endpoint must not be used to force `SHIPPED`/`DISPATCHED`/`FULFILLED`/`COMPLETED`; those requests now fail closed with `BUS_001` and direct callers back to `/api/v1/sales/dispatch/confirm`.
+- Factory-facing dispatch reads must be treated as operational-only: logistics metadata and challan access are exposed, while pricing/accounting fields are intentionally redacted.
 - Delivery challan output is available from the dispatch flow and replay stays idempotent.
 
 ### P2P truth
@@ -62,9 +62,9 @@ Final backend-facing handoff for frontend-v2 consumers after the merged `truth-r
 
 - Surface backend blocker text verbatim for dispatch/portal denials; the mission normalized these messages into business-language guidance.
 - Treat factory dispatch preview/confirm as redacted operational data, not a finance summary.
-- Use accounting/admin dispatch-posting responses for invoice/journal linkage, not the factory dispatch response.
+- Use accounting/admin dispatch-posting responses for invoice/journal linkage; factory dispatch reads stay redacted and read-only.
 - Tenant runtime policy writes now belong only on `PUT /api/v1/companies/{id}/tenant-runtime/policy`; remove any frontend or operator tooling that still targets `PUT /api/v1/admin/tenant-runtime/policy`. Tenant admins still read runtime state from `GET /api/v1/admin/tenant-runtime/metrics`.
-- Remove any frontend CTA or retry logic that targets `/api/v1/orchestrator/factory/dispatch/{batchId}`; route those users to the factory operational dispatch flow at `POST /api/v1/dispatch/confirm`. Orchestrator fulfillment status bumps for shipment completion should also be removed in favor of the canonical dispatch surfaces.
+- Remove any frontend CTA or retry logic that targets `/api/v1/orchestrator/factory/dispatch/{batchId}`; route stale shipment-posting callers to `POST /api/v1/sales/dispatch/confirm` and keep factory UX on the read-only dispatch views. Orchestrator fulfillment status bumps for shipment completion should also be removed in favor of the canonical dispatch surfaces.
 - Keep non-active suppliers visible but disable mutation CTAs when the current supplier state is already known client-side.
 - Keep dealer portal scoped and narrow: allow permanent credit-limit request submission, but keep dispatch overrides and other internal workflow actions out of dealer UX.
 

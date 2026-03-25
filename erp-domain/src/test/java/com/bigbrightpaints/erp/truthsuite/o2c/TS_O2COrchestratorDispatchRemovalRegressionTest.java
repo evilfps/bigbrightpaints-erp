@@ -50,7 +50,7 @@ class TS_O2COrchestratorDispatchRemovalRegressionTest {
         source.contains("throw new OrchestratorFeatureDisabledException("),
         "CommandDispatcher.dispatchBatch should fail closed explicitly");
     assertTrue(
-        source.contains("/api/v1/dispatch/confirm"),
+        source.contains("/api/v1/sales/dispatch/confirm"),
         "CommandDispatcher.dispatchBatch should point callers to the canonical dispatch endpoint");
     assertFalse(
         source.contains("integrationCoordinator.updateProductionStatus("),

@@ -28,7 +28,7 @@ import com.bigbrightpaints.erp.orchestrator.workflow.WorkflowService;
 public class CommandDispatcher {
 
   private static final Logger log = LoggerFactory.getLogger(CommandDispatcher.class);
-  private static final String CANONICAL_DISPATCH_PATH = "/api/v1/dispatch/confirm";
+  private static final String CANONICAL_DISPATCH_PATH = "/api/v1/sales/dispatch/confirm";
 
   private final WorkflowService workflowService;
   private final IntegrationCoordinator integrationCoordinator;

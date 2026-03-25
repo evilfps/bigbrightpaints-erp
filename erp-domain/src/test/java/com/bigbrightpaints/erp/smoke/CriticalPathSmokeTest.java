@@ -360,7 +360,7 @@ public class CriticalPathSmokeTest extends AbstractIntegrationTest {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.GONE);
     assertThat(response.getBody()).isNotNull();
-    assertThat(response.getBody()).containsEntry("canonicalPath", "/api/v1/dispatch/confirm");
+    assertThat(response.getBody()).containsEntry("canonicalPath", "/api/v1/sales/dispatch/confirm");
   }
 
   @Test
