@@ -13,11 +13,13 @@ Mission-specific notes for the narrow catalog/product/SKU consolidation packet.
 - Canonical brand endpoints:
   - `GET /api/v1/catalog/brands?active=true` for existing-brand selection
   - `POST /api/v1/catalog/brands` for explicit new-brand creation
-- Canonical product endpoint: `POST /api/v1/catalog/products`
-- Product create must consume a pre-resolved active `brandId`.
-- Do not preserve inline brand-create fallback fields in the product contract.
-- Do not preserve a competing public bulk-create route such as `/api/v1/catalog/products/bulk`.
-- Preview must stay on the canonical host and use the same request shape as commit.
+- Canonical stock-bearing item endpoint: `POST /api/v1/catalog/items`
+- Canonical readiness reads:
+  - `GET /api/v1/catalog/items`
+  - `GET /api/v1/catalog/items/{itemId}` with `includeReadiness=true`
+- Item create must consume a pre-resolved active `brandId`.
+- Do not preserve inline brand-create fallback fields in the stock-bearing item contract.
+- Do not preserve competing retired product-create or bulk-create setup hosts.
 
 ## Packet Guardrails
 
@@ -30,8 +32,8 @@ Mission-specific notes for the narrow catalog/product/SKU consolidation packet.
 
 ## Historical Split Truth (Pre-Consolidation)
 
-- Historically, `AccountingCatalogController` -> `ProductionCatalogService` owned the stronger downstream-ready write path under `/api/v1/accounting/catalog/**`.
-- Historically, `CatalogController` -> `CatalogService` owned `/api/v1/catalog/**`, but its product write path was weaker and exposed `/api/v1/catalog/products/bulk`.
+- Historically, `AccountingCatalogController` -> `ProductionCatalogService` owned the stronger downstream-ready write path under a retired accounting catalog host.
+- Historically, `CatalogController` -> `CatalogService` owned the public catalog host, but its product write path was weaker and exposed a retired bulk-create surface.
 - Historically, `ProductionCatalogController` exposed competing browse under `/api/v1/production/**`.
 - Historically, `CatalogService` and `ProductionCatalogService` implemented competing SKU/product creation rules before the canonical public host was collapsed to `/api/v1/catalog/**`.
 
@@ -39,7 +41,7 @@ Mission-specific notes for the narrow catalog/product/SKU consolidation packet.
 
 - Finished-good create must seed finished-good truth with valuation/COGS/revenue/discount/tax readiness in the same write path.
 - Raw-material create must seed raw-material truth with the inventory/account linkage needed for downstream material usage.
-- Newly created SKUs must be discoverable via the canonical `/api/v1/catalog/products` browse/search surface.
+- Newly created items must be discoverable via the canonical `/api/v1/catalog/items` read surface, with readiness visible when setup or factory-adjacent users need it.
 - Sales order resolution must succeed without `Unknown SKU` / missing finished-good style failures.
 - Factory selection must succeed with the canonical brand/product identifiers without manual repair.
 
@@ -71,7 +73,7 @@ Update or remove stale catalog-route truth in the same packet across:
 
 ## Known Current Drift To Remove
 
-- Catalog-consolidation docs still contain pre-clarification text that implies inline brand creation inside the product-create contract.
+- Catalog-consolidation docs still contain pre-clarification text that implies inline brand creation inside the stock-bearing item contract.
 - `.factory/library/frontend-handoff.md` still references retired catalog hosts.
 - `erp-domain/docs/endpoint_inventory.tsv` still inventories retired catalog hosts.
 - Existing tests/helpers still assert legacy accounting and production catalog paths in places.

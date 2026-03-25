@@ -10,7 +10,7 @@ Use this doc set to understand the surviving runtime truth:
 - tenant bootstrap is canonical on `POST /api/v1/superadmin/tenants/onboard`
 - company defaults required for stock-bearing work are explicit follow-up setup,
   not hidden repair
-- stock-bearing product entry is canonical on `POST /api/v1/catalog/products`
+- stock-bearing item entry is canonical on `POST /api/v1/catalog/items`
 - opening stock is canonical on `POST /api/v1/inventory/opening-stock`
 - readiness is explicit per SKU as `catalog`, `inventory`, `production`, and
   `sales`
@@ -46,18 +46,18 @@ This packet is hard-cut.
   default-account completion
 - `PUT /api/v1/companies/{id}` is the super-admin correction path for company
   metadata such as timezone, state code, and default GST rate
-- `GET/POST /api/v1/catalog/brands`, `GET /api/v1/catalog/products`, and
-  `POST /api/v1/catalog/products` are the only surviving operator-facing setup
-  routes for brand and SKU creation
-- `POST /api/v1/catalog/products?preview=true` and
-  `POST /api/v1/catalog/products` share the same request shape
+- `GET/POST /api/v1/catalog/brands`, `GET /api/v1/catalog/items`, and
+  `POST /api/v1/catalog/items` are the only surviving operator-facing setup
+  routes for brand selection and stock-bearing item creation
+- `GET /api/v1/catalog/items` and `GET /api/v1/catalog/items/{itemId}` with
+  `includeReadiness=true` keep readiness visible before factory execution
 - `POST /api/v1/inventory/opening-stock` requires explicit `Idempotency-Key`
   plus explicit `openingStockBatchKey`, and only accepts prepared SKUs
 
 ## Related Docs
 
 - [../catalog-consolidation/README.md](../catalog-consolidation/README.md)
-  Catalog surface cleanup packet for the surviving product-entry contract.
+  Catalog surface cleanup packet for the surviving item-entry contract.
 - [../../accounting-portal-frontend-engineer-handoff.md](../../accounting-portal-frontend-engineer-handoff.md)
   Frontend/API handoff that must stay aligned with this flow.
 - [../../endpoint-inventory.md](../../endpoint-inventory.md)
