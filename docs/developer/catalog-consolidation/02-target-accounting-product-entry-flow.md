@@ -1,30 +1,31 @@
-# Target Accounting Product-Entry Flow
+# Target Accounting Item-Entry Flow
 
-This document records the intended accounting-facing flow that now matches the
-surviving runtime contract.
+This document records the accounting-facing item-entry flow that matches the surviving runtime contract.
 
 ## Product Goal
 
 One screen and one canonical backend flow should be enough to:
 
 - select an existing active brand or create a new brand explicitly first
-- preview one SKU or a full color × size matrix
-- commit that exact planned candidate set once
-- guarantee production, inventory, and sales readiness without a second host
+- create or update one stock-bearing item at a time on the surviving host
+- review readiness on the same canonical item surface before execution begins
+- hand the item off into the canonical operator path without a second setup host
 
 ## Canonical Public Surface
 
-- keep only `/api/v1/catalog/**` as the public catalog host
-- keep brand creation separate from product creation
-- keep preview and commit on the same canonical product endpoint
+- keep only `/api/v1/catalog/**` as the public stock-bearing setup host
+- keep brand creation separate from item creation
+- keep stock-bearing maintenance on `/api/v1/catalog/items`
 
 Canonical endpoints:
 
 - `GET /api/v1/catalog/brands?active=true`
 - `POST /api/v1/catalog/brands`
-- `GET /api/v1/catalog/products`
-- `POST /api/v1/catalog/products?preview=true`
-- `POST /api/v1/catalog/products`
+- `GET /api/v1/catalog/items`
+- `GET /api/v1/catalog/items/{itemId}`
+- `POST /api/v1/catalog/items`
+- `PUT /api/v1/catalog/items/{itemId}`
+- `DELETE /api/v1/catalog/items/{itemId}`
 
 ## End-To-End UX
 
@@ -32,144 +33,112 @@ Canonical endpoints:
 
 The user can either:
 
-- search/select an existing active brand from
-  `GET /api/v1/catalog/brands?active=true`, or
-- create a new brand on `POST /api/v1/catalog/brands` and then use the returned
-  `brandId`
+- search/select an existing active brand from `GET /api/v1/catalog/brands?active=true`, or
+- create a new brand on `POST /api/v1/catalog/brands` and then use the returned `brandId`
 
 Backend rule:
 
-- the product-entry payload must contain a resolved active `brandId`
-- the separate brand-create step supplies that `brandId` before preview or
-  commit
+- the item payload must contain a resolved active `brandId`
+- the separate brand-create step supplies that `brandId` before item create or update
 
-### Step 2: Base Product
+### Step 2: Item details
 
-The user provides:
+The user provides a single-item payload such as:
 
-- `baseProductName`
-- `category`
+- `brandId`
+- `name`
+- `itemClass`
 - `unitOfMeasure`
 - `hsnCode`
 - `gstRate`
-- optional `basePrice`
-- optional `minDiscountPercent`
-- optional `minSellingPrice`
-- optional metadata needed by accounting or operations
+- optional `size`, `color`, `basePrice`, `minDiscountPercent`, `minSellingPrice`, and metadata
 
-### Step 3: Variants
+### Step 3: Save once
 
-The user provides canonical arrays:
-
-- `colors[]`
-- `sizes[]`
-
-UI rule:
-
-- delimiter-based quick input is UI-only convenience
-- backend preview/commit must receive arrays and reject packed multi-value
-  tokens
-
-### Step 4: Preview
-
-`POST /api/v1/catalog/products?preview=true` should show:
-
-- every generated SKU member
-- candidate count
-- duplicate/conflict diagnostics
-- shared `variantGroupId`
-- downstream-effect summary for finished-good/raw-material mirrors
-
-Important math:
-
-- `4` sizes × `4` colors = `16` candidate members
-
-### Step 5: Commit Once
-
-`POST /api/v1/catalog/products` should:
+`POST /api/v1/catalog/items` should:
 
 1. validate the active `brandId`
-2. persist the shared variant-group identity
-3. create each SKU member
-4. persist canonical product truth
-5. create downstream inventory mirrors
-6. return the committed member set
+2. persist the canonical item truth
+3. create or update downstream finished-good or raw-material mirrors as needed
+4. return the saved `CatalogItemDto`
+
+### Step 4: Readiness review
+
+`GET /api/v1/catalog/items` and `GET /api/v1/catalog/items/{itemId}` with `includeReadiness=true` should show:
+
+- item identity and class
+- readiness state for `catalog`, `inventory`, `production`, and `sales`
+- blocker details before operators reach factory execution
+
+### Step 5: Execution handoff
+
+Once readiness is clear, the operator path continues on:
+
+- `POST /api/v1/factory/production/logs`
+- `POST /api/v1/factory/packing-records`
+- `POST /api/v1/sales/dispatch/confirm`
+
+`/api/v1/dispatch/**` is a read-only operational lookup surface, not a second dispatch-confirm write owner.
 
 ## Technical Shape
 
 ### One canonical write flow
 
-- single-SKU and matrix creation land in the same write engine
-- preview and commit use the same request shape
-- downstream mirrors are guaranteed by that same write path
-- SKU generation rules live in one place only
+- single-item setup lands on one write endpoint only
+- readiness review happens on the same host as create/update
+- downstream mirrors are guaranteed by the same setup path
+- stock-bearing setup does not depend on retired preview/commit product routes
 
-### Explicit variant grouping
+### Explicit operator handoff
 
-Grouped members must persist a real shared identifier such as `variantGroupId`.
-Family membership must not depend only on naming or SKU conventions.
+- setup truth ends on `/api/v1/catalog/items`
+- execution truth starts on production logs, then packing records, then sales-owned dispatch confirm
+- no packet should present `legacy product routes` or `legacy accounting-prefixed product setup routes` as current setup truth
 
 ## Downstream Guarantees
 
 ### Accounting
 
-After commit, accounting can:
+After setup, accounting can:
 
-- browse the product family through `GET /api/v1/catalog/products`
-- inspect the committed SKU members from the create response
-- rely on the same public host used by the rest of the product-entry flow
+- browse items through `GET /api/v1/catalog/items`
+- inspect readiness without a separate accounting-prefixed setup host
+- rely on the same stock-bearing setup host used by the rest of the operator story
 
 ### Production / Factory
 
-After commit, production can:
+After setup, factory can:
 
-- find the product through canonical browse/search
-- use the stable brand/product identifiers in selection flows
-- continue into production logs without manual catalog repair
+- discover ready inputs through canonical item reads
+- create production batches on `POST /api/v1/factory/production/logs`
+- pack sellable output through `POST /api/v1/factory/packing-records`
 
 ### Inventory
 
-After commit, inventory should already contain:
+After setup, inventory should already contain the mirror truth needed for:
 
-- finished-good truth for finished-good members
-- raw-material truth for raw-material members
-- zero-stock defaults until stock-in or production occurs
+- raw-material consumption during production
+- packaging setup validation during pack
+- finished-good stock visibility before dispatch
 
 ### Sales
 
-After commit, sales can:
+After setup and factory execution, sales can:
 
-- resolve the SKU through canonical catalog browse/search
-- use the ready inventory mirror and pricing/tax metadata
-- avoid catalog-readiness failures caused by missing mirrors
+- resolve the sellable item through canonical catalog reads
+- rely on packed output becoming dispatchable
+- perform final dispatch posting only on `POST /api/v1/sales/dispatch/confirm`
 
 ## Example Canonical Payload Shape
 
-Single SKU:
-
 ```json
 {
   "brandId": 12,
-  "baseProductName": "Primer",
-  "category": "FINISHED_GOOD",
+  "name": "Premium Emulsion 20L White",
+  "itemClass": "FINISHED_GOOD",
   "unitOfMeasure": "LITER",
-  "sizes": ["1L"],
-  "colors": ["WHITE"],
-  "hsnCode": "3209",
-  "gstRate": 18
-}
-```
-
-Matrix create:
-
-```json
-{
-  "brandId": 12,
-  "baseProductName": "Premium Emulsion",
-  "category": "FINISHED_GOOD",
-  "unitOfMeasure": "LITER",
-  "sizes": ["1L", "4L", "10L", "20L"],
-  "colors": ["BLUE", "GREEN", "BLACK", "WHITE"],
+  "size": "20L",
+  "color": "WHITE",
   "hsnCode": "3209",
   "gstRate": 18,
   "basePrice": 1200
@@ -180,6 +149,7 @@ Matrix create:
 
 This flow does not reintroduce:
 
-- alternate public catalog hosts
-- a public bulk-create route
-- pricing, valuation, or costing redesign beyond catalog readiness
+- alternate public catalog setup hosts
+- preview/commit product-create flows under `legacy product routes`
+- accounting-prefixed stock-bearing setup hosts
+- factory-owned dispatch confirmation

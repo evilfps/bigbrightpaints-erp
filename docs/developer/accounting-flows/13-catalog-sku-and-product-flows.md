@@ -1,6 +1,6 @@
-# Catalog, SKU, and Product Flows
+# Catalog, SKU, and Item Flows
 
-Target-state cleanup brief:
+Current-state cleanup brief:
 
 - [../catalog-consolidation/README.md](../catalog-consolidation/README.md)
 - [../catalog-consolidation/01-current-state-flow.md](../catalog-consolidation/01-current-state-flow.md)
@@ -10,123 +10,103 @@ Target-state cleanup brief:
 
 ## Folder Map
 
-- `modules/accounting/controller`
-  Purpose for this slice: accounting-owned host for catalog import and product mutation routes.
 - `modules/production/controller`
-  Purpose for this slice: general catalog and production catalog read surfaces.
+  Purpose for this slice: canonical brand and item setup/readiness host.
 - `modules/production/service`
-  Purpose for this slice: canonical product, brand, SKU, and variant orchestration.
+  Purpose for this slice: canonical item persistence, readiness-aware reads, and adjunct import orchestration.
 - `modules/production/domain`
-  Purpose for this slice: brand, product, and catalog-import persistence.
+  Purpose for this slice: brand, item, and import persistence.
 - `modules/inventory/domain`
-  Purpose for this slice: finished-good and raw-material mirrors kept in sync with product truth.
-- `modules/accounting/service`
-  Purpose for this slice: default-account lookup used when finished goods need valuation / revenue / COGS metadata.
+  Purpose for this slice: finished-good and raw-material mirrors kept in sync with item truth.
+- `modules/factory/controller`
+  Purpose for this slice: canonical batch and pack execution after setup is complete.
+- `modules/sales/controller`
+  Purpose for this slice: canonical sales-owned dispatch confirm after packing.
 
 ## Canonical Workflow Graph
 
 ```mermaid
 flowchart LR
-    ACC["AccountingCatalogController"] --> PCS["ProductionCatalogService"]
     CAT["CatalogController"] --> CS["CatalogService"]
-    PROD["ProductionCatalogController"] --> PCS
+    IMPORT["CatalogController.importCatalog"] --> PCS["ProductionCatalogService.importCatalog"]
 
-    PCS --> BR["ProductionBrandRepository"]
-    PCS --> PR["ProductionProductRepository"]
-    PCS --> FG["FinishedGoodRepository"]
-    PCS --> RM["RawMaterialRepository"]
-    PCS --> CDA["CompanyDefaultAccountsService"]
-    PCS --> IMP["CatalogImportRepository"]
+    CS --> BR["ProductionBrandRepository"]
+    CS --> PR["ProductionProductRepository"]
+    CS --> FG["FinishedGoodRepository"]
+    CS --> RM["RawMaterialRepository"]
+
+    CS --> READY["CatalogItemDto + readiness"]
+    READY --> PLOG["POST /api/v1/factory/production/logs"]
+    PLOG --> PACK["POST /api/v1/factory/packing-records"]
+    PACK --> DISP["POST /api/v1/sales/dispatch/confirm"]
 ```
 
 ## Major Workflows
 
-### Catalog Import
+### Brand and item maintenance
 
-- entry: `AccountingCatalogController.importCatalog`
+- entry:
+  - `GET/POST /api/v1/catalog/brands`
+  - `GET/POST /api/v1/catalog/items`
+  - `GET/PUT/DELETE /api/v1/catalog/items/{itemId}`
 - canonical path:
-  - resolve `Idempotency-Key` or legacy header
+  - `CatalogController`
+  - `CatalogService`
+  - downstream finished-good and raw-material mirror alignment
+- why it matters:
+  - this is the only supported public stock-bearing setup host
+  - readiness is exposed on the same host the operator uses for setup
+
+### Catalog import adjunct
+
+- entry: `POST /api/v1/catalog/import`
+- canonical path:
+  - `CatalogController.importCatalog`
   - `ProductionCatalogService.importCatalog`
-  - `CatalogImportRepository`
-  - per-row brand/product upsert and raw-material seeding
-- key functions:
-  - `importCatalog`
-  - `processCatalogImport`
-  - `upsertProduct`
 - what it does:
-  - validates CSV shape and content type
-  - makes import idempotent per company
-  - creates or updates brands and products
-  - seeds raw materials and finished-good accounting metadata where needed
-
-### Single Product Create
-
-- entry: `AccountingCatalogController.createProduct`
-- canonical path:
-  - `ProductionCatalogService.createProduct`
-  - normalize category
-  - resolve or create brand
-  - compute effective size label
-  - `determineSku`
-  - `ensureFinishedGoodAccounts`
-  - save product
-  - `ensureCatalogFinishedGood`
-  - `syncRawMaterial`
+  - processes import files
+  - lands data that must still be visible through `/api/v1/catalog/items`
 - why it matters:
-  - SKU generation and accounting metadata live together in the same service
+  - import is an adjunct provisioning path, not a competing public setup host
 
-### Bulk Variant Create
+### Downstream operator handoff
 
-- entry: `AccountingCatalogController.createVariants`
-- canonical path:
-  - `ProductionCatalogService.createVariants`
-  - `prepareVariantExecutionPlan`
-  - detect duplicate-in-request and existing-SKU conflicts
-  - on commit, call `createProduct` for each candidate
-- key functions:
-  - `createVariants`
-  - `prepareVariantExecutionPlan`
-  - `resolveBrandPlanForVariantPlanning`
-  - `requireVariantSkuFragment`
+- setup truth:
+  - `/api/v1/catalog/items`
+- execution truth:
+  - `POST /api/v1/factory/production/logs`
+  - `POST /api/v1/factory/packing-records`
+  - `POST /api/v1/sales/dispatch/confirm`
 - why it matters:
-  - this is the explicit matrix path for color/size bulk SKU generation
-
-### Product Update
-
-- entry: `AccountingCatalogController.updateProduct`
-- canonical path:
-  - `ProductionCatalogService.updateProduct`
-  - mutate only provided fields
-  - re-run `ensureFinishedGoodAccounts` when product remains a finished good
-  - `ensureCatalogFinishedGood`
-- key constraint:
-  - import path refuses SKU changes for existing products
+  - accounting-facing docs should describe one item -> batch -> pack -> dispatch story
 
 ## What Works
 
-- one service owns SKU generation, brand resolution, product persistence, and accounting metadata backfill
-- finished-good products get default accounting accounts injected instead of relying on manual downstream fixes
-- catalog import is company-scoped and strongly idempotent
-- bulk variant creation already fail-closes on duplicate or concurrent SKU conflicts
+- one public setup host owns stock-bearing item truth and readiness
+- finished-good and raw-material mirrors are aligned off the same canonical item surface
+- factory execution and sales dispatch now read like one coherent downstream path from setup
+- dispatch posting is explicitly sales-owned rather than split across factory and sales surfaces
 
 ## Duplicates and Bad Paths
 
-- catalog surfaces are split across three hosts:
-  - `AccountingCatalogController` for write-heavy accounting/admin use
-  - `CatalogController` for broader general catalog CRUD
-  - `ProductionCatalogController` for read-only brand/product listing
-- `AccountingCatalogController.listProducts` and `/api/v1/catalog/products` both surface product truth from different controller families
-- accounting route ownership is only a wrapper; the actual truth lives in production services and inventory mirrors
-- raw-material management still lives on catalog-facing routes such as `/api/v1/catalog/products`, which means product/catalog truth is not fully consolidated behind one host
+- retired stock-bearing setup hosts must stay retired:
+  - `legacy product routes`
+  - `legacy accounting-prefixed product setup routes`
+- retired execution hosts must stay retired:
+  - `/api/v1/factory/production-batches`
+  - `/api/v1/factory/pack`
+  - `/api/v1/dispatch/confirm`
+- `/api/v1/dispatch/**` is operational lookup only and must not be described as a second write surface
 
 ## Review Hotspots
 
-- `ProductionCatalogService.createProduct`
-- `ProductionCatalogService.createVariants`
-- `ProductionCatalogService.updateProduct`
-- `ProductionCatalogService.ensureFinishedGoodAccounts`
-- `ProductionCatalogService.upsertProduct`
-- `AccountingCatalogController`
 - `CatalogController`
-- `AccountingCatalogControllerSecurityIT`
-- `TS_CatalogImportCompanyScopedIdempotencyTest`
+- `CatalogService`
+- `ProductionCatalogService`
+- `ProductionLogController`
+- `PackingController`
+- `DispatchController`
+- `SalesController`
+- `CatalogControllerCanonicalProductIT`
+- `ProductionCatalogServiceCanonicalEntryTest`
+- `DispatchOperationalBoundaryIT`

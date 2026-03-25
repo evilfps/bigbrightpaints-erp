@@ -1,7 +1,6 @@
 # Route and Service Map
 
-This file inventories the controllers and services that own the current setup
-journey.
+This file inventories the controllers and services that own the current setup journey and the downstream execution handoff.
 
 ## Tenant Bootstrap
 
@@ -48,47 +47,38 @@ journey.
 - purpose:
   - own the tenant default inventory/COGS/revenue/discount/tax account set
   - validate referenced accounts inside the current company
-  - provide the defaults consumed by stock-bearing product creation
+  - provide the defaults consumed by stock-bearing item creation and update
 
-## Stock-Bearing Product Entry
+## Stock-Bearing Item Entry
 
 ### `CatalogController`
 
 - canonical routes:
   - `GET/POST /api/v1/catalog/brands`
-  - `GET /api/v1/catalog/products`
-  - `POST /api/v1/catalog/products`
-  - `PUT /api/v1/catalog/products/{productId}`
+  - `GET/POST /api/v1/catalog/items`
+  - `GET/PUT/DELETE /api/v1/catalog/items/{itemId}`
+  - `POST /api/v1/catalog/import` (adjunct import path)
 - important behavior:
-  - `POST /api/v1/catalog/products` delegates preview and commit to
-    `ProductionCatalogService`
-
-### `ProductionCatalogService`
-
-- purpose:
-  - canonical write engine for stock-bearing product entry
-  - preview and commit from one request contract
-  - persist `variantGroupId`
-  - create/update finished-good mirrors
-  - create/update raw-material mirrors
-  - return readiness per created member
+  - `CatalogService` owns the surviving item setup and readiness reads
+  - `ProductionCatalogService.importCatalog(...)` remains import-only and must still land on the same item truth
 
 ### `CatalogService`
 
 - purpose:
   - brand CRUD
-  - product browse/search
-  - product maintenance reads and updates
-  - attach readiness to catalog browse responses
+  - item create/read/update/deactivate
+  - attach readiness to canonical item reads
+  - keep finished-good and raw-material mirrors aligned with item writes
 
-### Retired create/browse seams
+### Retired setup hosts
 
-- retired create aliases:
-  - `POST /api/v1/catalog/products/single`
-  - `POST /api/v1/catalog/products/bulk-variants`
-- retired duplicate browse host:
-  - `GET /api/v1/production/brands`
-  - `GET /api/v1/production/brands/{brandId}/products`
+- retired product-write hosts:
+  - `legacy product-create route`
+  - `legacy preview product route`
+  - `legacy single-product route`
+  - `legacy bulk-product route`
+- retired accounting setup host:
+  - `legacy accounting-prefixed product setup routes`
 
 ## Opening Stock
 
@@ -109,17 +99,49 @@ journey.
   - verify prepared SKU readiness through `SkuReadinessService`
   - create batches and movements only for already-ready SKUs
   - post the opening-stock journal against `OPEN-BAL`
-  - persist idempotent replay state keyed by explicit `Idempotency-Key` and
-    `openingStockBatchKey`, including `results[]` and `errors[]`
+  - persist idempotent replay state keyed by explicit `Idempotency-Key` and `openingStockBatchKey`
 
-### Important hard-cut rules
+## Execution Handoff
 
-- no `X-Idempotency-Key`
-- no file-hash fallback
-- no hidden payload-derived replay check
-- no raw-material auto-create
-- no finished-good auto-create
-- no `OPEN-BAL` auto-create during import
+### `ProductionLogController` + `ProductionLogService`
+
+- canonical route:
+  - `POST /api/v1/factory/production/logs`
+- purpose:
+  - log the production batch and raw-material consumption
+  - create the canonical batch record that becomes ready to pack
+
+### `PackingController` + `PackingService`
+
+- canonical route:
+  - `POST /api/v1/factory/packing-records`
+- supporting reads:
+  - `GET /api/v1/factory/unpacked-batches`
+  - `GET /api/v1/factory/production-logs/{productionLogId}/packing-history`
+- hard-cut rules:
+  - `Idempotency-Key` is required
+  - `X-Idempotency-Key` is rejected
+  - `X-Request-Id` is rejected
+  - retired `/api/v1/factory/pack` and `/api/v1/factory/packing-records/{productionLogId}/complete` mutations stay retired
+
+### `DispatchController`
+
+- surviving routes:
+  - `GET /api/v1/dispatch/pending`
+  - `GET /api/v1/dispatch/preview/{slipId}`
+  - `GET /api/v1/dispatch/slip/{slipId}`
+  - `GET /api/v1/dispatch/order/{orderId}`
+- purpose:
+  - expose prepared-slip and challan reads only
+  - keep factory/operator dispatch views redacted where required
+
+### `SalesController` + `SalesDispatchReconciliationService`
+
+- canonical route:
+  - `POST /api/v1/sales/dispatch/confirm`
+- purpose:
+  - own the only surviving dispatch-confirm write
+  - preserve inventory and accounting posting consequences on the sales-owned path
 
 ## Readiness Ownership
 
@@ -131,24 +153,6 @@ journey.
   - `production.ready + blockers[]`
   - `sales.ready + blockers[]`
 - consumed by:
-  - catalog product responses
+  - catalog item responses
   - opening-stock responses
-  - strict import validation for prepared SKUs
-
-### Representative blockers
-
-- `PRODUCT_MASTER_MISSING`
-- `RAW_MATERIAL_MIRROR_MISSING`
-- `FINISHED_GOOD_MIRROR_MISSING`
-- `RAW_MATERIAL_INVENTORY_ACCOUNT_MISSING`
-- `FINISHED_GOOD_VALUATION_ACCOUNT_MISSING`
-- `FINISHED_GOOD_COGS_ACCOUNT_MISSING`
-- `FINISHED_GOOD_REVENUE_ACCOUNT_MISSING`
-- `FINISHED_GOOD_TAX_ACCOUNT_MISSING`
-- `WIP_ACCOUNT_MISSING`
-- `LABOR_APPLIED_ACCOUNT_MISSING`
-- `OVERHEAD_APPLIED_ACCOUNT_MISSING`
-- `DISCOUNT_ACCOUNT_MISSING`
-- `GST_OUTPUT_ACCOUNT_MISSING`
-- `FINISHED_GOOD_GST_OUTPUT_ACCOUNT_MISMATCH`
-- `NO_FINISHED_GOOD_BATCH_STOCK`
+  - pre-execution operator checks before batch -> pack -> dispatch

@@ -1,7 +1,6 @@
 # Delete-First Duplicates
 
-This file records the seams that are already retired or must stay retired in
-this setup flow.
+This file records the seams that are already retired or must stay retired in the setup and execution flow.
 
 ## 1. Tenant Bootstrap Aliases
 
@@ -15,17 +14,24 @@ this setup flow.
 
 - `POST /api/v1/superadmin/tenants/onboard`
 
-## 2. Weak Product-Create Aliases
+## 2. Retired Stock-Bearing Setup Hosts
 
 ### Retired
 
-- `POST /api/v1/catalog/products/single`
-- `POST /api/v1/catalog/products/bulk-variants`
+- `legacy product-browse route`
+- `legacy product-create route`
+- `legacy preview product route`
+- `legacy single-product route`
+- `legacy bulk-product route`
+- `legacy accounting-prefixed product setup routes`
 
 ### Keep
 
-- `POST /api/v1/catalog/products?preview=true`
-- `POST /api/v1/catalog/products`
+- `GET /api/v1/catalog/items`
+- `GET /api/v1/catalog/items/{itemId}`
+- `POST /api/v1/catalog/items`
+- `PUT /api/v1/catalog/items/{itemId}`
+- `DELETE /api/v1/catalog/items/{itemId}`
 
 ## 3. Duplicate Browse Hosts
 
@@ -37,7 +43,7 @@ this setup flow.
 ### Keep
 
 - `GET /api/v1/catalog/brands`
-- `GET /api/v1/catalog/products`
+- `GET /api/v1/catalog/items`
 
 ## 4. Opening-Stock Repair Behavior
 
@@ -53,21 +59,24 @@ this setup flow.
 
 - explicit `Idempotency-Key`
 - fail-fast validation for orphan or not-ready SKUs
-- import only after canonical product setup is complete
+- import only after canonical item setup is complete
 
-## 5. Hidden Identity Seams
+## 5. Execution Duplicates
 
-Do not reintroduce setup flows that depend on ambiguous product names or ad hoc
-code matching when canonical SKU truth already exists.
+### Retired
+
+- `POST /api/v1/factory/production-batches`
+- `POST /api/v1/factory/pack`
+- `POST /api/v1/factory/packing-records/{productionLogId}/complete`
+- `POST /api/v1/dispatch/confirm`
 
 ### Keep
 
-- canonical SKU-based product truth
-- canonical SKU-based finished-good and raw-material mirrors
-- readiness surfaced directly from canonical truth
+- `POST /api/v1/factory/production/logs`
+- `POST /api/v1/factory/packing-records`
+- `POST /api/v1/sales/dispatch/confirm`
+- `GET /api/v1/dispatch/{pending,preview/{slipId},slip/{slipId},order/{orderId}}`
 
 ## Priority Rule
 
-If future work reopens this area, deletion wins over compatibility glue. A
-proposal that restores any of the retired routes or fallback behaviors should
-be treated as a regression, not as a convenience feature.
+If future work reopens this area, deletion wins over compatibility glue. A proposal that restores any of the retired routes or fallback behaviors should be treated as a regression, not as a convenience feature.

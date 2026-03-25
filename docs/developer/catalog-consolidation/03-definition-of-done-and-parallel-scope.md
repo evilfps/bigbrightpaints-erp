@@ -1,32 +1,27 @@
 # Catalog Consolidation Scope And Definition Of Done
 
-This file captures the accepted packet scope for the surviving catalog contract.
+This file captures the accepted packet scope for the surviving stock-bearing setup contract.
 
 ## Why This Is Parallel-Safe
 
 This packet is limited to:
 
-- catalog route ownership
-- product/SKU create-preview-commit orchestration
-- downstream inventory readiness
+- catalog route ownership for brands and items
+- readiness-aware item setup and maintenance
+- downstream execution handoff clarity
 - OpenAPI/docs/test truth for those surfaces
 
-It should not overlap with reports, settlement/ledger, payroll/HR, period-close,
-or broader pricing/valuation redesign.
+It should not overlap with reports, settlement/ledger, payroll/HR, period-close, or broader pricing/valuation redesign.
 
 ## In Scope
 
-- keep exactly one public catalog host: `/api/v1/catalog/**`
-- keep exactly one public product-create surface: `POST /api/v1/catalog/products`
+- keep exactly one public catalog setup host: `/api/v1/catalog/**`
+- keep exactly one stock-bearing item-create surface: `POST /api/v1/catalog/items`
 - keep explicit brand creation on `POST /api/v1/catalog/brands`
-- require product create to consume a resolved active `brandId`
-- support canonical preview on `POST /api/v1/catalog/products?preview=true`
-- remove retired write aliases `/api/v1/catalog/products/single` and
-  `/api/v1/catalog/products/bulk-variants`
-- persist explicit `variantGroupId` linkage
-- guarantee finished-good/raw-material readiness in the same write path
-- keep canonical browse/search on `GET /api/v1/catalog/products`
-- rewrite stale OpenAPI/docs/tests/helpers in the same packet
+- keep readiness-aware item reads on `GET /api/v1/catalog/items` and `GET /api/v1/catalog/items/{itemId}`
+- remove retired setup hosts `legacy product routes` and `legacy accounting-prefixed product setup routes`
+- keep the downstream operator story explicit: `POST /api/v1/factory/production/logs` -> `POST /api/v1/factory/packing-records` -> `POST /api/v1/sales/dispatch/confirm`
+- rewrite stale docs/tests/helpers in the same packet
 
 ## Out Of Scope
 
@@ -35,72 +30,44 @@ or broader pricing/valuation redesign.
 - dealer credit redesign
 - payroll / HR redesign
 - inventory valuation redesign
-- factory costing redesign
+- unrelated factory costing redesign
 - unrelated product-pricing policy changes
 
 ## Definition Of Done
 
 ### Public surface
 
-- `/api/v1/catalog/**` is the only supported public catalog host
-- canonical public catalog operations are `GET/POST /api/v1/catalog/brands`,
-  `GET /api/v1/catalog/products`, and `POST /api/v1/catalog/products`
-- no alternate public catalog browse or create surface survives alongside the
-  canonical host
+- `/api/v1/catalog/**` is the only supported public setup host for stock-bearing item work
+- canonical public setup operations are `GET/POST /api/v1/catalog/brands`, `GET/POST /api/v1/catalog/items`, and `GET/PUT/DELETE /api/v1/catalog/items/{itemId}`
+- no alternate public setup host survives alongside the canonical item surface
 
 ### Write path
 
-- single-SKU and matrix creation both use `POST /api/v1/catalog/products`
-- preview and commit use the same request shape
-- product create requires an active `brandId`
-- brand creation remains a separate `POST /api/v1/catalog/brands` step before
-  product preview/commit
+- stock-bearing setup uses `POST /api/v1/catalog/items`
+- item maintenance uses `PUT /api/v1/catalog/items/{itemId}`
+- item create/update requires an active `brandId`
+- readiness review stays on the same public host as setup
 
-### Data model
+### Downstream operator handoff
 
-- variant-group linkage is explicit and persisted
-- grouped membership does not rely only on naming convention
-
-### Downstream readiness
-
-- finished-good create also creates or updates finished-good inventory truth
-- raw-material create also creates or updates raw-material inventory truth
-- production/factory can select the product without manual repair
-- sales can use the SKU without catalog-readiness failures
-- every returned member exposes `catalog`, `inventory`, `production`, and
-  `sales` readiness with explicit blockers
-
-### UX
-
-- one screen can create one SKU or many variants
-- preview exists before commit
-- duplicate/conflict failures are explicit
-- delimiter-based quick input stays UI-only sugar
-- new-brand flow is a separate `POST /api/v1/catalog/brands` step, not an
-  inline product payload fallback
+- ready items can move into `POST /api/v1/factory/production/logs`
+- packing uses `POST /api/v1/factory/packing-records` only
+- final dispatch posting uses `POST /api/v1/sales/dispatch/confirm` only
+- `/api/v1/dispatch/**` remains read-only operational lookup
 
 ### Cleanup
 
-- stale tests for retired hosts are deleted or rewritten
+- stale tests for retired setup hosts are deleted or rewritten
 - stale OpenAPI surfaces are removed
 - developer docs, handoff docs, and route inventories match runtime truth
-- frontend docs stop describing `/single` or `/bulk-variants` as current-state
-  create paths
+- frontend docs stop describing `legacy product routes` or `legacy accounting-prefixed product setup routes` as current setup paths
 
 ## Required Proof
 
-- existing-brand flow: `GET /api/v1/catalog/brands?active=true` then
-  `POST /api/v1/catalog/products`
-- new-brand flow: `POST /api/v1/catalog/brands` then
-  `POST /api/v1/catalog/products`
-- `1 x 1 -> 1 SKU`
-- `4 x 4 -> 16 SKUs`
-- variant grouping persists
-- finished-good mirror creation proves out
-- raw-material mirror creation proves out
-- readiness payload is returned for each created SKU
-- sales order SKU resolution works immediately after create
-- production/factory selection works immediately after create
+- existing-brand flow: `GET /api/v1/catalog/brands?active=true` then `POST /api/v1/catalog/items`
+- new-brand flow: `POST /api/v1/catalog/brands` then `POST /api/v1/catalog/items`
+- readiness is visible on item list/detail reads
+- production, packing, and sales dispatch docs point to one batch -> pack -> dispatch story
 - OpenAPI snapshot matches repo-root `openapi.json`
 - `git diff --check` is clean
 
@@ -108,14 +75,8 @@ or broader pricing/valuation redesign.
 
 Title:
 
-`Catalog Surface Consolidation: one canonical product-entry flow with guaranteed downstream readiness`
+`Catalog Surface Consolidation: one canonical item setup flow with readiness and operator handoff clarity`
 
 Summary:
 
-Replace the split accounting/catalog/production product flow with one canonical
-`/api/v1/catalog/**` surface and one canonical write engine. The surviving flow
-must support existing-brand selection, explicit new-brand creation on
-`POST /api/v1/catalog/brands`, and single-SKU or matrix variant creation on
-`POST /api/v1/catalog/products`. Every created SKU must be immediately ready for
-downstream production, inventory, and sales use without manual repair.
-- sales and production can consume the new SKU without manual repair
+Keep `/api/v1/catalog/items` as the only stock-bearing setup host, remove stale `legacy product routes` and `legacy accounting-prefixed product setup routes` guidance, keep readiness visible on canonical item reads, and ensure the developer story flows cleanly from item setup into `POST /api/v1/factory/production/logs`, `POST /api/v1/factory/packing-records`, and sales-owned `POST /api/v1/sales/dispatch/confirm`.

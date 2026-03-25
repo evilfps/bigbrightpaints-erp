@@ -1,82 +1,76 @@
 # Catalog Consolidation Update Hygiene
 
-This file defines how to keep the catalog flow docs and surrounding engineering
-artifacts clean as the implementation changes.
+This file defines how to keep the surviving item setup docs and surrounding engineering artifacts clean as the implementation changes.
 
 ## Purpose
 
-The catalog surface is currently confusing because route ownership, write
-ownership, and downstream readiness are split. These docs only stay useful if
-they are updated as one package when the flow changes.
+The catalog surface only stays understandable if setup truth, readiness truth, and downstream operator handoff are updated together when the contract changes.
 
 ## Rules
 
-### Keep Current-State And Target-State Separate
+### Keep Current-State And Consumer-Facing Flow Separate
 
-- `01-current-state-flow.md` is factual and should describe only what the code
-  does right now
-- `02-target-accounting-product-entry-flow.md` is the desired future state
+- `01-current-state-flow.md` is factual and should describe only what the code does right now
+- `02-target-accounting-product-entry-flow.md` is the accounting-facing explanation of that surviving contract
 - do not blur those two documents together
 
 ### Update The Doc Set In The Same Packet
 
-When catalog route ownership or write behavior changes, update together:
+When catalog setup ownership or execution handoff changes, update together:
 
 - `docs/developer/catalog-consolidation/README.md`
 - `docs/developer/catalog-consolidation/01-current-state-flow.md`
 - `docs/developer/catalog-consolidation/02-target-accounting-product-entry-flow.md`
 - `docs/developer/catalog-consolidation/03-definition-of-done-and-parallel-scope.md`
-- repo-root `README.md`
+- repo-root `README.md` when top-level public flow wording changes
 - `openapi.json`
 - `.factory/library/frontend-handoff.md`
 - `erp-domain/docs/endpoint_inventory.tsv`
-- route-anchored tests/helpers that expose catalog hosts or contract examples
+- route-anchored tests/helpers that expose setup or operator contract examples
 
 ### Delete Stale Mentions, Do Not Leave Split Truth
 
-- if a route host is retired, remove it from docs in the same packet
-- if a service stops owning writes, remove that claim in the same packet
-- if a referenced doc no longer exists, remove the dead reference instead of
-  leaving a stale pointer behind
+- if a setup host is retired, remove it from docs in the same packet
+- if a controller/service stops owning setup or execution writes, remove that claim in the same packet
+- if a referenced doc no longer exists, remove the dead reference instead of leaving a stale pointer behind
 
 ### Keep Docs Grounded In Code
 
 When changing these docs, verify:
 
-- controller annotations
-- do docs still imply inline brand creation inside the product payload
-- service entry methods
-- persistence targets
-- downstream inventory / production / sales dependencies
+- controller annotations on `CatalogController`, `ProductionLogController`, `PackingController`, `DispatchController`, and `SalesController`
+- whether docs still imply `legacy product routes` or `legacy accounting-prefixed product setup routes`
+- item read/write ownership and readiness visibility on `/api/v1/catalog/items`
+- downstream dependencies from item setup into batch -> pack -> dispatch
 
 Do not update from assumption or ticket intent alone.
 
 ### Keep Proof And Docs Aligned
 
-If the packet claims downstream readiness, the proof must include:
+If the packet claims one coherent operator story, the proof must include:
 
-- product create
-- downstream mirror creation
-- production visibility
-- sales order / availability visibility
+- item create on `/api/v1/catalog/items`
+- readiness reads before execution
+- production logs as the only batch-create surface
+- packing records as the only pack mutation
+- sales-owned dispatch confirm as the only dispatch-confirm write
 
-If those tests do not exist, the packet is not done.
+If those proofs do not exist, the packet is not done.
 
 ## Naming Guidance
 
-- use `catalog` for the canonical public surface
-- use `product-entry flow` for the user-facing create flow
-- use `product family` or `variant group` for grouped SKU lineage
-- avoid reintroducing vague terms like `accounting catalog path` once the
-  consolidation is done
+- use `catalog` for the canonical public setup surface
+- use `item setup` for the surviving stock-bearing create flow
+- use `Product Family`, `Production Batch`, `Pack`, and `Dispatch` for the operator story
+- use `Packaging Setup` / `Packaging Rules` for pack prerequisites
+- avoid reintroducing vague terms like `accounting catalog path` or `product preview flow` once the hard-cut is done
 
 ## Review Checklist
 
 Before closing a catalog packet, check:
 
-- do docs still mention more than one public catalog host
-- do docs still describe more than one write engine
-- do docs still imply that product create can stop before inventory mirror
-  creation
+- do docs still mention more than one public setup host
+- do docs still imply `legacy product routes` or `legacy accounting-prefixed product setup routes` are current
+- do docs still describe more than one batch, pack, or dispatch write owner
 - do docs and OpenAPI describe the same public surface
 - do tests prove the same behavior the docs claim

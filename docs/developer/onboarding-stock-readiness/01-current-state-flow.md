@@ -1,6 +1,6 @@
 # Current-State Flow
 
-This document records the surviving setup journey after the hard-cut cleanup.
+This document records the surviving setup journey after the ERP-38 hard-cut cleanup.
 
 ## System Graph
 
@@ -13,15 +13,13 @@ flowchart LR
     DEF["Company defaults screen"] --> DACC["GET/PUT /api/v1/accounting/default-accounts"]
     DEF --> COMP["PUT /api/v1/companies/{id} (super-admin correction only)"]
 
-    SKU["SKU catalog screen"] --> BR["GET/POST /api/v1/catalog/brands"]
-    SKU --> PREV["POST /api/v1/catalog/products?preview=true"]
-    SKU --> SAVE["POST /api/v1/catalog/products"]
-    SAVE --> PCS["ProductionCatalogService"]
-    PREV --> PCS
-    PCS --> PROD["production_products"]
-    PCS --> FG["finished_goods"]
-    PCS --> RM["raw_materials"]
-    PCS --> READY["SkuReadinessDto per member"]
+    SKU["Catalog item setup screen"] --> BR["GET/POST /api/v1/catalog/brands"]
+    SKU --> ITEM["GET/POST /api/v1/catalog/items"]
+    ITEM --> CATSVC["CatalogService"]
+    CATSVC --> PROD["production_products"]
+    CATSVC --> FG["finished_goods"]
+    CATSVC --> RM["raw_materials"]
+    ITEM --> READY["CatalogItemDto / readiness"]
 
     OST["Opening stock screen"] --> IMP["POST /api/v1/inventory/opening-stock"]
     IMP --> OSI["OpeningStockImportService"]
@@ -29,10 +27,10 @@ flowchart LR
     OSI --> JE["OPEN-STOCK journal (inventory Dr / OPEN-BAL Cr)"]
     OSI --> OREADY["results[] / errors[] with readiness"]
 
-    READY --> FACT["factory / production flows"]
-    READY --> SALES["sales orderability flows"]
-    OREADY --> FACT
-    OREADY --> SALES
+    READY --> PLOG["POST /api/v1/factory/production/logs"]
+    PLOG --> PACK["POST /api/v1/factory/packing-records"]
+    PACK --> DISP["POST /api/v1/sales/dispatch/confirm"]
+    DISP --> DREAD["GET /api/v1/dispatch/{pending,preview/{slipId},slip/{slipId},order/{orderId}}"]
 ```
 
 ## Step 1: Tenant Bootstrap
@@ -59,7 +57,7 @@ flowchart LR
 ### What it does not seed
 
 - brands
-- products
+- stock-bearing items
 - finished goods
 - raw materials
 - opening stock
@@ -78,45 +76,41 @@ flowchart LR
 
 ### Super-admin correction path
 
-- `PUT /api/v1/companies/{id}` remains the control-plane path for company
-  metadata corrections such as timezone, state code, and default GST rate
+- `PUT /api/v1/companies/{id}` remains the control-plane path for company metadata corrections such as timezone, state code, and default GST rate
 
 ### Operational truth
 
-The setup journey is explicit here. If default inventory, COGS, revenue, tax,
-or related company metadata are wrong, operators must fix them before SKU setup
-or opening stock. Later flows no longer repair missing setup silently.
+The setup journey is explicit here. If default inventory, COGS, revenue, tax, or related company metadata are wrong, operators must fix them before item setup or opening stock. Later flows no longer repair missing setup silently.
 
-## Step 3: Stock-Bearing Product Entry
+## Step 3: Stock-Bearing Item Entry
 
 ### Canonical routes
 
 - `GET /api/v1/catalog/brands`
 - `POST /api/v1/catalog/brands`
-- `GET /api/v1/catalog/products`
-- `POST /api/v1/catalog/products?preview=true`
-- `POST /api/v1/catalog/products`
+- `GET /api/v1/catalog/items`
+- `GET /api/v1/catalog/items/{itemId}`
+- `POST /api/v1/catalog/items`
+- `PUT /api/v1/catalog/items/{itemId}`
+- `DELETE /api/v1/catalog/items/{itemId}`
 
 ### Owner
 
 - controller: `CatalogController`
-- write engine: `ProductionCatalogService`
-- browse/search and brand CRUD: `CatalogService`
+- service: `CatalogService`
+- import adjunct: `ProductionCatalogService.importCatalog(...)`
 
 ### Important truth
 
-Single-SKU and matrix creation now share the same canonical request contract on
-`POST /api/v1/catalog/products`. Retired create aliases
-`/api/v1/catalog/products/single` and
-`/api/v1/catalog/products/bulk-variants` are gone.
+Single-item stock-bearing setup now lives on `POST /api/v1/catalog/items`. Retired setup hosts `legacy product routes` and `legacy accounting-prefixed product setup routes` are gone for current-state operator guidance.
 
 ### What save guarantees
 
-- `ProductionProduct` rows are written
+- canonical item rows are written
 - finished-good mirrors are created or updated when required
 - raw-material mirrors are created or updated when required
 - downstream account metadata is validated or defaulted from company defaults
-- every returned member includes `SkuReadinessDto`
+- readiness can be re-read on canonical item list/detail surfaces
 
 ## Step 4: Opening Stock
 
@@ -140,32 +134,24 @@ Single-SKU and matrix creation now share the same canonical request contract on
 - missing `OPEN-BAL` fails fast
 - no legacy `X-Idempotency-Key`
 - no file-hash fallback
-- same `openingStockBatchKey` cannot be applied twice under a fresh
-  `Idempotency-Key`
+- same `openingStockBatchKey` cannot be applied twice under a fresh `Idempotency-Key`
 - no raw-material or finished-good auto-create
 
-### Returned shape
+## Step 5: Execution Handoff
 
-- `results[]` includes `rowNumber`, `sku`, `stockType`, and `readiness`
-- `errors[]` includes `rowNumber`, `message`, `sku`, `stockType`, and
-  `readiness`
+### Canonical write path
 
-## Step 5: Downstream Readiness
+- `POST /api/v1/factory/production/logs` creates the production batch and consumes raw materials
+- `POST /api/v1/factory/packing-records` records pack output and consumes packaging materials
+- `POST /api/v1/sales/dispatch/confirm` is the only surviving dispatch-confirm write owner
 
-### Canonical readiness surface
+### Read-only operational dispatch views
 
-- `SkuReadinessDto`
-
-### Stages
-
-- `catalog`
-- `inventory`
-- `production`
-- `sales`
+- `GET /api/v1/dispatch/pending`
+- `GET /api/v1/dispatch/preview/{slipId}`
+- `GET /api/v1/dispatch/slip/{slipId}`
+- `GET /api/v1/dispatch/order/{orderId}`
 
 ### Why this matters
 
-The operator no longer has to discover setup gaps by jumping between modules.
-Catalog entry and opening stock both surface readiness directly, and later
-production or sales failures are no longer the first place a missing setup item
-appears.
+The operator no longer has to guess between multiple setup or execution hosts. Item setup, readiness, opening stock, production, packing, and final dispatch now form one explicit story.

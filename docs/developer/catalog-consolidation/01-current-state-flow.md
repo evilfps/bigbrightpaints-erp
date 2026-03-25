@@ -1,42 +1,44 @@
 # Catalog Current-State Flow Map
 
-This document describes the current live catalog flow after the consolidation
-packet landed. It should stay factual and code-grounded.
+This document describes the current live catalog setup flow after ERP-38 hard-cut cleanup.
+It should stay factual and code-grounded.
 
 ## Current Public Surface
 
 ### Canonical host: `/api/v1/catalog/**`
 
-Public catalog routes now live only on `modules/production/controller/CatalogController`.
+Public stock-bearing setup now converges on `modules/production/controller/CatalogController`.
 
-Supported public operations:
+Supported operator-facing setup operations:
 
 - `GET /api/v1/catalog/brands?active=true`
 - `POST /api/v1/catalog/brands`
-- `GET /api/v1/catalog/products`
-- `POST /api/v1/catalog/products`
-- `POST /api/v1/catalog/products?preview=true`
-- `GET/PUT/DELETE /api/v1/catalog/products/{productId}`
+- `GET /api/v1/catalog/items`
+- `GET /api/v1/catalog/items/{itemId}`
+- `POST /api/v1/catalog/items`
+- `PUT /api/v1/catalog/items/{itemId}`
+- `DELETE /api/v1/catalog/items/{itemId}`
 
-No alternate public catalog browse or write host remains.
+Adjunct import still exists on `POST /api/v1/catalog/import`, but it is not the stock-bearing operator setup host. Imported rows must still reconcile back to the same item and readiness truth exposed on `/api/v1/catalog/items`.
+
+No alternate public stock-bearing setup host remains.
 
 ## System Graph
 
 ```mermaid
 flowchart LR
     BRANDS["GET/POST /api/v1/catalog/brands"] --> CS["CatalogService"]
-    PRODUCTS["POST /api/v1/catalog/products( ?preview=true )"] --> PCS["ProductionCatalogService.createOrPreviewCatalogProducts"]
-    SEARCH["GET /api/v1/catalog/products"] --> CS
+    ITEMS["GET/POST/PUT/DELETE /api/v1/catalog/items"] --> CS
+    IMPORT["POST /api/v1/catalog/import"] --> PCS["ProductionCatalogService.importCatalog"]
 
-    PCS --> PP["production_products"]
-    PCS --> FG["finished_goods"]
-    PCS --> RM["raw_materials"]
-    PCS --> VG["variant_group_id linkage"]
+    CS --> PP["production_products"]
+    CS --> FG["finished_goods"]
+    CS --> RM["raw_materials"]
+    ITEMS --> READY["CatalogItemDto + readiness"]
 
-    PP --> FACT["factory selection"]
-    PP --> SALESA["sales SKU resolution"]
-    FG --> SALESB["sales availability / dispatch"]
-    RM --> INV["raw-material usage / intake"]
+    READY --> BATCH["POST /api/v1/factory/production/logs"]
+    BATCH --> PACK["POST /api/v1/factory/packing-records"]
+    PACK --> DISPATCH["POST /api/v1/sales/dispatch/confirm"]
 ```
 
 ## Controller And Service Map
@@ -44,86 +46,76 @@ flowchart LR
 ### `CatalogController`
 
 - brand CRUD delegates to `CatalogService`
-- canonical product preview/commit delegates to
-  `ProductionCatalogService.createOrPreviewCatalogProducts`
-- browse/search and maintenance routes (`GET/PUT/DELETE /products`) delegate to
-  `CatalogService`
+- item create/read/update/deactivate delegates to `CatalogService`
+- catalog import delegates to `ProductionCatalogService.importCatalog(...)`
+- readiness visibility is exposed on item list/detail reads through `includeReadiness=true`
 
 ### `CatalogService`
 
 - owns brand create/list/get/update/deactivate
-- owns catalog browse/search DTO mapping
-- owns product maintenance for `GET/PUT/DELETE /api/v1/catalog/products/{id}`
+- owns stock-bearing item create/read/update/deactivate
+- owns readiness-aware browse/detail DTO mapping for `/api/v1/catalog/items`
+- keeps finished-good and raw-material mirrors aligned with setup writes
 
 ### `ProductionCatalogService`
 
-- owns canonical product preview and commit
-- requires a pre-resolved active `brandId`
-- rejects packed multi-value tokens inside `sizes[]` and `colors[]`
-- computes the canonical SKU candidate set for preview and commit
-- persists explicit `variantGroupId` linkage for grouped creates
-- seeds finished-good or raw-material mirrors in the same write path
+- owns catalog import processing only
+- is an adjunct provisioning path, not the primary operator setup host
+- must still land rows that are discoverable and readiness-aware through `/api/v1/catalog/items`
 
 ## Persistence Truth
 
 ### `production_products`
 
-- canonical product master rows
-- stores SKU/product identity plus explicit `variantGroupId`
-- backs canonical browse/search and downstream brand/product selection
+- canonical catalog master rows backing item identity
+- supports brand linkage, item-class semantics, and factory-facing selection
 
 ### `finished_goods`
 
-- finished-good inventory truth for sellable/manufacturable members
-- holds zero-stock defaults plus valuation/COGS/revenue/discount/tax readiness
+- finished-good inventory truth for sellable/manufacturable items
+- feeds packing outputs and later dispatchable stock
 
 ### `raw_materials`
 
-- raw-material inventory truth for raw-material members
-- holds the inventory/account linkage needed by downstream material flows
+- raw-material inventory truth for production inputs and packaging materials
+- feeds production-log consumption and packaging setup validation
 
 ## End-To-End Current Flows
 
-### 1. Existing-brand product entry
+### 1. Existing-brand item entry
 
 1. UI fetches selectable brands from `GET /api/v1/catalog/brands?active=true`
-2. UI submits `POST /api/v1/catalog/products` with an active `brandId`
-3. `ProductionCatalogService` validates the request, plans SKU members, and
-   persists product truth plus downstream mirrors
-4. `GET /api/v1/catalog/products?brandId=...` returns the created members
+2. UI submits `POST /api/v1/catalog/items` with an active `brandId`
+3. `CatalogService` validates the request and persists stock-bearing item truth plus downstream mirrors
+4. `GET /api/v1/catalog/items?includeReadiness=true` returns the created item with readiness context
 
-### 2. New-brand product entry
+### 2. New-brand item entry
 
 1. UI creates the brand on `POST /api/v1/catalog/brands`
-2. UI uses the returned `brandId` in `POST /api/v1/catalog/products`
-3. Product preview/commit uses that same resolved `brandId` for preview and
-   commit
+2. UI uses the returned `brandId` in `POST /api/v1/catalog/items`
+3. Item detail reads on `GET /api/v1/catalog/items/{itemId}?includeReadiness=true` become the canonical pre-execution readiness surface
 
-### 3. Preview vs commit
+### 3. Optional import adjunct
 
-1. `POST /api/v1/catalog/products?preview=true` returns candidate members,
-   conflict diagnostics, downstream-effect counts, and the shared
-   `variantGroupId`
-2. Preview writes nothing
-3. The same payload sent to `POST /api/v1/catalog/products` commits the same
-   candidate set
+1. Bulk import enters on `POST /api/v1/catalog/import`
+2. `ProductionCatalogService.importCatalog(...)` processes the file
+3. Imported rows are still expected to surface through `/api/v1/catalog/items` rather than through a separate public setup host
 
-### 4. Downstream readiness
+### 4. Downstream operator handoff
 
-- sales order resolution can use the SKU immediately after commit
-- factory selection can use canonical brand/product identifiers from
-  `/api/v1/catalog/products`
-- finished-good and raw-material mirrors are seeded in the same write path
+- ready raw-material items flow into `POST /api/v1/factory/production/logs`
+- packed sellable output flows through `POST /api/v1/factory/packing-records`
+- final dispatch posting happens only on `POST /api/v1/sales/dispatch/confirm`
+- `/api/v1/dispatch/**` stays read-only for prepared-slip lookup and redacted factory views
 
 ## Review Hotspots
 
 - `modules/production/controller/CatalogController`
 - `modules/production/service/CatalogService`
 - `modules/production/service/ProductionCatalogService`
-- `modules/production/dto/CatalogProductEntryRequest`
-- `modules/production/dto/CatalogProductEntryResponse`
-- `modules/production/domain/ProductionProduct`
-- `modules/inventory/domain/FinishedGood`
-- `modules/inventory/domain/RawMaterial`
-- `modules/sales/service/SalesCoreEngine`
-- `modules/factory/service/ProductionLogService`
+- `modules/production/dto/CatalogItemRequest`
+- `modules/production/dto/CatalogItemDto`
+- `modules/factory/controller/ProductionLogController`
+- `modules/factory/controller/PackingController`
+- `modules/inventory/controller/DispatchController`
+- `modules/sales/controller/SalesController`
