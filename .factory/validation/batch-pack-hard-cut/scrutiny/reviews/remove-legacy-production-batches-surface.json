@@ -1,0 +1,26 @@
+{
+  "featureId": "remove-legacy-production-batches-surface",
+  "reviewedAt": "2026-03-25T07:44:27.181132Z",
+  "commitId": "3b3cf19ed9d6c00ec49198d9d78797d7a8af3c96",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The commit removes the legacy `/api/v1/factory/production-batches` surface end-to-end: `FactoryController` drops the retired mappings, `FactoryService` no longer exposes `logBatch(...)` or the legacy feature-flag path, the retired DTO source files are deleted, `IntegrationCoordinator.releaseInventory(...)` is removed, and the contract guards/tests/OpenAPI/endpoint inventory/frontend handoff were updated to assert absence while preserving the canonical production-log path.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The worker handoff says `skillFeedback.followedProcedure=true`, but the transcript shows the worker edited multiple files before running the first targeted failing test, which conflicts with the factory-flow-worker instruction to write failing tests first and run the smallest targeted failing command first.",
+      "evidence": "`.factory/skills/factory-flow-worker/SKILL.md:32-37` requires 'Write failing tests first' and 'Run the smallest targeted failing command first'. The transcript for session `178e09cc-f851-48ce-8a3f-c495d4aed053` shows five `ApplyPatch` calls before the assistant message 'Running the first targeted test command now to capture the expected failures before implementing the hard-cut.'"
+    },
+    {
+      "area": "knowledge",
+      "observation": "Broader shared-state library docs still describe the already-removed production-batches seam as a pending retirement target, so the mission's shared guidance is not fully caught up even though the runtime/docs/OpenAPI/frontend-handoff surfaces required by this feature were cleaned.",
+      "evidence": "`.factory/library/architecture.md:37` still says '`FactoryService.logBatch(...)` and `/api/v1/factory/production-batches` are retirement targets', and `.factory/library/factory-canonical-flow.md:19-22` still lists `FactoryService.logBatch(...)` and `GET/POST /api/v1/factory/production-batches` under 'Delete-First Targets'."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass. I found no blocking code-review issues in commit `3b3cf19ed9d6c00ec49198d9d78797d7a8af3c96`: the legacy production-batches route/service/DTO/orchestrator seam removal is complete across runtime code, tests, OpenAPI, endpoint inventory, and frontend handoff. I noted two shared-state follow-ups: the worker's skill-following metadata does not match the transcript sequence, and broader `.factory/library` guidance still frames the removed batch seam as a future cleanup target."
+}

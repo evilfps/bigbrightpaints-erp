@@ -1933,23 +1933,16 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 - `ProductionLogRequest`: `brandId*`, `productId*`, `batchColour`, `batchSize*`, `unitOfMeasure`, `mixedQuantity*`, `producedAt`, `notes`, `createdBy`, `salesOrderId`, `laborCost`, `overheadCost`, `materials*`.
 - `ProductionLogRequest.MaterialUsageRequest`: `rawMaterialId*`, `quantity* (>0)`, `unitOfMeasure`.
 - `ProductionLogDto`: lifecycle summary with output, packed quantity, wastage, status, cost totals.
-- `ProductionLogDetailDto`: `ProductionLogDto` fields + notes + `materials[]` + `packingRecords[]`.
+- `ProductionLogDetailDto`: `ProductionLogDto` fields + notes + `materials[]` + `packingRecords[]` + `productFamilyName` + `allowedSellableSizes[]`.
 - `ProductionLogMaterialDto`: raw material batch and movement linkage + quantity/cost fields.
-- `ProductionLogPackingRecordDto`: packing output linkage (`finishedGoodId/batchId`, packaging size, packed quantity, packed metadata) plus size-variant fields:
-  - `sizeVariantId`: FK of resolved/auto-created size variant.
+- `ProductionLogPackingRecordDto`: packing output linkage (`finishedGoodId/batchId`, packaging size, packed quantity, packed metadata) plus resolved size-variant fields:
+  - `sizeVariantId`: FK of the explicit sellable-size target chosen for the pack line.
   - `sizeVariantLabel`: normalized size label used for UI chips/filters.
+- `AllowedSellableSizeDto`: `childFinishedGoodId`, `childSkuCode`, `childFinishedGoodName`, `sizeVariantId`, `sizeLabel`, `piecesPerBox`, `litersPerUnit`, `productFamilyName`.
 - `PackingRequest`: `productionLogId*`, `packedDate`, `packedBy`, `idempotencyKey`, `lines*`.
-- `PackingLineRequest`: `packagingSize*`, `quantityLiters`, `piecesCount`, `boxesCount`, `piecesPerBox` (all positive when provided).
+- `PackingLineRequest`: `childFinishedGoodId*`, `childBatchCount`, `packagingSize*`, `quantityLiters`, `piecesCount`, `boxesCount`, `piecesPerBox` (all positive when provided).
 - `PackingRecordDto`: persisted packing record with line-level box/piece metadata + `sizeVariantId`/`sizeVariantLabel`.
-- `UnpackedBatchDto`: production log quantities (`mixed`, `packed`, `remaining`) and status.
-- `BulkPackRequest`: `bulkBatchId*`, `packs*`, `packagingMaterials`, `skipPackagingConsumption`, `packDate`, `packedBy`, `notes`, `idempotencyKey`.
-- `BulkPackRequest.PackLine`: `childSkuId*`, `quantity*`, `sizeLabel`, `unit`.
-- `BulkPackRequest.MaterialConsumption`: `materialId*`, `quantity*`, `unit`.
-- `BulkPackResponse`: consumed bulk qty/cost/journal + created `childBatches[]`; includes:
-  - `packagingCost`: total packaging cost posted for this bulk-to-size run.
-  - `journalEntryId`: accounting linkage for audit drilldowns.
-  - `packedAt`: server timestamp of operation completion.
-- `BulkPackResponse.ChildBatchDto`: child batch identity + SKU/size + qty/cost/value.
+- `UnpackedBatchDto`: production log quantities (`mixed`, `packed`, `remaining`) and status + `productFamilyName` + `allowedSellableSizes[]`.
 - `CostBreakdownDto` (`GET /api/v1/reports/production-logs/{id}/cost-breakdown`): production cost trace payload used by manufacturing analytics pages.
   - `costComponents: CostComponentTraceDto` => `productionMaterialCost`, `laborCost`, `overheadCost`, `packagingCost`, `totalCost`, `mixedQuantity`, `packedQuantity`, `blendedUnitCost`.
   - `packedBatches: PackedBatchTraceDto[]` => packing record + FG batch references (`packingRecordId`, `finishedGoodBatchId/publicId/batchCode`, `finishedGoodCode/name`, `sizeLabel`, `packedQuantity`, `unitCost`, `totalValue`, `accountingReference`, `journalEntryId`).

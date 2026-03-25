@@ -1,0 +1,28 @@
+{
+  "featureId": "hard-cut-pack-route-and-idempotency",
+  "reviewedAt": "2026-03-25T07:45:05.960743Z",
+  "commitId": "6c3d9a962888642d19d811d07e24a04c2569b2eb",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The public route/docs/OpenAPI hard-cut is mostly in place and the surviving endpoint now enforces `Idempotency-Key`, but the implementation does not fully remove the retired completion workflow. `PackingService.completePacking(...)` and its completion helper remain in runtime code after the `/packing-records/{productionLogId}/complete` route and its test coverage were removed, so the feature does not satisfy the mission requirement to remove completion semantics in the same change set.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/service/PackingService.java",
+        "line": 141,
+        "severity": "blocking",
+        "description": "`completePacking(...)` is still present as live runtime code, and `PackingCompletionService` is still injected/used for that path (`PackingService.java:60-100,141-167`; `PackingCompletionService.java:21-40`). The feature definition requires retiring pack completion semantics in the same change set, but this patch only removes the public route and deletes the old service test, leaving the obsolete completion seam behind."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The worker's handoff says `skillFeedback.followedProcedure` is true, but the diff still leaves the dead `completePacking`/`PackingCompletionService` seam in place after the route hard-cut. The skill already instructs workers to delete obsolete service seams, so the issue is not missing skill guidance; it is that the self-check/handoff did not catch a violated procedure step.",
+      "evidence": "`.factory/skills/factory-flow-worker/SKILL.md:41` says to delete dead routes/DTOs/service seams/internal callers; the transcript skeleton shows the worker loaded that skill, but `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/service/PackingService.java:141` still defines `completePacking(...)` and `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/service/PackingCompletionService.java:21` still carries the retired completion helper while the handoff reports `skillFeedback.followedProcedure: true`."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail: the controller/OpenAPI/doc contract was hard-cut to `POST /api/v1/factory/packing-records` with `Idempotency-Key` only, but the obsolete completion runtime seam (`PackingService.completePacking(...)` / `PackingCompletionService`) still survives, so completion semantics were not fully removed."
+}

@@ -33,8 +33,7 @@ Base package: `com.bigbrightpaints.erp`
   - `POST /api/v1/factory/packing-records`
   - `POST /api/v1/sales/dispatch/confirm`
 - Factory must not act like a second inventory-admin or accounting-admin workspace.
-- `ProductionLogService.createLog(...)` remains the manufacturing-truth entrypoint.
-- `FactoryService.logBatch(...)` and `/api/v1/factory/production-batches` are retirement targets.
+- `ProductionLogService.createLog(...)` remains the manufacturing-truth entrypoint and `POST /api/v1/factory/production/logs` is the sole public batch-create route.
 - `PackingController` must end with one pack mutation path only. `POST /api/v1/factory/pack` and `POST /api/v1/factory/packing-records/{productionLogId}/complete` are retirement targets.
 - The surviving pack contract must not auto-create default size variants or default finished-goods targets on behalf of the operator.
 - The surviving pack idempotency contract is `Idempotency-Key` only.

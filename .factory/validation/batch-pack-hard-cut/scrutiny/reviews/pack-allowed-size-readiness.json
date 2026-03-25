@@ -1,0 +1,26 @@
+{
+  "featureId": "pack-allowed-size-readiness",
+  "reviewedAt": "2026-03-25T07:47:07Z",
+  "commitId": "3636e69a1",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature exposes allowed sellable sizes on the production-log detail/create response and the unpacked-batches read, requires an explicit `childFinishedGoodId` on pack writes, and routes `recordPacking` through `PackingAllowedSizeService` instead of the previous default-finished-good/auto-size fallback path. I did not find a blocking code defect in the reviewed commit.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "Shared frontend handoff guidance still documents the old packing request/read contract even though this feature made `childFinishedGoodId` mandatory and added allowed-size fields to packing-related reads.",
+      "evidence": ".factory/library/frontend-handoff.md:1939-1944 still describes `PackingLineRequest` without `childFinishedGoodId`, and the same section does not mention `ProductionLogDetailDto.allowedSellableSizes` / `UnpackedBatchDto.allowedSellableSizes`; commit 3636e69a1 changed only code/tests and no frontend-handoff or endpoint-inventory files."
+    },
+    {
+      "area": "skills",
+      "observation": "The `factory-flow-worker` procedure says to update published contract surfaces in the same feature when a public DTO/request contract changes, but this run marked `skillFeedback.followedProcedure=true` even though the frontend handoff remained stale and no contract-doc files were updated.",
+      "evidence": ".factory/skills/factory-flow-worker/SKILL.md Step 4 requires updating OpenAPI/endpoint inventory/workflow/frontend-handoff/frontend-v2 for public contract changes; the transcript skeleton for worker session 0b2204c9-f17c-4874-a8fe-e1f84161b190 ends with `skillFeedback.followedProcedure: true`, while commit 3636e69a1 touches no docs or `.factory/library/*` contract files and `.factory/library/frontend-handoff.md:1939-1944` is still stale."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass. The reviewed commit fail-closes the surviving pack write around explicit allowed targets and surfaces allowed sellable sizes on the key packing reads; I found no blocking code issue. Shared-state drift remains in the frontend handoff / skill-procedure reporting for the updated pack contract."
+}

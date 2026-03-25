@@ -1,0 +1,74 @@
+{
+  "milestone": "batch-pack-hard-cut",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "ROOT=\"/home/realnigga/Desktop/orchestrator_erp_worktrees/ERP-38-canonical-factory-flow\" && cd \"$ROOT\" && bash scripts/gate_fast.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "ROOT=\"/home/realnigga/Desktop/orchestrator_erp_worktrees/ERP-38-canonical-factory-flow\" && cd \"$ROOT/erp-domain\" && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "ROOT=\"/home/realnigga/Desktop/orchestrator_erp_worktrees/ERP-38-canonical-factory-flow\" && cd \"$ROOT\" && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 5,
+    "passed": 4,
+    "failed": 1,
+    "failedFeatures": [
+      "hard-cut-pack-route-and-idempotency"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "hard-cut-pack-route-and-idempotency",
+      "severity": "blocking",
+      "description": "The obsolete pack-completion runtime seam still survives after the route hard-cut: `PackingService.completePacking(...)` is still present and `PackingCompletionService` is still injected/used, so completion semantics were not fully removed with the surviving `POST /api/v1/factory/packing-records` contract."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "library",
+      "description": "Updated `.factory/library/architecture.md` to state that `POST /api/v1/factory/production/logs` is already the sole public batch-create route, removing the stale note that still described `FactoryService.logBatch(...)` and `/api/v1/factory/production-batches` as pending retirement targets.",
+      "sourceFeature": "remove-legacy-production-batches-surface"
+    },
+    {
+      "target": "library",
+      "description": "Updated `.factory/library/factory-canonical-flow.md` to remove the already-retired production-batch route/service seam from the mission's delete-first targets after the batch-surface hard cut sealed.",
+      "sourceFeature": "remove-legacy-production-batches-surface"
+    },
+    {
+      "target": "library",
+      "description": "Updated `.factory/library/frontend-handoff.md` so the surviving pack contract now documents `allowedSellableSizes`, `childFinishedGoodId`, and the current unpacked-batch/detail DTO fields instead of stale pre-hard-cut packing DTO notes.",
+      "sourceFeature": "pack-allowed-size-readiness"
+    }
+  ],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [
+    {
+      "observation": "Treat the `production-log-create-contract-and-truth` review's legacy production-batches doc drift as an active blocking issue for the milestone.",
+      "reason": "rejected because commit `3b3cf19ed9d6c00ec49198d9d78797d7a8af3c96` (`remove-legacy-production-batches-surface`) removed the retired batch route and DTO references across runtime/OpenAPI/endpoint inventory/frontend handoff later in the same milestone, so no new fix feature is needed for that superseded review finding."
+    },
+    {
+      "observation": "Add the production-log runtime bootstrap script from the worker handoff directly into `.factory/library/user-testing.md`.",
+      "reason": "rejected as too probe-specific for direct apply-now triage; the current evidence shows a long one-off bootstrap command, but the stable minimal recipe should be derived intentionally during user-testing validation if this remains repeated friction."
+    },
+    {
+      "observation": "Add the pack-ready MOCK seed SQL workaround directly into `.factory/library/user-testing.md`.",
+      "reason": "rejected as environment-specific and ambiguous without deciding whether the right fix is documenting the workaround or improving the reset seed itself."
+    },
+    {
+      "observation": "Update AGENTS/skills because multiple reviews found `skillFeedback.followedProcedure=true` even when transcripts showed workers edited before the first targeted failing test or missed stale contract surfaces.",
+      "reason": "rejected because the existing `factory-flow-worker` skill already requires tests-first and same-feature contract cleanup; the evidence points to worker adherence/self-reporting drift rather than a missing guidance rule."
+    }
+  ],
+  "previousRound": null
+}

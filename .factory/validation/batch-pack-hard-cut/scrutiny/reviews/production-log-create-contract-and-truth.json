@@ -1,0 +1,33 @@
+{
+  "featureId": "production-log-create-contract-and-truth",
+  "reviewedAt": "2026-03-25T07:45:46.030577Z",
+  "commitId": "dedb68301b356428b8a908532b313e2720103fc1",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The commit does the core runtime-side work well: `ProductionLogRequest` drops the dead `addToFinishedGoods` field, `OpenApiSnapshotIT` locks the canonical production-log response fields, and `ProductionLogAtomicityRegressionIT` adds direct rollback proof for a late failure after raw-material and journal side effects begin. However, the feature did not fully deliver its own contract-cleanup requirement that production logs be the only surviving batch-create contract shape, because the published contract docs in this same commit still advertised the legacy production-batches surface and DTOs.",
+    "issues": [
+      {
+        "file": "docs/endpoint-inventory.md",
+        "line": 256,
+        "severity": "blocking",
+        "description": "This feature's description says `POST /api/v1/factory/production/logs` should remain the only surviving batch-create contract shape, but the committed endpoint inventory still published `GET, POST /api/v1/factory/production-batches`. The same commit also left `.factory/library/frontend-handoff.md:1741-1742` and `:1939-1940` documenting the legacy route plus `ProductionBatchRequest`/`ProductionBatchDto`, so contract cleanup was incomplete."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The worker handoff says `skillFeedback.followedProcedure=true`, but the transcript shows the worker editing files before running the first targeted Maven test, which conflicts with the factory-flow-worker instruction to write failing tests first and run the smallest targeted failing command first.",
+      "evidence": "`.factory/skills/factory-flow-worker/SKILL.md:32-37` requires 'Write failing tests first' and 'Run the smallest targeted failing command first'. `worker-transcripts.jsonl:9` for session `43b18378-1764-4933-a1ba-d2787154162b` shows a long sequence of `ApplyPatch` calls before the first targeted Maven `Execute`, while the handoff at `handoffs/2026-03-25T06-11-10-018Z__production-log-create-contract-and-truth__43b18378-1764-4933-a1ba-d2787154162b.json:84` records `\"followedProcedure\": true`."
+    },
+    {
+      "area": "knowledge",
+      "observation": "The shared runtime-validation guidance does not document a minimal production-log bootstrap recipe, so the worker had to reverse-engineer the required account defaults, catalog item metadata, and raw-material seeding steps before it could run the live production-log probe.",
+      "evidence": "`.factory/library/user-testing.md:21,35,40-45,58-69` documents the reset harness and seeded actors but not the payload/setup needed to make a production-log POST succeed. In `worker-transcripts.jsonl:9`, the worker had to inspect `ValidationSeedDataInitializer.java`, `CatalogItemRequest.java`, `RawMaterialAdjustmentRequest.java`, and `CompanyDefaultAccountsRequest.java`, and the handoff's runtime proof command expands into a 3884-character setup/probe script."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Fail. The DTO cleanup and rollback proof are solid, but commit `dedb68301b356428b8a908532b313e2720103fc1` did not fully make production logs the only published batch-create contract: `docs/endpoint-inventory.md` and `.factory/library/frontend-handoff.md` still documented the legacy `/api/v1/factory/production-batches` surface and batch DTOs in this feature's diff."
+}

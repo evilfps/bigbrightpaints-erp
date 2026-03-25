@@ -1,0 +1,21 @@
+{
+  "featureId": "pack-posting-truth-and-status",
+  "reviewedAt": "2026-03-25T13:14:39+05:30",
+  "commitId": "c5db7d5618e9a348d1863701cbc98f476608fff9",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The reviewed commit is test-only and it closes the proof gap for pack-side truth. The implementation it exercises still uses the surviving `POST /api/v1/factory/packing-records` path to consume packaging materials, create finished-goods batches and linked journals, and derive `READY_TO_PACK -> PARTIAL_PACKED -> FULLY_PACKED` from cumulative packed quantity. The added assertions in `PackagingMaterialServiceTest`, `ProductionLogPackingStatusRegressionIT`, and `FactoryPackagingCostingIT` match the feature requirements, and I found no blocking defects in the reviewed code path.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The shared runtime-validation guidance does not mention that the reset/mock seed is not pack-ready for the canonical pack probe: the worker had to change MOCK raw material `RM-CAN` to `PACKAGING` and insert a `1L` size variant before the surviving pack route could be exercised end-to-end.",
+      "evidence": "Handoff interactive check records the manual prerequisite seeding at `/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/handoffs/2026-03-25T07-37-17-354Z__pack-posting-truth-and-status__b3eb79fc-4e70-40ce-8d93-6480478cc0bc.json:48`; transcript skeleton at `/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/worker-transcripts.jsonl:13` shows the SQL update/insert steps; `.factory/library/user-testing.md:42,61` tells reviewers to use the seeded MOCK actors for pack probes but does not document these missing prerequisites; `erp-domain/src/main/java/com/bigbrightpaints/erp/core/config/MockDataInitializer.java:517,542` seeds `RM-CAN` through `ensureRawMaterial(...)` without any packaging-specific runtime setup."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass. The commit strengthens regression and E2E proof for packaging-consumption failure, finished-goods batch/accounting truth, and monotonic packing status on the surviving pack route only. I found no blocking implementation issues in the reviewed feature; the only notable gap is undocumented runtime seed setup needed for manual pack probes."
+}

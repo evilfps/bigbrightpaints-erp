@@ -18,8 +18,6 @@ Mission-specific route ownership, cleanup targets, and worker guardrails for the
 
 ## Delete-First Targets
 
-- `FactoryService.logBatch(...)`
-- `GET/POST /api/v1/factory/production-batches`
 - internal callers that still route through the legacy batch seam
 - `POST /api/v1/factory/pack`
 - `POST /api/v1/factory/packing-records/{productionLogId}/complete`
