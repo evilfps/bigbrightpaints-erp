@@ -38,11 +38,13 @@ public enum SystemRole {
   ACCOUNTING(
       "ROLE_ACCOUNTING",
       "Accounting, finance, HR, and inventory operator",
-      List.of("portal:accounting", "payroll.run")),
+      List.of("portal:accounting", "payroll.run"),
+      List.of("dispatch.confirm")),
   FACTORY(
       "ROLE_FACTORY",
       "Factory, production, and dispatch operator",
-      List.of("portal:factory", "factory.dispatch")),
+      List.of("portal:factory", "factory.dispatch"),
+      List.of("dispatch.confirm")),
   SALES(
       "ROLE_SALES",
       "Sales operations and dealer management",
@@ -56,11 +58,21 @@ public enum SystemRole {
   private final String roleName;
   private final String description;
   private final List<String> defaultPermissions;
+  private final List<String> retiredPermissions;
 
   SystemRole(String roleName, String description, List<String> defaultPermissions) {
+    this(roleName, description, defaultPermissions, List.of());
+  }
+
+  SystemRole(
+      String roleName,
+      String description,
+      List<String> defaultPermissions,
+      List<String> retiredPermissions) {
     this.roleName = roleName;
     this.description = description;
     this.defaultPermissions = defaultPermissions;
+    this.retiredPermissions = retiredPermissions;
   }
 
   public String getRoleName() {
@@ -73,6 +85,10 @@ public enum SystemRole {
 
   public List<String> getDefaultPermissions() {
     return defaultPermissions;
+  }
+
+  public List<String> getRetiredPermissions() {
+    return retiredPermissions;
   }
 
   public static List<String> roleNames() {

@@ -96,6 +96,75 @@ class RbacSynchronizationConfigTest {
   }
 
   @Test
+  void synchronizeSystemRoles_prunesRetiredDispatchConfirmWhilePreservingCustomPermissions() {
+    Map<String, Role> rolesByName = new LinkedHashMap<>();
+    Role seededAdmin =
+        role(
+            "ROLE_ADMIN",
+            "Platform administrator",
+            permission("portal:accounting"),
+            permission("portal:factory"),
+            permission("portal:sales"),
+            permission("portal:dealer"));
+    Role seededSales = role("ROLE_SALES", "Sales operations", permission("portal:sales"));
+    Role seededAccounting =
+        role(
+            "ROLE_ACCOUNTING",
+            "Accounting role",
+            permission("portal:accounting"),
+            permission("payroll.run"),
+            permission("dispatch.confirm"),
+            permission("reports.export"));
+    Role seededFactory =
+        role(
+            "ROLE_FACTORY",
+            "Factory role",
+            permission("portal:factory"),
+            permission("factory.dispatch"),
+            permission("dispatch.confirm"),
+            permission("inventory.audit"));
+    rolesByName.put(seededAdmin.getName(), seededAdmin);
+    rolesByName.put(seededSales.getName(), seededSales);
+    rolesByName.put(seededAccounting.getName(), seededAccounting);
+    rolesByName.put(seededFactory.getName(), seededFactory);
+
+    Map<String, Permission> permissionsByCode = new HashMap<>();
+    seededAdmin.getPermissions().forEach(permission -> permissionsByCode.put(permission.getCode(), permission));
+    seededSales.getPermissions().forEach(permission -> permissionsByCode.put(permission.getCode(), permission));
+    seededAccounting.getPermissions().forEach(permission -> permissionsByCode.put(permission.getCode(), permission));
+    seededFactory.getPermissions().forEach(permission -> permissionsByCode.put(permission.getCode(), permission));
+
+    when(roleRepository.lockByName(any()))
+        .thenAnswer(invocation -> Optional.ofNullable(rolesByName.get(invocation.getArgument(0))));
+    when(roleRepository.save(any(Role.class)))
+        .thenAnswer(
+            invocation -> {
+              Role saved = invocation.getArgument(0);
+              rolesByName.put(saved.getName(), saved);
+              return saved;
+            });
+    when(permissionRepository.findByCode(any()))
+        .thenAnswer(
+            invocation -> Optional.ofNullable(permissionsByCode.get(invocation.getArgument(0))));
+
+    RoleService roleService = new RoleService(roleRepository, permissionRepository, auditService);
+
+    int synchronizedRoles = roleService.synchronizeSystemRoles();
+
+    assertThat(synchronizedRoles).isGreaterThan(0);
+    assertThat(permissionCodes(seededAdmin))
+        .contains("dispatch.confirm", "factory.dispatch", "payroll.run");
+    assertThat(permissionCodes(seededSales)).contains("dispatch.confirm");
+    assertThat(permissionCodes(seededAccounting))
+        .contains("portal:accounting", "payroll.run", "reports.export")
+        .doesNotContain("dispatch.confirm");
+    assertThat(permissionCodes(seededFactory))
+        .contains("portal:factory", "factory.dispatch", "inventory.audit")
+        .doesNotContain("dispatch.confirm");
+    verifyNoInteractions(auditService);
+  }
+
+  @Test
   void applicationReadySynchronization_runsAfterCommandLineRoleSeeders() {
     STARTUP_EVENTS.clear();
 
@@ -120,11 +189,23 @@ class RbacSynchronizationConfigTest {
     verify(roleService).synchronizeSystemRoles();
   }
 
-  private static Role role(String name, String description) {
+  private static Role role(String name, String description, Permission... permissions) {
     Role role = new Role();
     role.setName(name);
     role.setDescription(description);
+    role.getPermissions().addAll(List.of(permissions));
     return role;
+  }
+
+  private static Permission permission(String code) {
+    Permission permission = new Permission();
+    permission.setCode(code);
+    permission.setDescription(code);
+    return permission;
+  }
+
+  private static List<String> permissionCodes(Role role) {
+    return role.getPermissions().stream().map(Permission::getCode).toList();
   }
 
   @TestConfiguration(proxyBeanMethods = false)

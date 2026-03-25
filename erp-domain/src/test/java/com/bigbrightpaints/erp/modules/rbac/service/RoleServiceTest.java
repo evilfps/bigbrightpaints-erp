@@ -98,8 +98,8 @@ class RoleServiceTest {
         role(
             "ROLE_ACCOUNTING",
             permission("portal:accounting"),
-            permission("dispatch.confirm"),
-            permission("payroll.run"));
+            permission("payroll.run"),
+            permission("reports.export"));
     when(roleRepository.lockByName("ROLE_ACCOUNTING")).thenReturn(Optional.of(accounting));
 
     RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
@@ -112,12 +112,70 @@ class RoleServiceTest {
   }
 
   @Test
+  void synchronizeSystemRolePermissions_prunesRetiredDispatchConfirmFromExistingSystemRoles() {
+    Role accounting =
+        role(
+            "ROLE_ACCOUNTING",
+            permission("portal:accounting"),
+            permission("payroll.run"),
+            permission("dispatch.confirm"),
+            permission("reports.export"));
+    Role factory =
+        role(
+            "ROLE_FACTORY",
+            permission("portal:factory"),
+            permission("factory.dispatch"),
+            permission("dispatch.confirm"),
+            permission("inventory.audit"));
+    when(roleRepository.findByNameIn(SystemRole.roleNames())).thenReturn(List.of(accounting, factory));
+    when(roleRepository.save(any(Role.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
+
+    int updatedRoles = service.synchronizeSystemRolePermissions();
+
+    assertThat(updatedRoles).isEqualTo(2);
+    assertThat(accounting.getPermissions())
+        .extracting(Permission::getCode)
+        .contains("portal:accounting", "payroll.run", "reports.export")
+        .doesNotContain("dispatch.confirm");
+    assertThat(factory.getPermissions())
+        .extracting(Permission::getCode)
+        .contains("portal:factory", "factory.dispatch", "inventory.audit")
+        .doesNotContain("dispatch.confirm");
+    verify(roleRepository).save(accounting);
+    verify(roleRepository).save(factory);
+  }
+
+  @Test
+  void ensureRoleExists_prunesRetiredDispatchConfirmFromExistingFactoryRoleBeforeReturningIt() {
+    Role factory =
+        role(
+            "ROLE_FACTORY",
+            permission("portal:factory"),
+            permission("factory.dispatch"),
+            permission("dispatch.confirm"),
+            permission("inventory.audit"));
+    when(roleRepository.lockByName("ROLE_FACTORY")).thenReturn(Optional.of(factory));
+    when(roleRepository.save(any(Role.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    RoleService service = new RoleService(roleRepository, permissionRepository, auditService);
+
+    Role ensured = service.ensureRoleExists("ROLE_FACTORY");
+
+    assertThat(ensured.getPermissions())
+        .extracting(Permission::getCode)
+        .contains("portal:factory", "factory.dispatch", "inventory.audit")
+        .doesNotContain("dispatch.confirm");
+    verify(roleRepository).save(factory);
+  }
+
+  @Test
   void ensureRoleExists_backfillsMissingDescriptionForExistingSystemRole() {
     Role accounting =
         role(
             "ROLE_ACCOUNTING",
             permission("portal:accounting"),
-            permission("dispatch.confirm"),
             permission("payroll.run"));
     accounting.setDescription(" ");
     when(roleRepository.lockByName("ROLE_ACCOUNTING")).thenReturn(Optional.of(accounting));

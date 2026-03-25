@@ -210,18 +210,11 @@ public class RoleService {
       role.setDescription(definition.getDescription());
       dirty = true;
     }
-    Set<String> existingPermissionCodes =
-        role.getPermissions().stream()
-            .map(Permission::getCode)
-            .filter(StringUtils::hasText)
-            .collect(Collectors.toSet());
-    for (String permissionCode : definition.getDefaultPermissions()) {
-      if (existingPermissionCodes.add(permissionCode)) {
-        Permission permission =
-            permissionCache.computeIfAbsent(permissionCode, this::ensurePermissionExists);
-        role.getPermissions().add(permission);
-        dirty = true;
-      }
+    if (reconcileSystemRolePermissions(
+        role,
+        definition,
+        permissionCode -> permissionCache.computeIfAbsent(permissionCode, this::ensurePermissionExists))) {
+      dirty = true;
     }
     if (!dirty) {
       return false;
@@ -244,15 +237,37 @@ public class RoleService {
       role.setDescription(definition.getDescription());
       changed = true;
     }
+    if (reconcileSystemRolePermissions(role, definition, this::ensurePermissionExists)) {
+      changed = true;
+    }
+    return changed;
+  }
+
+  private boolean reconcileSystemRolePermissions(
+      Role role, SystemRole definition, Function<String, Permission> permissionResolver) {
+    boolean changed = false;
     HashSet<String> existingCodes =
         role.getPermissions().stream()
+            .filter(permission -> permission != null && StringUtils.hasText(permission.getCode()))
             .map(Permission::getCode)
             .collect(Collectors.toCollection(HashSet::new));
     for (String code : definition.getDefaultPermissions()) {
       if (existingCodes.add(code)) {
-        role.getPermissions().add(ensurePermissionExists(code));
+        role.getPermissions().add(permissionResolver.apply(code));
         changed = true;
       }
+    }
+    Set<String> retiredCodes =
+        definition.getRetiredPermissions().stream()
+            .map(String::trim)
+            .filter(StringUtils::hasText)
+            .collect(Collectors.toSet());
+    if (!retiredCodes.isEmpty()
+        && role.getPermissions()
+            .removeIf(
+                permission ->
+                    permission != null && retiredCodes.contains(permission.getCode()))) {
+      changed = true;
     }
     return changed;
   }

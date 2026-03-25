@@ -73,6 +73,14 @@ class SystemRoleTest {
   }
 
   @Test
+  void accountingAndFactoryRetiredPermissions_pruneDispatchConfirmFromUpgradedTenants() {
+    assertThat(SystemRole.ACCOUNTING.getRetiredPermissions()).containsExactly("dispatch.confirm");
+    assertThat(SystemRole.FACTORY.getRetiredPermissions()).containsExactly("dispatch.confirm");
+    assertThat(SystemRole.ADMIN.getRetiredPermissions()).isEmpty();
+    assertThat(SystemRole.SALES.getRetiredPermissions()).isEmpty();
+  }
+
+  @Test
   void defaultPermissions_presentForAllRoles() {
     Arrays.stream(SystemRole.values())
         .map(SystemRole::getDefaultPermissions)

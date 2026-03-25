@@ -28,6 +28,11 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.rbac.domain.Permission;
+import com.bigbrightpaints.erp.modules.rbac.domain.PermissionRepository;
+import com.bigbrightpaints.erp.modules.rbac.domain.Role;
+import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
+import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 
 import jakarta.persistence.EntityManager;
@@ -43,6 +48,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   private static final String ADMIN_EMAIL = "tenant-admin@bbp.com";
   private static final String ROLE_GUARD_ADMIN_EMAIL = "role-guard-admin@bbp.com";
   private static final String NON_PRIVILEGED_ADMIN_EMAIL = "tenant-admin-nonpriv@bbp.com";
+  private static final String SALES_SYNC_EMAIL = "sales-sync@bbp.com";
+  private static final String ACCOUNTING_SYNC_EMAIL = "accounting-sync@bbp.com";
   private static final String SUPER_ADMIN_EMAIL = "super-admin@bbp.com";
   private static final String SUPER_ADMIN_HIERARCHY_EMAIL = "super-admin-hierarchy@bbp.com";
   private static final String PASSWORD = "Passw0rd!";
@@ -54,6 +61,12 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   @Autowired private EntityManager entityManager;
 
   @Autowired private UserAccountRepository userAccountRepository;
+
+  @Autowired private RoleRepository roleRepository;
+
+  @Autowired private PermissionRepository permissionRepository;
+
+  @Autowired private RoleService roleService;
 
   @BeforeEach
   void setUp() {
@@ -70,6 +83,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         "other-admin@bbp.com", PASSWORD, "Other Admin", TENANT_B, List.of("ROLE_ADMIN"));
     dataSeeder.ensureUser(
         "factory-seed@bbp.com", PASSWORD, "Factory Seed", TENANT_A, List.of("ROLE_FACTORY"));
+    dataSeeder.ensureUser(
+        SALES_SYNC_EMAIL, PASSWORD, "Sales Sync", TENANT_A, List.of("ROLE_SALES"));
+    dataSeeder.ensureUser(
+        ACCOUNTING_SYNC_EMAIL, PASSWORD, "Accounting Sync", TENANT_A, List.of("ROLE_ACCOUNTING"));
     dataSeeder.ensureUser(
         SUPER_ADMIN_EMAIL,
         PASSWORD,
@@ -93,6 +110,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     resetSeededUserState(ROLE_GUARD_ADMIN_EMAIL);
     resetSeededUserState(NON_PRIVILEGED_ADMIN_EMAIL);
     resetSeededUserState("other-admin@bbp.com");
+    resetSeededUserState(SALES_SYNC_EMAIL);
+    resetSeededUserState(ACCOUNTING_SYNC_EMAIL);
     resetSeededUserState(SUPER_ADMIN_EMAIL);
     resetSeededUserState(SUPER_ADMIN_HIERARCHY_EMAIL);
     resetTenantLifecycle(TENANT_A);
@@ -860,6 +879,30 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   }
 
   @Test
+  void startupRoleSynchronization_realignsDispatchConfirmAuthoritiesForSystemRoles() {
+    addRolePermission("ROLE_ACCOUNTING", "dispatch.confirm");
+    addRolePermission("ROLE_FACTORY", "dispatch.confirm");
+    removeRolePermission("ROLE_ADMIN", "dispatch.confirm");
+    removeRolePermission("ROLE_SALES", "dispatch.confirm");
+
+    int synchronizedRoles = roleService.synchronizeSystemRoles();
+
+    assertThat(synchronizedRoles).isGreaterThan(0);
+    assertThat(rolePermissionCodes("ROLE_ADMIN")).contains("dispatch.confirm");
+    assertThat(rolePermissionCodes("ROLE_SALES")).contains("dispatch.confirm");
+    assertThat(rolePermissionCodes("ROLE_ACCOUNTING")).doesNotContain("dispatch.confirm");
+    assertThat(rolePermissionCodes("ROLE_FACTORY")).doesNotContain("dispatch.confirm");
+
+    assertThat(mePermissionCodes(login(ADMIN_EMAIL, TENANT_A), TENANT_A)).contains("dispatch.confirm");
+    assertThat(mePermissionCodes(login(SALES_SYNC_EMAIL, TENANT_A), TENANT_A))
+        .contains("dispatch.confirm");
+    assertThat(mePermissionCodes(login(ACCOUNTING_SYNC_EMAIL, TENANT_A), TENANT_A))
+        .doesNotContain("dispatch.confirm");
+    assertThat(mePermissionCodes(login("factory-seed@bbp.com", TENANT_A), TENANT_A))
+        .doesNotContain("dispatch.confirm");
+  }
+
+  @Test
   void tenant_admin_can_still_create_non_privileged_user() {
     String token = login(NON_PRIVILEGED_ADMIN_EMAIL, TENANT_A);
     Long tenantAId =
@@ -1209,6 +1252,69 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         .filter(String.class::isInstance)
         .map(String.class::cast)
         .collect(Collectors.toSet());
+  }
+
+  private Set<String> mePermissionCodes(String token, String companyCode) {
+    ResponseEntity<Map> response =
+        rest.exchange(
+            "/api/v1/auth/me",
+            HttpMethod.GET,
+            new HttpEntity<>(jsonHeaders(token, companyCode)),
+            Map.class);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<String, Object> body = response.getBody();
+    assertThat(body).isNotNull();
+    Object dataValue = body.get("data");
+    assertThat(dataValue).isInstanceOf(Map.class);
+    @SuppressWarnings("unchecked")
+    Map<String, Object> data = (Map<String, Object>) dataValue;
+    Object permissionsValue = data.get("permissions");
+    if (!(permissionsValue instanceof List<?> permissions)) {
+      return Set.of();
+    }
+    return permissions.stream()
+        .filter(String.class::isInstance)
+        .map(String.class::cast)
+        .collect(Collectors.toSet());
+  }
+
+  private Set<String> rolePermissionCodes(String roleName) {
+    return roleRepository.findByName(roleName).map(this::permissionCodes).orElseThrow();
+  }
+
+  private Set<String> permissionCodes(Role role) {
+    return role.getPermissions().stream()
+        .map(Permission::getCode)
+        .filter(String.class::isInstance)
+        .collect(Collectors.toSet());
+  }
+
+  private void addRolePermission(String roleName, String permissionCode) {
+    mutateRolePermission(roleName, permissionCode, true);
+  }
+
+  private void removeRolePermission(String roleName, String permissionCode) {
+    mutateRolePermission(roleName, permissionCode, false);
+  }
+
+  private void mutateRolePermission(String roleName, String permissionCode, boolean present) {
+    Role role = roleRepository.findByName(roleName).orElseThrow();
+    Permission permission =
+        permissionRepository
+            .findByCode(permissionCode)
+            .orElseGet(
+                () -> {
+                  Permission created = new Permission();
+                  created.setCode(permissionCode);
+                  created.setDescription(permissionCode);
+                  return permissionRepository.save(created);
+                });
+    if (present) {
+      role.getPermissions().add(permission);
+    } else {
+      role.getPermissions().removeIf(existing -> permissionCode.equalsIgnoreCase(existing.getCode()));
+    }
+    roleRepository.save(role);
   }
 
   private List<String> factoryRolePermissionCodes() {
