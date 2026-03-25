@@ -10,7 +10,7 @@ This guide explains the flow from planning to dispatch-ready finished stock.
 |---|---|---|---|---|
 | 1 | Create production plan | **Production Planning** → `POST /api/v1/factory/production-plans` | Plan is created with quantity and planned date | Wrong SKU/product, unrealistic quantity, or missing plan metadata. Correct and update (`PUT /factory/production-plans/{id}`). |
 | 2 | Log production with raw material consumption | **Production Log** → `POST /api/v1/factory/production/logs` | Raw materials are consumed, production lot is recorded, base cost starts accumulating | Missing material lines, insufficient RM stock, invalid batch/quantity. Validate RM availability before posting. |
-| 3 | Pack into size/SKU variants and consume packaging materials | **Packing** → `POST /api/v1/factory/packing-records` (line-level pack records) and/or `POST /api/v1/factory/pack` (bulk-to-size conversion). Packaging Setup / Rules live on `POST /api/v1/factory/packaging-mappings` | Parent/bulk output becomes sellable child SKUs (1L/4L/20L etc.), packaging materials deducted | Missing, inactive, or unusable Packaging Setup / Rules, wrong child SKU mapping, or duplicate packing submission. Update Packaging Setup and use idempotency keys. |
+| 3 | Pack into size/SKU variants and consume packaging materials | **Packing** → `POST /api/v1/factory/packing-records` with required `Idempotency-Key`. Packaging Setup / Rules live on `POST /api/v1/factory/packaging-mappings` | Production output becomes sellable child SKUs (1L/4L/20L etc.), packaging materials deducted, and the batch can reach `FULLY_PACKED` with repeated packing-record submissions only | Missing, inactive, or unusable Packaging Setup / Rules, wrong child SKU mapping, missing `Idempotency-Key`, or legacy replay headers. Update Packaging Setup and retry with the canonical header only. |
 | 4 | Validate cost traceability | **Cost Analysis** → `GET /api/v1/reports/production-logs/{id}/cost-breakdown` and monthly view `GET /api/v1/reports/monthly-production-costs` | You can see raw material + packaging + overhead contribution per unit | Cost looks incorrect when material usage was incomplete or pack quantities mismatch production totals. Reconcile logs before month end. |
 | 5 | Release stock for dispatch | **Finished Goods Inventory / Dispatch Queue** → `GET /api/v1/finished-goods/stock-summary`, `GET /api/v1/dispatch/pending` | Packed SKUs are available to sales/dispatch flow | Stock visible but not dispatchable if order reservation/slip generation is pending. Confirm related sales order first. |
 
@@ -23,7 +23,7 @@ This guide explains the flow from planning to dispatch-ready finished stock.
 
 ## Troubleshooting Quick Notes
 
-1. **Production log saved but FG not available:** confirm packing was completed; production logging alone may not create dispatch-size stock.
+1. **Production log saved but FG not available:** confirm the remaining pack quantity was recorded on `POST /api/v1/factory/packing-records`; production logging alone may not create dispatch-size stock.
 2. **Packing failed for one size:** verify the child SKU exists and the Packaging Setup rule is active and usable.
 3. **Unexpected packaging material shortage:** check planned carton/size mapping and run low-stock checks before shift start.
 4. **Cost trace missing packaging portion:** packing now fails closed when Packaging Setup is missing, inactive, or unusable. Fix the Packaging Setup rule, then retry the pack.

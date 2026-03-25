@@ -40,7 +40,12 @@ require_literal "$P2P_WORKFLOW_DOC" '`POST /api/v1/purchasing/goods-receipts`' "
 require_literal "$P2P_WORKFLOW_DOC" '`POST /api/v1/purchasing/raw-material-purchases`' "P2P invoice canonical endpoint doc"
 
 require_literal "$MANUFACTURING_WORKFLOW_DOC" '`POST /api/v1/factory/packing-records`' "manufacturing packing canonical endpoint doc"
-require_literal "$MANUFACTURING_WORKFLOW_DOC" '`POST /api/v1/factory/pack`' "manufacturing bulk-pack canonical endpoint doc"
+if grep -Fq -- '`POST /api/v1/factory/pack`' "$MANUFACTURING_WORKFLOW_DOC"; then
+  fail "manufacturing workflow doc still references retired bulk-pack endpoint in $MANUFACTURING_WORKFLOW_DOC"
+fi
+if grep -Fq -- '`POST /api/v1/factory/packing-records/{productionLogId}/complete`' "$MANUFACTURING_WORKFLOW_DOC"; then
+  fail "manufacturing workflow doc still references retired packing complete endpoint in $MANUFACTURING_WORKFLOW_DOC"
+fi
 
 require_literal "$PAYROLL_WORKFLOW_DOC" '`POST /api/v1/payroll/runs/{id}/post`' "payroll canonical endpoint doc"
 

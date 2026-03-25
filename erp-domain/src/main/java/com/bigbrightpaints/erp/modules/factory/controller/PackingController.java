@@ -9,22 +9,19 @@ import org.springframework.web.bind.annotation.*;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
-import com.bigbrightpaints.erp.core.idempotency.IdempotencySignatureBuilder;
-import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
-import com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils;
 import com.bigbrightpaints.erp.modules.factory.dto.*;
 import com.bigbrightpaints.erp.modules.factory.service.BulkPackingService;
 import com.bigbrightpaints.erp.modules.factory.service.PackingService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/factory")
 @PreAuthorize("hasAnyAuthority('ROLE_FACTORY','ROLE_ACCOUNTING','ROLE_ADMIN')")
 public class PackingController {
-  private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
-  private static final String PACKING_COMMAND = "FACTORY.PACKING.RECORD";
+  private static final String CANONICAL_PACKING_PATH = "/api/v1/factory/packing-records";
 
   private final PackingService packingService;
   private final BulkPackingService bulkPackingService;
@@ -36,21 +33,17 @@ public class PackingController {
 
   @PostMapping("/packing-records")
   public ResponseEntity<ApiResponse<ProductionLogDetailDto>> recordPacking(
+      @Parameter(required = true)
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+      @Parameter(hidden = true)
       @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey,
+      @Parameter(hidden = true)
       @RequestHeader(value = "X-Request-Id", required = false) String requestId,
       @Valid @RequestBody PackingRequest request) {
     PackingRequest resolved =
         applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey, requestId);
     return ResponseEntity.ok(
         ApiResponse.success("Packing recorded", packingService.recordPacking(resolved)));
-  }
-
-  @PostMapping("/packing-records/{productionLogId}/complete")
-  public ResponseEntity<ApiResponse<ProductionLogDetailDto>> completePacking(
-      @PathVariable Long productionLogId) {
-    return ResponseEntity.ok(
-        ApiResponse.success("Packing completed", packingService.completePacking(productionLogId)));
   }
 
   @GetMapping("/unpacked-batches")
@@ -62,20 +55,6 @@ public class PackingController {
   public ResponseEntity<ApiResponse<List<PackingRecordDto>>> packingHistory(
       @PathVariable Long productionLogId) {
     return ResponseEntity.ok(ApiResponse.success(packingService.packingHistory(productionLogId)));
-  }
-
-  // ===== Bulk-to-Size Packaging =====
-
-  /**
-   * Pack a bulk FG batch into sized child SKUs.
-   * Converts parent SKU (e.g., Safari-WHITE) into child SKUs (Safari-WHITE-1L, Safari-WHITE-4L).
-   */
-  @PostMapping("/pack")
-  @PreAuthorize("hasAnyAuthority('ROLE_FACTORY','ROLE_ACCOUNTING','ROLE_ADMIN')")
-  public ResponseEntity<ApiResponse<BulkPackResponse>> packBulkToSizes(
-      @Valid @RequestBody BulkPackRequest request) {
-    return ResponseEntity.ok(
-        ApiResponse.success("Bulk packed into sizes", bulkPackingService.pack(request)));
   }
 
   /**
@@ -109,13 +88,17 @@ public class PackingController {
       throw new ApplicationException(
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Packing request is required");
     }
-    String resolvedKey =
-        IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
-            request.idempotencyKey(), idempotencyKeyHeader, legacyIdempotencyKeyHeader);
-    if (StringUtils.hasText(resolvedKey)) {
-      return requestWithIdempotencyKey(request, resolvedKey);
+    if (StringUtils.hasText(legacyIdempotencyKeyHeader)) {
+      throw unsupportedLegacyHeader("X-Idempotency-Key");
     }
-    return requestWithIdempotencyKey(request, resolveFallbackIdempotencyKey(request, requestId));
+    if (StringUtils.hasText(requestId)) {
+      throw unsupportedLegacyHeader("X-Request-Id");
+    }
+    if (!StringUtils.hasText(idempotencyKeyHeader)) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Idempotency-Key header is required");
+    }
+    return requestWithIdempotencyKey(request, idempotencyKeyHeader.trim());
   }
 
   private PackingRequest requestWithIdempotencyKey(PackingRequest request, String idempotencyKey) {
@@ -127,45 +110,12 @@ public class PackingController {
         request.lines());
   }
 
-  private String resolveFallbackIdempotencyKey(PackingRequest request, String requestId) {
-    if (StringUtils.hasText(requestId)) {
-      String requestScoped = "REQ|" + PACKING_COMMAND + "|" + requestId.trim();
-      if (requestScoped.length() <= MAX_IDEMPOTENCY_KEY_LENGTH) {
-        return requestScoped;
-      }
-      return "REQH|" + PACKING_COMMAND + "|" + IdempotencyUtils.sha256Hex(requestScoped);
-    }
-    return "AUTO|"
-        + PACKING_COMMAND
-        + "|"
-        + IdempotencyUtils.sha256Hex(buildRequestSignature(request));
-  }
-
-  private String buildRequestSignature(PackingRequest request) {
-    IdempotencySignatureBuilder payload =
-        IdempotencySignatureBuilder.create()
-            .add("log=" + request.productionLogId())
-            .add("date=" + request.packedDate())
-            .add("by=" + IdempotencyUtils.normalizeToken(request.packedBy()));
-    if (request.lines() != null) {
-      int idx = 0;
-      for (PackingLineRequest line : request.lines()) {
-        idx++;
-        payload.add(
-            "line"
-                + idx
-                + ':'
-                + IdempotencyUtils.normalizeToken(line.packagingSize())
-                + ':'
-                + IdempotencyUtils.normalizeDecimal(line.quantityLiters())
-                + ':'
-                + line.piecesCount()
-                + ':'
-                + line.boxesCount()
-                + ':'
-                + line.piecesPerBox());
-      }
-    }
-    return payload.buildPayload();
+  private ApplicationException unsupportedLegacyHeader(String legacyHeader) {
+    return new ApplicationException(
+            ErrorCode.VALIDATION_INVALID_INPUT,
+            legacyHeader + " is not supported for packing records; use Idempotency-Key")
+        .withDetail("legacyHeader", legacyHeader)
+        .withDetail("canonicalHeader", "Idempotency-Key")
+        .withDetail("canonicalPath", CANONICAL_PACKING_PATH);
   }
 }

@@ -1143,14 +1143,16 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
     packingRequest.put("productionLogId", logId);
     packingRequest.put("packedDate", entryDate);
     packingRequest.put("packedBy", "packer");
-    packingRequest.put("idempotencyKey", nextDeterministicToken("INV-PACK-" + logId));
     packingRequest.put("lines", List.of(packingLine));
+    HttpHeaders packingHeaders = new HttpHeaders();
+    packingHeaders.putAll(headers);
+    packingHeaders.add("Idempotency-Key", nextDeterministicToken("INV-PACK-" + logId));
 
     ResponseEntity<Map> packingResp =
         rest.exchange(
             "/api/v1/factory/packing-records",
             HttpMethod.POST,
-            new HttpEntity<>(packingRequest, headers),
+            new HttpEntity<>(packingRequest, packingHeaders),
             Map.class);
     requireData(packingResp, "pack production");
 

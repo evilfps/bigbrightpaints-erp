@@ -1760,17 +1760,15 @@ Auth default: `hasAnyAuthority('ROLE_FACTORY','ROLE_ACCOUNTING','ROLE_ADMIN')`.
 
 | Method | Path | Request | Response `data` |
 |---|---|---|---|
-| POST | `/api/v1/factory/packing-records` | Headers: idempotency (`Idempotency-Key`/`X-Idempotency-Key`/`X-Request-Id`), body `PackingRequest` | `ProductionLogDetailDto` |
-| POST | `/api/v1/factory/packing-records/{productionLogId}/complete` | — | `ProductionLogDetailDto` |
+| POST | `/api/v1/factory/packing-records` | Header: required `Idempotency-Key`, body `PackingRequest` | `ProductionLogDetailDto` |
 | GET | `/api/v1/factory/unpacked-batches` | — | `List<UnpackedBatchDto>` |
 | GET | `/api/v1/factory/production-logs/{productionLogId}/packing-history` | — | `List<PackingRecordDto>` |
-| POST | `/api/v1/factory/pack` | `BulkPackRequest` | `BulkPackResponse` |
 | GET | `/api/v1/factory/bulk-batches/{finishedGoodId}` | — | `List<BulkPackResponse.ChildBatchDto>` |
 | GET | `/api/v1/factory/bulk-batches/{parentBatchId}/children` | — | `List<BulkPackResponse.ChildBatchDto>` |
 
 Packing / traceability API notes:
-- `POST /api/v1/factory/packing-records` accepts idempotency keys via `Idempotency-Key`, legacy `X-Idempotency-Key`, or `X-Request-Id` fallback. Send a stable key from UI retries.
-- `POST /api/v1/factory/pack` uses deterministic reference derivation (payload + idempotency key) and replays prior effects on retry instead of re-posting inventory/accounting side effects.
+- `POST /api/v1/factory/packing-records` accepts only `Idempotency-Key`. Do not send body `idempotencyKey`, `X-Idempotency-Key`, or `X-Request-Id`; requests without the canonical header fail closed.
+- Re-submit the same `POST /api/v1/factory/packing-records` route to continue packing until the batch reaches `FULLY_PACKED`; there is no public `/complete` mutation.
 - Packing history/detail payloads now surface size-variant identifiers (`sizeVariantId`, `sizeVariantLabel`) to support size-level filtering and chips in UI.
 
 ##### Packaging Setup / Rules (`/api/v1/factory/packaging-mappings`)
@@ -1809,10 +1807,8 @@ Auth for report controller endpoints: `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUN
 2. **Production flow (`plan -> log -> pack -> stock`)**
    1. Create plan: `POST /api/v1/factory/production-plans`.
    2. Log production with consumed materials and costs: `POST /api/v1/factory/production/logs`.
-   3. Record packing sessions (repeat as needed): `POST /api/v1/factory/packing-records`.
-   4. Finalize log/wastage: `POST /api/v1/factory/packing-records/{productionLogId}/complete`.
-   5. Verify stock: `GET /api/v1/finished-goods/stock-summary` + `GET /api/v1/finished-goods/{id}/batches`.
-   6. Optional size conversion: `POST /api/v1/factory/pack`.
+   3. Record packing sessions (repeat as needed, always with `Idempotency-Key`): `POST /api/v1/factory/packing-records`.
+   4. Verify stock: `GET /api/v1/finished-goods/stock-summary` + `GET /api/v1/finished-goods/{id}/batches`.
 
 3. **Dispatch flow (`reserve -> operational confirm -> accounting posting`)**
    1. Inventory reservation is created during sales order create/update flows (`POST/PUT /api/v1/sales/orders...`) via `SalesService.reserveForOrder`; there is no standalone reserve endpoint.
@@ -1846,9 +1842,9 @@ Auth for report controller endpoints: `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUN
 
 - `MIXED` (domain default/internal) -> `READY_TO_PACK` on `POST /api/v1/factory/production/logs`.
 - `READY_TO_PACK` -> `PARTIAL_PACKED` when `POST /api/v1/factory/packing-records` packs only part of quantity.
-- `READY_TO_PACK`/`PARTIAL_PACKED` -> `FULLY_PACKED` when packed quantity reaches mixed quantity or `POST /packing-records/{id}/complete` runs.
+- `READY_TO_PACK`/`PARTIAL_PACKED` -> `FULLY_PACKED` when `POST /api/v1/factory/packing-records` brings total packed quantity up to the mixed quantity.
 - No public API transition moves `PARTIAL_PACKED -> READY_TO_PACK`; frontend should treat packing progress as monotonic until completion.
-- Wastage is materialized at completion (`wastageQuantity`, `wastageReasonCode`).
+- `wastageQuantity` remains the mixed-minus-packed remainder on the production log; there is no second public completion mutation to finalize it.
 
 ##### Dispatch slip lifecycle (`PackagingSlip.status`)
 
@@ -3360,8 +3356,7 @@ Frontend orchestration notes:
 1. Create production plan: `POST /api/v1/factory/production-plans`.
 2. Log production (consumption + costs): `POST /api/v1/factory/production/logs`.
 3. Pack output:
-   - `POST /api/v1/factory/packing-records`
-   - Optional completion: `POST /api/v1/factory/packing-records/{productionLogId}/complete`
+   - `POST /api/v1/factory/packing-records` with `Idempotency-Key`
 4. Validate stock availability:
    - `GET /api/v1/finished-goods/stock-summary`
    - `GET /api/v1/finished-goods/{id}/batches`

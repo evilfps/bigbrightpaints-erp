@@ -372,6 +372,33 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
   }
 
   @Test
+  void packing_contract_keeps_only_canonical_write_surface_and_header_only_idempotency()
+      throws IOException {
+    JsonNode root = fetchCurrentSpecNode();
+
+    assertOperationContract(
+        root,
+        "/api/v1/factory/packing-records",
+        "post",
+        "#/components/schemas/PackingRequest",
+        "200",
+        "#/components/schemas/ApiResponseProductionLogDetailDto");
+    assertOperationMissing(root, "/api/v1/factory/packing-records/{productionLogId}/complete", "post");
+    assertOperationMissing(root, "/api/v1/factory/pack", "post");
+
+    JsonNode parameters = root.path("paths").path("/api/v1/factory/packing-records").path("post").path("parameters");
+    List<String> parameterNames = new ArrayList<>();
+    parameters.forEach(parameter -> parameterNames.add(parameter.path("name").asText()));
+    assertThat(parameterNames).containsExactly("Idempotency-Key");
+    assertThat(parameters.get(0).path("required").asBoolean()).isTrue();
+
+    JsonNode packingRequest = root.path("components").path("schemas").path("PackingRequest");
+    assertThat(packingRequest.path("properties").has("idempotencyKey"))
+        .withFailMessage("PackingRequest must not expose idempotencyKey in the request body")
+        .isFalse();
+  }
+
+  @Test
   void openapi_snapshot_matches_repository_contract() throws IOException {
     Path openApiSnapshotPath = resolveRepoRoot().resolve("openapi.json");
     String currentSpec = canonicalizeJson(fetchCurrentSpecNode().toString());

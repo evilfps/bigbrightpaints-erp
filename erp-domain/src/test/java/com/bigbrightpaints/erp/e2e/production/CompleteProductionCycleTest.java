@@ -184,16 +184,17 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
             LocalDate.now(),
             "packedBy",
             "Packing Bot",
-            "idempotencyKey",
-            "PACK-CYCLE-1-" + System.nanoTime(),
             "lines",
             List.of(packingLine));
+    HttpHeaders packingHeaders = new HttpHeaders();
+    packingHeaders.putAll(headers);
+    packingHeaders.add("Idempotency-Key", "PACK-CYCLE-1-" + System.nanoTime());
 
     ResponseEntity<Map> packingResponse =
         rest.exchange(
             "/api/v1/factory/packing-records",
             HttpMethod.POST,
-            new HttpEntity<>(packingRequest, headers),
+            new HttpEntity<>(packingRequest, packingHeaders),
             Map.class);
 
     assertThat(packingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -294,8 +295,6 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
             LocalDate.now(),
             "packedBy",
             "Supervisor",
-            "idempotencyKey",
-            "PACK-WASTE-1-" + System.nanoTime(),
             "lines",
             List.of(
                 Map.of(
@@ -309,12 +308,15 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
                     80,
                     "piecesPerBox",
                     10)));
+    HttpHeaders packingHeaders = new HttpHeaders();
+    packingHeaders.putAll(headers);
+    packingHeaders.add("Idempotency-Key", "PACK-WASTE-1-" + System.nanoTime());
 
     ResponseEntity<Map> packingResponse =
         rest.exchange(
             "/api/v1/factory/packing-records",
             HttpMethod.POST,
-            new HttpEntity<>(packingRequest, headers),
+            new HttpEntity<>(packingRequest, packingHeaders),
             Map.class);
 
     assertThat(packingResponse.getStatusCode()).isIn(HttpStatus.OK, HttpStatus.BAD_REQUEST);
@@ -362,8 +364,6 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
             LocalDate.now(),
             "packedBy",
             "Supervisor",
-            "idempotencyKey",
-            "PACK-PARTIAL-1-" + System.nanoTime(),
             "lines",
             List.of(
                 Map.of(
@@ -377,12 +377,15 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
                     40,
                     "piecesPerBox",
                     10)));
+    HttpHeaders pack1Headers = new HttpHeaders();
+    pack1Headers.putAll(headers);
+    pack1Headers.add("Idempotency-Key", "PACK-PARTIAL-1-" + System.nanoTime());
 
     ResponseEntity<Map> pack1Response =
         rest.exchange(
             "/api/v1/factory/packing-records",
             HttpMethod.POST,
-            new HttpEntity<>(packing1, headers),
+            new HttpEntity<>(packing1, pack1Headers),
             Map.class);
     assertThat(pack1Response.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -399,8 +402,6 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
             LocalDate.now(),
             "packedBy",
             "Supervisor",
-            "idempotencyKey",
-            "PACK-PARTIAL-2-" + System.nanoTime(),
             "lines",
             List.of(
                 Map.of(
@@ -414,12 +415,15 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
                     50,
                     "piecesPerBox",
                     10)));
+    HttpHeaders pack2Headers = new HttpHeaders();
+    pack2Headers.putAll(headers);
+    pack2Headers.add("Idempotency-Key", "PACK-PARTIAL-2-" + System.nanoTime());
 
     ResponseEntity<Map> pack2Response =
         rest.exchange(
             "/api/v1/factory/packing-records",
             HttpMethod.POST,
-            new HttpEntity<>(packing2, headers),
+            new HttpEntity<>(packing2, pack2Headers),
             Map.class);
     assertThat(pack2Response.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -499,8 +503,6 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
             LocalDate.now().minusDays(2),
             "packedBy",
             "Supervisor",
-            "idempotencyKey",
-            "PACK-FIFO-1-" + System.nanoTime(),
             "lines",
             List.of(
                 Map.of(
@@ -514,11 +516,14 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
                     9,
                     "piecesPerBox",
                     10)));
+    HttpHeaders pack1Headers = new HttpHeaders();
+    pack1Headers.putAll(headers);
+    pack1Headers.add("Idempotency-Key", "PACK-FIFO-1-" + System.nanoTime());
 
     rest.exchange(
         "/api/v1/factory/packing-records",
         HttpMethod.POST,
-        new HttpEntity<>(pack1, headers),
+        new HttpEntity<>(pack1, pack1Headers),
         Map.class);
 
     // Create second production batch
@@ -550,8 +555,6 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
             LocalDate.now(),
             "packedBy",
             "Supervisor",
-            "idempotencyKey",
-            "PACK-FIFO-2-" + System.nanoTime(),
             "lines",
             List.of(
                 Map.of(
@@ -565,11 +568,14 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
                     9,
                     "piecesPerBox",
                     10)));
+    HttpHeaders pack2Headers = new HttpHeaders();
+    pack2Headers.putAll(headers);
+    pack2Headers.add("Idempotency-Key", "PACK-FIFO-2-" + System.nanoTime());
 
     rest.exchange(
         "/api/v1/factory/packing-records",
         HttpMethod.POST,
-        new HttpEntity<>(pack2, headers),
+        new HttpEntity<>(pack2, pack2Headers),
         Map.class);
 
     // Verify both batches exist

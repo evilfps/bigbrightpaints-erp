@@ -15,9 +15,9 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `8912b8326e1594e705123d37b68a229d25499c2d9f8002d8ea8e668ad5c9528e`)
-- OpenAPI total paths: `294`
-- OpenAPI total operations: `347`
+- OpenAPI snapshot: `openapi.json` (sha256 `f212774d02a83df5b5ae8bf1cf72344cbe4f338a697599be9d313c1610f32c78`)
+- OpenAPI total paths: `292`
+- OpenAPI total operations: `345`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
 
 ## Summary by module
@@ -247,12 +247,10 @@ Portal scope guardrail:
 - `GET` `/api/v1/factory/bulk-batches/{parentBatchId}/children`
 - `POST` `/api/v1/factory/cost-allocation`
 - `GET` `/api/v1/factory/dashboard`
-- `POST` `/api/v1/factory/pack`
 - `GET, POST` `/api/v1/factory/packaging-mappings`
 - `GET` `/api/v1/factory/packaging-mappings/active`
 - `PUT, DELETE` `/api/v1/factory/packaging-mappings/{id}`
 - `POST` `/api/v1/factory/packing-records`
-- `POST` `/api/v1/factory/packing-records/{productionLogId}/complete`
 - `GET` `/api/v1/factory/production-logs/{productionLogId}/packing-history`
 - `GET, POST` `/api/v1/factory/production-plans`
 - `PUT, DELETE` `/api/v1/factory/production-plans/{id}`
@@ -263,7 +261,7 @@ Portal scope guardrail:
 - `PUT` `/api/v1/factory/tasks/{id}`
 - `GET` `/api/v1/factory/unpacked-batches`
 
-Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packaging Setup / Rules contract. Pack requests fail closed when a size is missing active, usable packaging setup.
+Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packaging Setup / Rules contract. Pack requests fail closed when a size is missing active, usable packaging setup, when `Idempotency-Key` is missing, or when legacy replay headers are sent.
 
 ## `finished-goods`
 
