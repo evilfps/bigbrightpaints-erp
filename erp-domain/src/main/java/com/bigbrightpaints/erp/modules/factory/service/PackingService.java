@@ -5,7 +5,6 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -57,7 +56,6 @@ public class PackingService {
   private final PackingJournalLinkHelper packingJournalLinkHelper;
   private final ProductionLogService productionLogService;
   private final PackingReadService packingReadService;
-  private final PackingCompletionService packingCompletionService;
   private final IdempotencyReservationService idempotencyReservationService =
       new IdempotencyReservationService();
 
@@ -78,8 +76,7 @@ public class PackingService {
       PackingBatchService packingBatchService,
       PackingJournalBuilder packingJournalBuilder,
       PackingJournalLinkHelper packingJournalLinkHelper,
-      PackingReadService packingReadService,
-      PackingCompletionService packingCompletionService) {
+      PackingReadService packingReadService) {
     this.companyContextService = companyContextService;
     this.productionLogRepository = productionLogRepository;
     this.packingRecordRepository = packingRecordRepository;
@@ -97,7 +94,6 @@ public class PackingService {
     this.packingJournalBuilder = packingJournalBuilder;
     this.packingJournalLinkHelper = packingJournalLinkHelper;
     this.packingReadService = packingReadService;
-    this.packingCompletionService = packingCompletionService;
   }
 
   @Transactional
@@ -135,36 +131,6 @@ public class PackingService {
 
   public List<PackingRecordDto> packingHistory(Long productionLogId) {
     return packingReadService.packingHistory(productionLogId);
-  }
-
-  @Transactional
-  public ProductionLogDetailDto completePacking(Long productionLogId) {
-    Company company = companyContextService.requireCurrentCompany();
-    ProductionLog log = companyEntityLookup.lockProductionLog(company, productionLogId);
-    if (log.getStatus() == ProductionLogStatus.FULLY_PACKED) {
-      throw new ApplicationException(
-          ErrorCode.VALIDATION_INVALID_INPUT,
-          "Production log " + log.getProductionCode() + " is already completed");
-    }
-
-    BigDecimal mixedQty = Optional.ofNullable(log.getMixedQuantity()).orElse(BigDecimal.ZERO);
-    BigDecimal packedQty =
-        Optional.ofNullable(log.getTotalPackedQuantity()).orElse(BigDecimal.ZERO);
-    BigDecimal wastageQty = mixedQty.subtract(packedQty);
-    if (wastageQty.compareTo(BigDecimal.ZERO) < 0) {
-      wastageQty = BigDecimal.ZERO;
-    }
-
-    FinishedGood finishedGood = packingProductSupport.ensureFinishedGood(company, log);
-    packingInventoryService.consumeSemiFinishedWastage(log, wastageQty);
-    packingCompletionService.postCompletionEntries(
-        company, log, finishedGood, packedQty, wastageQty);
-
-    log.setStatus(ProductionLogStatus.FULLY_PACKED);
-    log.setWastageQuantity(wastageQty);
-    log.setWastageReasonCode(wastageQty.compareTo(BigDecimal.ZERO) > 0 ? "PROCESS_LOSS" : "NONE");
-    productionLogRepository.save(log);
-    return productionLogService.getLog(log.getId());
   }
 
   private void validateLogAndRequest(ProductionLog log, PackingRequest request) {
