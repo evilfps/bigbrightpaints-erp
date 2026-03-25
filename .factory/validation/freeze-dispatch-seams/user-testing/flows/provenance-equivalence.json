@@ -31,11 +31,11 @@
     {
       "id": "VAL-PROV-001",
       "status": "pass",
-      "reason": "TS_O2CDispatchProvenanceViewsAndEquivalenceTest#salesDispatchConfirm_createsNavigableProvenanceLinkedReferencesAndBalancedTruth verified the slip, order, invoice, AR journal, COGS journal, and dispatch movements all link to one another and resolve to persisted records.",
+      "reason": "TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest#salesDispatchConfirm_createsNavigableProvenanceLinkedReferencesAndBalancedTruth verified the slip, order, invoice, AR journal, COGS journal, and dispatch movements all link to one another and resolve to persisted records.",
       "evidence": [
         {
           "type": "command",
-          "detail": "truthsuite-targeted.log: targeted Maven run passed TS_O2CDispatchProvenanceViewsAndEquivalenceTest#salesDispatchConfirm_createsNavigableProvenanceLinkedReferencesAndBalancedTruth"
+          "detail": "truthsuite-targeted.log: targeted Maven run passed TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest#salesDispatchConfirm_createsNavigableProvenanceLinkedReferencesAndBalancedTruth"
         },
         {
           "type": "command",
@@ -54,7 +54,7 @@
       "evidence": [
         {
           "type": "command",
-          "detail": "truthsuite-targeted.log: TS_O2CDispatchProvenanceViewsAndEquivalenceTest asserted linkedReferences size=3 and validated SOURCE_ORDER, DISPATCH, and ACCOUNTING_ENTRY payloads."
+          "detail": "truthsuite-targeted.log: TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest asserted linkedReferences size=3 and validated SOURCE_ORDER, DISPATCH, and ACCOUNTING_ENTRY payloads."
         },
         {
           "type": "source",
@@ -69,7 +69,7 @@
       "evidence": [
         {
           "type": "command",
-          "detail": "truthsuite-targeted.log: TS_O2CDispatchProvenanceViewsAndEquivalenceTest#salesDispatchConfirm_createsNavigableProvenanceLinkedReferencesAndBalancedTruth passed, including balanced-journal and linkage assertions."
+          "detail": "truthsuite-targeted.log: TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest#salesDispatchConfirm_createsNavigableProvenanceLinkedReferencesAndBalancedTruth passed, including balanced-journal and linkage assertions."
         },
         {
           "type": "source",
@@ -80,15 +80,15 @@
     {
       "id": "VAL-CROSS-005",
       "status": "pass",
-      "reason": "TS_O2CDispatchProvenanceViewsAndEquivalenceTest proved both endpoint orderings\u2014factory then sales replay and sales then factory replay\u2014converge on the same persisted invoice, journal, COGS, and movement truth without duplicate dispatch movements.",
+      "reason": "TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest proved canonical sales dispatch replay preserves the same persisted invoice, journal, COGS, and movement truth without duplicate dispatch movements, and its retired-route boundary assertion confirmed the former factory confirm write is absent.",
       "evidence": [
         {
           "type": "command",
-          "detail": "truthsuite-targeted.log: targeted Maven run passed factoryThenSalesDispatchReplay_preservesEquivalentCanonicalTruth and salesThenFactoryDispatchReplay_preservesEquivalentCanonicalTruth."
+          "detail": "truthsuite-targeted.log: targeted Maven run passed salesDispatchConfirmReplay_preservesCanonicalTruth and retiredFactoryDispatchConfirmRoute_isAbsent."
         },
         {
           "type": "source",
-          "detail": "source-snippets.txt: DispatchController and SalesController both route dispatch confirmation through salesDispatchReconciliationService.confirmDispatch, which delegates to SalesCoreEngine.confirmDispatch."
+          "detail": "source-snippets.txt: SalesController routes dispatch confirmation through salesDispatchReconciliationService.confirmDispatch into SalesCoreEngine.confirmDispatch, while DispatchController serves read-only prepared-slip and challan GET surfaces."
         }
       ]
     }
@@ -101,12 +101,12 @@
   "blockers": [],
   "commands": [
     {
-      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn test -Djacoco.skip=true -Dtest='TS_O2CListenerProformaInvoiceBoundaryTest#proformaCreateAndUpdateRemainCommercialOnly+issueInvoiceForOrderFailsClosedWithoutDispatchCreatedInvoice,TS_O2CDispatchProvenanceViewsAndEquivalenceTest#salesDispatchConfirm_createsNavigableProvenanceLinkedReferencesAndBalancedTruth+factoryThenSalesDispatchReplay_preservesEquivalentCanonicalTruth+salesThenFactoryDispatchReplay_preservesEquivalentCanonicalTruth'",
+      "command": "cd /home/realnigga/Desktop/orchestrator_erp_worktrees/ERP-38-canonical-factory-flow/erp-domain && MIGRATION_SET=v2 mvn test -Djacoco.skip=true -Dtest='TS_O2CListenerProformaInvoiceBoundaryTest#proformaCreateAndUpdateRemainCommercialOnly+issueInvoiceForOrderFailsClosedWithoutDispatchCreatedInvoice,TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest#salesDispatchConfirm_createsNavigableProvenanceLinkedReferencesAndBalancedTruth+salesDispatchConfirmReplay_preservesCanonicalTruth+retiredFactoryDispatchConfirmRoute_isAbsent'",
       "exitCode": 0,
       "observation": "BUILD SUCCESS; 5 targeted truthsuite/integration assertions passed with 0 failures or errors."
     },
     {
-      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn test -Djacoco.skip=true -Dtest='TS_CrossModuleLinkageContractTest#o2cChainPersistsSlipInvoiceJournalAndOrderLinks,TS_InventoryCogsLinkageScanContractTest#dispatchMovementsCarryPackingSlipAndJournalReferences'",
+      "command": "cd /home/realnigga/Desktop/orchestrator_erp_worktrees/ERP-38-canonical-factory-flow/erp-domain && MIGRATION_SET=v2 mvn test -Djacoco.skip=true -Dtest='TS_CrossModuleLinkageContractTest#o2cChainPersistsSlipInvoiceJournalAndOrderLinks,TS_InventoryCogsLinkageScanContractTest#dispatchMovementsCarryPackingSlipAndJournalReferences'",
       "exitCode": 0,
       "observation": "BUILD SUCCESS; 2 narrow source-contract tests passed, confirming persisted O2C linkage markers and dispatch movement journal linkage expectations."
     }

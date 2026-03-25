@@ -18,8 +18,9 @@ import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
 /**
- * Controller for dispatch confirmation workflow.
- * Used by factory department to confirm actual shipped quantities before dispatch.
+ * Read-only controller for operational dispatch lookup.
+ * Serves pending-slip lookup, dispatch preview, slip detail, order lookup, and challan download
+ * surfaces for factory-facing dispatch operations.
  */
 @RestController
 @RequestMapping("/api/v1/dispatch")

@@ -35,7 +35,7 @@
     {
       "description": "The parent-specified class TS_O2CProvenanceAndOperationalViewTest does not exist in this checkout, so the exact initial Maven command only executed TS_O2CListenerProformaInvoiceBoundaryTest.",
       "resolved": true,
-      "resolution": "Ran a second targeted Maven command against TS_O2CDispatchProvenanceViewsAndEquivalenceTest#pureFactoryDispatchViews_redactPricingInvoiceGstCostAndJournalFields, which matches the factory-view assertion coverage.",
+      "resolution": "Ran a second targeted Maven command against TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest#pureFactoryDispatchViews_redactPricingInvoiceGstCostAndJournalFields, which matches the factory-view assertion coverage.",
       "affectedAssertions": [
         "VAL-FACTORY-001"
       ]
@@ -44,9 +44,9 @@
   ],
   "blockers": [],
   "flowReports": [
-    "/home/realnigga/Desktop/Mission-control/.factory/validation/freeze-dispatch-seams/user-testing/flows/listener-factory.json",
-    "/home/realnigga/Desktop/Mission-control/.factory/validation/freeze-dispatch-seams/user-testing/flows/provenance-equivalence.json",
-    "/home/realnigga/Desktop/Mission-control/.factory/validation/freeze-dispatch-seams/user-testing/flows/replay-safety.json"
+    "/home/realnigga/Desktop/orchestrator_erp_worktrees/ERP-38-canonical-factory-flow/.factory/validation/freeze-dispatch-seams/user-testing/flows/listener-factory.json",
+    "/home/realnigga/Desktop/orchestrator_erp_worktrees/ERP-38-canonical-factory-flow/.factory/validation/freeze-dispatch-seams/user-testing/flows/provenance-equivalence.json",
+    "/home/realnigga/Desktop/orchestrator_erp_worktrees/ERP-38-canonical-factory-flow/.factory/validation/freeze-dispatch-seams/user-testing/flows/replay-safety.json"
   ],
   "previousRound": null
 }
