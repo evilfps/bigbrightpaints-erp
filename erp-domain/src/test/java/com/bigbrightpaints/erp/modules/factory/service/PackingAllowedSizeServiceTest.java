@@ -3,9 +3,11 @@ package com.bigbrightpaints.erp.modules.factory.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -15,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
@@ -35,6 +38,25 @@ class PackingAllowedSizeServiceTest {
   @Mock private ProductionProductRepository productionProductRepository;
   @Mock private FinishedGoodRepository finishedGoodRepository;
   @Mock private SizeVariantRepository sizeVariantRepository;
+
+  @Test
+  void listAllowedSellableSizes_returnsEmptyWhenCompanyOrBaseProductMissing() {
+    PackingAllowedSizeService service =
+        new PackingAllowedSizeService(
+            productionProductRepository, finishedGoodRepository, sizeVariantRepository);
+
+    ProductionLog log = new ProductionLog();
+
+    assertThat(service.listAllowedSellableSizes(null, log)).isEmpty();
+    assertThat(service.listAllowedSellableSizes(new Company(), null)).isEmpty();
+
+    Company company = new Company();
+    log.setCompany(company);
+    assertThat(service.listAllowedSellableSizes(company, log)).isEmpty();
+
+    verifyNoInteractions(
+        productionProductRepository, finishedGoodRepository, sizeVariantRepository);
+  }
 
   @Test
   void listAllowedSellableSizes_usesProductFamilyTargetsWithFinishedGoods() {
@@ -90,6 +112,227 @@ class PackingAllowedSizeServiceTest {
   }
 
   @Test
+  void listAllowedSellableSizes_ignoresInactiveBlankOrUnresolvedFamilyMembers() {
+    PackingAllowedSizeService service =
+        new PackingAllowedSizeService(
+            productionProductRepository, finishedGoodRepository, sizeVariantRepository);
+
+    Company company = new Company();
+    UUID familyId = UUID.randomUUID();
+
+    ProductionProduct base = product("FG-BASE-20L", "Primer White 20L", "Primer", "20L", familyId);
+    ProductionProduct inactive = product("FG-INACTIVE", "Inactive", "Primer", "2L", familyId);
+    inactive.setActive(false);
+    ProductionProduct blankSku = product("   ", "Blank SKU", "Primer", "3L", familyId);
+    ProductionProduct missingFinishedGood =
+        product("FG-MISSING", "Missing Finished Good", "Primer", "4L", familyId);
+    ProductionProduct missingFinishedGoodId =
+        product("FG-NO-ID", "Missing Finished Good Id", "Primer", "5L", familyId);
+    ProductionProduct missingVariant =
+        product("FG-NO-VARIANT", "Missing Variant", "Primer", "6L", familyId);
+    ProductionProduct valid = product("FG-VALID", "Valid", "Primer", "1L", familyId);
+
+    ProductionLog log = new ProductionLog();
+    log.setCompany(company);
+    log.setProduct(base);
+
+    when(productionProductRepository.findByCompanyAndVariantGroupIdOrderByProductNameAsc(
+            company, familyId))
+        .thenReturn(
+            Arrays.asList(
+                inactive,
+                blankSku,
+                missingFinishedGood,
+                missingFinishedGoodId,
+                missingVariant,
+                valid));
+    when(finishedGoodRepository.findByCompanyAndProductCodeInIgnoreCase(
+            org.mockito.ArgumentMatchers.eq(company), anyCollection()))
+        .thenReturn(
+            List.of(
+                finishedGood(303L, "   ", "Blank Product Code"),
+                finishedGoodWithoutId("FG-NO-ID", "Missing Finished Good Id"),
+                finishedGood(202L, "FG-NO-VARIANT", "Missing Variant"),
+                finishedGood(101L, "FG-VALID", "Valid")));
+    when(sizeVariantRepository.findByCompanyAndProductOrderBySizeLabelAsc(company, missingVariant))
+        .thenReturn(List.of());
+    when(sizeVariantRepository.findByCompanyAndProductOrderBySizeLabelAsc(company, valid))
+        .thenReturn(List.of(sizeVariant(valid, "1L", BigDecimal.ONE, 12)));
+
+    assertThat(service.listAllowedSellableSizes(company, log))
+        .singleElement()
+        .satisfies(
+            allowed -> {
+              assertThat(allowed.childFinishedGoodId()).isEqualTo(101L);
+              assertThat(allowed.childSkuCode()).isEqualTo("FG-VALID");
+              assertThat(allowed.sizeLabel()).isEqualTo("1L");
+            });
+  }
+
+  @Test
+  void listAllowedSellableSizes_fallsBackToBaseProductWhenVariantGroupQueryIsEmpty() {
+    PackingAllowedSizeService service =
+        new PackingAllowedSizeService(
+            productionProductRepository, finishedGoodRepository, sizeVariantRepository);
+
+    Company company = new Company();
+    UUID familyId = UUID.randomUUID();
+    ProductionProduct base = product("FG-BASE-20L", "Primer White 20L", "Primer", "20L", familyId);
+    ProductionLog log = new ProductionLog();
+    log.setCompany(company);
+    log.setProduct(base);
+
+    when(productionProductRepository.findByCompanyAndVariantGroupIdOrderByProductNameAsc(
+            company, familyId))
+        .thenReturn(List.of());
+    when(finishedGoodRepository.findByCompanyAndProductCodeInIgnoreCase(
+            org.mockito.ArgumentMatchers.eq(company), anyCollection()))
+        .thenReturn(List.of(finishedGood(501L, "FG-BASE-20L", "Primer White 20L")));
+    when(sizeVariantRepository.findByCompanyAndProductOrderBySizeLabelAsc(company, base))
+        .thenReturn(List.of(sizeVariant(base, "20L", new BigDecimal("20"), 1)));
+
+    assertThat(service.listAllowedSellableSizes(company, log))
+        .singleElement()
+        .extracting(AllowedSellableSizeDto::childFinishedGoodId, AllowedSellableSizeDto::sizeLabel)
+        .containsExactly(501L, "20L");
+  }
+
+  @Test
+  void resolveFamilyProducts_fallsBackToBaseProductWhenRepositoryReturnsNull() {
+    PackingAllowedSizeService service =
+        new PackingAllowedSizeService(
+            productionProductRepository, finishedGoodRepository, sizeVariantRepository);
+
+    Company company = new Company();
+    UUID familyId = UUID.randomUUID();
+    ProductionProduct base = product("FG-BASE-20L", "Primer White 20L", "Primer", "20L", familyId);
+
+    when(productionProductRepository.findByCompanyAndVariantGroupIdOrderByProductNameAsc(
+            company, familyId))
+        .thenReturn(null);
+
+    @SuppressWarnings("unchecked")
+    List<ProductionProduct> familyProducts =
+        ReflectionTestUtils.invokeMethod(service, "resolveFamilyProducts", company, base);
+
+    assertThat(familyProducts).containsExactly(base);
+  }
+
+  @Test
+  void loadFinishedGoodsBySku_returnsEmptyWhenAllCodesBlank() {
+    PackingAllowedSizeService service =
+        new PackingAllowedSizeService(
+            productionProductRepository, finishedGoodRepository, sizeVariantRepository);
+
+    Company company = new Company();
+
+    @SuppressWarnings("unchecked")
+    Map<String, FinishedGood> finishedGoodsBySku =
+        ReflectionTestUtils.invokeMethod(
+            service, "loadFinishedGoodsBySku", company, List.of(" ", "\t"));
+
+    assertThat(finishedGoodsBySku).isEmpty();
+  }
+
+  @Test
+  void listAllowedSellableSizes_returnsEmptyWhenProductSizeDoesNotMatchActiveVariants() {
+    PackingAllowedSizeService service =
+        new PackingAllowedSizeService(
+            productionProductRepository, finishedGoodRepository, sizeVariantRepository);
+
+    Company company = new Company();
+    ProductionProduct base = product("FG-BASE-20L", "Primer White 20L", "Primer", "20L", null);
+    ProductionLog log = new ProductionLog();
+    log.setCompany(company);
+    log.setProduct(base);
+
+    SizeVariant activeOtherSize = sizeVariant(base, "10L", new BigDecimal("10"), 1);
+    SizeVariant inactiveMatchingSize = sizeVariant(base, "20L", new BigDecimal("20"), 1);
+    inactiveMatchingSize.setActive(false);
+
+    when(finishedGoodRepository.findByCompanyAndProductCodeInIgnoreCase(
+            org.mockito.ArgumentMatchers.eq(company), anyCollection()))
+        .thenReturn(List.of(finishedGood(501L, "FG-BASE-20L", "Primer White 20L")));
+    when(sizeVariantRepository.findByCompanyAndProductOrderBySizeLabelAsc(company, base))
+        .thenReturn(List.of(activeOtherSize, inactiveMatchingSize));
+
+    assertThat(service.listAllowedSellableSizes(company, log)).isEmpty();
+  }
+
+  @Test
+  void listAllowedSellableSizes_returnsEmptyWhenMultipleActiveVariantsExistWithoutProductSize() {
+    PackingAllowedSizeService service =
+        new PackingAllowedSizeService(
+            productionProductRepository, finishedGoodRepository, sizeVariantRepository);
+
+    Company company = new Company();
+    ProductionProduct base =
+        product("FG-BASE-MULTI", "Primer White", "Primer", null, UUID.randomUUID());
+    ProductionLog log = new ProductionLog();
+    log.setCompany(company);
+    log.setProduct(base);
+
+    when(productionProductRepository.findByCompanyAndVariantGroupIdOrderByProductNameAsc(
+            company, base.getVariantGroupId()))
+        .thenReturn(List.of(base));
+    when(finishedGoodRepository.findByCompanyAndProductCodeInIgnoreCase(
+            org.mockito.ArgumentMatchers.eq(company), anyCollection()))
+        .thenReturn(List.of(finishedGood(501L, "FG-BASE-MULTI", "Primer White")));
+    when(sizeVariantRepository.findByCompanyAndProductOrderBySizeLabelAsc(company, base))
+        .thenReturn(
+            List.of(
+                sizeVariant(base, "1L", BigDecimal.ONE, 12),
+                sizeVariant(base, "4L", new BigDecimal("4"), 4)));
+
+    assertThat(service.listAllowedSellableSizes(company, log)).isEmpty();
+  }
+
+  @Test
+  void listAllowedSellableSizes_skipsVariantWithoutIdentifier() {
+    PackingAllowedSizeService service =
+        new PackingAllowedSizeService(
+            productionProductRepository, finishedGoodRepository, sizeVariantRepository);
+
+    Company company = new Company();
+    ProductionProduct base = product("FG-BASE-7L", "Primer White 7L", "Primer", "7L", null);
+    ProductionLog log = new ProductionLog();
+    log.setCompany(company);
+    log.setProduct(base);
+
+    when(finishedGoodRepository.findByCompanyAndProductCodeInIgnoreCase(
+            org.mockito.ArgumentMatchers.eq(company), anyCollection()))
+        .thenReturn(List.of(finishedGood(701L, "FG-BASE-7L", "Primer White 7L")));
+    when(sizeVariantRepository.findByCompanyAndProductOrderBySizeLabelAsc(company, base))
+        .thenReturn(List.of(sizeVariantWithoutId(base, "7L", new BigDecimal("7"), 1)));
+
+    assertThat(service.listAllowedSellableSizes(company, log)).isEmpty();
+  }
+
+  @Test
+  void resolveProductFamilyName_returnsNullForNullProduct() {
+    PackingAllowedSizeService service =
+        new PackingAllowedSizeService(
+            productionProductRepository, finishedGoodRepository, sizeVariantRepository);
+
+    String familyName =
+        invokePrivateString(service, "resolveProductFamilyName", ProductionProduct.class, null);
+
+    assertThat(familyName).isNull();
+  }
+
+  @Test
+  void normalizeSize_returnsEmptyStringForNull() {
+    PackingAllowedSizeService service =
+        new PackingAllowedSizeService(
+            productionProductRepository, finishedGoodRepository, sizeVariantRepository);
+
+    String normalizedSize =
+        invokePrivateString(service, "normalizeSize", String.class, null);
+
+    assertThat(normalizedSize).isEmpty();
+  }
+
+  @Test
   void resolveAllowedSellableSize_rejectsMissingTarget() {
     PackingAllowedSizeService service =
         new PackingAllowedSizeService(
@@ -107,6 +350,32 @@ class PackingAllowedSizeServiceTest {
                 assertThat(((ApplicationException) error).getErrorCode())
                     .isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT))
         .hasMessageContaining("Sellable size target is required for line 1");
+  }
+
+  @Test
+  void requireAllowedSellableSize_acceptsTrimmedCaseInsensitivePackagingSize() {
+    PackingAllowedSizeService service =
+        new PackingAllowedSizeService(
+            productionProductRepository, finishedGoodRepository, sizeVariantRepository);
+
+    Company company = new Company();
+    ProductionProduct base = product("FG-BASE-20L", "Primer White 20L", "Primer", "20L", null);
+    ProductionLog log = new ProductionLog();
+    log.setCompany(company);
+    log.setProduct(base);
+
+    when(finishedGoodRepository.findByCompanyAndProductCodeInIgnoreCase(
+            org.mockito.ArgumentMatchers.eq(company), anyCollection()))
+        .thenReturn(List.of(finishedGood(501L, "FG-BASE-20L", "Primer White 20L")));
+    when(sizeVariantRepository.findByCompanyAndProductOrderBySizeLabelAsc(company, base))
+        .thenReturn(List.of(sizeVariant(base, "20L", new BigDecimal("20"), 1)));
+
+    PackingAllowedSizeService.AllowedSellableSizeTarget result =
+        service.requireAllowedSellableSize(company, log, 501L, " 20l ", 1);
+
+    assertThat(result.finishedGood().getId()).isEqualTo(501L);
+    assertThat(result.sizeVariant().getSizeLabel()).isEqualTo("20L");
+    assertThat(result.productFamilyName()).isEqualTo("Primer");
   }
 
   @Test
@@ -296,22 +565,49 @@ class PackingAllowedSizeServiceTest {
 
   private FinishedGood finishedGood(Long id, String sku, String name) {
     FinishedGood finishedGood = new FinishedGood();
-    org.springframework.test.util.ReflectionTestUtils.setField(finishedGood, "id", id);
+    if (id != null) {
+      org.springframework.test.util.ReflectionTestUtils.setField(finishedGood, "id", id);
+    }
     finishedGood.setProductCode(sku);
     finishedGood.setName(name);
     return finishedGood;
   }
 
+  private FinishedGood finishedGoodWithoutId(String sku, String name) {
+    return finishedGood(null, sku, name);
+  }
+
   private SizeVariant sizeVariant(
       ProductionProduct product, String sizeLabel, BigDecimal litersPerUnit, int cartonQuantity) {
     SizeVariant sizeVariant = new SizeVariant();
-    org.springframework.test.util.ReflectionTestUtils.setField(
-        sizeVariant, "id", Math.abs((long) sizeLabel.hashCode()));
+    ReflectionTestUtils.setField(sizeVariant, "id", Math.abs((long) sizeLabel.hashCode()));
     sizeVariant.setProduct(product);
     sizeVariant.setSizeLabel(sizeLabel);
     sizeVariant.setLitersPerUnit(litersPerUnit);
     sizeVariant.setCartonQuantity(cartonQuantity);
     sizeVariant.setActive(true);
     return sizeVariant;
+  }
+
+  private SizeVariant sizeVariantWithoutId(
+      ProductionProduct product, String sizeLabel, BigDecimal litersPerUnit, int cartonQuantity) {
+    SizeVariant sizeVariant = new SizeVariant();
+    sizeVariant.setProduct(product);
+    sizeVariant.setSizeLabel(sizeLabel);
+    sizeVariant.setLitersPerUnit(litersPerUnit);
+    sizeVariant.setCartonQuantity(cartonQuantity);
+    sizeVariant.setActive(true);
+    return sizeVariant;
+  }
+
+  private String invokePrivateString(
+      PackingAllowedSizeService service, String methodName, Class<?> parameterType, Object arg) {
+    try {
+      var method = PackingAllowedSizeService.class.getDeclaredMethod(methodName, parameterType);
+      method.setAccessible(true);
+      return (String) method.invoke(service, arg);
+    } catch (ReflectiveOperationException ex) {
+      throw new RuntimeException(ex);
+    }
   }
 }

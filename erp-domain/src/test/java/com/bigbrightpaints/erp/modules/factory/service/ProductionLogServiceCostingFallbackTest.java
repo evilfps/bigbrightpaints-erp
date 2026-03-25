@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -21,9 +22,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogDetailDto;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
@@ -36,6 +40,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 
+@Tag("critical")
 @ExtendWith(MockitoExtension.class)
 class ProductionLogServiceCostingFallbackTest {
 
@@ -136,5 +141,25 @@ class ProductionLogServiceCostingFallbackTest {
               assertThat(movement.getQuantity()).isEqualByComparingTo("1");
             });
     verify(rawMaterialBatchRepository).calculateWeightedAverageCost(rawMaterial);
+  }
+
+  @Test
+  void toDetailDto_allowsMissingProductFamilyContext() {
+    Company company = new Company();
+    ProductionLog log = new ProductionLog();
+    ReflectionTestUtils.setField(log, "id", 77L);
+    log.setCompany(company);
+    log.setProductionCode("PROD-077");
+    ReflectionTestUtils.setField(log, "materials", new ArrayList<>());
+    ReflectionTestUtils.setField(log, "packingRecords", new ArrayList<>());
+
+    when(packingAllowedSizeService.listAllowedSellableSizes(company, log)).thenReturn(List.of());
+
+    ProductionLogDetailDto dto =
+        ReflectionTestUtils.invokeMethod(productionLogService, "toDetailDto", log);
+
+    assertThat(dto.id()).isEqualTo(77L);
+    assertThat(dto.productFamilyName()).isNull();
+    assertThat(dto.allowedSellableSizes()).isEmpty();
   }
 }

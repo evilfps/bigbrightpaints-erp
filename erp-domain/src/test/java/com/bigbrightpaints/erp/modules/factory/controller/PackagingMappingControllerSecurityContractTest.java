@@ -4,11 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.lang.reflect.Method;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import com.bigbrightpaints.erp.modules.factory.dto.PackagingSizeMappingRequest;
 
+@Tag("critical")
 class PackagingMappingControllerSecurityContractTest {
 
   @Test

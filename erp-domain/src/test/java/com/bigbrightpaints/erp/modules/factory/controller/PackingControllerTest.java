@@ -5,13 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -20,11 +20,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.modules.factory.dto.BulkPackResponse;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingLineRequest;
+import com.bigbrightpaints.erp.modules.factory.dto.PackingRecordDto;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingRequest;
+import com.bigbrightpaints.erp.modules.factory.dto.UnpackedBatchDto;
 import com.bigbrightpaints.erp.modules.factory.service.BulkPackingService;
 import com.bigbrightpaints.erp.modules.factory.service.PackingService;
 
+@Tag("critical")
 @ExtendWith(MockitoExtension.class)
 class PackingControllerTest {
 
@@ -159,6 +163,87 @@ class PackingControllerTest {
             });
 
     verifyNoInteractions(packingService);
+  }
+
+  @Test
+  void listUnpackedBatches_returnsPackingServiceResults() {
+    PackingController controller = new PackingController(packingService, bulkPackingService);
+    List<UnpackedBatchDto> batches =
+        List.of(
+            new UnpackedBatchDto(
+                7L,
+                "PROD-007",
+                "Primer",
+                "White",
+                new BigDecimal("10"),
+                new BigDecimal("4"),
+                new BigDecimal("6"),
+                "PARTIAL_PACKED",
+                null));
+    when(packingService.listUnpackedBatches()).thenReturn(batches);
+
+    var response = controller.listUnpackedBatches();
+
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().message()).isNull();
+    assertThat(response.getBody().data()).isEqualTo(batches);
+    verify(packingService).listUnpackedBatches();
+  }
+
+  @Test
+  void packingHistory_returnsPackingServiceResults() {
+    PackingController controller = new PackingController(packingService, bulkPackingService);
+    List<PackingRecordDto> history =
+        List.of(
+            new PackingRecordDto(
+                11L,
+                7L,
+                "PROD-007",
+                41L,
+                "1L",
+                88L,
+                "FG-088",
+                4,
+                "1L",
+                new BigDecimal("4"),
+                4,
+                4,
+                1,
+                LocalDate.of(2026, 3, 1),
+                "packer"));
+    when(packingService.packingHistory(7L)).thenReturn(history);
+
+    var response = controller.packingHistory(7L);
+
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().data()).isEqualTo(history);
+    verify(packingService).packingHistory(7L);
+  }
+
+  @Test
+  void listBulkBatches_returnsBulkPackingServiceResults() {
+    PackingController controller = new PackingController(packingService, bulkPackingService);
+    List<BulkPackResponse.ChildBatchDto> batches = List.of();
+    when(bulkPackingService.listBulkBatches(55L)).thenReturn(batches);
+
+    var response = controller.listBulkBatches(55L);
+
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().data()).isEqualTo(batches);
+    verify(bulkPackingService).listBulkBatches(55L);
+  }
+
+  @Test
+  void listChildBatches_returnsBulkPackingServiceResults() {
+    PackingController controller = new PackingController(packingService, bulkPackingService);
+    List<BulkPackResponse.ChildBatchDto> batches = List.of();
+    when(bulkPackingService.listChildBatches(91L)).thenReturn(batches);
+
+    var response = controller.listChildBatches(91L);
+
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().data()).isEqualTo(batches);
+    verify(bulkPackingService).listChildBatches(91L);
   }
 
   private PackingRequest request(String idempotencyKey) {

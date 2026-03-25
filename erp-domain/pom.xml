@@ -597,7 +597,15 @@
                                 <include>**/modules/admin/controller/AdminSettingsControllerApprovalsContractTest.java</include>
                                 <include>**/modules/accounting/service/AccountingAuditTrailServiceTest.java</include>
                                 <include>**/modules/auth/AuthPasswordResetPublicContractIT.java</include>
+                                <include>**/modules/factory/controller/PackagingMappingControllerSecurityContractTest.java</include>
+                                <include>**/modules/factory/controller/PackagingMappingControllerTest.java</include>
+                                <include>**/modules/factory/controller/PackingControllerTest.java</include>
+                                <include>**/modules/factory/service/FactoryServiceTest.java</include>
                                 <include>**/modules/factory/service/PackingAllowedSizeServiceTest.java</include>
+                                <include>**/modules/factory/service/PackingReadServiceTest.java</include>
+                                <include>**/modules/factory/service/PackingServiceTest.java</include>
+                                <include>**/modules/factory/service/PackagingMaterialServiceTest.java</include>
+                                <include>**/modules/factory/service/ProductionLogServiceCostingFallbackTest.java</include>
                                 <include>**/modules/inventory/controller/DispatchControllerTest.java</include>
                                 <include>**/modules/inventory/domain/PackagingSlipTest.java</include>
                                 <include>**/modules/inventory/dto/DispatchConfirmationRequestTest.java</include>
@@ -620,6 +628,8 @@
                                 <include>**/modules/sales/service/SalesFulfillmentServiceTest.java</include>
                                 <include>**/modules/sales/service/SalesProformaBoundaryServiceTest.java</include>
                                 <include>**/modules/reports/ReportExportApprovalIT.java</include>
+                                <include>**/e2e/production/FactoryPackagingCostingIT.java</include>
+                                <include>**/regression/ProductionLogPackingStatusRegressionIT.java</include>
                                 <include>**/regression/InventoryAccountingEventListenerIT.java</include>
                                 <include>**/shared/dto/TruthRailsSharedDtoContractTest.java</include>
                             </includes>
@@ -651,7 +661,15 @@
                                 <include>**/modules/admin/AdminUserSecurityIT.java</include>
                                 <include>**/modules/accounting/service/AccountingAuditTrailServiceTest.java</include>
                                 <include>**/modules/auth/AuthPasswordResetPublicContractIT.java</include>
+                                <include>**/modules/factory/controller/PackagingMappingControllerSecurityContractTest.java</include>
+                                <include>**/modules/factory/controller/PackagingMappingControllerTest.java</include>
+                                <include>**/modules/factory/controller/PackingControllerTest.java</include>
+                                <include>**/modules/factory/service/FactoryServiceTest.java</include>
                                 <include>**/modules/factory/service/PackingAllowedSizeServiceTest.java</include>
+                                <include>**/modules/factory/service/PackingReadServiceTest.java</include>
+                                <include>**/modules/factory/service/PackingServiceTest.java</include>
+                                <include>**/modules/factory/service/PackagingMaterialServiceTest.java</include>
+                                <include>**/modules/factory/service/ProductionLogServiceCostingFallbackTest.java</include>
                                 <include>**/modules/inventory/controller/DispatchControllerTest.java</include>
                                 <include>**/modules/inventory/domain/PackagingSlipTest.java</include>
                                 <include>**/modules/inventory/dto/DispatchConfirmationRequestTest.java</include>
@@ -673,6 +691,8 @@
                                 <include>**/modules/sales/service/SalesCoreEngineCoverageTest.java</include>
                                 <include>**/modules/sales/service/SalesFulfillmentServiceTest.java</include>
                                 <include>**/modules/sales/service/SalesProformaBoundaryServiceTest.java</include>
+                                <include>**/e2e/production/FactoryPackagingCostingIT.java</include>
+                                <include>**/regression/ProductionLogPackingStatusRegressionIT.java</include>
                                 <include>**/regression/InventoryAccountingEventListenerIT.java</include>
                                 <include>**/shared/dto/TruthRailsSharedDtoContractTest.java</include>
                             </includes>

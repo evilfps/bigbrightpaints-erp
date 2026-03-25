@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -38,6 +39,7 @@ import com.bigbrightpaints.erp.modules.factory.dto.FactoryTaskRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionPlanDto;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionPlanRequest;
 
+@Tag("critical")
 @ExtendWith(MockitoExtension.class)
 class FactoryServiceTest {
 
@@ -175,6 +177,67 @@ class FactoryServiceTest {
   }
 
   @Test
+  void createPlan_newNaturalKeyReturnsInsertedPlan() {
+    ProductionPlanRequest request =
+        new ProductionPlanRequest(
+            "PLAN-NEW-1", "Primer White", 120.0, LocalDate.of(2026, 2, 20), "fresh");
+    ProductionPlan inserted = new ProductionPlan();
+    ReflectionTestUtils.setField(inserted, "id", 14L);
+    inserted.setCompany(company);
+    inserted.setPlanNumber("PLAN-NEW-1");
+    inserted.setProductName("Primer White");
+    inserted.setQuantity(120.0);
+    inserted.setPlannedDate(LocalDate.of(2026, 2, 20));
+    inserted.setNotes("fresh");
+
+    when(planRepository.findByCompanyAndPlanNumber(company, "PLAN-NEW-1"))
+        .thenReturn(Optional.empty(), Optional.of(inserted));
+    when(planRepository.insertIfAbsent(
+            company.getId(),
+            "PLAN-NEW-1",
+            "Primer White",
+            120.0,
+            LocalDate.of(2026, 2, 20),
+            "fresh"))
+        .thenReturn(1);
+
+    ProductionPlanDto result = factoryService.createPlan(request);
+
+    assertThat(result.id()).isEqualTo(14L);
+    verify(planRepository)
+        .insertIfAbsent(
+            company.getId(),
+            "PLAN-NEW-1",
+            "Primer White",
+            120.0,
+            LocalDate.of(2026, 2, 20),
+            "fresh");
+  }
+
+  @Test
+  void createPlan_withoutNaturalKeyPersistsDirectly() {
+    ProductionPlanRequest request =
+        new ProductionPlanRequest(
+            "   ", "Primer White", 120.0, LocalDate.of(2026, 2, 20), "direct save");
+    ProductionPlan saved = new ProductionPlan();
+    ReflectionTestUtils.setField(saved, "id", 13L);
+    saved.setCompany(company);
+    saved.setPlanNumber("   ");
+    saved.setProductName("Primer White");
+    saved.setQuantity(120.0);
+    saved.setPlannedDate(LocalDate.of(2026, 2, 20));
+    saved.setNotes("direct save");
+
+    when(planRepository.save(any(ProductionPlan.class))).thenReturn(saved);
+
+    ProductionPlanDto result = factoryService.createPlan(request);
+
+    assertThat(result.id()).isEqualTo(13L);
+    verify(planRepository).save(any(ProductionPlan.class));
+    verify(planRepository, never()).findByCompanyAndPlanNumber(any(), any());
+  }
+
+  @Test
   void factoryService_noLongerExposesLegacyBatchLoggingSurface() {
     assertThat(Arrays.stream(FactoryService.class.getDeclaredMethods()).map(Method::getName))
         .doesNotContain(
@@ -214,6 +277,18 @@ class FactoryServiceTest {
     assertThat(result.completedPlans()).isEqualTo(1);
     assertThat(result.batchesLogged()).isEqualTo(4L);
     assertThat(result.productionEfficiency()).isEqualTo(2.0);
+  }
+
+  @Test
+  void dashboard_returnsZeroEfficiencyWhenNoPlansExist() {
+    when(planRepository.findByCompanyOrderByPlannedDateDesc(company)).thenReturn(List.of());
+    when(batchRepository.countByCompany(company)).thenReturn(4L);
+
+    FactoryDashboardDto result = factoryService.dashboard();
+
+    assertThat(result.completedPlans()).isZero();
+    assertThat(result.batchesLogged()).isEqualTo(4L);
+    assertThat(result.productionEfficiency()).isZero();
   }
 
   @Test

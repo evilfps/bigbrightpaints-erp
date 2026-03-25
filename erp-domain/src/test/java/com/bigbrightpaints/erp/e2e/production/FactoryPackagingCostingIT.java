@@ -12,6 +12,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -78,6 +79,7 @@ import com.bigbrightpaints.erp.modules.sales.service.SalesService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 
 @DisplayName("E2E: Factory packaging costing + dispatch")
+@Tag("critical")
 public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
 
   private static final String COMPANY_CODE = "WE-E2E";
