@@ -1,0 +1,21 @@
+{
+  "featureId": "refresh-listener-factory-dispatch-proof",
+  "reviewedAt": "2026-03-25T16:32:54Z",
+  "commitId": "b42683310f164384a2e4e34378e13cfa3500ff05",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "I reviewed the fix feature metadata and handoff for `refresh-listener-factory-dispatch-proof`, the prior review and synthesis that flagged the stale listener/factory proof, the transcript skeleton for worker session `b2d4ac8c-e83e-4248-bf4c-092a08a47b26`, the `factory-flow-worker` skill, the original cleanup commit `a2d448fdc2d9bd24749dc4fa2219a5bef585ca1d`, the fix commit `b42683310f164384a2e4e34378e13cfa3500ff05`, the current `.factory/validation/freeze-dispatch-seams/user-testing/flows/listener-factory.json`, and the surviving GET-only `DispatchController` surface. The original cleanup commit did not touch `listener-factory.json`, which is why the prior review still found stale renamed-truthsuite, old-worktree, and factory-confirm wording in that sibling artifact. The fix commit updates that file only, replacing the stale `TS_O2CDispatchProvenanceViewsAndEquivalenceTest` references with `TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest`, swapping the commands from the old `Desktop/Mission-control` checkout to the ERP-38 worktree path, removing the stale artifact entry tied to the retired truthsuite filename, and rewriting the factory assertion to describe read-only dispatch preview/slip redaction backed by `DispatchController` rather than a factory confirm write surface. The current artifact no longer contains the old truthsuite name, the old worktree path, or `factory confirm` wording, and its source citation now points at `DispatchController`'s read-only preview/slip/order lookup surface, so the previously reported non-blocking stale-proof issue is fully resolved without reintroducing retired dispatch-confirm behavior.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The docs-only verification rule in `factory-flow-worker` does not match how this worker run was recorded. This fix changed only the tracked validation artifact `.factory/validation/freeze-dispatch-seams/user-testing/flows/listener-factory.json`, but the transcript skeleton shows a `bash scripts/gate_fast.sh` run and the handoff still reports `skillFeedback.followedProcedure: true` with no deviation recorded.",
+      "evidence": "`.factory/skills/factory-flow-worker/SKILL.md:64-71` says docs-only features must not run `commands.gate-fast`; the transcript skeleton for session `b2d4ac8c-e83e-4248-bf4c-092a08a47b26` includes `Execute ... bash scripts/gate_fast.sh`, and `/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/handoffs/2026-03-25T16-26-26-407Z__refresh-listener-factory-dispatch-proof__b2d4ac8c-e83e-4248-bf4c-092a08a47b26.json` marks `skillFeedback.followedProcedure` as true."
+    }
+  ],
+  "addressesFailureFrom": "/home/realnigga/Desktop/orchestrator_erp_worktrees/ERP-38-canonical-factory-flow/.factory/validation/dispatch-contract-hard-cut/scrutiny/reviews/cleanup-stale-dispatch-confirm-proof.json",
+  "summary": "Pass: commit `b42683310f164384a2e4e34378e13cfa3500ff05` fully resolves the prior stale listener/factory proof issue by updating `listener-factory.json` to the renamed truthsuite, ERP-38 worktree path, and read-only dispatch preview/slip wording without bringing back retired dispatch-confirm behavior. No code-review issues remain in scope; one shared-state observation notes a docs-only skill/procedure mismatch around the recorded `gate_fast` run."
+}

@@ -1,6 +1,6 @@
 {
   "milestone": "dispatch-contract-hard-cut",
-  "round": 3,
+  "round": 2,
   "status": "pass",
   "validatorsRun": {
     "test": {
@@ -20,22 +20,21 @@
     }
   },
   "reviewsSummary": {
-    "total": 1,
-    "passed": 1,
+    "total": 2,
+    "passed": 2,
     "failed": 0,
     "failedFeatures": []
   },
   "blockingIssues": [],
-  "nonBlockingIssues": [],
-  "appliedUpdates": [],
-  "suggestedGuidanceUpdates": [
+  "nonBlockingIssues": [
     {
-      "target": "skill:factory-flow-worker",
-      "suggestion": "Clarify docs-only verification guidance and handoff expectations so docs-only runs either skip `gate_fast` or explicitly record a deviation when extra validators are run.",
-      "evidence": "`.factory/skills/factory-flow-worker/SKILL.md:64-71` says docs-only features must not run `commands.gate-fast`; the transcript skeleton for session `b2d4ac8c-e83e-4248-bf4c-092a08a47b26` includes `Execute ... bash scripts/gate_fast.sh`, and `/home/realnigga/.factory/missions/638844ab-aa59-453c-ae4d-3ee78989efb4/handoffs/2026-03-25T16-26-26-407Z__refresh-listener-factory-dispatch-proof__b2d4ac8c-e83e-4248-bf4c-092a08a47b26.json` marks `skillFeedback.followedProcedure` as true.",
-      "isSystemic": false
+      "featureId": "cleanup-stale-dispatch-confirm-proof",
+      "severity": "non_blocking",
+      "description": "`.factory/validation/freeze-dispatch-seams/user-testing/flows/listener-factory.json` still carries stale renamed-truthsuite and old-worktree references plus wording that mentions a factory confirm surface, even though the original blocking `/api/v1/dispatch/confirm` replay/equivalence proof was removed."
     }
   ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
   "rejectedObservations": [],
-  "previousRound": ".factory/validation/dispatch-contract-hard-cut/scrutiny/synthesis.round2.json"
+  "previousRound": ".factory/validation/dispatch-contract-hard-cut/scrutiny/synthesis.round1.json"
 }
