@@ -766,6 +766,27 @@ class AdminUserServiceTest {
   }
 
   @Test
+  void deleteUser_rejectsMainAdminForActorCompany() {
+    company.setMainAdminUserId(909L);
+    UserAccount mainAdmin = new UserAccount("main-admin@example.com", "hash", "Main Admin");
+    ReflectionTestUtils.setField(mainAdmin, "id", 909L);
+    mainAdmin.addCompany(company);
+    Role role = new Role();
+    role.setName("ROLE_ADMIN");
+    mainAdmin.addRole(role);
+
+    when(userRepository.lockByIdAndCompanyId(909L, 1L)).thenReturn(Optional.of(mainAdmin));
+
+    assertThatThrownBy(() -> service.deleteUser(909L))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Replace the tenant main admin before attempting to delete this user");
+
+    verify(userRepository, never()).delete(mainAdmin);
+    verify(tokenBlacklistService, never()).revokeAllUserTokens("main-admin@example.com");
+    verify(refreshTokenService, never()).revokeAllForUser("main-admin@example.com");
+  }
+
+  @Test
   void disableMfa_crossTenantUser_forTenantAdmin_usesScopedLockAndMasksTargetAsMissing() {
     Company foreignCompany = new Company();
     ReflectionTestUtils.setField(foreignCompany, "id", 21L);
@@ -818,6 +839,43 @@ class AdminUserServiceTest {
     verify(userRepository).save(sharedUser);
     verify(tokenBlacklistService).revokeAllUserTokens("shared-user@example.com");
     verify(refreshTokenService).revokeAllForUser("shared-user@example.com");
+  }
+
+  @Test
+  void updateUserStatus_superAdminRejectsSharedForeignMainAdminDisable() {
+    Company foreignCompany = new Company();
+    ReflectionTestUtils.setField(foreignCompany, "id", 21L);
+    foreignCompany.setCode("FOREIGN");
+    foreignCompany.setMainAdminUserId(777L);
+
+    UserAccount sharedUser = new UserAccount("shared-user@example.com", "hash", "Shared User");
+    ReflectionTestUtils.setField(sharedUser, "id", 777L);
+    sharedUser.addCompany(company);
+    sharedUser.addCompany(foreignCompany);
+    Role role = new Role();
+    role.setName("ROLE_ADMIN");
+    sharedUser.addRole(role);
+
+    SecurityContextHolder.getContext()
+        .setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                "super-admin@bbp.com",
+                "n/a",
+                List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
+    when(userRepository.findById(777L)).thenReturn(Optional.of(sharedUser));
+
+    try {
+      assertThatThrownBy(() -> service.updateUserStatus(777L, false))
+          .isInstanceOf(ApplicationException.class)
+          .hasMessageContaining(
+              "Replace the tenant main admin before attempting to disable this user");
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+
+    verify(userRepository, never()).save(sharedUser);
+    verify(tokenBlacklistService, never()).revokeAllUserTokens("shared-user@example.com");
+    verify(refreshTokenService, never()).revokeAllForUser("shared-user@example.com");
   }
 
   @Test

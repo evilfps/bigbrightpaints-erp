@@ -664,6 +664,47 @@ class SalesCoreEngineCoverageTest {
     assertThat(dealerlessPage.totalElements()).isZero();
   }
 
+  @Test
+  void resolveGstTreatment_acceptsLegacyAliasesAndRejectsUnknownValue() throws Exception {
+    Method method = SalesCoreEngine.class.getDeclaredMethod("resolveGstTreatment", String.class);
+    method.setAccessible(true);
+
+    assertThat(method.invoke(engine, "EXCLUSIVE").toString()).isEqualTo("NONE");
+    assertThat(method.invoke(engine, "inclusive").toString()).isEqualTo("ORDER_TOTAL");
+    assertThatThrownBy(() -> method.invoke(engine, "mystery"))
+        .hasRootCauseInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+        .hasRootCauseMessage("Unknown GST treatment mystery");
+  }
+
+  @Test
+  void computeDispatchLineAmounts_handlesInclusiveAndExclusiveTaxPaths() throws Exception {
+    Method method =
+        SalesCoreEngine.class.getDeclaredMethod(
+            "computeDispatchLineAmounts",
+            BigDecimal.class,
+            BigDecimal.class,
+            BigDecimal.class,
+            boolean.class);
+    method.setAccessible(true);
+
+    Object inclusive =
+        method.invoke(engine, new BigDecimal("118"), BigDecimal.ZERO, new BigDecimal("18"), true);
+    Object exclusive =
+        method.invoke(
+            engine, new BigDecimal("100"), new BigDecimal("10"), new BigDecimal("18"), false);
+
+    assertThat((BigDecimal) ReflectionTestUtils.invokeMethod(inclusive, "net"))
+        .isEqualTo(new BigDecimal("100.00"));
+    assertThat((BigDecimal) ReflectionTestUtils.invokeMethod(inclusive, "tax"))
+        .isEqualTo(new BigDecimal("18.00"));
+    assertThat((BigDecimal) ReflectionTestUtils.invokeMethod(exclusive, "net"))
+        .isEqualTo(new BigDecimal("90.00"));
+    assertThat((BigDecimal) ReflectionTestUtils.invokeMethod(exclusive, "tax"))
+        .isEqualTo(new BigDecimal("16.20"));
+    assertThat((BigDecimal) ReflectionTestUtils.invokeMethod(exclusive, "total"))
+        .isEqualTo(new BigDecimal("106.20"));
+  }
+
   private SalesOrderRequest salesOrderRequest(String paymentMode, String explicitIdempotencyKey) {
     return new SalesOrderRequest(
         101L,

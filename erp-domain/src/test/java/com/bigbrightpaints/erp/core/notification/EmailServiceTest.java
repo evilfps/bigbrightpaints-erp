@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.time.Instant;
@@ -23,6 +24,7 @@ import org.springframework.mail.javamail.MimeMessagePreparator;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
+import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.StringTemplateResolver;
 
@@ -32,6 +34,7 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
 
 @ExtendWith(MockitoExtension.class)
 class EmailServiceTest {
@@ -262,5 +265,70 @@ class EmailServiceTest {
             emailService, "formatUtcTimestamp", Instant.parse("2026-03-27T12:34:56Z"));
 
     assertThat(formatted).isEqualTo("2026-03-27 12:34:56 UTC");
+  }
+
+  @Test
+  void sendAdminEmailChangeVerificationRequired_usesHtmlTemplateWithUtcExpiry() throws Exception {
+    JavaMailSender localMailSender = org.mockito.Mockito.mock(JavaMailSender.class);
+    ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
+    resolver.setPrefix("templates/");
+    resolver.setSuffix(".html");
+    resolver.setTemplateMode(TemplateMode.HTML);
+    resolver.setCharacterEncoding("UTF-8");
+    resolver.setCacheable(false);
+    SpringTemplateEngine localTemplateEngine = new SpringTemplateEngine();
+    localTemplateEngine.setTemplateResolver(resolver);
+    EmailService localEmailService =
+        new EmailService(localMailSender, emailProperties, localTemplateEngine);
+    MimeMessage mimeMessage = new MimeMessage(Session.getInstance(new Properties()));
+    doAnswer(
+            invocation -> {
+              MimeMessagePreparator preparator = invocation.getArgument(0);
+              preparator.prepare(mimeMessage);
+              return null;
+            })
+        .when(localMailSender)
+        .send(any(MimeMessagePreparator.class));
+
+    assertThatCode(
+            () ->
+                localEmailService.sendAdminEmailChangeVerificationRequired(
+                    "new-admin@example.com",
+                    "Admin User",
+                    "ACME",
+                    "verify-123",
+                    Instant.parse("2026-03-27T12:34:56Z")))
+        .doesNotThrowAnyException();
+
+    Object content = mimeMessage.getContent();
+    assertThat(content).isInstanceOf(MimeMultipart.class);
+    Object bodyContent = ((MimeMultipart) content).getBodyPart(0).getContent();
+    String body =
+        bodyContent instanceof MimeMultipart multipart
+            ? (String) multipart.getBodyPart(0).getContent()
+            : (String) bodyContent;
+    assertThat(body).contains("verify-123");
+    assertThat(body).contains("2026-03-27 12:34:56 UTC");
+    verify(localMailSender).send(any(MimeMessagePreparator.class));
+  }
+
+  @Test
+  void sendAdminEmailChangeVerificationRequired_failsClosedWhenCredentialDeliveryDisabled() {
+    emailProperties.setSendCredentials(false);
+
+    assertThatThrownBy(
+            () ->
+                emailService.sendAdminEmailChangeVerificationRequired(
+                    "new-admin@example.com",
+                    "Admin User",
+                    "ACME",
+                    "verify-123",
+                    Instant.parse("2026-03-27T12:34:56Z")))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            ex -> {
+              ApplicationException appEx = (ApplicationException) ex;
+              assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.SYSTEM_CONFIGURATION_ERROR);
+            });
   }
 }
