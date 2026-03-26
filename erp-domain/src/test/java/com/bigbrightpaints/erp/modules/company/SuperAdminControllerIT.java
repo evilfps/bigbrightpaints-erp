@@ -144,6 +144,34 @@ class SuperAdminControllerIT extends AbstractIntegrationTest {
   }
 
   @Test
+  void superAdmin_lifecycle_update_rejects_retired_legacy_states() {
+    Company tenant = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
+    HttpHeaders superAdminHeaders = headers(superAdminToken, ROOT_COMPANY_CODE);
+
+    ResponseEntity<Map> holdResponse =
+        rest.exchange(
+            "/api/v1/superadmin/tenants/" + tenant.getId() + "/lifecycle",
+            HttpMethod.PUT,
+            new HttpEntity<>(Map.of("state", "HOLD", "reason", "legacy-client"), superAdminHeaders),
+            Map.class);
+
+    assertThat(holdResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(readLifecycleState(tenant.getId())).isEqualTo("ACTIVE");
+
+    ResponseEntity<Map> blockedResponse =
+        rest.exchange(
+            "/api/v1/superadmin/tenants/" + tenant.getId() + "/lifecycle",
+            HttpMethod.PUT,
+            new HttpEntity<>(
+                Map.of("state", "BLOCKED", "reason", "legacy-client"), superAdminHeaders),
+            Map.class);
+
+    assertThat(blockedResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(readLifecycleState(tenant.getId())).isEqualTo("ACTIVE");
+  }
+
+  @Test
   void superAdmin_canConfigureTenantModules_andLimits() {
     Company tenant = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
     String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
