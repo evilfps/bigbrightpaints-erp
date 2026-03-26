@@ -16,8 +16,8 @@ Count lock for parity checks: **143**
 - M17-S1 canonical API contract source-of-truth is `openapi.json`; guard behavior is non-mutating (parity checks validate and fail on drift, but do not rewrite docs).
 - M17-S2 parity baseline for this slice is a curated lock of **143** unique `METHOD /api/v1/...` rows.
 - The `143` lock is a curated frontend parity baseline and does not claim full accounting-portal OpenAPI coverage.
-- The handoff inventory may only add **9** non-owned dependencies on top of these 143 rows:
-  - Shared foundation APIs (7): `GET /api/v1/auth/me`, `GET /api/v1/auth/profile`, `PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/multi-company/companies/switch`, `POST /api/v1/auth/logout`
+- The handoff inventory may only add **8** non-owned dependencies on top of these 143 rows:
+  - Shared foundation APIs (6): `GET /api/v1/auth/me`, `GET /api/v1/auth/profile`, `PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/auth/logout`
   - Dealer support APIs (2): `GET /api/v1/sales/dealers`, `GET /api/v1/sales/dealers/search`
 - Explicit outside-lock ledger (present in `docs/endpoint-inventory.md` and `openapi.json`):
   - `GET /api/v1/accounting/audit/transactions`

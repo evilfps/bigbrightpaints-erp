@@ -105,28 +105,6 @@ class CompanyServiceTest {
   }
 
   @Test
-  void switchCompany_deniesWhenNotMember() {
-    Company allowed = company(1L, "ACME");
-
-    assertThatThrownBy(() -> companyService.switchCompany("BBP", Set.of(allowed)))
-        .isInstanceOf(AccessDeniedException.class)
-        .hasMessageContaining("Not allowed");
-
-    verify(repository, never()).findByCodeIgnoreCase("BBP");
-  }
-
-  @Test
-  void switchCompany_returnsDtoWhenMember() {
-    Company allowed = company(1L, "ACME");
-    when(repository.findByCodeIgnoreCase("acme")).thenReturn(Optional.of(allowed));
-
-    CompanyDto dto = companyService.switchCompany("acme", Set.of(allowed));
-
-    assertThat(dto.id()).isEqualTo(1L);
-    assertThat(dto.code()).isEqualTo("ACME");
-  }
-
-  @Test
   void update_allowsSuperAdminWithoutTenantMembership() {
     authenticateAs("ROLE_SUPER_ADMIN");
     Company target = company(2L, "BBP");

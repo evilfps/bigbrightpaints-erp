@@ -259,7 +259,7 @@ Under `com.bigbrightpaints.erp.modules.<module>`:
 
 ## Common issues
 - **401/403 on tenant routes**
-  - Verify JWT carries company claim (`companyCode`/`cid`) and matches request headers.
+  - Verify JWT carries the canonical `companyCode` claim and matches request headers.
   - Check `CompanyContextFilter` logs for mismatch diagnostics.
 - **Module suddenly forbidden**
   - Tenant module gating may disable optional modules (`MANUFACTURING`, `HR_PAYROLL`, etc.).

@@ -251,11 +251,6 @@ public class CompanyService {
     repository.deleteById(id);
   }
 
-  public CompanyDto switchCompany(String companyCode, Set<Company> allowedCompanies) {
-    requireMembershipByCode(companyCode, allowedCompanies);
-    return toDto(findByCode(companyCode));
-  }
-
   @Transactional
   public CompanyLifecycleStateDto updateLifecycleState(
       Long companyId, CompanyLifecycleStateRequest request) {

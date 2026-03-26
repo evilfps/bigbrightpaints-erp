@@ -17,17 +17,16 @@ Mission-specific guidance for the security/auth remediation wave.
 - `TEN-03` — temporary credential exposure risk
 
 ## Compatibility rules
-- Preserve existing auth/admin request and response shapes wherever possible.
-- Prefer additive change over breaking change.
-- If a shape change is unavoidable, update `.factory/library/frontend-handoff.md` in the same feature and say exactly what changed.
-- Characterization tests come before implementation whenever a frontend-sensitive endpoint is touched.
+- Auth V2 is a hard cut onto one canonical current-state flow.
+- Do not preserve or introduce retired auth aliases, multi-company session switching, plaintext-password response fields, or email-only forgot-password fallbacks.
+- If a contract changes, update `.factory/library/frontend-handoff.md` in the same feature and state the new canonical request/response shape explicitly.
+- Characterization and contract tests still come before implementation whenever a frontend-sensitive endpoint is touched.
 
 ## Rollout caveats
-- `V158__auth_token_digest_storage.sql` adds `token_digest` columns for refresh-token and password-reset storage while keeping legacy token columns nullable during the transition.
-- `AuthSecretStorageBackfillRunner` backfills legacy plaintext rows to digest-only storage at startup.
-- Runtime lookup/revoke/reset flows still fall back to legacy raw-token columns so pre-existing rows remain usable during rollout even before every node has restarted onto the backfill-capable build.
-- As of 2026-03-06 `auth-reset-recovery-contract-hardening`, public forgot-password suppresses delivery/configuration failures without leaving a newly issued undispatched reset token behind, tenant-admin force-reset now requires successful reset-email delivery before it returns success, and the stale `/api/v1/auth/password/forgot/superadmin` alias returns a controlled `410 Gone` compatibility contract pointing callers at the canonical self-service and support-recovery paths.
-- As of 2026-03-06 `reset-token-issuance-race-hardening`, public forgot-password and admin-triggered reset issuance now serialize on the target user and replace prior reset tokens inside the same issuance transaction, so overlapping requests follow deterministic last-writer-wins semantics and never strand the user without a valid latest reset link.
+- Digest-only refresh-token and password-reset secret storage is mandatory; the backfill runner is retired and runtime fallback to legacy raw-token columns is not part of the canonical path.
+- Auth V2 binds credentials to `(normalized_email, auth_scope_code)`, so the same email may exist in multiple scopes with separate password, MFA, reset-token, and session state.
+- Public forgot-password requires `email + companyCode`; the stale `/api/v1/auth/password/forgot/superadmin` alias is removed from the canonical contract.
+- Reset issuance now serializes per scoped account. Repeated forgot-password requests replace prior reset links only within that same scope; different scopes keep independent valid reset links.
 - As of 2026-03-07 `forgot-password-persistence-failure-regression-fix`, public forgot-password still masks unknown-user, disabled-user, and reset-email delivery/configuration failures behind the generic success response, but reset-token persistence failures now surface as a controlled non-success application error instead of returning false-success `200 OK`.
 - As of 2026-03-06 `privileged-user-boundary-hardening`, tenant-admin out-of-scope privileged user-control attempts now fail with the existing `403` auth envelope plus `ACCESS_DENIED` audit metadata across force-reset, status disable/enable, suspend, unsuspend, delete, and MFA-disable flows, while super-admins use the same endpoints cross-tenant. The company control-plane lifecycle path also re-accepts `HOLD`/`BLOCKED` compatibility aliases while persisting the internal lifecycle mapping expected by current services.
 - As of 2026-03-06 `must-change-password-corridor-hardening`, authenticated users flagged `mustChangePassword` are restricted to login/refresh plus `/auth/me`, `GET /auth/profile`, password change, and logout until they successfully change the password. Denied out-of-corridor requests return a `403` `ApiResponse` with `reason=PASSWORD_CHANGE_REQUIRED` and `mustChangePassword=true`, and access tokens now carry an `iatMs` claim so revocation checks stay precise even when password change/logout and relogin happen in the same second.

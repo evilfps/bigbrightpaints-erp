@@ -249,7 +249,7 @@ Maker-checker period-close note:
 # Accounting Portal Frontend Handoff
 HR, PURCHASING, INVENTORY, and REPORTS come under the Accounting portal in frontend scope.
 Scoped endpoint count: **4**
-Current handoff inventory total is **13**
+Current handoff inventory total is **12**
 Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snapshot as admin-only deprecated exports and must not be treated as required APIs for new accountant-owned UI flows.
 ## Purchasing & Payables
 ## Inventory & Costing
@@ -264,7 +264,6 @@ Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snaps
 | `authProfileUpdate` | PUT | `/api/v1/auth/profile` |
 | `authChangePassword` | POST | `/api/v1/auth/password/change` |
 | `companiesList` | GET | `/api/v1/companies` |
-| `companiesSwitch` | POST | `/api/v1/multi-company/companies/switch` |
 | `authLogout` | POST | `/api/v1/auth/logout` |
 | `salesListDealers` | GET | `/api/v1/sales/dealers` |
 | `salesSearchDealers` | GET | `/api/v1/sales/dealers/search` |
