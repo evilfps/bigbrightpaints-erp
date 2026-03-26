@@ -35,6 +35,10 @@ public class ScopedAccountBootstrapService {
     this.authScopeService = authScopeService;
   }
 
+  public boolean isCredentialProvisioningReady() {
+    return emailService.isCredentialEmailDeliveryEnabled();
+  }
+
   @Transactional
   public UserAccount provisionTenantAccount(
       Company company, String email, String displayName, Collection<Role> roles) {
@@ -47,19 +51,6 @@ public class ScopedAccountBootstrapService {
     UserAccount account =
         createScopedAccount(scopeCode, email, displayName, roles, temporaryPassword);
     account.setCompany(company);
-    UserAccount saved = userAccountRepository.save(account);
-    emailService.sendUserCredentialsEmailRequired(
-        saved.getEmail(), saved.getDisplayName(), temporaryPassword, scopeCode);
-    return saved;
-  }
-
-  @Transactional
-  public UserAccount provisionPlatformAccount(
-      String email, String displayName, Collection<Role> roles) {
-    String scopeCode = authScopeService.getPlatformScopeCode();
-    String temporaryPassword = generateTemporaryPassword();
-    UserAccount account =
-        createScopedAccount(scopeCode, email, displayName, roles, temporaryPassword);
     UserAccount saved = userAccountRepository.save(account);
     emailService.sendUserCredentialsEmailRequired(
         saved.getEmail(), saved.getDisplayName(), temporaryPassword, scopeCode);

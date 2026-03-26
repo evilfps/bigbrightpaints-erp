@@ -35,7 +35,6 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
-import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
@@ -72,8 +71,6 @@ class CompanyServiceTest {
 
   @Mock private PasswordResetService passwordResetService;
 
-  @Mock private EmailService emailService;
-
   @Mock private CompanyClock companyClock;
 
   private TenantLifecycleService tenantLifecycleService;
@@ -94,8 +91,7 @@ class CompanyServiceTest {
             tenantRuntimeEnforcementService,
             tenantAdminProvisioningService,
             tenantLifecycleService,
-            passwordResetService,
-            emailService);
+            passwordResetService);
   }
 
   @AfterEach
@@ -257,7 +253,7 @@ class CompanyServiceTest {
     when(repository.findByCodeIgnoreCase("SKE")).thenReturn(Optional.empty());
     when(repository.save(org.mockito.ArgumentMatchers.any(Company.class)))
         .thenAnswer(invocation -> invocation.getArgument(0, Company.class));
-    when(tenantAdminProvisioningService.isCredentialEmailDeliveryEnabled()).thenReturn(true);
+    when(tenantAdminProvisioningService.isCredentialProvisioningReady()).thenReturn(true);
 
     CompanyRequest request =
         new CompanyRequest(
@@ -479,7 +475,7 @@ class CompanyServiceTest {
     CompanyDto dto = companyService.create(request);
 
     assertThat(dto.code()).isEqualTo("SKE");
-    verify(tenantAdminProvisioningService, never()).isCredentialEmailDeliveryEnabled();
+    verify(tenantAdminProvisioningService, never()).isCredentialProvisioningReady();
     verify(tenantAdminProvisioningService, never())
         .provisionInitialAdmin(
             org.mockito.ArgumentMatchers.any(Company.class),
@@ -918,7 +914,7 @@ class CompanyServiceTest {
     authenticateAs("ROLE_SUPER_ADMIN");
     Company company = company(5L, "SKE");
     when(repository.findById(5L)).thenReturn(Optional.of(company));
-    when(emailService.isPasswordResetEmailDeliveryEnabled()).thenReturn(true);
+    when(passwordResetService.isResetEmailDeliveryEnabled()).thenReturn(true);
     when(tenantAdminProvisioningService.resetTenantAdminPassword(company, "tenant-admin@ske.com"))
         .thenReturn("tenant-admin@ske.com");
 
@@ -936,7 +932,7 @@ class CompanyServiceTest {
     authenticateAs("ROLE_SUPER_ADMIN");
     Company company = company(5L, "SKE");
     when(repository.findById(5L)).thenReturn(Optional.of(company));
-    when(emailService.isPasswordResetEmailDeliveryEnabled()).thenReturn(false);
+    when(passwordResetService.isResetEmailDeliveryEnabled()).thenReturn(false);
 
     assertThatThrownBy(() -> companyService.resetTenantAdminPassword(5L, "tenant-admin@ske.com"))
         .isInstanceOf(ApplicationException.class)

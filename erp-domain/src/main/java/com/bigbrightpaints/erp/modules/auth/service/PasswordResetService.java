@@ -99,6 +99,10 @@ public class PasswordResetService {
         TransactionDefinition.PROPAGATION_REQUIRES_NEW);
   }
 
+  public boolean isResetEmailDeliveryEnabled() {
+    return emailProperties.isEnabled() && emailProperties.isSendPasswordReset();
+  }
+
   @Transactional
   public void requestReset(String email, String companyCode) {
     String correlationId = resolveCorrelationId();
@@ -190,7 +194,7 @@ public class PasswordResetService {
   }
 
   private void ensureRequiredResetEmailDelivery() {
-    if (!emailProperties.isEnabled() || !emailProperties.isSendPasswordReset()) {
+    if (!isResetEmailDeliveryEnabled()) {
       throw new ApplicationException(
           ErrorCode.SYSTEM_CONFIGURATION_ERROR,
           "Password reset email delivery is disabled; enable erp.mail.enabled=true and"

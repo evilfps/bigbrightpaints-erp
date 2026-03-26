@@ -25,7 +25,6 @@ import org.springframework.util.StringUtils;
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
-import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
@@ -79,10 +78,9 @@ public class CompanyService {
   private final TenantAdminProvisioningService tenantAdminProvisioningService;
   private final TenantLifecycleService tenantLifecycleService;
   private final PasswordResetService passwordResetService;
-  private final EmailService emailService;
 
   public CompanyService(CompanyRepository repository) {
-    this(repository, null, null, null, null, null, null, null, null);
+    this(repository, null, null, null, null, null, null, null);
   }
 
   public CompanyService(
@@ -95,7 +93,6 @@ public class CompanyService {
         auditService,
         userAccountRepository,
         auditLogRepository,
-        null,
         null,
         null,
         null,
@@ -116,7 +113,6 @@ public class CompanyService {
         tenantRuntimeEnforcementService,
         null,
         null,
-        null,
         null);
   }
 
@@ -129,8 +125,7 @@ public class CompanyService {
       TenantRuntimeEnforcementService tenantRuntimeEnforcementService,
       TenantAdminProvisioningService tenantAdminProvisioningService,
       TenantLifecycleService tenantLifecycleService,
-      PasswordResetService passwordResetService,
-      EmailService emailService) {
+      PasswordResetService passwordResetService) {
     this.repository = repository;
     this.auditService = auditService;
     this.userAccountRepository = userAccountRepository;
@@ -139,7 +134,6 @@ public class CompanyService {
     this.tenantAdminProvisioningService = tenantAdminProvisioningService;
     this.tenantLifecycleService = tenantLifecycleService;
     this.passwordResetService = passwordResetService;
-    this.emailService = emailService;
   }
 
   public List<CompanyDto> findAll() {
@@ -874,7 +868,7 @@ public class CompanyService {
 
   private void requireCredentialProvisioningReady() {
     requireCredentialProvisioningDependencies();
-    if (!tenantAdminProvisioningService.isCredentialEmailDeliveryEnabled()) {
+    if (!tenantAdminProvisioningService.isCredentialProvisioningReady()) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
           "Credential email delivery is disabled; enable erp.mail.enabled=true and"
               + " erp.mail.send-credentials=true");
@@ -886,7 +880,7 @@ public class CompanyService {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
           "Password reset dependencies are not available");
     }
-    if (!emailService.isPasswordResetEmailDeliveryEnabled()) {
+    if (!passwordResetService.isResetEmailDeliveryEnabled()) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
           "Password reset email delivery is disabled; enable erp.mail.enabled=true and"
               + " erp.mail.send-password-reset=true");

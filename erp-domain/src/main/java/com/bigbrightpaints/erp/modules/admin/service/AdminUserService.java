@@ -128,7 +128,7 @@ public class AdminUserService {
         saved,
         company,
         "admin_user_create",
-        Map.of("provisioningMode", "EMAIL_ONLY_TEMP_PASSWORD"));
+        Map.of("provisioningMode", "CANONICAL_EMAIL_BOOTSTRAP"));
     Instant lastLoginAt = resolveLastLoginAt(saved.getEmail());
     UserDto dto = toDto(saved, lastLoginAt);
     if (!dto.roles().isEmpty()) {
