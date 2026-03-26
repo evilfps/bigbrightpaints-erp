@@ -28,7 +28,7 @@ Each module section should include:
 - Dedicated review tracker: see `docs/frontend-update-v2/README.md` for the per-feature frontend follow-up matrix and explicit no-op entries for this mission.
 - 2026-03-06 `auth-token-secret-storage-hardening`: no auth/admin request or response shape changes were required. Login, refresh-token, logout, forgot-password, and reset-password payloads stay the same; only backend persistence changed so refresh-token and password-reset secrets are now stored as digests with compatibility backfill/fallback for legacy rows.
 - 2026-03-06 `auth-session-revocation-hardening`: no auth/admin request or response shape changes were required. Logout now invalidates all previously issued access and refresh sessions for the authenticated user, and password change, password reset, disablement, lockout, and support hard-reset now consistently reject old tokens instead of letting prior sessions remain usable.
-- 2026-03-06 `auth-reset-recovery-contract-hardening`: supported public forgot/reset, admin force-reset, and support admin-password-reset request/response shapes stay the same. The deprecated compatibility alias `POST /api/v1/auth/password/forgot/superadmin` is now explicitly retired with a `410 Gone` `ApiResponse` that carries `canonicalPath=/api/v1/auth/password/forgot` plus `supportResetPath=/api/v1/companies/{id}/support/admin-password-reset`; public forgot suppresses delivery failures without leaving a newly issued undispatched reset token behind, and admin force-reset now only succeeds when reset-email delivery is enabled and dispatch completes.
+- 2026-03-06 `auth-reset-recovery-contract-hardening`: supported public forgot/reset, admin force-reset, and support admin-password-reset request/response shapes stay the same. The deprecated compatibility alias `POST /api/v1/auth/password/forgot/superadmin` is now explicitly retired with a `410 Gone` `ApiResponse` that carries `canonicalPath=/api/v1/auth/password/forgot` plus `supportResetPath=/api/v1/superadmin/tenants/{id}/support/admin-password-reset`; public forgot suppresses delivery failures without leaving a newly issued undispatched reset token behind, and admin force-reset now only succeeds when reset-email delivery is enabled and dispatch completes.
 - 2026-03-14 `remove-orchestrator-dispatch-journal`: `POST /api/v1/orchestrator/factory/dispatch/{batchId}` is now a fail-closed compatibility surface only. Valid requests receive `410 Gone` with `canonicalPath=/api/v1/sales/dispatch/confirm`, and orchestrator fulfillment requests for `SHIPPED`/`DISPATCHED`/`FULFILLED`/`COMPLETED` now return `409 Conflict` (`BUS_001`) instead of acknowledging or posting dispatch accounting truth.
 - 2026-03-06 `reset-token-issuance-race-hardening`: no auth/admin request or response shape changes were required. Public forgot-password and admin force-reset now serialize reset-token issuance per user so duplicate or overlapping requests deterministically leave only the latest reset link usable instead of cross-deleting every valid token.
 - 2026-03-06 `must-change-password-corridor-hardening`: login, refresh-token, `/auth/me`, `GET /auth/profile`, password-change, and logout success payloads stay the same. While `mustChangePassword=true`, the backend now confines the bearer session to that corridor, denies normal protected work with a `403` `ApiResponse` carrying `reason=PASSWORD_CHANGE_REQUIRED` and `mustChangePassword=true`, and still preserves company binding on the allowed corridor endpoints.
@@ -87,7 +87,7 @@ Notes:
    2. Backend always responds with generic success message (no account enumeration).
    3. User opens emailed reset link and submits `POST /api/v1/auth/password/reset` with `{ token, newPassword, confirmPassword }`.
    4. Backend revokes existing sessions/tokens; user must log in again.
-   5. If an old client still calls `POST /api/v1/auth/password/forgot/superadmin`, backend now returns `410 Gone` with canonical migration pointers instead of silently drifting through auth filters. Use `POST /api/v1/auth/password/forgot` for self-service recovery or `POST /api/v1/companies/{id}/support/admin-password-reset` for root-only support recovery.
+   5. If an old client still calls `POST /api/v1/auth/password/forgot/superadmin`, backend now returns `410 Gone` with canonical migration pointers instead of silently drifting through auth filters. Use `POST /api/v1/auth/password/forgot` for self-service recovery or `POST /api/v1/superadmin/tenants/{id}/support/admin-password-reset` for root-only support recovery.
 
 5. **Password change flow**
    1. Authenticated user submits `POST /api/v1/auth/password/change` with current + new password fields.
@@ -113,7 +113,7 @@ Notes:
   - Mismatch is rejected with `403` by company-context enforcement.
 - Recommended frontend storage strategy:
   - Keep access token in memory (preferred) and refresh token in secure storage with shortest feasible lifetime.
-  - Never persist `adminTemporaryPassword` from onboarding.
+- Do not create client state around a temporary onboarding password; onboarding no longer returns one.
 - Expiry handling:
   - Use `expiresIn` from `AuthResponse` for refresh scheduling.
   - On refresh failure, clear tokens and route to login.
@@ -230,13 +230,10 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
 #### Current mission note
 
 - Dedicated review tracker: see `docs/frontend-update-v2/README.md` for the per-feature frontend follow-up matrix and explicit no-op entries for this mission.
-- 2026-03-06 `privileged-user-boundary-hardening`: no admin user-management request or response shape changes were required for `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, or `DELETE /api/v1/admin/users/{id}`. The feature aligned tenant-boundary authorization and audit behavior while preserving the existing frontend payloads for authorized super-admin flows, and the company control-plane lifecycle endpoint once again accepts `HOLD`/`BLOCKED` compatibility aliases while preserving the existing path shape. The later `masked-admin-target-lookup-hardening` refinement now defines the current foreign-target masking behavior for auth-sensitive tenant-admin actions.
-- 2026-03-06 `global-security-settings-authorization`: no admin request or response payload shapes changed, but `PUT /api/v1/admin/settings` now requires `ROLE_SUPER_ADMIN` because it mutates platform-wide CORS, mail, export, and related security/runtime settings. Tenant admins still retain `GET /api/v1/admin/tenant-runtime/metrics` for tenant-scoped visibility.
-- 2026-03-06 `auth-compatibility-regression-handoff`: no admin request or response payload shapes changed for `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, `DELETE /api/v1/admin/users/{id}`, `GET /api/v1/admin/settings`, `PUT /api/v1/admin/settings`, and `GET /api/v1/admin/tenant-runtime/metrics`; the refreshed OpenAPI snapshot also documents the user-control no-content endpoints as `204 No Content` instead of stale `200` responses.
-- 2026-03-15 `lane01-canonicalize-company-runtime-writer`: the public runtime-policy mutation contract is now canonicalized on `PUT /api/v1/companies/{id}/tenant-runtime/policy`. `PUT /api/v1/admin/tenant-runtime/policy` is retired from the published contract, controller routing, and privileged path handling; admin/operator clients must move any remaining write calls to the company-scoped control-plane path, while `GET /api/v1/admin/tenant-runtime/metrics` remains the tenant-scoped read surface.
-- 2026-03-06 `tenant-lifecycle-rollout-safety-hardening`: no auth/admin/lifecycle request or response payload shapes changed. `POST /api/v1/superadmin/tenants/{id}/{suspend|activate|deactivate}`, `POST /api/v1/superadmin/tenants/{id}/lifecycle-state`, and `POST /api/v1/companies/{id}/lifecycle-state` keep the same payloads while the backend continues to persist Flyway-v2-compatible lifecycle storage values (`ACTIVE`, `HOLD`, `BLOCKED`); if a stored lifecycle value is corrupted or unrecognized, tenant access now fails closed instead of being treated as active, so no frontend code change is required.
-- 2026-03-07 `masked-admin-target-lookup-hardening`: admin user-management request and success-response payload shapes still did not change, but tenant-admin attempts to `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, or `DELETE /api/v1/admin/users/{id}` against a foreign-tenant user id now return the same `400 User not found` validation envelope as a truly missing id. This masks foreign targets from enumeration while preserving internal `ACCESS_DENIED` audit evidence, and `POST /api/v1/admin/roles` remains request/response compatible while now enforcing the super-admin mutation boundary directly at the controller guard.
-- 2026-03-07 `masked-admin-lock-scope-regression-fix`: no admin request or response payload shapes changed. The masked foreign-target behavior from `masked-admin-target-lookup-hardening` remains the same for tenant-admin `suspend`, `unsuspend`, `mfa/disable`, and `delete` actions, but those paths no longer take cross-tenant pessimistic locks before scope checks, so the frontend should continue treating foreign and missing targets identically and needs no migration.
+- 2026-03-26 `erp-37-hard-cut-superadmin-control-plane`: tenant control is now fully canonicalized under `/api/v1/superadmin/tenants/{id}/...`. Retired lifecycle, usage, runtime-policy, support-reset, and changelog-write aliases are removed from the published contract.
+- 2026-03-26 `erp-37-hard-cut-superadmin-control-plane`: onboarding success no longer returns `adminTemporaryPassword`. Use `mainAdminUserId`, `credentialsEmailSent`, `credentialsEmailedAt`, and `onboardingCompletedAt` as the onboarding truth contract.
+- 2026-03-26 `erp-37-hard-cut-superadmin-control-plane`: changelog reads under `/api/v1/changelog*` now require authentication, and writes moved to `/api/v1/superadmin/changelog*`.
+- 2026-03-26 `erp-37-hard-cut-superadmin-control-plane`: `PUT /api/v1/admin/settings` remains superadmin-only, while the tenant-admin user-management payloads stay stable.
 
 #### Endpoint Map
 
@@ -244,14 +241,19 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
 
 | Method | Path | Auth | Request | Response `data` |
 |---|---|---|---|---|
-| GET | `/api/v1/superadmin/dashboard` | `ROLE_SUPER_ADMIN` | None | `SuperAdminDashboardDto` |
-| GET | `/api/v1/superadmin/tenants` | `ROLE_SUPER_ADMIN` | Optional query: `status=ACTIVE|SUSPENDED|DEACTIVATED` | `List<SuperAdminTenantDto>` |
-| POST | `/api/v1/superadmin/tenants/{id}/suspend` | `ROLE_SUPER_ADMIN` | None | `SuperAdminTenantDto` |
-| POST | `/api/v1/superadmin/tenants/{id}/activate` | `ROLE_SUPER_ADMIN` | None | `SuperAdminTenantDto` |
-| POST | `/api/v1/superadmin/tenants/{id}/deactivate` | `ROLE_SUPER_ADMIN` | None | `SuperAdminTenantDto` |
-| POST | `/api/v1/superadmin/tenants/{id}/lifecycle-state` | `ROLE_SUPER_ADMIN` | `CompanyLifecycleStateRequest` | `CompanyLifecycleStateDto` |
+| GET | `/api/v1/superadmin/dashboard` | `ROLE_SUPER_ADMIN` | None | `CompanySuperAdminDashboardDto` |
+| GET | `/api/v1/superadmin/tenants` | `ROLE_SUPER_ADMIN` | Optional query: `status=ACTIVE|SUSPENDED|DEACTIVATED` | `List<SuperAdminTenantSummaryDto>` |
+| GET | `/api/v1/superadmin/tenants/{id}` | `ROLE_SUPER_ADMIN` | None | `SuperAdminTenantDetailDto` |
+| PUT | `/api/v1/superadmin/tenants/{id}/lifecycle` | `ROLE_SUPER_ADMIN` | `CompanyLifecycleStateRequest` | `CompanyLifecycleStateDto` |
+| PUT | `/api/v1/superadmin/tenants/{id}/limits` | `ROLE_SUPER_ADMIN` | `TenantLimitsUpdateRequest` | `SuperAdminTenantLimitsDto` |
 | PUT | `/api/v1/superadmin/tenants/{id}/modules` | `ROLE_SUPER_ADMIN` | `TenantModulesUpdateRequest` | `CompanyEnabledModulesDto` |
-| GET | `/api/v1/superadmin/tenants/{id}/usage` | `ROLE_SUPER_ADMIN` | None | `SuperAdminTenantUsageDto` |
+| POST | `/api/v1/superadmin/tenants/{id}/support/warnings` | `ROLE_SUPER_ADMIN` | `TenantSupportWarningRequest` | `CompanySupportWarningDto` |
+| POST | `/api/v1/superadmin/tenants/{id}/support/admin-password-reset` | `ROLE_SUPER_ADMIN` | `TenantAdminPasswordResetRequest` | `CompanyAdminCredentialResetDto` |
+| PUT | `/api/v1/superadmin/tenants/{id}/support/context` | `ROLE_SUPER_ADMIN` | `TenantSupportContextUpdateRequest` | `SuperAdminTenantSupportContextDto` |
+| POST | `/api/v1/superadmin/tenants/{id}/force-logout` | `ROLE_SUPER_ADMIN` | `TenantForceLogoutRequest?` | `SuperAdminTenantForceLogoutDto` |
+| PUT | `/api/v1/superadmin/tenants/{id}/admins/main` | `ROLE_SUPER_ADMIN` | `TenantMainAdminUpdateRequest` | `MainAdminSummaryDto` |
+| POST | `/api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/request` | `ROLE_SUPER_ADMIN` | `TenantAdminEmailChangeRequest` | `SuperAdminTenantAdminEmailChangeRequestDto` |
+| POST | `/api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/confirm` | `ROLE_SUPER_ADMIN` | `TenantAdminEmailChangeConfirmRequest` | `SuperAdminTenantAdminEmailChangeConfirmationDto` |
 | GET | `/api/v1/superadmin/tenants/coa-templates` | `ROLE_SUPER_ADMIN` | None | `List<CoATemplateDto>` |
 | POST | `/api/v1/superadmin/tenants/onboard` | `ROLE_SUPER_ADMIN` | `TenantOnboardingRequest` | `TenantOnboardingResponse` |
 
@@ -271,6 +273,12 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
 | GET | `/api/v1/admin/roles` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `List<RoleDto>` |
 | GET | `/api/v1/admin/roles/{roleKey}` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `RoleDto` |
 | POST | `/api/v1/admin/roles` | `ROLE_SUPER_ADMIN` | `CreateRoleRequest` | `RoleDto` |
+| GET | `/api/v1/admin/settings` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `SystemSettingsDto` |
+| PUT | `/api/v1/admin/settings` | `ROLE_SUPER_ADMIN` | `SystemSettingsUpdateRequest` | `SystemSettingsDto` |
+| GET | `/api/v1/admin/approvals` | `ROLE_ADMIN`, `ROLE_ACCOUNTING`, or `ROLE_SUPER_ADMIN` | None | `AdminApprovalsResponse` |
+| POST | `/api/v1/admin/notify` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | `AdminNotifyRequest` | `string` |
+| PUT | `/api/v1/admin/exports/{requestId}/approve` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `ExportRequestDto` |
+| PUT | `/api/v1/admin/exports/{requestId}/reject` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | `ExportRequestDecisionRequest?` | `ExportRequestDto` |
 
 **C) Tenant-selection context endpoints**
 
@@ -278,6 +286,16 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
 |---|---|---|---|---|
 | GET | `/api/v1/companies` | `ROLE_SUPER_ADMIN` \/ `ROLE_ADMIN` \/ `ROLE_ACCOUNTING` \/ `ROLE_SALES` | None | `List<CompanyDto>` |
 | POST | `/api/v1/multi-company/companies/switch` | `isAuthenticated()` | `SwitchCompanyRequest` | `CompanyDto` |
+
+**D) Changelog endpoints**
+
+| Method | Path | Auth | Request | Response `data` |
+|---|---|---|---|---|
+| GET | `/api/v1/changelog?page={page}&size={size}` | `isAuthenticated()` | query params | `PageResponse<ChangelogEntryResponse>` |
+| GET | `/api/v1/changelog/latest-highlighted` | `isAuthenticated()` | none | `ChangelogEntryResponse` |
+| POST | `/api/v1/superadmin/changelog` | `ROLE_SUPER_ADMIN` | `ChangelogEntryRequest` | `ChangelogEntryResponse` |
+| PUT | `/api/v1/superadmin/changelog/{id}` | `ROLE_SUPER_ADMIN` | `ChangelogEntryRequest` | `ChangelogEntryResponse` |
+| DELETE | `/api/v1/superadmin/changelog/{id}` | `ROLE_SUPER_ADMIN` | none | `204 No Content` |
 
 All non-204 responses use `ApiResponse<T>` wrappers.
 
@@ -295,7 +313,7 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
 - `HR_PAYROLL`: `/api/v1/hr/**`, `/api/v1/payroll/**`
 - `PURCHASING`: `/api/v1/purchasing/**`, `/api/v1/suppliers/**`
 - `PORTAL`: `/api/v1/portal/**`, `/api/v1/dealer-portal/**`
-- `REPORTS_ADVANCED`: `/api/v1/reports/**`, `/api/v1/accounting/reports/**`
+- `REPORTS_ADVANCED`: `/api/v1/reports/**`
 
 #### User Flows
 
@@ -310,8 +328,8 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
    1. Load templates with `GET /api/v1/superadmin/tenants/coa-templates`.
    2. Submit `POST /api/v1/superadmin/tenants/onboard` with selected `coaTemplateCode`.
    3. Backend creates company, admin user, default accounting period, and 50-100 CoA accounts.
-   4. Show one-time `adminTemporaryPassword` modal.
-   5. Optionally configure enabled modules via `PUT /api/v1/superadmin/tenants/{id}/modules`.
+   4. Use `mainAdminUserId`, `credentialsEmailSent`, `credentialsEmailedAt`, and `onboardingCompletedAt` as the onboarding truth contract.
+   5. Open `GET /api/v1/superadmin/tenants/{id}` for the canonical tenant detail payload and continue configuration there.
 
 3. **User creation with role assignment**
    1. Load assignable roles with `GET /api/v1/admin/roles`.
@@ -323,19 +341,20 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
    7. Use `POST /api/v1/admin/users/{id}/force-reset-password` to trigger a reset link for a target user.
    8. Suspend/unsuspend and MFA-disable PATCH endpoints remain available for direct account operations.
 
-4. **Tenant lifecycle operations (superadmin)**
+4. **Superadmin tenant-control workflow**
    1. Review status in `GET /api/v1/superadmin/tenants`.
-   2. Transition using suspend/activate/deactivate or explicit lifecycle endpoint.
-   3. Runtime enforcement: `SUSPENDED` blocks writes, `DEACTIVATED` blocks all access.
+   2. Open `GET /api/v1/superadmin/tenants/{id}` for the full tenant detail payload.
+   3. Use the canonical nested routes to mutate lifecycle, limits, modules, support context, warnings, admin reset, force logout, main-admin replacement, or admin email change.
+   4. Refresh tenant detail after each mutation; support timeline and available actions are returned there.
 
 #### State Machines
 
 1. **Tenant lifecycle**
-   - `ACTIVE` -> `SUSPENDED` via `POST /api/v1/superadmin/tenants/{id}/suspend`
-   - `SUSPENDED` -> `ACTIVE` via `POST /api/v1/superadmin/tenants/{id}/activate`
-   - `ACTIVE` -> `DEACTIVATED` via `POST /api/v1/superadmin/tenants/{id}/deactivate`
-   - `SUSPENDED` -> `DEACTIVATED` via `POST /api/v1/superadmin/tenants/{id}/deactivate`
-   - `DEACTIVATED` is terminal.
+   - `ACTIVE` -> `SUSPENDED` via `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
+   - `ACTIVE` -> `DEACTIVATED` via `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
+   - `SUSPENDED` -> `ACTIVE` via `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
+   - `SUSPENDED` -> `DEACTIVATED` via `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
+   - `DEACTIVATED` -> `ACTIVE` via `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
 
 2. **Admin user lifecycle**
    - `enabled=true` -> `enabled=false` via `PUT /api/v1/admin/users/{id}/status` with `{ enabled: false }`
@@ -361,21 +380,36 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
 
 #### Data Contracts
 
-- `SuperAdminDashboardDto`
+- `CompanySuperAdminDashboardDto`
   - `totalTenants`, `activeTenants`, `suspendedTenants`, `deactivatedTenants`
-  - `totalUsers`, `totalApiCalls`, `totalStorageBytes`
-  - `recentActivityAt: string | null`
+  - `totalActiveUsers`, `totalActiveUserQuota`
+  - `totalAuditStorageBytes`, `totalStorageQuotaBytes`
+  - `totalCurrentConcurrentRequests`, `totalConcurrentRequestQuota`
+  - `tenants: TenantOverview[]`
 
-- `SuperAdminTenantDto`
+- `SuperAdminTenantSummaryDto`
   - `companyId`, `companyCode`, `companyName`
-  - `status: "ACTIVE" | "SUSPENDED" | "DEACTIVATED"`
-  - `activeUsers`, `apiCallCount`, `storageBytes`
+  - `timezone`
+  - `lifecycleState: "ACTIVE" | "SUSPENDED" | "DEACTIVATED"`
+  - `activeUserCount`, `quotaMaxActiveUsers`
+  - `apiActivityCount`, `quotaMaxApiRequests`
+  - `auditStorageBytes`, `quotaMaxStorageBytes`
+  - `currentConcurrentRequests`, `quotaMaxConcurrentRequests`
+  - `enabledModules: string[]`
+  - `mainAdmin: MainAdminSummaryDto`
   - `lastActivityAt: string | null`
 
-- `SuperAdminTenantUsageDto`
-  - `companyId`, `companyCode`, `status`
-  - `apiCallCount`, `activeUsers`, `storageBytes`
-  - `lastActivityAt: string | null`
+- `SuperAdminTenantDetailDto`
+  - `companyId`, `companyCode`, `companyName`, `timezone`, `stateCode`
+  - `lifecycleState`, `lifecycleReason`
+  - `enabledModules: string[]`
+  - `onboarding`
+  - `mainAdmin`
+  - `limits`
+  - `usage`
+  - `supportContext`
+  - `supportTimeline`
+  - `availableActions`
 
 - `CompanyLifecycleStateRequest`
   - `state: "ACTIVE" | "SUSPENDED" | "DEACTIVATED"` (required)
@@ -392,6 +426,15 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
 - `CompanyEnabledModulesDto`
   - `companyId`, `companyCode`
   - `enabledModules: string[]`
+
+- `TenantLimitsUpdateRequest`
+  - `quotaMaxActiveUsers?`, `quotaMaxApiRequests?`, `quotaMaxStorageBytes?`, `quotaMaxConcurrentRequests?` (all `>= 0`)
+  - `quotaSoftLimitEnabled?`, `quotaHardLimitEnabled?`
+
+- `SuperAdminTenantLimitsDto`
+  - `companyId`, `companyCode`
+  - `quotaMaxActiveUsers`, `quotaMaxApiRequests`, `quotaMaxStorageBytes`, `quotaMaxConcurrentRequests`
+  - `quotaSoftLimitEnabled`, `quotaHardLimitEnabled`
 
 - `CoATemplateDto`
   - `code: "GENERIC" | "INDIAN_STANDARD" | "MANUFACTURING"`
@@ -410,8 +453,29 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
   - `companyId`, `companyCode`, `templateCode`
   - `bootstrapMode`, `seededChartOfAccounts`
   - `accountsCreated`, `accountingPeriodId`, `defaultAccountingPeriodCreated`
-  - `adminEmail`, `adminTemporaryPassword`, `tenantAdminProvisioned`
-  - `credentialsEmailSent`, `systemSettingsInitialized`
+  - `adminEmail`, `mainAdminUserId`, `tenantAdminProvisioned`
+  - `credentialsEmailSent`, `credentialsEmailedAt`, `onboardingCompletedAt`
+  - `systemSettingsInitialized`
+
+- `TenantSupportWarningRequest`
+  - `warningCategory?: string`
+  - `message: string`
+  - `requestedLifecycleState?: string`
+  - `gracePeriodHours?: number`
+
+- `TenantSupportContextUpdateRequest`
+  - `supportNotes?: string`
+  - `supportTags?: string[]`
+
+- `TenantMainAdminUpdateRequest`
+  - `adminUserId: number`
+
+- `TenantAdminEmailChangeRequest`
+  - `newEmail: string`
+
+- `TenantAdminEmailChangeConfirmRequest`
+  - `requestId: number`
+  - `verificationToken: string`
 
 - `CreateUserRequest`
   - `email` (required email)
@@ -463,8 +527,9 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
   - company multi-select from `GET /api/v1/companies`
   - if password omitted, show “temporary password will be emailed” helper text.
 - Superadmin onboarding UI should present CoA templates as cards (`name`, `description`, `accountCount`).
-- After onboarding, show/copy `adminTemporaryPassword` once and require explicit confirmation.
-- On lifecycle mutations, use confirmation dialogs and refresh dashboard + tenant list metrics after mutation.
+- After onboarding, show delivery/completion evidence instead of a temporary password.
+- Build the superadmin tenant detail screen around `GET /api/v1/superadmin/tenants/{id}` and refresh it after lifecycle, limits, modules, support, or admin-governance actions.
+- On lifecycle mutations, use confirmation dialogs and refresh dashboard + tenant detail after mutation.
 
 #### Versioned changelog system (VAL-ADMIN-005)
 
@@ -472,29 +537,29 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
 
 | Method | Path | Auth | Request | Response `data` |
 |---|---|---|---|---|
-| `POST` | `/api/v1/admin/changelog` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | `ChangelogEntryRequest` | `ChangelogEntryResponse` |
-| `PUT` | `/api/v1/admin/changelog/{id}` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | `ChangelogEntryRequest` | `ChangelogEntryResponse` |
-| `DELETE` | `/api/v1/admin/changelog/{id}` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | none | `204 No Content` (soft-delete) |
-| `GET` | `/api/v1/changelog?page={page}&size={size}` | Public (no auth) | query params | `PageResponse<ChangelogEntryResponse>` |
-| `GET` | `/api/v1/changelog/latest-highlighted` | Public (no auth) | none | `ChangelogEntryResponse` |
+| `POST` | `/api/v1/superadmin/changelog` | `ROLE_SUPER_ADMIN` | `ChangelogEntryRequest` | `ChangelogEntryResponse` |
+| `PUT` | `/api/v1/superadmin/changelog/{id}` | `ROLE_SUPER_ADMIN` | `ChangelogEntryRequest` | `ChangelogEntryResponse` |
+| `DELETE` | `/api/v1/superadmin/changelog/{id}` | `ROLE_SUPER_ADMIN` | none | `204 No Content` (soft-delete) |
+| `GET` | `/api/v1/changelog?page={page}&size={size}` | `isAuthenticated()` | query params | `PageResponse<ChangelogEntryResponse>` |
+| `GET` | `/api/v1/changelog/latest-highlighted` | `isAuthenticated()` | none | `ChangelogEntryResponse` |
 
 ##### User flows
 
 1. **Admin publishes release notes**
-   1. Admin opens changelog composer and submits `POST /api/v1/admin/changelog`.
+   1. Superadmin opens changelog composer and submits `POST /api/v1/superadmin/changelog`.
    2. Backend persists semver-tagged markdown entry and returns `ChangelogEntryResponse`.
 
 2. **Admin edits existing entry**
-   1. Admin submits `PUT /api/v1/admin/changelog/{id}` with updated semver/title/body/highlight flag.
+   1. Superadmin submits `PUT /api/v1/superadmin/changelog/{id}` with updated semver/title/body/highlight flag.
    2. Backend updates the same entry, refreshes `publishedAt`, and returns updated payload.
 
 3. **Admin soft-deletes an entry**
-   1. Admin invokes `DELETE /api/v1/admin/changelog/{id}`.
+   1. Superadmin invokes `DELETE /api/v1/superadmin/changelog/{id}`.
    2. Backend marks record deleted (`deleted=true`, `deletedAt` set) and returns `204`.
-   3. Deleted entries are excluded from all public feeds.
+   3. Deleted entries are excluded from authenticated feeds.
 
-4. **Public release-notes feed**
-   1. Frontend (authenticated or anonymous) calls `GET /api/v1/changelog?page=0&size=20`.
+4. **Authenticated release-notes feed**
+   1. Frontend calls `GET /api/v1/changelog?page=0&size=20` after session bootstrap.
    2. Backend returns newest-first page ordered by `publishedAt DESC, id DESC`.
 
 5. **“What’s New” banner fetch**
@@ -504,8 +569,8 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
 
 ##### State machine
 
-- `PUBLISHED` -> `PUBLISHED` via `PUT /api/v1/admin/changelog/{id}` (editable update)
-- `PUBLISHED` -> `DELETED` via `DELETE /api/v1/admin/changelog/{id}` (soft-delete)
+- `PUBLISHED` -> `PUBLISHED` via `PUT /api/v1/superadmin/changelog/{id}` (editable update)
+- `PUBLISHED` -> `DELETED` via `DELETE /api/v1/superadmin/changelog/{id}` (soft-delete)
 - Highlight visibility is controlled by `isHighlighted` boolean inside `PUBLISHED` state.
 
 ##### Error codes / handling
@@ -514,7 +579,7 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
 |---|---|---|
 | `VAL_001` / 400 | Invalid semver/title/body payload | Show inline validation and block submit. |
 | `BUS_003` / 404 | Entry not found or no highlighted entry available | For latest-highlighted, hide banner gracefully; for admin edit/delete show stale-record notice. |
-| 403 | Caller lacks admin role for admin endpoints | Show access denied and hide admin controls. |
+| 403 | Caller lacks superadmin role for write endpoints or lacks authentication for read endpoints | Show access denied and hide admin controls. |
 
 ##### Data contracts
 
@@ -542,7 +607,7 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
 
 ##### UI hints
 
-- Render `body` as markdown in both admin preview and public feed cards.
+- Render `body` as markdown in both admin preview and authenticated feed cards.
 - Validate semver client-side using `major.minor.patch` format before submit for immediate feedback.
 - For “What’s New”, cache latest-highlighted response briefly and dismiss banner per user preference in frontend state.
 - Admin table should include soft-delete action and highlight toggle (via update payload).

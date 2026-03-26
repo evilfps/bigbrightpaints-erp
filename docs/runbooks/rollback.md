@@ -1,5 +1,12 @@
 # Rollback Runbook
 
+## 2026-03-26 — `erp-37.superadmin-control-plane-hard-cut`
+
+- **Scope:** revert `migration_v2/V167__erp37_superadmin_control_plane_hard_cut.sql` and the ERP-37 runtime packet that hard-cuts tenant control onto `/api/v1/superadmin/tenants/{id}/...`, rewrites lifecycle storage to `ACTIVE/SUSPENDED/DEACTIVATED`, renames the concurrency quota column to `quota_max_concurrent_requests`, persists main-admin/support/onboarding truth on `companies`, and adds `tenant_support_warnings` plus `tenant_admin_email_change_requests`.
+- **Application rollback:** do not redeploy a pre-ERP-37 backend against a database that has already applied `V167`. Keep the ERP-37-compatible backend live unless the database is first restored to a pre-`V167` state.
+- **Database rollback:** restore the affected tenant/database from a snapshot or point-in-time backup taken before `V167`. Ad hoc SQL rollback is intentionally unsupported because `V167` rewrites lifecycle values, renames the concurrency quota column, and introduces new persisted support/email-change truth that older code does not serve.
+- **Verification:** after restore, rerun the ERP-37 contract packet against the reverted build to confirm the old route family and schema pair are back together; if rollback is aborted and the tenant stays on ERP-37, rerun `cd erp-domain && export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true -Dtest=OpenApiSnapshotIT test` plus the focused ERP-37 integration batch before reopening traffic.
+
 ## 2026-03-24 — `erp-36.opening-stock-v2-contract-alignment`
 
 - **Scope:** revert `migration_v2/V166__opening_stock_batch_key_contract_alignment.sql` and the v2 parity fix that now drops the legacy partial batch-key/replay indexes before rewriting legacy `opening_stock_imports` rows onto `opening_stock_batch_key`, enforces the non-null batch-key uniqueness contract, and removes `replay_protection_key`.

@@ -1,15 +1,14 @@
 # Control-plane approval and bootstrap contract cleanup
 
-This handoff covers the bounded ERP-19 contract cleanup that landed with the admin approval inbox and tenant onboarding packet.
+This handoff now reflects the ERP-37 tenant-control hard cut that landed on top of the earlier approval inbox and onboarding packet.
 
 ## Included now
 
 - `GET /api/v1/admin/approvals` remains the single tenant-scoped approval inbox.
-- `AdminApprovalItemDto` now exposes typed `originType` and `ownerType` fields, and export approval rows retain machine-readable export detail.
-- `GET /api/v1/admin/exports/pending` is retired.
-- `POST /api/v1/superadmin/tenants/onboard` now returns explicit bootstrap confirmation fields.
-- `GET /api/v1/companies/superadmin/dashboard` is retired.
-- `GET /api/v1/superadmin/dashboard` remains the live aggregate-count dashboard route.
+- `AdminApprovalItemDto` continues to expose typed `originType` and `ownerType` fields, and export approval rows retain machine-readable export detail.
+- `POST /api/v1/superadmin/tenants/onboard` now returns onboarding truth without `adminTemporaryPassword`.
+- `GET /api/v1/superadmin/dashboard` and `GET /api/v1/superadmin/tenants/{id}` are now the canonical aggregate/detail superadmin read surfaces.
+- `/api/v1/admin/changelog*`, `/api/v1/admin/tenant-runtime/*`, `/api/v1/companies/{id}/tenant-runtime/policy`, `/api/v1/companies/{id}/tenant-metrics`, and `/api/v1/superadmin/tenants/{id}/usage` are retired from the published contract.
 
 ## Approval inbox contract
 
@@ -66,21 +65,21 @@ Endpoint:
 
 The success message now explicitly states that onboarding created the seeded chart of accounts, tenant admin, and default accounting period.
 
-Added response fields:
+Current response fields for onboarding truth:
 - `bootstrapMode`
 - `seededChartOfAccounts`
 - `defaultAccountingPeriodCreated`
 - `tenantAdminProvisioned`
-
-Existing response fields that still remain:
 - `companyId`
 - `companyCode`
 - `templateCode`
 - `accountsCreated`
 - `accountingPeriodId`
 - `adminEmail`
-- `adminTemporaryPassword`
+- `mainAdminUserId`
 - `credentialsEmailSent`
+- `credentialsEmailedAt`
+- `onboardingCompletedAt`
 - `systemSettingsInitialized`
 
 Current backend meaning:
@@ -91,15 +90,17 @@ Current backend meaning:
 
 Frontend action:
 - treat the explicit bootstrap fields as the source of truth for seeded onboarding success
-- continue treating `adminTemporaryPassword` as sensitive output because it remains in the response
+- stop expecting or rendering `adminTemporaryPassword`
+- if `credentialsEmailSent=false`, keep the onboarding flow in error/support recovery instead of pretending the tenant is fully ready
 
 ## Retired control-plane aliases
 
 - do not call `GET /api/v1/admin/exports/pending`
 - do not call `GET /api/v1/companies/superadmin/dashboard`
+- do not call `/api/v1/admin/changelog*`
+- do not call `/api/v1/admin/tenant-runtime/*`
+- do not call `/api/v1/companies/{id}/tenant-runtime/policy`
+- do not call `/api/v1/companies/{id}/tenant-metrics`
+- do not call `/api/v1/superadmin/tenants/{id}/usage`
 - use `GET /api/v1/admin/approvals` for tenant-scoped admin/accounting approval queue access only
-- use `GET /api/v1/superadmin/dashboard` only for aggregate platform dashboard counts; it does not replace the retired detailed tenant payload
-
-## Out of scope follow-up
-
-The broader tenant route-family hard cut onto `/api/v1/superadmin/tenants/**` is still outside this packet and should be handled separately if it remains needed after fresh inspection.
+- use `GET /api/v1/superadmin/dashboard` for aggregate platform counts and `GET /api/v1/superadmin/tenants/{id}` for the canonical detailed tenant payload

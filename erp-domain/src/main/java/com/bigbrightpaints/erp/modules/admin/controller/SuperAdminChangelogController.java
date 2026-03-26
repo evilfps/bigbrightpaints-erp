@@ -15,6 +15,7 @@ import com.bigbrightpaints.erp.modules.admin.dto.ChangelogEntryResponse;
 import com.bigbrightpaints.erp.modules.admin.service.ChangelogService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 
 @RestController
@@ -43,6 +44,9 @@ public class SuperAdminChangelogController {
   }
 
   @DeleteMapping("/{id}")
+  @Operation(summary = "Delete a changelog entry")
+  @io.swagger.v3.oas.annotations.responses.ApiResponse(
+      responseCode = "204", description = "No Content")
   public ResponseEntity<Void> delete(@PathVariable Long id) {
     changelogService.softDelete(id);
     return ResponseEntity.noContent().build();

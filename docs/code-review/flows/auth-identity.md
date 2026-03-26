@@ -2,228 +2,121 @@
 
 ## Scope and evidence
 
-This review covers login, refresh, logout, `/me`, profile read/update, password change, public forgot/reset password, tenant-admin and super-admin reset paths, MFA setup/activation/disable/login challenges, disabled-user handling, and lockout behavior.
+This review covers login, refresh, logout, `/me`, profile, password change, public forgot/reset, tenant-admin reset paths, superadmin support reset, MFA, and the `mustChangePassword` corridor enforced in the live auth stack.
 
 Primary evidence:
 
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/controller/{AuthController,MfaController,UserProfileController}.java`
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/service/{AuthService,RefreshTokenService,PasswordResetService,PasswordService,MfaService,UserProfileService,TenantAdminProvisioningService}.java`
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/{SecurityConfig,JwtAuthenticationFilter,JwtTokenService,JwtProperties,CompanyContextFilter,TokenBlacklistService,CryptoService,SecurityMonitoringService}.java`
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/{controller/AdminUserController.java,service/AdminUserService.java}`
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/{controller/CompanyController.java,service/CompanyService.java,dto/CompanyAdminCredentialResetDto.java}`
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/domain/{UserAccount,RefreshToken,PasswordResetToken,UserPasswordHistory,UserTokenRevocation,BlacklistedToken,MfaRecoveryCode}.java`
-- `erp-domain/src/main/resources/db/migration_v2/{V1__core_auth_rbac.sql,V157__drop_legacy_user_reset_columns.sql}` and legacy migrations `V13__mfa_support.sql`, `V32__mfa_recovery_codes_table.sql`, `V37__password_reset_tokens.sql`, `V51__auth_lockout_controls.sql`, `V61__token_blacklist_tables.sql`, `V77__user_must_change_password.sql`, `V112__refresh_tokens.sql`
-- `erp-domain/src/main/resources/{application.yml,application-prod.yml}` and `erp-domain/src/main/java/com/bigbrightpaints/erp/{config/CorsConfig.java,core/config/SystemSettingsService.java,core/notification/EmailService.java}`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/service/{AuthService,PasswordResetService,PasswordService,RefreshTokenService,TenantAdminProvisioningService,MfaService}.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/{SecurityConfig,CompanyContextFilter,MustChangePasswordCorridorFilter,TokenBlacklistService}.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/controller/AdminUserController.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/controller/SuperAdminController.java`
 - `openapi.json`
-- Tests: `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/{AuthControllerIT,AuthAuditIT,AuthDisabledUserTokenIT,AuthHardeningIT,AuthPasswordResetPublicContractIT,MfaControllerIT,ProfileControllerIT,TenantRuntimeEnforcementAuthIT,CompanyContextFilterPasswordResetBypassTest}.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/service/{PasswordResetServiceTest,MfaServiceTest,PasswordServiceTest}.java`, and `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/service/AdminUserServiceTest.java`
+- `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/{AuthControllerIT,AuthDisabledUserTokenIT,AuthHardeningIT,AuthPasswordResetPublicContractIT,MfaControllerIT,ProfileControllerIT,TenantRuntimeEnforcementAuthIT}.java`
 
 ## Entrypoints
 
 | Surface | Entrypoints | Controller | Notes |
 | --- | --- | --- | --- |
-| Session bootstrap | `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh-token`, `POST /api/v1/auth/logout` | `AuthController` | Login/refresh issue JWT + opaque refresh token; logout revokes refresh tokens and blacklists the current access token when possible. |
-| Identity read/write | `GET /api/v1/auth/me`, `GET/PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change` | `AuthController`, `UserProfileController` | `/me` is claim/context-derived; `/profile` mutates `app_users`; password change uses password policy + history checks. |
-| Public password reset | `POST /api/v1/auth/password/forgot`, `POST /api/v1/auth/password/reset` | `AuthController` | Public and explicitly bypass tenant binding; uses one reset token per user identity. |
-| Deprecated super-admin forgot alias | `POST /api/v1/auth/password/forgot/superadmin` | `AuthController` | Still published in code/OpenAPI, but the route is not treated as public and does not call the hardened `requestResetForSuperAdmin(...)` service. |
-| Self-service MFA | `POST /api/v1/auth/mfa/setup`, `POST /api/v1/auth/mfa/activate`, `POST /api/v1/auth/mfa/disable` | `MfaController` | Setup returns the raw secret, otpauth URI, and recovery codes; activation/disable verify TOTP or recovery code. |
-| Admin user reset / status / MFA override | `POST /api/v1/admin/users/{userId}/force-reset-password`, `PUT /api/v1/admin/users/{userId}/status`, `PATCH /api/v1/admin/users/{id}/mfa/disable` | `AdminUserController` | Tenant admins can reset a scoped user; super admins can target foreign-tenant users through admin service shortcuts. |
-| Super-admin support reset | `POST /api/v1/companies/{id}/support/admin-password-reset` | `CompanyController` | Root-only company control-plane path that rewrites the tenant admin password, revokes tokens, and requires credential-email delivery. |
+| Session bootstrap | `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh-token`, `POST /api/v1/auth/logout` | `AuthController` | Stateless bearer-token auth with rotating refresh tokens and `204` logout. |
+| Identity and profile | `GET /api/v1/auth/me`, `GET/PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change` | `AuthController`, `UserProfileController` | `/me` remains claim/context-derived and still emits the deprecated `companyId` alias mirroring `companyCode`. |
+| Public password reset | `POST /api/v1/auth/password/forgot`, `POST /api/v1/auth/password/reset` | `AuthController` | Public and tenant-context-agnostic. |
+| Retired superadmin forgot alias | `POST /api/v1/auth/password/forgot/superadmin` | `AuthController` | Still public, but intentionally returns `410 Gone` with migration pointers. |
+| Tenant-admin reset | `POST /api/v1/admin/users/{userId}/force-reset-password` | `AdminUserController` | Link-based reset path for a scoped target user. |
+| Superadmin support reset | `POST /api/v1/superadmin/tenants/{id}/support/admin-password-reset` | `SuperAdminController` | Hard reset that rewrites the password, enforces `mustChangePassword`, revokes sessions, and requires credential-email delivery. |
+| MFA | `POST /api/v1/auth/mfa/setup`, `POST /api/v1/auth/mfa/activate`, `POST /api/v1/auth/mfa/disable` | `MfaController` | Self-service setup/activation/disable with recovery-code support during login challenges. |
 
-## Endpoint-to-entity path
+## Current behavior
 
-| Flow | Call chain | Entity / store touchpoints |
-| --- | --- | --- |
-| Login | `AuthController.login` -> `AuthService.login` -> `UserAccountRepository` + `AuthenticationManager` + `CompanyRepository` + `TenantRuntimeEnforcementService` + `MfaService` + `JwtTokenService` + `RefreshTokenService` + `AuditService` | `app_users`, `user_roles`, `user_companies`, `refresh_tokens`, `audit_logs` |
-| Refresh | `AuthController.refresh` -> `AuthService.refresh` -> `RefreshTokenService.consume` -> `TokenBlacklistService` -> `CompanyRepository` -> `TenantRuntimeEnforcementService` -> `JwtTokenService` -> `RefreshTokenService.issue` | `refresh_tokens`, `user_token_revocations`, `app_users` |
-| Logout | `AuthController.logout` -> `AuthService.logout` -> `RefreshTokenService.revoke*` + `TokenBlacklistService.blacklistToken` | `refresh_tokens`, `blacklisted_tokens` |
-| `/me` | `JwtAuthenticationFilter` + `CompanyContextFilter` -> `AuthController.me` | JWT claims, `app_users`, `user_roles`, `user_companies` |
-| Profile read/update | `UserProfileController.{profile,update}` -> `UserProfileService` | `app_users` (`display_name`, `preferred_name`, `job_title`, `profile_picture_url`, `phone_secondary`, `secondary_email`) |
-| Password change | `AuthController.changePassword` -> `PasswordService.changePassword` | `app_users.password_hash`, `app_users.must_change_password`, `user_password_history` |
-| Public forgot/reset | `AuthController.{forgotPassword,resetPassword}` -> `PasswordResetService` -> `PasswordService.resetPassword` -> `TokenBlacklistService` + `RefreshTokenService` + `EmailService` | `password_reset_tokens`, `app_users`, `blacklisted_tokens`, `user_token_revocations`, `refresh_tokens` |
-| Admin link reset | `AdminUserController.forceResetPassword` -> `AdminUserService.forceResetPassword` -> `PasswordResetService.requestResetByAdmin` -> `requestReset` | `app_users`, `password_reset_tokens` |
-| Super-admin hard reset | `CompanyController.resetTenantAdminPassword` -> `CompanyService.resetTenantAdminPassword` -> `TenantAdminProvisioningService.resetTenantAdminPassword` -> `EmailService.sendUserCredentialsEmailRequired` | `app_users.password_hash`, `app_users.must_change_password`, `blacklisted_tokens`, `user_token_revocations`, `refresh_tokens`, `audit_logs` |
-| MFA lifecycle | `MfaController` -> `MfaService` and `AdminUserController` -> `AdminUserService.disableMfa` | `app_users.mfa_secret`, `app_users.mfa_enabled`, `app_users.mfa_recovery_codes`; `mfa_recovery_codes` table exists but is not used by the live service path |
+### Login, refresh, and logout
 
-## 1. Login and token issuance narrative
+`AuthService` remains the single token-issuance path.
 
-`POST /api/v1/auth/login` is the only first-class credential entrypoint. `AuthService.login(...)` loads `UserAccount` by email, rejects disabled accounts up front, enforces a 5-attempt / 15-minute lockout window, then delegates password verification to Spring Security. After credential validation it resolves the requested `companyCode`, allowing `ROLE_SUPER_ADMIN` actors to mint tokens for any company code while ordinary users must already belong to that company via `user_companies`.
+Current behavior:
 
-Before any token is minted, tenant runtime policy is consulted through `TenantRuntimeEnforcementService.enforceAuthOperationAllowed(...)`. That means login can fail with runtime-policy semantics (`423 Locked` for hold, `403 Forbidden` for blocked tenants, `429 Too Many Requests` for active-user quota breaches) even when the username/password pair is valid; `TenantRuntimeEnforcementAuthIT` proves those behaviors and the accompanying audit-chain metadata.
+- login validates credentials, resolves the requested tenant, applies tenant runtime admission, then issues access + refresh tokens
+- refresh is rotating and one-time-use
+- logout returns `204 No Content`, revokes refresh tokens, and blacklists the current access token when parseable
+- `TenantRuntimeEnforcementAuthIT` still proves lifecycle/quota enforcement can reject login and authenticated auth requests before business controllers run
 
-If the user has MFA enabled, `MfaService.verifyDuringLogin(...)` requires either a valid 6-digit TOTP or a single-use recovery code. Missing MFA material raises `MfaRequiredException`, which `CoreFallbackExceptionHandler` converts into `428 Precondition Required` with `{"required": true}`; invalid MFA input raises `401`. Successful login resets `failed_login_attempts` and `locked_until`, writes a login audit event, signs an HS256 access token carrying both `companyCode` and legacy `cid` claims, and persists an opaque refresh token row.
+### `mustChangePassword` corridor
 
-Notable side effects:
+`MustChangePasswordCorridorFilter` now actively enforces the temporary-credential corridor.
 
-- Access token TTL is 15 minutes by default in `application-prod.yml`; refresh token TTL is 30 days.
-- `AuthResponse` returns `mustChangePassword`, but the flag is advisory only; the backend still issues full bearer tokens.
-- Bad credentials and MFA failures increment the same lockout counter; tenant runtime denials and disabled-account failures do not.
+Allowed while `mustChangePassword=true`:
 
-## 2. Refresh rotation and logout narrative
+- `GET /api/v1/auth/me`
+- `GET /api/v1/auth/profile`
+- `POST /api/v1/auth/password/change`
+- `POST /api/v1/auth/logout`
+- `POST /api/v1/auth/refresh-token`
 
-`POST /api/v1/auth/refresh-token` is a rotating-token flow, not a passive re-sign. `RefreshTokenService.consume(...)` pessimistically locks the row, rejects expired tokens, deletes the row, and returns the embedded `userEmail` plus issuance timestamps. `AuthService.refresh(...)` then checks user-wide token revocation, re-loads the account, re-applies enabled/lock checks, re-resolves the target company, re-applies tenant runtime policy, and issues a brand-new access token plus a brand-new refresh token row.
+Everything else is rejected with controlled `403` JSON carrying:
 
-Two important implications fall out of that ordering:
+- `reason=PASSWORD_CHANGE_REQUIRED`
+- `mustChangePassword=true`
 
-1. Refresh tokens are one-time-use, which is good for replay resistance.
-2. The token is consumed **before** company validation, disabled-user checks, or runtime admission. A wrong `companyCode`, a freshly disabled user, or a tenant-quota denial burns the refresh token anyway.
+### Public reset and recovery
 
-`POST /api/v1/auth/logout` requires an authenticated bearer session. `AuthController.logout(...)` extracts the current access token from the Spring `Authentication` object and passes an optional `refreshToken` query parameter to `AuthService.logout(...)`. If a refresh token is supplied, only that token is deleted; if not, the service revokes all refresh tokens for the token subject. The access token is blacklisted by `jti` only when the bearer token can still be parsed and contains both `jti` and `exp`. Blacklist persistence failures are logged but do not fail the request.
+`PasswordResetService` now cleanly separates public reset masking from real storage failures.
 
-## 3. `/me` and profile narrative
+Current behavior:
 
-`GET /api/v1/auth/me` is entirely claim/context-derived. `JwtAuthenticationFilter` authenticates the bearer token, `CompanyContextFilter` reconciles the token's `companyCode`/`cid` claims against `X-Company-Code` / `X-Company-Id`, and `AuthController.me(...)` assembles a response from the authenticated `UserPrincipal`. The payload contains email, display name, current company code, `mfaEnabled`, `mustChangePassword`, flattened roles, flattened permissions, and a deprecated `companyId` alias that simply mirrors the company code for older clients.
+- `POST /api/v1/auth/password/forgot` remains no-enumeration and generic on the user-facing success path
+- reset-token persistence failures are no longer silently treated as success
+- `POST /api/v1/auth/password/reset` revokes access + refresh sessions after a successful password reset
+- the deprecated `/api/v1/auth/password/forgot/superadmin` route is explicitly retired with `410 Gone`
 
-`GET/PUT /api/v1/auth/profile` is a thin CRUD wrapper over the `app_users` row. `UserProfileService.update(...)` trims and persists `displayName`, `preferredName`, `jobTitle`, `profilePictureUrl`, `phoneSecondary`, and `secondaryEmail`, then returns the updated `ProfileResponse` including the user's `publicId` and company list. There is no dedicated audit call around profile mutation, so identity-profile changes are durable but not first-class audit events.
+### Admin and support resets
 
-## 4. Password change narrative
+There are now two distinct privileged reset paths:
 
-`POST /api/v1/auth/password/change` stays inside the authenticated identity surface and never touches reset tokens. `PasswordService.changePassword(...)` normally requires the current password, but it explicitly skips that check when `mustChangePassword=true` so that temporary-password flows do not dead-end. It then enforces confirmation equality, disallows reusing the current password, validates the password against the built-in policy (>=10 chars, upper, lower, digit, symbol, no whitespace), rejects any of the last five historic passwords, stores the previous hash in `user_password_history`, writes the new BCrypt hash, and flips `mustChangePassword` back to false.
+- tenant-admin link reset: `POST /api/v1/admin/users/{userId}/force-reset-password`
+- superadmin hard reset: `POST /api/v1/superadmin/tenants/{id}/support/admin-password-reset`
 
-Unlike reset flows, password change does **not** revoke existing access tokens, refresh tokens, or user-wide revocation markers. The identity changes, but already-issued sessions survive until they naturally expire or are separately revoked.
+The superadmin hard reset path:
 
-## 5. Forgot/reset password narrative
+- targets an admin inside the selected tenant
+- rewrites the password immediately
+- sets `mustChangePassword=true`
+- revokes access and refresh sessions
+- requires email delivery to succeed before returning success
 
-The public forgot/reset surface is deliberately global-identity rather than tenant-scoped. `SecurityConfig` permits `/api/v1/auth/password/forgot` and `/api/v1/auth/password/reset` without authentication, and `CompanyContextFilter` explicitly bypasses tenant-header enforcement for those exact POST paths. `PasswordResetService.logTenantContextIgnoredIfPresent(...)` records that any tenant header was ignored.
+### MFA
 
-`requestReset(...)` looks up the user by email, silently suppresses unknown or disabled identities, deletes any prior reset token for that user, generates a 32-byte base64url token, stores it in `password_reset_tokens`, and asks `EmailService.sendPasswordResetEmail(...)` to deliver a reset link rooted at `erp.mail.base-url`. The controller always returns the same success message to reduce enumeration via response bodies.
+The MFA flow remains:
 
-`resetPassword(...)` is the opposite edge of the flow: load token, reject used/expired tokens, require an enabled user, delegate password policy/history checks to `PasswordService.resetPassword(...)`, clear lockout counters, revoke all access-token revocations and refresh tokens for the user, mark the token used, and delete every reset token for that user.
+- setup returns secret, otpauth URI, and one-time recovery codes
+- activation requires a valid TOTP
+- login can require MFA and returns a controlled `428` challenge contract
+- disable supports TOTP or recovery-code proof
 
-The generic forgot/admin-link-reset flow is best-effort on delivery. `EmailService.sendPasswordResetEmail(...)` quietly returns when mail is disabled and logs SMTP failures without throwing, so the API can report success even when the message never leaves the system.
+## Security and protocol boundaries
 
-## 6. Admin and super-admin reset paths
-
-There are three materially different reset/control paths:
-
-### 6.1 Tenant-admin user link reset
-
-`POST /api/v1/admin/users/{userId}/force-reset-password` routes through `AdminUserService.forceResetPassword(...)`. The target user is resolved against the current company unless the actor already has `ROLE_SUPER_ADMIN`, in which case the service can target a foreign-tenant user. The actual reset action is `PasswordResetService.requestResetByAdmin(...)`, which simply reuses the public forgot-password machinery. Disabled users are silently skipped; enabled users get a reset token and a best-effort email, and the service still audits `PASSWORD_RESET_REQUESTED`.
-
-### 6.2 Root-only super-admin tenant-admin hard reset
-
-`POST /api/v1/companies/{id}/support/admin-password-reset` is the strongest reset path. `CompanyService.resetTenantAdminPassword(...)` requires the canonical company-control-plane binding, verifies that credential email delivery is enabled, and delegates to `TenantAdminProvisioningService.resetTenantAdminPassword(...)`. That service generates a new temporary password, writes a fresh BCrypt hash, sets `mustChangePassword=true`, clears lockout counters, revokes all access and refresh tokens for that admin, and requires credential-email delivery to succeed before returning. The API response exposes only `companyCode`, `adminEmail`, and `status=credentials-emailed`, not the temporary password itself.
-
-### 6.3 Deprecated super-admin forgot alias
-
-`POST /api/v1/auth/password/forgot/superadmin` looks like a backward-compatible public super-admin recovery path in both controller code and `openapi.json`, but the live wiring does not match that intent:
-
-- `SecurityConfig` does not permit the route anonymously.
-- `CompanyContextFilter` does not include it in the public reset bypass.
-- `AuthController.forgotPasswordForSuperAdmin(...)` calls the generic `requestReset(...)`, not the hardened `requestResetForSuperAdmin(...)` implementation.
-- The elaborate `PasswordResetService.requestResetForSuperAdmin(...)` path (masked logging, explicit cleanup, mandatory email delivery, correlation-id sanitization) is therefore orphaned from any controller.
-
-## 7. MFA lifecycle narrative
-
-MFA is a TOTP + recovery-code design implemented in `MfaService`.
-
-1. `POST /api/v1/auth/mfa/setup` generates a random base32 secret, eight random recovery codes, hashes the recovery codes, encrypts the secret at rest with `CryptoService` (AES-256-GCM over an externally supplied key), stores everything on `app_users`, and returns the raw secret, otpauth URI, and recovery codes to the caller.
-2. `POST /api/v1/auth/mfa/activate` decrypts the secret and requires a valid current TOTP before flipping `mfa_enabled=true`.
-3. `verifyDuringLogin(...)` runs during login: valid TOTP succeeds, valid recovery code is consumed and saved, missing verifier yields `428`, invalid verifier yields `401`.
-4. `POST /api/v1/auth/mfa/disable` requires either a valid TOTP or a valid recovery code, then clears the secret and recovery-code hashes.
-5. `PATCH /api/v1/admin/users/{id}/mfa/disable` is an operator override that clears MFA for another user and revokes their access and refresh tokens.
-
-The lifecycle mostly works, but the persistence model is split. The schema contains a dedicated `mfa_recovery_codes` table, entity, repository, cleanup queries, and uniqueness constraints, yet the live `MfaService` uses the legacy comma-delimited `app_users.mfa_recovery_codes` column instead.
-
-## 8. Disabled-user and lockout behavior narrative
-
-Disabled-user handling is fail-closed across most entrypoints:
-
-- `AuthService.ensureEnabledForAuthentication(...)` blocks login and refresh with `AUTH_ACCOUNT_DISABLED`.
-- `PasswordResetService.requestReset(...)` and `requestResetByAdmin(...)` skip disabled users, making them look like unknown users from the reset surface.
-- `PasswordResetService.resetPassword(...)` refuses to reset a disabled user.
-- `JwtAuthenticationFilter` refuses to build an authenticated principal when a token belongs to a now-disabled user.
-- `AdminUserService.updateUserStatusInternal(false)` revokes access tokens, refresh tokens, and sends a suspension email.
-
-Lockout is narrower than disablement. `AuthService.registerFailure(...)` increments `failed_login_attempts` on bad credentials and MFA failures; at 5 attempts it sets `locked_until = now + 15 minutes`. `AuthService.enforceLock(...)` is only called during login and refresh, and both public reset plus support reset clear the lockout fields. Existing bearer tokens are not revoked by lockout alone, because `JwtAuthenticationFilter` checks only `enabled`, not `lockedUntil`, and `UserPrincipal.isAccountNonLocked()` hardcodes `true`.
+- `SecurityConfig` permits only the public auth bootstrap/reset routes plus health and optional swagger.
+- Everything else requires authentication and is then filtered by `CompanyContextFilter` and `MustChangePasswordCorridorFilter`.
+- `CompanyContextFilter` still treats password-reset routes as tenant-context-agnostic.
+- `/api/v1/changelog*` is no longer public and now sits behind normal authentication.
+- The superadmin support-reset path advertised by the retired forgot alias now points to `/api/v1/superadmin/tenants/{id}/support/admin-password-reset`.
 
 ## Invariants
 
-- Login and refresh both require an explicit `companyCode`; super admins may choose any company, while non-super-admins must already belong to the company.
-- Authenticated company-scoped requests must carry a token claim whose `companyCode`/`cid` matches any supplied company header; `CompanyContextFilter` fails closed on mismatches.
-- Public forgot/reset flows ignore tenant headers by design; one user identity spans all company memberships.
-- Access tokens are signed HS256 JWTs with `jti`, `sub`, `companyCode`, and `cid`; refresh tokens are opaque server-side rows.
-- Refresh tokens are single-use and rotated on every successful refresh.
-- Password change/reset enforce the password policy and last-five-history rule.
-- MFA activation requires a live TOTP; MFA login requires TOTP or an unused recovery code.
-- Disabled users cannot log in, refresh, or use existing JWTs.
-- Lockout clears on successful login, public password reset, or tenant-admin hard reset.
+- Logout is documented and served as `204 No Content`.
+- `mustChangePassword` is an enforced runtime boundary, not just an advisory response flag.
+- Public forgot/reset remains tenant-context-agnostic.
+- The deprecated superadmin forgot alias stays fail-closed as a `410 Gone` migration surface.
+- Superadmin support resets now live under the canonical superadmin tenant-control plane, not `/api/v1/companies/{id}/...`.
 
-## Side effects
-
-- Login and refresh emit audit events and mutate `refresh_tokens`.
-- Logout mutates `refresh_tokens` and `blacklisted_tokens`, but blacklist failure is logged rather than surfaced.
-- Public forgot/reset mutates `password_reset_tokens`, `app_users`, `blacklisted_tokens`, `user_token_revocations`, and `refresh_tokens`.
-- Admin link reset and support hard reset both create audit trails; the hard reset also rewrites the password hash immediately.
-- Profile updates persist plaintext identity/profile fields on `app_users`.
-- MFA setup/disable mutates `app_users` and admin-triggered disable also revokes tokens.
-
-## Failure points and recovery behavior
-
-- Tenant runtime policy can reject login or refresh even when credentials are correct (`423`, `403`, `429`), and those denials are tied to audit-chain metadata.
-- Generic forgot/admin link-reset can succeed outwardly while email delivery is disabled or SMTP dispatch fails.
-- Refresh rotation burns the caller's old refresh token before downstream validation, so a bad `companyCode` or disabled account can strand the client.
-- The orphaned `requestResetForSuperAdmin(...)` service has thoughtful cleanup and masked logging, but no endpoint uses it.
-- Lockout errors are surfaced as generic authentication failures rather than a dedicated `AUTH_ACCOUNT_LOCKED` contract.
-
-## Token/session handling
-
-- Access tokens are short-lived HS256 JWTs with `sub`, random `jti`, `companyCode`, and legacy `cid` claims; the company claims are later reconciled by `CompanyContextFilter` against request headers.
-- Refresh tokens are long-lived opaque UUID rows stored in `refresh_tokens`; refresh is rotation-based and deletes the previous token on every successful use.
-- Logout revokes refresh tokens first and then tries to blacklist the current access token by `jti`; access-token blacklist persistence is best-effort rather than fail-closed.
-- Password reset, user disablement, and support hard reset revoke all sessions for the user, but ordinary password change does not.
-- Password-reset tokens are one-hour bearer tokens stored in `password_reset_tokens`; reset completion marks them used and deletes all outstanding tokens for the user.
-
-## Security findings
+## Residual risks
 
 | Severity | Category | Finding | Evidence | Why it matters |
 | --- | --- | --- | --- | --- |
-| high | security / temporary-credential integrity | `mustChangePassword` is only a response flag. Tenant onboarding and support resets set it, but login still issues full bearer tokens and no filter blocks non-change operations until the client cooperates. | `TenantAdminProvisioningService.resetTenantAdminPassword(...)`, `PasswordService.changePassword(...)`, `AuthService.login(...)`, `UserAccount.mustChangePassword`, `AuthResponse`, `MeResponse` | Temporary credentials are not actually forced into a password-change-only corridor; a leaked temp password can be used for normal API work until changed. |
-| high | protocol / security | The deprecated `/api/v1/auth/password/forgot/superadmin` route is drifted and effectively broken: not public in `SecurityConfig`, not bypassed in `CompanyContextFilter`, and wired to generic `requestReset(...)` instead of `requestResetForSuperAdmin(...)`. | `AuthController.forgotPasswordForSuperAdmin(...)`, `SecurityConfig.securityFilterChain(...)`, `CompanyContextFilter.PUBLIC_PASSWORD_RESET_ENDPOINTS`, `PasswordResetService.requestResetForSuperAdmin(...)`, `openapi.json` | Operators and clients see a legacy super-admin recovery contract that does not actually reach the hardened implementation or public semantics implied by the code comments. |
-| high | secret handling | Password-reset tokens and refresh tokens are stored as plaintext bearer secrets in the database. | `PasswordResetToken.token`, `RefreshToken.token`, `PasswordResetService.generateToken(...)`, `RefreshTokenService.issue(...)`, `V1__core_auth_rbac.sql` | Read access to the database is enough to replay refresh tokens or complete password resets; hashing/token-digest storage would reduce blast radius. |
-| medium | delivery integrity | Generic forgot-password and admin link-reset flows are fail-open on email delivery. They can persist reset tokens and return success even when mail delivery is disabled or SMTP fails. | `PasswordResetService.requestReset(...)`, `PasswordResetService.requestResetByAdmin(...)`, `EmailService.sendPasswordResetEmail(...)`, `AdminUserController.forceResetPassword(...)` | Users/support can believe a reset link was sent when nothing left the system, and valid reset tokens still sit in storage until expiry or replacement. |
-| medium | schema drift / MFA | The live MFA implementation ignores the relational `mfa_recovery_codes` table/repository and instead stores comma-joined hashes on `app_users.mfa_recovery_codes`. | `MfaService`, `UserAccount.getMfaRecoveryCodeHashes()`, `MfaRecoveryCode.java`, `MfaRecoveryCodeRepository.java`, `V32__mfa_recovery_codes_table.sql` | DB uniqueness, used-at tracking, cleanup jobs, and the intended relational audit trail are bypassed, leaving a second unused persistence model behind. |
-| medium | session security | Password change preserves all existing sessions, unlike reset, disable, or support hard-reset flows. | `PasswordService.changePassword(...)`, contrasted with `PasswordResetService.resetPassword(...)`, `TenantAdminProvisioningService.resetTenantAdminPassword(...)`, and `AdminUserService.updateUserStatusInternal(...)` | If a user changes their password because of suspected compromise, other already-issued access/refresh tokens remain valid until expiration. |
-| medium | lockout / protocol | Lockout only blocks login/refresh, existing JWTs survive, and `LockedException` falls into the generic authentication handler instead of the dedicated `AUTH_ACCOUNT_LOCKED` code. | `AuthService.enforceLock(...)`, `AuthService.registerFailure(...)`, `UserPrincipal.isAccountNonLocked()`, `JwtAuthenticationFilter`, `ErrorCode.AUTH_ACCOUNT_LOCKED`, `CoreFallbackExceptionHandler.handleAuthenticationException(...)` | The system looks locked from the login surface but does not evict active sessions, and clients cannot reliably distinguish a lockout from other auth failures. |
-| low | API drift | OpenAPI says `/api/v1/auth/logout` returns `200`, but the controller returns `204`, and `/me` still emits a deprecated `companyId` alias that is actually the company code. | `openapi.json`, `AuthController.logout(...)`, `AuthControllerIT.refresh_token_revoked_after_logout()`, `MeResponse.legacyCompanyId()` | Client generators and support tooling can build the wrong response expectations around core auth endpoints. |
-
-## Data privacy
-
-- `app_users` stores identity and profile data in plaintext columns: email, display name, preferred name, job title, profile image URL, secondary phone, and secondary email. `ProfileResponse` exposes most of that data back to any bearer with access to the identity surface.
-- `/me` returns role and permission expansions, which is useful for UI bootstrapping but widens the amount of authorization state exposed to every authenticated caller.
-- MFA setup intentionally returns raw recovery codes and the raw TOTP secret once; at rest, the secret is encrypted with AES-256-GCM and the recovery codes are hashed, but the live code stores those hashes on `app_users` rather than in the dedicated recovery-code table.
-- `PasswordResetService.requestResetForSuperAdmin(...)` carefully obfuscates email addresses and sanitizes correlation ids in logs, but the public controller never uses that path. By contrast, `CompanyService.resetTenantAdminPassword(...)` records `resetEmail` in audit metadata as plain text.
-- Profile updates are durable but not explicitly audited in the same way as login, reset, disable, or support-reset actions, which weakens forensic reconstruction for identity-profile changes.
-
-## Protocol/protection
-
-- The auth surface is stateless bearer-token auth: CSRF, form login, HTTP basic, and server-side logout are disabled in `SecurityConfig`, while JWT bearer auth is inserted before the username/password filter.
-- `JwtProperties` enforces a 32-byte minimum secret outside test-only contexts, and `JwtTokenService` signs access tokens with HS256 plus a random `jti`.
-- `CompanyContextFilter` is the key tenant-protection layer after JWT auth. It rejects mismatched token claims, mismatched company headers, unauthenticated attempts to set tenant headers, and authenticated tokens missing company claims.
-- CORS is runtime-configurable via `SystemSettingsService`; production validation requires explicit `https` origins and forbids wildcards, while the built `CorsConfiguration` still sets `allowCredentials=true`.
-- Swagger/OpenAPI endpoints remain non-public unless `erp.security.swagger-public=true` and the runtime is not on the `prod` profile.
-- Tenant runtime protection is part of the auth protocol itself: hold/block/quota policies can deny login, refresh, and authenticated requests before business controllers run.
-- A second security-control surface exists in `SecurityMonitoringService`, but there are no production callers in main code, so brute-force monitoring and token-revocation analytics there are currently architectural dead weight rather than an active control.
+| low | compatibility surface | `POST /api/v1/auth/password/forgot/superadmin` still exists as a public `410 Gone` compatibility route. | `AuthController.forgotPasswordForSuperAdmin(...)`, `SecurityConfig` | Old clients can still hit it, but only to receive migration pointers. |
+| low | API drift tolerance | `/api/v1/auth/me` still emits the deprecated `companyId` alias mapped from `companyCode`. | `MeResponse.legacyCompanyId()` | Older clients remain supported, but new clients should treat `companyCode` as canonical. |
 
 ## Evidence notes
 
-- `AuthControllerIT` proves login -> `/me`, refresh rotation, and logout-driven refresh-token revocation.
-- `MfaControllerIT` proves MFA enrollment, activation, 428 challenge responses, and one-time recovery-code consumption.
-- `ProfileControllerIT` proves `/auth/profile` reads and persists identity fields.
-- `AuthPasswordResetPublicContractIT` and `CompanyContextFilterPasswordResetBypassTest` prove public forgot/reset flows are intentionally tenant-context agnostic.
-- `AuthDisabledUserTokenIT` proves disabled users cannot log in and that tokens for now-disabled users stop authenticating.
-- `AuthHardeningIT` proves five failed logins set `locked_until` and that successful login works again after the lock is cleared.
-- `TenantRuntimeEnforcementAuthIT` proves tenant runtime hold/block/quota policy can reject login and authenticated requests with audit-chain evidence.
-- `AdminUserServiceTest` proves admin force-reset delegates to `PasswordResetService.requestResetByAdmin(...)` and that the action is audited as `PASSWORD_RESET_REQUESTED`.
-
-## Risk hotspots
-
-| Severity | Category | Finding | Evidence | Why it matters |
-| --- | --- | --- | --- | --- |
-| high | protocol / security | The deprecated `/api/v1/auth/password/forgot/superadmin` route is drifted and effectively broken: not public in `SecurityConfig`, not bypassed in `CompanyContextFilter`, and wired to generic `requestReset(...)` instead of `requestResetForSuperAdmin(...)`. | `AuthController.forgotPasswordForSuperAdmin(...)`, `SecurityConfig.securityFilterChain(...)`, `CompanyContextFilter.PUBLIC_PASSWORD_RESET_ENDPOINTS`, `PasswordResetService.requestResetForSuperAdmin(...)`, `openapi.json` | Operators and clients see a legacy super-admin recovery contract that does not actually reach the hardened implementation or public semantics implied by the code comments. |
-| high | secret handling | Password-reset tokens and refresh tokens are stored as plaintext bearer secrets in the database. | `PasswordResetToken.token`, `RefreshToken.token`, `PasswordResetService.generateToken(...)`, `RefreshTokenService.issue(...)`, `V1__core_auth_rbac.sql` | Read access to the database is enough to replay refresh tokens or complete password resets; hashing/token-digest storage would reduce blast radius. |
-| medium | delivery integrity | Generic forgot-password and admin link-reset flows are fail-open on email delivery. They can persist reset tokens and return success even when mail delivery is disabled or SMTP fails. | `PasswordResetService.requestReset(...)`, `PasswordResetService.requestResetByAdmin(...)`, `EmailService.sendPasswordResetEmail(...)`, `AdminUserController.forceResetPassword(...)` | Users/support can believe a reset link was sent when nothing left the system, and valid reset tokens still sit in storage until expiry or replacement. |
-| medium | persistence error masking | Public forgot-password currently masks token-persistence failures together with delivery failures, because `requestReset()` swallows any `RuntimeException` thrown while token issuance and email dispatch share the same try block. | PR review on `PasswordResetService.requestReset(...)` / `issueResetToken(...)`, live code path for `/api/v1/auth/password/forgot` | Database outages or deadlocks can return the normal success contract even though no reset token exists, leaving users unable to recover passwords while monitoring only sees 200s. |
-
-## Additional regression note
-
-- Current PR review also flagged that storage failures in the public forgot-password path should still surface internally as real failures even if delivery/config failures are intentionally masked to preserve the no-enumeration contract.
+- `AuthControllerIT` proves login, refresh rotation, and logout token revocation.
+- `AuthPasswordResetPublicContractIT` proves the public forgot/reset contract and the retired superadmin alias behavior.
+- `AuthDisabledUserTokenIT` proves disabled users cannot continue authenticating.
+- `TenantRuntimeEnforcementAuthIT` proves lifecycle/quota rules can deny auth operations before business controllers run.
