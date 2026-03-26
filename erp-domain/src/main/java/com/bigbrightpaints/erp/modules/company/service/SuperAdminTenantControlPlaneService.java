@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -364,6 +365,14 @@ public class SuperAdminTenantControlPlaneService {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
           "Email change request is stale because the admin email has already changed");
     }
+    userAccountRepository
+        .findByEmailIgnoreCase(changeRequest.getRequestedEmail())
+        .filter(existingUser -> !Objects.equals(existingUser.getId(), adminUser.getId()))
+        .ifPresent(
+            existingUser -> {
+              throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                  "Email already exists: " + changeRequest.getRequestedEmail());
+            });
     Instant now = CompanyTime.now(company);
     changeRequest.setVerifiedAt(now);
     changeRequest.setConfirmedAt(now);
