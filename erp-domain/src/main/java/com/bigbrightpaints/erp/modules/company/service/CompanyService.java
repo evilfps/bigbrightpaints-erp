@@ -25,10 +25,12 @@ import org.springframework.util.StringUtils;
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
+import com.bigbrightpaints.erp.modules.auth.service.PasswordResetService;
 import com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
@@ -76,9 +78,11 @@ public class CompanyService {
   private final TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
   private final TenantAdminProvisioningService tenantAdminProvisioningService;
   private final TenantLifecycleService tenantLifecycleService;
+  private final PasswordResetService passwordResetService;
+  private final EmailService emailService;
 
   public CompanyService(CompanyRepository repository) {
-    this(repository, null, null, null, null, null, null);
+    this(repository, null, null, null, null, null, null, null, null);
   }
 
   public CompanyService(
@@ -86,7 +90,16 @@ public class CompanyService {
       AuditService auditService,
       UserAccountRepository userAccountRepository,
       AuditLogRepository auditLogRepository) {
-    this(repository, auditService, userAccountRepository, auditLogRepository, null, null, null);
+    this(
+        repository,
+        auditService,
+        userAccountRepository,
+        auditLogRepository,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   public CompanyService(
@@ -102,6 +115,8 @@ public class CompanyService {
         auditLogRepository,
         tenantRuntimeEnforcementService,
         null,
+        null,
+        null,
         null);
   }
 
@@ -113,7 +128,9 @@ public class CompanyService {
       AuditLogRepository auditLogRepository,
       TenantRuntimeEnforcementService tenantRuntimeEnforcementService,
       TenantAdminProvisioningService tenantAdminProvisioningService,
-      TenantLifecycleService tenantLifecycleService) {
+      TenantLifecycleService tenantLifecycleService,
+      PasswordResetService passwordResetService,
+      EmailService emailService) {
     this.repository = repository;
     this.auditService = auditService;
     this.userAccountRepository = userAccountRepository;
@@ -121,6 +138,8 @@ public class CompanyService {
     this.tenantRuntimeEnforcementService = tenantRuntimeEnforcementService;
     this.tenantAdminProvisioningService = tenantAdminProvisioningService;
     this.tenantLifecycleService = tenantLifecycleService;
+    this.passwordResetService = passwordResetService;
+    this.emailService = emailService;
   }
 
   public List<CompanyDto> findAll() {
@@ -562,7 +581,7 @@ public class CompanyService {
                     com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                         "Company not found"));
     assertBoundControlPlaneCompanyMatchesTarget(company.getCode());
-    requireCredentialProvisioningReady();
+    requirePasswordResetReady();
     String resetEmail =
         tenantAdminProvisioningService.resetTenantAdminPassword(company, adminEmail);
     if (auditService != null) {
@@ -582,7 +601,7 @@ public class CompanyService {
           true, "tenant-admin-password-reset", company.getCode(), authentication);
     }
     return new CompanyAdminCredentialResetDto(
-        company.getId(), company.getCode(), resetEmail, "credentials-emailed");
+        company.getId(), company.getCode(), resetEmail, "reset-link-emailed");
   }
 
   private CompanyTenantMetricsDto buildTenantMetrics(Company company) {
@@ -864,6 +883,18 @@ public class CompanyService {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
           "Credential email delivery is disabled; enable erp.mail.enabled=true and"
               + " erp.mail.send-credentials=true");
+    }
+  }
+
+  private void requirePasswordResetReady() {
+    if (passwordResetService == null) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+          "Password reset dependencies are not available");
+    }
+    if (!emailService.isPasswordResetEmailDeliveryEnabled()) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+          "Password reset email delivery is disabled; enable erp.mail.enabled=true and"
+              + " erp.mail.send-password-reset=true");
     }
   }
 

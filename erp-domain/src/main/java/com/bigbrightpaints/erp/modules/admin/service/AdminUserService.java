@@ -13,7 +13,6 @@ import java.util.stream.Collectors;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -24,7 +23,6 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
 import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
-import com.bigbrightpaints.erp.core.util.PasswordUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.admin.dto.CreateUserRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.UpdateUserRequest;
@@ -33,6 +31,7 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.service.PasswordResetService;
 import com.bigbrightpaints.erp.modules.auth.service.RefreshTokenService;
+import com.bigbrightpaints.erp.modules.auth.service.ScopedAccountBootstrapService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -53,11 +52,11 @@ public class AdminUserService {
   private final CompanyContextService companyContextService;
   private final CompanyRepository companyRepository;
   private final RoleService roleService;
-  private final PasswordEncoder passwordEncoder;
   private final EmailService emailService;
   private final TokenBlacklistService tokenBlacklistService;
   private final RefreshTokenService refreshTokenService;
   private final PasswordResetService passwordResetService;
+  private final ScopedAccountBootstrapService scopedAccountBootstrapService;
   private final AuditService auditService;
   private final AuditLogRepository auditLogRepository;
   private final DealerRepository dealerRepository;
@@ -69,11 +68,11 @@ public class AdminUserService {
       CompanyContextService companyContextService,
       CompanyRepository companyRepository,
       RoleService roleService,
-      PasswordEncoder passwordEncoder,
       EmailService emailService,
       TokenBlacklistService tokenBlacklistService,
       RefreshTokenService refreshTokenService,
       PasswordResetService passwordResetService,
+      ScopedAccountBootstrapService scopedAccountBootstrapService,
       AuditService auditService,
       AuditLogRepository auditLogRepository,
       DealerRepository dealerRepository,
@@ -83,11 +82,11 @@ public class AdminUserService {
     this.companyContextService = companyContextService;
     this.companyRepository = companyRepository;
     this.roleService = roleService;
-    this.passwordEncoder = passwordEncoder;
     this.emailService = emailService;
     this.tokenBlacklistService = tokenBlacklistService;
     this.refreshTokenService = refreshTokenService;
     this.passwordResetService = passwordResetService;
+    this.scopedAccountBootstrapService = scopedAccountBootstrapService;
     this.auditService = auditService;
     this.auditLogRepository = auditLogRepository;
     this.dealerRepository = dealerRepository;
@@ -112,42 +111,27 @@ public class AdminUserService {
     targetCompanies.forEach(
         targetCompany ->
             tenantRuntimePolicyService.assertCanAddEnabledUser(targetCompany, "ADMIN_USER_CREATE"));
-    boolean isTemporaryPassword = !StringUtils.hasText(request.password());
-    String tempPassword =
-        isTemporaryPassword ? PasswordUtils.generateTemporaryPassword(12) : request.password();
-    UserAccount user =
-        new UserAccount(
-            request.email(), passwordEncoder.encode(tempPassword), request.displayName());
-
-    // Force password change if using temporary password
-    if (isTemporaryPassword) {
-      user.setMustChangePassword(true);
-    }
-
-    attachCompanies(user, targetCompanies);
+    Company targetCompany = targetCompanies.getFirst();
+    UserAccount user = new UserAccount();
     attachRoles(user, request.roles());
-    UserAccount saved = userRepository.save(user);
-    saved.getRoles().removeIf(java.util.Objects::isNull);
-    if (saved.getRoles().isEmpty() && request.roles() != null && !request.roles().isEmpty()) {
-      attachRoles(saved, request.roles());
-      saved = userRepository.save(saved);
-    }
+    UserAccount saved =
+        scopedAccountBootstrapService.provisionTenantAccount(
+            targetCompany, request.email(), request.displayName(), user.getRoles());
 
     // Auto-create Dealer entity if user has ROLE_DEALER
     boolean isDealerUser =
         request.roles().stream()
             .anyMatch(r -> r.equalsIgnoreCase("ROLE_DEALER") || r.equalsIgnoreCase("DEALER"));
-    if (isDealerUser && !targetCompanies.isEmpty()) {
-      createDealerForUser(saved, targetCompanies.getFirst());
+    if (isDealerUser) {
+      createDealerForUser(saved, targetCompany);
     }
 
-    emailService.sendUserCredentialsEmail(saved.getEmail(), saved.getDisplayName(), tempPassword);
     auditUserAccountAction(
         AuditEvent.USER_CREATED,
         saved,
         company,
         "admin_user_create",
-        Map.of("temporaryPasswordIssued", Boolean.toString(isTemporaryPassword)));
+        Map.of("provisioningMode", "EMAIL_ONLY_TEMP_PASSWORD"));
     Instant lastLoginAt = resolveLastLoginAt(saved.getEmail());
     UserDto dto = toDto(saved, lastLoginAt);
     if (!dto.roles().isEmpty()) {
@@ -484,15 +468,19 @@ public class AdminUserService {
 
   private List<Company> resolveTargetCompaniesForCreate(
       Company activeCompany, List<Long> companyIds) {
-    if (!hasSuperAdminAuthority()) {
-      validateCompanyScope(activeCompany, companyIds);
-      return List.of(activeCompany);
-    }
     if (companyIds == null || companyIds.isEmpty()) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "User must belong to an active company");
     }
     Set<Long> requestedCompanyIds = new LinkedHashSet<>(companyIds);
+    if (requestedCompanyIds.size() != 1) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "User must be assigned to exactly one company");
+    }
+    if (!hasSuperAdminAuthority()) {
+      validateCompanyScope(activeCompany, companyIds);
+      return List.of(activeCompany);
+    }
     Map<Long, Company> companiesById =
         companyRepository.findAllById(requestedCompanyIds).stream()
             .collect(Collectors.toMap(Company::getId, company -> company));
@@ -505,7 +493,7 @@ public class AdminUserService {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Company not found: " + missingCompanyId);
     }
-    return companyIds.stream().distinct().map(companiesById::get).toList();
+    return List.of(companiesById.get(requestedCompanyIds.iterator().next()));
   }
 
   private boolean hasSuperAdminAuthority() {

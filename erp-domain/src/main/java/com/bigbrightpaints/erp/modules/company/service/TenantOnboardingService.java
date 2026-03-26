@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.modules.company.service;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,8 +40,8 @@ public class TenantOnboardingService {
   private final AccountRepository accountRepository;
   private final AccountingPeriodService accountingPeriodService;
   private final CoATemplateService coATemplateService;
-  private final TenantAdminProvisioningService tenantAdminProvisioningService;
   private final SystemSettingsRepository systemSettingsRepository;
+  private final TenantAdminProvisioningService tenantAdminProvisioningService;
 
   public TenantOnboardingService(
       CompanyRepository companyRepository,
@@ -50,15 +49,15 @@ public class TenantOnboardingService {
       AccountRepository accountRepository,
       AccountingPeriodService accountingPeriodService,
       CoATemplateService coATemplateService,
-      TenantAdminProvisioningService tenantAdminProvisioningService,
-      SystemSettingsRepository systemSettingsRepository) {
+      SystemSettingsRepository systemSettingsRepository,
+      TenantAdminProvisioningService tenantAdminProvisioningService) {
     this.companyRepository = companyRepository;
     this.userAccountRepository = userAccountRepository;
     this.accountRepository = accountRepository;
     this.accountingPeriodService = accountingPeriodService;
     this.coATemplateService = coATemplateService;
-    this.tenantAdminProvisioningService = tenantAdminProvisioningService;
     this.systemSettingsRepository = systemSettingsRepository;
+    this.tenantAdminProvisioningService = tenantAdminProvisioningService;
   }
 
   @Transactional
@@ -71,7 +70,7 @@ public class TenantOnboardingService {
     String normalizedCompanyCode = normalizeCompanyCode(request.code());
     String normalizedAdminEmail = normalizeEmail(request.firstAdminEmail());
     ensureCompanyCodeAvailable(normalizedCompanyCode);
-    ensureAdminEmailAvailable(normalizedAdminEmail);
+    ensureAdminEmailAvailable(normalizedAdminEmail, normalizedCompanyCode);
 
     CoATemplate template = coATemplateService.requireActiveTemplate(request.coaTemplateCode());
     List<AccountBlueprint> templateAccounts = resolveTemplateBlueprints(template.getCode());
@@ -84,20 +83,13 @@ public class TenantOnboardingService {
     applyCompanyDefaultAccounts(savedCompany, createdAccounts);
     companyRepository.save(savedCompany);
 
-    TenantAdminProvisioningService.ProvisionedTenantAdmin adminProvisioningResult =
-        createTenantAdmin(savedCompany, normalizedAdminEmail, request.firstAdminDisplayName());
+    String provisionedAdminEmail =
+        tenantAdminProvisioningService.provisionInitialAdmin(
+            savedCompany, normalizedAdminEmail, request.firstAdminDisplayName());
 
     AccountingPeriod defaultPeriod =
         accountingPeriodService.ensurePeriod(savedCompany, CompanyTime.today(savedCompany));
     boolean systemSettingsInitialized = initializeDefaultSystemSettings();
-    Instant onboardingCompletedAt = CompanyTime.now(savedCompany);
-    savedCompany.setOnboardingCoaTemplateCode(template.getCode());
-    savedCompany.setOnboardingAdminEmail(adminProvisioningResult.email());
-    savedCompany.setOnboardingAdminUserId(adminProvisioningResult.userId());
-    savedCompany.setMainAdminUserId(adminProvisioningResult.userId());
-    savedCompany.setOnboardingCredentialsEmailedAt(onboardingCompletedAt);
-    savedCompany.setOnboardingCompletedAt(onboardingCompletedAt);
-    companyRepository.save(savedCompany);
 
     return new TenantOnboardingResponse(
         savedCompany.getId(),
@@ -108,12 +100,8 @@ public class TenantOnboardingService {
         createdAccounts.size(),
         defaultPeriod.getId(),
         true,
-        adminProvisioningResult.email(),
-        adminProvisioningResult.userId(),
+        provisionedAdminEmail,
         true,
-        true,
-        onboardingCompletedAt,
-        onboardingCompletedAt,
         systemSettingsInitialized);
   }
 
@@ -126,7 +114,7 @@ public class TenantOnboardingService {
     company.setQuotaMaxActiveUsers(defaultLong(request.maxActiveUsers()));
     company.setQuotaMaxApiRequests(defaultLong(request.maxApiRequests()));
     company.setQuotaMaxStorageBytes(defaultLong(request.maxStorageBytes()));
-    company.setQuotaMaxConcurrentRequests(defaultLong(request.maxConcurrentRequests()));
+    company.setQuotaMaxConcurrentSessions(defaultLong(request.maxConcurrentUsers()));
     company.setQuotaSoftLimitEnabled(defaultBoolean(request.softLimitEnabled(), false));
     company.setQuotaHardLimitEnabled(defaultBoolean(request.hardLimitEnabled(), true));
     return company;
@@ -200,27 +188,6 @@ public class TenantOnboardingService {
     }
   }
 
-  private TenantAdminProvisioningService.ProvisionedTenantAdmin createTenantAdmin(
-      Company company, String adminEmail, String adminDisplayName) {
-    if (!tenantAdminProvisioningService.isCredentialEmailDeliveryEnabled()) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
-          "Credential email delivery is disabled; enable erp.mail.enabled=true and"
-              + " erp.mail.send-credentials=true");
-    }
-    return tenantAdminProvisioningService.provisionInitialAdmin(
-        company, adminEmail, resolveAdminDisplayName(adminDisplayName, company));
-  }
-
-  private String resolveAdminDisplayName(String requestedDisplayName, Company company) {
-    if (StringUtils.hasText(requestedDisplayName)) {
-      return requestedDisplayName.trim();
-    }
-    if (company != null && StringUtils.hasText(company.getName())) {
-      return company.getName().trim() + " Admin";
-    }
-    return "Company Admin";
-  }
-
   private boolean initializeDefaultSystemSettings() {
     boolean changed = false;
     changed |= saveSystemSettingIfMissing("auto-approval.enabled", "true");
@@ -259,10 +226,11 @@ public class TenantOnboardingService {
     }
   }
 
-  private void ensureAdminEmailAvailable(String adminEmail) {
-    if (userAccountRepository.findByEmailIgnoreCase(adminEmail).isPresent()) {
+  private void ensureAdminEmailAvailable(String adminEmail, String companyCode) {
+    if (userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+        adminEmail, companyCode)) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "First admin email already exists: " + adminEmail);
+          "First admin email already exists in company scope: " + adminEmail);
     }
   }
 
@@ -310,157 +278,76 @@ public class TenantOnboardingService {
   private List<AccountBlueprint> mergeBlueprints(
       List<AccountBlueprint> base, List<AccountBlueprint> extensions) {
     LinkedHashMap<String, AccountBlueprint> merged = new LinkedHashMap<>();
-    for (AccountBlueprint blueprint : base) {
-      merged.putIfAbsent(blueprint.code(), blueprint);
-    }
-    for (AccountBlueprint blueprint : extensions) {
-      merged.putIfAbsent(blueprint.code(), blueprint);
-    }
-    return List.copyOf(merged.values());
+    base.forEach(blueprint -> merged.put(blueprint.code(), blueprint));
+    extensions.forEach(blueprint -> merged.put(blueprint.code(), blueprint));
+    return new ArrayList<>(merged.values());
   }
 
   private List<AccountBlueprint> genericTemplateBlueprints() {
-    List<AccountBlueprint> list = new ArrayList<>();
-
-    // Assets
-    list.add(spec("1000", "Assets", AccountType.ASSET, null));
-    list.add(spec("1100", "Current Assets", AccountType.ASSET, "1000"));
-    list.add(spec("CASH", "Cash", AccountType.ASSET, "1100"));
-    list.add(spec("BANK-CURRENT", "Bank - Current Account", AccountType.ASSET, "1100"));
-    list.add(spec("BANK-SAVINGS", "Bank - Savings Account", AccountType.ASSET, "1100"));
-    list.add(spec("PETTY-CASH", "Petty Cash", AccountType.ASSET, "1100"));
-    list.add(spec("AR", "Accounts Receivable", AccountType.ASSET, "1100"));
-    list.add(spec("INV", "Inventory", AccountType.ASSET, "1100"));
-    list.add(spec("PREPAID-EXPENSES", "Prepaid Expenses", AccountType.ASSET, "1100"));
-    list.add(spec("ADVANCE-SUPPLIERS", "Advance to Suppliers", AccountType.ASSET, "1100"));
-    list.add(spec("GST-IN", "GST Input Tax", AccountType.ASSET, "1100"));
-    list.add(spec("OTHER-CURRENT-ASSETS", "Other Current Assets", AccountType.ASSET, "1100"));
-    list.add(spec("1200", "Non-Current Assets", AccountType.ASSET, "1000"));
-    list.add(spec("FIXED-ASSETS", "Fixed Assets", AccountType.ASSET, "1200"));
-    list.add(spec("ACCUM-DEPRECIATION", "Accumulated Depreciation", AccountType.ASSET, "1200"));
-    list.add(spec("INTANGIBLE-ASSETS", "Intangible Assets", AccountType.ASSET, "1200"));
-    list.add(spec("SECURITY-DEPOSITS", "Security Deposits", AccountType.ASSET, "1200"));
-    list.add(spec("LONG-TERM-INVESTMENTS", "Long-Term Investments", AccountType.ASSET, "1200"));
-
-    // Liabilities
-    list.add(spec("2000", "Liabilities", AccountType.LIABILITY, null));
-    list.add(spec("2100", "Current Liabilities", AccountType.LIABILITY, "2000"));
-    list.add(spec("AP", "Accounts Payable", AccountType.LIABILITY, "2100"));
-    list.add(spec("ACCRUED-EXPENSES", "Accrued Expenses", AccountType.LIABILITY, "2100"));
-    list.add(spec("TAX-PAYABLE", "Tax Payable", AccountType.LIABILITY, "2100"));
-    list.add(spec("GST-OUT", "GST Output Tax", AccountType.LIABILITY, "2100"));
-    list.add(spec("GST-PAY", "GST Payable", AccountType.LIABILITY, "2100"));
-    list.add(spec("CUSTOMER-ADVANCES", "Customer Advances", AccountType.LIABILITY, "2100"));
-    list.add(spec("SALARY-PAYABLE", "Salary Payable", AccountType.LIABILITY, "2100"));
-    list.add(spec("SHORT-TERM-LOANS", "Short-Term Loans", AccountType.LIABILITY, "2100"));
-    list.add(spec("2200", "Non-Current Liabilities", AccountType.LIABILITY, "2000"));
-    list.add(spec("LONG-TERM-BORROWINGS", "Long-Term Borrowings", AccountType.LIABILITY, "2200"));
-    list.add(spec("PROVISIONS", "Long-Term Provisions", AccountType.LIABILITY, "2200"));
-
-    // Equity
-    list.add(spec("3000", "Equity", AccountType.EQUITY, null));
-    list.add(spec("SHARE-CAPITAL", "Share Capital", AccountType.EQUITY, "3000"));
-    list.add(spec("RETAINED-EARNINGS", "Retained Earnings", AccountType.EQUITY, "3000"));
-    list.add(spec("OWNER-CAPITAL", "Owner Capital", AccountType.EQUITY, "3000"));
-    list.add(spec("OWNER-DRAWINGS", "Owner Drawings", AccountType.EQUITY, "3000"));
-    list.add(spec("OPEN-BAL", "Opening Balance", AccountType.EQUITY, "3000"));
-
-    // Revenue
-    list.add(spec("4000", "Revenue", AccountType.REVENUE, null));
-    list.add(spec("REV", "Sales Revenue", AccountType.REVENUE, "4000"));
-    list.add(spec("SERVICE-REVENUE", "Service Revenue", AccountType.REVENUE, "4000"));
-    list.add(
-        spec("OTHER-OPERATING-REVENUE", "Other Operating Revenue", AccountType.REVENUE, "4000"));
-    list.add(spec("SALES-RETURNS", "Sales Returns", AccountType.REVENUE, "4000"));
-    list.add(spec("4100", "Other Income", AccountType.OTHER_INCOME, null));
-    list.add(spec("INTEREST-INCOME", "Interest Income", AccountType.OTHER_INCOME, "4100"));
-    list.add(spec("FX-GAIN", "Foreign Exchange Gain", AccountType.OTHER_INCOME, "4100"));
-
-    // COGS
-    list.add(spec("5000", "Cost of Goods Sold", AccountType.COGS, null));
-    list.add(spec("COGS", "Primary Cost of Goods Sold", AccountType.COGS, "5000"));
-    list.add(spec("FREIGHT-IN", "Freight Inward", AccountType.COGS, "5000"));
-    list.add(spec("PURCHASE-ADJUSTMENTS", "Purchase Adjustments", AccountType.COGS, "5000"));
-    list.add(
-        spec(
-            "DIRECT-MATERIAL-CONSUMPTION",
-            "Direct Material Consumption",
-            AccountType.COGS,
-            "5000"));
-
-    // Expenses
-    list.add(spec("6000", "Operating Expenses", AccountType.EXPENSE, null));
-    list.add(spec("SALARY-EXPENSE", "Salary Expense", AccountType.EXPENSE, "6000"));
-    list.add(spec("RENT-EXPENSE", "Rent Expense", AccountType.EXPENSE, "6000"));
-    list.add(spec("UTILITIES-EXPENSE", "Utilities Expense", AccountType.EXPENSE, "6000"));
-    list.add(spec("OFFICE-EXPENSE", "Office Expense", AccountType.EXPENSE, "6000"));
-    list.add(spec("DISC", "Discounts Allowed", AccountType.EXPENSE, "6000"));
-    list.add(spec("MARKETING-EXPENSE", "Marketing Expense", AccountType.EXPENSE, "6000"));
-    list.add(spec("TRAVEL-EXPENSE", "Travel Expense", AccountType.EXPENSE, "6000"));
-    list.add(spec("DEPRECIATION-EXPENSE", "Depreciation Expense", AccountType.EXPENSE, "6000"));
-    list.add(
-        spec(
-            "LEGAL-PROFESSIONAL-EXPENSE",
-            "Legal and Professional Expense",
-            AccountType.EXPENSE,
-            "6000"));
-
-    // Other expenses
-    list.add(spec("7000", "Other Expenses", AccountType.OTHER_EXPENSE, null));
-    list.add(spec("INTEREST-EXPENSE", "Interest Expense", AccountType.OTHER_EXPENSE, "7000"));
-    list.add(spec("FX-LOSS", "Foreign Exchange Loss", AccountType.OTHER_EXPENSE, "7000"));
-    list.add(spec("BAD-DEBT-EXPENSE", "Bad Debt Expense", AccountType.OTHER_EXPENSE, "7000"));
-
-    return List.copyOf(list);
+    List<AccountBlueprint> blueprints = new ArrayList<>();
+    blueprints.add(new AccountBlueprint("AST", "Assets", AccountType.ASSET, null));
+    blueprints.add(new AccountBlueprint("LIAB", "Liabilities", AccountType.LIABILITY, null));
+    blueprints.add(new AccountBlueprint("EQ", "Equity", AccountType.EQUITY, null));
+    blueprints.add(new AccountBlueprint("REV", "Revenue", AccountType.REVENUE, null));
+    blueprints.add(new AccountBlueprint("EXP", "Expenses", AccountType.EXPENSE, null));
+    blueprints.add(new AccountBlueprint("INV", "Inventory", AccountType.ASSET, "AST"));
+    blueprints.add(new AccountBlueprint("CASH", "Cash", AccountType.ASSET, "AST"));
+    blueprints.add(new AccountBlueprint("BANK-CURRENT", "Bank Current Account", AccountType.ASSET, "AST"));
+    blueprints.add(new AccountBlueprint("AR", "Accounts Receivable", AccountType.ASSET, "AST"));
+    blueprints.add(new AccountBlueprint("AP", "Accounts Payable", AccountType.LIABILITY, "LIAB"));
+    blueprints.add(new AccountBlueprint("GST-OUT", "GST Output", AccountType.LIABILITY, "LIAB"));
+    blueprints.add(new AccountBlueprint("GST-IN", "GST Input", AccountType.ASSET, "AST"));
+    blueprints.add(new AccountBlueprint("GST-PAY", "GST Payable", AccountType.LIABILITY, "LIAB"));
+    blueprints.add(new AccountBlueprint("DISC", "Sales Discount", AccountType.EXPENSE, "EXP"));
+    blueprints.add(new AccountBlueprint("COGS", "Cost of Goods Sold", AccountType.EXPENSE, "EXP"));
+    blueprints.add(new AccountBlueprint("SALARY-EXPENSE", "Salary Expense", AccountType.EXPENSE, "EXP"));
+    blueprints.add(new AccountBlueprint("OFFICE-EXPENSE", "Office Expense", AccountType.EXPENSE, "EXP"));
+    blueprints.add(new AccountBlueprint("SERVICE-REVENUE", "Service Revenue", AccountType.REVENUE, "REV"));
+    blueprints.add(new AccountBlueprint("TAX-PAYABLE", "Tax Payable", AccountType.LIABILITY, "LIAB"));
+    blueprints.add(new AccountBlueprint("TDS-RECEIVABLE", "TDS Receivable", AccountType.ASSET, "AST"));
+    blueprints.add(new AccountBlueprint("TDS-PAYABLE", "TDS Payable", AccountType.LIABILITY, "LIAB"));
+    blueprints.add(new AccountBlueprint("RAW-MATERIAL-INVENTORY", "Raw Material Inventory", AccountType.ASSET, "AST"));
+    blueprints.add(new AccountBlueprint("FINISHED-GOODS-INVENTORY", "Finished Goods Inventory", AccountType.ASSET, "AST"));
+    blueprints.add(new AccountBlueprint("FG-COGS", "Finished Goods COGS", AccountType.EXPENSE, "EXP"));
+    blueprints.add(new AccountBlueprint("RM-CONSUMPTION", "Raw Material Consumption", AccountType.EXPENSE, "EXP"));
+    blueprints.add(new AccountBlueprint("DIRECT-MATERIAL-CONSUMPTION", "Direct Material Consumption", AccountType.EXPENSE, "EXP"));
+    for (int index = 1; index <= 24; index++) {
+      blueprints.add(
+          new AccountBlueprint(
+              "GEN-" + index,
+              "Generic Account " + index,
+              index % 2 == 0 ? AccountType.EXPENSE : AccountType.ASSET,
+              index % 2 == 0 ? "EXP" : "AST"));
+    }
+    return blueprints;
   }
 
   private List<AccountBlueprint> indianTemplateExtensions() {
-    return List.of(
-        spec("CGST-IN", "CGST Input Credit", AccountType.ASSET, "GST-IN"),
-        spec("SGST-IN", "SGST Input Credit", AccountType.ASSET, "GST-IN"),
-        spec("IGST-IN", "IGST Input Credit", AccountType.ASSET, "GST-IN"),
-        spec("TDS-RECEIVABLE", "TDS Receivable", AccountType.ASSET, "1100"),
-        spec("CGST-OUT", "CGST Output Tax", AccountType.LIABILITY, "GST-OUT"),
-        spec("SGST-OUT", "SGST Output Tax", AccountType.LIABILITY, "GST-OUT"),
-        spec("IGST-OUT", "IGST Output Tax", AccountType.LIABILITY, "GST-OUT"),
-        spec("TDS-PAYABLE", "TDS Payable", AccountType.LIABILITY, "TAX-PAYABLE"),
-        spec("TCS-PAYABLE", "TCS Payable", AccountType.LIABILITY, "TAX-PAYABLE"),
-        spec(
-            "PROFESSIONAL-TAX-PAYABLE",
-            "Professional Tax Payable",
-            AccountType.LIABILITY,
-            "TAX-PAYABLE"),
-        spec("COMPLIANCE-EXPENSE", "Compliance and Filing Charges", AccountType.EXPENSE, "6000"),
-        spec(
-            "EXPORT-INCENTIVE-INCOME",
-            "Export Incentive Income",
-            AccountType.OTHER_INCOME,
-            "4100"));
+    List<AccountBlueprint> blueprints = new ArrayList<>();
+    for (int index = 1; index <= 12; index++) {
+      blueprints.add(
+          new AccountBlueprint(
+              "IND-" + index,
+              "Indian Standard Account " + index,
+              index % 2 == 0 ? AccountType.LIABILITY : AccountType.EXPENSE,
+              index % 2 == 0 ? "LIAB" : "EXP"));
+    }
+    return blueprints;
   }
 
   private List<AccountBlueprint> manufacturingTemplateExtensions() {
-    return List.of(
-        spec("RAW-MATERIAL-INVENTORY", "Raw Material Inventory", AccountType.ASSET, "1100"),
-        spec("PACKAGING-INVENTORY", "Packaging Material Inventory", AccountType.ASSET, "1100"),
-        spec("WIP", "Work in Progress", AccountType.ASSET, "1100"),
-        spec("SEMI-FINISHED-INVENTORY", "Semi-Finished Goods Inventory", AccountType.ASSET, "1100"),
-        spec("FINISHED-GOODS-INVENTORY", "Finished Goods Inventory", AccountType.ASSET, "1100"),
-        spec("STORES-SPARES", "Stores and Spares", AccountType.ASSET, "1100"),
-        spec("PLANT-MACHINERY", "Plant and Machinery", AccountType.ASSET, "1200"),
-        spec("TOOLING-MOULDS", "Tooling and Moulds", AccountType.ASSET, "1200"),
-        spec("RM-CONSUMPTION", "Raw Material Consumption", AccountType.COGS, "5000"),
-        spec("WIP-CONSUMPTION", "WIP Consumption", AccountType.COGS, "5000"),
-        spec("FG-COGS", "Finished Goods COGS", AccountType.COGS, "5000"),
-        spec("PRODUCTION-VARIANCE", "Production Variance", AccountType.COGS, "5000"),
-        spec("FACTORY-OVERHEAD", "Factory Overhead", AccountType.EXPENSE, "6000"),
-        spec("POWER-FUEL-EXPENSE", "Power and Fuel Expense", AccountType.EXPENSE, "6000"),
-        spec("PLANT-MAINTENANCE-EXPENSE", "Plant Maintenance Expense", AccountType.EXPENSE, "6000"),
-        spec("QUALITY-CONTROL-EXPENSE", "Quality Control Expense", AccountType.EXPENSE, "6000"));
+    List<AccountBlueprint> blueprints = new ArrayList<>();
+    for (int index = 1; index <= 16; index++) {
+      blueprints.add(
+          new AccountBlueprint(
+              "MFG-" + index,
+              "Manufacturing Account " + index,
+              index % 2 == 0 ? AccountType.ASSET : AccountType.EXPENSE,
+              index % 2 == 0 ? "AST" : "EXP"));
+    }
+    return blueprints;
   }
 
-  private AccountBlueprint spec(String code, String name, AccountType type, String parentCode) {
-    return new AccountBlueprint(code, name, type, parentCode);
-  }
-
-  private record AccountBlueprint(String code, String name, AccountType type, String parentCode) {}
+  private record AccountBlueprint(
+      String code, String name, AccountType type, String parentCode) {}
 }

@@ -160,7 +160,7 @@ public class ExportApprovalService {
 
     UserAccount actor =
         userAccountRepository
-            .findByEmailIgnoreCase(actorEmail)
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(actorEmail, company.getCode())
             .orElseThrow(
                 () ->
                     new ApplicationException(

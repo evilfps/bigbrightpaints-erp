@@ -2,7 +2,6 @@ package com.bigbrightpaints.erp.modules.sales.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -13,15 +12,11 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
-import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -33,8 +28,10 @@ import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.bigbrightpaints.erp.modules.auth.service.ScopedAccountBootstrapService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerPaymentTerms;
@@ -52,12 +49,6 @@ public class DealerService {
 
   private static final Logger log = LoggerFactory.getLogger(DealerService.class);
   private static final int DEALER_SEARCH_LIMIT = 10;
-  private static final SecureRandom RANDOM = new SecureRandom();
-  private static final String LOWER = "abcdefghijklmnopqrstuvwxyz";
-  private static final String UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  private static final String DIGITS = "0123456789";
-  private static final String SPECIAL = "!@#$%^&*";
-  private static final String ALL = LOWER + UPPER + DIGITS + SPECIAL;
   private static final Pattern GSTIN_PATTERN = Pattern.compile("^[0-9]{2}[A-Z0-9]{13}$");
   private static final String PORTAL_AGING_BUCKETS = "0-0,1-30,31-60,61-90,91";
 
@@ -65,8 +56,7 @@ public class DealerService {
   private final CompanyContextService companyContextService;
   private final UserAccountRepository userAccountRepository;
   private final RoleService roleService;
-  private final PasswordEncoder passwordEncoder;
-  private final EmailService emailService;
+  private final ScopedAccountBootstrapService scopedAccountBootstrapService;
   private final AccountRepository accountRepository;
   private final DealerLedgerService dealerLedgerService;
   private final StatementService statementService;
@@ -78,8 +68,7 @@ public class DealerService {
       CompanyContextService companyContextService,
       UserAccountRepository userAccountRepository,
       RoleService roleService,
-      PasswordEncoder passwordEncoder,
-      EmailService emailService,
+      ScopedAccountBootstrapService scopedAccountBootstrapService,
       AccountRepository accountRepository,
       DealerLedgerService dealerLedgerService,
       StatementService statementService,
@@ -89,8 +78,7 @@ public class DealerService {
     this.companyContextService = companyContextService;
     this.userAccountRepository = userAccountRepository;
     this.roleService = roleService;
-    this.passwordEncoder = passwordEncoder;
-    this.emailService = emailService;
+    this.scopedAccountBootstrapService = scopedAccountBootstrapService;
     this.accountRepository = accountRepository;
     this.dealerLedgerService = dealerLedgerService;
     this.statementService = statementService;
@@ -142,13 +130,15 @@ public class DealerService {
 
     dealer = dealerRepository.save(dealer);
 
-    String rawPassword = null;
-    UserAccount portalUser = userAccountRepository.findByEmailIgnoreCase(contactEmail).orElse(null);
+    UserAccount portalUser =
+        userAccountRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(contactEmail, company.getCode())
+            .orElse(null);
     if (portalUser == null) {
-      rawPassword = generateRandomPassword();
+      Role dealerRole = roleService.ensureRoleExists("ROLE_DEALER");
       portalUser =
-          new UserAccount(contactEmail, passwordEncoder.encode(rawPassword), dealer.getName());
-      portalUser.setMustChangePassword(true);
+          scopedAccountBootstrapService.provisionTenantAccount(
+              company, contactEmail, dealer.getName(), List.of(dealerRole));
     }
     portalUser.getRoles().add(roleService.ensureRoleExists("ROLE_DEALER"));
     portalUser.getCompanies().add(company);
@@ -166,8 +156,6 @@ public class DealerService {
     dealer.setPortalUser(portalUser);
     dealer.setReceivableAccount(receivableAccount);
     dealer = dealerRepository.save(dealer);
-
-    scheduleCredentialEmailAfterCommit(contactEmail, dealer.getName(), rawPassword);
     return toResponse(dealer, portalUser.getEmail());
   }
 
@@ -354,46 +342,6 @@ public class DealerService {
     payload.put("currentBalance", running);
     payload.put("entries", lines);
     return payload;
-  }
-
-  private String generateRandomPassword() {
-    int length = 12;
-    List<Character> chars = new ArrayList<>();
-    chars.add(LOWER.charAt(RANDOM.nextInt(LOWER.length())));
-    chars.add(UPPER.charAt(RANDOM.nextInt(UPPER.length())));
-    chars.add(DIGITS.charAt(RANDOM.nextInt(DIGITS.length())));
-    chars.add(SPECIAL.charAt(RANDOM.nextInt(SPECIAL.length())));
-    for (int i = chars.size(); i < length; i++) {
-      chars.add(ALL.charAt(RANDOM.nextInt(ALL.length())));
-    }
-    java.util.Collections.shuffle(chars, RANDOM);
-    StringBuilder sb = new StringBuilder(length);
-    for (char c : chars) {
-      sb.append(c);
-    }
-    return sb.toString();
-  }
-
-  private void scheduleCredentialEmailAfterCommit(
-      String contactEmail, String dealerName, String rawPassword) {
-    if (!StringUtils.hasText(rawPassword)) {
-      return;
-    }
-    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-      emailService.sendUserCredentialsEmail(contactEmail, dealerName, rawPassword);
-      return;
-    }
-    TransactionSynchronizationManager.registerSynchronization(
-        new TransactionSynchronization() {
-          @Override
-          public void afterCommit() {
-            try {
-              emailService.sendUserCredentialsEmail(contactEmail, dealerName, rawPassword);
-            } catch (RuntimeException ex) {
-              log.error("Dealer credentials email failed after commit for {}", contactEmail, ex);
-            }
-          }
-        });
   }
 
   private DealerResponse toResponse(Dealer dealer, String portalEmail) {
