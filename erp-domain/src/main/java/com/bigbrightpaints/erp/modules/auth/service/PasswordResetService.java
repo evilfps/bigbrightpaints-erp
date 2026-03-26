@@ -18,12 +18,15 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.config.EmailProperties;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
+import com.bigbrightpaints.erp.core.security.SecurityMonitoringService;
 import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetToken;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetTokenRepository;
@@ -48,12 +51,15 @@ public class PasswordResetService {
   private static final int MAX_TENANT_CONTEXT_LENGTH = 64;
   private static final Pattern SAFE_TENANT_CONTEXT_PATTERN =
       Pattern.compile("^[A-Za-z0-9._:-]{1,64}$");
+  private static final String RATE_LIMIT_PREFIX = "password-reset";
 
   private final UserAccountRepository userAccountRepository;
   private final PasswordResetTokenRepository tokenRepository;
   private final PasswordService passwordService;
   private final EmailService emailService;
   private final EmailProperties emailProperties;
+  private final AuditService auditService;
+  private final SecurityMonitoringService securityMonitoringService;
   private final TokenBlacklistService tokenBlacklistService;
   private final RefreshTokenService refreshTokenService;
   private final AuthScopeService authScopeService;
@@ -69,6 +75,8 @@ public class PasswordResetService {
       PasswordService passwordService,
       EmailService emailService,
       EmailProperties emailProperties,
+      AuditService auditService,
+      SecurityMonitoringService securityMonitoringService,
       TokenBlacklistService tokenBlacklistService,
       RefreshTokenService refreshTokenService,
       AuthScopeService authScopeService,
@@ -78,6 +86,8 @@ public class PasswordResetService {
     this.passwordService = passwordService;
     this.emailService = emailService;
     this.emailProperties = emailProperties;
+    this.auditService = auditService;
+    this.securityMonitoringService = securityMonitoringService;
     this.tokenBlacklistService = tokenBlacklistService;
     this.refreshTokenService = refreshTokenService;
     this.authScopeService = authScopeService;
@@ -93,11 +103,18 @@ public class PasswordResetService {
   public void requestReset(String email, String companyCode) {
     String correlationId = resolveCorrelationId();
     logTenantContextIgnoredIfPresent("forgot_password", correlationId);
+    String normalizedEmail = normalizeEmail(email);
     String scopeCode = authScopeService.requireScopeCode(companyCode);
+    enforceResetRateLimit("forgot_password", normalizedEmail, scopeCode, correlationId);
     userAccountRepository
-        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizeEmail(email), scopeCode)
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizedEmail, scopeCode)
         .filter(UserAccount::isEnabled)
-        .ifPresent(user -> dispatchResetEmail(user, correlationId, "forgot_password"));
+        .ifPresent(
+            user -> {
+              if (dispatchResetEmail(user, correlationId, "forgot_password")) {
+                auditResetRequested("forgot_password", user, scopeCode, correlationId);
+              }
+            });
   }
 
   @Transactional
@@ -107,7 +124,11 @@ public class PasswordResetService {
     }
     String correlationId = resolveCorrelationId();
     logTenantContextIgnoredIfPresent("admin_force_reset", correlationId);
+    String scopeCode = authScopeService.requireScopeCode(targetUser.getAuthScopeCode());
+    String normalizedEmail = normalizeEmail(targetUser.getEmail());
+    enforceResetRateLimit("admin_force_reset", normalizedEmail, scopeCode, correlationId);
     if (dispatchResetEmail(targetUser, correlationId, "admin_force_reset")) {
+      auditResetRequested("admin_force_reset", targetUser, scopeCode, correlationId);
       log.info(
           "event=password_reset.admin_force_reset.dispatched policy={} correlationId={} email={}"
               + " outcome=email_dispatched",
@@ -119,25 +140,30 @@ public class PasswordResetService {
 
   @Transactional
   public void resetPassword(String tokenValue, String newPassword, String confirmPassword) {
-    logTenantContextIgnoredIfPresent("reset_password", resolveCorrelationId());
+    String correlationId = resolveCorrelationId();
+    logTenantContextIgnoredIfPresent("reset_password", correlationId);
     String tokenDigest = AuthTokenDigests.passwordResetTokenDigest(tokenValue);
     PasswordResetToken token =
         tokenRepository
             .findByTokenDigest(tokenDigest)
-            .orElseThrow(
-                () ->
-                    com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                        "Invalid or expired token"));
+            .orElseThrow(() -> invalidOrExpiredResetToken(correlationId));
     Instant now = Instant.now();
     if (token.isUsed() || token.isExpired(now)) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Invalid or expired token");
+      throw invalidOrExpiredResetToken(correlationId);
     }
     UserAccount user = token.getUser();
     if (!user.isEnabled()) {
+      auditResetFailure(
+          "reset_password",
+          correlationId,
+          authScopeService.requireScopeCode(user.getAuthScopeCode()),
+          user.getEmail(),
+          "user_disabled");
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "User account is disabled");
     }
+    String scopeCode = authScopeService.requireScopeCode(user.getAuthScopeCode());
+    enforceResetRateLimit("reset_password", normalizeEmail(user.getEmail()), scopeCode, correlationId);
     passwordService.resetPassword(user, newPassword, confirmPassword);
     user.setFailedLoginAttempts(0);
     user.setLockedUntil(null);
@@ -147,6 +173,7 @@ public class PasswordResetService {
     token.markUsed();
     tokenRepository.save(token);
     tokenRepository.deleteByUser(user);
+    auditResetCompleted(user, scopeCode, correlationId);
   }
 
   private String generateToken() {
@@ -184,10 +211,16 @@ public class PasswordResetService {
         return false;
       }
       emailService.sendPasswordResetEmailRequired(
-          user.getEmail(), user.getDisplayName(), issuedResetToken.rawToken());
+          user.getEmail(),
+          user.getDisplayName(),
+          issuedResetToken.rawToken(),
+          user.getAuthScopeCode());
+      markIssuedResetTokenDelivered(issuedResetToken, correlationId, maskedEmail);
       return true;
     } catch (RuntimeException ex) {
       cleanupIssuedResetToken(issuedResetToken, correlationId, maskedEmail);
+      auditResetFailure(
+          operation, correlationId, user.getAuthScopeCode(), user.getEmail(), "delivery_failed");
       log.warn(
           "event=password_reset.{}.failed policy={} correlationId={} email={}"
               + " outcome=delivery_failed exceptionClass={}",
@@ -254,6 +287,19 @@ public class PasswordResetService {
         });
   }
 
+  private void markIssuedResetTokenDelivered(
+      IssuedResetToken issuedResetToken, String correlationId, String maskedEmail) {
+    if (issuedResetToken == null || issuedResetToken.id() == null) {
+      return;
+    }
+    tokenCleanupTransactionTemplate.executeWithoutResult(
+        status -> {
+          assertTokenLifecycleTransactionActive(
+              "mark_delivered", correlationId, maskedEmail);
+          tokenRepository.markDeliveredAt(issuedResetToken.id(), Instant.now());
+        });
+  }
+
   private void assertTokenLifecycleTransactionActive(
       String stage, String correlationId, String maskedEmail) {
     if (TransactionSynchronizationManager.isActualTransactionActive()) {
@@ -273,6 +319,72 @@ public class PasswordResetService {
   private int deletePersistedResetToken(String tokenValue) {
     String tokenDigest = AuthTokenDigests.passwordResetTokenDigest(tokenValue);
     return tokenRepository.deleteByTokenDigest(tokenDigest);
+  }
+
+  private void enforceResetRateLimit(
+      String operation, String normalizedEmail, String scopeCode, String correlationId) {
+    String rateLimitKey =
+        RATE_LIMIT_PREFIX + ":" + operation + ":" + scopeCode + ":" + normalizedEmail;
+    if (securityMonitoringService.checkRateLimit(rateLimitKey)) {
+      return;
+    }
+    auditResetFailure(operation, correlationId, scopeCode, normalizedEmail, "rate_limited");
+    throw new ApplicationException(
+            ErrorCode.SYSTEM_RATE_LIMIT_EXCEEDED, "Password reset rate limit exceeded")
+        .withDetail("companyCode", scopeCode);
+  }
+
+  private void auditResetRequested(
+      String operation, UserAccount user, String scopeCode, String correlationId) {
+    auditService.logAuthSuccess(
+        AuditEvent.PASSWORD_RESET_REQUESTED,
+        user.getEmail(),
+        scopeCode,
+        resetAuditMetadata(operation, correlationId, scopeCode, "email_dispatched"));
+  }
+
+  private void auditResetCompleted(UserAccount user, String scopeCode, String correlationId) {
+    auditService.logAuthSuccess(
+        AuditEvent.PASSWORD_RESET_COMPLETED,
+        user.getEmail(),
+        scopeCode,
+        resetAuditMetadata("reset_password", correlationId, scopeCode, "password_updated"));
+  }
+
+  private void auditResetFailure(
+      String operation,
+      String correlationId,
+      String scopeCode,
+      String email,
+      String outcome) {
+    auditService.logAuthFailure(
+        "reset_password".equals(operation)
+            ? AuditEvent.PASSWORD_RESET_COMPLETED
+            : AuditEvent.PASSWORD_RESET_REQUESTED,
+        normalizeEmail(email),
+        scopeCode,
+        resetAuditMetadata(operation, correlationId, scopeCode, outcome));
+  }
+
+  private ApplicationException invalidOrExpiredResetToken(String correlationId) {
+    auditService.logFailure(
+        AuditEvent.PASSWORD_RESET_COMPLETED,
+        resetAuditMetadata("reset_password", correlationId, null, "invalid_or_expired_token"));
+    return com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+        "Invalid or expired token");
+  }
+
+  private java.util.Map<String, String> resetAuditMetadata(
+      String operation, String correlationId, String scopeCode, String outcome) {
+    java.util.LinkedHashMap<String, String> metadata = new java.util.LinkedHashMap<>();
+    metadata.put("operation", operation);
+    metadata.put("policy", RESET_POLICY_SCOPE);
+    metadata.put("correlationId", correlationId);
+    metadata.put("outcome", outcome);
+    if (StringUtils.hasText(scopeCode)) {
+      metadata.put("companyCode", scopeCode);
+    }
+    return metadata;
   }
 
   private void logTenantContextIgnoredIfPresent(String operation, String correlationId) {

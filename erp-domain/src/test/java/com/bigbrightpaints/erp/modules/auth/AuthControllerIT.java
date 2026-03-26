@@ -366,7 +366,7 @@ public class AuthControllerIT extends AbstractIntegrationTest {
               return null;
             })
         .when(emailService)
-        .sendPasswordResetEmailRequired(eq(USER_EMAIL), eq("Reset Target"), anyString());
+        .sendPasswordResetEmailRequired(eq(USER_EMAIL), eq("Reset Target"), anyString(), eq(COMPANY_CODE));
 
     ExecutorService executor = Executors.newFixedThreadPool(2);
     try {

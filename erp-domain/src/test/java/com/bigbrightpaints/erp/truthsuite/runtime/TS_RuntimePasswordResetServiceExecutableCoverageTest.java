@@ -27,8 +27,10 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.bigbrightpaints.erp.core.config.EmailProperties;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.core.security.AuthScopeService;
+import com.bigbrightpaints.erp.core.security.SecurityMonitoringService;
 import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetToken;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetTokenRepository;
@@ -64,7 +66,8 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
     invokeRequest(service, " ", " ", "\t");
 
     verify(emailService, atLeast(1))
-        .sendPasswordResetEmailRequired(eq("user@example.com"), eq("User"), anyString());
+        .sendPasswordResetEmailRequired(
+            eq("user@example.com"), eq("User"), anyString(), eq(TENANT_SCOPE));
   }
 
   @Test
@@ -91,7 +94,7 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
 
     verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
     verify(emailService, never())
-        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString());
+        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString(), anyString());
   }
 
   @Test
@@ -139,7 +142,8 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
     stubIssuedResetToken(tokenRepository, 41L);
     doThrow(new IllegalStateException("unexpected dispatch bug"))
         .when(emailService)
-        .sendPasswordResetEmailRequired(eq("user@example.com"), eq("User"), anyString());
+        .sendPasswordResetEmailRequired(
+            eq("user@example.com"), eq("User"), anyString(), eq(TENANT_SCOPE));
 
     assertThatThrownBy(() -> service.requestReset("user@example.com", TENANT_SCOPE))
         .isInstanceOf(IllegalStateException.class)
@@ -167,7 +171,8 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
 
     verify(tokenRepo, never()).deleteByTokenDigest(anyString());
     verify(tokenRepo, never()).saveAndFlush(any(PasswordResetToken.class));
-    verify(emailService, never()).sendPasswordResetEmailRequired(anyString(), anyString(), anyString());
+    verify(emailService, never())
+        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString(), anyString());
   }
 
   private PasswordResetService newService(
@@ -175,10 +180,12 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
       PasswordResetTokenRepository tokenRepository,
       EmailService emailService) {
     AuthScopeService authScopeService = mock(AuthScopeService.class);
+    SecurityMonitoringService securityMonitoringService = mock(SecurityMonitoringService.class);
     when(authScopeService.requireScopeCode(anyString()))
         .thenAnswer(
             invocation ->
                 invocation.getArgument(0, String.class).trim().toUpperCase(Locale.ROOT));
+    when(securityMonitoringService.checkRateLimit(anyString())).thenReturn(true);
     when(tokenRepository.saveAndFlush(any(PasswordResetToken.class)))
         .thenAnswer(
             invocation -> {
@@ -194,6 +201,8 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
         mock(PasswordService.class),
         emailService,
         emailProperties(),
+        mock(AuditService.class),
+        securityMonitoringService,
         mock(TokenBlacklistService.class),
         mock(RefreshTokenService.class),
         authScopeService,

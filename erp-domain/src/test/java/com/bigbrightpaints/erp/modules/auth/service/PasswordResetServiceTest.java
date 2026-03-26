@@ -29,8 +29,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.config.EmailProperties;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.core.security.AuthScopeService;
+import com.bigbrightpaints.erp.core.security.SecurityMonitoringService;
 import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetToken;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetTokenRepository;
@@ -47,6 +49,8 @@ class PasswordResetServiceTest {
   @Mock private PasswordResetTokenRepository tokenRepository;
   @Mock private PasswordService passwordService;
   @Mock private EmailService emailService;
+  @Mock private AuditService auditService;
+  @Mock private SecurityMonitoringService securityMonitoringService;
   @Mock private TokenBlacklistService tokenBlacklistService;
   @Mock private RefreshTokenService refreshTokenService;
   @Mock private AuthScopeService authScopeService;
@@ -67,6 +71,8 @@ class PasswordResetServiceTest {
             passwordService,
             emailService,
             emailProperties,
+            auditService,
+            securityMonitoringService,
             tokenBlacklistService,
             refreshTokenService,
             authScopeService,
@@ -85,6 +91,7 @@ class PasswordResetServiceTest {
               return token;
             });
     lenient().when(tokenRepository.markDeliveredAt(anyLong(), any(Instant.class))).thenReturn(1);
+    lenient().when(securityMonitoringService.checkRateLimit(anyString())).thenReturn(true);
   }
 
   @Test
@@ -102,7 +109,7 @@ class PasswordResetServiceTest {
     ArgumentCaptor<String> emailTokenCaptor = ArgumentCaptor.forClass(String.class);
     verify(emailService)
         .sendPasswordResetEmailRequired(
-            eq("user@example.com"), eq("User"), emailTokenCaptor.capture());
+            eq("user@example.com"), eq("User"), emailTokenCaptor.capture(), eq(TENANT_SCOPE));
     verify(tokenRepository).deleteByUser(eq(user));
     assertEquals(user, tokenCaptor.getValue().getUser());
     assertEquals(TENANT_SCOPE, tokenCaptor.getValue().getUser().getAuthScopeCode());
@@ -119,7 +126,7 @@ class PasswordResetServiceTest {
 
     verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
     verify(emailService, never())
-        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString());
+        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString(), anyString());
   }
 
   @Test
@@ -134,7 +141,7 @@ class PasswordResetServiceTest {
 
     verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
     verify(emailService, never())
-        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString());
+        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString(), anyString());
   }
 
   @Test
@@ -149,7 +156,7 @@ class PasswordResetServiceTest {
 
     verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
     verify(emailService, never())
-        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString());
+        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString(), anyString());
   }
 
   @Test
@@ -160,7 +167,8 @@ class PasswordResetServiceTest {
 
     verify(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
     verify(emailService)
-        .sendPasswordResetEmailRequired(eq("admin-reset@example.com"), eq("User"), anyString());
+        .sendPasswordResetEmailRequired(
+            eq("admin-reset@example.com"), eq("User"), anyString(), eq(TENANT_SCOPE));
   }
 
   @Test
@@ -172,7 +180,7 @@ class PasswordResetServiceTest {
 
     verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
     verify(emailService, never())
-        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString());
+        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString(), anyString());
   }
 
   @Test
@@ -202,7 +210,8 @@ class PasswordResetServiceTest {
     UserAccount user = enabledUser("user@example.com", TENANT_SCOPE);
     doThrow(new RuntimeException("smtp down"))
         .when(emailService)
-        .sendPasswordResetEmailRequired(eq("user@example.com"), eq("User"), anyString());
+        .sendPasswordResetEmailRequired(
+            eq("user@example.com"), eq("User"), anyString(), eq(TENANT_SCOPE));
 
     assertThrows(RuntimeException.class, () -> passwordResetService.requestResetByAdmin(user));
 
@@ -218,7 +227,8 @@ class PasswordResetServiceTest {
         .thenReturn(Optional.of(user));
     doThrow(new RuntimeException("smtp down"))
         .when(emailService)
-        .sendPasswordResetEmailRequired(eq("user@example.com"), eq("User"), anyString());
+        .sendPasswordResetEmailRequired(
+            eq("user@example.com"), eq("User"), anyString(), eq(TENANT_SCOPE));
 
     assertThrows(RuntimeException.class, () -> passwordResetService.requestReset("user@example.com", TENANT_SCOPE));
 

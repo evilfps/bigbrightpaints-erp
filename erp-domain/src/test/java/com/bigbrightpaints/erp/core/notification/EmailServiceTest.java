@@ -130,31 +130,6 @@ class EmailServiceTest {
   }
 
   @Test
-  void sendUserCredentialsEmail_bestEffortDoesNotThrowWhenSmtpSendFails() {
-    doThrow(new MailSendException("smtp-failed"))
-        .when(mailSender)
-        .send(any(MimeMessagePreparator.class));
-
-    assertThatCode(
-            () ->
-                emailService.sendUserCredentialsEmail(
-                    "user@example.com", "User", "Temp@12345", "SKE"))
-        .doesNotThrowAnyException();
-  }
-
-  @Test
-  void sendUserCredentialsEmail_bestEffortSkipsWhenDeliveryDisabled() {
-    emailProperties.setSendCredentials(false);
-
-    assertThatCode(
-            () ->
-                emailService.sendUserCredentialsEmail(
-                    "user@example.com", "User", "Temp@12345", "SKE"))
-        .doesNotThrowAnyException();
-    verifyNoInteractions(mailSender);
-  }
-
-  @Test
   void sendUserCredentialsEmailRequiredThrowsWhenSmtpSendFails() {
     doThrow(new MailSendException("smtp-failed"))
         .when(mailSender)

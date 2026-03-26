@@ -546,6 +546,7 @@ public class AdminSettingsController {
       metadata.put("beforePeriodLockEnforced", Boolean.toString(before.periodLockEnforced()));
       metadata.put(
           "beforeExportApprovalRequired", Boolean.toString(before.exportApprovalRequired()));
+      metadata.put("beforePlatformAuthCode", before.platformAuthCode());
     }
     if (request != null) {
       if (request.autoApprovalEnabled() != null) {
@@ -558,11 +559,15 @@ public class AdminSettingsController {
         metadata.put(
             "requestedExportApprovalRequired", request.exportApprovalRequired().toString());
       }
+      if (request.platformAuthCode() != null) {
+        metadata.put("requestedPlatformAuthCode", request.platformAuthCode());
+      }
     }
     if (after != null) {
       metadata.put("afterAutoApprovalEnabled", Boolean.toString(after.autoApprovalEnabled()));
       metadata.put("afterPeriodLockEnforced", Boolean.toString(after.periodLockEnforced()));
       metadata.put("afterExportApprovalRequired", Boolean.toString(after.exportApprovalRequired()));
+      metadata.put("afterPlatformAuthCode", after.platformAuthCode());
     }
     String actor = SecurityActorResolver.resolveActorWithSystemProcessFallback();
     if (actor != null && !actor.isBlank()) {

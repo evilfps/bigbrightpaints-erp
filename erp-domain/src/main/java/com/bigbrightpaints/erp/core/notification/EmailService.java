@@ -64,34 +64,12 @@ public class EmailService {
     }
   }
 
-  public void sendUserCredentialsEmail(String to, String displayName, String password) {
-    sendUserCredentialsEmail(to, displayName, password, null);
-  }
-
   public boolean isPasswordResetEmailDeliveryEnabled() {
     return properties.isEnabled() && properties.isSendPasswordReset();
   }
 
   public boolean isCredentialEmailDeliveryEnabled() {
     return properties.isEnabled() && properties.isSendCredentials();
-  }
-
-  public void sendUserCredentialsEmail(
-      String to, String displayName, String password, String companyCode) {
-    if (!properties.isSendCredentials()) {
-      log.debug("Credential email sending disabled. Skipping for {}", to);
-      return;
-    }
-    String subject = "Your BigBright ERP account credentials";
-    Context context = new Context();
-    context.setVariable("displayName", displayName);
-    context.setVariable("email", to);
-    context.setVariable("temporaryPassword", password);
-    context.setVariable(
-        "companyCode", StringUtils.hasText(companyCode) ? companyCode.trim() : null);
-    context.setVariable("loginUrl", properties.getBaseUrl());
-    context.setVariable("preheader", "Your Orchestrator ERP account is ready.");
-    sendHtmlEmail(to, subject, "mail/credentials", context);
   }
 
   public void sendUserCredentialsEmailRequired(
@@ -114,40 +92,26 @@ public class EmailService {
     sendHtmlEmailRequired(to, subject, "mail/credentials", context);
   }
 
-  public void sendPasswordResetEmail(String to, String displayName, String resetToken) {
-    if (!properties.isSendPasswordReset()) {
-      log.debug("Password reset email sending disabled. Skipping for {}", to);
-      return;
-    }
-    sendPasswordResetEmailInternal(to, displayName, resetToken, false);
-  }
-
-  public void sendPasswordResetEmailRequired(String to, String displayName, String resetToken) {
+  public void sendPasswordResetEmailRequired(
+      String to, String displayName, String resetToken, String companyCode) {
     if (!isPasswordResetEmailDeliveryEnabled()) {
       throw new ApplicationException(
           ErrorCode.SYSTEM_CONFIGURATION_ERROR,
           "Password reset email delivery is disabled; enable erp.mail.enabled=true and"
               + " erp.mail.send-password-reset=true");
     }
-    sendPasswordResetEmailInternal(to, displayName, resetToken, true);
-  }
-
-  private void sendPasswordResetEmailInternal(
-      String to, String displayName, String resetToken, boolean required) {
     String resetLink = properties.getBaseUrl() + "/reset-password?token=" + resetToken;
     String subject = "Reset your BigBright ERP password";
     Context context = new Context();
     context.setVariable("displayName", displayName);
     context.setVariable("email", to);
+    context.setVariable(
+        "companyCode", StringUtils.hasText(companyCode) ? companyCode.trim() : null);
     context.setVariable("resetUrl", resetLink);
     context.setVariable("baseUrl", properties.getBaseUrl());
     context.setVariable(
         "preheader", "Use this secure link to reset your password (expires in 60 minutes).");
-    if (required) {
-      sendHtmlEmailRequired(to, subject, "mail/password-reset", context);
-      return;
-    }
-    sendHtmlEmail(to, subject, "mail/password-reset", context);
+    sendHtmlEmailRequired(to, subject, "mail/password-reset", context);
   }
 
   public void sendPasswordResetConfirmation(String to, String displayName) {
