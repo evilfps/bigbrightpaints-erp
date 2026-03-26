@@ -69,7 +69,8 @@ ensure_release_matrix_postgres() {
   if docker inspect "$container" >/dev/null 2>&1; then
     if [[ -z "$configured_port" ]]; then
       local mapped_port
-      mapped_port="$(docker port "$container" 5432/tcp 2>/dev/null | head -n 1 | awk -F: '{print $NF}')"
+      # A stale stopped container can make `docker port` exit non-zero under pipefail.
+      mapped_port="$(docker port "$container" 5432/tcp 2>/dev/null | head -n 1 | awk -F: '{print $NF}' || true)"
       if [[ -n "$mapped_port" ]]; then
         probe_port="$mapped_port"
         export PGPORT="$mapped_port"
