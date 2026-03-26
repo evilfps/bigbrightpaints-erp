@@ -10,7 +10,7 @@ SET lifecycle_state = 'DEACTIVATED'
 WHERE lifecycle_state = 'BLOCKED';
 
 ALTER TABLE companies
-    ADD CONSTRAINT chk_companies_lifecycle_state
+    ADD CONSTRAINT chk_companies_lifecycle_state_v167
         CHECK (lifecycle_state IN ('ACTIVE', 'SUSPENDED', 'DEACTIVATED'));
 
 ALTER TABLE companies
