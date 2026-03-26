@@ -1,51 +1,50 @@
 # R2 Checkpoint
 
 ## Scope
-- Feature: `restore-factory-owned-dispatch-confirmation`
-- Branch: `hotfix/restore-factory-dispatch-ownership`
-- Review candidate: restore `POST /api/v1/dispatch/confirm` as the sole public dispatch-confirm write route, remove the public sales dispatch confirm route, return `dispatch.confirm` ownership to factory/admin operational flow, and refresh the dependent orchestrator, audit, OpenAPI, endpoint-inventory, and order-to-cash evidence surfaces so accounting stays downstream of factory-confirmed dispatch truth.
-- Why this is R2: the packet changes `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinator.java` and `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/domain/SystemRole.java` while correcting a live ownership regression on a public fulfillment boundary. A wrong change here would publish contradictory authority rules, break downstream accounting linkage, or produce incorrect dispatch audit provenance.
+- Feature: `ERP-37 hard-cut superadmin control plane`
+- Branch: `mdanas7869292/erp-37-hard-cut-superadmin-and-tenant-control-plane-onto-one`
+- Review candidate: collapse tenant control onto `/api/v1/superadmin/tenants/{id}/...`, remove duplicate company/admin tenant-control families, hard-cut changelog ownership to superadmin writes plus authenticated reads, and ship `migration_v2/V167__erp37_superadmin_control_plane_hard_cut.sql` with matching OpenAPI/docs truth.
+- Why this is R2: the packet changes tenant-boundary routing, runtime admission binding, authenticated recovery surfaces, and `migration_v2` persistence for lifecycle/quota/onboarding/support/admin-governance truth.
 
 ## Risk Trigger
-- Triggered by changes under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/` and `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/`, plus the dispatch controller surface that is the public physical-shipment truth boundary.
-- Contract surfaces affected: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/controller/DispatchController.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/controller/SalesController.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/PortalRoleActionMatrix.java`, `openapi.json`, `docs/endpoint-inventory.md`, `erp-domain/docs/endpoint_inventory.tsv`, and the dispatch/orchestrator review notes under `docs/code-review/**`.
-- Failure mode if wrong: sales could remain or reappear as a second public dispatch confirmer, factory users could lose the ability to record physical dispatch truth, audit logs could attribute dispatch confirmation to the wrong surface or actor, and orchestrator guidance could keep routing callers to a non-canonical path.
+- Triggered by `erp-domain/src/main/resources/db/migration_v2/V167__erp37_superadmin_control_plane_hard_cut.sql`, `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/controller/{SuperAdminController,SuperAdminTenantOnboardingController,CompanyController}.java`, and the paired changelog/auth/control-plane contract surfaces.
+- Contract surfaces affected: `/api/v1/superadmin/**`, `/api/v1/changelog*`, `openapi.json`, `docs/endpoint-inventory.md`, `.factory/library/frontend-handoff.md`, `docs/workflows/admin-and-tenant-management.md`, and the ERP-37 code-review flow docs.
+- Failure mode if wrong: callers could integrate against retired control-plane routes, tenant binding could drift across route families, lifecycle/quota storage could disagree with runtime enforcement, or admin-governance/support recovery actions could target the wrong tenant or stale main-admin state.
 
 ## Approval Authority
-- Mode: orchestrator
-- Approver: `dispatch ownership hotfix orchestrator`
-- Canary owner: `dispatch ownership hotfix orchestrator`
-- Approval status: `pending green remote validators and PR review`
-- Basis: this is a corrective hard-cut that removes the wrong public ownership path and restores the intended operational authority without adding fallback routes, migration shims, or broader privilege expansion.
+- Mode: human
+- Approver: `human R2 reviewer`
+- Canary owner: `ERP-37 packet owner`
+- Approval status: `pending green validators and human review`
+- Basis: this packet modifies tenant-boundary behavior plus `migration_v2`; green tests are necessary but not sufficient.
 
 ## Escalation Decision
-- Human escalation required: no
-- Reason: the packet restores the intended single canonical path and does not introduce data migrations, schema changes, or widened destructive capabilities. The risk is operational correctness at the dispatch/accounting boundary, which is covered by focused regression and audit proofs in this same change set.
+- Human escalation required: yes
+- Reason: the packet changes live tenant routing, persistence shape, lifecycle vocabulary, and authenticated recovery/control-plane behavior in the same branch.
 
 ## Rollback Owner
-- Owner: `dispatch ownership hotfix orchestrator`
-- Rollback method: revert this hotfix commit if remote validation reveals a downstream dependency on the wrong sales-owned route; do not reintroduce the retired sales dispatch confirm path as a temporary bridge.
+- Owner: `ERP-37 packet owner`
+- Rollback method: keep the ERP-37-compatible backend live or restore the tenant/database from a pre-`V167` snapshot before redeploying an older build; do not reintroduce retired route families as compatibility shims.
 - Rollback trigger:
-  - runtime or truthsuite evidence shows `/api/v1/dispatch/confirm` no longer functions as the sole public dispatch-confirm surface
-  - audit logs stop attributing dispatch confirmation to the factory route and factory actor
-  - orchestrator/order-to-cash flows fail because downstream accounting markers are no longer reconciled after factory confirmation
+  - runtime probes or focused regressions show any retired `/api/v1/companies/{id}/...`, `/api/v1/admin/changelog*`, or `/api/v1/admin/tenant-runtime/*` surface reappearing
+  - tenant detail, support timeline, or main-admin governance drifts from the persisted company/support truth
+  - lifecycle/quota behavior disagrees with the canonical `ACTIVE/SUSPENDED/DEACTIVATED` plus `quotaMaxConcurrentRequests` contract after migration
 
 ## Expiry
 - Valid until: `2026-04-02`
-- Re-evaluate if: the packet scope expands beyond dispatch ownership correction, if any additional public dispatch write path is proposed, or if accounting ownership is changed from downstream reconciliation to something broader.
+- Re-evaluate if: scope expands beyond ERP-37 tenant-control, changelog-ownership, and `V167` migration work.
 
 ## Verification Evidence
 - Commands run:
-  - `unset GH_TOKEN GITHUB_TOKEN; git status --short --branch`
-  - `export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 DOCKER_API_VERSION=1.53; mvn -B -ntp -Dtest=CoreFallbackExceptionHandlerTest,PortalRoleActionMatrixTest,SalesControllerIT test`
-  - `export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 DOCKER_API_VERSION=1.53; mvn -B -ntp -Dtest=DispatchControllerTest,PortalRoleActionMatrixTest,SystemRoleTest,RbacSynchronizationConfigTest,RoleServiceTest,SalesControllerIdempotencyHeaderTest,SalesControllerIT,AuthTenantAuthorityIT,DispatchOperationalBoundaryIT,TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest,ErpInvariantsSuiteIT,OrderFulfillmentE2ETest,SalesReturnCreditNoteE2EIT,CreditDebitNoteIT,BusinessLogicRegressionTest,OrchestratorControllerIT,CommandDispatcherTest,IntegrationCoordinatorTest,CoreFallbackExceptionHandlerTest,CriticalPathSmokeTest,TS_O2COrchestratorDispatchRemovalRegressionTest,TS_OrchestratorExactlyOnceOutboxTest,TS_RuntimeOrchestratorExecutableCoverageTest,OpenApiSnapshotIT,FullCycleE2ETest test`
-  - `bash scripts/guard_workflow_canonical_paths.sh`
-  - `git diff --check`
+  - `git status --short --branch`
+  - `git rev-parse --short HEAD`
+  - `colima status`
+  - `cd erp-domain && export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 && MIGRATION_SET=v2 mvn -Dtest=CompanyControllerIT,SuperAdminControllerIT,TenantOnboardingControllerTest,ChangelogControllerSecurityIT,AuthPasswordResetPublicContractIT,AdminUserSecurityIT,TenantRuntimeEnforcementServiceTest,TenantRuntimeEnforcementAuthIT,SuperAdminTenantWorkflowIsolationIT,PortalInsightsControllerIT,ReportControllerSecurityIT,AuthTenantAuthorityIT,CompanyQuotaContractTest,AdminSettingsControllerTenantRuntimeContractTest,CompanyContextFilterControlPlaneBindingTest,TS_RuntimeCompanyContextFilterExecutableCoverageTest,TS_RuntimeTenantRuntimeEnforcementTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest,TenantAdminProvisioningServiceTest test`
+  - `cd erp-domain && export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true -Dtest=OpenApiSnapshotIT test`
 - Result summary:
-  - focused controller/security validation passed after the hotfix-specific access-denied guidance and retired-route assertions were aligned to the restored factory canonical path.
-  - the broad cross-module pack passed with `240` tests run, `0` failures, `0` errors, and `2` skipped, covering dispatch operational audit provenance, order-to-cash, returns/credit notes, invariants, orchestrator regression, truthsuite, and OpenAPI snapshot integrity.
-  - the canonical workflow guard passed, and endpoint inventory/OpenAPI artifacts were refreshed so the retired sales dispatch confirm route is no longer advertised as a live public write surface.
+  - focused integration/truth coverage proves the canonical superadmin tenant-control plane, fail-closed onboarding delivery, authenticated changelog reads, superadmin-only changelog writes, and canonical `CompanyContextFilter` target-tenant binding.
+  - the refreshed `openapi.json` now matches the live ERP-37 controller surface, including `204` superadmin changelog delete semantics.
+  - release-guard posture is explicit: `V167` uses strict DDL, and the only reviewed `schema_drift_scan` v2 allowlist exception is the deterministic ranked-admin backfill that seeds `main_admin_user_id` and onboarding admin truth.
 - Artifacts/links:
-  - Worktree: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/hotfix-restore-factory-dispatch-ownership`
-  - Commit: `070189ae690020e63b235bff60d6fcaf4d5d90ab`
-  - PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/155`
+  - Worktree: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-37-hard-cut-superadmin-control-plane`
+  - Migration: `erp-domain/src/main/resources/db/migration_v2/V167__erp37_superadmin_control_plane_hard_cut.sql`

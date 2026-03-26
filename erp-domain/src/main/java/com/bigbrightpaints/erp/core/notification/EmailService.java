@@ -1,5 +1,9 @@
 package com.bigbrightpaints.erp.core.notification;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.mail.MailException;
@@ -20,6 +24,8 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 public class EmailService {
 
   private static final Logger log = LoggerFactory.getLogger(EmailService.class);
+  private static final DateTimeFormatter UTC_EMAIL_TIMESTAMP_FORMAT =
+      DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'UTC'").withZone(ZoneOffset.UTC);
 
   private final JavaMailSender mailSender;
   private final EmailProperties properties;
@@ -152,6 +158,38 @@ public class EmailService {
     context.setVariable("loginUrl", properties.getBaseUrl());
     context.setVariable("preheader", "Your password has been updated successfully.");
     sendHtmlEmail(to, subject, "mail/password-reset-confirmed", context);
+  }
+
+  public void sendAdminEmailChangeVerificationRequired(
+      String to,
+      String displayName,
+      String companyCode,
+      String verificationToken,
+      Instant expiresAt) {
+    if (!isCredentialEmailDeliveryEnabled()) {
+      throw new ApplicationException(
+          ErrorCode.SYSTEM_CONFIGURATION_ERROR,
+          "Credential email delivery is disabled; enable erp.mail.enabled=true and"
+              + " erp.mail.send-credentials=true");
+    }
+    String subject = "Verify your BigBright ERP admin email change";
+    Context context = new Context();
+    context.setVariable("displayName", displayName);
+    context.setVariable("email", to);
+    context.setVariable("companyCode", companyCode);
+    context.setVariable("verificationToken", verificationToken);
+    context.setVariable("expiresAtUtc", formatUtcTimestamp(expiresAt));
+    context.setVariable("loginUrl", properties.getBaseUrl());
+    context.setVariable(
+        "preheader", "Use this verification token to confirm your new admin email.");
+    sendHtmlEmailRequired(to, subject, "mail/admin-email-change-verification", context);
+  }
+
+  private String formatUtcTimestamp(Instant timestamp) {
+    if (timestamp == null) {
+      return null;
+    }
+    return UTC_EMAIL_TIMESTAMP_FORMAT.format(timestamp);
   }
 
   public void sendTemplatedEmail(String to, String subject, String templateName, Context context) {

@@ -45,101 +45,116 @@ class ChangelogControllerSecurityIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void adminEndpoints_requireAdminRole() {
+  void superadminWriteEndpoints_requireSuperAdminRole() {
     String dealerToken = login(DEALER_EMAIL, DEALER_PASSWORD, TENANT);
-    HttpHeaders headers = authHeaders(dealerToken, TENANT);
+    HttpHeaders dealerHeaders = authHeaders(dealerToken, TENANT);
 
-    ResponseEntity<Map> response =
+    ResponseEntity<Map> dealerResponse =
         rest.exchange(
-            "/api/v1/admin/changelog",
+            "/api/v1/superadmin/changelog",
             HttpMethod.POST,
-            new HttpEntity<>(requestPayload("1.2.0", true), headers),
+            new HttpEntity<>(requestPayload("1.2.0", true), dealerHeaders),
             Map.class);
 
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(dealerResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+    String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD, TENANT);
+    HttpHeaders adminHeaders = authHeaders(adminToken, TENANT);
+    ResponseEntity<Map> adminResponse =
+        rest.exchange(
+            "/api/v1/superadmin/changelog",
+            HttpMethod.POST,
+            new HttpEntity<>(requestPayload("1.2.0", true), adminHeaders),
+            Map.class);
+
+    assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
   }
 
   @Test
-  void adminCanCreateAndDeleteChangelogEntry() {
-    String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD, TENANT);
-    HttpHeaders headers = authHeaders(adminToken, TENANT);
+  void superAdminCanCreateUpdateAndDeleteChangelogEntry() {
+    String superToken = login(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, TENANT);
+    HttpHeaders superHeaders = authHeaders(superToken, TENANT);
 
     ResponseEntity<Map> createResponse =
         rest.exchange(
-            "/api/v1/admin/changelog",
+            "/api/v1/superadmin/changelog",
             HttpMethod.POST,
-            new HttpEntity<>(requestPayload("1.2.1", true), headers),
+            new HttpEntity<>(requestPayload("1.2.1", true), superHeaders),
             Map.class);
 
     assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(createResponse.getBody()).isNotNull();
     Map<String, Object> createdData = (Map<String, Object>) createResponse.getBody().get("data");
     Number id = (Number) createdData.get("id");
 
+    ResponseEntity<Map> updateResponse =
+        rest.exchange(
+            "/api/v1/superadmin/changelog/" + id.longValue(),
+            HttpMethod.PUT,
+            new HttpEntity<>(
+                Map.of(
+                    "version", "1.2.2",
+                    "title", "Updated title",
+                    "body", "Updated body",
+                    "isHighlighted", false),
+                superHeaders),
+            Map.class);
+
+    assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<String, Object> updatedData = (Map<String, Object>) updateResponse.getBody().get("data");
+    assertThat(updatedData.get("version")).isEqualTo("1.2.2");
+
     ResponseEntity<Void> deleteResponse =
         rest.exchange(
-            "/api/v1/admin/changelog/" + id.longValue(),
+            "/api/v1/superadmin/changelog/" + id.longValue(),
             HttpMethod.DELETE,
-            new HttpEntity<>(headers),
+            new HttpEntity<>(superHeaders),
             Void.class);
 
     assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
   }
 
   @Test
-  void superAdminCanUpdateChangelogEntry() {
-    String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD, TENANT);
-    HttpHeaders adminHeaders = authHeaders(adminToken, TENANT);
+  void readEndpoints_requireAuthentication_andAllowAuthenticatedTenantUsers() {
+    ResponseEntity<Map> anonymousList = rest.getForEntity("/api/v1/changelog", Map.class);
+    ResponseEntity<Map> anonymousHighlighted =
+        rest.getForEntity("/api/v1/changelog/latest-highlighted", Map.class);
 
-    ResponseEntity<Map> createResponse =
-        rest.exchange(
-            "/api/v1/admin/changelog",
-            HttpMethod.POST,
-            new HttpEntity<>(requestPayload("1.3.0", false), adminHeaders),
-            Map.class);
-
-    Number id = (Number) ((Map<String, Object>) createResponse.getBody().get("data")).get("id");
+    assertThat(anonymousList.getStatusCode()).isIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
+    assertThat(anonymousHighlighted.getStatusCode())
+        .isIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
 
     String superToken = login(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, TENANT);
     HttpHeaders superHeaders = authHeaders(superToken, TENANT);
+    rest.exchange(
+        "/api/v1/superadmin/changelog",
+        HttpMethod.POST,
+        new HttpEntity<>(requestPayload("1.3.0", true), superHeaders),
+        Map.class);
 
-    ResponseEntity<Map> updateResponse =
+    String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD, TENANT);
+    HttpHeaders adminHeaders = authHeaders(adminToken, TENANT);
+    ResponseEntity<Map> listResponse =
         rest.exchange(
-            "/api/v1/admin/changelog/" + id.longValue(),
-            HttpMethod.PUT,
-            new HttpEntity<>(
-                Map.of(
-                    "version", "1.3.1",
-                    "title", "Updated title",
-                    "body", "Updated body",
-                    "isHighlighted", true),
-                superHeaders),
+            "/api/v1/changelog", HttpMethod.GET, new HttpEntity<>(adminHeaders), Map.class);
+    ResponseEntity<Map> highlightedResponse =
+        rest.exchange(
+            "/api/v1/changelog/latest-highlighted",
+            HttpMethod.GET,
+            new HttpEntity<>(adminHeaders),
             Map.class);
 
-    assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Map<String, Object> updatedData = (Map<String, Object>) updateResponse.getBody().get("data");
-    assertThat(updatedData.get("version")).isEqualTo("1.3.1");
-    assertThat(updatedData.get("isHighlighted")).isEqualTo(Boolean.TRUE);
-  }
-
-  @Test
-  void publicEndpoints_areAccessibleWithoutAuthentication() {
-    ResponseEntity<Map> listResponse = rest.getForEntity("/api/v1/changelog", Map.class);
-    ResponseEntity<Map> highlightedResponse =
-        rest.getForEntity("/api/v1/changelog/latest-highlighted", Map.class);
-
     assertThat(listResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(highlightedResponse.getStatusCode()).isIn(HttpStatus.OK, HttpStatus.NOT_FOUND);
+    assertThat(highlightedResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
   }
 
   @Test
   void semverValidation_rejectsInvalidVersion() {
-    String adminToken = login(ADMIN_EMAIL, ADMIN_PASSWORD, TENANT);
-    HttpHeaders headers = authHeaders(adminToken, TENANT);
+    String superToken = login(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD, TENANT);
+    HttpHeaders headers = authHeaders(superToken, TENANT);
 
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/admin/changelog",
+            "/api/v1/superadmin/changelog",
             HttpMethod.POST,
             new HttpEntity<>(
                 Map.of(

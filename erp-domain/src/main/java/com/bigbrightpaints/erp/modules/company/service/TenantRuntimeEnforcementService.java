@@ -34,8 +34,9 @@ public class TenantRuntimeEnforcementService {
   private static final String DEFAULT_REASON = "POLICY_ACTIVE";
   private static final String DEFAULT_POLICY_REFERENCE = "bootstrap";
   private static final String UNKNOWN_ACTOR = "UNKNOWN_AUTH_ACTOR";
-  private static final String CANONICAL_COMPANY_RUNTIME_POLICY_PREFIX = "/api/v1/companies/";
-  private static final String CANONICAL_COMPANY_RUNTIME_POLICY_SUFFIX = "/tenant-runtime/policy";
+  private static final String CANONICAL_SUPERADMIN_TENANT_LIMITS_PREFIX =
+      "/api/v1/superadmin/tenants/";
+  private static final String CANONICAL_SUPERADMIN_TENANT_LIMITS_SUFFIX = "/limits";
 
   private final CompanyRepository companyRepository;
   private final SystemSettingsRepository systemSettingsRepository;
@@ -506,17 +507,17 @@ public class TenantRuntimeEnforcementService {
     while (normalizedPath.endsWith("/") && normalizedPath.length() > 1) {
       normalizedPath = normalizedPath.substring(0, normalizedPath.length() - 1);
     }
-    return isCanonicalCompanyRuntimePolicyPath(normalizedPath);
+    return isCanonicalSuperAdminTenantLimitsPath(normalizedPath);
   }
 
-  private boolean isCanonicalCompanyRuntimePolicyPath(String normalizedPath) {
+  private boolean isCanonicalSuperAdminTenantLimitsPath(String normalizedPath) {
     if (!StringUtils.hasText(normalizedPath)
-        || !normalizedPath.startsWith(CANONICAL_COMPANY_RUNTIME_POLICY_PREFIX)
-        || !normalizedPath.endsWith(CANONICAL_COMPANY_RUNTIME_POLICY_SUFFIX)) {
+        || !normalizedPath.startsWith(CANONICAL_SUPERADMIN_TENANT_LIMITS_PREFIX)
+        || !normalizedPath.endsWith(CANONICAL_SUPERADMIN_TENANT_LIMITS_SUFFIX)) {
       return false;
     }
-    int prefixLength = CANONICAL_COMPANY_RUNTIME_POLICY_PREFIX.length();
-    int suffixLength = CANONICAL_COMPANY_RUNTIME_POLICY_SUFFIX.length();
+    int prefixLength = CANONICAL_SUPERADMIN_TENANT_LIMITS_PREFIX.length();
+    int suffixLength = CANONICAL_SUPERADMIN_TENANT_LIMITS_SUFFIX.length();
     String companyIdSegment =
         normalizedPath.substring(prefixLength, normalizedPath.length() - suffixLength);
     return StringUtils.hasText(companyIdSegment) && !companyIdSegment.contains("/");

@@ -67,7 +67,7 @@ public class TenantLifecycleService {
           case SUSPENDED ->
               nextState == CompanyLifecycleState.ACTIVE
                   || nextState == CompanyLifecycleState.DEACTIVATED;
-          case DEACTIVATED -> false;
+          case DEACTIVATED -> nextState == CompanyLifecycleState.ACTIVE;
         };
     if (!allowed) {
       throw ValidationUtils.invalidState(

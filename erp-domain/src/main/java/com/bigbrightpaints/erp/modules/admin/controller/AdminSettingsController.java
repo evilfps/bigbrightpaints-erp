@@ -162,12 +162,6 @@ public class AdminSettingsController {
         exportApprovalService.reject(requestId, request != null ? request.reason() : null));
   }
 
-  @GetMapping("/tenant-runtime/metrics")
-  @PreAuthorize(PortalRoleActionMatrix.ADMIN_ONLY)
-  public ApiResponse<TenantRuntimeMetricsDto> tenantRuntimeMetrics() {
-    return ApiResponse.success("Tenant runtime metrics", tenantRuntimePolicyService.metrics());
-  }
-
   @PostMapping("/notify")
   @PreAuthorize(PortalRoleActionMatrix.ADMIN_ONLY)
   public ApiResponse<String> notifyUser(@Valid @RequestBody AdminNotifyRequest request) {

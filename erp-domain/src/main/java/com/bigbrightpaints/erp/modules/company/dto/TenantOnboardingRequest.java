@@ -21,8 +21,8 @@ public record TenantOnboardingRequest(
         Long maxApiRequests,
     @Min(value = 0, message = "maxStorageBytes must be greater than or equal to 0")
         Long maxStorageBytes,
-    @Min(value = 0, message = "maxConcurrentUsers must be greater than or equal to 0")
-        Long maxConcurrentUsers,
+    @Min(value = 0, message = "maxConcurrentRequests must be greater than or equal to 0")
+        Long maxConcurrentRequests,
     Boolean softLimitEnabled,
     Boolean hardLimitEnabled,
     @Email @NotBlank String firstAdminEmail,

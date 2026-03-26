@@ -495,7 +495,8 @@ public class EnterpriseAuditTrailService {
       return;
     }
 
-    PendingBusinessEventRetry pending = new PendingBusinessEventRetry(command, actorSnapshot, failedAttemptCount);
+    PendingBusinessEventRetry pending =
+        new PendingBusinessEventRetry(command, actorSnapshot, failedAttemptCount);
     if (!offerBusinessEventRetry(pending)) {
       log.error(
           "Business audit retry queue full (size={}, max={}); dropping event (module={}, action={},"
@@ -679,7 +680,8 @@ public class EnterpriseAuditTrailService {
       if (!StringUtils.hasText(entry.getKey())) {
         continue;
       }
-      sanitized.put(trim(entry.getKey(), 128, "key"), trim(entry.getValue(), MAX_METADATA_VALUE_LENGTH, ""));
+      sanitized.put(
+          trim(entry.getKey(), 128, "key"), trim(entry.getValue(), MAX_METADATA_VALUE_LENGTH, ""));
       count++;
       if (count >= MAX_METADATA_ENTRIES) {
         break;

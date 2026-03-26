@@ -20,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
@@ -90,6 +91,9 @@ class ReportControllerSecurityIT extends AbstractIntegrationTest {
             });
 
     Company companyA = companyRepository.findByCodeIgnoreCase(COMPANY_A_CODE).orElseThrow();
+    companyA.setLifecycleState(CompanyLifecycleState.ACTIVE);
+    companyA.setLifecycleReason(null);
+    companyRepository.saveAndFlush(companyA);
     resetTenantRuntimePolicy(companyA.getId(), companyA.getCode());
     companyAProductionLogId = seedProductionLog(companyA).getId();
   }
@@ -143,10 +147,10 @@ class ReportControllerSecurityIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> blockResponse =
         rest.exchange(
-            "/api/v1/companies/" + companyA.getId() + "/tenant-runtime/policy",
+            "/api/v1/superadmin/tenants/" + companyA.getId() + "/lifecycle",
             HttpMethod.PUT,
             new HttpEntity<>(
-                Map.of("holdState", "BLOCKED", "reasonCode", "REPORT_LOCKDOWN"), superAdminHeaders),
+                Map.of("state", "DEACTIVATED", "reason", "REPORT_LOCKDOWN"), superAdminHeaders),
             Map.class);
     assertThat(blockResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -159,14 +163,16 @@ class ReportControllerSecurityIT extends AbstractIntegrationTest {
     assertThat(denied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     assertThat(denied.getBody()).isNotNull();
     assertThat(((Map<?, ?>) denied.getBody().get("data")).get("reason"))
-        .isEqualTo("TENANT_BLOCKED");
+        .isEqualTo("TENANT_LIFECYCLE_RESTRICTED");
+    assertThat(((Map<?, ?>) denied.getBody().get("data")).get("reasonDetail"))
+        .isEqualTo("Tenant is deactivated");
 
     ResponseEntity<Map> recoveryResponse =
         rest.exchange(
-            "/api/v1/companies/" + companyA.getId() + "/tenant-runtime/policy",
+            "/api/v1/superadmin/tenants/" + companyA.getId() + "/lifecycle",
             HttpMethod.PUT,
             new HttpEntity<>(
-                Map.of("holdState", "ACTIVE", "reasonCode", "REPORT_RECOVERY"), superAdminHeaders),
+                Map.of("state", "ACTIVE", "reason", "REPORT_RECOVERY"), superAdminHeaders),
             Map.class);
     assertThat(recoveryResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 

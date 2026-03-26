@@ -105,7 +105,8 @@ public class PackingAllowedSizeService {
     }
 
     Map<String, FinishedGood> finishedGoodsBySku =
-        loadFinishedGoodsBySku(company, familyProducts.stream().map(ProductionProduct::getSkuCode).toList());
+        loadFinishedGoodsBySku(
+            company, familyProducts.stream().map(ProductionProduct::getSkuCode).toList());
 
     String productFamilyName = resolveProductFamilyName(baseProduct);
     List<AllowedSellableSizeTarget> allowedTargets = new ArrayList<>();
@@ -133,15 +134,20 @@ public class PackingAllowedSizeService {
         .sorted(
             Comparator.comparing(
                     AllowedSellableSizeTarget::sizeVariant,
-                    Comparator.comparing(SizeVariant::getLitersPerUnit, Comparator.nullsLast(Comparator.naturalOrder()))
-                        .thenComparing(SizeVariant::getSizeLabel, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                    Comparator.comparing(
+                            SizeVariant::getLitersPerUnit,
+                            Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(
+                            SizeVariant::getSizeLabel,
+                            Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
                 .thenComparing(
                     target -> target.finishedGood().getProductCode(),
                     Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
         .toList();
   }
 
-  private List<ProductionProduct> resolveFamilyProducts(Company company, ProductionProduct baseProduct) {
+  private List<ProductionProduct> resolveFamilyProducts(
+      Company company, ProductionProduct baseProduct) {
     UUID variantGroupId = baseProduct.getVariantGroupId();
     if (variantGroupId == null) {
       return List.of(baseProduct);
@@ -155,7 +161,8 @@ public class PackingAllowedSizeService {
     return familyProducts;
   }
 
-  private Map<String, FinishedGood> loadFinishedGoodsBySku(Company company, List<String> productCodes) {
+  private Map<String, FinishedGood> loadFinishedGoodsBySku(
+      Company company, List<String> productCodes) {
     List<String> normalizedCodes =
         productCodes.stream()
             .filter(StringUtils::hasText)
@@ -261,7 +268,5 @@ public class PackingAllowedSizeService {
       ProductionProduct product,
       FinishedGood finishedGood,
       SizeVariant sizeVariant,
-      String productFamilyName
-  ) {
-  }
+      String productFamilyName) {}
 }

@@ -10,6 +10,4 @@ public record AllowedSellableSizeDto(
     String sizeLabel,
     Integer piecesPerBox,
     BigDecimal litersPerUnit,
-    String productFamilyName
-) {
-}
+    String productFamilyName) {}

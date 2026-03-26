@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.times;
 
 import java.util.List;
 import java.util.Map;
@@ -161,10 +161,7 @@ class RoleServiceTest {
   @Test
   void ensureRoleExists_backfillsMissingDescriptionForExistingSystemRole() {
     Role accounting =
-        role(
-            "ROLE_ACCOUNTING",
-            permission("portal:accounting"),
-            permission("payroll.run"));
+        role("ROLE_ACCOUNTING", permission("portal:accounting"), permission("payroll.run"));
     accounting.setDescription(" ");
     when(roleRepository.lockByName("ROLE_ACCOUNTING")).thenReturn(Optional.of(accounting));
     when(roleRepository.save(any(Role.class))).thenAnswer(invocation -> invocation.getArgument(0));

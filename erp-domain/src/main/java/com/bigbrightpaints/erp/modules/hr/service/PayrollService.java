@@ -70,7 +70,8 @@ public class PayrollService {
    * line.setPaymentReference(canonicalPaymentReference);
    * run.setStatus(PayrollRun.PayrollStatus.PAID);
    */
-  private static final String PAYROLL_PAYMENTS_CANONICAL_PATH = "/api/v1/accounting/payroll/payments";
+  private static final String PAYROLL_PAYMENTS_CANONICAL_PATH =
+      "/api/v1/accounting/payroll/payments";
 
   private final PayrollRunRepository payrollRunRepository;
   private final PayrollRunLineRepository payrollRunLineRepository;

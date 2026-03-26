@@ -13,11 +13,7 @@ public enum CompanyLifecycleState {
   DEACTIVATED;
 
   public String toExternalValue() {
-    return switch (this) {
-      case ACTIVE -> "ACTIVE";
-      case SUSPENDED -> "HOLD";
-      case DEACTIVATED -> "BLOCKED";
-    };
+    return name();
   }
 
   public static CompanyLifecycleState fromRequestValue(String rawValue) {
@@ -31,12 +27,6 @@ public enum CompanyLifecycleState {
       return Optional.empty();
     }
     String normalized = rawValue.trim().toUpperCase(Locale.ROOT);
-    if ("HOLD".equals(normalized)) {
-      return Optional.of(SUSPENDED);
-    }
-    if ("BLOCKED".equals(normalized)) {
-      return Optional.of(DEACTIVATED);
-    }
     try {
       return Optional.of(CompanyLifecycleState.valueOf(normalized));
     } catch (IllegalArgumentException ignored) {

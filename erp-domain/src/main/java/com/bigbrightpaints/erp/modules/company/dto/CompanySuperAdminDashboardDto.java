@@ -5,14 +5,14 @@ import java.util.List;
 public record CompanySuperAdminDashboardDto(
     long totalTenants,
     long activeTenants,
-    long holdTenants,
-    long blockedTenants,
+    long suspendedTenants,
+    long deactivatedTenants,
     long totalActiveUsers,
     long totalActiveUserQuota,
-    long totalStorageBytes,
+    long totalAuditStorageBytes,
     long totalStorageQuotaBytes,
-    long totalConcurrentUsers,
-    long totalConcurrentUserQuota,
+    long totalCurrentConcurrentRequests,
+    long totalConcurrentRequestQuota,
     List<TenantOverview> tenants) {
   public record TenantOverview(
       Long companyId,
@@ -23,10 +23,10 @@ public record CompanySuperAdminDashboardDto(
       String lifecycleReason,
       long activeUsers,
       long activeUserQuota,
-      long storageBytesUsed,
+      long auditStorageBytes,
       long storageQuotaBytes,
-      long concurrentUsers,
-      long concurrentUserQuota,
+      long currentConcurrentRequests,
+      long concurrentRequestQuota,
       long apiActivityCount,
       long apiRequestQuota,
       long apiErrorCount,
@@ -34,6 +34,6 @@ public record CompanySuperAdminDashboardDto(
       boolean quotaSoftLimitEnabled,
       boolean quotaHardLimitEnabled,
       long activeUserUtilizationInBasisPoints,
-      long storageUtilizationInBasisPoints,
-      long concurrentUserUtilizationInBasisPoints) {}
+      long auditStorageUtilizationInBasisPoints,
+      long concurrentRequestUtilizationInBasisPoints) {}
 }

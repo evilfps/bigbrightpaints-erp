@@ -15,8 +15,8 @@ import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
-import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -379,7 +379,8 @@ public class PackingService {
 
     log.setStatus(ProductionLogStatus.FULLY_PACKED);
     log.setWastageQuantity(residualWastage);
-    log.setWastageReasonCode(residualWastage.compareTo(BigDecimal.ZERO) > 0 ? "PROCESS_LOSS" : "NONE");
+    log.setWastageReasonCode(
+        residualWastage.compareTo(BigDecimal.ZERO) > 0 ? "PROCESS_LOSS" : "NONE");
     productionLogRepository.save(log);
   }
 
@@ -393,12 +394,14 @@ public class PackingService {
     if (baseUnitCost.compareTo(BigDecimal.ZERO) <= 0) {
       baseUnitCost = calculateUnitCost(log.getMaterialCostTotal(), log.getMixedQuantity());
     }
-    BigDecimal wastageValue = MoneyUtils.safeMultiply(baseUnitCost, residualWastage).setScale(2, RoundingMode.HALF_UP);
+    BigDecimal wastageValue =
+        MoneyUtils.safeMultiply(baseUnitCost, residualWastage).setScale(2, RoundingMode.HALF_UP);
     if (wastageValue.compareTo(BigDecimal.ZERO) <= 0) {
       return;
     }
 
-    Long wastageAccountId = packingProductSupport.metadataLong(log.getProduct(), "wastageAccountId");
+    Long wastageAccountId =
+        packingProductSupport.metadataLong(log.getProduct(), "wastageAccountId");
     if (wastageAccountId == null) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_REFERENCE,

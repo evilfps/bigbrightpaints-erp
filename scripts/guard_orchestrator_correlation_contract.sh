@@ -94,19 +94,19 @@ require_literal "CorrelationIdentifierSanitizer.sanitizeRequiredIdempotencyKey" 
   "CommandDispatcher does not enforce idempotency sanitizer contract"
 
 # Coordinator must expose overloads that accept correlation fields across flows.
-require_multiline_pattern "public InventoryReservationResult reserveInventory\\(String orderId,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
+require_multiline_pattern "public InventoryReservationResult reserveInventory\\(\\s*String orderId,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
   "IntegrationCoordinator missing correlation-aware reserveInventory overload"
-require_multiline_pattern "public AutoApprovalResult updateFulfillment\\(String orderId,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
+require_multiline_pattern "public AutoApprovalResult updateFulfillment\\(\\s*String orderId,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
   "IntegrationCoordinator missing correlation-aware updateFulfillment overload"
-require_multiline_pattern "public void updateProductionStatus\\(String planId,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
+require_multiline_pattern "public void updateProductionStatus\\(\\s*String planId,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
   "IntegrationCoordinator missing correlation-aware updateProductionStatus overload"
 require_absent_literal "public void releaseInventory(" "$COORDINATOR" \
   "IntegrationCoordinator must not expose the removed releaseInventory legacy batch seam"
-require_multiline_pattern "public void syncEmployees\\(String companyId,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
+require_multiline_pattern "public void syncEmployees\\(\\s*String companyId,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
   "IntegrationCoordinator missing correlation-aware syncEmployees overload"
-require_multiline_pattern "public PayrollRunDto generatePayroll\\(LocalDate payrollDate,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
+require_multiline_pattern "public PayrollRunDto generatePayroll\\(\\s*LocalDate payrollDate,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
   "IntegrationCoordinator missing correlation-aware generatePayroll overload"
-require_multiline_pattern "public JournalEntryDto recordPayrollPayment\\(Long payrollRunId,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
+require_multiline_pattern "public JournalEntryDto recordPayrollPayment\\(\\s*Long payrollRunId,[\\s\\S]*String traceId,[\\s\\S]*String idempotencyKey\\)" "$COORDINATOR" \
   "IntegrationCoordinator missing correlation-aware recordPayrollPayment overload"
 require_literal "CorrelationIdentifierSanitizer.safeTraceForLog" "$COORDINATOR" \
   "IntegrationCoordinator logs are not using safe trace rendering"

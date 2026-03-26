@@ -1,7 +1,7 @@
 # Endpoint Inventory (OpenAPI)
 
 Source: `openapi.json`
-Updated: 2026-03-25
+Updated: 2026-03-26
 
 Related behavior contract:
 - `docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md`
@@ -15,8 +15,8 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `9062727a66bb92a7547b9ab1a7f0c654d0a638785d04f63c5e7c6a9f57513e27`)
-- OpenAPI total paths: `289`
+- OpenAPI snapshot: `openapi.json` (sha256 `40114859d0a1ca1a545fbb0e210d8e27ae15c21839c8d6166f7f321676a3f801`)
+- OpenAPI total paths: `290`
 - OpenAPI total operations: `342`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
 
@@ -24,20 +24,20 @@ Portal scope guardrail:
 
 | Module | Path count | Examples |
 |---|---:|---|
-| `accounting` | 71 | /api/v1/accounting/accounts, /api/v1/accounting/accounts/tree, /api/v1/accounting/accounts/tree/{type} |
-| `admin` | 17 | /api/v1/admin/approvals, /api/v1/admin/changelog, /api/v1/admin/changelog/{id} |
+| `accounting` | 69 | /api/v1/accounting/accounts, /api/v1/accounting/accounts/tree, /api/v1/accounting/accounts/tree/{type} |
+| `admin` | 14 | /api/v1/admin/approvals, /api/v1/admin/exports/{requestId}/approve, /api/v1/admin/exports/{requestId}/reject |
 | `audit` | 2 | /api/v1/audit/business-events, /api/v1/audit/ml-events |
 | `auth` | 12 | /api/v1/auth/login, /api/v1/auth/logout, /api/v1/auth/me |
 | `catalog` | 5 | /api/v1/catalog/brands, /api/v1/catalog/items, /api/v1/catalog/import |
 | `changelog` | 2 | /api/v1/changelog, /api/v1/changelog/latest-highlighted |
-| `companies` | 7 | /api/v1/companies, /api/v1/companies/{id}, /api/v1/companies/{id}/lifecycle-state |
+| `companies` | 2 | /api/v1/companies, /api/v1/companies/{id} |
 | `credit` | 6 | /api/v1/credit/limit-requests, /api/v1/credit/limit-requests/{id}/approve, /api/v1/credit/override-requests |
 | `dealer-portal` | 7 | /api/v1/dealer-portal/aging, /api/v1/dealer-portal/credit-limit-requests, /api/v1/dealer-portal/dashboard |
 | `dealers` | 8 | /api/v1/dealers, /api/v1/dealers/search, /api/v1/dealers/{dealerId} |
 | `demo` | 1 | /api/v1/demo/ping |
-| `dispatch` | 5 | /api/v1/dispatch/order/{orderId}, /api/v1/dispatch/pending, /api/v1/dispatch/preview/{slipId} |
+| `dispatch` | 7 | /api/v1/dispatch/confirm, /api/v1/dispatch/order/{orderId}, /api/v1/dispatch/pending |
 | `exports` | 2 | /api/v1/exports/request, /api/v1/exports/{requestId}/download |
-| `factory` | 19 | /api/v1/factory/bulk-batches/{finishedGoodId}, /api/v1/factory/bulk-batches/{parentBatchId}/children, /api/v1/factory/cost-allocation |
+| `factory` | 17 | /api/v1/factory/bulk-batches/{finishedGoodId}, /api/v1/factory/bulk-batches/{parentBatchId}/children, /api/v1/factory/cost-allocation |
 | `finished-goods` | 6 | /api/v1/finished-goods, /api/v1/finished-goods/low-stock, /api/v1/finished-goods/stock-summary |
 | `hr` | 17 | /api/v1/hr/attendance/bulk-import, /api/v1/hr/attendance/bulk-mark, /api/v1/hr/attendance/date/{date} |
 | `integration` | 1 | /api/integration/health |
@@ -52,7 +52,7 @@ Portal scope guardrail:
 | `raw-materials` | 3 | /api/v1/raw-materials/stock, /api/v1/raw-materials/stock/inventory, /api/v1/raw-materials/stock/low-stock |
 | `reports` | 20 | /api/v1/reports/account-statement, /api/v1/reports/aged-debtors, /api/v1/reports/aging/dealer/{dealerId} |
 | `sales` | 16 | /api/v1/sales/dashboard, /api/v1/sales/dealers, /api/v1/sales/dealers/search |
-| `superadmin` | 10 | /api/v1/superadmin/dashboard, /api/v1/superadmin/tenants, /api/v1/superadmin/tenants/coa-templates |
+| `superadmin` | 17 | /api/v1/superadmin/changelog, /api/v1/superadmin/changelog/{id}, /api/v1/superadmin/dashboard |
 | `suppliers` | 5 | /api/v1/suppliers, /api/v1/suppliers/{id}, /api/v1/suppliers/{id}/activate |
 | `support` | 2 | /api/v1/support/tickets, /api/v1/support/tickets/{ticketId} |
 
@@ -131,17 +131,14 @@ Portal scope guardrail:
 ## `admin`
 
 - `GET` `/api/v1/admin/approvals`
-- `POST` `/api/v1/admin/changelog`
-- `PUT, DELETE` `/api/v1/admin/changelog/{id}`
 - `PUT` `/api/v1/admin/exports/{requestId}/approve`
 - `PUT` `/api/v1/admin/exports/{requestId}/reject`
 - `POST` `/api/v1/admin/notify`
 - `GET, POST` `/api/v1/admin/roles`
 - `GET` `/api/v1/admin/roles/{roleKey}`
 - `GET, PUT` `/api/v1/admin/settings`
-- `GET` `/api/v1/admin/tenant-runtime/metrics`
 - `GET, POST` `/api/v1/admin/users`
-- `PUT, DELETE` `/api/v1/admin/users/{id}`
+- `DELETE, PUT` `/api/v1/admin/users/{id}`
 - `PATCH` `/api/v1/admin/users/{id}/mfa/disable`
 - `PATCH` `/api/v1/admin/users/{id}/suspend`
 - `PATCH` `/api/v1/admin/users/{id}/unsuspend`
@@ -184,12 +181,7 @@ Portal scope guardrail:
 ## `companies`
 
 - `GET` `/api/v1/companies`
-- `PUT, DELETE` `/api/v1/companies/{id}`
-- `POST` `/api/v1/companies/{id}/lifecycle-state`
-- `POST` `/api/v1/companies/{id}/support/admin-password-reset`
-- `POST` `/api/v1/companies/{id}/support/warnings`
-- `GET` `/api/v1/companies/{id}/tenant-metrics`
-- `PUT` `/api/v1/companies/{id}/tenant-runtime/policy`
+- `DELETE` `/api/v1/companies/{id}`
 
 ## `credit`
 
@@ -230,8 +222,10 @@ Portal scope guardrail:
 - `GET` `/api/v1/dispatch/order/{orderId}`
 - `GET` `/api/v1/dispatch/pending`
 - `GET` `/api/v1/dispatch/preview/{slipId}`
+- `POST` `/api/v1/dispatch/backorder/{slipId}/cancel`
 - `GET` `/api/v1/dispatch/slip/{slipId}`
 - `GET` `/api/v1/dispatch/slip/{slipId}/challan/pdf`
+- `PATCH` `/api/v1/dispatch/slip/{slipId}/status`
 
 ## `exports`
 
@@ -416,16 +410,23 @@ Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packagi
 
 ## `superadmin`
 
+- `POST` `/api/v1/superadmin/changelog`
+- `DELETE, PUT` `/api/v1/superadmin/changelog/{id}`
 - `GET` `/api/v1/superadmin/dashboard`
 - `GET` `/api/v1/superadmin/tenants`
 - `GET` `/api/v1/superadmin/tenants/coa-templates`
 - `POST` `/api/v1/superadmin/tenants/onboard`
-- `POST` `/api/v1/superadmin/tenants/{id}/activate`
-- `POST` `/api/v1/superadmin/tenants/{id}/deactivate`
-- `POST` `/api/v1/superadmin/tenants/{id}/lifecycle-state`
+- `GET` `/api/v1/superadmin/tenants/{id}`
+- `PUT` `/api/v1/superadmin/tenants/{id}/admins/main`
+- `POST` `/api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/confirm`
+- `POST` `/api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/request`
+- `POST` `/api/v1/superadmin/tenants/{id}/force-logout`
+- `PUT` `/api/v1/superadmin/tenants/{id}/lifecycle`
+- `PUT` `/api/v1/superadmin/tenants/{id}/limits`
 - `PUT` `/api/v1/superadmin/tenants/{id}/modules`
-- `POST` `/api/v1/superadmin/tenants/{id}/suspend`
-- `GET` `/api/v1/superadmin/tenants/{id}/usage`
+- `POST` `/api/v1/superadmin/tenants/{id}/support/admin-password-reset`
+- `PUT` `/api/v1/superadmin/tenants/{id}/support/context`
+- `POST` `/api/v1/superadmin/tenants/{id}/support/warnings`
 
 ## `suppliers`
 

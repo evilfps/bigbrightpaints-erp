@@ -23,11 +23,13 @@ import org.springframework.http.ResponseEntity;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLog;
+import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.modules.rbac.domain.Permission;
 import com.bigbrightpaints.erp.modules.rbac.domain.PermissionRepository;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
@@ -67,6 +69,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   @Autowired private PermissionRepository permissionRepository;
 
   @Autowired private RoleService roleService;
+
+  @Autowired private SystemSettingsRepository systemSettingsRepository;
+
+  @Autowired private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
 
   @BeforeEach
   void setUp() {
@@ -117,6 +123,9 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     resetTenantLifecycle(TENANT_A);
     resetTenantLifecycle(TENANT_B);
     resetTenantLifecycle(ROOT_TENANT);
+    resetTenantRuntimePolicy(TENANT_A);
+    resetTenantRuntimePolicy(TENANT_B);
+    resetTenantRuntimePolicy(ROOT_TENANT);
   }
 
   private void resetSeededUserState(String email) {
@@ -140,6 +149,28 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
               company.setLifecycleState(CompanyLifecycleState.ACTIVE);
               company.setLifecycleReason(null);
               companyRepository.save(company);
+            });
+  }
+
+  private void resetTenantRuntimePolicy(String companyCode) {
+    companyRepository
+        .findByCodeIgnoreCase(companyCode)
+        .ifPresent(
+            company -> {
+              Long companyId = company.getId();
+              if (companyId == null) {
+                return;
+              }
+              systemSettingsRepository.deleteById("tenant.runtime.hold-state." + companyId);
+              systemSettingsRepository.deleteById("tenant.runtime.hold-reason." + companyId);
+              systemSettingsRepository.deleteById("tenant.runtime.max-active-users." + companyId);
+              systemSettingsRepository.deleteById(
+                  "tenant.runtime.max-requests-per-minute." + companyId);
+              systemSettingsRepository.deleteById(
+                  "tenant.runtime.max-concurrent-requests." + companyId);
+              systemSettingsRepository.deleteById("tenant.runtime.policy-reference." + companyId);
+              systemSettingsRepository.deleteById("tenant.runtime.policy-updated-at." + companyId);
+              tenantRuntimeEnforcementService.invalidatePolicyCache(companyCode);
             });
   }
 
@@ -192,7 +223,9 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         .containsEntry("defaultAccountingPeriodCreated", true)
         .containsEntry("tenantAdminProvisioned", true);
     assertThat(data.get("adminEmail")).isEqualTo(firstAdminEmail);
-    assertThat(data.get("adminTemporaryPassword")).isNotNull();
+    assertThat(data.get("credentialsEmailSent")).isEqualTo(true);
+    assertThat(data.get("credentialsEmailedAt")).isNotNull();
+    assertThat(data.get("mainAdminUserId")).isNotNull();
   }
 
   @Test
@@ -228,7 +261,9 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         .containsEntry("adminEmail", firstAdminEmail)
         .containsEntry("tenantAdminProvisioned", true)
         .containsEntry("templateCode", "MANUFACTURING");
-    assertThat(String.valueOf(data.get("adminTemporaryPassword"))).isNotBlank();
+    assertThat(data.get("credentialsEmailSent")).isEqualTo(true);
+    assertThat(data.get("credentialsEmailedAt")).isNotNull();
+    assertThat(data.get("mainAdminUserId")).isNotNull();
   }
 
   @Test
@@ -239,7 +274,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/companies/" + tenantAId + "/support/admin-password-reset",
+            "/api/v1/superadmin/tenants/" + tenantAId + "/support/admin-password-reset",
             HttpMethod.POST,
             new HttpEntity<>(
                 Map.of("adminEmail", ADMIN_EMAIL), jsonHeaders(superToken, ROOT_TENANT)),
@@ -266,7 +301,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/companies/" + tenantAId + "/support/admin-password-reset",
+            "/api/v1/superadmin/tenants/" + tenantAId + "/support/admin-password-reset",
             HttpMethod.POST,
             new HttpEntity<>(
                 Map.of("adminEmail", ADMIN_EMAIL), jsonHeaders(superToken, ROOT_TENANT)),
@@ -300,14 +335,14 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> foreignTenantResponse =
         rest.exchange(
-            "/api/v1/companies/" + tenantBId + "/support/admin-password-reset",
+            "/api/v1/superadmin/tenants/" + tenantBId + "/support/admin-password-reset",
             HttpMethod.POST,
             new HttpEntity<>(Map.of("adminEmail", ADMIN_EMAIL), jsonHeaders(token, TENANT_A)),
             Map.class);
 
     ResponseEntity<Map> unknownTenantResponse =
         rest.exchange(
-            "/api/v1/companies/" + unknownCompanyId + "/support/admin-password-reset",
+            "/api/v1/superadmin/tenants/" + unknownCompanyId + "/support/admin-password-reset",
             HttpMethod.POST,
             new HttpEntity<>(Map.of("adminEmail", ADMIN_EMAIL), jsonHeaders(token, TENANT_A)),
             Map.class);
@@ -349,7 +384,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     Long tenantAId = before.getId();
 
     ResponseEntity<Map> response =
-        updateLifecycleState(tenantAId, token, TENANT_A, "BLOCKED", "Repeated policy breach");
+        updateLifecycleState(tenantAId, token, TENANT_A, "DEACTIVATED", "Repeated policy breach");
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     entityManager.clear();
     Company after = companyRepository.findById(tenantAId).orElseThrow();
@@ -359,7 +394,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
   @Test
   void
-      super_admin_can_hold_and_block_tenant_and_hold_lifecycle_allows_authenticated_reads_until_blocked()
+      super_admin_can_suspend_and_deactivate_tenant_and_suspended_lifecycle_allows_authenticated_reads_until_deactivated()
           throws InterruptedException {
     String adminToken = login(ADMIN_EMAIL, TENANT_A);
     String superToken = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
@@ -376,11 +411,11 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     String holdReason = "Compliance review in progress";
     ResponseEntity<Map> holdResponse =
-        updateLifecycleState(tenantAId, superToken, ROOT_TENANT, "HOLD", holdReason);
+        updateLifecycleState(tenantAId, superToken, ROOT_TENANT, "SUSPENDED", holdReason);
     assertThat(holdResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     @SuppressWarnings("unchecked")
     Map<String, Object> holdData = (Map<String, Object>) holdResponse.getBody().get("data");
-    assertThat(holdData).containsEntry("lifecycleState", "HOLD");
+    assertThat(holdData).containsEntry("lifecycleState", "SUSPENDED");
     assertThat(holdData).containsEntry("previousLifecycleState", "ACTIVE");
     assertThat(holdData).containsEntry("reason", holdReason);
 
@@ -391,7 +426,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 SUPER_ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
                     && TENANT_A.equalsIgnoreCase(log.getMetadata().get("targetCompanyCode"))
                     && "tenant-lifecycle-state-updated".equals(log.getMetadata().get("reason"))
-                    && "HOLD".equalsIgnoreCase(log.getMetadata().get("companyLifecycleState"))
+                    && "SUSPENDED".equalsIgnoreCase(log.getMetadata().get("companyLifecycleState"))
                     && holdReason.equals(log.getMetadata().get("companyLifecycleReason")));
     assertThat(holdEvidence.getMetadata().get("lifecycleEvidence"))
         .isEqualTo("immutable-audit-log");
@@ -406,7 +441,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     String blockReason = "Critical security incident";
     ResponseEntity<Map> blockResponse =
-        updateLifecycleState(tenantAId, superToken, ROOT_TENANT, "BLOCKED", blockReason);
+        updateLifecycleState(tenantAId, superToken, ROOT_TENANT, "DEACTIVATED", blockReason);
     assertThat(blockResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
     AuditLog blockEvidence =
@@ -415,7 +450,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
             log ->
                 SUPER_ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
                     && TENANT_A.equalsIgnoreCase(log.getMetadata().get("targetCompanyCode"))
-                    && "BLOCKED".equalsIgnoreCase(log.getMetadata().get("companyLifecycleState"))
+                    && "DEACTIVATED"
+                        .equalsIgnoreCase(log.getMetadata().get("companyLifecycleState"))
                     && blockReason.equals(log.getMetadata().get("companyLifecycleReason")));
     assertThat(blockEvidence.getMetadata().get("lifecycleEvidence"))
         .isEqualTo("immutable-audit-log");
@@ -437,7 +473,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
 
     ResponseEntity<Map> response =
-        updateLifecycleState(tenantAId, superToken, ROOT_TENANT, "HOLD", " ");
+        updateLifecycleState(tenantAId, superToken, ROOT_TENANT, "SUSPENDED", " ");
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
   }
 
@@ -590,14 +626,14 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void tenant_metrics_endpoint_is_super_admin_only() {
+  void tenant_detail_endpoint_is_super_admin_only() {
     Long tenantAId =
         companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
 
     String adminToken = login(ADMIN_EMAIL, TENANT_A);
     ResponseEntity<Map> adminResponse =
         rest.exchange(
-            "/api/v1/companies/" + tenantAId + "/tenant-metrics",
+            "/api/v1/superadmin/tenants/" + tenantAId,
             HttpMethod.GET,
             new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
             Map.class);
@@ -606,7 +642,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
     ResponseEntity<Map> superAdminResponse =
         rest.exchange(
-            "/api/v1/companies/" + tenantAId + "/tenant-metrics",
+            "/api/v1/superadmin/tenants/" + tenantAId,
             HttpMethod.GET,
             new HttpEntity<>(jsonHeaders(superAdminToken, TENANT_A)),
             Map.class);
@@ -618,36 +654,41 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     Map<String, Object> data = (Map<String, Object>) body.get("data");
     assertThat(data).isNotNull();
     assertThat(data.get("companyCode")).isEqualTo(TENANT_A);
-    assertThat(data)
+    @SuppressWarnings("unchecked")
+    Map<String, Object> limits = (Map<String, Object>) data.get("limits");
+    @SuppressWarnings("unchecked")
+    Map<String, Object> usage = (Map<String, Object>) data.get("usage");
+    assertThat(limits)
         .containsKeys(
-            "lifecycleState",
             "quotaMaxActiveUsers",
             "quotaMaxApiRequests",
             "quotaMaxStorageBytes",
-            "quotaMaxConcurrentSessions",
+            "quotaMaxConcurrentRequests",
             "quotaSoftLimitEnabled",
-            "quotaHardLimitEnabled",
+            "quotaHardLimitEnabled")
+        .doesNotContainKeys("quotaMaxConcurrentSessions", "apiRateLimitPerMinute");
+    assertThat(usage)
+        .containsKeys(
             "activeUserCount",
             "apiActivityCount",
             "apiErrorCount",
             "apiErrorRateInBasisPoints",
-            "distinctSessionCount",
-            "auditStorageBytes");
-    assertThat(data)
-        .doesNotContainKeys("activeUserQuota", "apiRateLimitPerMinute", "auditStorageQuotaBytes");
-    Number apiActivityCount = (Number) data.get("apiActivityCount");
-    Number apiErrorCount = (Number) data.get("apiErrorCount");
-    Number apiErrorRateInBasisPoints = (Number) data.get("apiErrorRateInBasisPoints");
-    Number distinctSessionCount = (Number) data.get("distinctSessionCount");
-    Number auditStorageBytes = (Number) data.get("auditStorageBytes");
+            "auditStorageBytes",
+            "currentConcurrentRequests")
+        .doesNotContainKeys("distinctSessionCount", "storageBytes");
+    Number apiActivityCount = (Number) usage.get("apiActivityCount");
+    Number apiErrorCount = (Number) usage.get("apiErrorCount");
+    Number apiErrorRateInBasisPoints = (Number) usage.get("apiErrorRateInBasisPoints");
+    Number currentConcurrentRequests = (Number) usage.get("currentConcurrentRequests");
+    Number auditStorageBytes = (Number) usage.get("auditStorageBytes");
     assertThat(apiActivityCount).isNotNull();
     assertThat(apiErrorCount).isNotNull();
     assertThat(apiErrorRateInBasisPoints).isNotNull();
-    assertThat(distinctSessionCount).isNotNull();
+    assertThat(currentConcurrentRequests).isNotNull();
     assertThat(auditStorageBytes).isNotNull();
     assertThat(apiActivityCount.longValue()).isGreaterThanOrEqualTo(apiErrorCount.longValue());
     assertThat(apiErrorRateInBasisPoints.longValue()).isBetween(0L, 10_000L);
-    assertThat(distinctSessionCount.longValue()).isGreaterThanOrEqualTo(0L);
+    assertThat(currentConcurrentRequests.longValue()).isGreaterThanOrEqualTo(0L);
     assertThat(auditStorageBytes.longValue()).isGreaterThanOrEqualTo(0L);
   }
 
@@ -665,12 +706,12 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     String token = login(rootOnlySuperAdminEmail, ROOT_TENANT);
 
     ResponseEntity<Map> holdResponse =
-        updateLifecycleState(tenantAId, token, ROOT_TENANT, "HOLD", "path-binding-hardening");
+        updateLifecycleState(tenantAId, token, ROOT_TENANT, "SUSPENDED", "path-binding-hardening");
     assertThat(holdResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
     ResponseEntity<Map> metricsResponse =
         rest.exchange(
-            "/api/v1/companies/" + tenantAId + "/tenant-metrics",
+            "/api/v1/superadmin/tenants/" + tenantAId,
             HttpMethod.GET,
             new HttpEntity<>(jsonHeaders(token, ROOT_TENANT)),
             Map.class);
@@ -682,6 +723,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     Map<String, Object> metricsData = (Map<String, Object>) metricsBody.get("data");
     assertThat(metricsData).isNotNull();
     assertThat(metricsData.get("companyCode")).isEqualTo(TENANT_A);
+    assertThat(metricsData.get("lifecycleState")).isEqualTo("SUSPENDED");
 
     ResponseEntity<Map> restoreResponse =
         updateLifecycleState(
@@ -690,32 +732,20 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void tenant_configuration_update_is_super_admin_only() {
+  void tenant_limits_update_is_super_admin_only() {
     Long tenantAId =
         companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
 
     String adminToken = login(ADMIN_EMAIL, TENANT_A);
     ResponseEntity<Map> adminResponse =
-        updateCompany(
-            tenantAId, adminToken, TENANT_A, "Blocked Admin Update", TENANT_A, "UTC", 18.0);
+        updateTenantLimits(
+            tenantAId, adminToken, TENANT_A, 120L, 3_000L, 2_097_152L, 7L, false, true);
     assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
     String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
     ResponseEntity<Map> superAdminResponse =
-        updateCompany(
-            tenantAId,
-            superAdminToken,
-            TENANT_A,
-            "Allowed Super Admin Update",
-            TENANT_A,
-            "UTC",
-            18.0,
-            120L,
-            3_000L,
-            2_097_152L,
-            7L,
-            false,
-            true);
+        updateTenantLimits(
+            tenantAId, superAdminToken, TENANT_A, 120L, 3_000L, 2_097_152L, 7L, false, true);
     assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
   }
 
@@ -727,14 +757,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
 
     ResponseEntity<Map> configureSoftOnly =
-        updateCompany(
+        updateTenantLimits(
             tenantAId,
             superAdminToken,
             TENANT_A,
-            "Quota Soft Limit Only",
-            TENANT_A,
-            "UTC",
-            18.0,
             1L,
             1_000_000L,
             1_000_000_000L,
@@ -752,20 +778,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     assertThat(runtimeAllowed.getStatusCode()).isEqualTo(HttpStatus.OK);
 
     ResponseEntity<Map> resetResponse =
-        updateCompany(
-            tenantAId,
-            superAdminToken,
-            TENANT_A,
-            "Quota Soft Limit Only Reset",
-            TENANT_A,
-            "UTC",
-            18.0,
-            120L,
-            3_000L,
-            2_097_152L,
-            7L,
-            false,
-            true);
+        updateTenantLimits(
+            tenantAId, superAdminToken, TENANT_A, 120L, 3_000L, 2_097_152L, 7L, false, true);
     assertThat(resetResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
   }
 
@@ -791,18 +805,13 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> idorUpdate =
         rest.exchange(
-            "/api/v1/companies/" + tenantBId,
+            "/api/v1/superadmin/tenants/" + tenantBId + "/limits",
             HttpMethod.PUT,
             new HttpEntity<>(
                 Map.of(
-                    "name",
-                    "Cross Tenant Update",
-                    "code",
-                    TENANT_B,
-                    "timezone",
-                    "UTC",
-                    "defaultGstRate",
-                    18.0),
+                    "quotaMaxActiveUsers", 25,
+                    "quotaMaxApiRequests", 500,
+                    "quotaMaxConcurrentRequests", 5),
                 jsonHeaders(token, TENANT_A)),
             Map.class);
     assertThat(idorUpdate.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
@@ -1312,7 +1321,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     if (present) {
       role.getPermissions().add(permission);
     } else {
-      role.getPermissions().removeIf(existing -> permissionCode.equalsIgnoreCase(existing.getCode()));
+      role.getPermissions()
+          .removeIf(existing -> permissionCode.equalsIgnoreCase(existing.getCode()));
     }
     roleRepository.save(role);
   }
@@ -1336,8 +1346,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   private ResponseEntity<Map> updateLifecycleState(
       Long companyId, String token, String companyCode, String state, String reason) {
     return rest.exchange(
-        "/api/v1/companies/" + companyId + "/lifecycle-state",
-        HttpMethod.POST,
+        "/api/v1/superadmin/tenants/" + companyId + "/lifecycle",
+        HttpMethod.PUT,
         new HttpEntity<>(
             Map.of(
                 "state", state,
@@ -1346,49 +1356,17 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         Map.class);
   }
 
-  private ResponseEntity<Map> updateCompany(
+  private ResponseEntity<Map> updateTenantLimits(
       Long companyId,
       String token,
       String companyCode,
-      String name,
-      String code,
-      String timezone,
-      double defaultGstRate) {
-    return updateCompany(
-        companyId,
-        token,
-        companyCode,
-        name,
-        code,
-        timezone,
-        defaultGstRate,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null);
-  }
-
-  private ResponseEntity<Map> updateCompany(
-      Long companyId,
-      String token,
-      String companyCode,
-      String name,
-      String code,
-      String timezone,
-      double defaultGstRate,
       Long quotaMaxActiveUsers,
       Long quotaMaxApiRequests,
       Long quotaMaxStorageBytes,
-      Long quotaMaxConcurrentSessions,
+      Long quotaMaxConcurrentRequests,
       Boolean quotaSoftLimitEnabled,
       Boolean quotaHardLimitEnabled) {
     Map<String, Object> payload = new HashMap<>();
-    payload.put("name", name);
-    payload.put("code", code);
-    payload.put("timezone", timezone);
-    payload.put("defaultGstRate", defaultGstRate);
     if (quotaMaxActiveUsers != null) {
       payload.put("quotaMaxActiveUsers", quotaMaxActiveUsers);
     }
@@ -1398,8 +1376,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     if (quotaMaxStorageBytes != null) {
       payload.put("quotaMaxStorageBytes", quotaMaxStorageBytes);
     }
-    if (quotaMaxConcurrentSessions != null) {
-      payload.put("quotaMaxConcurrentSessions", quotaMaxConcurrentSessions);
+    if (quotaMaxConcurrentRequests != null) {
+      payload.put("quotaMaxConcurrentRequests", quotaMaxConcurrentRequests);
     }
     if (quotaSoftLimitEnabled != null) {
       payload.put("quotaSoftLimitEnabled", quotaSoftLimitEnabled);
@@ -1408,7 +1386,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
       payload.put("quotaHardLimitEnabled", quotaHardLimitEnabled);
     }
     return rest.exchange(
-        "/api/v1/companies/" + companyId,
+        "/api/v1/superadmin/tenants/" + companyId + "/limits",
         HttpMethod.PUT,
         new HttpEntity<>(payload, jsonHeaders(token, companyCode)),
         Map.class);

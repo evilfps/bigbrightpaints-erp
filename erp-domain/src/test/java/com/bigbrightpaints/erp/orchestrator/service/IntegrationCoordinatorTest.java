@@ -17,8 +17,8 @@ import static org.mockito.Mockito.when;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -705,7 +705,8 @@ class IntegrationCoordinatorTest {
 
   @Test
   void integrationCoordinatorNoLongerExposesLegacyReleaseInventoryCaller() {
-    assertThat(Arrays.stream(IntegrationCoordinator.class.getDeclaredMethods()).map(Method::getName))
+    assertThat(
+            Arrays.stream(IntegrationCoordinator.class.getDeclaredMethods()).map(Method::getName))
         .doesNotContain("releaseInventory");
   }
 

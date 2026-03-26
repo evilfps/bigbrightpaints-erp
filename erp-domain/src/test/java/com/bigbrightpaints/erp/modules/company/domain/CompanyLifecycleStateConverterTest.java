@@ -12,9 +12,9 @@ class CompanyLifecycleStateConverterTest {
   void convertToDatabaseColumn_preserves_schemaCompatibleLifecycleValues() {
     assertThat(converter.convertToDatabaseColumn(CompanyLifecycleState.ACTIVE)).isEqualTo("ACTIVE");
     assertThat(converter.convertToDatabaseColumn(CompanyLifecycleState.SUSPENDED))
-        .isEqualTo("HOLD");
+        .isEqualTo("SUSPENDED");
     assertThat(converter.convertToDatabaseColumn(CompanyLifecycleState.DEACTIVATED))
-        .isEqualTo("BLOCKED");
+        .isEqualTo("DEACTIVATED");
   }
 
   @Test
@@ -22,7 +22,7 @@ class CompanyLifecycleStateConverterTest {
     assertThat(converter.convertToEntityAttribute("ACTIVE"))
         .isEqualTo(CompanyLifecycleState.ACTIVE);
     assertThat(converter.convertToEntityAttribute("HOLD"))
-        .isEqualTo(CompanyLifecycleState.SUSPENDED);
+        .isEqualTo(CompanyLifecycleState.DEACTIVATED);
     assertThat(converter.convertToEntityAttribute("BLOCKED"))
         .isEqualTo(CompanyLifecycleState.DEACTIVATED);
     assertThat(converter.convertToEntityAttribute("mystery-state"))

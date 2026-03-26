@@ -298,8 +298,7 @@ class TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest extends AbstractIntegr
     assertThat(afterReplay.getJournalEntryId()).isEqualTo(afterFirst.getJournalEntryId());
     assertThat(afterReplay.getCogsJournalEntryId()).isEqualTo(afterFirst.getCogsJournalEntryId());
     assertThat(orderAfterReplay.getFulfillmentInvoiceId()).isEqualTo(afterFirst.getInvoiceId());
-    assertThat(orderAfterReplay.getSalesJournalEntryId())
-        .isEqualTo(afterFirst.getJournalEntryId());
+    assertThat(orderAfterReplay.getSalesJournalEntryId()).isEqualTo(afterFirst.getJournalEntryId());
     assertThat(orderAfterReplay.getCogsJournalEntryId())
         .isEqualTo(afterFirst.getCogsJournalEntryId());
     assertThat(

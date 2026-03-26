@@ -69,7 +69,8 @@ class PackingReadServiceTest {
     product.setProductName("Primer");
     log.setProduct(product);
 
-    when(productionLogRepository.findByCompanyAndStatusInOrderByProducedAtAsc(eq(company), anyList()))
+    when(productionLogRepository.findByCompanyAndStatusInOrderByProducedAtAsc(
+            eq(company), anyList()))
         .thenReturn(List.of(log));
     when(packingAllowedSizeService.listAllowedSellableSizes(company, log)).thenReturn(List.of());
 
@@ -97,7 +98,8 @@ class PackingReadServiceTest {
     log.setStatus(ProductionLogStatus.READY_TO_PACK);
     log.setProducedAt(Instant.parse("2026-03-25T13:00:00Z"));
 
-    when(productionLogRepository.findByCompanyAndStatusInOrderByProducedAtAsc(eq(company), anyList()))
+    when(productionLogRepository.findByCompanyAndStatusInOrderByProducedAtAsc(
+            eq(company), anyList()))
         .thenReturn(List.of(log));
 
     List<UnpackedBatchDto> result = packingReadService.listUnpackedBatches();
@@ -144,9 +146,11 @@ class PackingReadServiceTest {
     secondProduct.setVariantGroupId(variantGroupId);
     secondLog.setProduct(secondProduct);
 
-    when(productionLogRepository.findByCompanyAndStatusInOrderByProducedAtAsc(eq(company), anyList()))
+    when(productionLogRepository.findByCompanyAndStatusInOrderByProducedAtAsc(
+            eq(company), anyList()))
         .thenReturn(List.of(firstLog, secondLog));
-    when(packingAllowedSizeService.listAllowedSellableSizes(company, firstLog)).thenReturn(List.of());
+    when(packingAllowedSizeService.listAllowedSellableSizes(company, firstLog))
+        .thenReturn(List.of());
 
     List<UnpackedBatchDto> result = packingReadService.listUnpackedBatches();
 

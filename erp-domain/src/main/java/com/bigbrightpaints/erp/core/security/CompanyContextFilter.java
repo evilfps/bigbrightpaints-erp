@@ -36,11 +36,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
 
   private static final Logger log = LoggerFactory.getLogger(CompanyContextFilter.class);
   private static final String AUDIT_API_PREFIX = "/api/v1/audit";
-  private static final String COMPANY_API_PREFIX = "/api/v1/companies/";
-  private static final String LIFECYCLE_STATE_SUFFIX = "/lifecycle-state";
-  private static final String TENANT_METRICS_SUFFIX = "/tenant-metrics";
-  private static final String TENANT_RUNTIME_POLICY_SUFFIX = "/tenant-runtime/policy";
-  private static final String SUPPORT_ADMIN_PASSWORD_RESET_SUFFIX = "/support/admin-password-reset";
+  private static final String SUPERADMIN_TENANTS_API_PREFIX = "/api/v1/superadmin/tenants/";
   private static final String CONTROL_PLANE_AUTH_DENIED_MESSAGE =
       "Access denied to company control request";
   private static final String SUPER_ADMIN_PLATFORM_ONLY_MESSAGE =
@@ -106,10 +102,8 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
         return;
       }
-      boolean lifecycleControlRequest = isLifecycleControlRequest(runtimePath, request.getMethod());
-      boolean tenantRuntimePolicyControlRequest =
-          hasTenantRuntimePolicyControlAuthority(runtimePath, request.getMethod());
-      if (lifecycleControlRequest && !hasAuthenticatedPrincipal()) {
+      boolean tenantControlRequest = isTenantControlRequest(runtimePath, request.getMethod());
+      if (tenantControlRequest && !hasAuthenticatedPrincipal()) {
         denyControlPlaneRequest(response);
         return;
       }
@@ -187,29 +181,25 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         requestedCompany = null;
       }
       String companyCode = StringUtils.hasText(requestedCompany) ? requestedCompany.trim() : null;
-      boolean lifecycleControlBypass = false;
-      if (lifecycleControlRequest) {
-        Long lifecycleControlCompanyId = extractCompanyIdFromLifecycleControlPath(runtimePath);
-        if (lifecycleControlCompanyId == null) {
+      boolean tenantControlBypass = false;
+      if (tenantControlRequest) {
+        Long tenantControlCompanyId = extractCompanyIdFromLifecycleControlPath(runtimePath);
+        if (tenantControlCompanyId == null) {
           denyControlPlaneRequest(response);
           return;
         }
         String pathTargetCompanyCode =
-            companyService.resolveCompanyCodeById(lifecycleControlCompanyId);
+            companyService.resolveCompanyCodeById(tenantControlCompanyId);
         if (!StringUtils.hasText(pathTargetCompanyCode)) {
           denyControlPlaneRequest(response);
           return;
         }
-        if (hasSuperAdminAuthority()) {
-          companyCode = pathTargetCompanyCode.trim();
-          lifecycleControlBypass = true;
-        } else if (!StringUtils.hasText(companyCode)
-            || !companyCode.trim().equalsIgnoreCase(pathTargetCompanyCode.trim())) {
+        if (!hasSuperAdminAuthority()) {
           denyControlPlaneRequest(response);
           return;
-        } else {
-          companyCode = pathTargetCompanyCode.trim();
         }
+        companyCode = pathTargetCompanyCode.trim();
+        tenantControlBypass = true;
       }
       if (companyCode != null) {
         if (isTenantAuditWorkflowRequest(runtimePath) && hasSuperAdminAuthority()) {
@@ -223,13 +213,13 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             companyService.resolveLifecycleStateByCode(companyCode);
         // Recovery endpoints for non-active tenants are intended for super-admin operators
         // even when they are not explicitly attached to the tenant membership list.
-        if (!lifecycleControlBypass && !validateCompanyAccess(companyCode)) {
+        if (!tenantControlBypass && !validateCompanyAccess(companyCode)) {
           log.warn("User attempted to access unauthorized company: {}", companyCode);
           writeAccessDenied(
               response, "COMPANY_ACCESS_DENIED", "Access denied to company: " + companyCode);
           return;
         }
-        if (!lifecycleControlBypass
+        if (!tenantControlBypass
             && shouldDenyTenantRequestByLifecycle(lifecycleState, request.getMethod())) {
           writeAccessDenied(
               response,
@@ -237,14 +227,10 @@ public class CompanyContextFilter extends OncePerRequestFilter {
               lifecycleDeniedMessage(lifecycleState, request.getMethod()));
           return;
         }
-        if (!lifecycleControlRequest || tenantRuntimePolicyControlRequest) {
+        if (!tenantControlRequest) {
           TenantRuntimeEnforcementService.TenantRequestAdmission runtimeAdmission =
               tenantRuntimeEnforcementService.beginRequest(
-                  companyCode,
-                  runtimePath,
-                  request.getMethod(),
-                  resolveCurrentActor(),
-                  tenantRuntimePolicyControlRequest);
+                  companyCode, runtimePath, request.getMethod(), resolveCurrentActor(), false);
           if (runtimeAdmission == null) {
             log.warn(
                 "Rejecting request because tenant runtime admission was unavailable."
@@ -318,24 +304,6 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         .anyMatch(granted -> "ROLE_SUPER_ADMIN".equalsIgnoreCase(granted.getAuthority()));
   }
 
-  private boolean hasTenantRuntimePolicyControlAuthority(String requestPath, String requestMethod) {
-    if (!hasAuthenticatedPrincipal()) {
-      return false;
-    }
-    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-    if (!"PUT".equalsIgnoreCase(requestMethod) || !StringUtils.hasText(requestPath)) {
-      return false;
-    }
-    String normalizedPath = requestPath.trim();
-    while (normalizedPath.endsWith("/") && normalizedPath.length() > 1) {
-      normalizedPath = normalizedPath.substring(0, normalizedPath.length() - 1);
-    }
-    if (isCanonicalCompanyRuntimePolicyPath(normalizedPath)) {
-      return hasAuthority(auth, "ROLE_SUPER_ADMIN");
-    }
-    return false;
-  }
-
   private boolean isTenantBusinessRequestBlockedForSuperAdmin(String requestPath) {
     String normalizedPath = normalizePath(requestPath);
     if (!StringUtils.hasText(normalizedPath)) {
@@ -386,65 +354,44 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         .anyMatch(grantedAuthority -> authority.equalsIgnoreCase(grantedAuthority));
   }
 
-  private boolean isCanonicalCompanyRuntimePolicyPath(String path) {
-    return isCanonicalCompanyControlSuffixPath(path, TENANT_RUNTIME_POLICY_SUFFIX);
-  }
-
-  private boolean isCanonicalCompanyUpdatePath(String path) {
-    if (!StringUtils.hasText(path) || !path.startsWith(COMPANY_API_PREFIX)) {
+  private boolean isTenantControlRequest(String path, String method) {
+    String normalizedPath = normalizePath(path);
+    if (!StringUtils.hasText(normalizedPath) || !StringUtils.hasText(method)) {
       return false;
     }
-    String companyIdSegment = path.substring(COMPANY_API_PREFIX.length());
-    return hasSingleCompanyIdSegment(companyIdSegment);
-  }
-
-  private boolean isCanonicalCompanyControlSuffixPath(String path, String suffix) {
-    if (!StringUtils.hasText(path) || !StringUtils.hasText(suffix)) {
+    if (!normalizedPath.startsWith(SUPERADMIN_TENANTS_API_PREFIX)) {
       return false;
     }
-    if (!path.startsWith(COMPANY_API_PREFIX) || !path.endsWith(suffix)) {
-      return false;
+    int companyIdSegmentStart = SUPERADMIN_TENANTS_API_PREFIX.length();
+    int companyIdSegmentEnd = normalizedPath.indexOf('/', companyIdSegmentStart);
+    if (companyIdSegmentEnd < 0) {
+      companyIdSegmentEnd = normalizedPath.length();
     }
-    int companyIdSegmentStart = COMPANY_API_PREFIX.length();
-    int companyIdSegmentEnd = path.length() - suffix.length();
     if (companyIdSegmentEnd <= companyIdSegmentStart) {
       return false;
     }
-    String companyIdSegment = path.substring(companyIdSegmentStart, companyIdSegmentEnd);
-    return hasSingleCompanyIdSegment(companyIdSegment);
-  }
-
-  private boolean hasSingleCompanyIdSegment(String companyIdSegment) {
-    return StringUtils.hasText(companyIdSegment) && !companyIdSegment.contains("/");
-  }
-
-  private boolean isLifecycleControlRequest(String path, String method) {
-    String normalizedPath = normalizePath(path);
-    if (!StringUtils.hasText(normalizedPath)) {
+    String companyIdSegment = normalizedPath.substring(companyIdSegmentStart, companyIdSegmentEnd);
+    if (!StringUtils.hasText(companyIdSegment)
+        || !companyIdSegment.chars().allMatch(Character::isDigit)) {
       return false;
     }
-    if (!normalizedPath.startsWith(COMPANY_API_PREFIX)) {
-      return false;
+    String suffix =
+        companyIdSegmentEnd >= normalizedPath.length()
+            ? ""
+            : normalizedPath.substring(companyIdSegmentEnd);
+    String normalizedMethod = method.trim().toUpperCase();
+    if (suffix.isEmpty()) {
+      return "GET".equals(normalizedMethod);
     }
-    boolean lifecycleMutation =
-        "POST".equalsIgnoreCase(method)
-            && isCanonicalCompanyControlSuffixPath(normalizedPath, LIFECYCLE_STATE_SUFFIX);
-    boolean tenantMetricsRead =
-        "GET".equalsIgnoreCase(method)
-            && isCanonicalCompanyControlSuffixPath(normalizedPath, TENANT_METRICS_SUFFIX);
-    boolean runtimePolicyMutation =
-        "PUT".equalsIgnoreCase(method) && isCanonicalCompanyRuntimePolicyPath(normalizedPath);
-    boolean tenantConfigurationUpdate =
-        "PUT".equalsIgnoreCase(method) && isCanonicalCompanyUpdatePath(normalizedPath);
-    boolean supportAdminPasswordReset =
-        "POST".equalsIgnoreCase(method)
-            && isCanonicalCompanyControlSuffixPath(
-                normalizedPath, SUPPORT_ADMIN_PASSWORD_RESET_SUFFIX);
-    return lifecycleMutation
-        || tenantMetricsRead
-        || runtimePolicyMutation
-        || tenantConfigurationUpdate
-        || supportAdminPasswordReset;
+    return ("PUT".equals(normalizedMethod)
+            && Set.of("/lifecycle", "/limits", "/modules", "/support/context", "/admins/main")
+                .contains(suffix))
+        || ("POST".equals(normalizedMethod)
+            && ("/support/warnings".equals(suffix)
+                || "/support/admin-password-reset".equals(suffix)
+                || "/force-logout".equals(suffix)
+                || suffix.matches("^/admins/\\d+/email-change/request$")
+                || suffix.matches("^/admins/\\d+/email-change/confirm$")));
   }
 
   private Long extractCompanyIdFromLifecycleControlPath(String path) {
@@ -452,10 +399,11 @@ public class CompanyContextFilter extends OncePerRequestFilter {
       return null;
     }
     String normalizedPath = normalizePath(path);
-    if (!StringUtils.hasText(normalizedPath) || !normalizedPath.startsWith(COMPANY_API_PREFIX)) {
+    if (!StringUtils.hasText(normalizedPath)
+        || !normalizedPath.startsWith(SUPERADMIN_TENANTS_API_PREFIX)) {
       return null;
     }
-    int companySegmentStart = COMPANY_API_PREFIX.length();
+    int companySegmentStart = SUPERADMIN_TENANTS_API_PREFIX.length();
     int companySegmentEnd = normalizedPath.indexOf('/', companySegmentStart);
     if (companySegmentEnd < 0) {
       companySegmentEnd = normalizedPath.length();

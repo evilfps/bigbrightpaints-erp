@@ -106,7 +106,10 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
       assertThat(data.get("defaultAccountingPeriodCreated")).isEqualTo(true);
       assertThat(data.get("adminEmail").toString()).isEqualTo(adminEmail);
       assertThat(data.get("tenantAdminProvisioned")).isEqualTo(true);
-      assertThat(data.get("adminTemporaryPassword").toString()).isNotBlank();
+      assertThat(data).doesNotContainKey("adminTemporaryPassword");
+      assertThat(data.get("credentialsEmailSent")).isEqualTo(true);
+      assertThat(data.get("credentialsEmailedAt")).isNotNull();
+      assertThat(data.get("mainAdminUserId")).isNotNull();
 
       Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
       List<Account> accounts = accountRepository.findByCompanyOrderByCodeAsc(company);

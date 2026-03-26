@@ -2025,7 +2025,9 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
       productUpdated = true;
     }
     Map<String, Integer> cartonSizes =
-        product.getCartonSizes() == null ? new HashMap<>() : new HashMap<>(product.getCartonSizes());
+        product.getCartonSizes() == null
+            ? new HashMap<>()
+            : new HashMap<>(product.getCartonSizes());
     cartonSizes.putIfAbsent(sizeLabel, 10);
     if (product.getCartonSizes() == null || !product.getCartonSizes().containsKey(sizeLabel)) {
       product.setCartonSizes(cartonSizes);

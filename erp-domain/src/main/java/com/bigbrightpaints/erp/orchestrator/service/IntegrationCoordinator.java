@@ -266,7 +266,12 @@ public class IntegrationCoordinator {
   }
 
   @Transactional
-  public AutoApprovalResult updateFulfillment(String orderId, String requestedStatus, String companyId, String traceId, String idempotencyKey) {
+  public AutoApprovalResult updateFulfillment(
+      String orderId,
+      String requestedStatus,
+      String companyId,
+      String traceId,
+      String idempotencyKey) {
     return withCompanyContext(
         companyId,
         () -> {
@@ -325,7 +330,12 @@ public class IntegrationCoordinator {
   }
 
   @Transactional
-  public PayrollRunDto generatePayroll(LocalDate payrollDate, BigDecimal totalAmount, String companyId, String traceId, String idempotencyKey) {
+  public PayrollRunDto generatePayroll(
+      LocalDate payrollDate,
+      BigDecimal totalAmount,
+      String companyId,
+      String traceId,
+      String idempotencyKey) {
     requirePayrollEnabled();
     ApplicationException ex =
         new ApplicationException(
@@ -356,7 +366,14 @@ public class IntegrationCoordinator {
   }
 
   @Transactional
-  public JournalEntryDto recordPayrollPayment(Long payrollRunId, BigDecimal amount, Long expenseAccountId, Long cashAccountId, String companyId, String traceId, String idempotencyKey) {
+  public JournalEntryDto recordPayrollPayment(
+      Long payrollRunId,
+      BigDecimal amount,
+      Long expenseAccountId,
+      Long cashAccountId,
+      String companyId,
+      String traceId,
+      String idempotencyKey) {
     requirePayrollEnabled();
     String memo =
         correlationMemo(

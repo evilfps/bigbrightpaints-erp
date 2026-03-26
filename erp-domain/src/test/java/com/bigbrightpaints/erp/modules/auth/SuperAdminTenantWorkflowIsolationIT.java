@@ -127,7 +127,7 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> metricsResponse =
         rest.exchange(
-            "/api/v1/companies/" + tenantAId + "/tenant-metrics",
+            "/api/v1/superadmin/tenants/" + tenantAId,
             HttpMethod.GET,
             new HttpEntity<>(jsonHeaders(rootToken, ROOT_TENANT)),
             Map.class);

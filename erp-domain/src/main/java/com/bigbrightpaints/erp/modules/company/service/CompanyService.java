@@ -148,8 +148,8 @@ public class CompanyService {
     company.setQuotaMaxActiveUsers(resolveQuotaForCreate(request.quotaMaxActiveUsers()));
     company.setQuotaMaxApiRequests(resolveQuotaForCreate(request.quotaMaxApiRequests()));
     company.setQuotaMaxStorageBytes(resolveQuotaForCreate(request.quotaMaxStorageBytes()));
-    company.setQuotaMaxConcurrentSessions(
-        resolveQuotaForCreate(request.quotaMaxConcurrentSessions()));
+    company.setQuotaMaxConcurrentRequests(
+        resolveQuotaForCreate(request.quotaMaxConcurrentRequests()));
     company.setQuotaSoftLimitEnabled(
         resolveQuotaFlagForCreate(request.quotaSoftLimitEnabled(), false));
     company.setQuotaHardLimitEnabled(
@@ -192,9 +192,9 @@ public class CompanyService {
         resolveQuotaForUpdate(request.quotaMaxApiRequests(), company.getQuotaMaxApiRequests()));
     company.setQuotaMaxStorageBytes(
         resolveQuotaForUpdate(request.quotaMaxStorageBytes(), company.getQuotaMaxStorageBytes()));
-    company.setQuotaMaxConcurrentSessions(
+    company.setQuotaMaxConcurrentRequests(
         resolveQuotaForUpdate(
-            request.quotaMaxConcurrentSessions(), company.getQuotaMaxConcurrentSessions()));
+            request.quotaMaxConcurrentRequests(), company.getQuotaMaxConcurrentRequests()));
     company.setQuotaSoftLimitEnabled(
         resolveQuotaFlagForUpdate(
             request.quotaSoftLimitEnabled(), company.isQuotaSoftLimitEnabled()));
@@ -255,8 +255,12 @@ public class CompanyService {
     assertBoundControlPlaneCompanyMatchesTarget(company.getCode());
 
     if (tenantLifecycleService != null) {
-      return tenantLifecycleService.transition(
+      CompanyLifecycleStateDto response =
+          tenantLifecycleService.transition(
+              company, requestedState, lifecycleReason, authentication);
+      synchronizeRuntimePolicyWithLifecycle(
           company, requestedState, lifecycleReason, authentication);
+      return response;
     }
 
     CompanyLifecycleState previousState = resolveLifecycleStateById(company.getId());
@@ -264,6 +268,7 @@ public class CompanyService {
     company.setLifecycleReason(lifecycleReason);
     persistLifecycleAuditEvidence(
         company, previousState, requestedState, lifecycleReason, authentication);
+    synchronizeRuntimePolicyWithLifecycle(company, requestedState, lifecycleReason, authentication);
     return new CompanyLifecycleStateDto(
         company.getId(),
         company.getCode(),
@@ -308,12 +313,13 @@ public class CompanyService {
     long activeUsers = resolveRuntimeMetricFailClosed(() -> countActiveUsers(companyId));
     long apiActivity = resolveRuntimeMetricFailClosed(() -> countApiActivity(companyId));
     long storageBytes = resolveRuntimeMetricFailClosed(() -> estimateAuditStorageBytes(companyId));
-    long concurrentSessions =
-        resolveRuntimeMetricFailClosed(() -> countDistinctSessionActivity(companyId));
+    long concurrentRequests =
+        resolveRuntimeMetricFailClosed(
+            () -> resolveCurrentConcurrentRequests(company.getCode(), companyId));
     if (isRuntimeMetricUnavailable(activeUsers)
         || isRuntimeMetricUnavailable(apiActivity)
         || isRuntimeMetricUnavailable(storageBytes)
-        || isRuntimeMetricUnavailable(concurrentSessions)) {
+        || isRuntimeMetricUnavailable(concurrentRequests)) {
       return false;
     }
     if (isQuotaExceeded(activeUsers, company.getQuotaMaxActiveUsers())) {
@@ -325,7 +331,7 @@ public class CompanyService {
     if (isQuotaExceeded(storageBytes, company.getQuotaMaxStorageBytes())) {
       return false;
     }
-    return !isQuotaExceeded(concurrentSessions, company.getQuotaMaxConcurrentSessions());
+    return !isQuotaExceeded(concurrentRequests, company.getQuotaMaxConcurrentRequests());
   }
 
   public CompanyLifecycleState resolveLifecycleStateByCode(String companyCode) {
@@ -379,6 +385,19 @@ public class CompanyService {
     return buildTenantMetrics(company);
   }
 
+  public CompanyTenantMetricsDto getTenantMetricsForSuperAdmin(Long companyId) {
+    Authentication authentication = requireSuperAdminForTenantMetrics(companyId);
+    Company company =
+        repository
+            .findById(companyId)
+            .orElseThrow(
+                () ->
+                    com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                        "Company not found"));
+    auditAuthorityDecision(true, METRICS_READ_REASON, company.getCode(), authentication);
+    return buildTenantMetrics(company);
+  }
+
   public CompanySuperAdminDashboardDto getSuperAdminDashboard() {
     Authentication authentication = requireSuperAdminForTenantMetrics(null);
     List<CompanySuperAdminDashboardDto.TenantOverview> tenantOverview =
@@ -392,11 +411,11 @@ public class CompanyService {
         tenantOverview.stream()
             .filter(tenant -> "ACTIVE".equalsIgnoreCase(tenant.lifecycleState()))
             .count();
-    long holdTenants =
+    long suspendedTenants =
         tenantOverview.stream()
             .filter(tenant -> "SUSPENDED".equalsIgnoreCase(tenant.lifecycleState()))
             .count();
-    long blockedTenants =
+    long deactivatedTenants =
         tenantOverview.stream()
             .filter(tenant -> "DEACTIVATED".equalsIgnoreCase(tenant.lifecycleState()))
             .count();
@@ -408,35 +427,35 @@ public class CompanyService {
         tenantOverview.stream()
             .mapToLong(CompanySuperAdminDashboardDto.TenantOverview::activeUserQuota)
             .sum();
-    long totalStorageBytes =
+    long totalAuditStorageBytes =
         tenantOverview.stream()
-            .mapToLong(CompanySuperAdminDashboardDto.TenantOverview::storageBytesUsed)
+            .mapToLong(CompanySuperAdminDashboardDto.TenantOverview::auditStorageBytes)
             .sum();
     long totalStorageQuotaBytes =
         tenantOverview.stream()
             .mapToLong(CompanySuperAdminDashboardDto.TenantOverview::storageQuotaBytes)
             .sum();
-    long totalConcurrentSessions =
+    long totalCurrentConcurrentRequests =
         tenantOverview.stream()
-            .mapToLong(CompanySuperAdminDashboardDto.TenantOverview::concurrentUsers)
+            .mapToLong(CompanySuperAdminDashboardDto.TenantOverview::currentConcurrentRequests)
             .sum();
-    long totalConcurrentUserQuota =
+    long totalConcurrentRequestQuota =
         tenantOverview.stream()
-            .mapToLong(CompanySuperAdminDashboardDto.TenantOverview::concurrentUserQuota)
+            .mapToLong(CompanySuperAdminDashboardDto.TenantOverview::concurrentRequestQuota)
             .sum();
     auditAuthorityDecision(true, SUPERADMIN_DASHBOARD_READ_REASON, null, authentication);
 
     return new CompanySuperAdminDashboardDto(
         totalTenants,
         activeTenants,
-        holdTenants,
-        blockedTenants,
+        suspendedTenants,
+        deactivatedTenants,
         totalActiveUsers,
         totalActiveUserQuota,
-        totalStorageBytes,
+        totalAuditStorageBytes,
         totalStorageQuotaBytes,
-        totalConcurrentSessions,
-        totalConcurrentUserQuota,
+        totalCurrentConcurrentRequests,
+        totalConcurrentRequestQuota,
         tenantOverview);
   }
 
@@ -577,7 +596,7 @@ public class CompanyService {
     long apiErrorCount = countApiFailureActivity(companyId);
     long apiErrorRateInBasisPoints =
         calculateErrorRateInBasisPoints(apiActivityCount, apiErrorCount);
-    long distinctSessionCount = countDistinctSessionActivity(companyId);
+    long currentConcurrentRequests = resolveCurrentConcurrentRequests(company.getCode(), companyId);
     long auditStorageBytes = estimateAuditStorageBytes(companyId);
     return new CompanyTenantMetricsDto(
         company.getId(),
@@ -587,14 +606,14 @@ public class CompanyService {
         company.getQuotaMaxActiveUsers(),
         company.getQuotaMaxApiRequests(),
         company.getQuotaMaxStorageBytes(),
-        company.getQuotaMaxConcurrentSessions(),
+        company.getQuotaMaxConcurrentRequests(),
         company.isQuotaSoftLimitEnabled(),
         company.isQuotaHardLimitEnabled(),
         activeUserCount,
         apiActivityCount,
         apiErrorCount,
         apiErrorRateInBasisPoints,
-        distinctSessionCount,
+        currentConcurrentRequests,
         auditStorageBytes);
   }
 
@@ -611,8 +630,8 @@ public class CompanyService {
         metrics.quotaMaxActiveUsers(),
         metrics.auditStorageBytes(),
         metrics.quotaMaxStorageBytes(),
-        metrics.distinctSessionCount(),
-        metrics.quotaMaxConcurrentSessions(),
+        metrics.currentConcurrentRequests(),
+        metrics.quotaMaxConcurrentRequests(),
         metrics.apiActivityCount(),
         metrics.quotaMaxApiRequests(),
         metrics.apiErrorCount(),
@@ -623,7 +642,7 @@ public class CompanyService {
         calculateUtilizationInBasisPoints(
             metrics.auditStorageBytes(), metrics.quotaMaxStorageBytes()),
         calculateUtilizationInBasisPoints(
-            metrics.distinctSessionCount(), metrics.quotaMaxConcurrentSessions()));
+            metrics.currentConcurrentRequests(), metrics.quotaMaxConcurrentRequests()));
   }
 
   private void requireMembershipById(Long companyId, Set<Company> allowedCompanies) {
@@ -749,6 +768,43 @@ public class CompanyService {
     if (!boundCompanyCode.trim().equalsIgnoreCase(targetCompanyCode.trim())) {
       throw new AccessDeniedException("Bound company context does not match targeted tenant");
     }
+  }
+
+  private void synchronizeRuntimePolicyWithLifecycle(
+      Company company,
+      CompanyLifecycleState requestedState,
+      String lifecycleReason,
+      Authentication authentication) {
+    if (company == null
+        || tenantRuntimeEnforcementService == null
+        || requestedState == null
+        || !StringUtils.hasText(company.getCode())) {
+      return;
+    }
+    tenantRuntimeEnforcementService.updatePolicy(
+        company.getCode(),
+        mapLifecycleToRuntimeState(requestedState),
+        lifecycleReason,
+        safeRuntimeLimit(company.getQuotaMaxConcurrentRequests()),
+        safeRuntimeLimit(company.getQuotaMaxApiRequests()),
+        safeRuntimeLimit(company.getQuotaMaxActiveUsers()),
+        resolveActor(authentication));
+  }
+
+  private TenantRuntimeEnforcementService.TenantRuntimeState mapLifecycleToRuntimeState(
+      CompanyLifecycleState lifecycleState) {
+    return switch (lifecycleState == null ? CompanyLifecycleState.ACTIVE : lifecycleState) {
+      case ACTIVE -> TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE;
+      case SUSPENDED -> TenantRuntimeEnforcementService.TenantRuntimeState.HOLD;
+      case DEACTIVATED -> TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED;
+    };
+  }
+
+  private Integer safeRuntimeLimit(long value) {
+    if (value <= 0L) {
+      return null;
+    }
+    return value > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) value;
   }
 
   private String normalizeCompanyCode(String code) {
@@ -1090,7 +1146,18 @@ public class CompanyService {
     return company.getQuotaMaxActiveUsers() > 0L
         && company.getQuotaMaxApiRequests() > 0L
         && company.getQuotaMaxStorageBytes() > 0L
-        && company.getQuotaMaxConcurrentSessions() > 0L;
+        && company.getQuotaMaxConcurrentRequests() > 0L;
+  }
+
+  private long resolveCurrentConcurrentRequests(String companyCode, Long companyId) {
+    if (tenantRuntimeEnforcementService != null && StringUtils.hasText(companyCode)) {
+      try {
+        return tenantRuntimeEnforcementService.snapshot(companyCode).metrics().inFlightRequests();
+      } catch (RuntimeException ignored) {
+        // Fall back to the best available telemetry path when runtime snapshot resolution fails.
+      }
+    }
+    return countDistinctSessionActivity(companyId);
   }
 
   private boolean hasRuntimeQuotaTelemetryDependencies() {

@@ -610,7 +610,7 @@ class CompanyServiceTest {
     assertThat(metrics.apiActivityCount()).isEqualTo(20L);
     assertThat(metrics.apiErrorCount()).isEqualTo(5L);
     assertThat(metrics.apiErrorRateInBasisPoints()).isEqualTo(2500L);
-    assertThat(metrics.distinctSessionCount()).isEqualTo(2L);
+    assertThat(metrics.currentConcurrentRequests()).isEqualTo(2L);
     assertThat(metrics.auditStorageBytes()).isEqualTo(4_096L);
   }
 
@@ -665,12 +665,26 @@ class CompanyServiceTest {
   }
 
   @Test
-  void isRuntimeAccessAllowed_deniesWhenConcurrentSessionQuotaExceeded() {
+  void isRuntimeAccessAllowed_deniesWhenConcurrentRequestQuotaExceeded() {
     Company company = company(1L, "ACME");
     configureHardLimitEnvelope(company);
-    company.setQuotaMaxConcurrentSessions(1L);
+    company.setQuotaMaxConcurrentRequests(1L);
     when(repository.findById(1L)).thenReturn(Optional.of(company));
     when(auditLogRepository.countDistinctSessionActivityByCompanyId(1L)).thenReturn(2L);
+
+    assertThat(companyService.isRuntimeAccessAllowed(1L)).isFalse();
+  }
+
+  @Test
+  void isRuntimeAccessAllowed_failsClosedWhenConcurrentRequestTelemetryIsUnavailable() {
+    Company company = company(1L, "ACME");
+    configureHardLimitEnvelope(company);
+    when(repository.findById(1L)).thenReturn(Optional.of(company));
+    when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(1L)).thenReturn(50L);
+    when(auditLogRepository.countApiActivityByCompanyId(1L)).thenReturn(20L);
+    when(auditLogRepository.estimateAuditStorageBytesByCompanyId(1L)).thenReturn(10_000L);
+    when(auditLogRepository.countDistinctSessionActivityByCompanyId(1L))
+        .thenThrow(new RuntimeException("session-telemetry-down"));
 
     assertThat(companyService.isRuntimeAccessAllowed(1L)).isFalse();
   }
@@ -707,7 +721,7 @@ class CompanyServiceTest {
             1L, new CompanyLifecycleStateRequest("SUSPENDED", "  compliance-review  "));
 
     assertThat(response.previousLifecycleState()).isEqualTo("ACTIVE");
-    assertThat(response.lifecycleState()).isEqualTo("HOLD");
+    assertThat(response.lifecycleState()).isEqualTo("SUSPENDED");
     assertThat(response.reason()).isEqualTo("compliance-review");
     assertThat(company.getLifecycleState()).isEqualTo(CompanyLifecycleState.SUSPENDED);
     assertThat(company.getLifecycleReason()).isEqualTo("compliance-review");
@@ -752,7 +766,22 @@ class CompanyServiceTest {
     company.setQuotaMaxActiveUsers(100L);
     company.setQuotaMaxApiRequests(0L);
     company.setQuotaMaxStorageBytes(100_000L);
-    company.setQuotaMaxConcurrentSessions(100L);
+    company.setQuotaMaxConcurrentRequests(100L);
+    when(repository.findById(1L)).thenReturn(Optional.of(company));
+
+    assertThat(companyService.isRuntimeAccessAllowed(1L)).isFalse();
+    verifyNoInteractions(userAccountRepository, auditLogRepository);
+  }
+
+  @Test
+  void isRuntimeAccessAllowed_deniesWhenConcurrentRequestQuotaEnvelopeIsMissing() {
+    Company company = company(1L, "ACME");
+    company.setQuotaHardLimitEnabled(true);
+    company.setQuotaSoftLimitEnabled(false);
+    company.setQuotaMaxActiveUsers(100L);
+    company.setQuotaMaxApiRequests(100L);
+    company.setQuotaMaxStorageBytes(100_000L);
+    company.setQuotaMaxConcurrentRequests(0L);
     when(repository.findById(1L)).thenReturn(Optional.of(company));
 
     assertThat(companyService.isRuntimeAccessAllowed(1L)).isFalse();
@@ -952,13 +981,13 @@ class CompanyServiceTest {
     Company alpha = company(10L, "ALPHA");
     alpha.setQuotaMaxActiveUsers(20L);
     alpha.setQuotaMaxStorageBytes(500L);
-    alpha.setQuotaMaxConcurrentSessions(5L);
+    alpha.setQuotaMaxConcurrentRequests(5L);
     alpha.setQuotaMaxApiRequests(100L);
     alpha.setLifecycleState(CompanyLifecycleState.ACTIVE);
     Company beta = company(11L, "BETA");
     beta.setQuotaMaxActiveUsers(30L);
     beta.setQuotaMaxStorageBytes(900L);
-    beta.setQuotaMaxConcurrentSessions(7L);
+    beta.setQuotaMaxConcurrentRequests(7L);
     beta.setQuotaMaxApiRequests(200L);
     beta.setLifecycleState(CompanyLifecycleState.SUSPENDED);
     when(repository.findAll()).thenReturn(List.of(alpha, beta));
@@ -977,10 +1006,10 @@ class CompanyServiceTest {
 
     assertThat(dashboard.totalTenants()).isEqualTo(2L);
     assertThat(dashboard.activeTenants()).isEqualTo(1L);
-    assertThat(dashboard.holdTenants()).isEqualTo(1L);
+    assertThat(dashboard.suspendedTenants()).isEqualTo(1L);
     assertThat(dashboard.totalActiveUsers()).isEqualTo(20L);
-    assertThat(dashboard.totalStorageBytes()).isEqualTo(420L);
-    assertThat(dashboard.totalConcurrentUsers()).isEqualTo(6L);
+    assertThat(dashboard.totalAuditStorageBytes()).isEqualTo(420L);
+    assertThat(dashboard.totalCurrentConcurrentRequests()).isEqualTo(6L);
     assertThat(dashboard.tenants()).hasSize(2);
   }
 
@@ -1009,7 +1038,7 @@ class CompanyServiceTest {
     company.setQuotaMaxActiveUsers(100L);
     company.setQuotaMaxApiRequests(100L);
     company.setQuotaMaxStorageBytes(100_000L);
-    company.setQuotaMaxConcurrentSessions(100L);
+    company.setQuotaMaxConcurrentRequests(100L);
   }
 
   private Company company(Long id, String code) {

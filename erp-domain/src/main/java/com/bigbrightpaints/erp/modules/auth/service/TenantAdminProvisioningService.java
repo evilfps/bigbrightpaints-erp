@@ -50,7 +50,7 @@ public class TenantAdminProvisioningService {
   }
 
   @Transactional
-  public String provisionInitialAdmin(
+  public ProvisionedTenantAdmin provisionInitialAdmin(
       Company company, String firstAdminEmail, String firstAdminDisplayName) {
     if (company == null || company.getId() == null) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
@@ -71,10 +71,10 @@ public class TenantAdminProvisioningService {
     firstAdmin.setMustChangePassword(true);
     firstAdmin.addCompany(company);
     firstAdmin.addRole(adminRole);
-    userAccountRepository.save(firstAdmin);
+    firstAdmin = userAccountRepository.saveAndFlush(firstAdmin);
     emailService.sendUserCredentialsEmailRequired(
         firstAdmin.getEmail(), firstAdmin.getDisplayName(), temporaryPassword, company.getCode());
-    return firstAdmin.getEmail();
+    return new ProvisionedTenantAdmin(firstAdmin.getId(), firstAdmin.getEmail());
   }
 
   @Transactional
@@ -160,4 +160,6 @@ public class TenantAdminProvisioningService {
                 com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
                     "ROLE_ADMIN must exist before tenant admin provisioning"));
   }
+
+  public record ProvisionedTenantAdmin(Long userId, String email) {}
 }

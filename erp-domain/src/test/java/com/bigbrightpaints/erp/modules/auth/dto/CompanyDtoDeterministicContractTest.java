@@ -97,7 +97,7 @@ class CompanyDtoDeterministicContractTest {
     assertThat(request.quotaMaxActiveUsers()).isEqualTo(120L);
     assertThat(request.quotaMaxApiRequests()).isEqualTo(3_000L);
     assertThat(request.quotaMaxStorageBytes()).isEqualTo(2_097_152L);
-    assertThat(request.quotaMaxConcurrentSessions()).isEqualTo(7L);
+    assertThat(request.quotaMaxConcurrentRequests()).isEqualTo(7L);
     assertThat(request.quotaSoftLimitEnabled()).isTrue();
     assertThat(request.quotaHardLimitEnabled()).isFalse();
     assertThat(request).isEqualTo(same);
@@ -118,7 +118,7 @@ class CompanyDtoDeterministicContractTest {
     assertThat(request.quotaMaxActiveUsers()).isNull();
     assertThat(request.quotaMaxApiRequests()).isNull();
     assertThat(request.quotaMaxStorageBytes()).isNull();
-    assertThat(request.quotaMaxConcurrentSessions()).isNull();
+    assertThat(request.quotaMaxConcurrentRequests()).isNull();
     assertThat(request.quotaSoftLimitEnabled()).isNull();
     assertThat(request.quotaHardLimitEnabled()).isNull();
   }
@@ -134,7 +134,7 @@ class CompanyDtoDeterministicContractTest {
     assertThat(request.quotaMaxActiveUsers()).isNull();
     assertThat(request.quotaMaxApiRequests()).isNull();
     assertThat(request.quotaMaxStorageBytes()).isNull();
-    assertThat(request.quotaMaxConcurrentSessions()).isNull();
+    assertThat(request.quotaMaxConcurrentRequests()).isNull();
     assertThat(request.quotaSoftLimitEnabled()).isNull();
     assertThat(request.quotaHardLimitEnabled()).isNull();
     assertThat(request.firstAdminEmail()).isNull();
@@ -205,14 +205,14 @@ class CompanyDtoDeterministicContractTest {
     assertThat(metrics.quotaMaxActiveUsers()).isEqualTo(120L);
     assertThat(metrics.quotaMaxApiRequests()).isEqualTo(3_000L);
     assertThat(metrics.quotaMaxStorageBytes()).isEqualTo(2_097_152L);
-    assertThat(metrics.quotaMaxConcurrentSessions()).isEqualTo(7L);
+    assertThat(metrics.quotaMaxConcurrentRequests()).isEqualTo(7L);
     assertThat(metrics.quotaSoftLimitEnabled()).isTrue();
     assertThat(metrics.quotaHardLimitEnabled()).isFalse();
     assertThat(metrics.activeUserCount()).isEqualTo(110L);
     assertThat(metrics.apiActivityCount()).isEqualTo(1_800L);
     assertThat(metrics.apiErrorCount()).isEqualTo(15L);
     assertThat(metrics.apiErrorRateInBasisPoints()).isEqualTo(83L);
-    assertThat(metrics.distinctSessionCount()).isEqualTo(5L);
+    assertThat(metrics.currentConcurrentRequests()).isEqualTo(5L);
     assertThat(metrics.auditStorageBytes()).isEqualTo(1_572_864L);
     assertThat(metrics).isEqualTo(same);
     assertThat(metrics.hashCode()).isEqualTo(same.hashCode());

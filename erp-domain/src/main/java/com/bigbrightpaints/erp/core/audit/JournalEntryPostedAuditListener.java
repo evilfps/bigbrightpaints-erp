@@ -42,7 +42,8 @@ public class JournalEntryPostedAuditListener {
     try {
       auditService.logEvent(AuditEvent.JOURNAL_ENTRY_POSTED, AuditStatus.SUCCESS, metadata);
     } catch (Exception ex) {
-      log.warn("Failed to persist JOURNAL_ENTRY_POSTED audit marker for event {}", event.entryId(), ex);
+      log.warn(
+          "Failed to persist JOURNAL_ENTRY_POSTED audit marker for event {}", event.entryId(), ex);
     }
   }
 }

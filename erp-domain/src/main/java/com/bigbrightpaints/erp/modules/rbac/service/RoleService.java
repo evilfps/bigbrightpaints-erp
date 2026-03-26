@@ -213,7 +213,8 @@ public class RoleService {
     if (reconcileSystemRolePermissions(
         role,
         definition,
-        permissionCode -> permissionCache.computeIfAbsent(permissionCode, this::ensurePermissionExists))) {
+        permissionCode ->
+            permissionCache.computeIfAbsent(permissionCode, this::ensurePermissionExists))) {
       dirty = true;
     }
     if (!dirty) {
@@ -264,7 +265,8 @@ public class RoleService {
             .collect(Collectors.toSet());
     if (!retiredCodes.isEmpty()
         && role.getPermissions()
-            .removeIf(permission -> permission != null && retiredCodes.contains(permission.getCode()))) {
+            .removeIf(
+                permission -> permission != null && retiredCodes.contains(permission.getCode()))) {
       changed = true;
     }
     return changed;

@@ -171,7 +171,10 @@ public class BulkPackingService {
               line.quantity() != null ? line.quantity().stripTrailingZeros().toPlainString() : "0");
     }
 
-    String idempotencyKey = StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey().trim().toUpperCase() : "";
+    String idempotencyKey =
+        StringUtils.hasText(request.idempotencyKey())
+            ? request.idempotencyKey().trim().toUpperCase()
+            : "";
     String hash = sha256Hex(fingerprint + "|" + idempotencyKey, 12);
     return trimReference("PACK-", batchCode, hash, 64);
   }
@@ -253,7 +256,8 @@ public class BulkPackingService {
     }
 
     String reference = packReference;
-    JournalEntryDto journal = accountingFacade.postPackingJournal(reference, entryDate, memo, lines);
+    JournalEntryDto journal =
+        accountingFacade.postPackingJournal(reference, entryDate, memo, lines);
     return journal != null ? journal.id() : null;
   }
 

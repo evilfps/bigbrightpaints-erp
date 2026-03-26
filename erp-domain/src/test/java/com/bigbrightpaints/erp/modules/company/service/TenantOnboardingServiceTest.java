@@ -10,26 +10,21 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
-import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningService;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
-import com.bigbrightpaints.erp.modules.rbac.domain.Role;
-import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
-import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 
 @ExtendWith(MockitoExtension.class)
 class TenantOnboardingServiceTest {
@@ -38,19 +33,13 @@ class TenantOnboardingServiceTest {
 
   @Mock private UserAccountRepository userAccountRepository;
 
-  @Mock private RoleService roleService;
-
-  @Mock private RoleRepository roleRepository;
-
-  @Mock private PasswordEncoder passwordEncoder;
-
   @Mock private AccountRepository accountRepository;
 
   @Mock private AccountingPeriodService accountingPeriodService;
 
   @Mock private CoATemplateService coATemplateService;
 
-  @Mock private EmailService emailService;
+  @Mock private TenantAdminProvisioningService tenantAdminProvisioningService;
 
   @Mock private SystemSettingsRepository systemSettingsRepository;
 
@@ -60,13 +49,10 @@ class TenantOnboardingServiceTest {
         new TenantOnboardingService(
             companyRepository,
             userAccountRepository,
-            roleService,
-            roleRepository,
-            passwordEncoder,
             accountRepository,
             accountingPeriodService,
             coATemplateService,
-            emailService,
+            tenantAdminProvisioningService,
             systemSettingsRepository);
     when(systemSettingsRepository.existsById(anyString())).thenReturn(false);
 
@@ -94,51 +80,52 @@ class TenantOnboardingServiceTest {
   }
 
   @Test
-  void requireAdminRole_synchronizesBeforeLoadingPersistedRole() {
+  void createTenantAdmin_failsClosedWhenCredentialEmailDeliveryDisabled() {
     TenantOnboardingService service =
         new TenantOnboardingService(
             companyRepository,
             userAccountRepository,
-            roleService,
-            roleRepository,
-            passwordEncoder,
             accountRepository,
             accountingPeriodService,
             coATemplateService,
-            emailService,
+            tenantAdminProvisioningService,
             systemSettingsRepository);
-    Role persistedRole = new Role();
-    persistedRole.setName("ROLE_ADMIN");
-    when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(persistedRole));
+    when(tenantAdminProvisioningService.isCredentialEmailDeliveryEnabled()).thenReturn(false);
 
-    Role resolved = ReflectionTestUtils.invokeMethod(service, "requireAdminRole");
-
-    assertThat(resolved).isSameAs(persistedRole);
-    verify(roleService).ensureRoleExists("ROLE_ADMIN");
-    verify(roleRepository).findByName("ROLE_ADMIN");
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    service, "createTenantAdmin", company("ACME"), "admin@acme.com", "Acme Admin"))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Credential email delivery is disabled");
+    verify(tenantAdminProvisioningService, never())
+        .provisionInitialAdmin(org.mockito.ArgumentMatchers.any(), anyString(), anyString());
   }
 
   @Test
-  void requireAdminRole_failsFastWhenAdminRoleMissingAfterSynchronization() {
+  void resolveAdminDisplayName_prefersExplicitValue_thenCompanyName_thenFallback() {
     TenantOnboardingService service =
         new TenantOnboardingService(
             companyRepository,
             userAccountRepository,
-            roleService,
-            roleRepository,
-            passwordEncoder,
             accountRepository,
             accountingPeriodService,
             coATemplateService,
-            emailService,
+            tenantAdminProvisioningService,
             systemSettingsRepository);
-    when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.empty());
 
-    assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "requireAdminRole"))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("ROLE_ADMIN must exist before tenant onboarding");
-    verify(roleService).ensureRoleExists("ROLE_ADMIN");
-    verify(roleRepository).findByName("ROLE_ADMIN");
+    String explicitDisplayName =
+        ReflectionTestUtils.invokeMethod(
+            service, "resolveAdminDisplayName", "  Named Admin  ", company("ACME"));
+    String companyDefaultDisplayName =
+        ReflectionTestUtils.invokeMethod(
+            service, "resolveAdminDisplayName", "   ", company("ACME"));
+    String fallbackDisplayName =
+        ReflectionTestUtils.invokeMethod(service, "resolveAdminDisplayName", null, null);
+
+    assertThat(explicitDisplayName).isEqualTo("Named Admin");
+    assertThat(companyDefaultDisplayName).isEqualTo("Company ACME Admin");
+    assertThat(fallbackDisplayName).isEqualTo("Company Admin");
   }
 
   @Test
@@ -147,13 +134,10 @@ class TenantOnboardingServiceTest {
         new TenantOnboardingService(
             companyRepository,
             userAccountRepository,
-            roleService,
-            roleRepository,
-            passwordEncoder,
             accountRepository,
             accountingPeriodService,
             coATemplateService,
-            emailService,
+            tenantAdminProvisioningService,
             systemSettingsRepository);
 
     @SuppressWarnings("unchecked")
@@ -174,5 +158,14 @@ class TenantOnboardingServiceTest {
     assertThat(name).isEqualTo("Opening Balance");
     assertThat(type).isEqualTo(AccountType.EQUITY);
     assertThat(parentCode).isEqualTo("3000");
+  }
+
+  private com.bigbrightpaints.erp.modules.company.domain.Company company(String code) {
+    com.bigbrightpaints.erp.modules.company.domain.Company company =
+        new com.bigbrightpaints.erp.modules.company.domain.Company();
+    company.setCode(code);
+    company.setName("Company " + code);
+    ReflectionTestUtils.setField(company, "id", 10L);
+    return company;
   }
 }

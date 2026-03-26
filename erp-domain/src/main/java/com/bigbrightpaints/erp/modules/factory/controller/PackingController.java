@@ -33,12 +33,12 @@ public class PackingController {
 
   @PostMapping("/packing-records")
   public ResponseEntity<ApiResponse<ProductionLogDetailDto>> recordPacking(
-      @Parameter(required = true)
-      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true)
-      @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey,
-      @Parameter(hidden = true)
-      @RequestHeader(value = "X-Request-Id", required = false) String requestId,
+      @Parameter(required = true) @RequestHeader(value = "Idempotency-Key", required = false)
+          String idempotencyKey,
+      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
+          String legacyIdempotencyKey,
+      @Parameter(hidden = true) @RequestHeader(value = "X-Request-Id", required = false)
+          String requestId,
       @Valid @RequestBody PackingRequest request) {
     PackingRequest resolved =
         applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey, requestId);

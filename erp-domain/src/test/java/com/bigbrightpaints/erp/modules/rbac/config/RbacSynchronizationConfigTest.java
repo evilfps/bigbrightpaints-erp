@@ -119,10 +119,18 @@ class RbacSynchronizationConfigTest {
     rolesByName.put(seededFactory.getName(), seededFactory);
 
     Map<String, Permission> permissionsByCode = new HashMap<>();
-    seededAdmin.getPermissions().forEach(permission -> permissionsByCode.put(permission.getCode(), permission));
-    seededSales.getPermissions().forEach(permission -> permissionsByCode.put(permission.getCode(), permission));
-    seededAccounting.getPermissions().forEach(permission -> permissionsByCode.put(permission.getCode(), permission));
-    seededFactory.getPermissions().forEach(permission -> permissionsByCode.put(permission.getCode(), permission));
+    seededAdmin
+        .getPermissions()
+        .forEach(permission -> permissionsByCode.put(permission.getCode(), permission));
+    seededSales
+        .getPermissions()
+        .forEach(permission -> permissionsByCode.put(permission.getCode(), permission));
+    seededAccounting
+        .getPermissions()
+        .forEach(permission -> permissionsByCode.put(permission.getCode(), permission));
+    seededFactory
+        .getPermissions()
+        .forEach(permission -> permissionsByCode.put(permission.getCode(), permission));
 
     when(roleRepository.lockByName(any()))
         .thenAnswer(invocation -> Optional.ofNullable(rolesByName.get(invocation.getArgument(0))));

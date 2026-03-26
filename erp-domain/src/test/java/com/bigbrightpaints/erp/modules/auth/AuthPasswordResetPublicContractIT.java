@@ -146,7 +146,7 @@ class AuthPasswordResetPublicContractIT extends AbstractIntegrationTest {
     assertThat(data).isNotNull();
     assertThat(data.get("canonicalPath")).isEqualTo("/api/v1/auth/password/forgot");
     assertThat(data.get("supportResetPath"))
-        .isEqualTo("/api/v1/companies/{id}/support/admin-password-reset");
+        .isEqualTo("/api/v1/superadmin/tenants/{id}/support/admin-password-reset");
   }
 
   @Test

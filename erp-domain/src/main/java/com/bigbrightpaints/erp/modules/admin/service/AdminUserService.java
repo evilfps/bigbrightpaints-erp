@@ -329,6 +329,7 @@ public class AdminUserService {
             "admin-delete-user-out-of-scope",
             true,
             OutOfScopeResponseMode.MASK_AS_MISSING);
+    assertNotProtectedMainAdmin(user, company, "delete");
     tokenBlacklistService.revokeAllUserTokens(user.getEmail());
     refreshTokenService.revokeAllForUser(user.getEmail());
     userRepository.delete(user);
@@ -431,6 +432,9 @@ public class AdminUserService {
   private UserDto updateUserStatusInternal(
       UserAccount user, boolean enabled, Company actorCompany, String operation) {
     boolean previousEnabled = user.isEnabled();
+    if (!enabled) {
+      assertNotProtectedMainAdmin(user, actorCompany, "disable");
+    }
     if (enabled && !previousEnabled) {
       resolveTargetCompanies(user, actorCompany)
           .forEach(
@@ -657,6 +661,20 @@ public class AdminUserService {
     return user.getCompanies().stream().map(Company::getId).anyMatch(activeCompany.getId()::equals);
   }
 
+  private void assertNotProtectedMainAdmin(UserAccount user, Company actorCompany, String action) {
+    if (user == null || user.getId() == null) {
+      return;
+    }
+    boolean protectedMainAdmin =
+        resolveActorScopedTargetCompanies(user, actorCompany).stream()
+            .filter(company -> company != null && company.getMainAdminUserId() != null)
+            .anyMatch(company -> user.getId().equals(company.getMainAdminUserId()));
+    if (protectedMainAdmin) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+          "Replace the tenant main admin before attempting to " + action + " this user");
+    }
+  }
+
   private void auditPrivilegedUserActionDenied(
       UserAccount targetUser, Company actorCompany, String denialReason) {
     Map<String, String> metadata = new LinkedHashMap<>();
@@ -696,6 +714,22 @@ public class AdminUserService {
       return user.getCompanies().stream().distinct().toList();
     }
     return actorCompany == null ? List.of() : List.of(actorCompany);
+  }
+
+  private List<Company> resolveActorScopedTargetCompanies(UserAccount user, Company actorCompany) {
+    if (hasSuperAdminAuthority()) {
+      return resolveTargetCompanies(user, actorCompany);
+    }
+    if (actorCompany == null || actorCompany.getId() == null) {
+      return List.of();
+    }
+    if (user == null || user.getCompanies() == null || user.getCompanies().isEmpty()) {
+      return List.of(actorCompany);
+    }
+    return user.getCompanies().stream()
+        .filter(company -> company != null && actorCompany.getId().equals(company.getId()))
+        .distinct()
+        .toList();
   }
 
   private String resolveTargetCompanyCodes(UserAccount user) {

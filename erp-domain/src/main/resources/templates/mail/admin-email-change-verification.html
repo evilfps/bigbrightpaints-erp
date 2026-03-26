@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{mail/layout :: layout(~{::body})}">
+<body>
+<div>
+    <p th:text="'Hello ' + (${displayName} != null ? ${displayName} : 'Admin') + ','">Hello Admin,</p>
+    <p>
+        A superadmin requested an email change for your BigBright ERP admin access
+        <span th:if="${companyCode}" th:text="'for tenant ' + ${companyCode}"></span>.
+    </p>
+    <p>Use the verification token below to complete the change from the superadmin control plane:</p>
+    <p><strong th:text="${verificationToken}">verification-token</strong></p>
+    <p th:if="${expiresAtUtc}" th:text="'This token expires at ' + ${expiresAtUtc} + '.'">
+        This token expires soon.
+    </p>
+    <p>If you were not expecting this change, contact support immediately.</p>
+</div>
+</body>
+</html>

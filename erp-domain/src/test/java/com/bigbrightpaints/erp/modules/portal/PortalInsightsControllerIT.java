@@ -26,6 +26,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyModule;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
@@ -94,6 +95,9 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
 
     company = dataSeeder.ensureCompany(COMPANY_CODE, "Acme Corp");
     company = enableModule(company, CompanyModule.HR_PAYROLL);
+    company.setLifecycleState(CompanyLifecycleState.ACTIVE);
+    company.setLifecycleReason(null);
+    company = companyRepository.saveAndFlush(company);
     dataSeeder.ensureUser(
         ADMIN_EMAIL, ADMIN_PASSWORD, "Admin", COMPANY_CODE, List.of("ROLE_ADMIN"));
     dataSeeder.ensureUser(
@@ -375,21 +379,20 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> policyResponse =
         rest.exchange(
-            "/api/v1/companies/" + company.getId() + "/tenant-runtime/policy",
+            "/api/v1/superadmin/tenants/" + company.getId() + "/lifecycle",
             HttpMethod.PUT,
             new HttpEntity<>(
                 Map.of(
-                    "holdState", "BLOCKED",
-                    "reasonCode", "INCIDENT_CONTAINMENT"),
+                    "state", "DEACTIVATED",
+                    "reason", "INCIDENT_CONTAINMENT"),
                 superAdminHeaders),
             Map.class);
     assertThat(policyResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Map<?, ?> policyBody = policyResponse.getBody();
-    assertThat(policyBody).isNotNull();
-    Map<?, ?> policyData = (Map<?, ?>) policyBody.get("data");
-    assertThat(policyData).isNotNull();
-    assertThat(policyData.get("state")).isEqualTo("BLOCKED");
-    String policyReference = String.valueOf(policyData.get("auditChainId"));
+    String policyReference =
+        systemSettingsRepository
+            .findById("tenant.runtime.policy-reference." + company.getId())
+            .map(setting -> setting.getValue())
+            .orElse(null);
     assertThat(policyReference).isNotBlank();
 
     ResponseEntity<Map> dashboard =
@@ -400,17 +403,17 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
     @SuppressWarnings("unchecked")
     Map<String, Object> errorData = (Map<String, Object>) dashboard.getBody().get("data");
     assertThat(errorData).isNotNull();
-    assertThat(errorData.get("reason")).isEqualTo("TENANT_BLOCKED");
-    assertThat(errorData.get("auditChainId")).isEqualTo(policyReference);
+    assertThat(errorData.get("reason")).isEqualTo("TENANT_LIFECYCLE_RESTRICTED");
+    assertThat(errorData.get("reasonDetail")).isEqualTo("Tenant is deactivated");
 
     ResponseEntity<Map> resetResponse =
         rest.exchange(
-            "/api/v1/companies/" + company.getId() + "/tenant-runtime/policy",
+            "/api/v1/superadmin/tenants/" + company.getId() + "/lifecycle",
             HttpMethod.PUT,
             new HttpEntity<>(
                 Map.of(
-                    "holdState", "ACTIVE",
-                    "reasonCode", "INCIDENT_RESOLVED"),
+                    "state", "ACTIVE",
+                    "reason", "INCIDENT_RESOLVED"),
                 superAdminHeaders),
             Map.class);
     assertThat(resetResponse.getStatusCode()).isEqualTo(HttpStatus.OK);

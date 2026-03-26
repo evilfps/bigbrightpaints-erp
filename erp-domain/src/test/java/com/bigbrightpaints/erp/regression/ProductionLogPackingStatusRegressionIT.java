@@ -26,11 +26,11 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
-import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
-import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogStatus;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingLineRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogDetailDto;
@@ -244,7 +244,8 @@ class ProductionLogPackingStatusRegressionIT extends AbstractIntegrationTest {
         finishedGoodRepository
             .findByCompanyAndProductCodeIgnoreCase(company, product.getSkuCode() + "-BULK")
             .orElseThrow();
-    assertThat(semiFinishedAfterPartial.getCurrentStock()).isEqualByComparingTo(new BigDecimal("6"));
+    assertThat(semiFinishedAfterPartial.getCurrentStock())
+        .isEqualByComparingTo(new BigDecimal("6"));
 
     ProductionLogDetailDto closed =
         packingService.recordPacking(

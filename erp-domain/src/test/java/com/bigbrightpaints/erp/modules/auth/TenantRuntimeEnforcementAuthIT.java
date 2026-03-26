@@ -46,7 +46,7 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
     Scenario scenario = seedScenario("HOLD");
     Map<String, Object> snapshot =
         updateRuntimePolicy(
-            scenario.companyCode(), Map.of("holdState", "HOLD", "reasonCode", "COMPLIANCE_REVIEW"));
+            scenario.companyCode(), Map.of("state", "SUSPENDED", "reason", "COMPLIANCE_REVIEW"));
 
     ResponseEntity<Map> loginResponse =
         rest.postForEntity(
@@ -70,7 +70,7 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
     String refreshToken = (String) tokens.get("refreshToken");
     Map<String, Object> blockedSnapshot =
         updateRuntimePolicy(
-            scenario.companyCode(), Map.of("holdState", "BLOCKED", "reasonCode", "ABUSE_INCIDENT"));
+            scenario.companyCode(), Map.of("state", "DEACTIVATED", "reason", "ABUSE_INCIDENT"));
 
     ResponseEntity<Map> meResponse =
         rest.exchange(
@@ -80,12 +80,7 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
             Map.class);
 
     assertThat(meResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-    assertControlledRuntimeError(meResponse, "TENANT_BLOCKED", "Tenant is currently blocked");
-    Map<String, String> metadata =
-        awaitAccessDeniedMetadata(
-            String.valueOf(blockedSnapshot.get("auditChainId")), "TENANT_BLOCKED");
-    assertThat(metadata).containsEntry("tenantReasonCode", "ABUSE_INCIDENT");
-
+    assertLifecycleRestricted(meResponse, "Tenant is deactivated");
     ResponseEntity<Map> refreshResponse =
         rest.postForEntity(
             "/api/v1/auth/refresh-token",
@@ -95,7 +90,7 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
     assertControlledRuntimeError(refreshResponse, "TENANT_BLOCKED", "Tenant is currently blocked");
 
     updateRuntimePolicy(
-        scenario.companyCode(), Map.of("holdState", "ACTIVE", "reasonCode", "RECOVERY_COMPLETE"));
+        scenario.companyCode(), Map.of("state", "ACTIVE", "reason", "RECOVERY_COMPLETE"));
 
     ResponseEntity<Map> recoveredMeResponse =
         rest.exchange(
@@ -117,8 +112,7 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
     dataSeeder.ensureUser(secondUser, PASSWORD, "Quota B", companyCode, List.of("ROLE_ADMIN"));
 
     Map<String, Object> snapshot =
-        updateRuntimePolicy(
-            companyCode, Map.of("maxActiveUsers", 1, "reasonCode", "MAX_USERS_TEST"));
+        updateRuntimePolicy(companyCode, Map.of("quotaMaxActiveUsers", 1L));
 
     ResponseEntity<Map> loginResponse =
         rest.postForEntity("/api/v1/auth/login", loginPayload(firstUser, companyCode), Map.class);
@@ -142,10 +136,9 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
         updateRuntimePolicy(
             scenario.companyCode(),
             Map.of(
-                "maxConcurrentRequests", 50,
-                "maxRequestsPerMinute", 1,
-                "maxActiveUsers", 500,
-                "reasonCode", "RATE_TEST"));
+                "quotaMaxConcurrentRequests", 50L,
+                "quotaMaxApiRequests", 1L,
+                "quotaMaxActiveUsers", 500L));
 
     ResponseEntity<Map> firstCall =
         rest.exchange(
@@ -181,6 +174,22 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
     Map<String, Object> error = (Map<String, Object>) payload;
     assertThat(error).containsEntry("code", expectedCode);
     assertThat(error).containsEntry("message", expectedMessage);
+    assertThat(error).containsKey("traceId");
+  }
+
+  private void assertLifecycleRestricted(
+      ResponseEntity<Map> response, String expectedReasonDetail) {
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody()).containsEntry("success", false);
+    assertThat(response.getBody()).containsEntry("message", "Access denied");
+    Object payload = response.getBody().get("data");
+    assertThat(payload).isInstanceOf(Map.class);
+    @SuppressWarnings("unchecked")
+    Map<String, Object> error = (Map<String, Object>) payload;
+    assertThat(error).containsEntry("code", "AUTH_004");
+    assertThat(error).containsEntry("message", "Access denied");
+    assertThat(error).containsEntry("reason", "TENANT_LIFECYCLE_RESTRICTED");
+    assertThat(error).containsEntry("reasonDetail", expectedReasonDetail);
     assertThat(error).containsKey("traceId");
   }
 
@@ -238,18 +247,27 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
     String rootToken = login(superAdminEmail, ROOT_COMPANY_CODE);
     HttpHeaders headers = authenticatedHeaders(rootToken, ROOT_COMPANY_CODE);
     headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+    boolean lifecycleMutation = payload.containsKey("state");
+    String endpoint =
+        lifecycleMutation
+            ? "/api/v1/superadmin/tenants/" + companyId + "/lifecycle"
+            : "/api/v1/superadmin/tenants/" + companyId + "/limits";
 
     ResponseEntity<Map> response =
-        rest.exchange(
-            "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
-            HttpMethod.PUT,
-            new HttpEntity<>(payload, headers),
-            Map.class);
+        rest.exchange(endpoint, HttpMethod.PUT, new HttpEntity<>(payload, headers), Map.class);
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).isNotNull();
     @SuppressWarnings("unchecked")
     Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
     assertThat(data).isNotNull();
+    String auditChainId =
+        systemSettingsRepository
+            .findById("tenant.runtime.policy-reference." + companyId)
+            .map(setting -> setting.getValue())
+            .orElse(null);
+    if (auditChainId != null) {
+      data.put("auditChainId", auditChainId);
+    }
     return data;
   }
 

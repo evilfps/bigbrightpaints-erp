@@ -1,37 +1,32 @@
 package com.bigbrightpaints.erp.modules.company.service;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.config.SystemSetting;
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
-import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
-import com.bigbrightpaints.erp.core.util.PasswordUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
-import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningService;
 import com.bigbrightpaints.erp.modules.company.domain.CoATemplate;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.dto.TenantOnboardingRequest;
 import com.bigbrightpaints.erp.modules.company.dto.TenantOnboardingResponse;
-import com.bigbrightpaints.erp.modules.rbac.domain.Role;
-import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
-import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
 
 @Service
 public class TenantOnboardingService {
@@ -43,35 +38,26 @@ public class TenantOnboardingService {
 
   private final CompanyRepository companyRepository;
   private final UserAccountRepository userAccountRepository;
-  private final RoleService roleService;
-  private final RoleRepository roleRepository;
-  private final PasswordEncoder passwordEncoder;
   private final AccountRepository accountRepository;
   private final AccountingPeriodService accountingPeriodService;
   private final CoATemplateService coATemplateService;
-  private final EmailService emailService;
+  private final TenantAdminProvisioningService tenantAdminProvisioningService;
   private final SystemSettingsRepository systemSettingsRepository;
 
   public TenantOnboardingService(
       CompanyRepository companyRepository,
       UserAccountRepository userAccountRepository,
-      RoleService roleService,
-      RoleRepository roleRepository,
-      PasswordEncoder passwordEncoder,
       AccountRepository accountRepository,
       AccountingPeriodService accountingPeriodService,
       CoATemplateService coATemplateService,
-      EmailService emailService,
+      TenantAdminProvisioningService tenantAdminProvisioningService,
       SystemSettingsRepository systemSettingsRepository) {
     this.companyRepository = companyRepository;
     this.userAccountRepository = userAccountRepository;
-    this.roleService = roleService;
-    this.roleRepository = roleRepository;
-    this.passwordEncoder = passwordEncoder;
     this.accountRepository = accountRepository;
     this.accountingPeriodService = accountingPeriodService;
     this.coATemplateService = coATemplateService;
-    this.emailService = emailService;
+    this.tenantAdminProvisioningService = tenantAdminProvisioningService;
     this.systemSettingsRepository = systemSettingsRepository;
   }
 
@@ -98,12 +84,20 @@ public class TenantOnboardingService {
     applyCompanyDefaultAccounts(savedCompany, createdAccounts);
     companyRepository.save(savedCompany);
 
-    AdminProvisioningResult adminProvisioningResult =
+    TenantAdminProvisioningService.ProvisionedTenantAdmin adminProvisioningResult =
         createTenantAdmin(savedCompany, normalizedAdminEmail, request.firstAdminDisplayName());
 
     AccountingPeriod defaultPeriod =
         accountingPeriodService.ensurePeriod(savedCompany, CompanyTime.today(savedCompany));
     boolean systemSettingsInitialized = initializeDefaultSystemSettings();
+    Instant onboardingCompletedAt = CompanyTime.now(savedCompany);
+    savedCompany.setOnboardingCoaTemplateCode(template.getCode());
+    savedCompany.setOnboardingAdminEmail(adminProvisioningResult.email());
+    savedCompany.setOnboardingAdminUserId(adminProvisioningResult.userId());
+    savedCompany.setMainAdminUserId(adminProvisioningResult.userId());
+    savedCompany.setOnboardingCredentialsEmailedAt(onboardingCompletedAt);
+    savedCompany.setOnboardingCompletedAt(onboardingCompletedAt);
+    companyRepository.save(savedCompany);
 
     return new TenantOnboardingResponse(
         savedCompany.getId(),
@@ -114,10 +108,12 @@ public class TenantOnboardingService {
         createdAccounts.size(),
         defaultPeriod.getId(),
         true,
-        normalizedAdminEmail,
+        adminProvisioningResult.email(),
+        adminProvisioningResult.userId(),
         true,
-        adminProvisioningResult.temporaryPassword(),
-        adminProvisioningResult.credentialsEmailSent(),
+        true,
+        onboardingCompletedAt,
+        onboardingCompletedAt,
         systemSettingsInitialized);
   }
 
@@ -130,7 +126,7 @@ public class TenantOnboardingService {
     company.setQuotaMaxActiveUsers(defaultLong(request.maxActiveUsers()));
     company.setQuotaMaxApiRequests(defaultLong(request.maxApiRequests()));
     company.setQuotaMaxStorageBytes(defaultLong(request.maxStorageBytes()));
-    company.setQuotaMaxConcurrentSessions(defaultLong(request.maxConcurrentUsers()));
+    company.setQuotaMaxConcurrentRequests(defaultLong(request.maxConcurrentRequests()));
     company.setQuotaSoftLimitEnabled(defaultBoolean(request.softLimitEnabled(), false));
     company.setQuotaHardLimitEnabled(defaultBoolean(request.hardLimitEnabled(), true));
     return company;
@@ -204,34 +200,15 @@ public class TenantOnboardingService {
     }
   }
 
-  private AdminProvisioningResult createTenantAdmin(
+  private TenantAdminProvisioningService.ProvisionedTenantAdmin createTenantAdmin(
       Company company, String adminEmail, String adminDisplayName) {
-    Role adminRole = requireAdminRole();
-    String temporaryPassword = PasswordUtils.generateTemporaryPassword(14);
-    UserAccount admin =
-        new UserAccount(
-            adminEmail,
-            passwordEncoder.encode(temporaryPassword),
-            resolveAdminDisplayName(adminDisplayName, company));
-    admin.setMustChangePassword(true);
-    admin.addCompany(company);
-    admin.addRole(adminRole);
-    userAccountRepository.save(admin);
-
-    emailService.sendUserCredentialsEmail(
-        admin.getEmail(), admin.getDisplayName(), temporaryPassword, company.getCode());
-    return new AdminProvisioningResult(
-        temporaryPassword, emailService.isCredentialEmailDeliveryEnabled());
-  }
-
-  private Role requireAdminRole() {
-    roleService.ensureRoleExists("ROLE_ADMIN");
-    return roleRepository
-        .findByName("ROLE_ADMIN")
-        .orElseThrow(
-            () ->
-                com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
-                    "ROLE_ADMIN must exist before tenant onboarding"));
+    if (!tenantAdminProvisioningService.isCredentialEmailDeliveryEnabled()) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+          "Credential email delivery is disabled; enable erp.mail.enabled=true and"
+              + " erp.mail.send-credentials=true");
+    }
+    return tenantAdminProvisioningService.provisionInitialAdmin(
+        company, adminEmail, resolveAdminDisplayName(adminDisplayName, company));
   }
 
   private String resolveAdminDisplayName(String requestedDisplayName, Company company) {
@@ -486,6 +463,4 @@ public class TenantOnboardingService {
   }
 
   private record AccountBlueprint(String code, String name, AccountType type, String parentCode) {}
-
-  private record AdminProvisioningResult(String temporaryPassword, boolean credentialsEmailSent) {}
 }

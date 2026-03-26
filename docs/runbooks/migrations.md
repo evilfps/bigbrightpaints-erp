@@ -1,5 +1,16 @@
 # Migration Runbook
 
+## 2026-03-26 — `migration_v2/V167__erp37_superadmin_control_plane_hard_cut.sql`
+
+- **Purpose:** hard-cut tenant control onto one canonical `/api/v1/superadmin/tenants/{id}/...` family by rewriting lifecycle storage to `ACTIVE/SUSPENDED/DEACTIVATED`, renaming the concurrency quota column to `quota_max_concurrent_requests`, persisting main-admin/support/onboarding truth on `companies`, and creating first-class `tenant_support_warnings` plus `tenant_admin_email_change_requests`.
+- **Release-guard posture:** `V167` now uses strict DDL for the new tables/indexes/columns and direct column rename semantics; the only `schema_drift_scan` v2 allowlist entry for this migration is the reviewed deterministic ranked-admin `UPDATE ... FROM` backfill that seeds `main_admin_user_id` and onboarding admin truth.
+- **Forward plan:** apply `V167__erp37_superadmin_control_plane_hard_cut.sql`, then deploy the ERP-37 backend packet that serves the canonical superadmin tenant detail/control plane, authenticated changelog reads, and superadmin-only changelog writes. Refresh `openapi.json`, `docs/endpoint-inventory.md`, `.factory/library/frontend-handoff.md`, and the ERP-37 review docs in the same packet before claiming contract parity.
+- **Dry-run commands:**
+  - `cd erp-domain && export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true -Dtest=OpenApiSnapshotIT test`
+  - `cd erp-domain && export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 && MIGRATION_SET=v2 mvn -Dtest=CompanyControllerIT,SuperAdminControllerIT,TenantOnboardingControllerTest,ChangelogControllerSecurityIT,AuthPasswordResetPublicContractIT,AdminUserSecurityIT,TenantRuntimeEnforcementServiceTest,TenantRuntimeEnforcementAuthIT,SuperAdminTenantWorkflowIsolationIT,PortalInsightsControllerIT,ReportControllerSecurityIT,AuthTenantAuthorityIT,CompanyContextFilterControlPlaneBindingTest,TS_RuntimeCompanyContextFilterExecutableCoverageTest,TS_RuntimeTenantRuntimeEnforcementTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest,TenantAdminProvisioningServiceTest test`
+  - `bash ci/check-enterprise-policy.sh`
+- **Rollback strategy:** treat `V167` as a coordinated app-and-schema cut. Once applied, do not redeploy a pre-ERP-37 backend against that database. If rollout must be abandoned after execution, keep the ERP-37-compatible backend live or restore the tenant/database from a pre-`V167` snapshot/PITR before attempting any broader rollback.
+
 ## 2026-03-24 — `migration_v2/V166__opening_stock_batch_key_contract_alignment.sql`
 
 - **Purpose:** align the v2 migration track with the already-merged ERP-36 opening-stock hard cut by rewriting legacy replay-backed rows onto the explicit `opening_stock_batch_key` contract, preserving newer v2 rows that already use batch keys, and dropping the obsolete `replay_protection_key`.

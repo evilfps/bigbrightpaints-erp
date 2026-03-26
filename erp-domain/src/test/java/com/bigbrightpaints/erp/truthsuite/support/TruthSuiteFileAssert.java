@@ -29,24 +29,28 @@ public final class TruthSuiteFileAssert {
   }
 
   public static void assertContains(String relativePath, String... snippets) {
-    String content = read(relativePath);
+    String content = normalizeWhitespace(read(relativePath));
     for (String snippet : snippets) {
       assertTrue(
-          content.contains(snippet),
+          content.contains(normalizeWhitespace(snippet)),
           () -> "Expected snippet not found in " + relativePath + ": " + snippet);
     }
   }
 
   public static void assertContainsInOrder(String relativePath, String... snippets) {
-    String content = read(relativePath);
+    String content = normalizeWhitespace(read(relativePath));
     int cursor = -1;
     for (String snippet : snippets) {
-      int index = content.indexOf(snippet, cursor + 1);
+      int index = content.indexOf(normalizeWhitespace(snippet), cursor + 1);
       assertTrue(
           index >= 0,
           () -> "Expected ordered snippet not found in " + relativePath + ": " + snippet);
       cursor = index;
     }
+  }
+
+  private static String normalizeWhitespace(String value) {
+    return value.replaceAll("\\s+", "");
   }
 
   private static Path locateErpDomainRoot() {

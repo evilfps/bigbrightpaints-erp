@@ -35,8 +35,8 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
-import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -140,7 +140,8 @@ class PackingServiceTest {
     when(packingLineResolver.normalizePackagingSize("500ML", 1)).thenReturn("500ML");
     when(packingAllowedSizeService.resolveAllowedSellableSizeTargets(company, log))
         .thenReturn(List.of(allowedTarget(product, targetFinishedGood, sizeVariant)));
-    when(packingAllowedSizeService.requireAllowedSellableSize(anyList(), eq(log), eq(501L), eq("500ML"), eq(1)))
+    when(packingAllowedSizeService.requireAllowedSellableSize(
+            anyList(), eq(log), eq(501L), eq("500ML"), eq(1)))
         .thenReturn(allowedTarget(product, targetFinishedGood, sizeVariant));
     when(packingLineResolver.resolvePiecesPerBox(any(), eq(sizeVariant))).thenReturn(1);
     when(packingLineResolver.resolvePiecesCountForLine(any(), eq(1), eq(1))).thenReturn(2);
@@ -286,9 +287,8 @@ class PackingServiceTest {
     when(packingLineResolver.normalizePackagingSize("500ML", 1)).thenReturn("500ML");
     when(packingAllowedSizeService.resolveAllowedSellableSizeTargets(company, lockedLog))
         .thenReturn(List.of(allowedTarget(product, targetFinishedGood, sizeVariant)));
-    when(
-            packingAllowedSizeService.requireAllowedSellableSize(
-                anyList(), eq(lockedLog), eq(501L), eq("500ML"), eq(1)))
+    when(packingAllowedSizeService.requireAllowedSellableSize(
+            anyList(), eq(lockedLog), eq(501L), eq("500ML"), eq(1)))
         .thenReturn(allowedTarget(product, targetFinishedGood, sizeVariant));
     when(packingLineResolver.resolvePiecesPerBox(any(), eq(sizeVariant))).thenReturn(1);
     when(packingLineResolver.resolvePiecesCountForLine(any(), eq(1), eq(1))).thenReturn(1);
@@ -442,8 +442,7 @@ class PackingServiceTest {
     when(productionLogService.getLog(1L)).thenReturn(detailDto);
 
     PackingRequest request =
-        new PackingRequest(
-            1L, LocalDate.of(2024, 1, 2), "packer", "close-loss-1", List.of(), true);
+        new PackingRequest(1L, LocalDate.of(2024, 1, 2), "packer", "close-loss-1", List.of(), true);
     when(packingIdempotencyService.reserveIdempotencyRecord(
             eq(company), eq(1L), eq("close-loss-1"), anyString()))
         .thenReturn(new PackingIdempotencyService.IdempotencyReservation(null, null));
@@ -589,14 +588,19 @@ class PackingServiceTest {
     log.setUnitCost(BigDecimal.ZERO);
 
     ReflectionTestUtils.invokeMethod(
-        packingService, "postResidualWastageJournal", log, LocalDate.of(2024, 1, 6), new BigDecimal("4.0"));
+        packingService,
+        "postResidualWastageJournal",
+        log,
+        LocalDate.of(2024, 1, 6),
+        new BigDecimal("4.0"));
 
     verify(accountingFacade, never()).createStandardJournal(any(JournalCreationRequest.class));
   }
 
   @Test
   void safeQuantity_returnsZeroForNull() {
-    BigDecimal safeQuantity = ReflectionTestUtils.invokeMethod(packingService, "safeQuantity", (Object) null);
+    BigDecimal safeQuantity =
+        ReflectionTestUtils.invokeMethod(packingService, "safeQuantity", (Object) null);
 
     assertThat(safeQuantity).isEqualByComparingTo(BigDecimal.ZERO);
   }
@@ -666,7 +670,8 @@ class PackingServiceTest {
     when(packingLineResolver.normalizePackagingSize("500ML", 1)).thenReturn("500ML");
     when(packingAllowedSizeService.resolveAllowedSellableSizeTargets(company, log))
         .thenReturn(List.of(allowedTarget(product, targetFinishedGood, sizeVariant)));
-    when(packingAllowedSizeService.requireAllowedSellableSize(anyList(), eq(log), eq(501L), eq("500ML"), eq(1)))
+    when(packingAllowedSizeService.requireAllowedSellableSize(
+            anyList(), eq(log), eq(501L), eq("500ML"), eq(1)))
         .thenReturn(allowedTarget(product, targetFinishedGood, sizeVariant));
     when(packingLineResolver.resolvePiecesPerBox(any(), eq(sizeVariant))).thenReturn(1);
     when(packingLineResolver.resolvePiecesCountForLine(any(), eq(1), eq(1))).thenReturn(2);
@@ -756,7 +761,11 @@ class PackingServiceTest {
 
     PackingRequest request =
         new PackingRequest(
-            1L, LocalDate.of(2024, 1, 1), "packer", "pack-replay", List.of(requestLine(11L, "1L", 1)));
+            1L,
+            LocalDate.of(2024, 1, 1),
+            "packer",
+            "pack-replay",
+            List.of(requestLine(11L, "1L", 1)));
 
     ProductionLogDetailDto result = packingService.recordPacking(request);
 
@@ -820,7 +829,8 @@ class PackingServiceTest {
 
     PackingAllowedSizeService.AllowedSellableSizeTarget allowedTarget =
         allowedTarget(product, targetFinishedGood, sizeVariant);
-    List<PackingAllowedSizeService.AllowedSellableSizeTarget> allowedTargets = List.of(allowedTarget);
+    List<PackingAllowedSizeService.AllowedSellableSizeTarget> allowedTargets =
+        List.of(allowedTarget);
 
     PackingRecord firstRecord = new PackingRecord();
     ReflectionTestUtils.setField(firstRecord, "id", 88L);
@@ -838,13 +848,11 @@ class PackingServiceTest {
         .thenReturn(allowedTargets);
     when(packingLineResolver.normalizePackagingSize("500ML", 1)).thenReturn("500ML");
     when(packingLineResolver.normalizePackagingSize("500ML", 2)).thenReturn("500ML");
-    when(
-            packingAllowedSizeService.requireAllowedSellableSize(
-                sameList(allowedTargets), eq(log), eq(501L), eq("500ML"), eq(1)))
+    when(packingAllowedSizeService.requireAllowedSellableSize(
+            sameList(allowedTargets), eq(log), eq(501L), eq("500ML"), eq(1)))
         .thenReturn(allowedTarget);
-    when(
-            packingAllowedSizeService.requireAllowedSellableSize(
-                sameList(allowedTargets), eq(log), eq(501L), eq("500ML"), eq(2)))
+    when(packingAllowedSizeService.requireAllowedSellableSize(
+            sameList(allowedTargets), eq(log), eq(501L), eq("500ML"), eq(2)))
         .thenReturn(allowedTarget);
     when(packingLineResolver.resolvePiecesPerBox(any(), eq(sizeVariant))).thenReturn(1);
     when(packingLineResolver.resolvePiecesCountForLine(any(), eq(1), eq(1))).thenReturn(1);
@@ -854,8 +862,10 @@ class PackingServiceTest {
     when(packingLineResolver.resolveQuantity(any(), eq(sizeVariant), eq("500ML"), eq(1), eq(2)))
         .thenReturn(new BigDecimal("1.0"));
     when(packingLineResolver.resolveChildBatchCount(any(), eq(1))).thenReturn(1);
-    when(packingRecordRepository.save(any())).thenReturn(firstRecord, secondRecord, secondRecord, secondRecord);
-    when(packagingMaterialService.consumePackagingMaterial(anyString(), anyInt(), anyString(), eq(sizeVariant), any()))
+    when(packingRecordRepository.save(any()))
+        .thenReturn(firstRecord, secondRecord, secondRecord, secondRecord);
+    when(packagingMaterialService.consumePackagingMaterial(
+            anyString(), anyInt(), anyString(), eq(sizeVariant), any()))
         .thenReturn(
             new PackagingConsumptionResult(
                 false, BigDecimal.ZERO, BigDecimal.ZERO, Map.of(), null));
@@ -929,7 +939,8 @@ class PackingServiceTest {
     assertThat(result.status()).isEqualTo(ProductionLogStatus.PARTIAL_PACKED.name());
     verify(packingAllowedSizeService).resolveAllowedSellableSizeTargets(company, log);
     verify(packingAllowedSizeService, times(2))
-        .requireAllowedSellableSize(sameList(allowedTargets), eq(log), eq(501L), eq("500ML"), anyInt());
+        .requireAllowedSellableSize(
+            sameList(allowedTargets), eq(log), eq(501L), eq("500ML"), anyInt());
   }
 
   private PackingLineRequest requestLine(Long childFinishedGoodId, String size, int piecesCount) {

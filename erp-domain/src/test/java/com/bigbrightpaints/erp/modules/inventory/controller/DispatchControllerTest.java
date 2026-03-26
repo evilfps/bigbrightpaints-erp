@@ -449,17 +449,7 @@ class DispatchControllerTest {
             "MH12AB1234",
             "LR-7788");
     PackagingSlipDto dispatched =
-        packagingSlip(
-            6L,
-            "PS-6",
-            "DISPATCHED",
-            333L,
-            444L,
-            List.of(),
-            null,
-            null,
-            null,
-            null);
+        packagingSlip(6L, "PS-6", "DISPATCHED", 333L, 444L, List.of(), null, null, null, null);
     when(finishedGoodsService.listPackagingSlips()).thenReturn(List.of(pending, dispatched));
 
     List<PackagingSlipDto> slips = controller.getPendingSlips().getBody().data();
@@ -618,16 +608,7 @@ class DispatchControllerTest {
 
     PackagingSlipDto slip =
         packagingSlip(
-            9L,
-            "PS-9",
-            "READY",
-            911L,
-            922L,
-            List.of(),
-            null,
-            "Driver",
-            "MH12AB1234",
-            "LR-900");
+            9L, "PS-9", "READY", 911L, 922L, List.of(), null, "Driver", "MH12AB1234", "LR-900");
     when(finishedGoodsService.getPackagingSlipByOrder(70L)).thenReturn(slip);
 
     PackagingSlipDto response = controller.getPackagingSlipByOrder(70L).getBody().data();
@@ -704,17 +685,7 @@ class DispatchControllerTest {
     setAuthentication("ROLE_FACTORY", "ROLE_ACCOUNTING", "dispatch.confirm");
 
     PackagingSlipDto slip =
-        packagingSlip(
-            13L,
-            "PS-13",
-            "DISPATCHED",
-            131L,
-            232L,
-            List.of(),
-            null,
-            null,
-            null,
-            null);
+        packagingSlip(13L, "PS-13", "DISPATCHED", 131L, 232L, List.of(), null, null, null, null);
     when(finishedGoodsService.getPackagingSlip(13L)).thenReturn(slip);
 
     PackagingSlipDto response = controller.getPackagingSlip(13L).getBody().data();

@@ -5,6 +5,7 @@
 
 ## Notes
 
-- `PUT /api/v1/companies/{id}/tenant-runtime/policy` keeps the same request body and success response shape.
-- The canonical company-scoped runtime-policy path now refreshes live enforcement on the handling node immediately after a successful update instead of waiting for cache TTL expiry.
-- No frontend code or payload migration is required.
+- Runtime/quota control now lives on `PUT /api/v1/superadmin/tenants/{id}/limits`.
+- The request body uses the canonical quota fields, including `quotaMaxConcurrentRequests`.
+- Successful updates refresh live enforcement on the handling node immediately instead of waiting for cache TTL expiry.
+- The retired `/api/v1/companies/{id}/tenant-runtime/policy` and `/api/v1/admin/tenant-runtime/*` surfaces are no longer part of the published contract.

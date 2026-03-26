@@ -43,7 +43,8 @@ class CR_PackingRouteHardCutIT extends AbstractIntegrationTest {
 
     assertThat(packingPaths).contains("/api/v1/factory/packing-records");
     assertThat(packingPaths).doesNotContain("/api/v1/factory/pack");
-    assertThat(packingPaths).doesNotContain("/api/v1/factory/packing-records/{productionLogId}/complete");
+    assertThat(packingPaths)
+        .doesNotContain("/api/v1/factory/packing-records/{productionLogId}/complete");
   }
 
   private Set<String> collectPathsFor(Class<?> controllerType) {

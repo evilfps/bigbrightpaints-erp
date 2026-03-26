@@ -13,9 +13,7 @@ public record PackingRequest(
     @NotNull(message = "Production log is required") Long productionLogId,
     LocalDate packedDate,
     String packedBy,
-    @JsonIgnore
-    @Schema(hidden = true)
-    String idempotencyKey,
+    @JsonIgnore @Schema(hidden = true) String idempotencyKey,
     @Valid List<PackingLineRequest> lines,
     @Schema(
             description =

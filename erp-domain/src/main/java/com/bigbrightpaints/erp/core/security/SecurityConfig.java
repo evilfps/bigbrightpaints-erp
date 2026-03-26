@@ -98,9 +98,7 @@ public class SecurityConfig {
                       "/api/v1/auth/refresh-token",
                       "/api/v1/auth/password/forgot",
                       "/api/v1/auth/password/forgot/superadmin",
-                      "/api/v1/auth/password/reset",
-                      "/api/v1/changelog",
-                      "/api/v1/changelog/latest-highlighted")
+                      "/api/v1/auth/password/reset")
                   .permitAll();
               if (isSwaggerAllowed()) {
                 registry

@@ -96,12 +96,16 @@ class ProductionLogAtomicityRegressionIT extends AbstractIntegrationTest {
         createRawMaterial(company, "RM-LF016", rmInventory.getId(), new BigDecimal("20"));
     RawMaterialBatch batch = createBatch(material, new BigDecimal("20"), new BigDecimal("10.00"));
 
-    int baselineJournalCount = journalEntryRepository.findByCompanyOrderByEntryDateDesc(company).size();
+    int baselineJournalCount =
+        journalEntryRepository.findByCompanyOrderByEntryDateDesc(company).size();
     int baselineMovementCount =
-        rawMaterialMovementRepository.findByCompanyCreatedAtOnOrAfter(company, Instant.EPOCH).size();
+        rawMaterialMovementRepository
+            .findByCompanyCreatedAtOnOrAfter(company, Instant.EPOCH)
+            .size();
     int baselineInventoryMovementCount =
         inventoryMovementRepository.findByCompanyCreatedAtOnOrAfter(company, Instant.EPOCH).size();
-    int baselineFinishedGoodCount = finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company).size();
+    int baselineFinishedGoodCount =
+        finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company).size();
 
     assertThatThrownBy(
             () ->
@@ -131,7 +135,8 @@ class ProductionLogAtomicityRegressionIT extends AbstractIntegrationTest {
         .isEqualByComparingTo(new BigDecimal("20"));
     assertThat(journalEntryRepository.findByCompanyOrderByEntryDateDesc(company))
         .hasSize(baselineJournalCount);
-    assertThat(rawMaterialMovementRepository.findByCompanyCreatedAtOnOrAfter(company, Instant.EPOCH))
+    assertThat(
+            rawMaterialMovementRepository.findByCompanyCreatedAtOnOrAfter(company, Instant.EPOCH))
         .hasSize(baselineMovementCount);
     assertThat(inventoryMovementRepository.findByCompanyCreatedAtOnOrAfter(company, Instant.EPOCH))
         .hasSize(baselineInventoryMovementCount);
@@ -141,7 +146,9 @@ class ProductionLogAtomicityRegressionIT extends AbstractIntegrationTest {
             productionLogRepository.findByCompanyAndProducedAtBetween(
                 company, Instant.EPOCH, Instant.now().plusSeconds(86_400)))
         .isEmpty();
-    assertThat(finishedGoodRepository.findByCompanyAndProductCode(company, product.getSkuCode() + "-BULK"))
+    assertThat(
+            finishedGoodRepository.findByCompanyAndProductCode(
+                company, product.getSkuCode() + "-BULK"))
         .isEmpty();
   }
 

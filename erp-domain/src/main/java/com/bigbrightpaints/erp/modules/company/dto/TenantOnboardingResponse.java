@@ -10,7 +10,9 @@ public record TenantOnboardingResponse(
     Long accountingPeriodId,
     boolean defaultAccountingPeriodCreated,
     String adminEmail,
+    Long mainAdminUserId,
     boolean tenantAdminProvisioned,
-    String adminTemporaryPassword,
     boolean credentialsEmailSent,
+    java.time.Instant credentialsEmailedAt,
+    java.time.Instant onboardingCompletedAt,
     boolean systemSettingsInitialized) {}

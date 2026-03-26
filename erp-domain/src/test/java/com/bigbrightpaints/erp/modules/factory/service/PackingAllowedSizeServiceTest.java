@@ -70,8 +70,7 @@ class PackingAllowedSizeServiceTest {
     UUID familyId = UUID.randomUUID();
 
     ProductionProduct base = product("FG-BASE-20L", "Primer White 20L", "Primer", "20L", familyId);
-    ProductionProduct oneLiter =
-        product("FG-BASE-1L", "Primer White 1L", "Primer", "1L", familyId);
+    ProductionProduct oneLiter = product("FG-BASE-1L", "Primer White 1L", "Primer", "1L", familyId);
     ProductionProduct fourLiter =
         product("FG-BASE-4L", "Primer White 4L", "Primer", "4L", familyId);
 
@@ -99,8 +98,7 @@ class PackingAllowedSizeServiceTest {
     List<AllowedSellableSizeDto> allowedSizes = service.listAllowedSellableSizes(company, log);
 
     assertThat(allowedSizes)
-        .extracting(
-            AllowedSellableSizeDto::sizeLabel, AllowedSellableSizeDto::childFinishedGoodId)
+        .extracting(AllowedSellableSizeDto::sizeLabel, AllowedSellableSizeDto::childFinishedGoodId)
         .containsExactly(
             org.assertj.core.groups.Tuple.tuple("1L", 101L),
             org.assertj.core.groups.Tuple.tuple("4L", 401L),
@@ -328,8 +326,7 @@ class PackingAllowedSizeServiceTest {
         new PackingAllowedSizeService(
             productionProductRepository, finishedGoodRepository, sizeVariantRepository);
 
-    String normalizedSize =
-        invokePrivateString(service, "normalizeSize", String.class, null);
+    String normalizedSize = invokePrivateString(service, "normalizeSize", String.class, null);
 
     assertThat(normalizedSize).isEmpty();
   }
@@ -411,17 +408,28 @@ class PackingAllowedSizeServiceTest {
     List<PackingAllowedSizeService.AllowedSellableSizeTarget> allowedTargets =
         service.resolveAllowedSellableSizeTargets(company, log);
 
-    assertThat(service.requireAllowedSellableSize(allowedTargets, log, 501L, "20L", 1).finishedGood().getId())
+    assertThat(
+            service
+                .requireAllowedSellableSize(allowedTargets, log, 501L, "20L", 1)
+                .finishedGood()
+                .getId())
         .isEqualTo(501L);
-    assertThat(service.requireAllowedSellableSize(allowedTargets, log, 401L, "4L", 2).finishedGood().getId())
+    assertThat(
+            service
+                .requireAllowedSellableSize(allowedTargets, log, 401L, "4L", 2)
+                .finishedGood()
+                .getId())
         .isEqualTo(401L);
 
     verify(productionProductRepository, times(1))
         .findByCompanyAndVariantGroupIdOrderByProductNameAsc(company, familyId);
     verify(finishedGoodRepository, times(1))
-        .findByCompanyAndProductCodeInIgnoreCase(org.mockito.ArgumentMatchers.eq(company), anyCollection());
-    verify(sizeVariantRepository, times(1)).findByCompanyAndProductOrderBySizeLabelAsc(company, base);
-    verify(sizeVariantRepository, times(1)).findByCompanyAndProductOrderBySizeLabelAsc(company, child);
+        .findByCompanyAndProductCodeInIgnoreCase(
+            org.mockito.ArgumentMatchers.eq(company), anyCollection());
+    verify(sizeVariantRepository, times(1))
+        .findByCompanyAndProductOrderBySizeLabelAsc(company, base);
+    verify(sizeVariantRepository, times(1))
+        .findByCompanyAndProductOrderBySizeLabelAsc(company, child);
   }
 
   @Test
@@ -611,14 +619,7 @@ class PackingAllowedSizeServiceTest {
   void allowedSellableSizeDto_exposesCanonicalFields() {
     AllowedSellableSizeDto dto =
         new AllowedSellableSizeDto(
-            501L,
-            "FG-BASE-20L",
-            "Primer White 20L",
-            41L,
-            "20L",
-            1,
-            new BigDecimal("20"),
-            "Primer");
+            501L, "FG-BASE-20L", "Primer White 20L", 41L, "20L", 1, new BigDecimal("20"), "Primer");
 
     assertThat(dto.childFinishedGoodId()).isEqualTo(501L);
     assertThat(dto.childSkuCode()).isEqualTo("FG-BASE-20L");
@@ -639,7 +640,8 @@ class PackingAllowedSizeServiceTest {
     product.setSizeLabel(sizeLabel);
     product.setVariantGroupId(variantGroupId);
     product.setActive(true);
-    product.setCartonSizes(sizeLabel == null || sizeLabel.isBlank() ? Map.of() : Map.of(sizeLabel, 1));
+    product.setCartonSizes(
+        sizeLabel == null || sizeLabel.isBlank() ? Map.of() : Map.of(sizeLabel, 1));
     return product;
   }
 

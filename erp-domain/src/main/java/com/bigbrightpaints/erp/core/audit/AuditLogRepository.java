@@ -26,6 +26,11 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
    */
   List<AuditLog> findByCompanyIdOrderByTimestampDesc(Long companyId);
 
+  @EntityGraph(attributePaths = "metadata")
+  List<AuditLog> findTop50ByCompanyIdOrderByTimestampDesc(Long companyId);
+
+  Optional<AuditLog> findTop1ByCompanyIdOrderByTimestampDesc(Long companyId);
+
   /**
    * Find audit logs by event type.
    */

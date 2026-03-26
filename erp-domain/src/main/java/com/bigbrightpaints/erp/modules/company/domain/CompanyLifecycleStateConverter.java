@@ -10,9 +10,9 @@ public class CompanyLifecycleStateConverter
   @Override
   public String convertToDatabaseColumn(CompanyLifecycleState attribute) {
     if (attribute == null) {
-      return CompanyLifecycleState.ACTIVE.toExternalValue();
+      return CompanyLifecycleState.ACTIVE.name();
     }
-    return attribute.toExternalValue();
+    return attribute.name();
   }
 
   @Override

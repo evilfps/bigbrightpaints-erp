@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.modules.company.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -15,7 +14,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
-import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateDto;
@@ -38,7 +36,7 @@ class TenantLifecycleServiceTest {
             new UsernamePasswordAuthenticationToken("ops@bbp.com", "n/a"));
 
     assertThat(response.previousLifecycleState()).isEqualTo("ACTIVE");
-    assertThat(response.lifecycleState()).isEqualTo("HOLD");
+    assertThat(response.lifecycleState()).isEqualTo("SUSPENDED");
     assertThat(company.getLifecycleState()).isEqualTo(CompanyLifecycleState.SUSPENDED);
     assertThat(company.getLifecycleReason()).isEqualTo("compliance-review");
     verify(auditService)
@@ -47,16 +45,17 @@ class TenantLifecycleServiceTest {
   }
 
   @Test
-  void transition_rejectsReactivationFromDeactivatedState() {
+  void transition_allowsReactivationFromDeactivatedState() {
     TenantLifecycleService service = new TenantLifecycleService(auditService);
     Company company = company(2L, "BETA", CompanyLifecycleState.DEACTIVATED);
 
-    assertThatThrownBy(
-            () ->
-                service.transition(
-                    company, CompanyLifecycleState.ACTIVE, "manual-reactivation", null))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Invalid tenant lifecycle transition");
+    CompanyLifecycleStateDto response =
+        service.transition(company, CompanyLifecycleState.ACTIVE, "manual-reactivation", null);
+
+    assertThat(response.previousLifecycleState()).isEqualTo("DEACTIVATED");
+    assertThat(response.lifecycleState()).isEqualTo("ACTIVE");
+    assertThat(company.getLifecycleState()).isEqualTo(CompanyLifecycleState.ACTIVE);
+    assertThat(company.getLifecycleReason()).isEqualTo("manual-reactivation");
   }
 
   @Test
@@ -67,8 +66,8 @@ class TenantLifecycleServiceTest {
     CompanyLifecycleStateDto response =
         service.transition(company, CompanyLifecycleState.DEACTIVATED, "contract-terminated", null);
 
-    assertThat(response.previousLifecycleState()).isEqualTo("HOLD");
-    assertThat(response.lifecycleState()).isEqualTo("BLOCKED");
+    assertThat(response.previousLifecycleState()).isEqualTo("SUSPENDED");
+    assertThat(response.lifecycleState()).isEqualTo("DEACTIVATED");
   }
 
   private Company company(Long id, String code, CompanyLifecycleState lifecycleState) {

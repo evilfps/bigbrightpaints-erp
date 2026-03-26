@@ -63,7 +63,9 @@ class FactoryServiceTest {
             companyEntityLookup);
     company = new Company();
     company.setTimezone("UTC");
-    org.mockito.Mockito.lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    org.mockito.Mockito.lenient()
+        .when(companyContextService.requireCurrentCompany())
+        .thenReturn(company);
   }
 
   @Test

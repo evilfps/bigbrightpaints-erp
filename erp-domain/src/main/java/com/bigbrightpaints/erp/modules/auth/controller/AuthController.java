@@ -138,7 +138,7 @@ public class AuthController {
             + " routes",
         Map.of(
             "canonicalPath", "/api/v1/auth/password/forgot",
-            "supportResetPath", "/api/v1/companies/{id}/support/admin-password-reset"));
+            "supportResetPath", "/api/v1/superadmin/tenants/{id}/support/admin-password-reset"));
   }
 
   @PostMapping("/password/reset")

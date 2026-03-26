@@ -104,14 +104,39 @@ public class Company extends VersionedEntity {
   @Column(name = "quota_max_storage_bytes", nullable = false)
   private Long quotaMaxStorageBytes = 0L;
 
-  @Column(name = "quota_max_concurrent_sessions", nullable = false)
-  private Long quotaMaxConcurrentSessions = 0L;
+  @Column(name = "quota_max_concurrent_requests", nullable = false)
+  private Long quotaMaxConcurrentRequests = 0L;
 
   @Column(name = "quota_soft_limit_enabled", nullable = false)
   private Boolean quotaSoftLimitEnabled = false;
 
   @Column(name = "quota_hard_limit_enabled", nullable = false)
   private Boolean quotaHardLimitEnabled = true;
+
+  @Column(name = "main_admin_user_id")
+  private Long mainAdminUserId;
+
+  @Column(name = "support_notes", columnDefinition = "TEXT")
+  private String supportNotes;
+
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "support_tags", nullable = false, columnDefinition = "jsonb")
+  private Set<String> supportTags = new LinkedHashSet<>();
+
+  @Column(name = "onboarding_coa_template_code")
+  private String onboardingCoaTemplateCode;
+
+  @Column(name = "onboarding_admin_email")
+  private String onboardingAdminEmail;
+
+  @Column(name = "onboarding_admin_user_id")
+  private Long onboardingAdminUserId;
+
+  @Column(name = "onboarding_completed_at")
+  private Instant onboardingCompletedAt;
+
+  @Column(name = "onboarding_credentials_emailed_at")
+  private Instant onboardingCredentialsEmailedAt;
 
   @PrePersist
   public void prePersist() {
@@ -128,12 +153,14 @@ public class Company extends VersionedEntity {
       lifecycleState = CompanyLifecycleState.ACTIVE;
     }
     enabledModules = CompanyModule.normalizeEnabledGatableModuleNames(enabledModules);
+    supportTags = normalizeSupportTags(supportTags);
     initializeQuotaDefaults();
   }
 
   @PreUpdate
   public void preUpdate() {
     enabledModules = CompanyModule.normalizeEnabledGatableModuleNames(enabledModules);
+    supportTags = normalizeSupportTags(supportTags);
     initializeQuotaDefaults();
   }
 
@@ -346,12 +373,88 @@ public class Company extends VersionedEntity {
     this.quotaMaxStorageBytes = sanitizeQuota(quotaMaxStorageBytes);
   }
 
-  public long getQuotaMaxConcurrentSessions() {
-    return sanitizeQuota(quotaMaxConcurrentSessions);
+  public long getQuotaMaxConcurrentRequests() {
+    return sanitizeQuota(quotaMaxConcurrentRequests);
   }
 
-  public void setQuotaMaxConcurrentSessions(Long quotaMaxConcurrentSessions) {
-    this.quotaMaxConcurrentSessions = sanitizeQuota(quotaMaxConcurrentSessions);
+  public void setQuotaMaxConcurrentRequests(Long quotaMaxConcurrentRequests) {
+    this.quotaMaxConcurrentRequests = sanitizeQuota(quotaMaxConcurrentRequests);
+  }
+
+  public Long getMainAdminUserId() {
+    return mainAdminUserId;
+  }
+
+  public void setMainAdminUserId(Long mainAdminUserId) {
+    this.mainAdminUserId = mainAdminUserId;
+  }
+
+  public String getSupportNotes() {
+    return supportNotes;
+  }
+
+  public void setSupportNotes(String supportNotes) {
+    if (supportNotes == null || supportNotes.isBlank()) {
+      this.supportNotes = null;
+      return;
+    }
+    this.supportNotes = supportNotes.trim();
+  }
+
+  public Set<String> getSupportTags() {
+    return supportTags == null ? new LinkedHashSet<>() : new LinkedHashSet<>(supportTags);
+  }
+
+  public void setSupportTags(Set<String> supportTags) {
+    this.supportTags = normalizeSupportTags(supportTags);
+  }
+
+  public String getOnboardingCoaTemplateCode() {
+    return onboardingCoaTemplateCode;
+  }
+
+  public void setOnboardingCoaTemplateCode(String onboardingCoaTemplateCode) {
+    if (onboardingCoaTemplateCode == null || onboardingCoaTemplateCode.isBlank()) {
+      this.onboardingCoaTemplateCode = null;
+      return;
+    }
+    this.onboardingCoaTemplateCode = onboardingCoaTemplateCode.trim().toUpperCase();
+  }
+
+  public String getOnboardingAdminEmail() {
+    return onboardingAdminEmail;
+  }
+
+  public void setOnboardingAdminEmail(String onboardingAdminEmail) {
+    if (onboardingAdminEmail == null || onboardingAdminEmail.isBlank()) {
+      this.onboardingAdminEmail = null;
+      return;
+    }
+    this.onboardingAdminEmail = onboardingAdminEmail.trim().toLowerCase();
+  }
+
+  public Long getOnboardingAdminUserId() {
+    return onboardingAdminUserId;
+  }
+
+  public void setOnboardingAdminUserId(Long onboardingAdminUserId) {
+    this.onboardingAdminUserId = onboardingAdminUserId;
+  }
+
+  public Instant getOnboardingCompletedAt() {
+    return onboardingCompletedAt;
+  }
+
+  public void setOnboardingCompletedAt(Instant onboardingCompletedAt) {
+    this.onboardingCompletedAt = onboardingCompletedAt;
+  }
+
+  public Instant getOnboardingCredentialsEmailedAt() {
+    return onboardingCredentialsEmailedAt;
+  }
+
+  public void setOnboardingCredentialsEmailedAt(Instant onboardingCredentialsEmailedAt) {
+    this.onboardingCredentialsEmailedAt = onboardingCredentialsEmailedAt;
   }
 
   public boolean isQuotaSoftLimitEnabled() {
@@ -389,8 +492,8 @@ public class Company extends VersionedEntity {
     if (quotaMaxStorageBytes == null) {
       quotaMaxStorageBytes = 0L;
     }
-    if (quotaMaxConcurrentSessions == null) {
-      quotaMaxConcurrentSessions = 0L;
+    if (quotaMaxConcurrentRequests == null) {
+      quotaMaxConcurrentRequests = 0L;
     }
     if (quotaSoftLimitEnabled == null) {
       quotaSoftLimitEnabled = false;
@@ -406,6 +509,20 @@ public class Company extends VersionedEntity {
         && !Boolean.TRUE.equals(quotaHardLimitEnabled)) {
       quotaHardLimitEnabled = true;
     }
+  }
+
+  private Set<String> normalizeSupportTags(Set<String> requestedSupportTags) {
+    LinkedHashSet<String> normalized = new LinkedHashSet<>();
+    if (requestedSupportTags == null) {
+      return normalized;
+    }
+    for (String requestedTag : requestedSupportTags) {
+      if (requestedTag == null || requestedTag.isBlank()) {
+        continue;
+      }
+      normalized.add(requestedTag.trim().toUpperCase());
+    }
+    return normalized;
   }
 
   @Override

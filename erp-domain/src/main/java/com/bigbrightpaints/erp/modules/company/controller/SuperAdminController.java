@@ -5,26 +5,16 @@ import java.util.Set;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-import com.bigbrightpaints.erp.modules.company.dto.CompanyEnabledModulesDto;
-import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateDto;
-import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateRequest;
-import com.bigbrightpaints.erp.modules.company.dto.SuperAdminDashboardDto;
-import com.bigbrightpaints.erp.modules.company.dto.SuperAdminTenantDto;
-import com.bigbrightpaints.erp.modules.company.dto.SuperAdminTenantUsageDto;
+import com.bigbrightpaints.erp.modules.company.dto.*;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
-import com.bigbrightpaints.erp.modules.company.service.SuperAdminService;
+import com.bigbrightpaints.erp.modules.company.service.SuperAdminTenantControlPlaneService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -34,56 +24,61 @@ import jakarta.validation.constraints.Size;
 @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
 public class SuperAdminController {
 
-  private final SuperAdminService superAdminService;
   private final CompanyService companyService;
+  private final SuperAdminTenantControlPlaneService controlPlaneService;
 
-  public SuperAdminController(SuperAdminService superAdminService, CompanyService companyService) {
-    this.superAdminService = superAdminService;
+  public SuperAdminController(
+      CompanyService companyService, SuperAdminTenantControlPlaneService controlPlaneService) {
     this.companyService = companyService;
+    this.controlPlaneService = controlPlaneService;
   }
 
   @GetMapping("/dashboard")
-  public ResponseEntity<ApiResponse<SuperAdminDashboardDto>> dashboard() {
+  public ResponseEntity<ApiResponse<CompanySuperAdminDashboardDto>> dashboard() {
     return ResponseEntity.ok(
-        ApiResponse.success("Superadmin dashboard fetched", superAdminService.getDashboard()));
+        ApiResponse.success(
+            "Superadmin dashboard fetched", companyService.getSuperAdminDashboard()));
   }
 
   @GetMapping("/tenants")
-  public ResponseEntity<ApiResponse<List<SuperAdminTenantDto>>> listTenants(
+  public ResponseEntity<ApiResponse<List<SuperAdminTenantSummaryDto>>> listTenants(
       @RequestParam(value = "status", required = false) String status) {
     return ResponseEntity.ok(
         ApiResponse.success(
-            "Superadmin tenant list fetched", superAdminService.listTenants(status)));
+            "Superadmin tenant list fetched", controlPlaneService.listTenants(status)));
   }
 
-  @PostMapping("/tenants/{id}/suspend")
-  public ResponseEntity<ApiResponse<SuperAdminTenantDto>> suspendTenant(
+  @GetMapping("/tenants/{id}")
+  public ResponseEntity<ApiResponse<SuperAdminTenantDetailDto>> getTenantDetail(
       @PathVariable("id") Long tenantId) {
     return ResponseEntity.ok(
-        ApiResponse.success("Tenant suspended", superAdminService.suspendTenant(tenantId)));
+        ApiResponse.success(
+            "Superadmin tenant detail fetched", controlPlaneService.getTenantDetail(tenantId)));
   }
 
-  @PostMapping("/tenants/{id}/activate")
-  public ResponseEntity<ApiResponse<SuperAdminTenantDto>> activateTenant(
-      @PathVariable("id") Long tenantId) {
-    return ResponseEntity.ok(
-        ApiResponse.success("Tenant activated", superAdminService.activateTenant(tenantId)));
-  }
-
-  @PostMapping("/tenants/{id}/deactivate")
-  public ResponseEntity<ApiResponse<SuperAdminTenantDto>> deactivateTenant(
-      @PathVariable("id") Long tenantId) {
-    return ResponseEntity.ok(
-        ApiResponse.success("Tenant deactivated", superAdminService.deactivateTenant(tenantId)));
-  }
-
-  @PostMapping("/tenants/{id}/lifecycle-state")
+  @PutMapping("/tenants/{id}/lifecycle")
   public ResponseEntity<ApiResponse<CompanyLifecycleStateDto>> updateLifecycleState(
       @PathVariable("id") Long tenantId, @Valid @RequestBody CompanyLifecycleStateRequest request) {
     return ResponseEntity.ok(
         ApiResponse.success(
             "Tenant lifecycle state updated",
-            superAdminService.updateLifecycleState(tenantId, request)));
+            controlPlaneService.updateLifecycleState(tenantId, request)));
+  }
+
+  @PutMapping("/tenants/{id}/limits")
+  public ResponseEntity<ApiResponse<SuperAdminTenantLimitsDto>> updateTenantLimits(
+      @PathVariable("id") Long tenantId, @Valid @RequestBody TenantLimitsUpdateRequest request) {
+    return ResponseEntity.ok(
+        ApiResponse.success(
+            "Tenant limits updated",
+            controlPlaneService.updateLimits(
+                tenantId,
+                request.quotaMaxActiveUsers(),
+                request.quotaMaxApiRequests(),
+                request.quotaMaxStorageBytes(),
+                request.quotaMaxConcurrentRequests(),
+                request.quotaSoftLimitEnabled(),
+                request.quotaHardLimitEnabled())));
   }
 
   @PutMapping("/tenants/{id}/modules")
@@ -92,16 +87,129 @@ public class SuperAdminController {
     return ResponseEntity.ok(
         ApiResponse.success(
             "Tenant modules updated",
-            companyService.updateEnabledModules(tenantId, request.enabledModules())));
+            controlPlaneService.updateModules(tenantId, request.enabledModules())));
   }
 
-  @GetMapping("/tenants/{id}/usage")
-  public ResponseEntity<ApiResponse<SuperAdminTenantUsageDto>> tenantUsage(
-      @PathVariable("id") Long tenantId) {
+  @PostMapping("/tenants/{id}/support/warnings")
+  public ResponseEntity<ApiResponse<CompanySupportWarningDto>> issueSupportWarning(
+      @PathVariable("id") Long tenantId, @Valid @RequestBody TenantSupportWarningRequest request) {
     return ResponseEntity.ok(
-        ApiResponse.success("Tenant usage fetched", superAdminService.getTenantUsage(tenantId)));
+        ApiResponse.success(
+            "Tenant warning issued",
+            controlPlaneService.issueSupportWarning(
+                tenantId,
+                request.warningCategory(),
+                request.message(),
+                request.requestedLifecycleState(),
+                request.gracePeriodHours())));
+  }
+
+  @PostMapping("/tenants/{id}/support/admin-password-reset")
+  public ResponseEntity<ApiResponse<CompanyAdminCredentialResetDto>> resetTenantAdminPassword(
+      @PathVariable("id") Long tenantId,
+      @Valid @RequestBody TenantAdminPasswordResetRequest request) {
+    return ResponseEntity.ok(
+        ApiResponse.success(
+            "Admin credentials reset and emailed",
+            controlPlaneService.resetTenantAdminPassword(
+                tenantId, request.adminEmail(), request.reason())));
+  }
+
+  @PutMapping("/tenants/{id}/support/context")
+  public ResponseEntity<ApiResponse<SuperAdminTenantSupportContextDto>> updateSupportContext(
+      @PathVariable("id") Long tenantId,
+      @Valid @RequestBody TenantSupportContextUpdateRequest request) {
+    return ResponseEntity.ok(
+        ApiResponse.success(
+            "Tenant support context updated",
+            controlPlaneService.updateSupportContext(
+                tenantId, request.supportNotes(), request.supportTags())));
+  }
+
+  @PostMapping("/tenants/{id}/force-logout")
+  public ResponseEntity<ApiResponse<SuperAdminTenantForceLogoutDto>> forceLogout(
+      @PathVariable("id") Long tenantId,
+      @RequestBody(required = false) TenantForceLogoutRequest request) {
+    return ResponseEntity.ok(
+        ApiResponse.success(
+            "Tenant sessions revoked",
+            controlPlaneService.forceLogoutAllUsers(
+                tenantId, request == null ? null : request.reason())));
+  }
+
+  @PutMapping("/tenants/{id}/admins/main")
+  public ResponseEntity<ApiResponse<MainAdminSummaryDto>> replaceMainAdmin(
+      @PathVariable("id") Long tenantId, @Valid @RequestBody TenantMainAdminUpdateRequest request) {
+    return ResponseEntity.ok(
+        ApiResponse.success(
+            "Tenant main admin replaced",
+            controlPlaneService.replaceMainAdmin(tenantId, request.adminUserId())));
+  }
+
+  @PostMapping("/tenants/{id}/admins/{adminId}/email-change/request")
+  public ResponseEntity<ApiResponse<SuperAdminTenantAdminEmailChangeRequestDto>>
+      requestAdminEmailChange(
+          @PathVariable("id") Long tenantId,
+          @PathVariable("adminId") Long adminId,
+          @Valid @RequestBody TenantAdminEmailChangeRequest request) {
+    return ResponseEntity.ok(
+        ApiResponse.success(
+            "Tenant admin email change requested",
+            controlPlaneService.requestAdminEmailChange(tenantId, adminId, request.newEmail())));
+  }
+
+  @PostMapping("/tenants/{id}/admins/{adminId}/email-change/confirm")
+  public ResponseEntity<ApiResponse<SuperAdminTenantAdminEmailChangeConfirmationDto>>
+      confirmAdminEmailChange(
+          @PathVariable("id") Long tenantId,
+          @PathVariable("adminId") Long adminId,
+          @Valid @RequestBody TenantAdminEmailChangeConfirmRequest request) {
+    return ResponseEntity.ok(
+        ApiResponse.success(
+            "Tenant admin email change confirmed",
+            controlPlaneService.confirmAdminEmailChange(
+                tenantId, adminId, request.requestId(), request.verificationToken())));
   }
 
   public record TenantModulesUpdateRequest(
       @NotNull Set<@NotBlank @Size(max = 64) String> enabledModules) {}
+
+  public record TenantLimitsUpdateRequest(
+      @Min(value = 0, message = "quotaMaxActiveUsers must be greater than or equal to 0")
+          Long quotaMaxActiveUsers,
+      @Min(value = 0, message = "quotaMaxApiRequests must be greater than or equal to 0")
+          Long quotaMaxApiRequests,
+      @Min(value = 0, message = "quotaMaxStorageBytes must be greater than or equal to 0")
+          Long quotaMaxStorageBytes,
+      @Min(value = 0, message = "quotaMaxConcurrentRequests must be greater than or equal to 0")
+          Long quotaMaxConcurrentRequests,
+      Boolean quotaSoftLimitEnabled,
+      Boolean quotaHardLimitEnabled) {}
+
+  public record TenantSupportWarningRequest(
+      @Size(max = 100, message = "warningCategory must be at most 100 characters")
+          String warningCategory,
+      @NotBlank @Size(max = 500, message = "message must be at most 500 characters") String message,
+      @Size(max = 32, message = "requestedLifecycleState must be at most 32 characters")
+          String requestedLifecycleState,
+      @Min(value = 1, message = "gracePeriodHours must be at least 1") Integer gracePeriodHours) {}
+
+  public record TenantAdminPasswordResetRequest(
+      @Email @NotBlank String adminEmail,
+      @Size(max = 300, message = "reason must be at most 300 characters") String reason) {}
+
+  public record TenantSupportContextUpdateRequest(
+      @Size(max = 4000, message = "supportNotes must be at most 4000 characters")
+          String supportNotes,
+      Set<@NotBlank @Size(max = 64) String> supportTags) {}
+
+  public record TenantForceLogoutRequest(
+      @Size(max = 300, message = "reason must be at most 300 characters") String reason) {}
+
+  public record TenantMainAdminUpdateRequest(@NotNull Long adminUserId) {}
+
+  public record TenantAdminEmailChangeRequest(@Email @NotBlank String newEmail) {}
+
+  public record TenantAdminEmailChangeConfirmRequest(
+      @NotNull Long requestId, @NotBlank @Size(max = 255) String verificationToken) {}
 }

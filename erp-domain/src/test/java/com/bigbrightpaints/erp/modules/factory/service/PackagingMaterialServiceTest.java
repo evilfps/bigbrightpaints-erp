@@ -237,7 +237,8 @@ class PackagingMaterialServiceTest {
             ex -> {
               ApplicationException appEx = (ApplicationException) ex;
               assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
-              assertThat(appEx.getMessage()).contains("Insufficient PACK-19. Need: 3, Available: 2");
+              assertThat(appEx.getMessage())
+                  .contains("Insufficient PACK-19. Need: 3, Available: 2");
             });
 
     verify(rawMaterialBatchRepository, never()).deductQuantityIfSufficient(any(), any());
@@ -403,7 +404,8 @@ class PackagingMaterialServiceTest {
               assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_REFERENCE);
               assertThat(appEx.getMessage())
                   .contains(
-                      "Packaging Setup for size 1L points to an inactive or missing packaging material")
+                      "Packaging Setup for size 1L points to an inactive or missing packaging"
+                          + " material")
                   .contains("Update Packaging Rules before packing");
             });
   }
@@ -489,7 +491,8 @@ class PackagingMaterialServiceTest {
 
   @Test
   void updateMapping_rejectsMissingMapping() {
-    when(mappingRepository.findByCompanyAndId(company, 404L)).thenReturn(java.util.Optional.empty());
+    when(mappingRepository.findByCompanyAndId(company, 404L))
+        .thenReturn(java.util.Optional.empty());
 
     assertThatThrownBy(
             () ->
@@ -544,7 +547,8 @@ class PackagingMaterialServiceTest {
 
   @Test
   void deactivateMapping_rejectsMissingMapping() {
-    when(mappingRepository.findByCompanyAndId(company, 405L)).thenReturn(java.util.Optional.empty());
+    when(mappingRepository.findByCompanyAndId(company, 405L))
+        .thenReturn(java.util.Optional.empty());
 
     assertThatThrownBy(() -> packagingMaterialService.deactivateMapping(405L))
         .isInstanceOf(ApplicationException.class)

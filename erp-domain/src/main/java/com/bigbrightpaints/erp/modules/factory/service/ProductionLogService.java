@@ -380,10 +380,11 @@ public class ProductionLogService {
     // Lock batches in FIFO order (pessimistic lock) to prevent double consumption
     List<RawMaterialBatch> batches =
         rawMaterialBatchRepository.findAvailableBatchesFIFO(rawMaterial);
-    BigDecimal weightedAverageCost = CostingMethodUtils.selectWeightedAverageValue(
-        rawMaterial.getCostingMethod(),
-        () -> rawMaterialBatchRepository.calculateWeightedAverageCost(rawMaterial),
-        () -> null);
+    BigDecimal weightedAverageCost =
+        CostingMethodUtils.selectWeightedAverageValue(
+            rawMaterial.getCostingMethod(),
+            () -> rawMaterialBatchRepository.calculateWeightedAverageCost(rawMaterial),
+            () -> null);
     BigDecimal remaining = requiredQty;
     List<BatchIssue> issues = new ArrayList<>();
 
@@ -401,7 +402,10 @@ public class ProductionLogService {
       }
 
       // Capture cost snapshot BEFORE deduction while holding pessimistic lock
-      BigDecimal unitCost = weightedAverageCost != null ? weightedAverageCost : Optional.ofNullable(batch.getCostPerUnit()).orElse(BigDecimal.ZERO);
+      BigDecimal unitCost =
+          weightedAverageCost != null
+              ? weightedAverageCost
+              : Optional.ofNullable(batch.getCostPerUnit()).orElse(BigDecimal.ZERO);
       BigDecimal movementCost = unitCost.multiply(take);
 
       // Use atomic update to prevent race conditions and negative quantities

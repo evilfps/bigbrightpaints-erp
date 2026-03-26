@@ -429,15 +429,15 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> policyResponse =
         rest.exchange(
-            "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+            "/api/v1/superadmin/tenants/" + companyId + "/limits",
             HttpMethod.PUT,
             new HttpEntity<>(
                 Map.of(
-                    "maxActiveUsers", 3,
-                    "holdState", "ACTIVE",
-                    "reasonCode", "quota-enforcement-test",
-                    "maxConcurrentRequests", 10,
-                    "maxRequestsPerMinute", 120),
+                    "quotaMaxActiveUsers", 3,
+                    "quotaMaxConcurrentRequests", 10,
+                    "quotaMaxApiRequests", 120,
+                    "quotaSoftLimitEnabled", true,
+                    "quotaHardLimitEnabled", true),
                 superAdminHeaders),
             Map.class);
     assertThat(policyResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -469,7 +469,7 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void tenant_runtime_policy_update_requires_super_admin_role() {
+  void tenant_limits_update_requires_super_admin_role() {
     String token = login(ADMIN_EMAIL, ADMIN_PASSWORD, COMPANY);
     Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY).orElseThrow().getId();
     HttpHeaders headers = new HttpHeaders();
@@ -479,15 +479,15 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/companies/" + companyId + "/tenant-runtime/policy",
+            "/api/v1/superadmin/tenants/" + companyId + "/limits",
             HttpMethod.PUT,
             new HttpEntity<>(
                 Map.of(
-                    "maxActiveUsers", 200,
-                    "holdState", "ACTIVE",
-                    "reasonCode", "rbac-enforcement",
-                    "maxConcurrentRequests", 10,
-                    "maxRequestsPerMinute", 120),
+                    "quotaMaxActiveUsers", 200,
+                    "quotaMaxConcurrentRequests", 10,
+                    "quotaMaxApiRequests", 120,
+                    "quotaSoftLimitEnabled", true,
+                    "quotaHardLimitEnabled", true),
                 headers),
             Map.class);
 

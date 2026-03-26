@@ -6,7 +6,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Method;
-import java.time.Instant;
 import java.util.Arrays;
 
 import org.junit.jupiter.api.Test;
@@ -17,7 +16,6 @@ import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminNotifyRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsDto;
 import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsUpdateRequest;
-import com.bigbrightpaints.erp.modules.admin.dto.TenantRuntimeMetricsDto;
 import com.bigbrightpaints.erp.modules.admin.service.ExportApprovalService;
 import com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyService;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -42,13 +40,10 @@ class AdminSettingsControllerTenantRuntimeContractTest {
   }
 
   @Test
-  void tenantRuntimeMetrics_remainsTenantAdminReadable() throws Exception {
-    Method method = AdminSettingsController.class.getMethod("tenantRuntimeMetrics");
-
-    PreAuthorize annotation = method.getAnnotation(PreAuthorize.class);
-
-    assertThat(annotation).isNotNull();
-    assertThat(annotation.value()).isEqualTo("hasAuthority('ROLE_ADMIN')");
+  void tenantRuntimeMetrics_reader_is_not_exposed_from_admin_settings_controller() {
+    assertThat(
+            Arrays.stream(AdminSettingsController.class.getDeclaredMethods()).map(Method::getName))
+        .doesNotContain("tenantRuntimeMetrics");
   }
 
   @Test
@@ -171,35 +166,6 @@ class AdminSettingsControllerTenantRuntimeContractTest {
             "admin.user@bigbrightpaints.com",
             "Tenant runtime maintenance",
             "Maintenance window starts at 23:00 UTC");
-  }
-
-  @Test
-  void tenantRuntimeMetrics_returnsPolicyAndUsageSnapshot() {
-    TenantRuntimePolicyService tenantRuntimePolicyService = mock(TenantRuntimePolicyService.class);
-    AdminSettingsController controller = newController(tenantRuntimePolicyService);
-    TenantRuntimeMetricsDto snapshot =
-        new TenantRuntimeMetricsDto(
-            "ACME",
-            "ACTIVE",
-            null,
-            250,
-            1200,
-            40,
-            12,
-            15,
-            89,
-            1,
-            3,
-            "policy-ref-1",
-            Instant.parse("2026-02-18T00:00:00Z"));
-    when(tenantRuntimePolicyService.metrics()).thenReturn(snapshot);
-
-    ApiResponse<TenantRuntimeMetricsDto> response = controller.tenantRuntimeMetrics();
-
-    assertThat(response.success()).isTrue();
-    assertThat(response.message()).isEqualTo("Tenant runtime metrics");
-    assertThat(response.data()).isEqualTo(snapshot);
-    verify(tenantRuntimePolicyService).metrics();
   }
 
   private AdminSettingsController newController(

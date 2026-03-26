@@ -54,14 +54,6 @@ class SuperAdminControllerIT extends AbstractIntegrationTest {
               company.setLifecycleReason(null);
               companyRepository.save(company);
             });
-    companyRepository
-        .findByCodeIgnoreCase(ROOT_COMPANY_CODE)
-        .ifPresent(
-            company -> {
-              company.setLifecycleState(CompanyLifecycleState.ACTIVE);
-              company.setLifecycleReason(null);
-              companyRepository.save(company);
-            });
   }
 
   @Test
@@ -90,28 +82,20 @@ class SuperAdminControllerIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void superAdmin_canSuspendActivateListAndReadUsage() {
+  void superAdmin_canUpdateLifecycle_listTenants_andReadTenantDetail() {
     Company tenant = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
-
-    String tenantToken = loginToken(ADMIN_EMAIL, COMPANY_CODE);
-    rest.exchange(
-        "/api/v1/companies",
-        HttpMethod.GET,
-        new HttpEntity<>(headers(tenantToken, COMPANY_CODE)),
-        Map.class);
-
     String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
     HttpHeaders superAdminHeaders = headers(superAdminToken, ROOT_COMPANY_CODE);
 
     ResponseEntity<Map> suspendResponse =
         rest.exchange(
-            "/api/v1/superadmin/tenants/" + tenant.getId() + "/suspend",
-            HttpMethod.POST,
-            new HttpEntity<>(superAdminHeaders),
+            "/api/v1/superadmin/tenants/" + tenant.getId() + "/lifecycle",
+            HttpMethod.PUT,
+            new HttpEntity<>(
+                Map.of("state", "SUSPENDED", "reason", "ops-review"), superAdminHeaders),
             Map.class);
     assertThat(suspendResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Company suspended = companyRepository.findById(tenant.getId()).orElseThrow();
-    assertThat(suspended.getLifecycleState()).isEqualTo(CompanyLifecycleState.SUSPENDED);
+    assertThat(readLifecycleState(tenant.getId())).isEqualTo("SUSPENDED");
 
     ResponseEntity<Map> tenantsResponse =
         rest.exchange(
@@ -127,97 +111,100 @@ class SuperAdminControllerIT extends AbstractIntegrationTest {
         .extracting(row -> row.get("companyCode").toString().toUpperCase(Locale.ROOT))
         .contains(COMPANY_CODE);
 
-    ResponseEntity<Map> usageResponse =
+    ResponseEntity<Map> detailResponse =
         rest.exchange(
-            "/api/v1/superadmin/tenants/" + tenant.getId() + "/usage",
+            "/api/v1/superadmin/tenants/" + tenant.getId(),
             HttpMethod.GET,
             new HttpEntity<>(superAdminHeaders),
             Map.class);
-    assertThat(usageResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(detailResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     @SuppressWarnings("unchecked")
-    Map<String, Object> usage = (Map<String, Object>) usageResponse.getBody().get("data");
-    assertThat(Long.parseLong(usage.get("apiCallCount").toString())).isGreaterThanOrEqualTo(1L);
-    assertThat(usage.get("lastActivityAt")).isNotNull();
-
-    ResponseEntity<Map> activateResponse =
-        rest.exchange(
-            "/api/v1/superadmin/tenants/" + tenant.getId() + "/activate",
-            HttpMethod.POST,
-            new HttpEntity<>(superAdminHeaders),
-            Map.class);
-    assertThat(activateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Company activated = companyRepository.findById(tenant.getId()).orElseThrow();
-    assertThat(activated.getLifecycleState()).isEqualTo(CompanyLifecycleState.ACTIVE);
+    Map<String, Object> detail = (Map<String, Object>) detailResponse.getBody().get("data");
+    assertThat(detail.get("companyCode")).isEqualTo(COMPANY_CODE);
+    assertThat(detail.get("lifecycleState")).isEqualTo("SUSPENDED");
 
     ResponseEntity<Map> deactivateResponse =
         rest.exchange(
-            "/api/v1/superadmin/tenants/" + tenant.getId() + "/deactivate",
-            HttpMethod.POST,
-            new HttpEntity<>(superAdminHeaders),
+            "/api/v1/superadmin/tenants/" + tenant.getId() + "/lifecycle",
+            HttpMethod.PUT,
+            new HttpEntity<>(
+                Map.of("state", "DEACTIVATED", "reason", "security-incident"), superAdminHeaders),
             Map.class);
     assertThat(deactivateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Company deactivated = companyRepository.findById(tenant.getId()).orElseThrow();
-    assertThat(deactivated.getLifecycleState()).isEqualTo(CompanyLifecycleState.DEACTIVATED);
-  }
-
-  @Test
-  void superAdmin_lifecycle_transitions_persist_schemaCompatible_values() {
-    Company tenant = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
-    String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
-    HttpHeaders superAdminHeaders = headers(superAdminToken, ROOT_COMPANY_CODE);
-
-    ResponseEntity<Map> suspendResponse =
-        rest.exchange(
-            "/api/v1/superadmin/tenants/" + tenant.getId() + "/suspend",
-            HttpMethod.POST,
-            new HttpEntity<>(superAdminHeaders),
-            Map.class);
-    assertThat(suspendResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(readLifecycleState(tenant.getId())).isEqualTo("HOLD");
+    assertThat(readLifecycleState(tenant.getId())).isEqualTo("DEACTIVATED");
 
     ResponseEntity<Map> activateResponse =
         rest.exchange(
-            "/api/v1/superadmin/tenants/" + tenant.getId() + "/activate",
-            HttpMethod.POST,
-            new HttpEntity<>(superAdminHeaders),
+            "/api/v1/superadmin/tenants/" + tenant.getId() + "/lifecycle",
+            HttpMethod.PUT,
+            new HttpEntity<>(Map.of("state", "ACTIVE", "reason", "recovered"), superAdminHeaders),
             Map.class);
     assertThat(activateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(readLifecycleState(tenant.getId())).isEqualTo("ACTIVE");
-
-    ResponseEntity<Map> deactivateResponse =
-        rest.exchange(
-            "/api/v1/superadmin/tenants/" + tenant.getId() + "/deactivate",
-            HttpMethod.POST,
-            new HttpEntity<>(superAdminHeaders),
-            Map.class);
-    assertThat(deactivateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(readLifecycleState(tenant.getId())).isEqualTo("BLOCKED");
   }
 
   @Test
-  void superAdmin_canConfigureTenantModules() {
+  void superAdmin_lifecycle_update_rejects_retired_legacy_states() {
     Company tenant = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
     String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
     HttpHeaders superAdminHeaders = headers(superAdminToken, ROOT_COMPANY_CODE);
 
-    ResponseEntity<Map> response =
+    ResponseEntity<Map> holdResponse =
+        rest.exchange(
+            "/api/v1/superadmin/tenants/" + tenant.getId() + "/lifecycle",
+            HttpMethod.PUT,
+            new HttpEntity<>(Map.of("state", "HOLD", "reason", "legacy-client"), superAdminHeaders),
+            Map.class);
+
+    assertThat(holdResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(readLifecycleState(tenant.getId())).isEqualTo("ACTIVE");
+
+    ResponseEntity<Map> blockedResponse =
+        rest.exchange(
+            "/api/v1/superadmin/tenants/" + tenant.getId() + "/lifecycle",
+            HttpMethod.PUT,
+            new HttpEntity<>(
+                Map.of("state", "BLOCKED", "reason", "legacy-client"), superAdminHeaders),
+            Map.class);
+
+    assertThat(blockedResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(readLifecycleState(tenant.getId())).isEqualTo("ACTIVE");
+  }
+
+  @Test
+  void superAdmin_canConfigureTenantModules_andLimits() {
+    Company tenant = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
+    HttpHeaders superAdminHeaders = headers(superAdminToken, ROOT_COMPANY_CODE);
+
+    ResponseEntity<Map> modulesResponse =
         rest.exchange(
             "/api/v1/superadmin/tenants/" + tenant.getId() + "/modules",
             HttpMethod.PUT,
             new HttpEntity<>(Map.of("enabledModules", List.of("PORTAL")), superAdminHeaders),
             Map.class);
+    assertThat(modulesResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Company updatedModules = companyRepository.findById(tenant.getId()).orElseThrow();
+    assertThat(updatedModules.getEnabledModules()).containsExactly("PORTAL");
 
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    ResponseEntity<Map> limitsResponse =
+        rest.exchange(
+            "/api/v1/superadmin/tenants/" + tenant.getId() + "/limits",
+            HttpMethod.PUT,
+            new HttpEntity<>(
+                Map.of(
+                    "quotaMaxActiveUsers", 120,
+                    "quotaMaxApiRequests", 3000,
+                    "quotaMaxStorageBytes", 2_097_152,
+                    "quotaMaxConcurrentRequests", 7,
+                    "quotaSoftLimitEnabled", true,
+                    "quotaHardLimitEnabled", false),
+                superAdminHeaders),
+            Map.class);
+    assertThat(limitsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     @SuppressWarnings("unchecked")
-    Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
-    assertThat(((Number) data.get("companyId")).longValue()).isEqualTo(tenant.getId());
-    assertThat(data.get("companyCode")).isEqualTo(COMPANY_CODE);
-    @SuppressWarnings("unchecked")
-    List<String> enabledModules = (List<String>) data.get("enabledModules");
-    assertThat(enabledModules).containsExactly("PORTAL");
-
-    Company updated = companyRepository.findById(tenant.getId()).orElseThrow();
-    assertThat(updated.getEnabledModules()).containsExactly("PORTAL");
+    Map<String, Object> limits = (Map<String, Object>) limitsResponse.getBody().get("data");
+    assertThat(limits.get("quotaMaxConcurrentRequests")).isEqualTo(7);
   }
 
   private HttpHeaders headers(String token, String companyCode) {

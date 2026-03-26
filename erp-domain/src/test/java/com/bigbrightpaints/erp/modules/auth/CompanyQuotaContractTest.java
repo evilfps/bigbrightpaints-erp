@@ -142,7 +142,7 @@ class CompanyQuotaContractTest {
     assertThat(company.getQuotaMaxActiveUsers()).isEqualTo(120L);
     assertThat(company.getQuotaMaxApiRequests()).isEqualTo(3_000L);
     assertThat(company.getQuotaMaxStorageBytes()).isEqualTo(2_097_152L);
-    assertThat(company.getQuotaMaxConcurrentSessions()).isEqualTo(7L);
+    assertThat(company.getQuotaMaxConcurrentRequests()).isEqualTo(7L);
     assertThat(company.isQuotaSoftLimitEnabled()).isFalse();
     assertThat(company.isQuotaHardLimitEnabled()).isTrue();
   }
@@ -168,7 +168,7 @@ class CompanyQuotaContractTest {
     company.setQuotaMaxActiveUsers(10L);
     company.setQuotaMaxApiRequests(100L);
     company.setQuotaMaxStorageBytes(5_000L);
-    company.setQuotaMaxConcurrentSessions(4L);
+    company.setQuotaMaxConcurrentRequests(4L);
     company.setQuotaSoftLimitEnabled(false);
     company.setQuotaHardLimitEnabled(true);
     when(repository.findById(1L)).thenReturn(Optional.of(company));
@@ -192,7 +192,7 @@ class CompanyQuotaContractTest {
     company.setQuotaMaxActiveUsers(120L);
     company.setQuotaMaxApiRequests(3_000L);
     company.setQuotaMaxStorageBytes(2_097_152L);
-    company.setQuotaMaxConcurrentSessions(7L);
+    company.setQuotaMaxConcurrentRequests(7L);
     company.setQuotaSoftLimitEnabled(true);
     company.setQuotaHardLimitEnabled(false);
     when(repository.findById(1L)).thenReturn(Optional.of(company));
@@ -205,7 +205,7 @@ class CompanyQuotaContractTest {
     assertThat(metrics.quotaMaxActiveUsers()).isEqualTo(120L);
     assertThat(metrics.quotaMaxApiRequests()).isEqualTo(3_000L);
     assertThat(metrics.quotaMaxStorageBytes()).isEqualTo(2_097_152L);
-    assertThat(metrics.quotaMaxConcurrentSessions()).isEqualTo(7L);
+    assertThat(metrics.quotaMaxConcurrentRequests()).isEqualTo(7L);
     assertThat(metrics.quotaSoftLimitEnabled()).isTrue();
     assertThat(metrics.quotaHardLimitEnabled()).isFalse();
 
@@ -213,7 +213,7 @@ class CompanyQuotaContractTest {
     assertThat(json).contains("quotaMaxActiveUsers");
     assertThat(json).contains("quotaMaxApiRequests");
     assertThat(json).contains("quotaMaxStorageBytes");
-    assertThat(json).contains("quotaMaxConcurrentSessions");
+    assertThat(json).contains("quotaMaxConcurrentRequests");
     assertThat(json).contains("quotaSoftLimitEnabled");
     assertThat(json).contains("quotaHardLimitEnabled");
     assertThat(json).doesNotContain("activeUserQuota");

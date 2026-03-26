@@ -52,8 +52,7 @@ public class PackingReadService {
         productionLogRepository.findByCompanyAndStatusInOrderByProducedAtAsc(company, statuses);
     Map<String, List<com.bigbrightpaints.erp.modules.factory.dto.AllowedSellableSizeDto>>
         allowedSizesByKey = new LinkedHashMap<>();
-    return logs
-        .stream()
+    return logs.stream()
         .map(
             log -> {
               ProductionProduct product = log.getProduct();
@@ -63,7 +62,8 @@ public class PackingReadService {
                           ? List.of()
                           : allowedSizesByKey.computeIfAbsent(
                               allowedSellableSizeCacheKey(product),
-                              ignored -> packingAllowedSizeService.listAllowedSellableSizes(company, log));
+                              ignored ->
+                                  packingAllowedSizeService.listAllowedSellableSizes(company, log));
               return new UnpackedBatchDto(
                   log.getId(),
                   log.getProductionCode(),
@@ -93,7 +93,10 @@ public class PackingReadService {
       return "product:" + product.getId() + "|family:" + familyName;
     }
     if (product.getSkuCode() != null && !product.getSkuCode().isBlank()) {
-      return "sku:" + product.getSkuCode().trim().toLowerCase(Locale.ROOT) + "|family:" + familyName;
+      return "sku:"
+          + product.getSkuCode().trim().toLowerCase(Locale.ROOT)
+          + "|family:"
+          + familyName;
     }
     return "family:" + familyName;
   }

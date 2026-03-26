@@ -78,8 +78,7 @@ class PackingControllerTest {
   void recordPacking_requiresCanonicalHeaderEvenWhenRequestBodyCarriesLegacyIdempotencyKey() {
     PackingController controller = new PackingController(packingService, bulkPackingService);
 
-    assertThatThrownBy(
-            () -> controller.recordPacking(null, null, null, request("body-only-key")))
+    assertThatThrownBy(() -> controller.recordPacking(null, null, null, request("body-only-key")))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Idempotency-Key header is required");
 
@@ -160,8 +159,7 @@ class PackingControllerTest {
   void recordPacking_rejectsRequestIdHeaderWhenPrimaryAlsoPresent() {
     PackingController controller = new PackingController(packingService, bulkPackingService);
 
-    assertThatThrownBy(
-            () -> controller.recordPacking("header-key", null, "req-123", request(null)))
+    assertThatThrownBy(() -> controller.recordPacking("header-key", null, "req-123", request(null)))
         .isInstanceOfSatisfying(
             ApplicationException.class,
             ex -> {

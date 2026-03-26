@@ -25,6 +25,8 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
@@ -53,6 +55,7 @@ import com.bigbrightpaints.erp.modules.reports.dto.GstReturnReportDto;
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationDto;
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationGroupDto;
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryValuationItemDto;
+import com.bigbrightpaints.erp.modules.reports.dto.ReconciliationDashboardDto;
 import com.bigbrightpaints.erp.modules.reports.dto.ReportSource;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
@@ -239,6 +242,59 @@ class ReportServiceInventoryAndGstTest {
     assertThatThrownBy(() -> reportService.profitLoss((FinancialReportQueryRequest) null))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Financial report query request is required");
+  }
+
+  @Test
+  void balanceWarnings_flagsUnexpectedSignsAcrossAccountTypes() {
+    Account asset = account(1L, "1000", "Inventory Asset", AccountType.ASSET, "-10");
+    Account liability = account(2L, "2000", "GST Liability", AccountType.LIABILITY, "5");
+    Account revenue = account(3L, "3000", "Sales Revenue", AccountType.REVENUE, "7");
+    Account expense = account(4L, "4000", "Factory Expense", AccountType.EXPENSE, "-3");
+    when(accountRepository.findByCompanyOrderByCodeAsc(company))
+        .thenReturn(List.of(asset, liability, revenue, expense));
+
+    var warnings = reportService.balanceWarnings();
+
+    assertThat(warnings).hasSize(4);
+    assertThat(warnings)
+        .extracting(warning -> warning.reason())
+        .containsExactly(
+            "Asset account has a credit balance",
+            "Liability account has a debit balance",
+            "Revenue account shows a debit balance",
+            "Expense account shows a credit balance");
+  }
+
+  @Test
+  void reconciliationDashboard_usesProvidedStatementBalanceAndInventoryFallbackLedgerBalance() {
+    Account bankAccount = account(10L, "BANK", "Main Bank", AccountType.ASSET, "1000");
+    Account inventoryAccount =
+        account(11L, "INV", "Inventory Control", AccountType.ASSET, "400");
+    when(companyEntityLookup.requireAccount(company, 10L)).thenReturn(bankAccount);
+    when(accountRepository.findByCompanyOrderByCodeAsc(company)).thenReturn(List.of(inventoryAccount));
+    when(inventoryValuationService.currentSnapshot(company))
+        .thenReturn(
+            new InventoryValuationService.InventorySnapshot(
+                new BigDecimal("450"), 1L, "FIFO", List.of()));
+
+    ReconciliationDashboardDto dashboard =
+        reportService.reconciliationDashboard(10L, new BigDecimal("940"));
+
+    assertThat(dashboard.inventoryVariance()).isEqualByComparingTo("50");
+    assertThat(dashboard.bankVariance()).isEqualByComparingTo("60");
+    assertThat(dashboard.inventoryBalanced()).isFalse();
+    assertThat(dashboard.bankBalanced()).isFalse();
+    assertThat(dashboard.balanceWarnings()).isEmpty();
+  }
+
+  private Account account(Long id, String code, String name, AccountType type, String balance) {
+    Account account = new Account();
+    ReflectionTestUtils.setField(account, "id", id);
+    account.setCode(code);
+    account.setName(name);
+    account.setType(type);
+    account.setBalance(new BigDecimal(balance));
+    return account;
   }
 
   @Test

@@ -69,10 +69,12 @@ public interface RawMaterialPurchaseRepository extends JpaRepository<RawMaterial
       Company company, List<Long> goodsReceiptIds);
 
   @EntityGraph(attributePaths = {"supplier", "journalEntry", "purchaseOrder", "goodsReceipt"})
-  Optional<RawMaterialPurchase> findByCompanyAndJournalEntry(Company company, JournalEntry journalEntry);
+  Optional<RawMaterialPurchase> findByCompanyAndJournalEntry(
+      Company company, JournalEntry journalEntry);
 
   @EntityGraph(attributePaths = {"supplier", "journalEntry", "purchaseOrder", "goodsReceipt"})
-  List<RawMaterialPurchase> findByCompanyAndJournalEntry_IdIn(Company company, List<Long> journalEntryIds);
+  List<RawMaterialPurchase> findByCompanyAndJournalEntry_IdIn(
+      Company company, List<Long> journalEntryIds);
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("SELECT p FROM RawMaterialPurchase p WHERE p.company = :company AND p.id = :id")
