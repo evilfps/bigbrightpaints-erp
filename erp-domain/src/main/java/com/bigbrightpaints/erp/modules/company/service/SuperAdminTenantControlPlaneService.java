@@ -356,7 +356,7 @@ public class SuperAdminTenantControlPlaneService {
           "Invalid verification token");
     }
     if (changeRequest.getExpiresAt() != null
-        && changeRequest.getExpiresAt().isBefore(Instant.now())) {
+        && changeRequest.getExpiresAt().isBefore(CompanyTime.now(company))) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
           "Email change verification token has expired");
     }

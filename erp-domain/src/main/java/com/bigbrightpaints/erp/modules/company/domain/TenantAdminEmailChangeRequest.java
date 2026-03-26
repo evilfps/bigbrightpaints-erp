@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Locale;
 
 import com.bigbrightpaints.erp.core.domain.VersionedEntity;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 
 import jakarta.persistence.*;
 
@@ -55,7 +56,7 @@ public class TenantAdminEmailChangeRequest extends VersionedEntity {
     requestedEmail = normalizeEmail(requestedEmail);
     verificationToken = normalizeTrimmed(verificationToken, null);
     if (verificationSentAt == null) {
-      verificationSentAt = Instant.now();
+      verificationSentAt = CompanyTime.now();
     }
     if (expiresAt == null) {
       expiresAt = verificationSentAt.plusSeconds(60L * 60L * 24L);

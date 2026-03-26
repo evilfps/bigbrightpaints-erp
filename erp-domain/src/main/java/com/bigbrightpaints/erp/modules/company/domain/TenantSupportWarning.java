@@ -59,7 +59,7 @@ public class TenantSupportWarning extends VersionedEntity {
       gracePeriodHours = 24;
     }
     if (issuedAt == null) {
-      issuedAt = company == null ? Instant.now() : CompanyTime.now(company);
+      issuedAt = company == null ? CompanyTime.now() : CompanyTime.now(company);
     }
   }
 
