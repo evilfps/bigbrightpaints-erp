@@ -44,6 +44,7 @@
 - Result summary:
   - focused integration/truth coverage proves the canonical superadmin tenant-control plane, fail-closed onboarding delivery, authenticated changelog reads, superadmin-only changelog writes, and canonical `CompanyContextFilter` target-tenant binding.
   - the refreshed `openapi.json` now matches the live ERP-37 controller surface, including `204` superadmin changelog delete semantics.
+  - release-guard posture is explicit: `V167` uses strict DDL, and the only reviewed `schema_drift_scan` v2 allowlist exception is the deterministic ranked-admin backfill that seeds `main_admin_user_id` and onboarding admin truth.
 - Artifacts/links:
   - Worktree: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-37-hard-cut-superadmin-control-plane`
   - Migration: `erp-domain/src/main/resources/db/migration_v2/V167__erp37_superadmin_control_plane_hard_cut.sql`

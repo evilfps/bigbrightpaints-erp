@@ -13,34 +13,18 @@ ALTER TABLE companies
     ADD CONSTRAINT chk_companies_lifecycle_state
         CHECK (lifecycle_state IN ('ACTIVE', 'SUSPENDED', 'DEACTIVATED'));
 
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name = 'companies'
-          AND column_name = 'quota_max_concurrent_sessions'
-    ) AND NOT EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name = 'companies'
-          AND column_name = 'quota_max_concurrent_requests'
-    ) THEN
-        EXECUTE 'ALTER TABLE companies RENAME COLUMN quota_max_concurrent_sessions TO quota_max_concurrent_requests';
-    END IF;
-END $$;
+ALTER TABLE companies
+    RENAME COLUMN quota_max_concurrent_sessions TO quota_max_concurrent_requests;
 
 ALTER TABLE companies
-    ADD COLUMN IF NOT EXISTS main_admin_user_id BIGINT REFERENCES app_users(id),
-    ADD COLUMN IF NOT EXISTS support_notes TEXT,
-    ADD COLUMN IF NOT EXISTS support_tags JSONB NOT NULL DEFAULT '[]'::jsonb,
-    ADD COLUMN IF NOT EXISTS onboarding_coa_template_code VARCHAR(64),
-    ADD COLUMN IF NOT EXISTS onboarding_admin_email VARCHAR(255),
-    ADD COLUMN IF NOT EXISTS onboarding_admin_user_id BIGINT REFERENCES app_users(id),
-    ADD COLUMN IF NOT EXISTS onboarding_completed_at TIMESTAMP WITH TIME ZONE,
-    ADD COLUMN IF NOT EXISTS onboarding_credentials_emailed_at TIMESTAMP WITH TIME ZONE;
+    ADD COLUMN main_admin_user_id BIGINT REFERENCES app_users(id),
+    ADD COLUMN support_notes TEXT,
+    ADD COLUMN support_tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN onboarding_coa_template_code VARCHAR(64),
+    ADD COLUMN onboarding_admin_email VARCHAR(255),
+    ADD COLUMN onboarding_admin_user_id BIGINT REFERENCES app_users(id),
+    ADD COLUMN onboarding_completed_at TIMESTAMP WITH TIME ZONE,
+    ADD COLUMN onboarding_credentials_emailed_at TIMESTAMP WITH TIME ZONE;
 
 ALTER TABLE companies
     DROP CONSTRAINT IF EXISTS chk_companies_quota_max_concurrent_sessions_non_negative;
@@ -72,7 +56,7 @@ WHERE c.id = ra.company_id
   AND ra.admin_rank = 1
   AND c.main_admin_user_id IS NULL;
 
-CREATE TABLE IF NOT EXISTS tenant_support_warnings (
+CREATE TABLE tenant_support_warnings (
     id BIGSERIAL PRIMARY KEY,
     version BIGINT NOT NULL DEFAULT 0,
     company_id BIGINT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
@@ -84,10 +68,10 @@ CREATE TABLE IF NOT EXISTS tenant_support_warnings (
     issued_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_tenant_support_warnings_company_issued_at
+CREATE INDEX idx_tenant_support_warnings_company_issued_at
     ON tenant_support_warnings (company_id, issued_at DESC);
 
-CREATE TABLE IF NOT EXISTS tenant_admin_email_change_requests (
+CREATE TABLE tenant_admin_email_change_requests (
     id BIGSERIAL PRIMARY KEY,
     version BIGINT NOT NULL DEFAULT 0,
     company_id BIGINT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
@@ -103,5 +87,5 @@ CREATE TABLE IF NOT EXISTS tenant_admin_email_change_requests (
     consumed BOOLEAN NOT NULL DEFAULT FALSE
 );
 
-CREATE INDEX IF NOT EXISTS idx_tenant_admin_email_change_requests_scope
+CREATE INDEX idx_tenant_admin_email_change_requests_scope
     ON tenant_admin_email_change_requests (company_id, admin_user_id, consumed, id DESC);
