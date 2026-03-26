@@ -97,7 +97,7 @@ public class AdminUserService {
   public List<UserDto> listUsers() {
     Company company = companyContextService.requireCurrentCompany();
     List<UserAccount> users = userRepository.findByCompany_Id(company.getId());
-    Map<String, Instant> lastLoginByEmail = resolveLastLoginByEmail(users);
+    Map<String, Instant> lastLoginByEmail = resolveLastLoginByEmail(company.getId(), users);
     return users.stream()
         .map(user -> toDto(user, lastLoginByEmail.get(normalizeEmailKey(user.getEmail()))))
         .toList();
@@ -129,7 +129,7 @@ public class AdminUserService {
         company,
         "admin_user_create",
         Map.of("provisioningMode", "CANONICAL_EMAIL_BOOTSTRAP"));
-    Instant lastLoginAt = resolveLastLoginAt(saved.getEmail());
+    Instant lastLoginAt = resolveLastLoginAt(saved);
     UserDto dto = toDto(saved, lastLoginAt);
     if (!dto.roles().isEmpty()) {
       return dto;
@@ -238,7 +238,7 @@ public class AdminUserService {
         company,
         "admin_user_update",
         Map.of("displayName", user.getDisplayName()));
-    return toDto(user, resolveLastLoginAt(user.getEmail()));
+    return toDto(user, resolveLastLoginAt(user));
   }
 
   @Transactional
@@ -439,7 +439,7 @@ public class AdminUserService {
             "targetUserId", String.valueOf(user.getId()),
             "previousEnabled", Boolean.toString(previousEnabled),
             "enabled", Boolean.toString(enabled)));
-    return toDto(user, resolveLastLoginAt(user.getEmail()));
+    return toDto(user, resolveLastLoginAt(user));
   }
 
   private void validateCompanyScope(Company company, Long companyId) {
@@ -548,7 +548,10 @@ public class AdminUserService {
         });
   }
 
-  private Map<String, Instant> resolveLastLoginByEmail(List<UserAccount> users) {
+  private Map<String, Instant> resolveLastLoginByEmail(Long companyId, List<UserAccount> users) {
+    if (companyId == null) {
+      return Map.of();
+    }
     Set<String> normalizedEmails =
         users.stream()
             .map(UserAccount::getEmail)
@@ -560,7 +563,8 @@ public class AdminUserService {
     }
 
     return auditLogRepository
-        .findLatestTimestampByEventTypeAndUsernameIn(AuditEvent.LOGIN_SUCCESS, normalizedEmails)
+        .findLatestTimestampByEventTypeAndCompanyIdAndUsernameIn(
+            AuditEvent.LOGIN_SUCCESS, companyId, normalizedEmails)
         .stream()
         .filter(row -> StringUtils.hasText(row.getUsernameKey()) && row.getLastLoginAt() != null)
         .collect(
@@ -571,14 +575,18 @@ public class AdminUserService {
                 LinkedHashMap::new));
   }
 
-  private Instant resolveLastLoginAt(String userEmail) {
+  private Instant resolveLastLoginAt(UserAccount user) {
+    if (user == null || user.getCompany() == null || user.getCompany().getId() == null) {
+      return null;
+    }
+    String userEmail = user.getEmail();
     String normalizedEmail = normalizeEmailKey(userEmail);
     if (!StringUtils.hasText(normalizedEmail)) {
       return null;
     }
     return auditLogRepository
-        .findFirstByEventTypeAndUsernameIgnoreCaseOrderByTimestampDesc(
-            AuditEvent.LOGIN_SUCCESS, normalizedEmail)
+        .findFirstByEventTypeAndCompanyIdAndUsernameIgnoreCaseOrderByTimestampDesc(
+            AuditEvent.LOGIN_SUCCESS, user.getCompany().getId(), normalizedEmail)
         .map(auditLog -> auditLog.getTimestamp().atZone(ZoneOffset.UTC).toInstant())
         .orElse(null);
   }

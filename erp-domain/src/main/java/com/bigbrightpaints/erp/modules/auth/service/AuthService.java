@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.auth.service;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -367,6 +368,6 @@ public class AuthService {
     if (email == null) {
       return null;
     }
-    return email.trim().toLowerCase();
+    return email.trim().toLowerCase(Locale.ROOT);
   }
 }

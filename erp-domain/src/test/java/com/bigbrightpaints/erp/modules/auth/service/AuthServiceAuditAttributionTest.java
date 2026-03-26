@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -117,7 +118,6 @@ class AuthServiceAuditAttributionTest {
     when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("user@example.com", "ACME"))
         .thenReturn(Optional.of(user));
     when(passwordEncoder.matches("Passw0rd!", "hash")).thenReturn(true);
-    when(companyRepository.findByCodeIgnoreCase("ACME")).thenReturn(Optional.of(company("ACME")));
     doThrow(new InvalidMfaException("   ")).when(mfaService).verifyDuringLogin(eq(user), any(), any());
 
     assertThatThrownBy(() -> authService.login(request)).isInstanceOf(InvalidMfaException.class);
@@ -146,7 +146,6 @@ class AuthServiceAuditAttributionTest {
     when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("user@example.com", "ACME"))
         .thenReturn(Optional.of(user));
     when(passwordEncoder.matches("Passw0rd!", "hash")).thenReturn(true);
-    when(companyRepository.findByCodeIgnoreCase("ACME")).thenReturn(Optional.of(company("ACME")));
     doThrow(
             com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
                 "Tenant runtime hold"))
@@ -215,8 +214,6 @@ class AuthServiceAuditAttributionTest {
             "tenant-user@example.com", "TARGET"))
         .thenReturn(Optional.of(user));
     when(passwordEncoder.matches("Passw0rd!", "hash")).thenReturn(true);
-    when(companyRepository.findByCodeIgnoreCase("TARGET")).thenReturn(Optional.of(company("TARGET")));
-
     assertThatThrownBy(() -> authService.login(request))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Invalid credentials");
@@ -236,7 +233,6 @@ class AuthServiceAuditAttributionTest {
     when(refreshTokenService.consume("refresh-old")).thenReturn(Optional.of(record));
     when(tokenBlacklistService.isUserTokenRevoked(user.getPublicId().toString(), issuedAt)).thenReturn(false);
     when(userAccountRepository.findByPublicId(user.getPublicId())).thenReturn(Optional.of(user));
-    when(companyRepository.findByCodeIgnoreCase("ACME")).thenReturn(Optional.of(company("ACME")));
     when(tokenService.generateAccessToken(
             eq(user.getPublicId().toString()),
             eq("ACME"),
@@ -353,6 +349,38 @@ class AuthServiceAuditAttributionTest {
     verify(userAccountRepository).save(user);
     verify(tokenBlacklistService).revokeAllUserTokens(user.getPublicId().toString());
     verify(refreshTokenService).revokeAllForUser(user.getPublicId());
+  }
+
+  @Test
+  void loginNormalizesEmailWithLocaleRoot() {
+    Locale originalLocale = Locale.getDefault();
+    Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+    try {
+      LoginRequest request = new LoginRequest(" IUSER@example.com ", "Passw0rd!", "ACME", null, null);
+      UserAccount user = userWithCompany("iuser@example.com", "ACME");
+
+      when(authScopeService.requireScopeCode("ACME")).thenReturn("ACME");
+      when(authScopeService.isPlatformScope("ACME")).thenReturn(false);
+      when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+              "iuser@example.com", "ACME"))
+          .thenReturn(Optional.of(user));
+      when(passwordEncoder.matches("Passw0rd!", "hash")).thenReturn(true);
+      when(tokenService.generateAccessToken(
+              eq(user.getPublicId().toString()), eq("ACME"), any(Map.class), any(Instant.class)))
+          .thenReturn("access-new");
+      when(refreshTokenService.issue(eq(user.getPublicId()), eq("ACME"), any(Instant.class), any(Instant.class)))
+          .thenReturn("refresh-new");
+      when(properties.getRefreshTokenTtlSeconds()).thenReturn(3600L);
+      when(properties.getAccessTokenTtlSeconds()).thenReturn(900L);
+
+      var response = authService.login(request);
+
+      assertThat(response.companyCode()).isEqualTo("ACME");
+      verify(userAccountRepository)
+          .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("iuser@example.com", "ACME");
+    } finally {
+      Locale.setDefault(originalLocale);
+    }
   }
 
   private UserAccount userWithCompany(String email, String companyCode) {

@@ -40,8 +40,8 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
   /**
    * Find latest event record for a username.
    */
-  Optional<AuditLog> findFirstByEventTypeAndUsernameIgnoreCaseOrderByTimestampDesc(
-      AuditEvent eventType, String username);
+  Optional<AuditLog> findFirstByEventTypeAndCompanyIdAndUsernameIgnoreCaseOrderByTimestampDesc(
+      AuditEvent eventType, Long companyId, String username);
 
   /**
    * Projection for batched username login lookups.
@@ -59,11 +59,13 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
       "SELECT LOWER(al.username) AS usernameKey, MAX(al.timestamp) AS lastLoginAt "
           + "FROM AuditLog al "
           + "WHERE al.eventType = :eventType "
+          + "AND al.companyId = :companyId "
           + "AND al.username IS NOT NULL "
           + "AND LOWER(al.username) IN :usernames "
           + "GROUP BY LOWER(al.username)")
-  List<UsernameLastLoginProjection> findLatestTimestampByEventTypeAndUsernameIn(
+  List<UsernameLastLoginProjection> findLatestTimestampByEventTypeAndCompanyIdAndUsernameIn(
       @Param("eventType") AuditEvent eventType,
+      @Param("companyId") Long companyId,
       @Param("usernames") java.util.Set<String> usernames);
 
   /**
