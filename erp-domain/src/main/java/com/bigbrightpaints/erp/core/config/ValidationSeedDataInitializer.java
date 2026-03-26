@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -43,6 +44,7 @@ public class ValidationSeedDataInitializer {
       AccountRepository accountRepository,
       PasswordEncoder passwordEncoder,
       PasswordPolicy passwordPolicy,
+      AuthScopeService authScopeService,
       Environment environment,
       @Value("${erp.validation-seed.enabled:false}") boolean validationSeedEnabled,
       @Value("${erp.validation-seed.password:}") String defaultPassword) {
@@ -59,7 +61,7 @@ public class ValidationSeedDataInitializer {
 
       Company mockCompany = ensureCompany(companyRepository, "MOCK", "Mock Training Co");
       Company rivalCompany = ensureCompany(companyRepository, "RIVAL", "Rival Validation Co");
-      Company superAdminCompany = ensureCompany(companyRepository, "SKE", "Platform Super Admin");
+      String platformScopeCode = authScopeService.getPlatformScopeCode();
 
       Role admin = ensureRole(roleRepository, "ROLE_ADMIN", "Administrator");
       Role accounting = ensureRole(roleRepository, "ROLE_ACCOUNTING", "Accounting");
@@ -82,6 +84,7 @@ public class ValidationSeedDataInitializer {
           "validation.admin@example.com",
           "Validation Admin",
           validatedPassword,
+          mockCompany.getCode(),
           List.of(mockCompany),
           List.of(admin, accounting, sales));
       ensureUser(
@@ -90,6 +93,7 @@ public class ValidationSeedDataInitializer {
           "validation.accounting@example.com",
           "Validation Accounting",
           validatedPassword,
+          mockCompany.getCode(),
           List.of(mockCompany),
           List.of(accounting));
       ensureUser(
@@ -98,6 +102,7 @@ public class ValidationSeedDataInitializer {
           "validation.sales@example.com",
           "Validation Sales",
           validatedPassword,
+          mockCompany.getCode(),
           List.of(mockCompany),
           List.of(sales));
       ensureUser(
@@ -106,6 +111,7 @@ public class ValidationSeedDataInitializer {
           "validation.factory@example.com",
           "Validation Factory",
           validatedPassword,
+          mockCompany.getCode(),
           List.of(mockCompany),
           List.of(factory));
 
@@ -116,6 +122,7 @@ public class ValidationSeedDataInitializer {
               "validation.dealer@example.com",
               "Validation Dealer",
               validatedPassword,
+              mockCompany.getCode(),
               List.of(mockCompany),
               List.of(dealerRole));
       ensureDealer(
@@ -133,6 +140,7 @@ public class ValidationSeedDataInitializer {
               "validation.rival.dealer@example.com",
               "Rival Validation Dealer",
               validatedPassword,
+              rivalCompany.getCode(),
               List.of(rivalCompany),
               List.of(dealerRole));
       ensureDealer(
@@ -149,6 +157,7 @@ public class ValidationSeedDataInitializer {
           "validation.rival.admin@example.com",
           "Rival Validation Admin",
           validatedPassword,
+          rivalCompany.getCode(),
           List.of(rivalCompany),
           List.of(admin));
       ensureUser(
@@ -157,12 +166,15 @@ public class ValidationSeedDataInitializer {
           "validation.superadmin@example.com",
           "Validation Super Admin",
           validatedPassword,
-          List.of(superAdminCompany, mockCompany),
+          platformScopeCode,
+          List.of(),
           List.of(admin, superAdmin));
 
       log.info(
-          "Validation seed ready for companies [MOCK, RIVAL, SKE]. Actor password comes from"
-              + " erp.validation-seed.password / ERP_VALIDATION_SEED_PASSWORD.");
+          "Validation seed ready for companies [MOCK, RIVAL] plus platform scope {}. Actor"
+              + " password comes from"
+              + " erp.validation-seed.password / ERP_VALIDATION_SEED_PASSWORD.",
+          platformScopeCode);
     };
   }
 
@@ -235,17 +247,23 @@ public class ValidationSeedDataInitializer {
       String email,
       String displayName,
       String password,
+      String authScopeCode,
       List<Company> companies,
       List<Role> roles) {
     String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+    String normalizedScopeCode = authScopeCode.trim().toUpperCase(Locale.ROOT);
     UserAccount user =
         userAccountRepository
-            .findByEmailIgnoreCase(normalizedEmail)
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizedEmail, normalizedScopeCode)
             .orElseGet(
                 () ->
                     new UserAccount(
-                        normalizedEmail, passwordEncoder.encode(password), displayName));
+                        normalizedEmail,
+                        normalizedScopeCode,
+                        passwordEncoder.encode(password),
+                        displayName));
     user.setEmail(normalizedEmail);
+    user.setAuthScopeCode(normalizedScopeCode);
     user.setDisplayName(displayName);
     user.setPasswordHash(passwordEncoder.encode(password));
     user.setEnabled(true);
@@ -261,8 +279,10 @@ public class ValidationSeedDataInitializer {
   }
 
   private void normalizeCompanyMemberships(UserAccount user, List<Company> companies) {
-    user.getCompanies().clear();
-    companies.forEach(user::addCompany);
+    user.clearCompanyMemberships();
+    if (companies != null) {
+      companies.forEach(user::addCompany);
+    }
   }
 
   private void normalizeRoleMemberships(UserAccount user, List<Role> roles) {

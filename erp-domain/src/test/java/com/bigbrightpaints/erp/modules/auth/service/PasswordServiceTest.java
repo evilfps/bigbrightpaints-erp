@@ -106,12 +106,12 @@ class PasswordServiceTest {
                     entry.getUser() == user
                         && passwordEncoder.matches("CurrentPass1!", entry.getPasswordHash())));
     verify(userAccountRepository).save(user);
-    verify(tokenBlacklistService).revokeAllUserTokens("user@bbp.dev");
-    verify(refreshTokenService).revokeAllForUser("user@bbp.dev");
+    verify(tokenBlacklistService).revokeAllUserTokens(user.getPublicId().toString());
+    verify(refreshTokenService).revokeAllForUser(user.getPublicId());
     assertTrue(passwordEncoder.matches("NewPassword1!", user.getPasswordHash()));
   }
 
   private UserAccount userWithPassword(String rawPassword) {
-    return new UserAccount("user@bbp.dev", passwordEncoder.encode(rawPassword), "User");
+    return new UserAccount("user@bbp.dev", "BBP", passwordEncoder.encode(rawPassword), "User");
   }
 }

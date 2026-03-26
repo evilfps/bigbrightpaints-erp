@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StringUtils;
 
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -27,7 +28,6 @@ import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 public class DataInitializer {
 
   private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
-  private static final String DEFAULT_SUPER_ADMIN_COMPANY_CODE = "SKE";
   private static final String SUPER_ADMIN_DISPLAY_NAME = "Platform Super Admin";
   private static final String DEFAULT_DEV_ADMIN_EMAIL = "";
   private static final String DEV_ADMIN_DISPLAY_NAME = "Dev Admin";
@@ -40,9 +40,10 @@ public class DataInitializer {
       RoleRepository roleRepository,
       AccountRepository accountRepository,
       PasswordEncoder passwordEncoder,
+      AuthScopeService authScopeService,
       @Value("${erp.seed.super-admin.email:}") String superAdminEmail,
       @Value("${erp.seed.super-admin.password:}") String superAdminPassword,
-      @Value("${erp.seed.super-admin.company-code:SKE}") String superAdminCompanyCode,
+      @Value("${erp.seed.super-admin.company-code:PLATFORM}") String superAdminCompanyCode,
       @Value("${erp.seed.dev-admin.email:" + DEFAULT_DEV_ADMIN_EMAIL + "}") String devAdminEmail,
       @Value("${erp.seed.dev-admin.password:}") String devAdminPassword) {
     return args -> {
@@ -67,16 +68,15 @@ public class DataInitializer {
                     return roleRepository.save(role);
                   });
 
-      Company superAdminCompany =
-          seedConfiguredSuperAdmin(
-              userRepository,
-              companyRepository,
-              passwordEncoder,
-              adminRole,
-              superAdminRole,
-              superAdminEmail,
-              superAdminPassword,
-              superAdminCompanyCode);
+      seedConfiguredSuperAdmin(
+          userRepository,
+          passwordEncoder,
+          authScopeService,
+          adminRole,
+          superAdminRole,
+          superAdminEmail,
+          superAdminPassword,
+          superAdminCompanyCode);
 
       Company company =
           companyRepository
@@ -94,10 +94,6 @@ public class DataInitializer {
       seedConfiguredDevAdmin(
           userRepository, passwordEncoder, adminRole, company, devAdminEmail, devAdminPassword);
 
-      seedDefaultAccounts(superAdminCompany, accountRepository);
-      if (superAdminCompany != null) {
-        setCompanyDefaultAccounts(superAdminCompany, companyRepository, accountRepository);
-      }
       seedDefaultAccounts(company, accountRepository);
       setCompanyDefaultAccounts(company, companyRepository, accountRepository);
     };
@@ -117,7 +113,10 @@ public class DataInitializer {
     String normalizedEmail = configuredEmail.trim().toLowerCase(Locale.ROOT);
     String normalizedPassword =
         StringUtils.hasText(configuredPassword) ? configuredPassword.trim() : "";
-    UserAccount devAdmin = userRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
+    UserAccount devAdmin =
+        userRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizedEmail, company.getCode())
+            .orElse(null);
     if (devAdmin == null) {
       if (!StringUtils.hasText(normalizedPassword)) {
         throw new IllegalStateException(
@@ -125,7 +124,10 @@ public class DataInitializer {
       }
       devAdmin =
           new UserAccount(
-              normalizedEmail, passwordEncoder.encode(normalizedPassword), DEV_ADMIN_DISPLAY_NAME);
+              normalizedEmail,
+              company.getCode(),
+              passwordEncoder.encode(normalizedPassword),
+              DEV_ADMIN_DISPLAY_NAME);
       devAdmin.setMustChangePassword(true);
     } else {
       if (!StringUtils.hasText(normalizedPassword)) {
@@ -141,15 +143,16 @@ public class DataInitializer {
       }
     }
     devAdmin.setDisplayName(DEV_ADMIN_DISPLAY_NAME);
+    devAdmin.setAuthScopeCode(company.getCode());
     ensureCompanyMembership(devAdmin, company);
     ensureRoleMembership(devAdmin, adminRole);
     userRepository.save(devAdmin);
   }
 
-  private Company seedConfiguredSuperAdmin(
+  private void seedConfiguredSuperAdmin(
       UserAccountRepository userRepository,
-      CompanyRepository companyRepository,
       PasswordEncoder passwordEncoder,
+      AuthScopeService authScopeService,
       Role adminRole,
       Role superAdminRole,
       String configuredEmail,
@@ -157,35 +160,26 @@ public class DataInitializer {
       String configuredCompanyCode) {
     if (!StringUtils.hasText(configuredEmail)) {
       log.info("Super-admin seed skipped: set erp.seed.super-admin.email to enable bootstrap");
-      return null;
+      return;
     }
     String normalizedEmail = configuredEmail.trim().toLowerCase(Locale.ROOT);
-    String normalizedCompanyCode = normalizeCompanyCode(configuredCompanyCode);
+    String platformScopeCode =
+        authScopeService.updatePlatformScopeCode(normalizeCompanyCode(configuredCompanyCode));
     UserAccount existingSuperAdmin =
-        userRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
+        userRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizedEmail, platformScopeCode)
+            .orElse(null);
     if (existingSuperAdmin == null && !StringUtils.hasText(configuredPassword)) {
       throw new IllegalStateException(
           "erp.seed.super-admin.password is required when bootstrap super-admin user does not"
               + " exist");
     }
-    Company superAdminCompany =
-        companyRepository
-            .findByCodeIgnoreCase(normalizedCompanyCode)
-            .orElseGet(
-                () -> {
-                  Company company = new Company();
-                  company.setName(normalizedCompanyCode);
-                  company.setCode(normalizedCompanyCode);
-                  company.setTimezone("UTC");
-                  company.setBaseCurrency("INR");
-                  company.setDefaultGstRate(java.math.BigDecimal.ZERO);
-                  return companyRepository.save(company);
-                });
 
     UserAccount superAdmin =
         existingSuperAdmin == null
             ? new UserAccount(
                 normalizedEmail,
+                platformScopeCode,
                 passwordEncoder.encode(configuredPassword),
                 SUPER_ADMIN_DISPLAY_NAME)
             : existingSuperAdmin;
@@ -193,11 +187,11 @@ public class DataInitializer {
       superAdmin.setMustChangePassword(true);
     }
     superAdmin.setDisplayName(SUPER_ADMIN_DISPLAY_NAME);
-    ensureCompanyMembership(superAdmin, superAdminCompany);
+    superAdmin.setAuthScopeCode(platformScopeCode);
+    superAdmin.clearCompanyMemberships();
     ensureRoleMembership(superAdmin, adminRole);
     ensureRoleMembership(superAdmin, superAdminRole);
     userRepository.save(superAdmin);
-    return superAdminCompany;
   }
 
   private void ensureCompanyMembership(UserAccount user, Company company) {
@@ -238,7 +232,7 @@ public class DataInitializer {
 
   private String normalizeCompanyCode(String configuredCompanyCode) {
     if (!StringUtils.hasText(configuredCompanyCode)) {
-      return DEFAULT_SUPER_ADMIN_COMPANY_CODE;
+      return AuthScopeService.DEFAULT_PLATFORM_AUTH_CODE;
     }
     return configuredCompanyCode.trim().toUpperCase(Locale.ROOT);
   }

@@ -14,10 +14,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.web.cors.CorsConfiguration;
 
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
+
 @ExtendWith(MockitoExtension.class)
 class SystemSettingsServiceCorsTest {
 
   @Mock private SystemSettingsRepository settingsRepository;
+  @Mock private AuthScopeService authScopeService;
 
   private final MockEnvironment nonProdEnvironment = new MockEnvironment();
   private final MockEnvironment prodEnvironment =
@@ -35,6 +38,7 @@ class SystemSettingsServiceCorsTest {
                 new SystemSettingsService(
                     new EmailProperties(),
                     settingsRepository,
+                    authScopeService,
                     nonProdEnvironment,
                     "*",
                     true,
@@ -53,6 +57,7 @@ class SystemSettingsServiceCorsTest {
                 new SystemSettingsService(
                     new EmailProperties(),
                     settingsRepository,
+                    authScopeService,
                     nonProdEnvironment,
                     "http://example.com",
                     false,
@@ -70,6 +75,7 @@ class SystemSettingsServiceCorsTest {
         new SystemSettingsService(
             new EmailProperties(),
             settingsRepository,
+            authScopeService,
             nonProdEnvironment,
             "HTTP://LOCALHOST:3002/",
             true,
@@ -89,6 +95,7 @@ class SystemSettingsServiceCorsTest {
         new SystemSettingsService(
             new EmailProperties(),
             settingsRepository,
+            authScopeService,
             nonProdEnvironment,
             "http://192.168.29.187:3002/",
             false,
@@ -109,6 +116,7 @@ class SystemSettingsServiceCorsTest {
                 new SystemSettingsService(
                     new EmailProperties(),
                     settingsRepository,
+                    authScopeService,
                     nonProdEnvironment,
                     "http://192.168.29.187:3002",
                     true,
@@ -127,6 +135,7 @@ class SystemSettingsServiceCorsTest {
                 new SystemSettingsService(
                     new EmailProperties(),
                     settingsRepository,
+                    authScopeService,
                     prodEnvironment,
                     "http://localhost:3002",
                     false,
@@ -144,6 +153,7 @@ class SystemSettingsServiceCorsTest {
         new SystemSettingsService(
             new EmailProperties(),
             settingsRepository,
+            authScopeService,
             prodEnvironment,
             "http://100.109.241.47:3000/",
             true,
@@ -164,6 +174,7 @@ class SystemSettingsServiceCorsTest {
                 new SystemSettingsService(
                     new EmailProperties(),
                     settingsRepository,
+                    authScopeService,
                     prodEnvironment,
                     "http://100.109.241.47:3000",
                     true,

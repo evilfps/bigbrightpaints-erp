@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -28,7 +29,8 @@ class TS_RuntimeRefreshTokenServiceExecutableCoverageTest {
     RefreshToken stored =
         RefreshToken.digestOnly(
             digest,
-            "user@example.com",
+            UUID.randomUUID(),
+            "ACME",
             Instant.now().minusSeconds(120),
             Instant.now().minusSeconds(60));
     when(repository.findForUpdateByTokenDigest(digest)).thenReturn(Optional.of(stored));

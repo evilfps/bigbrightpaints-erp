@@ -40,26 +40,14 @@ public class PasswordResetService {
 
   private static final Logger log = LoggerFactory.getLogger(PasswordResetService.class);
   private static final long RESET_TOKEN_TTL_SECONDS = 3600; // 1 hour
-  private static final String SUPER_ADMIN_ROLE = "ROLE_SUPER_ADMIN";
   private static final String RESET_POLICY_SCOPE = "SCOPED_ACCOUNT";
   private static final String CORRELATION_ID_HEADER = "X-Correlation-Id";
   private static final String REQUEST_ID_HEADER = "X-Request-Id";
   private static final String TRACE_ID_HEADER = "X-Trace-Id";
   private static final String COMPANY_CODE_HEADER = "X-Company-Code";
-  private static final String LEGACY_COMPANY_ID_HEADER = "X-Company-Id";
   private static final int MAX_CORRELATION_ID_LENGTH = 128;
   private static final Pattern SAFE_CORRELATION_ID_PATTERN =
       Pattern.compile("^[A-Za-z0-9._:-]{1,128}$");
-  private static final String SUPER_ADMIN_MASKED_OUTCOME = "request_accepted";
-  private static final String SUPER_ADMIN_DISPATCH_FAILURE_REASON_CODE = "RESET_DISPATCH_FAILURE";
-  private static final String SUPER_ADMIN_DISPATCH_FAILURE_CLASS_CONFIGURATION = "CONFIGURATION";
-  private static final String SUPER_ADMIN_DISPATCH_FAILURE_CLASS_TOKEN_PERSISTENCE =
-      "TOKEN_PERSISTENCE";
-  private static final String SUPER_ADMIN_DISPATCH_FAILURE_CLASS_EMAIL_DISPATCH = "EMAIL_DISPATCH";
-  private static final String SUPER_ADMIN_CLEANUP_FAILURE_REASON_CODE = "RESET_CLEANUP_FAILURE";
-  private static final String SUPER_ADMIN_CLEANUP_FAILURE_CLASS_TOKEN_CLEANUP = "TOKEN_CLEANUP";
-  private static final String SUPER_ADMIN_CLEANUP_FAILURE_SECURITY_EVENT_CODE =
-      "SEC_AUTH_SUPERADMIN_RESET_CLEANUP_FAILURE";
   private static final String PUBLIC_RESET_PERSISTENCE_FAILURE_REASON_CODE =
       "RESET_PERSISTENCE_FAILURE";
   private static final int MAX_TENANT_CONTEXT_LENGTH = 64;
@@ -149,26 +137,6 @@ public class PasswordResetService {
         .ifPresent(user -> dispatchResetEmail(user, correlationId, true, "forgot_password"));
   }
 
-  public void requestResetForSuperAdmin(String email) {
-    String correlationId = resolveCorrelationId();
-    logTenantContextIgnoredIfPresent("forgot_password_superadmin", correlationId);
-    String requestedEmail = obfuscateEmail(email);
-    userAccountRepository
-        .findByEmailIgnoreCase(email)
-        .filter(UserAccount::isEnabled)
-        .filter(this::hasSuperAdminRole)
-        .ifPresentOrElse(
-            user -> dispatchSuperAdminResetEmail(user, correlationId),
-            () ->
-                log.info(
-                    "event=password_reset.superadmin_forgot.suppressed policy={} correlationId={}"
-                        + " email={} outcome={} reasonCode=masked_eligibility",
-                    RESET_POLICY_SCOPE,
-                    correlationId,
-                    requestedEmail,
-                    SUPER_ADMIN_MASKED_OUTCOME));
-  }
-
   @Transactional
   public void requestResetByAdmin(UserAccount targetUser) {
     if (targetUser == null || !targetUser.isEnabled()) {
@@ -224,14 +192,6 @@ public class PasswordResetService {
     return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
   }
 
-  private boolean hasSuperAdminRole(UserAccount user) {
-    if (user == null || user.getRoles() == null || user.getRoles().isEmpty()) {
-      return false;
-    }
-    return user.getRoles().stream()
-        .anyMatch(role -> role != null && SUPER_ADMIN_ROLE.equalsIgnoreCase(role.getName()));
-  }
-
   private String normalizeEmail(String email) {
     if (email == null) {
       return null;
@@ -246,73 +206,6 @@ public class PasswordResetService {
           "Password reset email delivery is disabled; enable erp.mail.enabled=true and"
               + " erp.mail.send-password-reset=true");
     }
-  }
-
-  private void dispatchSuperAdminResetEmail(UserAccount user, String correlationId) {
-    String persistedToken = null;
-    String email = user != null ? user.getEmail() : null;
-    String maskedEmail = obfuscateEmail(email);
-    try {
-      ensureRequiredResetEmailDelivery();
-      persistedToken = issueSuperAdminResetToken(user, correlationId, maskedEmail);
-      String resetLink = emailProperties.getBaseUrl() + "/reset-password?token=" + persistedToken;
-      String displayName =
-          StringUtils.hasText(user.getDisplayName()) ? user.getDisplayName().trim() : "User";
-      String body =
-          "Hello "
-              + displayName
-              + ",\n\nUse this secure link to reset your BigBright ERP password:\n"
-              + resetLink
-              + "\n\nThis link expires in 60 minutes.";
-      emailService.sendSimpleEmail(email, "Reset your BigBright ERP password", body);
-      log.info(
-          "event=password_reset.superadmin_forgot.dispatched policy={} correlationId={} email={}"
-              + " outcome=email_dispatched",
-          RESET_POLICY_SCOPE,
-          correlationId,
-          maskedEmail);
-    } catch (RuntimeException ex) {
-      cleanupFailedSuperAdminResetToken(user, persistedToken, correlationId);
-      // Keep public endpoint semantics uniform to avoid account-enumeration side channels.
-      String failureClass = classifySuperAdminDispatchFailure(ex, persistedToken);
-      log.warn(
-          "event=password_reset.superadmin_forgot.masked policy={} correlationId={} email={}"
-              + " outcome=suppressed_failure reasonCode={} failureClass={} exceptionClass={}",
-          RESET_POLICY_SCOPE,
-          correlationId,
-          maskedEmail,
-          SUPER_ADMIN_DISPATCH_FAILURE_REASON_CODE,
-          failureClass,
-          ex.getClass().getSimpleName());
-    }
-  }
-
-  private String issueSuperAdminResetToken(
-      UserAccount user, String correlationId, String maskedEmail) {
-    String tokenValue =
-        tokenLifecycleTransactionTemplate.execute(
-            status -> {
-              assertTokenLifecycleTransactionActive("issue", correlationId, maskedEmail);
-              tokenRepository.deleteByUser(user);
-              String token = generateToken();
-              Instant expiresAt = Instant.now().plusSeconds(RESET_TOKEN_TTL_SECONDS);
-              PasswordResetToken resetToken =
-                  PasswordResetToken.digestOnly(
-                      user, AuthTokenDigests.passwordResetTokenDigest(token), expiresAt);
-              tokenRepository.saveAndFlush(resetToken);
-              return token;
-            });
-    if (!StringUtils.hasText(tokenValue)) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
-          "Failed to persist super-admin password reset token");
-    }
-    log.info(
-        "event=password_reset.superadmin_forgot.token_issued policy={} correlationId={} email={}"
-            + " outcome=token_persisted",
-        RESET_POLICY_SCOPE,
-        correlationId,
-        maskedEmail);
-    return tokenValue;
   }
 
   private boolean dispatchResetEmail(
@@ -771,51 +664,13 @@ public class PasswordResetService {
     return false;
   }
 
-  private void cleanupFailedSuperAdminResetToken(
-      UserAccount user, String tokenValue, String correlationId) {
-    if (!StringUtils.hasText(tokenValue)) {
-      return;
-    }
-    String maskedEmail = obfuscateEmail(user != null ? user.getEmail() : null);
-    try {
-      tokenCleanupTransactionTemplate.executeWithoutResult(
-          status -> {
-            assertTokenLifecycleTransactionActive("cleanup", correlationId, maskedEmail);
-            deletePersistedResetToken(tokenValue);
-          });
-      log.info(
-          "event=password_reset.superadmin_forgot.cleanup policy={} correlationId={} email={}"
-              + " outcome=token_removed",
-          RESET_POLICY_SCOPE,
-          correlationId,
-          maskedEmail);
-    } catch (RuntimeException cleanupEx) {
-      log.warn(
-          "event=password_reset.superadmin_forgot.cleanup policy={} correlationId={} email={}"
-              + " outcome=cleanup_failed reasonCode={} failureClass={} exceptionClass={}",
-          RESET_POLICY_SCOPE,
-          correlationId,
-          maskedEmail,
-          SUPER_ADMIN_CLEANUP_FAILURE_REASON_CODE,
-          SUPER_ADMIN_CLEANUP_FAILURE_CLASS_TOKEN_CLEANUP,
-          cleanupEx.getClass().getSimpleName());
-      log.error(
-          "event=password_reset.superadmin_forgot.security_alert policy={} correlationId={}"
-              + " email={} securityEventCode={} outcome=manual_remediation_required",
-          RESET_POLICY_SCOPE,
-          correlationId,
-          maskedEmail,
-          SUPER_ADMIN_CLEANUP_FAILURE_SECURITY_EVENT_CODE);
-    }
-  }
-
   private void assertTokenLifecycleTransactionActive(
       String stage, String correlationId, String maskedEmail) {
     if (TransactionSynchronizationManager.isActualTransactionActive()) {
       return;
     }
     log.error(
-        "event=password_reset.superadmin_forgot.transaction policy={} correlationId={} email={}"
+        "event=password_reset.token_lifecycle.transaction policy={} correlationId={} email={}"
             + " stage={} outcome=missing_transaction",
         RESET_POLICY_SCOPE,
         correlationId,
@@ -828,18 +683,6 @@ public class PasswordResetService {
   private int deletePersistedResetToken(String tokenValue) {
     String tokenDigest = AuthTokenDigests.passwordResetTokenDigest(tokenValue);
     return tokenRepository.deleteByTokenDigest(tokenDigest);
-  }
-
-  private String classifySuperAdminDispatchFailure(
-      RuntimeException exception, String persistedToken) {
-    if (exception instanceof ApplicationException appException
-        && appException.getErrorCode() == ErrorCode.SYSTEM_CONFIGURATION_ERROR) {
-      return SUPER_ADMIN_DISPATCH_FAILURE_CLASS_CONFIGURATION;
-    }
-    if (!StringUtils.hasText(persistedToken)) {
-      return SUPER_ADMIN_DISPATCH_FAILURE_CLASS_TOKEN_PERSISTENCE;
-    }
-    return SUPER_ADMIN_DISPATCH_FAILURE_CLASS_EMAIL_DISPATCH;
   }
 
   private void logTenantContextIgnoredIfPresent(String operation, String correlationId) {
@@ -871,7 +714,7 @@ public class PasswordResetService {
       return null;
     }
     return firstNonBlank(
-        request.getHeader(COMPANY_CODE_HEADER), request.getHeader(LEGACY_COMPANY_ID_HEADER));
+        request.getHeader(COMPANY_CODE_HEADER));
   }
 
   private String obfuscateEmail(String email) {

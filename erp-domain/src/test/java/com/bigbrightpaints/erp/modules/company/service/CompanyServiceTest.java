@@ -35,10 +35,12 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.bigbrightpaints.erp.modules.auth.service.PasswordResetService;
 import com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
@@ -68,6 +70,10 @@ class CompanyServiceTest {
 
   @Mock private TenantAdminProvisioningService tenantAdminProvisioningService;
 
+  @Mock private PasswordResetService passwordResetService;
+
+  @Mock private EmailService emailService;
+
   @Mock private CompanyClock companyClock;
 
   private TenantLifecycleService tenantLifecycleService;
@@ -87,7 +93,9 @@ class CompanyServiceTest {
             auditLogRepository,
             tenantRuntimeEnforcementService,
             tenantAdminProvisioningService,
-            tenantLifecycleService);
+            tenantLifecycleService,
+            passwordResetService,
+            emailService);
   }
 
   @AfterEach
@@ -928,11 +936,11 @@ class CompanyServiceTest {
   }
 
   @Test
-  void resetTenantAdminPassword_resetsAndEmailsTemporaryCredentials() {
+  void resetTenantAdminPassword_emailsScopedResetLink() {
     authenticateAs("ROLE_SUPER_ADMIN");
     Company company = company(5L, "SKE");
     when(repository.findById(5L)).thenReturn(Optional.of(company));
-    when(tenantAdminProvisioningService.isCredentialEmailDeliveryEnabled()).thenReturn(true);
+    when(emailService.isPasswordResetEmailDeliveryEnabled()).thenReturn(true);
     when(tenantAdminProvisioningService.resetTenantAdminPassword(company, "tenant-admin@ske.com"))
         .thenReturn("tenant-admin@ske.com");
 
@@ -946,15 +954,15 @@ class CompanyServiceTest {
   }
 
   @Test
-  void resetTenantAdminPassword_rejectsWhenCredentialEmailDeliveryIsDisabled() {
+  void resetTenantAdminPassword_rejectsWhenPasswordResetEmailDeliveryIsDisabled() {
     authenticateAs("ROLE_SUPER_ADMIN");
     Company company = company(5L, "SKE");
     when(repository.findById(5L)).thenReturn(Optional.of(company));
-    when(tenantAdminProvisioningService.isCredentialEmailDeliveryEnabled()).thenReturn(false);
+    when(emailService.isPasswordResetEmailDeliveryEnabled()).thenReturn(false);
 
     assertThatThrownBy(() -> companyService.resetTenantAdminPassword(5L, "tenant-admin@ske.com"))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Credential email delivery is disabled");
+        .hasMessageContaining("Password reset email delivery is disabled");
 
     verify(tenantAdminProvisioningService, never())
         .resetTenantAdminPassword(company, "tenant-admin@ske.com");

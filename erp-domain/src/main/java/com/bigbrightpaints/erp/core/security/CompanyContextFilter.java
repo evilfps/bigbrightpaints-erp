@@ -109,42 +109,10 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         return;
       }
       String headerCompanyCode = request.getHeader("X-Company-Code");
-      String legacyHeaderCompanyId = request.getHeader("X-Company-Id");
-      if (!StringUtils.hasText(headerCompanyCode) && StringUtils.hasText(legacyHeaderCompanyId)) {
-        writeAccessDenied(
-            response,
-            "COMPANY_CONTEXT_LEGACY_HEADER_UNSUPPORTED",
-            "Use X-Company-Code for company context binding");
-        return;
-      }
-      if (StringUtils.hasText(headerCompanyCode)
-          && StringUtils.hasText(legacyHeaderCompanyId)
-          && !headerCompanyCode.trim().equalsIgnoreCase(legacyHeaderCompanyId.trim())) {
-        log.warn(
-            "Rejecting mismatched company headers. X-Company-Code={}, X-Company-Id={}, path={}",
-            headerCompanyCode,
-            legacyHeaderCompanyId,
-            request.getRequestURI());
-        writeAccessDenied(response, "COMPANY_HEADER_MISMATCH", "Company headers do not match");
-        return;
-      }
       String requestedCompany = headerCompanyCode;
       Object claimsAttr = request.getAttribute("jwtClaims");
       if (claimsAttr instanceof Claims claims) {
         String tokenCompanyCode = claims.get("companyCode", String.class);
-        String legacyTokenCompanyId = claims.get("cid", String.class);
-        if (StringUtils.hasText(tokenCompanyCode)
-            && StringUtils.hasText(legacyTokenCompanyId)
-            && !tokenCompanyCode.trim().equalsIgnoreCase(legacyTokenCompanyId.trim())) {
-          log.warn(
-              "Rejecting mismatched token company claims. companyCode={}, cid={}, path={}",
-              tokenCompanyCode,
-              legacyTokenCompanyId,
-              request.getRequestURI());
-          writeAccessDenied(
-              response, "COMPANY_CLAIM_MISMATCH", "Token company claims do not match");
-          return;
-        }
         if (!StringUtils.hasText(tokenCompanyCode)) {
           log.warn(
               "Rejecting authenticated request without company claim. path={}",
