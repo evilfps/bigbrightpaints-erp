@@ -1,5 +1,5 @@
 {
-  "contract_path": "/Users/anas/Documents/Factory/bigbrightpaints-erp/testing/local/confidence-lanes.json",
+  "contract_path": "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-37-hard-cut-superadmin-control-plane/testing/local/confidence-lanes.json",
   "deployable_proof_ids": [
     "app_boots",
     "migrations_run",
