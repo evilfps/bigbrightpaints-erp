@@ -108,8 +108,8 @@ public class TenantAdminProvisioningService {
     user.setFailedLoginAttempts(0);
     user.setLockedUntil(null);
     userAccountRepository.save(user);
-    tokenBlacklistService.revokeAllUserTokens(user.getEmail());
-    refreshTokenService.revokeAllForUser(user.getEmail());
+    tokenBlacklistService.revokeAllUserTokens(user.getPublicId().toString());
+    refreshTokenService.revokeAllForUser(user.getPublicId());
     emailService.sendUserCredentialsEmailRequired(
         user.getEmail(), user.getDisplayName(), temporaryPassword, company.getCode());
     return user.getEmail();

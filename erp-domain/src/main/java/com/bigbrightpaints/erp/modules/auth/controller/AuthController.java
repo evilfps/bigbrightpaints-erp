@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.modules.auth.controller;
 
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
@@ -120,25 +119,9 @@ public class AuthController {
   @PostMapping("/password/forgot")
   public ResponseEntity<ApiResponse<String>> forgotPassword(
       @Valid @RequestBody ForgotPasswordRequest request) {
-    passwordResetService.requestReset(request.email());
+    passwordResetService.requestReset(request.email(), request.companyCode());
     return ResponseEntity.ok(
         ApiResponse.success("If the email exists, a reset link has been sent", "OK"));
-  }
-
-  /**
-   * @deprecated Use {@code /api/v1/auth/password/forgot}. This endpoint is retained for backward compatibility.
-   */
-  @Deprecated
-  @ResponseStatus(HttpStatus.GONE)
-  @PostMapping("/password/forgot/superadmin")
-  public ApiResponse<Map<String, String>> forgotPasswordForSuperAdmin(
-      @Valid @RequestBody ForgotPasswordRequest request) {
-    return ApiResponse.failure(
-        "Deprecated super-admin forgot-password alias has been retired; use the supported recovery"
-            + " routes",
-        Map.of(
-            "canonicalPath", "/api/v1/auth/password/forgot",
-            "supportResetPath", "/api/v1/superadmin/tenants/{id}/support/admin-password-reset"));
   }
 
   @PostMapping("/password/reset")

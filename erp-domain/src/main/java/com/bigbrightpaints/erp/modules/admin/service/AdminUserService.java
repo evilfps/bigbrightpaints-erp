@@ -249,8 +249,8 @@ public class AdminUserService {
     }
     // Revoke tokens if permissions changed to force re-authentication
     if (requiresReauth) {
-      tokenBlacklistService.revokeAllUserTokens(user.getEmail());
-      refreshTokenService.revokeAllForUser(user.getEmail());
+      tokenBlacklistService.revokeAllUserTokens(user.getPublicId().toString());
+      refreshTokenService.revokeAllForUser(user.getPublicId());
     }
     auditUserAccountAction(
         AuditEvent.USER_UPDATED,
@@ -330,8 +330,8 @@ public class AdminUserService {
             true,
             OutOfScopeResponseMode.MASK_AS_MISSING);
     assertNotProtectedMainAdmin(user, company, "delete");
-    tokenBlacklistService.revokeAllUserTokens(user.getEmail());
-    refreshTokenService.revokeAllForUser(user.getEmail());
+    tokenBlacklistService.revokeAllUserTokens(user.getPublicId().toString());
+    refreshTokenService.revokeAllForUser(user.getPublicId());
     userRepository.delete(user);
     emailService.sendUserDeletedEmail(user.getEmail(), user.getDisplayName());
     auditUserAccountAction(
@@ -356,8 +356,8 @@ public class AdminUserService {
     user.setMfaSecret(null);
     user.setMfaRecoveryCodeHashes(List.of());
     userRepository.save(user);
-    tokenBlacklistService.revokeAllUserTokens(user.getEmail());
-    refreshTokenService.revokeAllForUser(user.getEmail());
+    tokenBlacklistService.revokeAllUserTokens(user.getPublicId().toString());
+    refreshTokenService.revokeAllForUser(user.getPublicId());
     auditUserAccountAction(
         AuditEvent.MFA_DISABLED,
         user,
@@ -444,8 +444,8 @@ public class AdminUserService {
     userRepository.save(user);
 
     if (!enabled) {
-      tokenBlacklistService.revokeAllUserTokens(user.getEmail());
-      refreshTokenService.revokeAllForUser(user.getEmail());
+      tokenBlacklistService.revokeAllUserTokens(user.getPublicId().toString());
+      refreshTokenService.revokeAllForUser(user.getPublicId());
       emailService.sendUserSuspendedEmail(user.getEmail(), user.getDisplayName());
     }
 

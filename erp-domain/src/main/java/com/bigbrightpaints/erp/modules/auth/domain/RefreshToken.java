@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.auth.domain;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import jakarta.persistence.*;
 
@@ -9,7 +10,7 @@ import jakarta.persistence.*;
     name = "refresh_tokens",
     indexes = {
       @Index(name = "idx_refresh_tokens_token_digest", columnList = "token_digest"),
-      @Index(name = "idx_refresh_tokens_user_email", columnList = "user_email"),
+      @Index(name = "idx_refresh_tokens_user_public_id", columnList = "user_public_id"),
       @Index(name = "idx_refresh_tokens_expires_at", columnList = "expires_at")
     })
 public class RefreshToken {
@@ -24,8 +25,11 @@ public class RefreshToken {
   @Column(name = "token_digest", length = 64)
   private String tokenDigest;
 
-  @Column(name = "user_email", nullable = false, length = 255)
-  private String userEmail;
+  @Column(name = "user_public_id", nullable = false)
+  private UUID userPublicId;
+
+  @Column(name = "auth_scope_code", nullable = false, length = 64)
+  private String authScopeCode;
 
   @Column(name = "issued_at", nullable = false)
   private Instant issuedAt;
@@ -35,22 +39,24 @@ public class RefreshToken {
 
   protected RefreshToken() {}
 
-  public RefreshToken(String token, String userEmail, Instant issuedAt, Instant expiresAt) {
-    this(token, null, userEmail, issuedAt, expiresAt);
-  }
-
-  private RefreshToken(
-      String token, String tokenDigest, String userEmail, Instant issuedAt, Instant expiresAt) {
+  public RefreshToken(
+      String token, String tokenDigest, UUID userPublicId, String authScopeCode, Instant issuedAt,
+      Instant expiresAt) {
     this.token = token;
     this.tokenDigest = tokenDigest;
-    this.userEmail = userEmail;
+    this.userPublicId = userPublicId;
+    this.authScopeCode = authScopeCode;
     this.issuedAt = issuedAt;
     this.expiresAt = expiresAt;
   }
 
   public static RefreshToken digestOnly(
-      String tokenDigest, String userEmail, Instant issuedAt, Instant expiresAt) {
-    return new RefreshToken(null, tokenDigest, userEmail, issuedAt, expiresAt);
+      String tokenDigest,
+      UUID userPublicId,
+      String authScopeCode,
+      Instant issuedAt,
+      Instant expiresAt) {
+    return new RefreshToken(null, tokenDigest, userPublicId, authScopeCode, issuedAt, expiresAt);
   }
 
   public Long getId() {
@@ -65,8 +71,12 @@ public class RefreshToken {
     return tokenDigest;
   }
 
-  public String getUserEmail() {
-    return userEmail;
+  public UUID getUserPublicId() {
+    return userPublicId;
+  }
+
+  public String getAuthScopeCode() {
+    return authScopeCode;
   }
 
   public Instant getIssuedAt() {

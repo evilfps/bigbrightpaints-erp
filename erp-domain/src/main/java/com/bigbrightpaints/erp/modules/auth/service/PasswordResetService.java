@@ -25,6 +25,7 @@ import com.bigbrightpaints.erp.core.config.EmailProperties;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetToken;
@@ -40,7 +41,7 @@ public class PasswordResetService {
   private static final Logger log = LoggerFactory.getLogger(PasswordResetService.class);
   private static final long RESET_TOKEN_TTL_SECONDS = 3600; // 1 hour
   private static final String SUPER_ADMIN_ROLE = "ROLE_SUPER_ADMIN";
-  private static final String RESET_POLICY_SCOPE = "GLOBAL_IDENTITY";
+  private static final String RESET_POLICY_SCOPE = "SCOPED_ACCOUNT";
   private static final String CORRELATION_ID_HEADER = "X-Correlation-Id";
   private static final String REQUEST_ID_HEADER = "X-Request-Id";
   private static final String TRACE_ID_HEADER = "X-Trace-Id";
@@ -72,6 +73,7 @@ public class PasswordResetService {
   private final EmailProperties emailProperties;
   private final TokenBlacklistService tokenBlacklistService;
   private final RefreshTokenService refreshTokenService;
+  private final AuthScopeService authScopeService;
   private final TransactionTemplate tokenLifecycleTransactionTemplate;
   private final TransactionTemplate tokenCleanupTransactionTemplate;
   private final TransactionTemplate tokenAfterCommitCleanupTransactionTemplate;
@@ -115,6 +117,7 @@ public class PasswordResetService {
       EmailProperties emailProperties,
       TokenBlacklistService tokenBlacklistService,
       RefreshTokenService refreshTokenService,
+      AuthScopeService authScopeService,
       PlatformTransactionManager transactionManager) {
     this.userAccountRepository = userAccountRepository;
     this.tokenRepository = tokenRepository;
@@ -123,6 +126,7 @@ public class PasswordResetService {
     this.emailProperties = emailProperties;
     this.tokenBlacklistService = tokenBlacklistService;
     this.refreshTokenService = refreshTokenService;
+    this.authScopeService = authScopeService;
     this.tokenLifecycleTransactionTemplate = new TransactionTemplate(transactionManager);
     this.tokenLifecycleTransactionTemplate.setPropagationBehavior(
         TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -135,12 +139,12 @@ public class PasswordResetService {
   }
 
   @Transactional
-  public void requestReset(String email) {
+  public void requestReset(String email, String companyCode) {
     String correlationId = resolveCorrelationId();
     logTenantContextIgnoredIfPresent("forgot_password", correlationId);
-    // GLOBAL_IDENTITY policy: one user identity spans all company memberships.
+    String scopeCode = authScopeService.requireScopeCode(companyCode);
     userAccountRepository
-        .findByEmailIgnoreCase(email)
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizeEmail(email), scopeCode)
         .filter(UserAccount::isEnabled)
         .ifPresent(user -> dispatchResetEmail(user, correlationId, true, "forgot_password"));
   }
@@ -207,8 +211,8 @@ public class PasswordResetService {
     user.setFailedLoginAttempts(0);
     user.setLockedUntil(null);
     userAccountRepository.save(user);
-    tokenBlacklistService.revokeAllUserTokens(user.getEmail());
-    refreshTokenService.revokeAllForUser(user.getEmail());
+    tokenBlacklistService.revokeAllUserTokens(user.getPublicId().toString());
+    refreshTokenService.revokeAllForUser(user.getPublicId());
     token.markUsed();
     tokenRepository.save(token);
     tokenRepository.deleteByUser(user);
@@ -226,6 +230,13 @@ public class PasswordResetService {
     }
     return user.getRoles().stream()
         .anyMatch(role -> role != null && SUPER_ADMIN_ROLE.equalsIgnoreCase(role.getName()));
+  }
+
+  private String normalizeEmail(String email) {
+    if (email == null) {
+      return null;
+    }
+    return email.trim().toLowerCase(java.util.Locale.ROOT);
   }
 
   private void ensureRequiredResetEmailDelivery() {

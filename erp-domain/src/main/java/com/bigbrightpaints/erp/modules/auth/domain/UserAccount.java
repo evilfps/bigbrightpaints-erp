@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Locale;
 import java.util.UUID;
 
 import com.bigbrightpaints.erp.core.domain.VersionedEntity;
@@ -15,7 +16,11 @@ import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "app_users")
+@Table(
+    name = "app_users",
+    uniqueConstraints = {
+      @UniqueConstraint(name = "uq_app_users_email_scope", columnNames = {"email", "auth_scope_code"})
+    })
 public class UserAccount extends VersionedEntity {
 
   @Id
@@ -25,8 +30,11 @@ public class UserAccount extends VersionedEntity {
   @Column(name = "public_id", nullable = false)
   private UUID publicId;
 
-  @Column(nullable = false, unique = true)
+  @Column(nullable = false)
   private String email;
+
+  @Column(name = "auth_scope_code", nullable = false, length = 64)
+  private String authScopeCode;
 
   @Column(name = "password_hash", nullable = false)
   private String passwordHash;
@@ -90,8 +98,13 @@ public class UserAccount extends VersionedEntity {
   public UserAccount() {}
 
   public UserAccount(String email, String passwordHash, String displayName) {
+    this(email, "LEGACY-" + UUID.randomUUID().toString().substring(0, 8), passwordHash, displayName);
+  }
+
+  public UserAccount(String email, String authScopeCode, String passwordHash, String displayName) {
     this.publicId = UUID.randomUUID();
     this.email = email;
+    this.authScopeCode = normalizeScopeCode(authScopeCode);
     this.passwordHash = passwordHash;
     this.displayName = displayName;
     this.enabled = true;
@@ -126,6 +139,14 @@ public class UserAccount extends VersionedEntity {
 
   public String getPasswordHash() {
     return passwordHash;
+  }
+
+  public String getAuthScopeCode() {
+    return authScopeCode;
+  }
+
+  public void setAuthScopeCode(String authScopeCode) {
+    this.authScopeCode = normalizeScopeCode(authScopeCode);
   }
 
   public String getDisplayName() {
@@ -221,7 +242,24 @@ public class UserAccount extends VersionedEntity {
   }
 
   public void addCompany(Company company) {
+    if (company == null) {
+      return;
+    }
+    companies.removeIf(existing -> existing == null || !sameCompany(existing, company));
     companies.add(company);
+  }
+
+  public void clearCompanyMemberships() {
+    companies.clear();
+  }
+
+  public boolean belongsToCompanyCode(String companyCode) {
+    if (companyCode == null || companyCode.isBlank()) {
+      return false;
+    }
+    return companies.stream()
+        .filter(company -> company != null && company.getCode() != null)
+        .anyMatch(company -> company.getCode().equalsIgnoreCase(companyCode));
   }
 
   public void addRole(Role role) {
@@ -269,5 +307,22 @@ public class UserAccount extends VersionedEntity {
 
   public Instant getCreatedAt() {
     return createdAt;
+  }
+
+  private String normalizeScopeCode(String authScopeCode) {
+    if (authScopeCode == null) {
+      return null;
+    }
+    return authScopeCode.trim().toUpperCase(Locale.ROOT);
+  }
+
+  private boolean sameCompany(Company left, Company right) {
+    if (left.getId() != null && right.getId() != null) {
+      return left.getId().equals(right.getId());
+    }
+    if (left.getCode() == null || right.getCode() == null) {
+      return false;
+    }
+    return left.getCode().equalsIgnoreCase(right.getCode());
   }
 }

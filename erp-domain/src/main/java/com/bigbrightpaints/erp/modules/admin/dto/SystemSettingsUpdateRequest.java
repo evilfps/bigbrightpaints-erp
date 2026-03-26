@@ -7,6 +7,7 @@ public record SystemSettingsUpdateRequest(
     Boolean autoApprovalEnabled,
     Boolean periodLockEnforced,
     Boolean exportApprovalRequired,
+    String platformAuthCode,
     Boolean mailEnabled,
     String mailFromAddress,
     String mailBaseUrl,

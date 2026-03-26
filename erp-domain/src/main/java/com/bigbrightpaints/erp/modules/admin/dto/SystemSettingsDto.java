@@ -7,6 +7,7 @@ public record SystemSettingsDto(
     boolean autoApprovalEnabled,
     boolean periodLockEnforced,
     boolean exportApprovalRequired,
+    String platformAuthCode,
     boolean mailEnabled,
     String mailFromAddress,
     String mailBaseUrl,
