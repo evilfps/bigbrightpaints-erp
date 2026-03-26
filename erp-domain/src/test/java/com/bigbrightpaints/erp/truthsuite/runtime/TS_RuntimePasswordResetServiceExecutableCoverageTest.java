@@ -153,6 +153,30 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
   }
 
   @Test
+  void requestReset_deliveryTrackingFailure_keepsIssuedToken_runtimeCoverage() {
+    UserAccountRepository userRepository = mock(UserAccountRepository.class);
+    PasswordResetTokenRepository tokenRepository = mock(PasswordResetTokenRepository.class);
+    EmailService emailService = mock(EmailService.class);
+    PasswordResetService service = newService(userRepository, tokenRepository, emailService);
+
+    UserAccount user = user("user@example.com");
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "user@example.com", TENANT_SCOPE))
+        .thenReturn(Optional.of(user));
+    stubIssuedResetToken(tokenRepository, 42L);
+    doThrow(new IllegalStateException("tracking write failed"))
+        .when(tokenRepository)
+        .markDeliveredAt(any(Long.class), any(Instant.class));
+
+    invokeRequest(service, "corr-track-123", null, null);
+
+    verify(emailService)
+        .sendPasswordResetEmailRequired(
+            eq("user@example.com"), eq("User"), anyString(), eq(TENANT_SCOPE));
+    verify(tokenRepository, never()).deleteByTokenDigest(anyString());
+  }
+
+  @Test
   void requestReset_skipsDisabledAndMissingUsers_runtimeCoverage() {
     UserAccountRepository userRepo = mock(UserAccountRepository.class);
     PasswordResetTokenRepository tokenRepo = mock(PasswordResetTokenRepository.class);

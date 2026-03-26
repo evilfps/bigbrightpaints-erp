@@ -252,6 +252,25 @@ class PasswordResetServiceTest {
     verify(tokenRepository).deleteByTokenDigest(anyString());
   }
 
+  @Test
+  void requestResetKeepsIssuedTokenWhenDeliveryTrackingFailsAfterEmailDispatch() {
+    UserAccount user = enabledUser("user@example.com", TENANT_SCOPE);
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "user@example.com", TENANT_SCOPE))
+        .thenReturn(Optional.of(user));
+    doThrow(new RuntimeException("tracking write failed"))
+        .when(tokenRepository)
+        .markDeliveredAt(anyLong(), any(Instant.class));
+
+    assertDoesNotThrow(() -> passwordResetService.requestReset("user@example.com", TENANT_SCOPE));
+
+    verify(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
+    verify(emailService)
+        .sendPasswordResetEmailRequired(
+            eq("user@example.com"), eq("User"), anyString(), eq(TENANT_SCOPE));
+    verify(tokenRepository, never()).deleteByTokenDigest(anyString());
+  }
+
   private UserAccount enabledUser(String email, String scopeCode) {
     UserAccount user = new UserAccount(email, scopeCode, "hash", "User");
     user.setEnabled(true);

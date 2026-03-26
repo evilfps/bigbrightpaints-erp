@@ -226,8 +226,6 @@ public class PasswordResetService {
           user.getDisplayName(),
           issuedResetToken.rawToken(),
           user.getAuthScopeCode());
-      markIssuedResetTokenDelivered(issuedResetToken, correlationId, maskedEmail);
-      return true;
     } catch (RuntimeException ex) {
       cleanupIssuedResetToken(issuedResetToken, correlationId, maskedEmail);
       auditResetFailure(
@@ -242,6 +240,19 @@ public class PasswordResetService {
           ex.getClass().getSimpleName());
       throw ex;
     }
+    try {
+      markIssuedResetTokenDelivered(issuedResetToken, correlationId, maskedEmail);
+    } catch (RuntimeException ex) {
+      log.warn(
+          "event=password_reset.{}.delivery_tracking_failed policy={} correlationId={} email={}"
+              + " outcome=delivery_bookkeeping_failed exceptionClass={}",
+          operation,
+          RESET_POLICY_SCOPE,
+          correlationId,
+          maskedEmail,
+          ex.getClass().getSimpleName());
+    }
+    return true;
   }
 
   private void revokeActiveSessions(UserAccount user) {
