@@ -282,7 +282,7 @@ Under `com.bigbrightpaints.erp.modules.<module>`:
 
 ## Debugging tenant context issues
 - Verify the authenticated scoped account is bound to the target company (`UserPrincipal` company context).
-- Ensure `X-Company-Code` and legacy headers are not conflicting.
+- Use only `X-Company-Code` for authenticated tenant context; `X-Company-Id` is unsupported and fails closed.
 - For control-plane endpoints (`/api/v1/companies/*/tenant-runtime/policy`, lifecycle routes), confirm superadmin authority.
 - Watch `CompanyContextFilter` warnings:
   - mismatched header claims
