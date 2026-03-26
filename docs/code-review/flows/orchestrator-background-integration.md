@@ -116,11 +116,11 @@ Fulfillment updates are not allowed to invent final business truth.
 - `READY_TO_SHIP` re-enters the auto-approval flow.
 - `SHIPPED`, `DISPATCHED`, `FULFILLED`, and `COMPLETED` are rejected unless `salesService.hasDispatchConfirmation(...)` is already true, in which case the method only echoes the real sales-order status.
 
-That is a deliberate fail-closed design: the canonical shipment truth is `/api/v1/sales/dispatch/confirm`, not the orchestrator façade.
+That is a deliberate fail-closed design: the canonical shipment truth is `/api/v1/dispatch/confirm`, not the orchestrator façade.
 
 The same pattern appears in the legacy dispatch and payroll branches:
 
-- `/api/v1/orchestrator/dispatch` and `/api/v1/orchestrator/dispatch/{orderId}` always return `410 GONE` with `canonicalPath=/api/v1/sales/dispatch/confirm`.
+- `/api/v1/orchestrator/dispatch` and `/api/v1/orchestrator/dispatch/{orderId}` always return `410 GONE` with `canonicalPath=/api/v1/dispatch/confirm`.
 - `/api/v1/orchestrator/payroll/run` always returns `410 GONE` with `canonicalPath=/api/v1/payroll/runs`.
 - `/api/v1/orchestrator/factory/dispatch/{batchId}` still exists, but `CommandDispatcher.dispatchBatch(...)` wraps it in `executeFeatureGuardedCommand(...)` and fails closed with `OrchestratorFeatureDisabledException` unless `orchestrator.factory-dispatch.enabled=true`.
 - `CommandDispatcher.runPayroll(...)` still exists too, but even with the feature flag enabled the downstream `IntegrationCoordinator.generatePayroll(...)` immediately throws a canonical-path business exception, so the legacy orchestration path cannot complete end-to-end.

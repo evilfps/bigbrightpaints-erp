@@ -34,6 +34,9 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchReposit
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
+import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceLine;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
@@ -43,6 +46,8 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
+import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 
 @DisplayName("E2E: Sales Return Credit Note Flow")
@@ -61,6 +66,9 @@ class SalesReturnCreditNoteE2EIT extends AbstractIntegrationTest {
   @Autowired private InvoiceRepository invoiceRepository;
   @Autowired private JournalEntryRepository journalEntryRepository;
   @Autowired private InventoryMovementRepository inventoryMovementRepository;
+  @Autowired private PackagingSlipRepository packagingSlipRepository;
+  @Autowired private FinishedGoodsService finishedGoodsService;
+  @Autowired private SalesOrderRepository salesOrderRepository;
   @Autowired private ProductionProductRepository productionProductRepository;
   @Autowired private ProductionBrandRepository productionBrandRepository;
 
@@ -249,19 +257,49 @@ class SalesReturnCreditNoteE2EIT extends AbstractIntegrationTest {
             Map.class);
     Long orderId = ((Number) requireData(orderResp, "create order").get("id")).longValue();
 
+    PackagingSlip slip = ensureDispatchSlip(orderId);
     Map<String, Object> dispatchReq = new HashMap<>();
-    dispatchReq.put("orderId", orderId);
-    dispatchReq.put("confirmedBy", "sales-return-e2e");
+    dispatchReq.put("packagingSlipId", slip.getId());
+    dispatchReq.put("notes", "sales return dispatch " + orderId);
+    dispatchReq.put(
+        "lines",
+        slip.getLines().stream()
+            .map(
+                line ->
+                    Map.of(
+                        "lineId",
+                        line.getId(),
+                        "shippedQuantity",
+                        line.getOrderedQuantity() != null
+                            ? line.getOrderedQuantity()
+                            : line.getQuantity()))
+            .toList());
     addDispatchMetadata(dispatchReq, "sales-return-" + orderId);
     ResponseEntity<Map> dispatchResp =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, headers),
             Map.class);
-    Long invoiceId =
-        ((Number) requireData(dispatchResp, "dispatch order").get("finalInvoiceId")).longValue();
+    requireData(dispatchResp, "dispatch order");
+    Long invoiceId = packagingSlipRepository.findById(slip.getId()).orElseThrow().getInvoiceId();
     return invoiceRepository.findById(invoiceId).orElseThrow();
+  }
+
+  private PackagingSlip ensureDispatchSlip(Long orderId) {
+    PackagingSlip existing =
+        packagingSlipRepository.findByCompanyAndSalesOrderId(company, orderId).orElse(null);
+    if (existing != null) {
+      return existing;
+    }
+    com.bigbrightpaints.erp.core.security.CompanyContextHolder.setCompanyCode(company.getCode());
+    try {
+      SalesOrder order = salesOrderRepository.findById(orderId).orElseThrow();
+      finishedGoodsService.reserveForOrder(order);
+    } finally {
+      com.bigbrightpaints.erp.core.security.CompanyContextHolder.clear();
+    }
+    return packagingSlipRepository.findByCompanyAndSalesOrderId(company, orderId).orElseThrow();
   }
 
   private HttpHeaders authHeaders() {

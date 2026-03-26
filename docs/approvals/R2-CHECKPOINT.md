@@ -1,47 +1,51 @@
 # R2 Checkpoint
 
 ## Scope
-- Feature: `ERP-38 remove-legacy-production-batches-surface`
-- Branch: `refactor/erp-38-canonical-factory-flow`
-- Review candidate: remove `GET/POST /api/v1/factory/production-batches`, delete `FactoryService.logBatch(...)`, remove the retired batch DTOs and the orphaned orchestrator-side `IntegrationCoordinator.releaseInventory(...)` caller, then refresh OpenAPI/endpoint inventory/frontend handoff surfaces so `POST /api/v1/factory/production/logs` remains the only public batch-create contract.
-- Why this is R2: the packet touches `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinator.java`, which is an R2-governed high-risk path, while hard-cutting a public factory execution surface and an internal orchestrator seam in the same change set.
+- Feature: `restore-factory-owned-dispatch-confirmation`
+- Branch: `hotfix/restore-factory-dispatch-ownership`
+- Review candidate: restore `POST /api/v1/dispatch/confirm` as the sole public dispatch-confirm write route, remove the public sales dispatch confirm route, return `dispatch.confirm` ownership to factory/admin operational flow, and refresh the dependent orchestrator, audit, OpenAPI, endpoint-inventory, and order-to-cash evidence surfaces so accounting stays downstream of factory-confirmed dispatch truth.
+- Why this is R2: the packet changes `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinator.java` and `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/domain/SystemRole.java` while correcting a live ownership regression on a public fulfillment boundary. A wrong change here would publish contradictory authority rules, break downstream accounting linkage, or produce incorrect dispatch audit provenance.
 
 ## Risk Trigger
-- Triggered by changes under `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinator.java`, plus the paired factory runtime/test/contract surfaces that remove the legacy batch path.
-- Contract surfaces affected: controller mappings under `/api/v1/factory`, `FactoryService` API shape, the generated `openapi.json` snapshot, `docs/endpoint-inventory.md`, `erp-domain/docs/endpoint_inventory.tsv`, `.factory/library/frontend-handoff.md`, and the orchestrator background-flow review note.
-- Failure mode if wrong: callers could still depend on a removed factory route or stale orchestrator batch helper, producing broken runtime dispatch/factory expectations or contradictory published API guidance.
+- Triggered by changes under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/` and `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/`, plus the dispatch controller surface that is the public physical-shipment truth boundary.
+- Contract surfaces affected: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/controller/DispatchController.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/controller/SalesController.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/PortalRoleActionMatrix.java`, `openapi.json`, `docs/endpoint-inventory.md`, `erp-domain/docs/endpoint_inventory.tsv`, and the dispatch/orchestrator review notes under `docs/code-review/**`.
+- Failure mode if wrong: sales could remain or reappear as a second public dispatch confirmer, factory users could lose the ability to record physical dispatch truth, audit logs could attribute dispatch confirmation to the wrong surface or actor, and orchestrator guidance could keep routing callers to a non-canonical path.
 
 ## Approval Authority
 - Mode: orchestrator
-- Approver: `ERP-38 mission orchestrator`
-- Canary owner: `ERP-38 mission orchestrator`
-- Approval status: `pending green validators and remote review`
-- Basis: this is a compatibility-preserving hard-cut that removes a retired route/caller without widening privileges, tenant boundaries, or migration/destructive data risk.
+- Approver: `dispatch ownership hotfix orchestrator`
+- Canary owner: `dispatch ownership hotfix orchestrator`
+- Approval status: `pending green remote validators and PR review`
+- Basis: this is a corrective hard-cut that removes the wrong public ownership path and restores the intended operational authority without adding fallback routes, migration shims, or broader privilege expansion.
 
 ## Escalation Decision
 - Human escalation required: no
-- Reason: the packet only removes legacy factory/orchestrator ownership seams and stale contract artifacts; it does not add new authority, change persistence/migration semantics, or widen dispatch/factory behavior.
+- Reason: the packet restores the intended single canonical path and does not introduce data migrations, schema changes, or widened destructive capabilities. The risk is operational correctness at the dispatch/accounting boundary, which is covered by focused regression and audit proofs in this same change set.
 
 ## Rollback Owner
-- Owner: `ERP-38 mission orchestrator`
-- Rollback method: revert the packet commit if any downstream ERP-38 slice still depends on the retired route/caller; do not restore the legacy seam piecemeal or via hidden compatibility bridges.
+- Owner: `dispatch ownership hotfix orchestrator`
+- Rollback method: revert this hotfix commit if remote validation reveals a downstream dependency on the wrong sales-owned route; do not reintroduce the retired sales dispatch confirm path as a temporary bridge.
 - Rollback trigger:
-  - runtime probes or targeted regressions show `/api/v1/factory/production/logs` no longer remains the surviving batch-create contract
-  - an internal caller outside this packet still requires `FactoryService.logBatch(...)` or the removed orchestrator release-batch helper
-  - published contract artifacts drift from the runtime surface after the hard-cut
+  - runtime or truthsuite evidence shows `/api/v1/dispatch/confirm` no longer functions as the sole public dispatch-confirm surface
+  - audit logs stop attributing dispatch confirmation to the factory route and factory actor
+  - orchestrator/order-to-cash flows fail because downstream accounting markers are no longer reconciled after factory confirmation
 
 ## Expiry
-- Valid until: `2026-04-01`
-- Re-evaluate if: the packet scope expands beyond removing the legacy batch surface/caller set, or if follow-up ERP-38 work reintroduces orchestrator-owned factory writes.
+- Valid until: `2026-04-02`
+- Re-evaluate if: the packet scope expands beyond dispatch ownership correction, if any additional public dispatch write path is proposed, or if accounting ownership is changed from downstream reconciliation to something broader.
 
 ## Verification Evidence
 - Commands run:
-  - `ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -T8 compile -q`
-  - `ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=CR_FactoryLegacyBatchProdGatingIT,FactoryServiceTest,OpenApiSnapshotIT,IntegrationCoordinatorTest,CommandDispatcherTest test`
-  - `ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/check-codex-review-guidelines.sh && bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_workflow_canonical_paths.sh && bash scripts/guard_accounting_portal_scope_contract.sh`
+  - `unset GH_TOKEN GITHUB_TOKEN; git status --short --branch`
+  - `export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 DOCKER_API_VERSION=1.53; mvn -B -ntp -Dtest=CoreFallbackExceptionHandlerTest,PortalRoleActionMatrixTest,SalesControllerIT test`
+  - `export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 DOCKER_API_VERSION=1.53; mvn -B -ntp -Dtest=DispatchControllerTest,PortalRoleActionMatrixTest,SystemRoleTest,RbacSynchronizationConfigTest,RoleServiceTest,SalesControllerIdempotencyHeaderTest,SalesControllerIT,AuthTenantAuthorityIT,DispatchOperationalBoundaryIT,TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest,ErpInvariantsSuiteIT,OrderFulfillmentE2ETest,SalesReturnCreditNoteE2EIT,CreditDebitNoteIT,BusinessLogicRegressionTest,OrchestratorControllerIT,CommandDispatcherTest,IntegrationCoordinatorTest,CoreFallbackExceptionHandlerTest,CriticalPathSmokeTest,TS_O2COrchestratorDispatchRemovalRegressionTest,TS_OrchestratorExactlyOnceOutboxTest,TS_RuntimeOrchestratorExecutableCoverageTest,OpenApiSnapshotIT,FullCycleE2ETest test`
+  - `bash scripts/guard_workflow_canonical_paths.sh`
+  - `git diff --check`
 - Result summary:
-  - focused regression coverage proves the legacy factory controller route is absent, the service no longer exposes `logBatch`, the retired DTO source files are gone, and the stale orchestrator release-batch helper is removed.
-  - OpenAPI and endpoint inventory contract guards stay aligned after the hard-cut and refresh.
+  - focused controller/security validation passed after the hotfix-specific access-denied guidance and retired-route assertions were aligned to the restored factory canonical path.
+  - the broad cross-module pack passed with `240` tests run, `0` failures, `0` errors, and `2` skipped, covering dispatch operational audit provenance, order-to-cash, returns/credit notes, invariants, orchestrator regression, truthsuite, and OpenAPI snapshot integrity.
+  - the canonical workflow guard passed, and endpoint inventory/OpenAPI artifacts were refreshed so the retired sales dispatch confirm route is no longer advertised as a live public write surface.
 - Artifacts/links:
-  - Worktree: `/home/realnigga/Desktop/orchestrator_erp_worktrees/ERP-38-canonical-factory-flow`
-  - Validation scope: `VAL-BATCH-004`
+  - Worktree: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/hotfix-restore-factory-dispatch-ownership`
+  - Commit: `070189ae690020e63b235bff60d6fcaf4d5d90ab`
+  - PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/155`

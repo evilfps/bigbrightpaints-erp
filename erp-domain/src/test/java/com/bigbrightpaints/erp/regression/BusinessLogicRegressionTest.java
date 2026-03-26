@@ -226,14 +226,24 @@ public class BusinessLogicRegressionTest extends AbstractIntegrationTest {
     // Test that the dispatch endpoint exists and follows proper flow
     Map<String, Object> dispatchReq =
         Map.of(
-            "orderId",
+            "packagingSlipId",
             999999L, // Non-existent order
-            "confirmedBy",
-            "regression");
+            "notes",
+            "regression",
+            "lines",
+            List.of(),
+            "transporterName",
+            "Regression Logistics",
+            "driverName",
+            "Regression Driver",
+            "vehicleNumber",
+            "MH12REG9999",
+            "challanReference",
+            "CH-REG-999999");
 
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, headers),
             Map.class);

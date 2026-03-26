@@ -343,68 +343,17 @@ public class SalesControllerIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void dispatch_confirm_allows_sales_to_reach_business_validation() {
-    String token = loginToken(SALES_DISPATCH_EMAIL, SALES_DISPATCH_PASSWORD);
-
-    HttpHeaders headers = new HttpHeaders();
-    headers.setBearerAuth(token);
-    headers.setContentType(MediaType.APPLICATION_JSON);
-    headers.set("X-Company-Code", COMPANY_CODE);
-
-    Map<String, Object> line = Map.of("shipQty", new BigDecimal("1.00"));
-    Map<String, Object> payload = Map.of("packingSlipId", 9999, "lines", List.of(line));
-
-    ResponseEntity<Map> response =
-        rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
-            HttpMethod.POST,
-            new HttpEntity<>(payload, headers),
-            Map.class);
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-    assertThat(response.getBody()).isNotNull();
-    assertThat((String) response.getBody().get("message"))
-        .contains("transporterName or driverName");
-  }
-
-  @Test
-  void dispatch_confirm_denies_factory_on_sales_owned_endpoint() {
-    String token = loginToken(FACTORY_DISPATCH_EMAIL, FACTORY_DISPATCH_PASSWORD);
-
-    HttpHeaders headers = new HttpHeaders();
-    headers.setBearerAuth(token);
-    headers.setContentType(MediaType.APPLICATION_JSON);
-    headers.set("X-Company-Code", COMPANY_CODE);
-
-    Map<String, Object> line = Map.of("shipQty", new BigDecimal("1.00"));
-    Map<String, Object> payload = Map.of("packingSlipId", 9999, "lines", List.of(line));
-
-    ResponseEntity<Map> response =
-        rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
-            HttpMethod.POST,
-            new HttpEntity<>(payload, headers),
-            Map.class);
-
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-    assertThat(response.getBody()).isNotNull();
-    assertThat(response.getBody())
-        .containsEntry(
-            "message",
-            "Use the factory dispatch workspace for prepared-slip lookup and challan details."
-                + " Sales must complete the final dispatch posting.");
-    assertFailureDataMessage(
-        response,
-        "Use the factory dispatch workspace for prepared-slip lookup and challan details."
-            + " Sales must complete the final dispatch posting.");
-  }
-
-  @Test
-  void dispatch_confirm_requires_logistics_metadata_on_admin_endpoint() {
-    String token = loginToken(ADMIN_DISPATCH_EMAIL, ADMIN_DISPATCH_PASSWORD);
+  void sales_dispatch_confirm_route_is_absent_after_hotfix() {
+    String token = loginToken(SALES_EMAIL, SALES_PASSWORD);
     HttpHeaders headers = authenticatedHeaders(token);
 
     Map<String, Object> payload =
-        Map.of("packingSlipId", 9999, "lines", List.of(Map.of("shipQty", new BigDecimal("1.00"))));
+        Map.of(
+            "packingSlipId",
+            9999,
+            "lines",
+            List.of(
+                Map.of("lineId", 1L, "shippedQuantity", new BigDecimal("1.00"), "notes", "test")));
 
     ResponseEntity<Map> response =
         rest.exchange(
@@ -413,10 +362,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
             new HttpEntity<>(payload, headers),
             Map.class);
 
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-    assertThat(response.getBody()).isNotNull();
-    assertThat((String) response.getBody().get("message"))
-        .contains("transporterName or driverName");
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
   }
 
   @Test

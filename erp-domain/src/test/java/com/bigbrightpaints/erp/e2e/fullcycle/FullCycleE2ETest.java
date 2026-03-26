@@ -158,7 +158,7 @@ public class FullCycleE2ETest extends AbstractIntegrationTest {
     Map<String, Object> dispatchReq = Map.of("orderId", orderId);
     ResponseEntity<Map> dispatchResp =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, headers),
             Map.class);

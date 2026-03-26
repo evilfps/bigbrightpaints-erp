@@ -400,7 +400,7 @@ Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packagi
 - `GET` `/api/v1/sales/dashboard`
 - `GET` `/api/v1/sales/dealers`
 - `GET` `/api/v1/sales/dealers/search`
-- `POST` `/api/v1/sales/dispatch/confirm`
+- `POST` `/api/v1/dispatch/confirm`
 - `POST` `/api/v1/sales/dispatch/reconcile-order-markers`
 - `GET, POST` `/api/v1/sales/orders`
 - `GET` `/api/v1/sales/orders/search`

@@ -880,25 +880,25 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
   @Test
   void startupRoleSynchronization_realignsDispatchConfirmAuthoritiesForSystemRoles() {
-    addRolePermission("ROLE_ACCOUNTING", "dispatch.confirm");
-    addRolePermission("ROLE_FACTORY", "dispatch.confirm");
+    addRolePermission("ROLE_SALES", "dispatch.confirm");
     removeRolePermission("ROLE_ADMIN", "dispatch.confirm");
-    removeRolePermission("ROLE_SALES", "dispatch.confirm");
+    removeRolePermission("ROLE_ACCOUNTING", "dispatch.confirm");
+    removeRolePermission("ROLE_FACTORY", "dispatch.confirm");
 
     int synchronizedRoles = roleService.synchronizeSystemRoles();
 
     assertThat(synchronizedRoles).isGreaterThan(0);
     assertThat(rolePermissionCodes("ROLE_ADMIN")).contains("dispatch.confirm");
-    assertThat(rolePermissionCodes("ROLE_SALES")).contains("dispatch.confirm");
-    assertThat(rolePermissionCodes("ROLE_ACCOUNTING")).doesNotContain("dispatch.confirm");
-    assertThat(rolePermissionCodes("ROLE_FACTORY")).doesNotContain("dispatch.confirm");
+    assertThat(rolePermissionCodes("ROLE_ACCOUNTING")).contains("dispatch.confirm");
+    assertThat(rolePermissionCodes("ROLE_FACTORY")).contains("dispatch.confirm");
+    assertThat(rolePermissionCodes("ROLE_SALES")).doesNotContain("dispatch.confirm");
 
     assertThat(mePermissionCodes(login(ADMIN_EMAIL, TENANT_A), TENANT_A)).contains("dispatch.confirm");
-    assertThat(mePermissionCodes(login(SALES_SYNC_EMAIL, TENANT_A), TENANT_A))
-        .contains("dispatch.confirm");
     assertThat(mePermissionCodes(login(ACCOUNTING_SYNC_EMAIL, TENANT_A), TENANT_A))
-        .doesNotContain("dispatch.confirm");
+        .contains("dispatch.confirm");
     assertThat(mePermissionCodes(login("factory-seed@bbp.com", TENANT_A), TENANT_A))
+        .contains("dispatch.confirm");
+    assertThat(mePermissionCodes(login(SALES_SYNC_EMAIL, TENANT_A), TENANT_A))
         .doesNotContain("dispatch.confirm");
   }
 

@@ -96,29 +96,30 @@ class TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest extends AbstractIntegr
   }
 
   @Test
-  void salesDispatchConfirm_createsNavigableProvenanceLinkedReferencesAndBalancedTruth() {
+  void factoryDispatchConfirm_createsNavigableProvenanceLinkedReferencesAndBalancedTruth() {
     DispatchFixture fixture =
         bootstrapDispatchFixture("TS-PROV", new BigDecimal("123.40"), BigDecimal.ZERO);
 
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(
-                salesDispatchRequest(fixture, "provenance"),
-                authHeaders(loginSales(fixture), fixture.company().getCode())),
+                factoryDispatchRequest(fixture, "provenance"),
+                authHeaders(loginFactory(fixture), fixture.company().getCode())),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Map<?, ?> data = requireData(response, "sales dispatch confirm");
-    Long invoiceId = longValue(data.get("finalInvoiceId"));
-    Long arJournalId = longValue(data.get("arJournalEntryId"));
+    Map<?, ?> data = requireData(response, "factory dispatch confirm");
+    Long packagingSlipId = longValue(data.get("packagingSlipId"));
 
     PackagingSlip slip =
         packagingSlipRepository
             .findByIdAndCompany(fixture.slip().getId(), fixture.company())
             .orElseThrow();
     SalesOrder order = salesOrderRepository.findById(fixture.order().getId()).orElseThrow();
+    Long invoiceId = slip.getInvoiceId();
+    Long arJournalId = slip.getJournalEntryId();
     Invoice invoice =
         invoiceRepository.findByCompanyAndId(fixture.company(), invoiceId).orElseThrow();
     JournalEntry arJournal =
@@ -132,6 +133,10 @@ class TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest extends AbstractIntegr
             .findByFinishedGood_CompanyAndPackingSlipIdAndMovementTypeIgnoreCaseOrderByCreatedAtAsc(
                 fixture.company(), slip.getId(), "DISPATCH");
 
+    assertThat(packagingSlipId).isEqualTo(slip.getId());
+    assertThat(data.get("status")).isEqualTo("DISPATCHED");
+    assertThat(data.get("journalEntryId")).isNull();
+    assertThat(data.get("cogsJournalEntryId")).isNull();
     assertThat(invoiceId).isNotNull();
     assertThat(arJournalId).isNotNull();
     assertThat(slip.getInvoiceId()).isEqualTo(invoiceId);
@@ -208,14 +213,14 @@ class TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest extends AbstractIntegr
 
     ResponseEntity<Map> confirmResponse =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(
-                salesDispatchRequest(fixture, "factory-redaction"),
-                authHeaders(loginSales(fixture), fixture.company().getCode())),
+                factoryDispatchRequest(fixture, "factory-redaction"),
+                authHeaders(loginFactory(fixture), fixture.company().getCode())),
             Map.class);
     assertThat(confirmResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    requireData(confirmResponse, "sales dispatch confirm");
+    requireData(confirmResponse, "factory dispatch confirm");
 
     PackagingSlip persisted =
         packagingSlipRepository
@@ -243,17 +248,17 @@ class TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest extends AbstractIntegr
   }
 
   @Test
-  void salesDispatchConfirmReplay_preservesCanonicalTruth() {
+  void factoryDispatchConfirmReplay_preservesCanonicalTruth() {
     DispatchFixture fixture =
         bootstrapDispatchFixture("TS-ENDP-REPLAY", new BigDecimal("111.00"), BigDecimal.ZERO);
 
     ResponseEntity<Map> firstResponse =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(
-                salesDispatchRequest(fixture, "sales-first"),
-                authHeaders(loginSales(fixture), fixture.company().getCode())),
+                factoryDispatchRequest(fixture, "factory-first"),
+                authHeaders(loginFactory(fixture), fixture.company().getCode())),
             Map.class);
     assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -269,14 +274,14 @@ class TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest extends AbstractIntegr
 
     ResponseEntity<Map> replayResponse =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(
-                salesDispatchRequest(fixture, "sales-replay"),
-                authHeaders(loginSales(fixture), fixture.company().getCode())),
+                factoryDispatchRequest(fixture, "factory-replay"),
+                authHeaders(loginFactory(fixture), fixture.company().getCode())),
             Map.class);
     assertThat(replayResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Map<?, ?> replayData = requireData(replayResponse, "sales dispatch replay");
+    Map<?, ?> replayData = requireData(replayResponse, "factory dispatch replay");
 
     PackagingSlip afterReplay =
         packagingSlipRepository
@@ -285,12 +290,10 @@ class TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest extends AbstractIntegr
     SalesOrder orderAfterReplay =
         salesOrderRepository.findById(fixture.order().getId()).orElseThrow();
 
-    assertThat(longValue(replayData.get("packingSlipId"))).isEqualTo(afterFirst.getId());
-    assertThat(longValue(replayData.get("salesOrderId"))).isEqualTo(fixture.order().getId());
-    assertThat(longValue(replayData.get("finalInvoiceId"))).isEqualTo(afterFirst.getInvoiceId());
-    assertThat(longValue(replayData.get("arJournalEntryId")))
-        .isEqualTo(afterFirst.getJournalEntryId());
-    assertThat(listValue(replayData, "cogsPostings")).isEmpty();
+    assertThat(longValue(replayData.get("packagingSlipId"))).isEqualTo(afterFirst.getId());
+    assertThat(replayData.get("status")).isEqualTo("DISPATCHED");
+    assertThat(replayData.get("journalEntryId")).isNull();
+    assertThat(replayData.get("cogsJournalEntryId")).isNull();
     assertThat(afterReplay.getInvoiceId()).isEqualTo(afterFirst.getInvoiceId());
     assertThat(afterReplay.getJournalEntryId()).isEqualTo(afterFirst.getJournalEntryId());
     assertThat(afterReplay.getCogsJournalEntryId()).isEqualTo(afterFirst.getCogsJournalEntryId());
@@ -307,17 +310,17 @@ class TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest extends AbstractIntegr
   }
 
   @Test
-  void retiredFactoryDispatchConfirmRoute_isAbsent() {
+  void retiredSalesDispatchConfirmRoute_isAbsent() {
     DispatchFixture fixture =
         bootstrapDispatchFixture("TS-ENDP-ABSENT", new BigDecimal("119.50"), BigDecimal.ZERO);
 
     ResponseEntity<Map> retiredResponse =
         rest.exchange(
-            "/api/v1/dispatch/confirm",
+            "/api/v1/sales/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(
-                factoryDispatchRequest(fixture, "factory-replay"),
-                authHeaders(loginFactory(fixture), fixture.company().getCode())),
+                factoryDispatchRequest(fixture, "retired-sales-route"),
+                authHeaders(loginSales(fixture), fixture.company().getCode())),
             Map.class);
     assertThat(retiredResponse.getStatusCode())
         .isIn(HttpStatus.NOT_FOUND, HttpStatus.METHOD_NOT_ALLOWED);
@@ -367,13 +370,13 @@ class TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest extends AbstractIntegr
         SALES_PASSWORD,
         "Truthsuite Sales",
         companyCode,
-        List.of("ROLE_SALES", "dispatch.confirm"));
+        List.of("ROLE_SALES"));
     dataSeeder.ensureUser(
         factoryEmail,
         FACTORY_PASSWORD,
         "Truthsuite Factory",
         companyCode,
-        List.of("ROLE_FACTORY"));
+        List.of("ROLE_FACTORY", "dispatch.confirm"));
 
     return new DispatchFixture(
         company, dealer, finishedGood, order, slip, adminEmail, salesEmail, factoryEmail);
@@ -635,17 +638,6 @@ class TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest extends AbstractIntegr
     return headers;
   }
 
-  private Map<String, Object> salesDispatchRequest(DispatchFixture fixture, String referenceSeed) {
-    Map<String, Object> request = new HashMap<>();
-    request.put("packingSlipId", fixture.slip().getId());
-    request.put("orderId", fixture.order().getId());
-    request.put("dispatchNotes", "truthsuite sales dispatch " + referenceSeed);
-    request.put("confirmedBy", "truthsuite-admin");
-    request.put("lines", salesDispatchLines(fixture.slip()));
-    addDispatchMetadata(request, referenceSeed);
-    return request;
-  }
-
   private Map<String, Object> factoryDispatchRequest(
       DispatchFixture fixture, String referenceSeed) {
     Map<String, Object> request = new HashMap<>();
@@ -654,19 +646,6 @@ class TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest extends AbstractIntegr
     request.put("lines", factoryDispatchLines(fixture.slip()));
     addDispatchMetadata(request, referenceSeed);
     return request;
-  }
-
-  private List<Map<String, Object>> salesDispatchLines(PackagingSlip slip) {
-    List<Map<String, Object>> lines = new ArrayList<>();
-    slip.getLines()
-        .forEach(
-            line ->
-                lines.add(
-                    Map.of(
-                        "lineId", line.getId(),
-                        "shipQty", shippedQuantity(line),
-                        "notes", "ship all")));
-    return lines;
   }
 
   private List<Map<String, Object>> factoryDispatchLines(PackagingSlip slip) {

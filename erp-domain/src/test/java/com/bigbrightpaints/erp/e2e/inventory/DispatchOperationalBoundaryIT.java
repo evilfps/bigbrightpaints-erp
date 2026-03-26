@@ -24,6 +24,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.TestPropertySource;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditLog;
+import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
@@ -82,6 +85,7 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
   @Autowired private DealerRepository dealerRepository;
   @Autowired private SalesOrderRepository salesOrderRepository;
   @Autowired private SalesService salesService;
+  @Autowired private AuditLogRepository auditLogRepository;
   @Autowired private FinishedGoodsService finishedGoodsService;
   @Autowired private FinishedGoodRepository finishedGoodRepository;
   @Autowired private PackagingSlipRepository packagingSlipRepository;
@@ -103,13 +107,17 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
   @BeforeEach
   void setup() {
     dataSeeder.ensureUser(
-        FACTORY_EMAIL, FACTORY_PASSWORD, "Factory Ops", COMPANY_CODE, List.of("ROLE_FACTORY"));
+        FACTORY_EMAIL,
+        FACTORY_PASSWORD,
+        "Factory Ops",
+        COMPANY_CODE,
+        List.of("ROLE_FACTORY", "dispatch.confirm"));
     dataSeeder.ensureUser(
         SALES_EMAIL,
         SALES_PASSWORD,
         "Sales Ops",
         COMPANY_CODE,
-        List.of("ROLE_SALES", "dispatch.confirm"));
+        List.of("ROLE_SALES"));
     CompanyContextHolder.setCompanyId(COMPANY_CODE);
     company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
     company.setBaseCurrency("INR");
@@ -175,7 +183,6 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
         packagingSlipRepository.findByCompanyAndSalesOrderId(company, orderId).orElseThrow();
 
     HttpHeaders factoryHeaders = authHeaders(loginFactoryToken());
-    HttpHeaders salesHeaders = authHeaders(loginSalesToken());
     ResponseEntity<Map> previewResponse =
         rest.exchange(
             "/api/v1/dispatch/preview/" + slip.getId(),
@@ -203,19 +210,17 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
 
     Map<String, Object> confirmRequest =
         Map.of(
-            "packingSlipId", slip.getId(),
-            "orderId", orderId,
+            "packagingSlipId", slip.getId(),
             "lines",
                 List.of(
                     Map.of(
                         "lineId",
                         slip.getLines().getFirst().getId(),
-                        "shipQty",
+                        "shippedQuantity",
                         new BigDecimal("4"),
                         "notes",
                         "ship all")),
-            "dispatchNotes", "ready for dispatch",
-            "confirmedBy", "factory-user",
+            "notes", "ready for dispatch",
             "transporterName", "Rapid Logistics",
             "driverName", "Imran",
             "vehicleNumber", "MH14ZZ1001",
@@ -223,9 +228,9 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> firstResponse =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
-            new HttpEntity<>(confirmRequest, salesHeaders),
+            new HttpEntity<>(confirmRequest, factoryHeaders),
             Map.class);
     assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     requireData(firstResponse);
@@ -238,6 +243,20 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
     assertThat(persisted.getInvoiceId()).isNotNull();
     assertThat(persisted.getJournalEntryId()).isNotNull();
     assertThat(persisted.getCogsJournalEntryId()).isNotNull();
+    AuditLog dispatchAudit =
+        auditLogRepository.findByEventTypeWithMetadataOrderByTimestampDesc(
+            AuditEvent.DISPATCH_CONFIRMED).stream()
+            .filter(audit -> FACTORY_EMAIL.equalsIgnoreCase(audit.getUsername()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(dispatchAudit.getCompanyId()).isEqualTo(company.getId());
+    assertThat(dispatchAudit.getRequestPath()).isEqualTo("/api/v1/dispatch/confirm");
+    assertThat(dispatchAudit.getMetadata())
+        .containsEntry("packingSlipId", slip.getId().toString())
+        .containsEntry("salesOrderId", orderId.toString())
+        .containsEntry("invoiceId", persisted.getInvoiceId().toString())
+        .containsEntry("arJournalEntryId", persisted.getJournalEntryId().toString())
+        .containsEntry("cogsJournalEntryId", persisted.getCogsJournalEntryId().toString());
 
     ResponseEntity<Map> slipResponse =
         rest.exchange(
@@ -274,9 +293,9 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> replayResponse =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
-            new HttpEntity<>(confirmRequest, salesHeaders),
+            new HttpEntity<>(confirmRequest, factoryHeaders),
             Map.class);
     assertThat(replayResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     requireData(replayResponse);
@@ -463,16 +482,6 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
         Map.of(
             "email", FACTORY_EMAIL,
             "password", FACTORY_PASSWORD,
-            "companyCode", COMPANY_CODE);
-    return (String)
-        rest.postForEntity("/api/v1/auth/login", req, Map.class).getBody().get("accessToken");
-  }
-
-  private String loginSalesToken() {
-    Map<String, Object> req =
-        Map.of(
-            "email", SALES_EMAIL,
-            "password", SALES_PASSWORD,
             "companyCode", COMPANY_CODE);
     return (String)
         rest.postForEntity("/api/v1/auth/login", req, Map.class).getBody().get("accessToken");

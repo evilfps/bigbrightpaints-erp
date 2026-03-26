@@ -35,8 +35,8 @@ class CoreFallbackExceptionHandlerTest {
                 List.of(new SimpleGrantedAuthority("ROLE_ACCOUNTING"))));
     CoreFallbackExceptionHandler handler = new CoreFallbackExceptionHandler();
     MockHttpServletRequest request =
-        new MockHttpServletRequest("POST", "/api/v1/sales/dispatch/confirm");
-    request.setRequestURI("/api/v1/sales/dispatch/confirm");
+        new MockHttpServletRequest("POST", "/api/v1/dispatch/confirm");
+    request.setRequestURI("/api/v1/dispatch/confirm");
 
     ResponseEntity<ApiResponse<Map<String, Object>>> response =
         handler.handleAccessDenied(new AccessDeniedException("denied"), request);
@@ -45,12 +45,16 @@ class CoreFallbackExceptionHandlerTest {
     assertThat(response.getBody()).isNotNull();
     assertThat(response.getBody().message())
         .isEqualTo(
-            "Sales must complete the final dispatch posting from the sales dispatch workspace.");
+            "Factory must complete shipment confirmation from the dispatch workspace."
+                + " Accounting can reconcile downstream order markers only after dispatch is"
+                + " confirmed.");
     assertThat(response.getBody().data())
         .containsEntry("code", ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS.getCode())
         .containsEntry(
             "message",
-            "Sales must complete the final dispatch posting from the sales dispatch workspace.")
+            "Factory must complete shipment confirmation from the dispatch workspace."
+                + " Accounting can reconcile downstream order markers only after dispatch is"
+                + " confirmed.")
         .containsKey("traceId");
   }
 

@@ -587,7 +587,7 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.GONE);
     assertThat(response.getBody()).containsKey("message");
-    assertThat(response.getBody()).containsEntry("canonicalPath", "/api/v1/sales/dispatch/confirm");
+    assertThat(response.getBody()).containsEntry("canonicalPath", "/api/v1/dispatch/confirm");
   }
 
   @Test
@@ -604,7 +604,7 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.GONE);
     assertThat(response.getBody()).containsKey("message");
-    assertThat(response.getBody()).containsEntry("canonicalPath", "/api/v1/sales/dispatch/confirm");
+    assertThat(response.getBody()).containsEntry("canonicalPath", "/api/v1/dispatch/confirm");
   }
 
   @Test
@@ -632,7 +632,7 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.GONE);
     assertThat(response.getBody()).containsKey("message");
     assertThat(response.getBody())
-        .containsEntry("canonicalPath", "/api/v1/sales/dispatch/confirm");
+        .containsEntry("canonicalPath", "/api/v1/dispatch/confirm");
     assertThat(outboxEventRepository.count()).isEqualTo(outboxBefore);
   }
 
@@ -690,7 +690,7 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     assertThat(response.getBody()).isNotNull();
-    assertThat(response.getBody()).contains("BUS_001").contains("/api/v1/sales/dispatch/confirm");
+    assertThat(response.getBody()).contains("BUS_001").contains("/api/v1/dispatch/confirm");
   }
 
   @Test

@@ -291,8 +291,8 @@ public class IntegrationCoordinator {
               throw new ApplicationException(
                       ErrorCode.BUSINESS_INVALID_STATE,
                       "Orchestrator cannot update dispatch-like statuses. Use"
-                          + " /api/v1/sales/dispatch/confirm.")
-                  .withDetail("canonicalPath", "/api/v1/sales/dispatch/confirm")
+                          + " /api/v1/dispatch/confirm.")
+                  .withDetail("canonicalPath", "/api/v1/dispatch/confirm")
                   .withDetail("requestedStatus", requestedStatus);
             default:
               throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(

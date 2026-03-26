@@ -138,7 +138,7 @@ This file inventories the controllers and services that own the current setup jo
 ### `SalesController` + `SalesDispatchReconciliationService`
 
 - canonical route:
-  - `POST /api/v1/sales/dispatch/confirm`
+  - `POST /api/v1/dispatch/confirm`
 - purpose:
   - own the only surviving dispatch-confirm write
   - preserve inventory and accounting posting consequences on the sales-owned path

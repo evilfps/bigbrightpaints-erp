@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.inventory.controller;
 
 import java.math.BigDecimal;
+import java.security.Principal;
 import java.util.List;
 
 import org.springframework.http.HttpHeaders;
@@ -9,30 +10,40 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
+import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.inventory.dto.*;
 import com.bigbrightpaints.erp.modules.inventory.service.DeliveryChallanPdfService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
+import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
+import com.bigbrightpaints.erp.modules.sales.service.DispatchMetadataValidator;
+import com.bigbrightpaints.erp.modules.sales.service.SalesDispatchReconciliationService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
+import jakarta.validation.Valid;
+
 /**
- * Read-only controller for operational dispatch lookup.
- * Serves pending-slip lookup, dispatch preview, slip detail, order lookup, and challan download
- * surfaces for factory-facing dispatch operations.
+ * Controller for factory dispatch workflow.
+ * Factory confirms actual shipped quantities here; downstream accounting remains part of the same
+ * confirmation chain.
  */
 @RestController
 @RequestMapping("/api/v1/dispatch")
 public class DispatchController {
 
   private final FinishedGoodsService finishedGoodsService;
+  private final SalesDispatchReconciliationService salesDispatchReconciliationService;
   private final DeliveryChallanPdfService deliveryChallanPdfService;
 
   public DispatchController(
       FinishedGoodsService finishedGoodsService,
+      SalesDispatchReconciliationService salesDispatchReconciliationService,
       DeliveryChallanPdfService deliveryChallanPdfService) {
     this.finishedGoodsService = finishedGoodsService;
+    this.salesDispatchReconciliationService = salesDispatchReconciliationService;
     this.deliveryChallanPdfService = deliveryChallanPdfService;
   }
 
@@ -63,6 +74,20 @@ public class DispatchController {
   }
 
   /**
+   * Cancel a backorder slip; releases reserved stock and quantity without shipping.
+   */
+  @PostMapping("/backorder/{slipId}/cancel")
+  @PreAuthorize(PortalRoleActionMatrix.ADMIN_FACTORY)
+  public ResponseEntity<ApiResponse<PackagingSlipDto>> cancelBackorder(
+      @PathVariable Long slipId,
+      @RequestParam(required = false) String reason,
+      Principal principal) {
+    String username = principal != null ? principal.getName() : "system";
+    PackagingSlipDto slip = finishedGoodsService.cancelBackorderSlip(slipId, username, reason);
+    return ResponseEntity.ok(ApiResponse.success("Backorder canceled", slip));
+  }
+
+  /**
    * Get packaging slip details.
    */
   @GetMapping("/slip/{slipId}")
@@ -83,6 +108,39 @@ public class DispatchController {
     return ResponseEntity.ok(ApiResponse.success(toPackagingSlipView(slip)));
   }
 
+  /**
+   * Confirm dispatch with actual shipped quantities.
+   * This is the canonical public dispatch write surface.
+   */
+  @PostMapping("/confirm")
+  @PreAuthorize(PortalRoleActionMatrix.OPERATIONAL_DISPATCH)
+  public ResponseEntity<ApiResponse<DispatchConfirmationResponse>> confirmDispatch(
+      @Valid @RequestBody DispatchConfirmationRequest request, Principal principal) {
+    String username = principal != null ? principal.getName() : "system";
+    validateFactoryDispatchMetadata(request);
+    DispatchConfirmRequest accountingRequest = new DispatchConfirmRequest(
+            request.packagingSlipId(),
+            null,
+            request.lines().stream().map(this::toDispatchLine).toList(),
+            request.notes(),
+            username,
+            Boolean.FALSE,
+            null,
+            request.overrideRequestId(),
+            request.transporterName(),
+            request.driverName(),
+            request.vehicleNumber(),
+            request.challanReference());
+    if (shouldEnforceDispatchMetadata(accountingRequest, request.packagingSlipId())) {
+      DispatchMetadataValidator.validate(accountingRequest);
+    }
+    salesDispatchReconciliationService.confirmDispatch(accountingRequest);
+    DispatchConfirmationResponse response =
+        toDispatchConfirmationView(
+            finishedGoodsService.getDispatchConfirmation(request.packagingSlipId()));
+    return ResponseEntity.ok(ApiResponse.success(response));
+  }
+
   @GetMapping(value = "/slip/{slipId}/challan/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
   @PreAuthorize(PortalRoleActionMatrix.ADMIN_FACTORY)
   public ResponseEntity<byte[]> downloadDeliveryChallan(@PathVariable Long slipId) {
@@ -94,6 +152,56 @@ public class DispatchController {
         .body(pdf.content());
   }
 
+  /**
+   * Update packaging slip status (e.g., PENDING -> PACKING -> READY).
+   */
+  @PatchMapping("/slip/{slipId}/status")
+  @PreAuthorize(PortalRoleActionMatrix.ADMIN_FACTORY)
+  public ResponseEntity<ApiResponse<PackagingSlipDto>> updateSlipStatus(
+      @PathVariable Long slipId, @RequestParam String status) {
+    PackagingSlipDto slip = finishedGoodsService.updateSlipStatus(slipId, status);
+    return ResponseEntity.ok(ApiResponse.success(toPackagingSlipView(slip)));
+  }
+
+  private boolean shouldEnforceDispatchMetadata(
+      DispatchConfirmRequest request, Long packagingSlipId) {
+    return DispatchMetadataValidator.shouldEnforceValidation(
+        request, () -> isDispatchedSlipReplay(packagingSlipId));
+  }
+
+  private void validateFactoryDispatchMetadata(DispatchConfirmationRequest request) {
+    if (!isOperationalFactoryView()) {
+      return;
+    }
+    if (request == null || isDispatchedSlipReplay(request.packagingSlipId())) {
+      return;
+    }
+    boolean hasTransportActor =
+        StringUtils.hasText(request.transporterName()) || StringUtils.hasText(request.driverName());
+    if (!hasTransportActor) {
+      throw ValidationUtils.invalidInput(
+          PortalRoleActionMatrix.transporterOrDriverRequiredMessage());
+    }
+    if (!StringUtils.hasText(request.vehicleNumber())) {
+      throw ValidationUtils.invalidInput(PortalRoleActionMatrix.vehicleNumberRequiredMessage());
+    }
+    if (!StringUtils.hasText(request.challanReference())) {
+      throw ValidationUtils.invalidInput(PortalRoleActionMatrix.challanReferenceRequiredMessage());
+    }
+  }
+
+  private boolean isDispatchedSlipReplay(Long packagingSlipId) {
+    if (packagingSlipId == null) {
+      return false;
+    }
+    try {
+      PackagingSlipDto slip = finishedGoodsService.getPackagingSlip(packagingSlipId);
+      return slip != null && "DISPATCHED".equalsIgnoreCase(slip.status());
+    } catch (RuntimeException ex) {
+      return false;
+    }
+  }
+
   private PackagingSlipDto toPackagingSlipView(PackagingSlipDto slip) {
     if (slip == null || !isOperationalFactoryView()) {
       return slip;
@@ -101,24 +209,7 @@ public class DispatchController {
     List<PackagingSlipLineDto> redactedLines =
         slip.lines() == null
             ? List.of()
-            : slip.lines().stream()
-                .map(
-                    line -> {
-                      BigDecimal redactedUnitCost = null;
-                      return new PackagingSlipLineDto(
-                          line.id(),
-                          line.batchPublicId(),
-                          line.batchCode(),
-                          line.productCode(),
-                          line.productName(),
-                          line.orderedQuantity(),
-                          line.shippedQuantity(),
-                          line.backorderQuantity(),
-                          line.quantity(),
-                          redactedUnitCost,
-                          line.notes());
-                    })
-                .toList();
+            : slip.lines().stream().map(this::toRedactedPackagingSlipLine).toList();
     return new PackagingSlipDto(
         slip.id(),
         slip.publicId(),
@@ -181,6 +272,71 @@ public class DispatchController {
         null,
         null,
         lines);
+  }
+
+  private DispatchConfirmationResponse toDispatchConfirmationView(
+      DispatchConfirmationResponse response) {
+    if (response == null || !isOperationalFactoryView()) {
+      return response;
+    }
+    List<DispatchConfirmationResponse.LineResult> lineResults =
+        response.lines() == null
+            ? List.of()
+            : response.lines().stream().map(this::toDispatchConfirmationLineResult).toList();
+    return new DispatchConfirmationResponse(
+        response.packagingSlipId(),
+        response.slipNumber(),
+        response.status(),
+        response.confirmedAt(),
+        response.confirmedBy(),
+        null,
+        null,
+        null,
+        null,
+        null,
+        lineResults,
+        response.backorderSlipId(),
+        response.transporterName(),
+        response.driverName(),
+        response.vehicleNumber(),
+        response.challanReference(),
+        response.deliveryChallanNumber(),
+        response.deliveryChallanPdfPath());
+  }
+
+  private DispatchConfirmRequest.DispatchLine toDispatchLine(
+      DispatchConfirmationRequest.LineConfirmation line) {
+    return new DispatchConfirmRequest.DispatchLine(
+        line.lineId(), null, line.shippedQuantity(), null, null, null, null, line.notes());
+  }
+
+  private PackagingSlipLineDto toRedactedPackagingSlipLine(PackagingSlipLineDto line) {
+    return new PackagingSlipLineDto(
+        line.id(),
+        line.batchPublicId(),
+        line.batchCode(),
+        line.productCode(),
+        line.productName(),
+        line.orderedQuantity(),
+        line.shippedQuantity(),
+        line.backorderQuantity(),
+        line.quantity(),
+        null,
+        line.notes());
+  }
+
+  private DispatchConfirmationResponse.LineResult toDispatchConfirmationLineResult(
+      DispatchConfirmationResponse.LineResult line) {
+    return new DispatchConfirmationResponse.LineResult(
+        line.lineId(),
+        line.productCode(),
+        line.productName(),
+        line.orderedQuantity(),
+        line.shippedQuantity(),
+        line.backorderQuantity(),
+        null,
+        null,
+        line.notes());
   }
 
   private boolean isOperationalFactoryView() {

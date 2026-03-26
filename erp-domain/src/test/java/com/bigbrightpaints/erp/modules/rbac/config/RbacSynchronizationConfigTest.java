@@ -26,7 +26,6 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.modules.rbac.domain.Permission;
@@ -71,17 +70,10 @@ class RbacSynchronizationConfigTest {
             });
     when(permissionRepository.findByCode(any()))
         .thenAnswer(
-            invocation -> Optional.ofNullable(permissionsByCode.get(invocation.getArgument(0))));
-    when(permissionRepository.save(any(Permission.class)))
-        .thenAnswer(
-            invocation -> {
-              Permission saved = invocation.getArgument(0);
-              if (saved.getId() == null) {
-                ReflectionTestUtils.setField(saved, "id", (long) permissionsByCode.size() + 1L);
-              }
-              permissionsByCode.put(saved.getCode(), saved);
-              return saved;
-            });
+            invocation ->
+                Optional.of(
+                    permissionsByCode.computeIfAbsent(
+                        invocation.getArgument(0), RbacSynchronizationConfigTest::permission)));
 
     RoleService roleService = new RoleService(roleRepository, permissionRepository, auditService);
 
@@ -96,7 +88,7 @@ class RbacSynchronizationConfigTest {
   }
 
   @Test
-  void synchronizeSystemRoles_prunesRetiredDispatchConfirmWhilePreservingCustomPermissions() {
+  void synchronizeSystemRoles_reassignsDispatchConfirmToFactoryAndAccountingWhilePruningSales() {
     Map<String, Role> rolesByName = new LinkedHashMap<>();
     Role seededAdmin =
         role(
@@ -113,7 +105,6 @@ class RbacSynchronizationConfigTest {
             "Accounting role",
             permission("portal:accounting"),
             permission("payroll.run"),
-            permission("dispatch.confirm"),
             permission("reports.export"));
     Role seededFactory =
         role(
@@ -121,7 +112,6 @@ class RbacSynchronizationConfigTest {
             "Factory role",
             permission("portal:factory"),
             permission("factory.dispatch"),
-            permission("dispatch.confirm"),
             permission("inventory.audit"));
     rolesByName.put(seededAdmin.getName(), seededAdmin);
     rolesByName.put(seededSales.getName(), seededSales);
@@ -145,7 +135,10 @@ class RbacSynchronizationConfigTest {
             });
     when(permissionRepository.findByCode(any()))
         .thenAnswer(
-            invocation -> Optional.ofNullable(permissionsByCode.get(invocation.getArgument(0))));
+            invocation ->
+                Optional.of(
+                    permissionsByCode.computeIfAbsent(
+                        invocation.getArgument(0), RbacSynchronizationConfigTest::permission)));
 
     RoleService roleService = new RoleService(roleRepository, permissionRepository, auditService);
 
@@ -154,13 +147,11 @@ class RbacSynchronizationConfigTest {
     assertThat(synchronizedRoles).isGreaterThan(0);
     assertThat(permissionCodes(seededAdmin))
         .contains("dispatch.confirm", "factory.dispatch", "payroll.run");
-    assertThat(permissionCodes(seededSales)).contains("dispatch.confirm");
+    assertThat(permissionCodes(seededSales)).contains("portal:sales").doesNotContain("dispatch.confirm");
     assertThat(permissionCodes(seededAccounting))
-        .contains("portal:accounting", "payroll.run", "reports.export")
-        .doesNotContain("dispatch.confirm");
+        .contains("portal:accounting", "dispatch.confirm", "payroll.run", "reports.export");
     assertThat(permissionCodes(seededFactory))
-        .contains("portal:factory", "factory.dispatch", "inventory.audit")
-        .doesNotContain("dispatch.confirm");
+        .contains("portal:factory", "dispatch.confirm", "factory.dispatch", "inventory.audit");
     verifyNoInteractions(auditService);
   }
 

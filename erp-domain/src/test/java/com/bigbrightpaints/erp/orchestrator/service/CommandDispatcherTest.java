@@ -252,7 +252,7 @@ class CommandDispatcherTest {
     assertThatThrownBy(
             () -> commandDispatcher.dispatchBatch(request, "idem-2", "req-2", "COMP", "user-1"))
         .isInstanceOf(OrchestratorFeatureDisabledException.class)
-        .hasMessageContaining("/api/v1/sales/dispatch/confirm");
+        .hasMessageContaining("/api/v1/dispatch/confirm");
 
     verify(integrationCoordinator, never())
         .updateProductionStatus(ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
@@ -273,7 +273,7 @@ class CommandDispatcherTest {
                 commandDispatcher.dispatchBatch(
                     null, "idem-null-dispatch", "req-null-dispatch", "COMP", "user-1"))
         .isInstanceOf(OrchestratorFeatureDisabledException.class)
-        .hasMessageContaining("/api/v1/sales/dispatch/confirm");
+        .hasMessageContaining("/api/v1/dispatch/confirm");
 
     verify(policyEnforcer).checkDispatchPermissions("user-1", "COMP");
     verifyNoInteractions(

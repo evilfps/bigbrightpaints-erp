@@ -34,7 +34,7 @@ for path in \
   [[ -f "$path" ]] || fail "missing required contract document: $path"
 done
 
-require_literal "$O2C_WORKFLOW_DOC" '`POST /api/v1/sales/dispatch/confirm`' "O2C dispatch workflow doc guidance"
+require_literal "$O2C_WORKFLOW_DOC" '`POST /api/v1/dispatch/confirm`' "O2C dispatch workflow doc guidance"
 
 require_literal "$P2P_WORKFLOW_DOC" '`POST /api/v1/purchasing/goods-receipts`' "P2P GRN canonical endpoint doc"
 require_literal "$P2P_WORKFLOW_DOC" '`POST /api/v1/purchasing/raw-material-purchases`' "P2P invoice canonical endpoint doc"
@@ -112,8 +112,8 @@ dispatch_batch_body = extract_method_body(
 )
 if "throw new OrchestratorFeatureDisabledException(" not in dispatch_batch_body:
     fail("CommandDispatcher.dispatchBatch must fail closed instead of dispatching through an alternate posting path")
-if "/api/v1/sales/dispatch/confirm" not in dispatch_batch_body and "CANONICAL_DISPATCH_PATH" not in dispatch_batch_body:
-    fail("CommandDispatcher.dispatchBatch must point callers to /api/v1/sales/dispatch/confirm")
+if "/api/v1/dispatch/confirm" not in dispatch_batch_body and "CANONICAL_DISPATCH_PATH" not in dispatch_batch_body:
+    fail("CommandDispatcher.dispatchBatch must point callers to /api/v1/dispatch/confirm")
 
 integration_coordinator = read(integration_coordinator_path)
 update_fulfillment_body = extract_method_body(
@@ -124,8 +124,8 @@ update_fulfillment_body = extract_method_body(
 for token in ["SHIPPED", "DISPATCHED", "FULFILLED", "COMPLETED"]:
     if f'case "{token}":' not in update_fulfillment_body:
         fail(f"IntegrationCoordinator.updateFulfillment must explicitly reject dispatch-like status {token}")
-if "/api/v1/sales/dispatch/confirm" not in update_fulfillment_body:
-    fail("IntegrationCoordinator.updateFulfillment must direct callers to /api/v1/sales/dispatch/confirm")
+if "/api/v1/dispatch/confirm" not in update_fulfillment_body:
+    fail("IntegrationCoordinator.updateFulfillment must direct callers to /api/v1/dispatch/confirm")
 
 forbidden_patterns = {
     "postDispatchJournal(": "removed orchestrator dispatch journal method",
