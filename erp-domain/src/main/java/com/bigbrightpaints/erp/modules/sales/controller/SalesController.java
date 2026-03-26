@@ -11,11 +11,8 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils;
-import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
-import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.sales.dto.*;
 import com.bigbrightpaints.erp.modules.sales.service.DealerService;
-import com.bigbrightpaints.erp.modules.sales.service.DispatchMetadataValidator;
 import com.bigbrightpaints.erp.modules.sales.service.SalesDashboardService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesDispatchReconciliationService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesOrderCrudService;
@@ -37,7 +34,6 @@ public class SalesController {
   private final SalesDispatchReconciliationService salesDispatchReconciliationService;
   private final SalesDashboardService salesDashboardService;
   private final DealerService dealerService;
-  private final FinishedGoodsService finishedGoodsService;
 
   public SalesController(
       SalesService salesService,
@@ -45,15 +41,13 @@ public class SalesController {
       SalesOrderLifecycleService salesOrderLifecycleService,
       SalesDispatchReconciliationService salesDispatchReconciliationService,
       SalesDashboardService salesDashboardService,
-      DealerService dealerService,
-      FinishedGoodsService finishedGoodsService) {
+      DealerService dealerService) {
     this.salesService = salesService;
     this.salesOrderCrudService = salesOrderCrudService;
     this.salesOrderLifecycleService = salesOrderLifecycleService;
     this.salesDispatchReconciliationService = salesDispatchReconciliationService;
     this.salesDashboardService = salesDashboardService;
     this.dealerService = dealerService;
-    this.finishedGoodsService = finishedGoodsService;
   }
 
   /* Dealers alias - frontend calls /sales/dealers, backend has /dealers */
@@ -312,32 +306,6 @@ public class SalesController {
       @PathVariable Long id, @RequestParam(required = false) String reason) {
     salesService.deleteTarget(id, reason);
     return ResponseEntity.noContent().build();
-  }
-
-  /* Sales-owned dispatch confirmation (final invoice + AR at shipment) */
-  @PostMapping("/sales/dispatch/confirm")
-  @PreAuthorize(PortalRoleActionMatrix.FINANCIAL_DISPATCH)
-  public ResponseEntity<ApiResponse<DispatchConfirmResponse>> confirmDispatch(
-      @Valid @RequestBody DispatchConfirmRequest request) {
-    if (DispatchMetadataValidator.shouldEnforceValidation(
-        request, () -> isDispatchedSlipReplay(request.packingSlipId()))) {
-      DispatchMetadataValidator.validate(request);
-    }
-    return ResponseEntity.ok(
-        ApiResponse.success(
-            "Dispatch confirmed", salesDispatchReconciliationService.confirmDispatch(request)));
-  }
-
-  private boolean isDispatchedSlipReplay(Long packingSlipId) {
-    if (packingSlipId == null) {
-      return false;
-    }
-    try {
-      PackagingSlipDto slip = finishedGoodsService.getPackagingSlip(packingSlipId);
-      return slip != null && "DISPATCHED".equalsIgnoreCase(slip.status());
-    } catch (RuntimeException ex) {
-      return false;
-    }
   }
 
   @PostMapping("/sales/dispatch/reconcile-order-markers")

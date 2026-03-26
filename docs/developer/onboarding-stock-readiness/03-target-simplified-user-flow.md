@@ -11,7 +11,7 @@ A new tenant operator should be able to say:
 3. brands and stock-bearing items were created from one canonical setup host
 4. readiness was reviewed before execution
 5. opening stock was loaded only for prepared SKUs
-6. production batches, packing records, and sales-owned dispatch confirm follow one operator story
+6. production batches, packing records, and factory-owned dispatch confirm follow one operator story
 
 ## Screen Ownership
 
@@ -89,16 +89,16 @@ A new tenant operator should be able to say:
 
 ### 7. Dispatch confirmation
 
-- screen owner: sales dispatch confirmation screen
+- screen owner: factory dispatch confirmation screen
 - required APIs:
-  - `POST /api/v1/sales/dispatch/confirm`
+  - `POST /api/v1/dispatch/confirm`
   - `GET /api/v1/dispatch/pending`
   - `GET /api/v1/dispatch/preview/{slipId}`
   - `GET /api/v1/dispatch/slip/{slipId}`
   - `GET /api/v1/dispatch/order/{orderId}`
 - UI rules:
-  - sales owns the final dispatch-confirm write
-  - `/api/v1/dispatch/**` stays read-only operational lookup
+  - factory owns the final dispatch-confirm write
+  - `/api/v1/dispatch/confirm` is the only public dispatch write; the remaining `/api/v1/dispatch/**` routes are operational lookup
   - only packed sellable output should reach dispatch confirm
 
 ## Readiness States To Show
@@ -135,8 +135,8 @@ Each state includes:
 
 ### Dispatch validation failures
 
-- factory actor attempts final dispatch posting
-- quantity mismatch or slip status conflict on `POST /api/v1/sales/dispatch/confirm`
+- a non-factory actor attempts final dispatch posting
+- quantity mismatch or slip status conflict on `POST /api/v1/dispatch/confirm`
 - unpacked or non-sellable output reaches dispatch preparation
 
 ## UX Direction
@@ -150,7 +150,7 @@ flowchart LR
     E --> F["Opening stock imported for prepared SKUs"]
     F --> G["Production batch logged"]
     G --> H["Packing recorded"]
-    H --> I["Sales dispatch confirmed"]
+    H --> I["Factory dispatch confirmed"]
 ```
 
 ## Rules That Must Stay True
@@ -158,4 +158,4 @@ flowchart LR
 - no screen may route stock-bearing setup to retired `legacy product routes` or `legacy accounting-prefixed product setup routes`
 - no screen may treat opening stock as a bootstrap or repair tool
 - no screen may hide readiness blockers behind later production or sales errors
-- no screen may treat `/api/v1/dispatch/**` as a second dispatch-confirm write surface
+- no screen may expose any second public dispatch-confirm write surface outside `POST /api/v1/dispatch/confirm`

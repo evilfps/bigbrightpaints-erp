@@ -38,7 +38,7 @@ flowchart LR
 
     READY --> BATCH["POST /api/v1/factory/production/logs"]
     BATCH --> PACK["POST /api/v1/factory/packing-records"]
-    PACK --> DISPATCH["POST /api/v1/sales/dispatch/confirm"]
+    PACK --> DISPATCH["POST /api/v1/dispatch/confirm"]
 ```
 
 ## Controller And Service Map
@@ -105,7 +105,7 @@ flowchart LR
 
 - ready raw-material items flow into `POST /api/v1/factory/production/logs`
 - packed sellable output flows through `POST /api/v1/factory/packing-records`
-- final dispatch posting happens only on `POST /api/v1/sales/dispatch/confirm`
+- final dispatch posting happens only on `POST /api/v1/dispatch/confirm`
 - `/api/v1/dispatch/**` stays read-only for prepared-slip lookup and redacted factory views
 
 ## Review Hotspots

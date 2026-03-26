@@ -509,21 +509,21 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
     // Create and get order
     Long orderId = createOrder(dealer, fg, new BigDecimal("5"), new BigDecimal("1000.00"));
 
-    Map<String, Object> dispatchReq = new java.util.HashMap<>();
-    dispatchReq.put("orderId", orderId);
-    dispatchReq.put("confirmedBy", "e2e");
-    addDispatchMetadata(dispatchReq, "dispatch-cogs");
+    PackagingSlip slip = reserveSlip(company, orderId);
+    Map<String, Object> dispatchReq = dispatchRequestForSlip(slip, "dispatch-cogs");
 
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, headers),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     Map<?, ?> data = requireData(response, "dispatch order");
-    assertThat(data.get("finalInvoiceId")).isNotNull();
+    PackagingSlip dispatchedSlip = packagingSlipRepository.findById(slip.getId()).orElseThrow();
+    assertThat(((Number) data.get("packagingSlipId")).longValue()).isEqualTo(slip.getId());
+    assertThat(dispatchedSlip.getInvoiceId()).isNotNull();
   }
 
   @Test
@@ -538,28 +538,26 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
 
     Long orderId = createOrder(dealer, fg, new BigDecimal("5"), new BigDecimal("1000.00"));
 
-    Map<String, Object> dispatchReq = new java.util.HashMap<>();
-    dispatchReq.put("orderId", orderId);
-    dispatchReq.put("confirmedBy", "e2e");
-    addDispatchMetadata(dispatchReq, "dispatch-idempotent");
+    PackagingSlip slip = reserveSlip(company, orderId);
+    Map<String, Object> dispatchReq = dispatchRequestForSlip(slip, "dispatch-idempotent");
 
     ResponseEntity<Map> first =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, headers),
             Map.class);
     assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Map<?, ?> firstData = requireData(first, "dispatch order (first)");
-    Long invoiceId = ((Number) firstData.get("finalInvoiceId")).longValue();
-    Long arJournalId = ((Number) firstData.get("arJournalEntryId")).longValue();
+    requireData(first, "dispatch order (first)");
 
-    PackagingSlip slip = reserveSlip(company, orderId);
-    Long slipId = slip.getId();
-    Long cogsJournalId = slip.getCogsJournalEntryId();
+    PackagingSlip afterFirst = packagingSlipRepository.findById(slip.getId()).orElseThrow();
+    Long slipId = afterFirst.getId();
+    Long invoiceId = afterFirst.getInvoiceId();
+    Long arJournalId = afterFirst.getJournalEntryId();
+    Long cogsJournalId = afterFirst.getCogsJournalEntryId();
     assertThat(cogsJournalId).isNotNull();
-    assertThat(slip.getJournalEntryId()).isEqualTo(arJournalId);
-    assertThat(slip.getInvoiceId()).isEqualTo(invoiceId);
+    assertThat(afterFirst.getJournalEntryId()).isEqualTo(arJournalId);
+    assertThat(afterFirst.getInvoiceId()).isEqualTo(invoiceId);
 
     long dispatchMovementsBefore =
         inventoryMovementRepository
@@ -568,10 +566,11 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
             .size();
 
     // Simulate partial artifact loss: clear slip + order links only
-    slip.setInvoiceId(null);
-    slip.setJournalEntryId(null);
-    slip.setCogsJournalEntryId(null);
-    packagingSlipRepository.save(slip);
+    PackagingSlip slipToClear = packagingSlipRepository.findById(slipId).orElseThrow();
+    slipToClear.setInvoiceId(null);
+    slipToClear.setJournalEntryId(null);
+    slipToClear.setCogsJournalEntryId(null);
+    packagingSlipRepository.save(slipToClear);
 
     SalesOrder order = salesOrderRepository.findById(orderId).orElseThrow();
     order.setFulfillmentInvoiceId(null);
@@ -581,16 +580,13 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
 
     ResponseEntity<Map> second =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, headers),
             Map.class);
     assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
     Map<?, ?> secondData = requireData(second, "dispatch order (retry)");
-    Long invoiceId2 = ((Number) secondData.get("finalInvoiceId")).longValue();
-    Long arJournalId2 = ((Number) secondData.get("arJournalEntryId")).longValue();
-    assertThat(invoiceId2).isEqualTo(invoiceId);
-    assertThat(arJournalId2).isEqualTo(arJournalId);
+    assertThat(((Number) secondData.get("packagingSlipId")).longValue()).isEqualTo(slipId);
 
     PackagingSlip slipAfter = packagingSlipRepository.findById(slipId).orElseThrow();
     assertThat(slipAfter.getInvoiceId()).isEqualTo(invoiceId);
@@ -630,8 +626,8 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
   }
 
   @Test
-  @DisplayName("Sales dispatch endpoint is idempotent")
-  void salesDispatchEndpoint_isIdempotent() {
+  @DisplayName("Dispatch confirm endpoint is idempotent")
+  void dispatchConfirmEndpoint_isIdempotent() {
     Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
 
     Dealer dealer =
@@ -641,19 +637,16 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
     Long orderId = createOrder(dealer, fg, new BigDecimal("4"), new BigDecimal("1000.00"));
 
     PackagingSlip slip = reserveSlip(company, orderId);
-    Map<String, Object> salesDispatchReq = new java.util.HashMap<>();
-    salesDispatchReq.put("orderId", orderId);
-    salesDispatchReq.put("confirmedBy", "e2e");
-    addDispatchMetadata(salesDispatchReq, "dispatch-equivalent-sales");
+    Map<String, Object> dispatchReq = dispatchRequestForSlip(slip, "dispatch-equivalent");
 
     ResponseEntity<Map> firstResponse =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
-            new HttpEntity<>(salesDispatchReq, headers),
+            new HttpEntity<>(dispatchReq, headers),
             Map.class);
     assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Map<?, ?> firstData = requireData(firstResponse, "initial sales dispatch confirm");
+    Map<?, ?> firstData = requireData(firstResponse, "initial dispatch confirm");
 
     PackagingSlip afterFirst = packagingSlipRepository.findById(slip.getId()).orElseThrow();
     Long invoiceId = afterFirst.getInvoiceId();
@@ -662,8 +655,8 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
     assertThat(invoiceId).isNotNull();
     assertThat(arJournalId).isNotNull();
     assertThat(cogsJournalId).isNotNull();
-    assertThat(((Number) firstData.get("finalInvoiceId")).longValue()).isEqualTo(invoiceId);
-    assertThat(((Number) firstData.get("arJournalEntryId")).longValue()).isEqualTo(arJournalId);
+    assertThat(((Number) firstData.get("packagingSlipId")).longValue()).isEqualTo(slip.getId());
+    assertThat(((Number) firstData.get("journalEntryId")).longValue()).isEqualTo(arJournalId);
 
     long dispatchMovementsBefore =
         inventoryMovementRepository
@@ -673,17 +666,15 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
 
     ResponseEntity<Map> salesResponse =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
-            new HttpEntity<>(salesDispatchReq, headers),
+            new HttpEntity<>(dispatchReq, headers),
             Map.class);
     assertThat(salesResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Map<?, ?> salesData = requireData(salesResponse, "sales dispatch confirm");
+    Map<?, ?> salesData = requireData(salesResponse, "dispatch confirm replay");
 
-    Long invoiceId2 = ((Number) salesData.get("finalInvoiceId")).longValue();
-    Long arJournalId2 = ((Number) salesData.get("arJournalEntryId")).longValue();
-    assertThat(invoiceId2).isEqualTo(invoiceId);
-    assertThat(arJournalId2).isEqualTo(arJournalId);
+    assertThat(((Number) salesData.get("packagingSlipId")).longValue()).isEqualTo(slip.getId());
+    assertThat(((Number) salesData.get("journalEntryId")).longValue()).isEqualTo(arJournalId);
 
     PackagingSlip afterSales = packagingSlipRepository.findById(slip.getId()).orElseThrow();
     assertThat(afterSales.getCogsJournalEntryId()).isEqualTo(cogsJournalId);
@@ -707,24 +698,22 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
 
     Long orderId = createOrder(dealer, fg, new BigDecimal("3"), new BigDecimal("1000.00"));
 
-    Map<String, Object> dispatchReq = new java.util.HashMap<>();
-    dispatchReq.put("orderId", orderId);
-    dispatchReq.put("confirmedBy", "e2e");
-    addDispatchMetadata(dispatchReq, "dispatch-cogs-linkage");
+    PackagingSlip slip = reserveSlip(company, orderId);
+    Map<String, Object> dispatchReq = dispatchRequestForSlip(slip, "dispatch-cogs-linkage");
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, headers),
             Map.class);
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-    PackagingSlip slip = reserveSlip(company, orderId);
-    Long cogsJournalId = slip.getCogsJournalEntryId();
+    PackagingSlip dispatchedSlip = packagingSlipRepository.findById(slip.getId()).orElseThrow();
+    Long cogsJournalId = dispatchedSlip.getCogsJournalEntryId();
     assertThat(cogsJournalId).isNotNull();
 
     BigDecimal expectedCost =
-        slip.getLines().stream()
+        packagingSlipLineRepository.findByPackagingSlipId(dispatchedSlip.getId()).stream()
             .map(
                 line -> {
                   BigDecimal shipped =
@@ -777,21 +766,20 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         packagingSlipLineRepository.findByPackagingSlipId(slip.getId()).getFirst();
     BigDecimal shippedQty = orderedQty.subtract(new BigDecimal("3"));
 
-    Map<String, Object> dispatchReq = new java.util.HashMap<>();
-    dispatchReq.put("orderId", orderId);
-    dispatchReq.put("confirmedBy", "e2e");
-    dispatchReq.put("lines", List.of(Map.of("lineId", line.getId(), "shipQty", shippedQty)));
-    addDispatchMetadata(dispatchReq, "dispatch-partial");
+    Map<String, Object> dispatchReq =
+        dispatchRequestForSlip(
+            slip, "dispatch-partial", List.of(dispatchLine(line, shippedQty)));
 
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, headers),
             Map.class);
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Map<?, ?> data = requireData(response, "partial dispatch");
-    Long invoiceId = ((Number) data.get("finalInvoiceId")).longValue();
+    requireData(response, "partial dispatch");
+    PackagingSlip refreshedOriginalSlip = packagingSlipRepository.findById(slip.getId()).orElseThrow();
+    Long invoiceId = refreshedOriginalSlip.getInvoiceId();
 
     var invoice = invoiceRepository.findByCompanyAndId(company, invoiceId).orElseThrow();
     BigDecimal expectedTotal = unitPrice.multiply(shippedQty);
@@ -813,22 +801,21 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
 
     PackagingSlipLine backorderLine =
         packagingSlipLineRepository.findByPackagingSlipId(backorderSlip.getId()).getFirst();
-    Map<String, Object> backorderDispatchReq = new java.util.HashMap<>();
-    backorderDispatchReq.put("packingSlipId", backorderSlip.getId());
-    backorderDispatchReq.put("confirmedBy", "e2e");
-    backorderDispatchReq.put(
-        "lines", List.of(Map.of("lineId", backorderLine.getId(), "shipQty", backorderQty)));
-    addDispatchMetadata(backorderDispatchReq, "dispatch-backorder");
+    Map<String, Object> backorderDispatchReq =
+        dispatchRequestForSlip(
+            backorderSlip, "dispatch-backorder", List.of(dispatchLine(backorderLine, backorderQty)));
 
     ResponseEntity<Map> backorderDispatchResp =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(backorderDispatchReq, headers),
             Map.class);
     assertThat(backorderDispatchResp.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Map<?, ?> backorderData = requireData(backorderDispatchResp, "backorder dispatch");
-    Long backorderInvoiceId = ((Number) backorderData.get("finalInvoiceId")).longValue();
+    requireData(backorderDispatchResp, "backorder dispatch");
+    PackagingSlip refreshedBackorder =
+        packagingSlipRepository.findById(backorderSlip.getId()).orElseThrow();
+    Long backorderInvoiceId = refreshedBackorder.getInvoiceId();
     assertThat(backorderInvoiceId).isNotEqualTo(invoiceId);
 
     var backorderInvoice =
@@ -836,8 +823,6 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
     BigDecimal expectedBackorderTotal = unitPrice.multiply(backorderQty);
     assertThat(backorderInvoice.getTotalAmount()).isEqualByComparingTo(expectedBackorderTotal);
 
-    PackagingSlip refreshedBackorder =
-        packagingSlipRepository.findById(backorderSlip.getId()).orElseThrow();
     assertThat(refreshedBackorder.getStatus()).isEqualTo("DISPATCHED");
     assertThat(refreshedBackorder.getInvoiceId()).isEqualTo(backorderInvoiceId);
     PackagingSlip refreshedOriginal = packagingSlipRepository.findById(slip.getId()).orElseThrow();
@@ -922,14 +907,12 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
 
     BigDecimal beforeOutput = gstOutputTax();
 
-    Map<String, Object> dispatchReq = new java.util.HashMap<>();
-    dispatchReq.put("orderId", orderId);
-    dispatchReq.put("confirmedBy", "e2e");
-    addDispatchMetadata(dispatchReq, "dispatch-gst");
+    PackagingSlip slip = reserveSlip(company, orderId);
+    Map<String, Object> dispatchReq = dispatchRequestForSlip(slip, "dispatch-gst");
 
     ResponseEntity<Map> dispatchResp =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, headers),
             Map.class);
@@ -1003,19 +986,18 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
 
     BigDecimal beforeOutput = gstOutputTax();
 
-    Map<String, Object> dispatchReq = new java.util.HashMap<>();
-    dispatchReq.put("orderId", orderId);
-    dispatchReq.put("confirmedBy", "e2e");
-    addDispatchMetadata(dispatchReq, "dispatch-gst-mixed");
+    PackagingSlip slip = reserveSlip(company, orderId);
+    Map<String, Object> dispatchReq = dispatchRequestForSlip(slip, "dispatch-gst-mixed");
 
     ResponseEntity<Map> dispatchResp =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, headers),
             Map.class);
-    Map<?, ?> dispatchData = requireData(dispatchResp, "dispatch mixed GST order");
-    Long invoiceId = ((Number) dispatchData.get("finalInvoiceId")).longValue();
+    requireData(dispatchResp, "dispatch mixed GST order");
+    Long invoiceId =
+        packagingSlipRepository.findById(slip.getId()).orElseThrow().getInvoiceId();
 
     BigDecimal afterOutput = gstOutputTax();
     assertThat(afterOutput.subtract(beforeOutput)).isEqualByComparingTo(expectedTax);
@@ -1307,6 +1289,39 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
     } finally {
       CompanyContextHolder.clear();
     }
+  }
+
+  private Map<String, Object> dispatchRequestForOrder(
+      Company company, Long orderId, String referenceSeed) {
+    return dispatchRequestForSlip(reserveSlip(company, orderId), referenceSeed);
+  }
+
+  private Map<String, Object> dispatchRequestForSlip(PackagingSlip slip, String referenceSeed) {
+    return dispatchRequestForSlip(slip, referenceSeed, dispatchLines(slip));
+  }
+
+  private Map<String, Object> dispatchRequestForSlip(
+      PackagingSlip slip, String referenceSeed, List<Map<String, Object>> lines) {
+    Map<String, Object> request = new java.util.HashMap<>();
+    request.put("packagingSlipId", slip.getId());
+    request.put("notes", "e2e dispatch " + referenceSeed);
+    request.put("lines", lines);
+    addDispatchMetadata(request, referenceSeed);
+    return request;
+  }
+
+  private List<Map<String, Object>> dispatchLines(PackagingSlip slip) {
+    return slip.getLines().stream()
+        .map(
+            line ->
+                dispatchLine(
+                    line,
+                    line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity()))
+        .toList();
+  }
+
+  private Map<String, Object> dispatchLine(PackagingSlipLine line, BigDecimal shippedQuantity) {
+    return Map.of("lineId", line.getId(), "shippedQuantity", shippedQuantity);
   }
 
   private boolean hasReservedQuantity(PackagingSlip slip) {

@@ -62,22 +62,23 @@ class SystemRoleTest {
   }
 
   @Test
-  void salesDefaultPermissions_includeDispatchConfirmForSalesOwnedDispatchSurface() {
-    assertThat(SystemRole.SALES.getDefaultPermissions()).contains("dispatch.confirm");
+  void accountingAndFactoryDefaultPermissions_includeDispatchConfirmForCanonicalDispatchSurface() {
+    assertThat(SystemRole.ACCOUNTING.getDefaultPermissions()).contains("dispatch.confirm");
+    assertThat(SystemRole.FACTORY.getDefaultPermissions()).contains("dispatch.confirm");
   }
 
   @Test
-  void accountingAndFactoryDefaults_doNotIncludeDispatchConfirm() {
-    assertThat(SystemRole.ACCOUNTING.getDefaultPermissions()).doesNotContain("dispatch.confirm");
-    assertThat(SystemRole.FACTORY.getDefaultPermissions()).doesNotContain("dispatch.confirm");
+  void salesDefaults_doNotIncludeDispatchConfirm() {
+    assertThat(SystemRole.SALES.getDefaultPermissions()).doesNotContain("dispatch.confirm");
   }
 
   @Test
-  void accountingAndFactoryRetiredPermissions_pruneDispatchConfirmFromUpgradedTenants() {
-    assertThat(SystemRole.ACCOUNTING.getRetiredPermissions()).containsExactly("dispatch.confirm");
-    assertThat(SystemRole.FACTORY.getRetiredPermissions()).containsExactly("dispatch.confirm");
+  void retiredPermissions_pruneDispatchConfirmFromSalesOnly() {
+    assertThat(SystemRole.SALES.getRetiredPermissions()).containsExactly("dispatch.confirm");
+    assertThat(SystemRole.ACCOUNTING.getRetiredPermissions()).isEmpty();
+    assertThat(SystemRole.FACTORY.getRetiredPermissions()).isEmpty();
     assertThat(SystemRole.ADMIN.getRetiredPermissions()).isEmpty();
-    assertThat(SystemRole.SALES.getRetiredPermissions()).isEmpty();
+    assertThat(SystemRole.SUPER_ADMIN.getRetiredPermissions()).isEmpty();
   }
 
   @Test

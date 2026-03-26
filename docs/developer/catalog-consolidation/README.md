@@ -10,7 +10,7 @@ Use this doc set to understand the current setup truth:
 - brand selection and brand creation stay on `GET/POST /api/v1/catalog/brands`
 - readiness stays visible on `GET /api/v1/catalog/items` and `GET /api/v1/catalog/items/{itemId}` with `includeReadiness=true`
 - retired `legacy product routes` and `legacy accounting-prefixed product setup routes` setup hosts stay retired
-- ready items flow into the canonical execution story: `POST /api/v1/factory/production/logs` -> `POST /api/v1/factory/packing-records` -> `POST /api/v1/sales/dispatch/confirm`
+- ready items flow into the canonical execution story: `POST /api/v1/factory/production/logs` -> `POST /api/v1/factory/packing-records` -> `POST /api/v1/dispatch/confirm`
 
 ## Doc Set
 
@@ -67,7 +67,7 @@ flowchart LR
     CS --> RM["raw_materials"]
     DI --> PL["POST /api/v1/factory/production/logs"]
     PL --> PK["POST /api/v1/factory/packing-records"]
-    PK --> DC["POST /api/v1/sales/dispatch/confirm"]
+    PK --> DC["POST /api/v1/dispatch/confirm"]
 ```
 
 ## What Must Stay True

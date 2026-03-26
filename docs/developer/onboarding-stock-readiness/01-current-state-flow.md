@@ -29,7 +29,7 @@ flowchart LR
 
     READY --> PLOG["POST /api/v1/factory/production/logs"]
     PLOG --> PACK["POST /api/v1/factory/packing-records"]
-    PACK --> DISP["POST /api/v1/sales/dispatch/confirm"]
+    PACK --> DISP["POST /api/v1/dispatch/confirm"]
     DISP --> DREAD["GET /api/v1/dispatch/{pending,preview/{slipId},slip/{slipId},order/{orderId}}"]
 ```
 
@@ -143,7 +143,7 @@ Single-item stock-bearing setup now lives on `POST /api/v1/catalog/items`. Retir
 
 - `POST /api/v1/factory/production/logs` creates the production batch and consumes raw materials
 - `POST /api/v1/factory/packing-records` records pack output and consumes packaging materials
-- `POST /api/v1/sales/dispatch/confirm` is the only surviving dispatch-confirm write owner
+- `POST /api/v1/dispatch/confirm` is the only surviving dispatch-confirm write owner
 
 ### Read-only operational dispatch views
 

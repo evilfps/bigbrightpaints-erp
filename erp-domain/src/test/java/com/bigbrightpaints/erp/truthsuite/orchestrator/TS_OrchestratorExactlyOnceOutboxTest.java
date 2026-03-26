@@ -55,7 +55,7 @@ class TS_OrchestratorExactlyOnceOutboxTest {
   void legacyBatchDispatchPathFailsClosedWhilePayrollStillUsesFeatureGuards() {
     TruthSuiteFileAssert.assertContains(
         COMMAND_DISPATCHER,
-        "private static final String CANONICAL_DISPATCH_PATH = \"/api/v1/sales/dispatch/confirm\";",
+        "private static final String CANONICAL_DISPATCH_PATH = \"/api/v1/dispatch/confirm\";",
         "throw new OrchestratorFeatureDisabledException(",
         "Orchestrator batch dispatch is deprecated; use ",
         "\"ORCH.PAYROLL.RUN\",",

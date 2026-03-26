@@ -74,7 +74,7 @@ This file records the seams that are already retired or must stay retired in the
 
 - `POST /api/v1/factory/production/logs`
 - `POST /api/v1/factory/packing-records`
-- `POST /api/v1/sales/dispatch/confirm`
+- `POST /api/v1/dispatch/confirm`
 - `GET /api/v1/dispatch/{pending,preview/{slipId},slip/{slipId},order/{orderId}}`
 
 ## Priority Rule

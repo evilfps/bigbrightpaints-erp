@@ -21,7 +21,7 @@ Current-state cleanup brief:
 - `modules/factory/controller`
   Purpose for this slice: canonical batch and pack execution after setup is complete.
 - `modules/sales/controller`
-  Purpose for this slice: canonical sales-owned dispatch confirm after packing.
+  Purpose for this slice: canonical factory-owned dispatch confirm after packing.
 
 ## Canonical Workflow Graph
 
@@ -38,7 +38,7 @@ flowchart LR
     CS --> READY["CatalogItemDto + readiness"]
     READY --> PLOG["POST /api/v1/factory/production/logs"]
     PLOG --> PACK["POST /api/v1/factory/packing-records"]
-    PACK --> DISP["POST /api/v1/sales/dispatch/confirm"]
+    PACK --> DISP["POST /api/v1/dispatch/confirm"]
 ```
 
 ## Major Workflows
@@ -76,7 +76,7 @@ flowchart LR
 - execution truth:
   - `POST /api/v1/factory/production/logs`
   - `POST /api/v1/factory/packing-records`
-  - `POST /api/v1/sales/dispatch/confirm`
+  - `POST /api/v1/dispatch/confirm`
 - why it matters:
   - accounting-facing docs should describe one item -> batch -> pack -> dispatch story
 
@@ -84,7 +84,7 @@ flowchart LR
 
 - one public setup host owns stock-bearing item truth and readiness
 - finished-good and raw-material mirrors are aligned off the same canonical item surface
-- factory execution and sales dispatch now read like one coherent downstream path from setup
+- factory execution and factory dispatch now read like one coherent downstream path from setup
 - dispatch posting is explicitly sales-owned rather than split across factory and sales surfaces
 
 ## Duplicates and Bad Paths

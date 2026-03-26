@@ -34,7 +34,7 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/api/v1/orchestrator")
 public class OrchestratorController {
-  private static final String SALES_DISPATCH_CANONICAL_PATH = "/api/v1/sales/dispatch/confirm";
+  private static final String SALES_DISPATCH_CANONICAL_PATH = "/api/v1/dispatch/confirm";
   private static final String PAYROLL_RUNS_CANONICAL_PATH = "/api/v1/payroll/runs";
 
   private final CommandDispatcher commandDispatcher;

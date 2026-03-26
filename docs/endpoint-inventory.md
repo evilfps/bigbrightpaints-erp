@@ -15,9 +15,9 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `6cd5c837b3069b6413b49b9f2d1e54c2bfa00de3ebf83e3f3d3c68235abf7c30`)
-- OpenAPI total paths: `288`
-- OpenAPI total operations: `340`
+- OpenAPI snapshot: `openapi.json` (sha256 `40114859d0a1ca1a545fbb0e210d8e27ae15c21839c8d6166f7f321676a3f801`)
+- OpenAPI total paths: `290`
+- OpenAPI total operations: `342`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
 
 ## Summary by module
@@ -35,7 +35,7 @@ Portal scope guardrail:
 | `dealer-portal` | 7 | /api/v1/dealer-portal/aging, /api/v1/dealer-portal/credit-limit-requests, /api/v1/dealer-portal/dashboard |
 | `dealers` | 8 | /api/v1/dealers, /api/v1/dealers/search, /api/v1/dealers/{dealerId} |
 | `demo` | 1 | /api/v1/demo/ping |
-| `dispatch` | 5 | /api/v1/dispatch/order/{orderId}, /api/v1/dispatch/pending, /api/v1/dispatch/preview/{slipId} |
+| `dispatch` | 7 | /api/v1/dispatch/confirm, /api/v1/dispatch/order/{orderId}, /api/v1/dispatch/pending |
 | `exports` | 2 | /api/v1/exports/request, /api/v1/exports/{requestId}/download |
 | `factory` | 17 | /api/v1/factory/bulk-batches/{finishedGoodId}, /api/v1/factory/bulk-batches/{parentBatchId}/children, /api/v1/factory/cost-allocation |
 | `finished-goods` | 6 | /api/v1/finished-goods, /api/v1/finished-goods/low-stock, /api/v1/finished-goods/stock-summary |
@@ -222,8 +222,10 @@ Portal scope guardrail:
 - `GET` `/api/v1/dispatch/order/{orderId}`
 - `GET` `/api/v1/dispatch/pending`
 - `GET` `/api/v1/dispatch/preview/{slipId}`
+- `POST` `/api/v1/dispatch/backorder/{slipId}/cancel`
 - `GET` `/api/v1/dispatch/slip/{slipId}`
 - `GET` `/api/v1/dispatch/slip/{slipId}/challan/pdf`
+- `PATCH` `/api/v1/dispatch/slip/{slipId}/status`
 
 ## `exports`
 
@@ -392,7 +394,7 @@ Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packagi
 - `GET` `/api/v1/sales/dashboard`
 - `GET` `/api/v1/sales/dealers`
 - `GET` `/api/v1/sales/dealers/search`
-- `POST` `/api/v1/sales/dispatch/confirm`
+- `POST` `/api/v1/dispatch/confirm`
 - `POST` `/api/v1/sales/dispatch/reconcile-order-markers`
 - `GET, POST` `/api/v1/sales/orders`
 - `GET` `/api/v1/sales/orders/search`

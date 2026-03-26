@@ -76,7 +76,7 @@ Once readiness is clear, the operator path continues on:
 
 - `POST /api/v1/factory/production/logs`
 - `POST /api/v1/factory/packing-records`
-- `POST /api/v1/sales/dispatch/confirm`
+- `POST /api/v1/dispatch/confirm`
 
 `/api/v1/dispatch/**` is a read-only operational lookup surface, not a second dispatch-confirm write owner.
 
@@ -92,7 +92,7 @@ Once readiness is clear, the operator path continues on:
 ### Explicit operator handoff
 
 - setup truth ends on `/api/v1/catalog/items`
-- execution truth starts on production logs, then packing records, then sales-owned dispatch confirm
+- execution truth starts on production logs, then packing records, then factory-owned dispatch confirm
 - no packet should present `legacy product routes` or `legacy accounting-prefixed product setup routes` as current setup truth
 
 ## Downstream Guarantees
@@ -127,7 +127,7 @@ After setup and factory execution, sales can:
 
 - resolve the sellable item through canonical catalog reads
 - rely on packed output becoming dispatchable
-- perform final dispatch posting only on `POST /api/v1/sales/dispatch/confirm`
+- perform final dispatch posting only on `POST /api/v1/dispatch/confirm`
 
 ## Example Canonical Payload Shape
 

@@ -20,7 +20,7 @@ It should not overlap with reports, settlement/ledger, payroll/HR, period-close,
 - keep explicit brand creation on `POST /api/v1/catalog/brands`
 - keep readiness-aware item reads on `GET /api/v1/catalog/items` and `GET /api/v1/catalog/items/{itemId}`
 - remove retired setup hosts `legacy product routes` and `legacy accounting-prefixed product setup routes`
-- keep the downstream operator story explicit: `POST /api/v1/factory/production/logs` -> `POST /api/v1/factory/packing-records` -> `POST /api/v1/sales/dispatch/confirm`
+- keep the downstream operator story explicit: `POST /api/v1/factory/production/logs` -> `POST /api/v1/factory/packing-records` -> `POST /api/v1/dispatch/confirm`
 - rewrite stale docs/tests/helpers in the same packet
 
 ## Out Of Scope
@@ -52,7 +52,7 @@ It should not overlap with reports, settlement/ledger, payroll/HR, period-close,
 
 - ready items can move into `POST /api/v1/factory/production/logs`
 - packing uses `POST /api/v1/factory/packing-records` only
-- final dispatch posting uses `POST /api/v1/sales/dispatch/confirm` only
+- final dispatch posting uses `POST /api/v1/dispatch/confirm` only
 - `/api/v1/dispatch/**` remains read-only operational lookup
 
 ### Cleanup
@@ -79,4 +79,4 @@ Title:
 
 Summary:
 
-Keep `/api/v1/catalog/items` as the only stock-bearing setup host, remove stale `legacy product routes` and `legacy accounting-prefixed product setup routes` guidance, keep readiness visible on canonical item reads, and ensure the developer story flows cleanly from item setup into `POST /api/v1/factory/production/logs`, `POST /api/v1/factory/packing-records`, and sales-owned `POST /api/v1/sales/dispatch/confirm`.
+Keep `/api/v1/catalog/items` as the only stock-bearing setup host, remove stale `legacy product routes` and `legacy accounting-prefixed product setup routes` guidance, keep readiness visible on canonical item reads, and ensure the developer story flows cleanly from item setup into `POST /api/v1/factory/production/logs`, `POST /api/v1/factory/packing-records`, and sales-owned `POST /api/v1/dispatch/confirm`.

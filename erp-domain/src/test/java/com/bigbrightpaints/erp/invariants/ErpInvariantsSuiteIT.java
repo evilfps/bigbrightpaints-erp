@@ -72,6 +72,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceLine;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
@@ -87,6 +88,8 @@ import com.bigbrightpaints.erp.modules.reports.dto.ReportSource;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
+import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 import com.bigbrightpaints.erp.test.support.CanonicalErpDataset;
 import com.bigbrightpaints.erp.test.support.CanonicalErpDatasetBuilder;
@@ -118,6 +121,8 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
   @Autowired private RawMaterialMovementRepository rawMaterialMovementRepository;
   @Autowired private InvoiceRepository invoiceRepository;
   @Autowired private PackagingSlipRepository packagingSlipRepository;
+  @Autowired private FinishedGoodsService finishedGoodsService;
+  @Autowired private SalesOrderRepository salesOrderRepository;
   @Autowired private InventoryMovementRepository inventoryMovementRepository;
   @Autowired private RawMaterialPurchaseRepository purchaseRepository;
   @Autowired private AccountingPeriodRepository accountingPeriodRepository;
@@ -282,26 +287,19 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         new HttpEntity<>(headers),
         Map.class);
 
-    Map<String, Object> dispatchReq = dispatchRequest(orderId, "o2c-test", "o2c-golden-" + orderId);
+    Map<String, Object> dispatchReq =
+        dispatchRequest(company, orderId, "o2c-test", "o2c-golden-" + orderId);
 
     ResponseEntity<Map> dispatchResp =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, headers),
             Map.class);
     Map<?, ?> dispatchData = requireData(dispatchResp, "dispatch confirm");
-    Object invoiceValue = dispatchData.get("finalInvoiceId");
-    if (!(invoiceValue instanceof Number invoiceNumber)) {
-      throw new AssertionError("dispatch confirm response missing finalInvoiceId: " + dispatchData);
-    }
-    Long invoiceId = invoiceNumber.longValue();
-    Object arJournalValue = dispatchData.get("arJournalEntryId");
-    if (!(arJournalValue instanceof Number arJournalNumber)) {
-      throw new AssertionError(
-          "dispatch confirm response missing arJournalEntryId: " + dispatchData);
-    }
-    Long arJournalId = arJournalNumber.longValue();
+    DispatchArtifacts dispatchArtifacts = requireDispatchArtifacts(company, orderId);
+    Long invoiceId = dispatchArtifacts.invoiceId();
+    Long arJournalId = dispatchArtifacts.arJournalId();
 
     Invoice invoice =
         invoiceRepository
@@ -342,10 +340,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
       assertThat(entry.getPaidDate()).isNull();
     }
 
-    PackagingSlip slip =
-        packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, orderId).stream()
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("Packaging slip missing for order " + orderId));
+    PackagingSlip slip = dispatchArtifacts.slip();
     assertThat(slip.getInvoiceId()).isEqualTo(invoiceId);
     assertThat(slip.getJournalEntryId())
         .as("packaging slip AR journal link")
@@ -363,23 +358,16 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> dispatchRepeatResp =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, headers),
             Map.class);
     Map<?, ?> dispatchRepeatData = requireData(dispatchRepeatResp, "dispatch confirm idempotent");
-    Object repeatInvoiceValue = dispatchRepeatData.get("finalInvoiceId");
-    if (!(repeatInvoiceValue instanceof Number repeatInvoiceNumber)) {
-      throw new AssertionError(
-          "dispatch repeat response missing finalInvoiceId: " + dispatchRepeatData);
-    }
-    Object repeatJournalValue = dispatchRepeatData.get("arJournalEntryId");
-    if (!(repeatJournalValue instanceof Number repeatJournalNumber)) {
-      throw new AssertionError(
-          "dispatch repeat response missing arJournalEntryId: " + dispatchRepeatData);
-    }
-    assertThat(repeatInvoiceNumber.longValue()).isEqualTo(invoiceId);
-    assertThat(repeatJournalNumber.longValue()).isEqualTo(arJournalId);
+    DispatchArtifacts replayArtifacts = requireDispatchArtifacts(company, orderId);
+    assertThat(((Number) dispatchRepeatData.get("packagingSlipId")).longValue())
+        .isEqualTo(slip.getId());
+    assertThat(replayArtifacts.invoiceId()).isEqualTo(invoiceId);
+    assertThat(replayArtifacts.arJournalId()).isEqualTo(arJournalId);
     List<InventoryMovement> repeatMovements =
         inventoryMovementRepository.findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
             InventoryReference.SALES_ORDER, orderId.toString());
@@ -492,16 +480,18 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         new HttpEntity<>(headers),
         Map.class);
 
-    Map<String, Object> dispatchReq = dispatchRequest(orderId, "o2c-test", "o2c-return-" + orderId);
+    Map<String, Object> dispatchReq =
+        dispatchRequest(company, orderId, "o2c-test", "o2c-return-" + orderId);
 
     ResponseEntity<Map> dispatchResp =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, headers),
             Map.class);
     Map<?, ?> dispatchData = requireData(dispatchResp, "dispatch confirm for return");
-    Long invoiceId = ((Number) dispatchData.get("finalInvoiceId")).longValue();
+    DispatchArtifacts dispatchArtifacts = requireDispatchArtifacts(company, orderId);
+    Long invoiceId = dispatchArtifacts.invoiceId();
 
     Invoice invoice =
         invoiceRepository
@@ -623,16 +613,17 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         new HttpEntity<>(headers),
         Map.class);
 
-    Map<String, Object> dispatchReq = dispatchRequest(orderId, "o2c-test", "o2c-credit-" + orderId);
+    Map<String, Object> dispatchReq =
+        dispatchRequest(company, orderId, "o2c-test", "o2c-credit-" + orderId);
 
     ResponseEntity<Map> dispatchResp =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, headers),
             Map.class);
     Map<?, ?> dispatchData = requireData(dispatchResp, "dispatch confirm for credit note");
-    Long invoiceId = ((Number) dispatchData.get("finalInvoiceId")).longValue();
+    Long invoiceId = requireDispatchArtifacts(company, orderId).invoiceId();
 
     Invoice invoice =
         invoiceRepository
@@ -1665,29 +1656,31 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         Map.class);
 
     Map<String, Object> dispatchReq =
-        dispatchRequest(orderId, "tenant-admin", "tenant-order-" + orderId);
+        dispatchRequest(tenantCompany, orderId, "tenant-admin", "tenant-order-" + orderId);
 
     ResponseEntity<Map> dispatchResp =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, tenantHeaders),
             Map.class);
     Map<?, ?> dispatchData = requireData(dispatchResp, "dispatch tenant order");
-    Long invoiceId = ((Number) dispatchData.get("finalInvoiceId")).longValue();
-    Long arJournalId = ((Number) dispatchData.get("arJournalEntryId")).longValue();
+    DispatchArtifacts dispatchArtifacts = requireDispatchArtifacts(tenantCompany, orderId);
+    Long invoiceId = dispatchArtifacts.invoiceId();
+    Long arJournalId = dispatchArtifacts.arJournalId();
 
     ResponseEntity<Map> dispatchReplayResp =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
             new HttpEntity<>(dispatchReq, tenantHeaders),
             Map.class);
     Map<?, ?> dispatchReplayData = requireData(dispatchReplayResp, "replay dispatch tenant order");
-    assertThat(((Number) dispatchReplayData.get("finalInvoiceId")).longValue())
-        .isEqualTo(invoiceId);
-    assertThat(((Number) dispatchReplayData.get("arJournalEntryId")).longValue())
-        .isEqualTo(arJournalId);
+    DispatchArtifacts replayArtifacts = requireDispatchArtifacts(tenantCompany, orderId);
+    assertThat(((Number) dispatchReplayData.get("packagingSlipId")).longValue())
+        .isEqualTo(dispatchArtifacts.slip().getId());
+    assertThat(replayArtifacts.invoiceId()).isEqualTo(invoiceId);
+    assertThat(replayArtifacts.arJournalId()).isEqualTo(arJournalId);
 
     Invoice invoice =
         invoiceRepository
@@ -1875,15 +1868,57 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
   }
 
   private Map<String, Object> dispatchRequest(
-      Long orderId, String confirmedBy, String referenceSeed) {
+      Company company, Long orderId, String confirmedBy, String referenceSeed) {
+    PackagingSlip slip = ensureDispatchSlip(company, orderId);
     Map<String, Object> request = new HashMap<>();
-    request.put("orderId", orderId);
-    request.put("confirmedBy", confirmedBy);
+    request.put("packagingSlipId", slip.getId());
+    request.put("notes", "dispatch " + confirmedBy + " " + referenceSeed);
+    request.put(
+        "lines",
+        slip.getLines().stream()
+            .map(
+                line ->
+                    Map.of(
+                        "lineId",
+                        line.getId(),
+                        "shippedQuantity",
+                        line.getOrderedQuantity() != null
+                            ? line.getOrderedQuantity()
+                            : line.getQuantity()))
+            .toList());
     request.put("transporterName", "BB Logistics");
     request.put("driverName", "Driver " + referenceSeed);
     request.put("vehicleNumber", "MH12" + Math.abs(referenceSeed.hashCode()));
     request.put("challanReference", "CH-" + referenceSeed);
     return request;
+  }
+
+  private DispatchArtifacts requireDispatchArtifacts(Company company, Long orderId) {
+    PackagingSlip slip = ensureDispatchSlip(company, orderId);
+    if (slip.getInvoiceId() == null) {
+      throw new AssertionError("Dispatch did not persist invoiceId for order " + orderId);
+    }
+    if (slip.getJournalEntryId() == null) {
+      throw new AssertionError("Dispatch did not persist journalEntryId for order " + orderId);
+    }
+    return new DispatchArtifacts(slip, slip.getInvoiceId(), slip.getJournalEntryId());
+  }
+
+  private PackagingSlip ensureDispatchSlip(Company company, Long orderId) {
+    PackagingSlip existing =
+        packagingSlipRepository.findByCompanyAndSalesOrderId(company, orderId).orElse(null);
+    if (existing != null) {
+      return existing;
+    }
+    CompanyContextHolder.setCompanyCode(company.getCode());
+    try {
+      SalesOrder order = salesOrderRepository.findById(orderId).orElseThrow();
+      finishedGoodsService.reserveForOrder(order);
+    } finally {
+      CompanyContextHolder.clear();
+    }
+    return packagingSlipRepository.findByCompanyAndSalesOrderId(company, orderId).orElseThrow(
+        () -> new AssertionError("Packaging slip missing for order " + orderId));
   }
 
   private Map<?, ?> requireData(ResponseEntity<Map> response, String action) {
@@ -1950,6 +1985,8 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
     rawMaterialBatchRepository.save(batch);
     return saved;
   }
+
+  private record DispatchArtifacts(PackagingSlip slip, Long invoiceId, Long arJournalId) {}
 
   private void ensurePackagingMapping(Company company, String size) {
     List<PackagingSizeMapping> existing =

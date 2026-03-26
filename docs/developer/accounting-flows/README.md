@@ -18,7 +18,7 @@ flowchart LR
     GATE --> ACC["accounting canonical engines"]
 
     SETUP["catalog item setup"] --> FACT["factory execution"]
-    FACT --> SALES["sales dispatch confirm"]
+    FACT --> SALES["factory dispatch confirm"]
     SETUP --> ACC
     FACT --> ACC
     SALES --> ACC
@@ -34,7 +34,7 @@ flowchart LR
 - stock-bearing setup truth converges on `/api/v1/catalog/items`
 - production truth converges on `POST /api/v1/factory/production/logs`
 - packing truth converges on `POST /api/v1/factory/packing-records`
-- dispatch posting truth converges on `POST /api/v1/sales/dispatch/confirm`
+- dispatch posting truth converges on factory confirmation at `POST /api/v1/dispatch/confirm`
 - `/api/v1/dispatch/**` remains a read-only operational lookup surface
 - accounting remains the posting sink rather than a second stock-bearing setup workspace
 

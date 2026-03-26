@@ -11,7 +11,7 @@ Use this doc set to understand the surviving runtime truth:
 - stock-bearing item entry is canonical on `POST /api/v1/catalog/items`
 - readiness is explicit per SKU as `catalog`, `inventory`, `production`, and `sales`
 - opening stock is canonical on `POST /api/v1/inventory/opening-stock`
-- ready stock flows into the canonical execution story: `POST /api/v1/factory/production/logs` -> `POST /api/v1/factory/packing-records` -> `POST /api/v1/sales/dispatch/confirm`
+- ready stock flows into the canonical execution story: `POST /api/v1/factory/production/logs` -> `POST /api/v1/factory/packing-records` -> `POST /api/v1/dispatch/confirm`
 
 ## Product Stance
 
@@ -44,7 +44,7 @@ This packet is hard-cut.
 - `GET/POST /api/v1/catalog/brands`, `GET /api/v1/catalog/items`, and `POST /api/v1/catalog/items` are the surviving operator-facing setup routes for brand selection and stock-bearing item creation
 - `GET /api/v1/catalog/items` and `GET /api/v1/catalog/items/{itemId}` with `includeReadiness=true` keep readiness visible before factory execution
 - `POST /api/v1/inventory/opening-stock` requires explicit `Idempotency-Key` plus explicit `openingStockBatchKey`, and only accepts prepared SKUs
-- `POST /api/v1/factory/production/logs`, `POST /api/v1/factory/packing-records`, and `POST /api/v1/sales/dispatch/confirm` are the only surviving operator write surfaces for batch -> pack -> dispatch
+- `POST /api/v1/factory/production/logs`, `POST /api/v1/factory/packing-records`, and `POST /api/v1/dispatch/confirm` are the only surviving operator write surfaces for batch -> pack -> dispatch
 
 ## Related Docs
 

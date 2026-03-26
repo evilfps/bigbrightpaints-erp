@@ -53,7 +53,7 @@ If the packet claims one coherent operator story, the proof must include:
 - readiness reads before execution
 - production logs as the only batch-create surface
 - packing records as the only pack mutation
-- sales-owned dispatch confirm as the only dispatch-confirm write
+- factory-owned dispatch confirm as the only dispatch-confirm write
 
 If those proofs do not exist, the packet is not done.
 

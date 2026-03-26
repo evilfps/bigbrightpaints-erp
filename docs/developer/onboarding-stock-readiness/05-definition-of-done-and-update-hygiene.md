@@ -20,7 +20,7 @@ Keep first-time setup and execution handoff explicit:
 - stock-bearing item route ownership
 - opening-stock contract cleanup
 - readiness exposure across catalog, inventory, production, and sales
-- canonical execution handoff to production logs, packing records, and sales dispatch confirm
+- canonical execution handoff to production logs, packing records, and factory dispatch confirm
 - stale tests, stale docs, and stale OpenAPI route inventories tied to this flow
 
 ## Scope Out
@@ -45,7 +45,7 @@ Keep first-time setup and execution handoff explicit:
 - one canonical execution path:
   - `POST /api/v1/factory/production/logs`
   - `POST /api/v1/factory/packing-records`
-  - `POST /api/v1/sales/dispatch/confirm`
+  - `POST /api/v1/dispatch/confirm`
 
 ### Opening stock is strict
 
@@ -67,7 +67,7 @@ Keep first-time setup and execution handoff explicit:
 
 - stale batch, pack, or dispatch alias-route docs are deleted or rewritten
 - factory/operator docs point to production logs then packing records
-- dispatch docs point to sales-owned dispatch confirm plus read-only `/api/v1/dispatch/**`
+- dispatch docs point to factory-owned `POST /api/v1/dispatch/confirm` plus operational lookup on the remaining `/api/v1/dispatch/**` routes
 - stale docs for retired setup hosts are removed in the same packet
 
 ## Required Proof
@@ -90,7 +90,7 @@ Frontend-facing docs must answer all of these:
 - which screen owns opening-stock loading
 - which screen owns production batch logging
 - which screen owns packing
-- which screen owns sales dispatch confirmation
+- which screen owns factory dispatch confirmation
 - which readiness states must be shown
 - which exact setup, pack, or dispatch blockers must be surfaced
 
