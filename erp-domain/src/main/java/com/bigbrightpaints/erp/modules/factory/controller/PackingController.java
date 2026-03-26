@@ -107,7 +107,8 @@ public class PackingController {
         request.packedDate(),
         request.packedBy(),
         idempotencyKey,
-        request.lines());
+        request.lines(),
+        request.closeResidualWastage());
   }
 
   private ApplicationException unsupportedLegacyHeader(String legacyHeader) {

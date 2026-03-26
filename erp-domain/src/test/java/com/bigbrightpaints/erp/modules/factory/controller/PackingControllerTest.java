@@ -99,6 +99,19 @@ class PackingControllerTest {
   }
 
   @Test
+  void recordPacking_preservesCloseResidualWastageWhenApplyingHeaderIdempotencyKey() {
+    PackingController controller = new PackingController(packingService, bulkPackingService);
+    when(packingService.recordPacking(any())).thenReturn(null);
+
+    controller.recordPacking("header-key", null, null, request("body-key", Boolean.TRUE));
+
+    ArgumentCaptor<PackingRequest> captor = ArgumentCaptor.forClass(PackingRequest.class);
+    verify(packingService).recordPacking(captor.capture());
+    assertThat(captor.getValue().idempotencyKey()).isEqualTo("header-key");
+    assertThat(captor.getValue().closeResidualWastageRequested()).isTrue();
+  }
+
+  @Test
   void recordPacking_rejectsLegacyHeaderWhenPrimaryMissing() {
     PackingController controller = new PackingController(packingService, bulkPackingService);
 
@@ -247,11 +260,16 @@ class PackingControllerTest {
   }
 
   private PackingRequest request(String idempotencyKey) {
+    return request(idempotencyKey, Boolean.FALSE);
+  }
+
+  private PackingRequest request(String idempotencyKey, Boolean closeResidualWastage) {
     return new PackingRequest(
         1L,
         LocalDate.of(2026, 2, 6),
         "packer",
         idempotencyKey,
-        List.of(new PackingLineRequest("10L", new BigDecimal("1"), 1, 1, 1)));
+        List.of(new PackingLineRequest("10L", new BigDecimal("1"), 1, 1, 1)),
+        closeResidualWastage);
   }
 }
