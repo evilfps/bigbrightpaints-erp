@@ -152,7 +152,7 @@ The code is intentionally telling operators that these are noncanonical paths: e
 `OpeningStockImportService` is the sanctioned bootstrap path for day-zero balances.
 
 - `POST /api/v1/inventory/opening-stock` accepts multipart CSV.
-- Replay identity is `(company, idempotency_key)` with file-hash signature validation.
+- Replay/dup protection uses `(company, idempotency_key)` plus a uniqueness constraint on `openingStockBatchKey` (with `sha256` used only to derive a human reference number from the batch key, not to hash/verify the uploaded file).
 - Each row can resolve-or-create raw materials; finished-good rows require an existing prepared finished-good mirror.
 - Raw-material rows create `RawMaterialBatch` + `RawMaterialMovement` with `referenceType=OPENING_STOCK` and `movementType=RECEIPT`.
 - Finished-good rows create `FinishedGoodBatch` + `InventoryMovement` with the same opening-stock reference semantics.
