@@ -1,0 +1,193 @@
+{
+  "generated": "2026-03-27",
+  "repository": "BigBright ERP Backend",
+  "source_path": "/Users/anas/Documents/Factory/bigbrightpaints-erp/erp-domain/src/test",
+  "summary": {
+    "total_test_files": 466,
+    "by_type": {
+      "unit": 362,
+      "integration": 104,
+      "e2e": 29,
+      "contract": 31,
+      "truthsuite": 93,
+      "codered": 35,
+      "regression": 17,
+      "smoke": 2,
+      "performance": 2,
+      "invariants": 2,
+      "infrastructure": 11
+    },
+    "by_quality": {
+      "good": 381,
+      "complex": 79,
+      "very_complex": 5,
+      "disabled": 1
+    },
+    "by_action": {
+      "maintain": 381,
+      "review": 79,
+      "refactor": 5,
+      "delete_or_complete": 1
+    },
+    "by_module": {
+      "modules_accounting": 51,
+      "modules_sales": 31,
+      "modules_inventory": 30,
+      "modules_auth": 23,
+      "modules_purchasing": 16,
+      "modules_reports": 15,
+      "modules_company": 15,
+      "modules_hr": 12,
+      "modules_factory": 10,
+      "modules_production": 9,
+      "modules_admin": 11,
+      "modules_rbac": 5,
+      "modules_invoice": 4,
+      "modules_portal": 3,
+      "truthsuite_runtime": 48,
+      "truthsuite_o2c": 8,
+      "truthsuite_p2p": 10,
+      "truthsuite_accounting": 7,
+      "truthsuite_other": 20,
+      "core": 36,
+      "codered": 35,
+      "e2e": 29,
+      "regression": 17,
+      "orchestrator": 11,
+      "smoke": 2,
+      "performance": 2,
+      "invariants": 2,
+      "shared": 4,
+      "infrastructure": 11
+    },
+    "tests_to_refactor": [
+      {
+        "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceTest.java",
+        "lines": 14516,
+        "reason": "Extremely large test class - split into focused tests by feature"
+      },
+      {
+        "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/service/SalesServiceTest.java",
+        "lines": 4575,
+        "reason": "Very large test class - split by feature area"
+      },
+      {
+        "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/service/SalesReturnServiceTest.java",
+        "lines": 4056,
+        "reason": "Very large test class - split by feature area"
+      },
+      {
+        "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/service/PasswordResetServiceTest.java",
+        "lines": 2217,
+        "reason": "Large test class - consider splitting"
+      },
+      {
+        "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/invariants/ErpInvariantsSuiteIT.java",
+        "lines": 2146,
+        "reason": "Large invariant suite - acceptable but could be organized"
+      }
+    ],
+    "tests_to_delete": [
+      {
+        "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/fullcycle/FullCycleE2ETest.java",
+        "reason": "@Disabled - incomplete implementation"
+      }
+    ],
+    "coverage_gaps": {
+      "critical": [
+        {
+          "module": "invoice",
+          "source_files": 14,
+          "tests": 4,
+          "ratio": "29%",
+          "recommendation": "Add InvoiceGenerationEngineTest, InvoiceNumberServiceTest"
+        },
+        {
+          "module": "portal",
+          "source_files": 9,
+          "tests": 3,
+          "ratio": "33%",
+          "recommendation": "Add PortalAccessServiceTest, PortalDashboardServiceTest"
+        }
+      ],
+      "moderate": [
+        {
+          "module": "factory",
+          "source_files": 77,
+          "tests": 10,
+          "ratio": "13%",
+          "recommendation": "Increase test coverage for factory services"
+        },
+        {
+          "module": "production",
+          "source_files": 30,
+          "tests": 9,
+          "ratio": "30%",
+          "recommendation": "Add catalog import and batch processing tests"
+        },
+        {
+          "module": "hr",
+          "source_files": 46,
+          "tests": 12,
+          "ratio": "26%",
+          "recommendation": "Add payroll calculation and leave management tests"
+        }
+      ]
+    }
+  },
+  "quality_metrics": {
+    "assertions_detected": "878+ hardcoded value patterns found",
+    "disabled_tests": 1,
+    "complex_tests_over_500_lines": 79,
+    "very_complex_tests_over_2000_lines": 5,
+    "todo_comments_found": 0,
+    "tests_without_assertions": 0,
+    "test_infrastructure_files": [
+      "AbstractIntegrationTest.java",
+      "TestDataSeeder.java",
+      "TestApplication.java",
+      "TestBeansConfig.java",
+      "CanonicalErpDataset.java",
+      "CanonicalErpDatasetBuilder.java",
+      "TestDateUtils.java",
+      "TotpTestUtils.java",
+      "AccountingInvariantAssertions.java",
+      "TruthSuiteFileAssert.java",
+      "ErpInvariantAssertions.java"
+    ]
+  },
+  "test_suites": {
+    "gate_fast": "Quick pre-commit validation",
+    "gate_core": "Core functionality including O2C E2E",
+    "gate_release": "Full release validation",
+    "gate_reconciliation": "Reconciliation-specific tests",
+    "gate_quality": "Deep quality analysis"
+  },
+  "recommendations": {
+    "high_priority": [
+      "Split AccountingServiceTest.java (14K+ lines) into focused test classes",
+      "Split SalesServiceTest.java (4.5K+ lines) into feature-focused tests",
+      "Add Invoice module tests (currently only 4 tests for 14 source files)",
+      "Add Portal module tests (currently only 3 tests for 9 source files)"
+    ],
+    "medium_priority": [
+      "Migrate hardcoded values to TestDataSeeder fixtures",
+      "Complete or remove FullCycleE2ETest.java (currently @Disabled)",
+      "Add orchestrator workflow tests",
+      "Increase factory module test coverage"
+    ],
+    "low_priority": [
+      "Add edge case tests for multi-company scenarios",
+      "Add concurrency tests",
+      "Improve period boundary condition tests",
+      "Consider splitting complex E2E tests into smaller scenarios"
+    ]
+  },
+  "notes": [
+    "Tests are located in the main repository at /Users/anas/Documents/Factory/bigbrightpaints-erp",
+    "The worktree at /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/codebase-dictionary is shallow and contains only documentation",
+    "Integration tests use Testcontainers PostgreSQL or external DB via environment variables",
+    "All tests use Spring Boot test context with Flyway v2 migrations",
+    "RabbitMQ is disabled in test profile to avoid external dependencies"
+  ]
+}
