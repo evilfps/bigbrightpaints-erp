@@ -298,8 +298,9 @@ public class TenantOnboardingService {
     blueprints.add(new AccountBlueprint("GST-OUT", "GST Output", AccountType.LIABILITY, "LIAB"));
     blueprints.add(new AccountBlueprint("GST-IN", "GST Input", AccountType.ASSET, "AST"));
     blueprints.add(new AccountBlueprint("GST-PAY", "GST Payable", AccountType.LIABILITY, "LIAB"));
+    blueprints.add(new AccountBlueprint("OPEN-BAL", "Opening Balance", AccountType.EQUITY, "EQ"));
     blueprints.add(new AccountBlueprint("DISC", "Sales Discount", AccountType.EXPENSE, "EXP"));
-    blueprints.add(new AccountBlueprint("COGS", "Cost of Goods Sold", AccountType.EXPENSE, "EXP"));
+    blueprints.add(new AccountBlueprint("COGS", "Cost of Goods Sold", AccountType.COGS, "EXP"));
     blueprints.add(new AccountBlueprint("SALARY-EXPENSE", "Salary Expense", AccountType.EXPENSE, "EXP"));
     blueprints.add(new AccountBlueprint("OFFICE-EXPENSE", "Office Expense", AccountType.EXPENSE, "EXP"));
     blueprints.add(new AccountBlueprint("SERVICE-REVENUE", "Service Revenue", AccountType.REVENUE, "REV"));
@@ -308,9 +309,9 @@ public class TenantOnboardingService {
     blueprints.add(new AccountBlueprint("TDS-PAYABLE", "TDS Payable", AccountType.LIABILITY, "LIAB"));
     blueprints.add(new AccountBlueprint("RAW-MATERIAL-INVENTORY", "Raw Material Inventory", AccountType.ASSET, "AST"));
     blueprints.add(new AccountBlueprint("FINISHED-GOODS-INVENTORY", "Finished Goods Inventory", AccountType.ASSET, "AST"));
-    blueprints.add(new AccountBlueprint("FG-COGS", "Finished Goods COGS", AccountType.EXPENSE, "EXP"));
-    blueprints.add(new AccountBlueprint("RM-CONSUMPTION", "Raw Material Consumption", AccountType.EXPENSE, "EXP"));
-    blueprints.add(new AccountBlueprint("DIRECT-MATERIAL-CONSUMPTION", "Direct Material Consumption", AccountType.EXPENSE, "EXP"));
+    blueprints.add(new AccountBlueprint("FG-COGS", "Finished Goods COGS", AccountType.COGS, "EXP"));
+    blueprints.add(new AccountBlueprint("RM-CONSUMPTION", "Raw Material Consumption", AccountType.COGS, "EXP"));
+    blueprints.add(new AccountBlueprint("DIRECT-MATERIAL-CONSUMPTION", "Direct Material Consumption", AccountType.COGS, "EXP"));
     for (int index = 1; index <= 24; index++) {
       blueprints.add(
           new AccountBlueprint(

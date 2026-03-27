@@ -9,6 +9,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.Test;
@@ -19,6 +21,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
@@ -116,6 +119,73 @@ class TenantOnboardingServiceTest {
     assertThat(response.systemSettingsInitialized()).isTrue();
     verify(tenantAdminProvisioningService)
         .provisionInitialAdmin(any(Company.class), org.mockito.ArgumentMatchers.eq("admin@mock.com"), org.mockito.ArgumentMatchers.eq("Mock Admin"));
+  }
+
+  @Test
+  void onboardTenant_seedsScopedCogsAndOpeningBalanceAccounts() {
+    TenantOnboardingService service = newService();
+    TenantOnboardingRequest request =
+        new TenantOnboardingRequest(
+            "Mock Company",
+            "mock",
+            "UTC",
+            BigDecimal.valueOf(18),
+            10L,
+            1000L,
+            1024L,
+            5L,
+            true,
+            true,
+            " admin@mock.com ",
+            "Mock Admin",
+            "GENERIC");
+
+    CoATemplate template = new CoATemplate();
+    template.setCode("GENERIC");
+    template.setActive(true);
+    when(coATemplateService.requireActiveTemplate("GENERIC")).thenReturn(template);
+    when(companyRepository.findByCodeIgnoreCase("MOCK")).thenReturn(java.util.Optional.empty());
+    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@mock.com", "MOCK"))
+        .thenReturn(false);
+    when(companyRepository.save(any(Company.class)))
+        .thenAnswer(
+            invocation -> {
+              Company company = invocation.getArgument(0);
+              if (company.getId() == null) {
+                ReflectionTestUtils.setField(company, "id", 99L);
+              }
+              return company;
+            });
+    List<Account> createdAccounts = new ArrayList<>();
+    AtomicLong accountIds = new AtomicLong(1L);
+    when(accountRepository.save(any(Account.class)))
+        .thenAnswer(
+            invocation -> {
+              Account account = invocation.getArgument(0);
+              if (account.getId() == null) {
+                ReflectionTestUtils.setField(account, "id", accountIds.getAndIncrement());
+              }
+              createdAccounts.add(account);
+              return account;
+            });
+    AccountingPeriod period = new AccountingPeriod();
+    ReflectionTestUtils.setField(period, "id", 77L);
+    when(accountingPeriodService.ensurePeriod(any(Company.class), any())).thenReturn(period);
+    when(systemSettingsRepository.existsById(anyString())).thenReturn(false);
+    when(tenantAdminProvisioningService.provisionInitialAdmin(any(Company.class), anyString(), anyString()))
+        .thenReturn("admin@mock.com");
+
+    service.onboardTenant(request);
+
+    Account cogs =
+        createdAccounts.stream().filter(account -> "COGS".equals(account.getCode())).findFirst().orElseThrow();
+    Account openingBalance =
+        createdAccounts.stream()
+            .filter(account -> "OPEN-BAL".equals(account.getCode()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(cogs.getType()).isEqualTo(AccountType.COGS);
+    assertThat(openingBalance.getType()).isEqualTo(AccountType.EQUITY);
   }
 
   private TenantOnboardingService newService() {
