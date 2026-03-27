@@ -62,13 +62,6 @@ public class InventoryBatchTraceabilityService {
             ? rawMaterialBatchRepository.findByRawMaterial_CompanyAndId(company, batchId)
             : Optional.empty();
 
-    if (finished.isPresent() && isSemiFinishedBatch(finished.get())) {
-      if (raw.isPresent()) {
-        return toRawMaterialBatchDto(raw.get());
-      }
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Batch not found: " + batchId);
-    }
     if (requestedType == RequestedBatchType.AUTO && finished.isPresent() && raw.isPresent()) {
       throw new ApplicationException(
               ErrorCode.VALIDATION_INVALID_INPUT,
@@ -230,14 +223,6 @@ public class InventoryBatchTraceabilityService {
 
   private BigDecimal safe(BigDecimal value) {
     return value == null ? BigDecimal.ZERO : value;
-  }
-
-  private boolean isSemiFinishedBatch(FinishedGoodBatch batch) {
-    if (batch == null || batch.getFinishedGood() == null) {
-      return false;
-    }
-    String productCode = batch.getFinishedGood().getProductCode();
-    return productCode != null && productCode.trim().toUpperCase(Locale.ROOT).endsWith("-BULK");
   }
 
   private enum RequestedBatchType {

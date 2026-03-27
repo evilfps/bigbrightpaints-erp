@@ -183,7 +183,7 @@ class InventoryBatchTraceabilityServiceTest {
   }
 
   @Test
-  void autoLookup_prefersRawMaterialTraceForSemiFinishedBulkBatch() {
+  void autoLookup_rejectsAmbiguousIdAcrossRawAndFinished_evenForBulkSku() {
     FinishedGood fg = new FinishedGood();
     fg.setCompany(company);
     fg.setProductCode("FG-BTRACE-BULK");
@@ -216,19 +216,14 @@ class InventoryBatchTraceabilityServiceTest {
         .thenReturn(Optional.of(finishedBatch));
     when(rawMaterialBatchRepository.findByRawMaterial_CompanyAndId(company, 31L))
         .thenReturn(Optional.of(rawBatch));
-    when(rawMaterialMovementRepository.findByRawMaterialBatchOrderByCreatedAtAsc(rawBatch))
-        .thenReturn(List.of());
 
-    InventoryBatchTraceabilityDto trace =
-        inventoryBatchTraceabilityService.getBatchMovementHistory(31L, null);
-
-    assertThat(trace.batchType()).isEqualTo("RAW_MATERIAL");
-    assertThat(trace.batchNumber()).isEqualTo("RM-BULK-31");
-    assertThat(trace.itemCode()).isEqualTo("FG-BTRACE-BULK");
+    assertThatThrownBy(() -> inventoryBatchTraceabilityService.getBatchMovementHistory(31L, null))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("ambiguous");
   }
 
   @Test
-  void autoLookup_rejectsSemiFinishedBulkFinishedBatchWhenRawBatchMissing() {
+  void autoLookup_returnsFinishedBatchWhenRawBatchMissing() {
     FinishedGood fg = new FinishedGood();
     fg.setCompany(company);
     fg.setProductCode("FG-BTRACE-BULK");
@@ -247,10 +242,15 @@ class InventoryBatchTraceabilityServiceTest {
         .thenReturn(Optional.of(finishedBatch));
     when(rawMaterialBatchRepository.findByRawMaterial_CompanyAndId(company, 32L))
         .thenReturn(Optional.empty());
+    when(inventoryMovementRepository.findByFinishedGoodBatchOrderByCreatedAtAsc(finishedBatch))
+        .thenReturn(List.of());
 
-    assertThatThrownBy(() -> inventoryBatchTraceabilityService.getBatchMovementHistory(32L, null))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Batch not found: 32");
+    InventoryBatchTraceabilityDto trace =
+        inventoryBatchTraceabilityService.getBatchMovementHistory(32L, null);
+
+    assertThat(trace.batchType()).isEqualTo("FINISHED_GOOD");
+    assertThat(trace.batchNumber()).isEqualTo("FG-BULK-32");
+    assertThat(trace.itemCode()).isEqualTo("FG-BTRACE-BULK");
   }
 
   @Test
@@ -293,22 +293,4 @@ class InventoryBatchTraceabilityServiceTest {
         .hasMessageContaining("Unsupported batchType");
   }
 
-  @Test
-  void isSemiFinishedBatch_handlesNullAndSellableBatches() {
-    FinishedGoodBatch noFinishedGood = new FinishedGoodBatch();
-    boolean noFinishedGoodResult =
-        ReflectionTestUtils.invokeMethod(
-            inventoryBatchTraceabilityService, "isSemiFinishedBatch", noFinishedGood);
-
-    FinishedGood sellableFg = new FinishedGood();
-    sellableFg.setProductCode("FG-TRACE-1L");
-    FinishedGoodBatch sellableBatch = new FinishedGoodBatch();
-    sellableBatch.setFinishedGood(sellableFg);
-    boolean sellableResult =
-        ReflectionTestUtils.invokeMethod(
-            inventoryBatchTraceabilityService, "isSemiFinishedBatch", sellableBatch);
-
-    assertThat(noFinishedGoodResult).isFalse();
-    assertThat(sellableResult).isFalse();
-  }
 }

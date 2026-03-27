@@ -74,26 +74,22 @@ The local `openapi.json` snapshot publishes the major catalog, raw-material, fin
 
 ## Service chain
 
-### 1. Setup truth is `/api/v1/catalog/items`, but the implementation still reflects a historical split
+### 1. Setup truth is `/api/v1/catalog/items` with a single runtime lineage
 
-The repo hard-cuts stock-bearing setup truth to `/api/v1/catalog/items`, yet the underlying services still reflect two older product-creation paths with materially different guarantees.
+Stock-bearing setup now runs through one public contract and one service vocabulary only:
 
-#### Public catalog service lineage (`CatalogService`)
+- Route family: `GET/POST /api/v1/catalog/items`, `GET/PUT/DELETE /api/v1/catalog/items/{itemId}`
+- DTO vocabulary: `CatalogItemRequest` and `CatalogItemDto`
+- Facade/read layer: `CatalogService.createItem/getItem/updateItem/searchItems`
+- Canonical write engine: `ProductionCatalogService.createCatalogItem/updateCatalogItem`
 
-- `CatalogService.createProduct(...)` and `updateProduct(...)` create/update `ProductionProduct` plus `size_variants` only.
-- SKU generation is brand/name driven; default category is `FINISHED_GOOD`.
-- This path does **not** call `ensureCatalogFinishedGood(...)`, does **not** sync `RawMaterial`, and does **not** require finished-good accounting metadata.
+For writes, the provisioning path is fail-closed and inventory-aware:
 
-Operationally, that legacy behavior explains why ERP-38 now keeps stock-bearing setup truth on `/api/v1/catalog/items` instead of treating the older product-create surface as safe manufacturing-stock setup.
+- finished-good accounts must resolve via payload metadata or company defaults
+- `ensureCatalogFinishedGood(...)` and `syncRawMaterial(...)` run in the same canonical write flow
+- multi-value matrix fields are rejected for single-item create/update on the item contract
 
-#### Accounting-aware catalog lineage (`ProductionCatalogService`)
-
-- `createProduct(...)` / `updateProduct(...)` normalize metadata, require valid company-scoped accounts, and for non-raw-material categories call `ensureFinishedGoodAccounts(...)`.
-- Required finished-good metadata is fail-closed: `fgValuationAccountId`, `fgCogsAccountId`, `fgRevenueAccountId`, and `fgTaxAccountId` must resolve either from payload metadata or company defaults.
-- After saving `ProductionProduct`, the service immediately calls `ensureCatalogFinishedGood(...)` and `syncRawMaterial(...)`.
-- Single-product create/update explicitly rejects color/size matrix input and routes larger variant generation through a retired accounting helper rather than through the surviving setup surface.
-
-This is the stronger provisioning logic ERP-38 expects to sit behind the canonical item surface for any SKU that will be mixed, packed, valued, reserved, or dispatched.
+The old product-era duplicate naming path (`createProduct` / `updateProduct`) is retired from this lane so setup, stock truth, and readiness all depend on the same catalog item contract.
 
 ### 2. Catalog import and bulk-variant generation
 

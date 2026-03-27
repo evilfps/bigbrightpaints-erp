@@ -145,7 +145,7 @@ class ProductionCatalogServiceBulkVariantRaceTest {
         .thenReturn(Optional.of(existingProduct(sku)));
     doThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint"))
         .when(service)
-        .createProduct(any());
+        .createCatalogItem(any());
 
     assertThatThrownBy(() -> service.createVariants(variantRequest()))
         .isInstanceOfSatisfying(
@@ -173,7 +173,7 @@ class ProductionCatalogServiceBulkVariantRaceTest {
         .thenReturn(Optional.of(existingProduct(sku)));
     doThrow(new IllegalArgumentException("SKU " + sku + " already exists"))
         .when(service)
-        .createProduct(any());
+        .createCatalogItem(any());
 
     assertThatThrownBy(() -> service.createVariants(variantRequest()))
         .isInstanceOfSatisfying(
@@ -188,7 +188,7 @@ class ProductionCatalogServiceBulkVariantRaceTest {
   void createVariants_rethrowsValidationErrorsThatAreNotDuplicateConflicts() {
     doThrow(new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Invalid GST rate"))
         .when(service)
-        .createProduct(any());
+        .createCatalogItem(any());
 
     assertThatThrownBy(() -> service.createVariants(variantRequest()))
         .isInstanceOf(ApplicationException.class)
@@ -257,7 +257,7 @@ class ProductionCatalogServiceBulkVariantRaceTest {
     assertThat(response.wouldCreate()).hasSize(1);
     assertThat(response.created()).isEmpty();
     verify(brandRepository, never()).save(any());
-    verify(service, never()).createProduct(any());
+    verify(service, never()).createCatalogItem(any());
   }
 
   @Test

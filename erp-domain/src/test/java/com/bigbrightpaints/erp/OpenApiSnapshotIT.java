@@ -488,7 +488,7 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void inventory_contract_requires_explicit_opening_stock_batch_key_and_removes_packaging_bypass()
+  void inventory_contract_requires_explicit_opening_stock_batch_key_and_removes_retired_bulk_pack_request()
       throws IOException {
     JsonNode root = fetchCurrentSpecNode();
 
@@ -512,9 +512,9 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertThat(openingStockBatchKey.path("in").asText()).isEqualTo("query");
     assertThat(openingStockBatchKey.path("required").asBoolean()).isTrue();
 
-    JsonNode bulkPackRequest = root.path("components").path("schemas").path("BulkPackRequest");
-    assertThat(bulkPackRequest.path("properties").has("packagingAlreadyConsumed"))
-        .withFailMessage("BulkPackRequest must not expose retired packagingAlreadyConsumed bypass")
+    assertThat(root.path("components").path("schemas").has("BulkPackRequest"))
+        .withFailMessage(
+            "BulkPackRequest schema must be absent after removing retired bulk mutation surface")
         .isFalse();
   }
 

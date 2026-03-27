@@ -37,8 +37,8 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
-import com.bigbrightpaints.erp.modules.production.dto.ProductCreateRequest;
-import com.bigbrightpaints.erp.modules.production.dto.ProductUpdateRequest;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemCreateCommand;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemUpdateCommand;
 import com.bigbrightpaints.erp.modules.production.dto.ProductionProductDto;
 import com.bigbrightpaints.erp.modules.production.service.ProductionCatalogService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
@@ -107,8 +107,8 @@ class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
     String token = uniqueToken();
     String productName = "LF-015 Product " + token;
     String skuCode = "FG-LF015-" + token;
-    ProductCreateRequest request =
-        new ProductCreateRequest(
+    CatalogItemCreateCommand request =
+        new CatalogItemCreateCommand(
             null,
             "LF-015 Brand",
             null,
@@ -126,7 +126,7 @@ class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
             null,
             null);
 
-    ProductionProductDto product = productionCatalogService.createProduct(request);
+    ProductionProductDto product = productionCatalogService.createCatalogItem(request);
 
     FinishedGood fg =
         finishedGoodRepository.findByCompanyAndProductCode(company, skuCode).orElseThrow();
@@ -148,8 +148,8 @@ class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
     String updatedName = "LF-015 Sync Product Renamed " + token;
     String skuCode = "FG-LF015-SYNC-" + token;
     ProductionProductDto created =
-        productionCatalogService.createProduct(
-            new ProductCreateRequest(
+        productionCatalogService.createCatalogItem(
+            new CatalogItemCreateCommand(
                 null,
                 "LF-015 Brand",
                 null,
@@ -167,9 +167,9 @@ class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
                 null,
                 null));
 
-    productionCatalogService.updateProduct(
+    productionCatalogService.updateCatalogItem(
         created.id(),
-        new ProductUpdateRequest(
+        new CatalogItemUpdateCommand(
             updatedName, null, null, null, null, null, null, null, null, null, null, null, null));
 
     FinishedGood fg =
@@ -182,8 +182,8 @@ class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
   @Test
   void createProductRejectsReservedSemiFinishedSuffix() {
     String token = uniqueToken();
-    ProductCreateRequest request =
-        new ProductCreateRequest(
+    CatalogItemCreateCommand request =
+        new CatalogItemCreateCommand(
             null,
             "LF-015 Brand",
             null,
@@ -201,7 +201,7 @@ class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
             null,
             null);
 
-    assertThatThrownBy(() -> productionCatalogService.createProduct(request))
+    assertThatThrownBy(() -> productionCatalogService.createCatalogItem(request))
         .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
         .hasMessageContaining("reserved");
   }

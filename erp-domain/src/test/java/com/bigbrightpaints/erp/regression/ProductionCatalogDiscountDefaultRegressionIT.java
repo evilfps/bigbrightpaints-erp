@@ -19,7 +19,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
-import com.bigbrightpaints.erp.modules.production.dto.ProductCreateRequest;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemCreateCommand;
 import com.bigbrightpaints.erp.modules.production.dto.ProductionProductDto;
 import com.bigbrightpaints.erp.modules.production.service.ProductionCatalogService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
@@ -64,8 +64,8 @@ class ProductionCatalogDiscountDefaultRegressionIT extends AbstractIntegrationTe
 
   @Test
   void createProductDoesNotFailWhenDiscountDefaultMissing() {
-    ProductCreateRequest request =
-        new ProductCreateRequest(
+    CatalogItemCreateCommand request =
+        new CatalogItemCreateCommand(
             null,
             "LF-014 Brand",
             null,
@@ -83,7 +83,7 @@ class ProductionCatalogDiscountDefaultRegressionIT extends AbstractIntegrationTe
             null,
             null);
 
-    ProductionProductDto dto = productionCatalogService.createProduct(request);
+    ProductionProductDto dto = productionCatalogService.createCatalogItem(request);
     Map<String, Object> metadata = dto.metadata();
 
     assertThat(asLong(metadata.get("fgValuationAccountId"))).isEqualTo(inventoryAccount.getId());
@@ -103,8 +103,8 @@ class ProductionCatalogDiscountDefaultRegressionIT extends AbstractIntegrationTe
         ensureAccountFor(
             foreignCompany, "FG-INV-FOREIGN", "Foreign FG Inventory", AccountType.ASSET);
 
-    ProductCreateRequest request =
-        new ProductCreateRequest(
+    CatalogItemCreateCommand request =
+        new CatalogItemCreateCommand(
             null,
             "LF-014 Brand",
             null,
@@ -122,7 +122,7 @@ class ProductionCatalogDiscountDefaultRegressionIT extends AbstractIntegrationTe
             null,
             Map.of("fgValuationAccountId", foreignInventoryAccount.getId()));
 
-    assertThatThrownBy(() -> productionCatalogService.createProduct(request))
+    assertThatThrownBy(() -> productionCatalogService.createCatalogItem(request))
         .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
         .hasMessageContaining("invalid account id")
         .hasMessageContaining("fgValuationAccountId");

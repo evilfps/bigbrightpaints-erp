@@ -95,8 +95,8 @@ class GlobalExceptionHandlerTest {
     ApplicationException ex =
         new ApplicationException(
                 ErrorCode.CONCURRENCY_CONFLICT,
-                "Catalog product entry has SKU conflicts. Resolve conflicts and retry.")
-            .withDetail("operation", "catalog-product-entry")
+                "Catalog item write has SKU conflicts. Resolve conflicts and retry.")
+            .withDetail("operation", "catalog-item")
             .withDetail("generated", List.of(Map.of("sku", "HB-SKU-RED-1L")))
             .withDetail(
                 "conflicts",
@@ -129,8 +129,8 @@ class GlobalExceptionHandlerTest {
     ApplicationException ex =
         new ApplicationException(
                 ErrorCode.CONCURRENCY_CONFLICT,
-                "Catalog product entry has SKU conflicts. Resolve conflicts and retry.")
-            .withDetail("operation", "catalog-product-entry")
+                "Catalog item write has SKU conflicts. Resolve conflicts and retry.")
+            .withDetail("operation", "catalog-item")
             .withDetail("generated", List.of(Map.of("sku", "HB-SKU-RED-1L")))
             .withDetail(
                 "conflicts",
@@ -163,8 +163,8 @@ class GlobalExceptionHandlerTest {
     ApplicationException ex =
         new ApplicationException(
                 ErrorCode.CONCURRENCY_CONFLICT,
-                "Catalog product entry has SKU conflicts. Resolve conflicts and retry.")
-            .withDetail("operation", "catalog-product-entry")
+                "Catalog item write has SKU conflicts. Resolve conflicts and retry.")
+            .withDetail("operation", "catalog-item")
             .withDetail(
                 "conflicts",
                 List.of(Map.of("sku", "HB-SKU-RED-1L", "reason", "SKU_ALREADY_EXISTS")))
@@ -222,8 +222,8 @@ class GlobalExceptionHandlerTest {
     ApplicationException ex =
         new ApplicationException(
                 ErrorCode.CONCURRENCY_CONFLICT,
-                "Catalog product entry has SKU conflicts. Resolve conflicts and retry.")
-            .withDetail("operation", "catalog-product-entry")
+                "Catalog item write has SKU conflicts. Resolve conflicts and retry.")
+            .withDetail("operation", "catalog-item")
             .withDetail(
                 "conflicts",
                 List.of(Map.of("sku", "HB-SKU-RED-1L", "reason", "SKU_ALREADY_EXISTS")))

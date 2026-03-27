@@ -38,8 +38,8 @@ import jakarta.validation.ConstraintViolationException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
   private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-  private static final String CATALOG_PRODUCT_ENTRY_PATH = "/api/v1/catalog/items";
-  private static final String CATALOG_PRODUCT_ENTRY_OPERATION = "catalog-product-entry";
+  private static final String CATALOG_ITEM_PATH = "/api/v1/catalog/items";
+  private static final String CATALOG_ITEM_OPERATION = "catalog-item";
   private static final List<String> CATALOG_CONFLICT_RESPONSE_DETAIL_ALLOWLIST =
       List.of("generated", "conflicts", "wouldCreate", "created", "operation");
   static final Set<String> SETTLEMENT_FAILURE_DETAIL_ALLOWLIST =
@@ -248,8 +248,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
       ApplicationException ex, HttpServletRequest request, Map<String, Object> details) {
     if (ex == null || request == null || ex.getErrorCode() != ErrorCode.CONCURRENCY_CONFLICT)
       return false;
-    return matchesSafeConflictContract(
-        request, details, CATALOG_PRODUCT_ENTRY_PATH, CATALOG_PRODUCT_ENTRY_OPERATION);
+    return matchesSafeConflictContract(request, details, CATALOG_ITEM_PATH, CATALOG_ITEM_OPERATION);
   }
 
   private boolean matchesSafeConflictContract(

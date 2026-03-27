@@ -42,8 +42,8 @@ import com.bigbrightpaints.erp.modules.production.dto.CatalogBrandRequest;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogItemDto;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogItemRequest;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogItemStockDto;
-import com.bigbrightpaints.erp.modules.production.dto.ProductCreateRequest;
-import com.bigbrightpaints.erp.modules.production.dto.ProductUpdateRequest;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemCreateCommand;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemUpdateCommand;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 import jakarta.persistence.criteria.Join;
@@ -148,7 +148,7 @@ public class CatalogService {
 
   @Transactional
   public CatalogItemDto createItem(CatalogItemRequest request) {
-    var created = productionCatalogService.createProduct(toCreateRequest(request));
+    var created = productionCatalogService.createCatalogItem(toCreateCommand(request));
     return getItem(created.id(), true, true, true);
   }
 
@@ -176,7 +176,7 @@ public class CatalogService {
       throw ValidationUtils.invalidInput(
           "brandId is immutable for existing items; create a new item instead");
     }
-    productionCatalogService.updateProduct(itemId, toUpdateRequest(request));
+    productionCatalogService.updateCatalogItem(itemId, toUpdateCommand(request));
     return getItem(itemId, true, true, true);
   }
 
@@ -284,8 +284,8 @@ public class CatalogService {
     };
   }
 
-  private ProductCreateRequest toCreateRequest(CatalogItemRequest request) {
-    return new ProductCreateRequest(
+  private CatalogItemCreateCommand toCreateCommand(CatalogItemRequest request) {
+    return new CatalogItemCreateCommand(
         request.brandId(),
         null,
         null,
@@ -305,8 +305,8 @@ public class CatalogService {
         request.active());
   }
 
-  private ProductUpdateRequest toUpdateRequest(CatalogItemRequest request) {
-    return new ProductUpdateRequest(
+  private CatalogItemUpdateCommand toUpdateCommand(CatalogItemRequest request) {
+    return new CatalogItemUpdateCommand(
         request.name(),
         null,
         request.itemClass(),

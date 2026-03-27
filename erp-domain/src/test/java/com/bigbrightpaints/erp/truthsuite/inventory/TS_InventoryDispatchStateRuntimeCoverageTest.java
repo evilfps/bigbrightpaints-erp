@@ -233,34 +233,37 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
   }
 
   @Test
-  void listFinishedGoods_excludesSemiFinishedBulkSkus() {
+  void listFinishedGoods_includesAllFinishedGoodsFromRepository() {
     FinishedGood sellable = finishedGood(901L, "FG-SELL-1L", "Sellable");
     FinishedGood semiFinished = finishedGood(902L, "FG-SELL-BULK", "Semi Finished");
 
     when(finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company))
         .thenReturn(List.of(semiFinished, sellable));
 
-    assertThat(service.listFinishedGoods()).hasSize(1);
-    assertThat(service.listFinishedGoods().getFirst().productCode()).isEqualTo("FG-SELL-1L");
+    assertThat(service.listFinishedGoods()).hasSize(2);
+    assertThat(service.listFinishedGoods())
+        .extracting(item -> item.productCode())
+        .containsExactly("FG-SELL-BULK", "FG-SELL-1L");
   }
 
   @Test
-  void getFinishedGood_rejectsSemiFinishedBulkSku() {
+  void getFinishedGood_returnsRecordEvenWhenSkuEndsWithBulkSuffix() {
     FinishedGood semiFinished = finishedGood(903L, "FG-LOOKUP-BULK", "Semi Finished");
     when(finishedGoodRepository.findByCompanyAndId(company, 903L))
         .thenReturn(Optional.of(semiFinished));
 
-    assertThatThrownBy(() -> service.getFinishedGood(903L))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Finished good not found");
+    assertThat(service.getFinishedGood(903L).productCode()).isEqualTo("FG-LOOKUP-BULK");
   }
 
   @Test
-  void lockFinishedGoodByProductCode_rejectsSemiFinishedBulkSkuBeforeRepositoryLookup() {
-    assertThatThrownBy(() -> service.lockFinishedGoodByProductCode("FG-LOCK-BULK"))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Finished good not found for product code FG-LOCK-BULK");
-    verify(finishedGoodRepository, never()).lockByCompanyAndProductCode(any(), any());
+  void lockFinishedGoodByProductCode_returnsBulkSuffixSkuWhenRepositoryResolvesIt() {
+    FinishedGood semiFinished = finishedGood(908L, "FG-LOCK-BULK", "Semi Finished");
+    when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-LOCK-BULK"))
+        .thenReturn(Optional.of(semiFinished));
+
+    FinishedGood locked = service.lockFinishedGoodByProductCode("FG-LOCK-BULK");
+
+    assertThat(locked).isSameAs(semiFinished);
   }
 
   @Test
@@ -295,25 +298,27 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
   }
 
   @Test
-  void getLowStockThreshold_rejectsSemiFinishedBulkSku() {
+  void getLowStockThreshold_returnsValueForBulkSuffixSku() {
     FinishedGood semiFinished = finishedGood(904L, "FG-LOW-BULK", "Semi Finished");
+    semiFinished.setLowStockThreshold(new BigDecimal("7"));
     when(finishedGoodRepository.findByCompanyAndId(company, 904L))
         .thenReturn(Optional.of(semiFinished));
 
-    assertThatThrownBy(() -> service.getLowStockThreshold(904L))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Finished good not found");
+    assertThat(service.getLowStockThreshold(904L).threshold())
+        .isEqualByComparingTo(new BigDecimal("7"));
   }
 
   @Test
-  void updateLowStockThreshold_rejectsSemiFinishedBulkSku() {
+  void updateLowStockThreshold_updatesBulkSuffixSku() {
     FinishedGood semiFinished = finishedGood(905L, "FG-LOW-UPDATE-BULK", "Semi Finished");
     when(finishedGoodRepository.lockByCompanyAndId(company, 905L))
         .thenReturn(Optional.of(semiFinished));
+    when(finishedGoodRepository.save(any(FinishedGood.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
 
-    assertThatThrownBy(() -> service.updateLowStockThreshold(905L, BigDecimal.ONE))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Finished good not found");
+    assertThat(service.updateLowStockThreshold(905L, BigDecimal.ONE).threshold())
+        .isEqualByComparingTo(BigDecimal.ONE);
+    verify(finishedGoodRepository).save(semiFinished);
   }
 
   private Fixture fixture(BigDecimal currentStock, BigDecimal reservedStock, BigDecimal quantity) {

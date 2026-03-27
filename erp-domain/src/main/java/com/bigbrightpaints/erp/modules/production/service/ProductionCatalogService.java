@@ -73,10 +73,8 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionProductReposi
 import com.bigbrightpaints.erp.modules.production.dto.BulkVariantRequest;
 import com.bigbrightpaints.erp.modules.production.dto.BulkVariantResponse;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogImportResponse;
-import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryRequest;
-import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryResponse;
-import com.bigbrightpaints.erp.modules.production.dto.ProductCreateRequest;
-import com.bigbrightpaints.erp.modules.production.dto.ProductUpdateRequest;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemCreateCommand;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemUpdateCommand;
 import com.bigbrightpaints.erp.modules.production.dto.ProductionBrandDto;
 import com.bigbrightpaints.erp.modules.production.dto.ProductionProductDto;
 import com.bigbrightpaints.erp.modules.production.dto.SkuReadinessDto;
@@ -128,11 +126,8 @@ public class ProductionCatalogService {
   private static final String VARIANT_REASON_WOULD_CREATE = "WOULD_CREATE";
   private static final String VARIANT_REASON_CREATED = "CREATED";
   private static final String VARIANT_REASON_SKU_ALREADY_EXISTS = "SKU_ALREADY_EXISTS";
-  private static final String VARIANT_REASON_PRODUCT_NAME_ALREADY_EXISTS =
-      "PRODUCT_NAME_ALREADY_EXISTS";
   private static final String VARIANT_REASON_DUPLICATE_IN_REQUEST = "DUPLICATE_IN_REQUEST";
   private static final String VARIANT_REASON_CONCURRENT_CONFLICT = "CONCURRENT_SKU_CONFLICT";
-  private static final String CATALOG_ENTRY_OPERATION = "catalog-product-entry";
   private static final int BULK_VARIANT_AUDIT_SAMPLE_LIMIT = 12;
   private static final ObjectMapper OBJECT_MAPPER =
       new ObjectMapper().configure(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS, true);
@@ -467,80 +462,12 @@ public class ProductionCatalogService {
   }
 
   @Transactional
-  public ProductionProductDto createProduct(ProductCreateRequest request) {
-    return createProduct(request, null, null);
+  public ProductionProductDto createCatalogItem(CatalogItemCreateCommand request) {
+    return createCatalogItem(request, null, null);
   }
 
-  @Transactional
-  public CatalogProductEntryResponse createOrPreviewCatalogProducts(
-      CatalogProductEntryRequest request, boolean preview) {
-    Company company = companyContextService.requireCurrentCompany();
-    CatalogProductEntryPlan plan = prepareCatalogProductEntryPlan(company, request, preview);
-    CatalogProductEntryResponse previewResponse =
-        toCatalogProductEntryResponse(plan, List.of(), preview);
-
-    if (preview) {
-      return previewResponse;
-    }
-
-    if (!plan.conflicts().isEmpty()) {
-      throw catalogProductEntryConflict(
-          previewResponse,
-          "Canonical product request has SKU conflicts. Resolve conflicts and retry.");
-    }
-
-    List<CatalogProductEntryResponse.Member> created = new ArrayList<>();
-    for (CatalogProductCandidate candidate : plan.candidatesToCreate()) {
-      try {
-        ProductionProductDto product =
-            createProduct(
-                candidate.createRequest(), plan.variantGroupId(), plan.productFamilyName());
-        created.add(
-            candidate.toMember(
-                product.id(),
-                product.publicId(),
-                rawMaterialIdForSku(company, product.skuCode()),
-                skuReadinessService.forSku(
-                    company, product.skuCode(), expectedStockType(plan.itemClass()))));
-      } catch (RuntimeException ex) {
-        if (isVariantDuplicateConflict(ex, company, candidate.sku())) {
-          CatalogProductEntryResponse conflictResponse =
-              toCatalogProductEntryResponse(
-                  plan, List.of(candidate.toConflict(VARIANT_REASON_CONCURRENT_CONFLICT)), false);
-          throw catalogProductEntryConflict(
-              conflictResponse,
-              "Canonical product write conflict for SKU "
-                  + candidate.sku()
-                  + ". Re-run with preview=true and resubmit.");
-        }
-        throw ex;
-      }
-    }
-
-    return new CatalogProductEntryResponse(
-        false,
-        plan.variantGroupId(),
-        plan.productFamilyName(),
-        plan.brand().getId(),
-        plan.brand().getName(),
-        plan.brand().getCode(),
-        plan.category(),
-        plan.itemClass(),
-        plan.unitOfMeasure(),
-        plan.hsnCode(),
-        plan.basePrice(),
-        plan.gstRate(),
-        plan.minDiscountPercent(),
-        plan.minSellingPrice(),
-        plan.metadata(),
-        plan.generatedMembers().size(),
-        plan.downstreamEffects(),
-        List.copyOf(created),
-        List.of());
-  }
-
-  private ProductionProductDto createProduct(
-      ProductCreateRequest request, UUID variantGroupId, String productFamilyName) {
+  private ProductionProductDto createCatalogItem(
+      CatalogItemCreateCommand request, UUID variantGroupId, String productFamilyName) {
     Company company = companyContextService.requireCurrentCompany();
     if (request.brandId() == null && !StringUtils.hasText(request.brandName())) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
@@ -617,302 +544,6 @@ public class ProductionCatalogService {
     return StringUtils.hasText(cleaned)
         ? new LinkedHashMap<>(Map.of(cleaned, 1))
         : new LinkedHashMap<>();
-  }
-
-  private CatalogProductEntryPlan prepareCatalogProductEntryPlan(
-      Company company, CatalogProductEntryRequest request, boolean preview) {
-    if (request == null) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Canonical product request is required");
-    }
-    if (!request.getUnknownFields().isEmpty()) {
-      String unsupported =
-          request.getUnknownFields().keySet().stream().sorted().collect(Collectors.joining(", "));
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Unsupported fields in canonical product request: " + unsupported);
-    }
-
-    ProductionBrand brand = requireActiveBrand(company, request.getBrandId());
-    String productFamilyName =
-        requireCanonicalToken(request.getBaseProductName(), "baseProductName");
-    validateCanonicalPersistedTextLength(
-        productFamilyName,
-        "productFamilyName",
-        MAX_PRODUCT_FAMILY_NAME_LENGTH,
-        "shorten baseProductName");
-    String normalizedItemClass = resolveEntryItemClass(request);
-    String normalizedCategory = categoryForItemClass(normalizedItemClass);
-    String unitOfMeasure = requireCanonicalToken(request.getUnitOfMeasure(), "unitOfMeasure");
-    validateCanonicalPersistedTextLength(
-        unitOfMeasure,
-        "unitOfMeasure",
-        MAX_PRODUCT_UNIT_OF_MEASURE_LENGTH,
-        "shorten unitOfMeasure");
-    String hsnCode = requireCanonicalToken(request.getHsnCode(), "hsnCode");
-    validateCanonicalPersistedTextLength(
-        hsnCode, "hsnCode", MAX_PRODUCT_HSN_CODE_LENGTH, "shorten hsnCode");
-    BigDecimal basePrice = validateCanonicalMoney(request.getBasePrice(), "basePrice");
-    BigDecimal gstRate = validateCanonicalPercent(request.getGstRate(), "gstRate", true);
-    BigDecimal minDiscountPercent =
-        validateCanonicalPercent(request.getMinDiscountPercent(), "minDiscountPercent", false);
-    BigDecimal minSellingPrice =
-        validateCanonicalMoney(request.getMinSellingPrice(), "minSellingPrice");
-    Map<String, Object> metadata = normalizeMetadata(request.getMetadata());
-
-    List<String> colors = normalizeCanonicalTokens(request.getColors(), "colors");
-    List<String> sizes = normalizeCanonicalTokens(request.getSizes(), "sizes");
-    UUID variantGroupId =
-        buildVariantGroupId(
-            company,
-            brand,
-            productFamilyName,
-            normalizedItemClass,
-            unitOfMeasure,
-            hsnCode,
-            colors,
-            sizes);
-
-    String brandCode = sanitizeCode(brand.getCode());
-    String productFamilyCode =
-        requireCanonicalSkuFragment("baseProductName", productFamilyName, Integer.MAX_VALUE);
-    String previewSku =
-        buildDeterministicSku(
-            normalizedItemClass, brandCode, productFamilyCode, colors.getFirst(), sizes.getFirst());
-    metadata =
-        validateCanonicalEntryMetadata(company, normalizedCategory, previewSku, metadata, !preview);
-
-    List<CatalogProductCandidate> generatedCandidates = new ArrayList<>();
-    for (String color : colors) {
-      for (String size : sizes) {
-        String sku =
-            buildDeterministicSku(normalizedItemClass, brandCode, productFamilyCode, color, size);
-        String productName = productFamilyName + " " + color + " " + size;
-        validateCanonicalPersistedTextLength(
-            productName,
-            "productName",
-            MAX_PRODUCT_NAME_LENGTH,
-            "shorten baseProductName, color, or size");
-        ProductCreateRequest createRequest =
-            new ProductCreateRequest(
-                brand.getId(),
-                null,
-                null,
-                productName,
-                normalizedCategory,
-                normalizedItemClass,
-                color,
-                size,
-                unitOfMeasure,
-                hsnCode,
-                sku,
-                basePrice,
-                gstRate,
-                minDiscountPercent,
-                minSellingPrice,
-                metadata);
-        generatedCandidates.add(
-            new CatalogProductCandidate(sku, color, size, productName, createRequest));
-      }
-    }
-
-    Set<String> duplicateSkuKeys =
-        generatedCandidates.stream()
-            .collect(
-                Collectors.groupingBy(
-                    candidate -> normalizeSkuKey(candidate.sku()),
-                    LinkedHashMap::new,
-                    Collectors.counting()))
-            .entrySet()
-            .stream()
-            .filter(entry -> entry.getValue() > 1)
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
-
-    Set<String> generatedSkuKeys =
-        generatedCandidates.stream()
-            .map(CatalogProductCandidate::sku)
-            .map(ProductionCatalogService::normalizeSkuKey)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-
-    Set<String> existingSkuKeys =
-        productRepository.findByCompanyAndSkuCodeIn(company, generatedSkuKeys).stream()
-            .map(ProductionProduct::getSkuCode)
-            .map(ProductionCatalogService::normalizeSkuKey)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-    Map<String, ProductionProduct> existingProductsByName = new LinkedHashMap<>();
-    for (CatalogProductCandidate candidate : generatedCandidates) {
-      String productNameKey = normalizeKey(candidate.productName());
-      if (!StringUtils.hasText(productNameKey)
-          || existingProductsByName.containsKey(productNameKey)) {
-        continue;
-      }
-      existingProductsByName.put(
-          productNameKey,
-          productRepository
-              .findByBrandAndProductNameIgnoreCase(brand, candidate.productName())
-              .orElse(null));
-    }
-
-    List<CatalogProductEntryResponse.Member> generatedMembers = new ArrayList<>();
-    List<CatalogProductEntryResponse.Conflict> conflicts = new ArrayList<>();
-    List<CatalogProductCandidate> candidatesToCreate = new ArrayList<>();
-    for (CatalogProductCandidate candidate : generatedCandidates) {
-      generatedMembers.add(
-          candidate.toMember(
-              null,
-              null,
-              null,
-              previewMemberReadiness(company, normalizedItemClass, normalizedCategory, candidate)));
-      String skuKey = normalizeSkuKey(candidate.sku());
-      String productNameKey = normalizeKey(candidate.productName());
-      if (duplicateSkuKeys.contains(skuKey)) {
-        conflicts.add(candidate.toConflict(VARIANT_REASON_DUPLICATE_IN_REQUEST));
-        continue;
-      }
-      if (existingSkuKeys.contains(skuKey)) {
-        conflicts.add(candidate.toConflict(VARIANT_REASON_SKU_ALREADY_EXISTS));
-        continue;
-      }
-      ProductionProduct existingProductByName =
-          StringUtils.hasText(productNameKey) ? existingProductsByName.get(productNameKey) : null;
-      if (existingProductByName != null
-          && !Objects.equals(normalizeSkuKey(existingProductByName.getSkuCode()), skuKey)) {
-        conflicts.add(candidate.toConflict(VARIANT_REASON_PRODUCT_NAME_ALREADY_EXISTS));
-        continue;
-      }
-      candidatesToCreate.add(candidate);
-    }
-
-    CatalogProductEntryResponse.DownstreamEffects downstreamEffects =
-        new CatalogProductEntryResponse.DownstreamEffects(
-            isRawMaterialCategory(normalizedCategory) ? 0 : generatedMembers.size(),
-            isRawMaterialCategory(normalizedCategory) ? generatedMembers.size() : 0);
-
-    return new CatalogProductEntryPlan(
-        brand,
-        variantGroupId,
-        productFamilyName,
-        normalizedCategory,
-        normalizedItemClass,
-        unitOfMeasure,
-        hsnCode,
-        basePrice,
-        gstRate,
-        minDiscountPercent,
-        minSellingPrice,
-        metadata,
-        List.copyOf(candidatesToCreate),
-        List.copyOf(generatedMembers),
-        List.copyOf(conflicts),
-        downstreamEffects);
-  }
-
-  private CatalogProductEntryPlan prepareCatalogProductEntryPlan(
-      Company company, CatalogProductEntryRequest request) {
-    return prepareCatalogProductEntryPlan(company, request, false);
-  }
-
-  private CatalogProductEntryResponse toCatalogProductEntryResponse(
-      CatalogProductEntryPlan plan,
-      List<CatalogProductEntryResponse.Conflict> conflicts,
-      boolean preview) {
-    List<CatalogProductEntryResponse.Conflict> effectiveConflicts =
-        conflicts == null || conflicts.isEmpty() ? plan.conflicts() : List.copyOf(conflicts);
-    return new CatalogProductEntryResponse(
-        preview,
-        plan.variantGroupId(),
-        plan.productFamilyName(),
-        plan.brand().getId(),
-        plan.brand().getName(),
-        plan.brand().getCode(),
-        plan.category(),
-        plan.itemClass(),
-        plan.unitOfMeasure(),
-        plan.hsnCode(),
-        plan.basePrice(),
-        plan.gstRate(),
-        plan.minDiscountPercent(),
-        plan.minSellingPrice(),
-        plan.metadata(),
-        plan.generatedMembers().size(),
-        plan.downstreamEffects(),
-        plan.generatedMembers(),
-        effectiveConflicts);
-  }
-
-  private SkuReadinessDto previewMemberReadiness(
-      Company company, String itemClass, String category, CatalogProductCandidate candidate) {
-    ProductionProduct draftProduct = new ProductionProduct();
-    draftProduct.setCompany(company);
-    draftProduct.setSkuCode(candidate.sku());
-    draftProduct.setProductName(candidate.productName());
-    draftProduct.setCategory(category);
-    draftProduct.setDefaultColour(candidate.color());
-    draftProduct.setSizeLabel(candidate.size());
-    draftProduct.setUnitOfMeasure(cleanValue(candidate.createRequest().unitOfMeasure()));
-    draftProduct.setGstRate(candidate.createRequest().gstRate());
-    draftProduct.setMetadata(normalizeMetadata(candidate.createRequest().metadata()));
-    draftProduct.setActive(true);
-
-    if (isRawMaterialCategory(category)) {
-      RawMaterial projectedRawMaterial = new RawMaterial();
-      projectedRawMaterial.setCompany(company);
-      projectedRawMaterial.setSku(candidate.sku());
-      projectedRawMaterial.setName(candidate.productName());
-      projectedRawMaterial.setUnitType(resolveUnit(draftProduct.getUnitOfMeasure()));
-      projectedRawMaterial.setInventoryAccountId(
-          resolveRawMaterialInventoryAccountId(company, draftProduct));
-      if (ITEM_CLASS_PACKAGING_RAW_MATERIAL.equals(itemClass)) {
-        projectedRawMaterial.setMaterialType(
-            com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PACKAGING);
-      }
-      return skuReadinessService.forPlannedProduct(
-          draftProduct, expectedStockType(itemClass), null, projectedRawMaterial);
-    }
-
-    FinishedGood projectedFinishedGood = new FinishedGood();
-    projectedFinishedGood.setCompany(company);
-    projectedFinishedGood.setProductCode(candidate.sku());
-    projectedFinishedGood.setName(candidate.productName());
-    projectedFinishedGood.setUnit(resolveUnit(draftProduct.getUnitOfMeasure()));
-    projectedFinishedGood.setValuationAccountId(metadataLong(draftProduct, "fgValuationAccountId"));
-    projectedFinishedGood.setCogsAccountId(metadataLong(draftProduct, "fgCogsAccountId"));
-    projectedFinishedGood.setRevenueAccountId(metadataLong(draftProduct, "fgRevenueAccountId"));
-    projectedFinishedGood.setTaxAccountId(metadataLong(draftProduct, "fgTaxAccountId"));
-    projectedFinishedGood.setDiscountAccountId(metadataLong(draftProduct, "fgDiscountAccountId"));
-    return skuReadinessService.forPlannedProduct(
-        draftProduct, expectedStockType(itemClass), projectedFinishedGood, null);
-  }
-
-  private SkuReadinessService.ExpectedStockType expectedStockType(String itemClass) {
-    return switch (normalizeItemClass(itemClass)) {
-      case ITEM_CLASS_RAW_MATERIAL -> SkuReadinessService.ExpectedStockType.RAW_MATERIAL;
-      case ITEM_CLASS_PACKAGING_RAW_MATERIAL ->
-          SkuReadinessService.ExpectedStockType.PACKAGING_RAW_MATERIAL;
-      default -> SkuReadinessService.ExpectedStockType.FINISHED_GOOD;
-    };
-  }
-
-  private ApplicationException catalogProductEntryConflict(
-      CatalogProductEntryResponse response, String message) {
-    return new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT, message)
-        .withDetail("operation", CATALOG_ENTRY_OPERATION)
-        .withDetail("generated", response.members())
-        .withDetail("conflicts", response.conflicts())
-        .withDetail(
-            "wouldCreate",
-            response.members().stream()
-                .filter(
-                    member ->
-                        response.conflicts().stream()
-                            .noneMatch(
-                                conflict ->
-                                    normalizeSkuKey(conflict.sku())
-                                        .equals(normalizeSkuKey(member.sku()))))
-                .toList())
-        .withDetail("created", List.of());
   }
 
   private ProductionBrand requireActiveBrand(Company company, Long brandId) {
@@ -1163,7 +794,7 @@ public class ProductionCatalogService {
     List<BulkVariantResponse.VariantItem> created = new ArrayList<>();
     for (VariantCandidate candidate : plan.candidatesToCreate()) {
       try {
-        createProduct(candidate.createRequest());
+        createCatalogItem(candidate.createRequest());
         created.add(candidate.toItem(VARIANT_REASON_CREATED));
       } catch (RuntimeException ex) {
         if (isVariantDuplicateConflict(ex, company, candidate.sku())) {
@@ -1245,8 +876,8 @@ public class ProductionCatalogService {
                         colorCode,
                         sizeCode))
                 .replaceAll("-+", "-");
-        ProductCreateRequest createRequest =
-            new ProductCreateRequest(
+        CatalogItemCreateCommand createRequest =
+            new CatalogItemCreateCommand(
                 brandPlan.brandId(),
                 brandPlan.brandId() == null ? brandPlan.brandName() : null,
                 brandPlan.brandId() == null ? brandPlan.brandCode() : null,
@@ -1604,7 +1235,7 @@ public class ProductionCatalogService {
   }
 
   @Transactional
-  public ProductionProductDto updateProduct(Long productId, ProductUpdateRequest request) {
+  public ProductionProductDto updateCatalogItem(Long productId, CatalogItemUpdateCommand request) {
     Company company = companyContextService.requireCurrentCompany();
     ProductionProduct product = companyEntityLookup.requireProductionProduct(company, productId);
     String currentItemClass = itemClassForProduct(product);
@@ -2699,13 +2330,6 @@ public class ProductionCatalogService {
         : "GENERAL";
   }
 
-  private String resolveEntryItemClass(CatalogProductEntryRequest request) {
-    if (request == null) {
-      return normalizeItemClass(null);
-    }
-    return normalizeItemClass(request.getItemClass());
-  }
-
   private String normalizeItemClass(String itemClass) {
     String normalized = normalizeCategory(itemClass);
     return switch (normalized) {
@@ -2739,16 +2363,6 @@ public class ProductionCatalogService {
       case ITEM_CLASS_RAW_MATERIAL, ITEM_CLASS_PACKAGING_RAW_MATERIAL -> ITEM_CLASS_RAW_MATERIAL;
       default -> ITEM_CLASS_FINISHED_GOOD;
     };
-  }
-
-  private Long rawMaterialIdForSku(Company company, String sku) {
-    if (company == null || !StringUtils.hasText(sku)) {
-      return null;
-    }
-    return rawMaterialRepository
-        .findByCompanyAndSkuIgnoreCase(company, sku)
-        .map(RawMaterial::getId)
-        .orElse(null);
   }
 
   private String itemClassForProduct(ProductionProduct product) {
@@ -2791,30 +2405,6 @@ public class ProductionCatalogService {
       return new HashMap<>();
     }
     return new HashMap<>(metadata);
-  }
-
-  private Map<String, Object> validateCanonicalEntryMetadata(
-      Company company,
-      String category,
-      String sku,
-      Map<String, Object> metadata,
-      boolean requireFinishedGoodDefaults) {
-    Map<String, Object> working = normalizeMetadata(metadata);
-    if (isRawMaterialCategory(category)) {
-      Long inventoryAccountId = rawMaterialInventoryAccountIdFromMetadata(working);
-      if (inventoryAccountId != null) {
-        Long validatedAccountId =
-            requireRawMaterialInventoryAccount(company, inventoryAccountId, sku);
-        if (working.containsKey("inventoryAccountId")) {
-          working.put("inventoryAccountId", validatedAccountId);
-        }
-        if (working.containsKey("rawMaterialInventoryAccountId")) {
-          working.put("rawMaterialInventoryAccountId", validatedAccountId);
-        }
-      }
-      return working;
-    }
-    return ensureFinishedGoodAccounts(company, sku, working, null, requireFinishedGoodDefaults);
   }
 
   private Map<String, Object> ensureFinishedGoodAccounts(
@@ -3058,24 +2648,6 @@ public class ProductionCatalogService {
       List<BulkVariantResponse.VariantItem> conflicts,
       List<BulkVariantResponse.VariantItem> wouldCreate) {}
 
-  private record CatalogProductEntryPlan(
-      ProductionBrand brand,
-      UUID variantGroupId,
-      String productFamilyName,
-      String category,
-      String itemClass,
-      String unitOfMeasure,
-      String hsnCode,
-      BigDecimal basePrice,
-      BigDecimal gstRate,
-      BigDecimal minDiscountPercent,
-      BigDecimal minSellingPrice,
-      Map<String, Object> metadata,
-      List<CatalogProductCandidate> candidatesToCreate,
-      List<CatalogProductEntryResponse.Member> generatedMembers,
-      List<CatalogProductEntryResponse.Conflict> conflicts,
-      CatalogProductEntryResponse.DownstreamEffects downstreamEffects) {}
-
   private record VariantBrandPlan(Long brandId, String brandName, String brandCode) {}
 
   private record VariantCandidate(
@@ -3083,38 +2655,9 @@ public class ProductionCatalogService {
       String color,
       String size,
       String productName,
-      ProductCreateRequest createRequest) {
+      CatalogItemCreateCommand createRequest) {
     private BulkVariantResponse.VariantItem toItem(String reason) {
       return new BulkVariantResponse.VariantItem(sku, reason, productName, color, size);
-    }
-  }
-
-  private record CatalogProductCandidate(
-      String sku,
-      String color,
-      String size,
-      String productName,
-      ProductCreateRequest createRequest) {
-    private CatalogProductEntryResponse.Member toMember(
-        Long id,
-        UUID publicId,
-        Long rawMaterialId,
-        com.bigbrightpaints.erp.modules.production.dto.SkuReadinessDto readiness) {
-      return new CatalogProductEntryResponse.Member(
-          id,
-          publicId,
-          rawMaterialId,
-          sku,
-          productName,
-          createRequest.itemClass(),
-          color,
-          size,
-          readiness);
-    }
-
-    private CatalogProductEntryResponse.Conflict toConflict(String reason) {
-      return new CatalogProductEntryResponse.Conflict(
-          sku, reason, productName, createRequest.itemClass(), color, size);
     }
   }
 
