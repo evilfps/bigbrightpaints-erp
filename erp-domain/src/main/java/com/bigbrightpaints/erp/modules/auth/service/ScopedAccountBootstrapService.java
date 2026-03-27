@@ -87,8 +87,7 @@ public class ScopedAccountBootstrapService {
       emailService.sendUserCredentialsEmailRequired(email, displayName, temporaryPassword, scopeCode);
     } catch (RuntimeException ex) {
       log.error(
-          "Scoped account provisioned but credential email delivery failed after commit for {} in scope {}",
-          email,
+          "Scoped account provisioned but credential email delivery failed after commit in scope {}",
           scopeCode,
           ex);
     }
@@ -108,9 +107,8 @@ public class ScopedAccountBootstrapService {
           "User already exists for scope: " + normalizedScopeCode);
     }
     String resolvedDisplayName = normalizeDisplayName(displayName);
-    UserAccount account =
-        new UserAccount(
-            normalizedEmail, normalizedScopeCode, passwordEncoder.encode(temporaryPassword), resolvedDisplayName);
+    UserAccount account = new UserAccount(
+        normalizedEmail, normalizedScopeCode, passwordEncoder.encode(temporaryPassword), resolvedDisplayName);
     account.setMustChangePassword(true);
     if (roles != null) {
       roles.stream().filter(java.util.Objects::nonNull).forEach(account::addRole);
