@@ -1,26 +1,21 @@
 package com.bigbrightpaints.erp.truthsuite.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.math.BigDecimal;
-import java.util.Set;
-
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.http.ResponseEntity;
 
-import com.bigbrightpaints.erp.modules.company.controller.CompanyController;
-import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.controller.SuperAdminController;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyAdminCredentialResetDto;
-import com.bigbrightpaints.erp.modules.company.dto.CompanyDto;
-import com.bigbrightpaints.erp.modules.company.dto.CompanyRequest;
+import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateDto;
+import com.bigbrightpaints.erp.modules.company.dto.CompanyLifecycleStateRequest;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
+import com.bigbrightpaints.erp.modules.company.service.SuperAdminTenantControlPlaneService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
 @Tag("critical")
@@ -28,30 +23,41 @@ import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 class TS_RuntimeCompanyControllerExecutableCoverageTest {
 
   @Test
-  void update_delegatesToServiceWithEmptyAllowedCompanies() {
+  void canonicalLifecycleUpdate_delegatesToControlPlaneService() {
     CompanyService companyService = mock(CompanyService.class);
-    CompanyController controller = new CompanyController(companyService);
-    CompanyRequest request = new CompanyRequest("Acme", "ACME", "UTC", new BigDecimal("18.0"));
-    CompanyDto responseDto =
-        new CompanyDto(42L, null, "Acme", "ACME", "UTC", new BigDecimal("18.0"));
-    when(companyService.update(eq(42L), eq(request), anySet())).thenReturn(responseDto);
+    SuperAdminTenantControlPlaneService controlPlaneService =
+        mock(SuperAdminTenantControlPlaneService.class);
+    SuperAdminController controller =
+        new SuperAdminController(companyService, controlPlaneService);
+    CompanyLifecycleStateRequest request =
+        new CompanyLifecycleStateRequest("SUSPENDED", "reconciliation");
+    CompanyLifecycleStateDto responseDto =
+        new CompanyLifecycleStateDto(42L, "ACME", "ACTIVE", "SUSPENDED", "reconciliation");
+    when(controlPlaneService.updateLifecycleState(42L, request)).thenReturn(responseDto);
 
-    controller.update(42L, request);
+    ResponseEntity<ApiResponse<CompanyLifecycleStateDto>> response =
+        controller.updateLifecycleState(42L, request);
 
-    ArgumentCaptor<Set<Company>> allowedCompaniesCaptor = ArgumentCaptor.forClass(Set.class);
-    verify(companyService).update(eq(42L), eq(request), allowedCompaniesCaptor.capture());
-    assertThat(allowedCompaniesCaptor.getValue()).isEmpty();
+    assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().success()).isTrue();
+    assertThat(response.getBody().data()).isEqualTo(responseDto);
+    verify(controlPlaneService).updateLifecycleState(42L, request);
   }
 
   @Test
-  void resetTenantAdminPassword_delegatesAndReturnsResponseEnvelope() {
+  void canonicalAdminPasswordReset_delegatesAndReturnsResponseEnvelope() {
     CompanyService companyService = mock(CompanyService.class);
-    CompanyController controller = new CompanyController(companyService);
-    CompanyController.CompanyAdminPasswordResetRequest request =
-        new CompanyController.CompanyAdminPasswordResetRequest("admin@ske.com");
+    SuperAdminTenantControlPlaneService controlPlaneService =
+        mock(SuperAdminTenantControlPlaneService.class);
+    SuperAdminController controller =
+        new SuperAdminController(companyService, controlPlaneService);
+    SuperAdminController.TenantAdminPasswordResetRequest request =
+        new SuperAdminController.TenantAdminPasswordResetRequest("admin@ske.com", null);
     CompanyAdminCredentialResetDto payload =
         new CompanyAdminCredentialResetDto(42L, "SKE", "admin@ske.com", "reset-link-emailed");
-    when(companyService.resetTenantAdminPassword(42L, "admin@ske.com", null)).thenReturn(payload);
+    when(controlPlaneService.resetTenantAdminPassword(42L, "admin@ske.com", null))
+        .thenReturn(payload);
 
     ResponseEntity<ApiResponse<CompanyAdminCredentialResetDto>> response =
         controller.resetTenantAdminPassword(42L, request);
@@ -60,6 +66,6 @@ class TS_RuntimeCompanyControllerExecutableCoverageTest {
     assertThat(response.getBody()).isNotNull();
     assertThat(response.getBody().success()).isTrue();
     assertThat(response.getBody().data()).isEqualTo(payload);
-    verify(companyService).resetTenantAdminPassword(42L, "admin@ske.com", null);
+    verify(controlPlaneService).resetTenantAdminPassword(42L, "admin@ske.com", null);
   }
 }
