@@ -1,12 +1,18 @@
 # Rollback Runbook
 
-## 2026-03-27 — `erp-22.supplier-ledger-hard-cut`
+## 2026-03-27 — `erp-23.finished-good-bulk-flag-hard-cut`
 
-- **Scope:** revert `migration_v2/V170__supplier_outstanding_balance_hard_cut.sql` and the ERP-22 runtime packet that removes supplier-row cached balance truth and hard-cuts public supplier money flows to settlement-only.
-- **Application rollback:** do not run a pre-ERP-22 backend against a database that has already applied `V170`. Keep the ERP-22-compatible backend live unless the database is first restored to pre-`V170`.
-- **Database rollback:** restore the affected tenant/database from a snapshot or point-in-time backup taken before `V170`. Ad hoc reverse SQL is intentionally unsupported for this packet because the product policy for ERP-22 is canonical ledger truth with no legacy supplier-balance cache path.
-- **Guard note:** if settlement, supplier-aging/statement, or payable reconciliation behavior regresses after `V170`, treat the system as forward-only until snapshot/PITR restore is available; do not introduce temporary fallback routes or cache fields.
-- **Verification:** after restore, rerun `cd erp-domain && MIGRATION_SET=v2 mvn -DskipTests test-compile`, then rerun `cd erp-domain && DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AccountingControllerIdempotencyHeaderParityTest,AccountingControllerJournalEndpointsTest,TS_RuntimeAccountingReplayConflictExecutableCoverageTest,TS_P2PPurchaseSettlementBoundaryTest,ReconciliationServiceTest,ProcureToPayE2ETest test`, plus `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh` before reopening traffic.
+- **Scope:** revert `migration_v2/V48__drop_finished_good_batch_legacy_bulk_flag.sql` and the ERP-23 hard-cut runtime packet that removes legacy BULK flag dependencies from FG stock-truth flows and catalog item setup internals.
+- **Application rollback:** do not redeploy pre-ERP-23 runtime against a database where `finished_good_batches.is_bulk` is already dropped.
+- **Database rollback:** preferred path is snapshot/PITR restore to pre-`V48`. If restore is unavailable and immediate compatibility is required, run:
+  - `ALTER TABLE public.finished_good_batches ADD COLUMN IF NOT EXISTS is_bulk BOOLEAN NOT NULL DEFAULT FALSE;`
+  - `CREATE INDEX IF NOT EXISTS idx_fg_batch_bulk ON public.finished_good_batches (company_id, is_bulk);`
+  and redeploy only after pre-cut runtime compatibility is confirmed.
+- **Guard note:** emergency SQL backfill is temporary recovery only; canonical target remains the ERP-23 hard-cut schema with no `is_bulk` flag.
+- **Verification:** after rollback path selection, rerun:
+  - `cd erp-domain && mvn -Pgate-fast -Djacoco.skip=true test`
+  - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-23-fg-stock-truth && bash scripts/guard_openapi_contract_drift.sh`
+  - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-23-fg-stock-truth && bash scripts/guard_legacy_migration_freeze.sh`
 
 ## 2026-03-27 — `auth-v2.scoped-account-hard-cut`
 

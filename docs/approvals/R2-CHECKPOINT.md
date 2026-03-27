@@ -1,64 +1,74 @@
 # R2 Checkpoint
 
 ## Scope
-- Feature: `ERP-22 supplier ledger hard cut`
-- Branch: `mdanas7869292/erp-22-hard-cut-supplier-ledger-truth-onto-one-canonical-settlement`
-- Review candidate: remove supplier-row cached balance truth and enforce one canonical supplier-money public path (`settlement`) with fail-closed idempotency behavior.
-- Why this is R2: this packet changes accounting/purchasing money-truth semantics plus a `migration_v2` schema drop. A wrong cut can break payable reconciliation, settlement workflows, or run incompatible runtime/schema combinations.
+- Feature: `ERP-23 finished-good stock truth hard cut + catalog item canonicalization`
+- Branch: `mdanas7869292/erp-23-hard-cut-finished-good-stock-truth-onto-inventory-and`
+- PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/161`
+- Review candidate:
+  - delete the retired manual FG batch write seam and non-prod gating path
+  - keep one canonical FG stock-truth flow into inventory
+  - remove product-era catalog duplicate DTO/service vocabulary in favor of `CatalogItem*`
+  - apply `migration_v2/V48__drop_finished_good_batch_legacy_bulk_flag.sql`
+- Why this is R2: this packet modifies stock-truth write surfaces and a live `migration_v2` table contract (`finished_good_batches`). A wrong cut can corrupt FG movement/accounting linkage or break runtime expectations during deployment.
 
 ## Risk Trigger
-- Triggered by high-risk paths:
-  - `erp-domain/src/main/resources/db/migration_v2/V170__supplier_outstanding_balance_hard_cut.sql`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/**`
+- Triggered by:
+  - `erp-domain/src/main/resources/db/migration_v2/V48__drop_finished_good_batch_legacy_bulk_flag.sql`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/**`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/**`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/**`
 - Contract surfaces affected:
-  - `POST /api/v1/accounting/settlements/suppliers`
-  - `POST /api/v1/accounting/suppliers/{supplierId}/auto-settle`
-  - supplier list/detail balance read-model output (`SupplierResponse.balance`)
+  - `GET /api/v1/catalog/items`
+  - `POST /api/v1/catalog/items`
+  - `GET /api/v1/catalog/items/{itemId}`
+  - `PUT /api/v1/catalog/items/{itemId}`
+  - inventory/factory FG stock write/read internals behind dispatch, packing, opening stock, and production log flows
 - Failure mode if wrong:
-  - supplier payable reconciliation drift between control account and ledger
-  - AP settlement route regressions or replay mismatch behavior
-  - runtime expecting removed `suppliers.outstanding_balance` column
+  - stale code reading removed `finished_good_batches.is_bulk` fails at runtime
+  - inventory traceability leaks semi-finished bulk assumptions into sellable FG paths
+  - catalog item contract drifts back into split product/item write semantics
 
 ## Approval Authority
 - Mode: human
-- Approver: `human accounting platform reviewer`
-- Canary owner: `ERP-22 packet owner`
-- Approval status: `pending required CI checks plus human review`
-- Basis: packet mutates accounting truth path and migration_v2 schema; policy and test green are required before merge.
+- Approver: `ERP packet owner`
+- Canary owner: `ERP-23 packet owner`
+- Approval status: `pending green CI + reviewer confirmation`
+- Basis: migration + stock-truth hard cut requires explicit human signoff even after automated gates pass.
 
 ## Escalation Decision
 - Human escalation required: yes
-- Reason: financial-contract and schema-cut packet with potential cross-module impact if runtime/schema rollout order is wrong.
+- Reason: the packet changes a migration-backed inventory table contract and production/inventory stock path semantics.
 
 ## Rollback Owner
-- Owner: `ERP-22 packet owner`
-- Rollback method: revert this packet before merge; if migration already executed on a tenant database, restore from pre-`V170` snapshot/PITR instead of introducing fallback codepaths.
+- Owner: `ERP-23 packet owner`
+- Rollback method:
+  - preferred: restore tenant/database snapshot taken before `V48` and redeploy the pre-cut build as one coordinated rollback
+  - emergency-only SQL fallback (if snapshot unavailable and pre-cut app must run): re-add nullable `finished_good_batches.is_bulk` and recreate `idx_fg_batch_bulk` in the same maintenance window before switching runtime
 - Rollback trigger:
-  - settlement or supplier-aging/statement flows regress
-  - payable reconciliation shows unexplained supplier variance
-  - deployment hits missing-column/runtime mismatch around `suppliers.outstanding_balance`
+  - runtime query/ORM failures referencing `finished_good_batches.is_bulk`
+  - FG movement/accounting regression on packing/dispatch/opening-stock paths
+  - CI/runtime evidence proving canonical item contract mismatch after deploy candidate
 
 ## Expiry
 - Valid until: `2026-04-03`
-- Re-evaluate if: scope expands beyond ERP-22 supplier ledger hard cut, or any additional migration steps are added to this packet.
+- Re-evaluate if: any new migration is added on top of `V48`, scope expands into accounting/auth/control-plane modules, or reviewer asks for additional stock-truth restructuring beyond ERP-23 boundaries.
 
 ## Verification Evidence
 - Commands run:
-  - `colima status`
-  - `cd erp-domain && mvn -DskipTests test-compile`
-  - `cd erp-domain && DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AccountingControllerIdempotencyHeaderParityTest,AccountingControllerJournalEndpointsTest,TS_RuntimeAccountingReplayConflictExecutableCoverageTest,TS_P2PPurchaseSettlementBoundaryTest,ReconciliationServiceTest,ProcureToPayE2ETest test`
-  - `cd erp-domain && DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=OpenApiSnapshotIT -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true test`
+  - `rg -n "CatalogProductRequest|CatalogProductDto|CatalogProductEntryRequest|ProductCreateRequest|ProductUpdateRequest" erp-domain/src/main erp-domain/src/test docs openapi.json`
+  - `rg -n "CatalogService\\.createProduct|CatalogService\\.getProduct|CatalogService\\.updateProduct|CatalogService\\.searchProducts|createProduct\\(|getProduct\\(|updateProduct\\(|searchProducts\\(" erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production docs`
+  - `mvn -Dtest=GlobalExceptionHandlerTest,TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest,OpeningStockPostingRegressionIT,ProductionCatalogFinishedGoodInvariantIT,ProductionCatalogRawMaterialInvariantIT,ProductionCatalogDiscountDefaultRegressionIT,CR_CatalogImportDeterminismIT test`
   - `bash scripts/guard_openapi_contract_drift.sh`
-  - `bash scripts/guard_accounting_portal_scope_contract.sh`
-  - `bash scripts/guard_workflow_canonical_paths.sh`
-  - `ENTERPRISE_DIFF_BASE=f559927f8fccddad1bd3c78e606da59023dfb0fe bash ci/check-enterprise-policy.sh`
+  - `bash scripts/guard_legacy_migration_freeze.sh`
+  - `mvn -Pgate-fast -Djacoco.skip=true test`
+  - `git diff --check`
+  - `bash scripts/verify_local.sh`
 - Result summary:
-  - removed persisted supplier cached balance truth and added `V170` drop-column migration
-  - preserved optional supplier `balance` only as ledger-derived read-model output
-  - removed legacy public `/api/v1/accounting/suppliers/payments` route; settlement is canonical public supplier money flow
-  - removed stale supplier-money fallback/idempotency glue and aligned tests/docs/openapi to the hard-cut surface
-  - targeted ERP-22 suite and local policy/contract guards passed before PR push
+  - catalog duplicate product-era DTO/service symbols removed from runtime lane
+  - canonical item vocabulary and route family retained (`CatalogItem*`, `/api/v1/catalog/items`)
+  - targeted suites and `gate-fast` passed locally
+  - `verify_local.sh` currently reports schema-drift findings on historical `V168/V169` auth migrations (pre-existing to this packet), not on `V48`
 - Artifacts/links:
-  - Worktree: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-22-supplier-ledger-hard-cut`
-  - PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/162`
-  - Linear issue: `ERP-22`
+  - Worktree: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-23-fg-stock-truth`
+  - PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/161`
+  - Linear issue: `ERP-23`
