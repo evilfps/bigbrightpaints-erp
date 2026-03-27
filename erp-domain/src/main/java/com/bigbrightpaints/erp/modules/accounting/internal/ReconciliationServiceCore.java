@@ -591,12 +591,7 @@ public class ReconciliationServiceCore {
         receivableDealer.map(Dealer::getOutstandingBalance).map(this::safe).orElse(BigDecimal.ZERO);
     BigDecimal payableAmount =
         payableSupplier
-            .map(
-                supplier ->
-                    supplierLedgerRepository
-                        .aggregateBalance(payableCompany, supplier)
-                        .map(SupplierBalanceView::balance)
-                        .orElse(BigDecimal.ZERO))
+            .map(supplier -> resolveSupplierLedgerBalance(payableCompany, supplier))
             .map(this::safe)
             .orElse(BigDecimal.ZERO);
 
@@ -623,6 +618,13 @@ public class ReconciliationServiceCore {
       return null;
     }
     return code.trim();
+  }
+
+  private BigDecimal resolveSupplierLedgerBalance(Company company, Supplier supplier) {
+    return supplierLedgerRepository
+        .aggregateBalance(company, supplier)
+        .map(SupplierBalanceView::balance)
+        .orElse(BigDecimal.ZERO);
   }
 
   private List<Account> resolveReceivableAccounts(List<Account> accounts, List<Dealer> dealers) {
