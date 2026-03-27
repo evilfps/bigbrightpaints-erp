@@ -1,5 +1,19 @@
 # Migration Runbook
 
+## 2026-03-27 — `migration_v2/V170__supplier_outstanding_balance_hard_cut.sql`
+
+- **Purpose:** remove the retired supplier-row cached balance (`suppliers.outstanding_balance`) so supplier payable truth is ledger-derived only, and keep settlement as the canonical supplier-money public flow.
+- **Release-guard posture:** this is a hard-cut packet with no compatibility fallback path. Runtime and schema must ship together so no code depends on the dropped column.
+- **Forward plan:** apply `V170__supplier_outstanding_balance_hard_cut.sql`, deploy the ERP-22 backend packet that reads supplier balance only from supplier ledger views, verify settlement-only supplier-money routing, then refresh OpenAPI/docs in the same packet.
+- **Dry-run commands:**
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -DskipTests test-compile`
+  - `cd erp-domain && DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AccountingControllerIdempotencyHeaderParityTest,AccountingControllerJournalEndpointsTest,TS_RuntimeAccountingReplayConflictExecutableCoverageTest,TS_P2PPurchaseSettlementBoundaryTest,ReconciliationServiceTest,ProcureToPayE2ETest test`
+  - `cd erp-domain && DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=OpenApiSnapshotIT -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true test`
+  - `bash scripts/guard_openapi_contract_drift.sh`
+  - `bash scripts/guard_accounting_portal_scope_contract.sh`
+  - `bash ci/check-enterprise-policy.sh`
+- **Rollback strategy:** treat `V170` as a coordinated app-and-schema cut. Do not restore supplier-row balance cache or legacy public supplier-payment routes. If rollback is required after execution, restore tenant/database from a pre-`V170` snapshot/PITR and redeploy the pre-cut backend as one unit.
+
 ## 2026-03-27 — `migration_v2/V168__auth_v2_scoped_accounts.sql` + `migration_v2/V169__auth_v2_single_company_account.sql`
 
 - **Purpose:** hard-cut auth identity to one scoped account per `(normalized_email, auth_scope_code)`, split shared-email multi-company users into independent scoped credentials, migrate refresh-token attribution onto scoped accounts, and enforce one company binding per tenant-scoped login while keeping the platform scope as the only superadmin realm.

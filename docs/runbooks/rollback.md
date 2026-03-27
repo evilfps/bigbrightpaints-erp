@@ -1,5 +1,13 @@
 # Rollback Runbook
 
+## 2026-03-27 — `erp-22.supplier-ledger-hard-cut`
+
+- **Scope:** revert `migration_v2/V170__supplier_outstanding_balance_hard_cut.sql` and the ERP-22 runtime packet that removes supplier-row cached balance truth and hard-cuts public supplier money flows to settlement-only.
+- **Application rollback:** do not run a pre-ERP-22 backend against a database that has already applied `V170`. Keep the ERP-22-compatible backend live unless the database is first restored to pre-`V170`.
+- **Database rollback:** restore the affected tenant/database from a snapshot or point-in-time backup taken before `V170`. Ad hoc reverse SQL is intentionally unsupported for this packet because the product policy for ERP-22 is canonical ledger truth with no legacy supplier-balance cache path.
+- **Guard note:** if settlement, supplier-aging/statement, or payable reconciliation behavior regresses after `V170`, treat the system as forward-only until snapshot/PITR restore is available; do not introduce temporary fallback routes or cache fields.
+- **Verification:** after restore, rerun `cd erp-domain && MIGRATION_SET=v2 mvn -DskipTests test-compile`, then rerun `cd erp-domain && DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AccountingControllerIdempotencyHeaderParityTest,AccountingControllerJournalEndpointsTest,TS_RuntimeAccountingReplayConflictExecutableCoverageTest,TS_P2PPurchaseSettlementBoundaryTest,ReconciliationServiceTest,ProcureToPayE2ETest test`, plus `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh` before reopening traffic.
+
 ## 2026-03-27 — `auth-v2.scoped-account-hard-cut`
 
 - **Scope:** revert `migration_v2/V168__auth_v2_scoped_accounts.sql`, `migration_v2/V169__auth_v2_single_company_account.sql`, and the auth-v2 runtime packet that hard-cuts identity to scoped accounts, scopes password reset/MFA/session state by auth scope, and keeps the ERP-37 superadmin control plane bound to the platform auth scope.
