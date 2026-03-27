@@ -2,9 +2,11 @@ package com.bigbrightpaints.erp.modules.factory.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
@@ -27,6 +29,8 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 
 @Service
 public class BulkPackingReadService {
@@ -39,6 +43,8 @@ public class BulkPackingReadService {
   private final FinishedGoodRepository finishedGoodRepository;
   private final RawMaterialBatchRepository rawMaterialBatchRepository;
   private final RawMaterialRepository rawMaterialRepository;
+  private final ProductionProductRepository productionProductRepository;
+  private final PackingProductSupport packingProductSupport;
 
   public BulkPackingReadService(
       InventoryMovementRepository inventoryMovementRepository,
@@ -46,13 +52,17 @@ public class BulkPackingReadService {
       JournalEntryRepository journalEntryRepository,
       FinishedGoodRepository finishedGoodRepository,
       RawMaterialBatchRepository rawMaterialBatchRepository,
-      RawMaterialRepository rawMaterialRepository) {
+      RawMaterialRepository rawMaterialRepository,
+      ProductionProductRepository productionProductRepository,
+      PackingProductSupport packingProductSupport) {
     this.inventoryMovementRepository = inventoryMovementRepository;
     this.rawMaterialMovementRepository = rawMaterialMovementRepository;
     this.journalEntryRepository = journalEntryRepository;
     this.finishedGoodRepository = finishedGoodRepository;
     this.rawMaterialBatchRepository = rawMaterialBatchRepository;
     this.rawMaterialRepository = rawMaterialRepository;
+    this.productionProductRepository = productionProductRepository;
+    this.packingProductSupport = packingProductSupport;
   }
 
   public BulkPackResponse resolveIdempotentPack(
@@ -134,16 +144,34 @@ public class BulkPackingReadService {
                 () ->
                     new ApplicationException(
                         ErrorCode.BUSINESS_ENTITY_NOT_FOUND, "Finished good not found"));
+    String semiFinishedSku = resolveSemiFinishedSku(company, fg.getProductCode());
+    if (semiFinishedSku == null) {
+      return List.of();
+    }
     RawMaterial bulkMaterial =
-        rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, fg.getProductCode() + "-BULK")
+        rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, semiFinishedSku)
             .orElse(null);
     if (bulkMaterial == null) {
       return List.of();
     }
     return rawMaterialBatchRepository.findByRawMaterial(bulkMaterial).stream()
-        .filter(batch -> batch.getQuantity() != null && batch.getQuantity().compareTo(BigDecimal.ZERO) > 0)
+        .filter(
+            batch ->
+                batch.getQuantity() != null
+                    && batch.getQuantity().compareTo(BigDecimal.ZERO) > 0)
         .map(this::toBulkBatchDto)
         .toList();
+  }
+
+  private String resolveSemiFinishedSku(Company company, String finishedGoodCode) {
+    Optional<ProductionProduct> sourceProduct =
+        productionProductRepository.findByCompanyOrderByProductNameAsc(company).stream()
+            .filter(
+                product ->
+                    packingProductSupport.isMatchingChildSku(
+                        finishedGoodCode, product.getSkuCode()))
+            .max(Comparator.comparingInt(product -> product.getSkuCode().length()));
+    return sourceProduct.map(packingProductSupport::semiFinishedSku).orElse(null);
   }
 
   public List<BulkPackResponse.ChildBatchDto> listChildBatches(

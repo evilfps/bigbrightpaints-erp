@@ -183,16 +183,16 @@ class InventoryBatchTraceabilityServiceTest {
   }
 
   @Test
-  void autoLookup_rejectsAmbiguousIdAcrossRawAndFinished_evenForBulkSku() {
+  void autoLookup_rejectsAmbiguousIdAcrossRawAndFinished_whenBothDomainsShareId() {
     FinishedGood fg = new FinishedGood();
     fg.setCompany(company);
-    fg.setProductCode("FG-BTRACE-BULK");
-    fg.setName("Semi Finished");
+    fg.setProductCode("FG-BTRACE-1L");
+    fg.setName("Sellable");
 
     FinishedGoodBatch finishedBatch = new FinishedGoodBatch();
     ReflectionTestUtils.setField(finishedBatch, "id", 31L);
     finishedBatch.setFinishedGood(fg);
-    finishedBatch.setBatchCode("FG-BULK-31");
+    finishedBatch.setBatchCode("FG-TRACE-31");
     finishedBatch.setQuantityTotal(new BigDecimal("10"));
     finishedBatch.setQuantityAvailable(new BigDecimal("10"));
     finishedBatch.setUnitCost(new BigDecimal("6"));
@@ -200,7 +200,7 @@ class InventoryBatchTraceabilityServiceTest {
 
     RawMaterial raw = new RawMaterial();
     raw.setCompany(company);
-    raw.setSku("FG-BTRACE-BULK");
+    raw.setSku("RM-BTRACE-BULK");
     raw.setName("Semi Finished RM");
     raw.setUnitType("L");
 
@@ -226,13 +226,13 @@ class InventoryBatchTraceabilityServiceTest {
   void autoLookup_returnsFinishedBatchWhenRawBatchMissing() {
     FinishedGood fg = new FinishedGood();
     fg.setCompany(company);
-    fg.setProductCode("FG-BTRACE-BULK");
-    fg.setName("Semi Finished");
+    fg.setProductCode("FG-BTRACE-10L");
+    fg.setName("Sellable");
 
     FinishedGoodBatch finishedBatch = new FinishedGoodBatch();
     ReflectionTestUtils.setField(finishedBatch, "id", 32L);
     finishedBatch.setFinishedGood(fg);
-    finishedBatch.setBatchCode("FG-BULK-32");
+    finishedBatch.setBatchCode("FG-TRACE-32");
     finishedBatch.setQuantityTotal(new BigDecimal("10"));
     finishedBatch.setQuantityAvailable(new BigDecimal("10"));
     finishedBatch.setUnitCost(new BigDecimal("6"));
@@ -249,8 +249,8 @@ class InventoryBatchTraceabilityServiceTest {
         inventoryBatchTraceabilityService.getBatchMovementHistory(32L, null);
 
     assertThat(trace.batchType()).isEqualTo("FINISHED_GOOD");
-    assertThat(trace.batchNumber()).isEqualTo("FG-BULK-32");
-    assertThat(trace.itemCode()).isEqualTo("FG-BTRACE-BULK");
+    assertThat(trace.batchNumber()).isEqualTo("FG-TRACE-32");
+    assertThat(trace.itemCode()).isEqualTo("FG-BTRACE-10L");
   }
 
   @Test

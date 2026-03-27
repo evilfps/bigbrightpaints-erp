@@ -19,6 +19,7 @@ This guide explains the flow from planning to dispatch-ready finished stock.
 - Production plan status update: `PATCH /api/v1/factory/production-plans/{id}/status`
 - Review unpacked batches: `GET /api/v1/factory/unpacked-batches`
 - Packing history per production log: `GET /api/v1/factory/production-logs/{productionLogId}/packing-history`
+- Parent semi-finished bulk batches for a selected sellable FG: `GET /api/v1/factory/bulk-batches/{finishedGoodId}`
 - Child batches from bulk: `GET /api/v1/factory/bulk-batches/{parentBatchId}/children`
 
 ## Troubleshooting Quick Notes

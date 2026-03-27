@@ -235,35 +235,35 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
   @Test
   void listFinishedGoods_includesAllFinishedGoodsFromRepository() {
     FinishedGood sellable = finishedGood(901L, "FG-SELL-1L", "Sellable");
-    FinishedGood semiFinished = finishedGood(902L, "FG-SELL-BULK", "Semi Finished");
+    FinishedGood alternateSellable = finishedGood(902L, "FG-SELL-10L", "Sellable");
 
     when(finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company))
-        .thenReturn(List.of(semiFinished, sellable));
+        .thenReturn(List.of(alternateSellable, sellable));
 
     assertThat(service.listFinishedGoods()).hasSize(2);
     assertThat(service.listFinishedGoods())
         .extracting(item -> item.productCode())
-        .containsExactly("FG-SELL-BULK", "FG-SELL-1L");
+        .containsExactly("FG-SELL-10L", "FG-SELL-1L");
   }
 
   @Test
-  void getFinishedGood_returnsRecordEvenWhenSkuEndsWithBulkSuffix() {
-    FinishedGood semiFinished = finishedGood(903L, "FG-LOOKUP-BULK", "Semi Finished");
+  void getFinishedGood_returnsRecordForPersistedSku() {
+    FinishedGood finishedGood = finishedGood(903L, "FG-LOOKUP-4L", "Sellable");
     when(finishedGoodRepository.findByCompanyAndId(company, 903L))
-        .thenReturn(Optional.of(semiFinished));
+        .thenReturn(Optional.of(finishedGood));
 
-    assertThat(service.getFinishedGood(903L).productCode()).isEqualTo("FG-LOOKUP-BULK");
+    assertThat(service.getFinishedGood(903L).productCode()).isEqualTo("FG-LOOKUP-4L");
   }
 
   @Test
-  void lockFinishedGoodByProductCode_returnsBulkSuffixSkuWhenRepositoryResolvesIt() {
-    FinishedGood semiFinished = finishedGood(908L, "FG-LOCK-BULK", "Semi Finished");
-    when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-LOCK-BULK"))
-        .thenReturn(Optional.of(semiFinished));
+  void lockFinishedGoodByProductCode_returnsPersistedSkuWhenRepositoryResolvesIt() {
+    FinishedGood finishedGood = finishedGood(908L, "FG-LOCK-4L", "Sellable");
+    when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-LOCK-4L"))
+        .thenReturn(Optional.of(finishedGood));
 
-    FinishedGood locked = service.lockFinishedGoodByProductCode("FG-LOCK-BULK");
+    FinishedGood locked = service.lockFinishedGoodByProductCode("FG-LOCK-4L");
 
-    assertThat(locked).isSameAs(semiFinished);
+    assertThat(locked).isSameAs(finishedGood);
   }
 
   @Test
@@ -298,27 +298,27 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
   }
 
   @Test
-  void getLowStockThreshold_returnsValueForBulkSuffixSku() {
-    FinishedGood semiFinished = finishedGood(904L, "FG-LOW-BULK", "Semi Finished");
-    semiFinished.setLowStockThreshold(new BigDecimal("7"));
+  void getLowStockThreshold_returnsValueForExistingFinishedGood() {
+    FinishedGood finishedGood = finishedGood(904L, "FG-LOW-4L", "Sellable");
+    finishedGood.setLowStockThreshold(new BigDecimal("7"));
     when(finishedGoodRepository.findByCompanyAndId(company, 904L))
-        .thenReturn(Optional.of(semiFinished));
+        .thenReturn(Optional.of(finishedGood));
 
     assertThat(service.getLowStockThreshold(904L).threshold())
         .isEqualByComparingTo(new BigDecimal("7"));
   }
 
   @Test
-  void updateLowStockThreshold_updatesBulkSuffixSku() {
-    FinishedGood semiFinished = finishedGood(905L, "FG-LOW-UPDATE-BULK", "Semi Finished");
+  void updateLowStockThreshold_updatesExistingFinishedGood() {
+    FinishedGood finishedGood = finishedGood(905L, "FG-LOW-UPDATE-4L", "Sellable");
     when(finishedGoodRepository.lockByCompanyAndId(company, 905L))
-        .thenReturn(Optional.of(semiFinished));
+        .thenReturn(Optional.of(finishedGood));
     when(finishedGoodRepository.save(any(FinishedGood.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     assertThat(service.updateLowStockThreshold(905L, BigDecimal.ONE).threshold())
         .isEqualByComparingTo(BigDecimal.ONE);
-    verify(finishedGoodRepository).save(semiFinished);
+    verify(finishedGoodRepository).save(finishedGood);
   }
 
   private Fixture fixture(BigDecimal currentStock, BigDecimal reservedStock, BigDecimal quantity) {

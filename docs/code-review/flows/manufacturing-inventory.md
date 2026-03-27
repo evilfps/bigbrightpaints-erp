@@ -2,7 +2,7 @@
 
 ## Scope and evidence
 
-This review covers dual product/catalog creation paths, raw-material and finished-good master data, opening stock and adjustment flows, production-log costing, packaging mappings, packing and bulk packing, finished-good reservation/dispatch/COGS linkage, valuation reporting, and the purchasing/accounting boundary that turns physical inventory events into AP or COGS truth.
+This review covers dual product/catalog creation paths, raw-material and finished-good master data, opening stock and adjustment flows, production-log costing, packaging mappings, canonical packing plus bulk-batch read surfaces, finished-good reservation/dispatch/COGS linkage, valuation reporting, and the purchasing/accounting boundary that turns physical inventory events into AP or COGS truth.
 
 Primary evidence:
 
@@ -66,7 +66,7 @@ The local `openapi.json` snapshot publishes the major catalog, raw-material, fin
 | `finished_goods`, `finished_good_batches`, `inventory_movements` | `ProductionCatalogService.ensureCatalogFinishedGood(...)`, `FinishedGoodsWorkflowEngineService`, `PackingBatchService`, `FinishedGoodsDispatchEngine`, `V4__inventory_production.sql` | Sellable finished-good identity, packing receipts, dispatch relief, and COGS linkage. |
 | `inventory_adjustments`, `inventory_adjustment_lines`, raw-material adjustment rows | `InventoryAdjustmentService`, `RawMaterialService.adjustStock(...)`, `V4__inventory_production.sql` | Replay-safe stock corrections and linked journal anchors. |
 | `opening_stock_imports` | `OpeningStockImportService`, `V4__inventory_production.sql` | CSV hash/idempotency-key replay anchor, import status, counts, and import-level journal linkage. |
-| `packaging_size_mappings`, `packing_records` | `PackagingMaterialService`, `PackingService`, `BulkPackingService`, `V4__inventory_production.sql`, `V38__size_variants_and_packing_traceability.sql` | Packaging Setup / Rules identity, packing execution, finished-good batch linkage, and size-specific traceability. |
+| `packaging_size_mappings`, `packing_records` | `PackagingMaterialService`, `PackingService`, `BulkPackingService`, `BulkPackingReadService`, `V4__inventory_production.sql`, `V38__size_variants_and_packing_traceability.sql` | Packaging Setup / Rules identity, canonical packing execution, bulk-batch readbacks, finished-good batch linkage, and size-specific traceability. |
 | `production_logs`, `production_log_materials` | `ProductionLogService`, `CostAllocationService`, `V4__inventory_production.sql`, `V33__payroll_payment_date_and_production_wastage_reason.sql` | Raw-material issue detail, WIP/labor/overhead accumulation, wastage reason, and month-end variance allocation. |
 | `inventory_reservations`, `packaging_slips`, `packaging_slip_lines` | `FinishedGoodsReservationEngine`, `FinishedGoodsDispatchEngine`, `SalesCoreEngine`, `V3__sales_invoice.sql`, `V4__inventory_production.sql` | Sales-order reservation, backorder control, dispatch replay anchors, and movement-to-COGS linkage. |
 | Inventory/accounting config | `application.yml`, `application-prod.yml`, `InventoryAccountingEventListener`, `FinishedGoodsWorkflowEngineService`, `RawMaterialService` | Guards risky automatic inventory->GL posting, manual raw-material intake, and manual finished-good batch creation. |
@@ -191,7 +191,7 @@ Important nuance: missing raw materials are created through `RawMaterialService.
 
 This entire chain fails closed when account metadata is incomplete. Missing `wipAccountId`, `semiFinishedAccountId`, `laborAppliedAccountId`, or `overheadAppliedAccountId` blocks production posting instead of guessing.
 
-### 8. Packaging mappings, standard packing, and bulk packing
+### 8. Packaging mappings, canonical packing, and bulk-batch reads
 
 #### Packaging Setup / Rules
 
@@ -210,13 +210,13 @@ This entire chain fails closed when account metadata is incomplete. Missing `wip
 - `PackingBatchService.registerFinishedGoodBatch(...)` creates the finished-good batch receipt and journal that debits FG valuation and credits the semi-finished/WIP side.
 - The single `recordPacking(...)` flow advances the batch from `READY_TO_PACK` to `PARTIAL_PACKED` to `FULLY_PACKED` as cumulative packed quantity reaches the mixed quantity; there is no separate completion seam.
 
-#### Bulk-to-size packing (`BulkPackingService`)
+#### Bulk-batch read surfaces (`BulkPackingService` + `BulkPackingReadService`)
 
-- The parent bulk batch is locked by id.
-- `packReference` is deterministic from the bulk batch, pack lines, and idempotency key hash.
-- Replay reads prior effects rather than double-posting.
-- Child finished-good batches inherit bulk cost plus packaging allocations.
-- Packaging consumption and child-batch valuation are posted once through the accounting facade.
+- `BulkPackingService` is read-only in runtime and exposes `listBulkBatches(...)` plus `listChildBatches(...)`.
+- The only public packing mutation remains `POST /api/v1/factory/packing-records`.
+- `listBulkBatches(...)` resolves the parent semi-finished raw material through catalog product-family matching, then maps to the internal semi-finished SKU contract.
+- `listChildBatches(...)` uses recorded packing references to list child finished-good receipts for a parent bulk batch.
+- Historical replay resolution (`resolveIdempotentPack(...)`) remains read-only evidence logic for deterministic prior-effect lookup.
 
 `TS_PackingIdempotencyAndFacadeBoundaryTest` and `TS_BulkPackDeterministicReferenceTest` are the key replay-safety evidence here.
 
@@ -318,12 +318,12 @@ The overall model is uneven: adjustments/imports/packing are strongly replay-saf
 - Raw-material receipts, adjustments, and opening-stock imports create movement rows and attach journal ids after posting.
 - Production logs create raw-material issue movements, WIP journals, and semi-finished raw-material bulk batches.
 - Packing consumes semi-finished and packaging stock, creates finished-good receipt movements/batches, and can post wastage journals.
-- Bulk packing creates child finished-good batches and packaging journals while preserving replay identity.
+- Canonical packing creates child finished-good batches and packaging journals while preserving replay identity.
 - Dispatch confirmation links `inventory_movements` to packaging slips and COGS journals.
 - Cost allocation mutates production-log totals, recalculates finished-good batch unit costs, and posts cost-variance journals.
 - Inventory reporting depends on both movement integrity and product/master-data linkage because report valuation enriches inventory rows through `ProductionProduct` lookups.
 
-Recovery is strongest where explicit replay anchors exist: catalog import, opening stock import, adjustments, manual intake, packing, and bulk packing can all deterministically reject or reuse prior work. Recovery is weaker on generic catalog CRUD, production-log create, and dispatch confirm because those flows rely more on uniqueness/state markers than on a dedicated public idempotency contract.
+Recovery is strongest where explicit replay anchors exist: catalog import, opening stock import, adjustments, manual intake, and canonical packing can all deterministically reject or reuse prior work. Recovery is weaker on generic catalog CRUD, production-log create, and dispatch confirm because those flows rely more on uniqueness/state markers than on a dedicated public idempotency contract.
 
 ## Risk hotspots
 
@@ -344,7 +344,7 @@ Recovery is strongest where explicit replay anchors exist: catalog import, openi
 ### Strengths
 
 - Stock-bearing mutations use pessimistic locks on raw materials, finished goods, batches, production logs, or company rows where double-consumption would corrupt truth.
-- Imports, adjustments, manual intake, packing, and bulk packing all have explicit replay or conflict semantics.
+- Imports, adjustments, manual intake, and canonical packing all have explicit replay or conflict semantics.
 - Batch traceability includes `journalEntryId` and `packingSlipId`, which makes physical-to-financial investigation possible.
 - Schema constraints backstop important invariants: SKU uniqueness, batch-code uniqueness, opening-stock idempotency, packaging-slip uniqueness, and packaging-mapping uniqueness.
 - Production explicitly disables the risky inventory->GL auto-listener for the purchasing path.
@@ -363,7 +363,7 @@ Recovery is strongest where explicit replay anchors exist: catalog import, openi
 - `ProductionCatalogRawMaterialInvariantIT` proves import repairs raw-material inventory-account drift, validates account scope, and preserves costing aliases correctly across replay.
 - `CR_OpeningStockImportIdempotencyIT` proves opening-stock import reuses the same result for the same key/file.
 - `TS_PackingIdempotencyAndFacadeBoundaryTest` proves packing reserves idempotency before side effects and links inventory movements through the accounting facade.
-- `TS_BulkPackDeterministicReferenceTest` proves bulk packing derives a deterministic reference and replays prior effects instead of double-posting.
+- `TS_BulkPackDeterministicReferenceTest` proves the retired bulk mutation surface is absent and replay lookups still read deterministic historical references.
 - `CR_ManufacturingWipCostingTest` and `FactoryPackagingCostingIT` prove the intended RM -> WIP -> semi-finished -> FG receipt -> dispatch COGS chain.
 - `TS_InventoryCogsLinkageScanContractTest` proves dispatch movements must carry packaging-slip and journal references.
 - `InventoryGlReconciliationIT` proves receipt, shipment, and adjustment postings stay aligned with inventory-account balances.

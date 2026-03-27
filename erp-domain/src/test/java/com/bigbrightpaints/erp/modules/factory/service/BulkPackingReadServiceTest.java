@@ -3,6 +3,8 @@ package com.bigbrightpaints.erp.modules.factory.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -34,6 +36,8 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 
 @ExtendWith(MockitoExtension.class)
 class BulkPackingReadServiceTest {
@@ -44,6 +48,8 @@ class BulkPackingReadServiceTest {
   @Mock private FinishedGoodRepository finishedGoodRepository;
   @Mock private RawMaterialBatchRepository rawMaterialBatchRepository;
   @Mock private RawMaterialRepository rawMaterialRepository;
+  @Mock private ProductionProductRepository productionProductRepository;
+  @Mock private PackingProductSupport packingProductSupport;
 
   private BulkPackingReadService service;
   private Company company;
@@ -57,7 +63,9 @@ class BulkPackingReadServiceTest {
             journalEntryRepository,
             finishedGoodRepository,
             rawMaterialBatchRepository,
-            rawMaterialRepository);
+            rawMaterialRepository,
+            productionProductRepository,
+            packingProductSupport);
     company = new Company();
     company.setCode("BULK-READ");
     company.setTimezone("UTC");
@@ -245,8 +253,13 @@ class BulkPackingReadServiceTest {
     FinishedGood fg = new FinishedGood();
     fg.setProductCode("FG-100");
     ReflectionTestUtils.setField(fg, "id", 100L);
+    ProductionProduct parentProduct = productionProduct("FG-100");
 
     when(finishedGoodRepository.findByCompanyAndId(company, 100L)).thenReturn(Optional.of(fg));
+    when(productionProductRepository.findByCompanyOrderByProductNameAsc(company))
+        .thenReturn(List.of(parentProduct));
+    when(packingProductSupport.isMatchingChildSku("FG-100", "FG-100")).thenReturn(true);
+    when(packingProductSupport.semiFinishedSku(parentProduct)).thenReturn("FG-100-BULK");
     when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "FG-100-BULK"))
         .thenReturn(Optional.empty());
 
@@ -265,9 +278,10 @@ class BulkPackingReadServiceTest {
   @Test
   void listBulkBatches_filtersOutNonPositiveQuantityBatches() {
     FinishedGood fg = new FinishedGood();
-    fg.setProductCode("FG-101");
+    fg.setProductCode("FG-101-1L");
     ReflectionTestUtils.setField(fg, "id", 101L);
 
+    ProductionProduct parentProduct = productionProduct("FG-101");
     RawMaterial bulkMaterial = new RawMaterial();
     bulkMaterial.setSku("FG-101-BULK");
     bulkMaterial.setName("FG 101 Bulk");
@@ -279,6 +293,10 @@ class BulkPackingReadServiceTest {
     nullQty.setQuantity(null);
 
     when(finishedGoodRepository.findByCompanyAndId(company, 101L)).thenReturn(Optional.of(fg));
+    when(productionProductRepository.findByCompanyOrderByProductNameAsc(company))
+        .thenReturn(List.of(parentProduct));
+    when(packingProductSupport.isMatchingChildSku("FG-101-1L", "FG-101")).thenReturn(true);
+    when(packingProductSupport.semiFinishedSku(parentProduct)).thenReturn("FG-101-BULK");
     when(rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, "FG-101-BULK"))
         .thenReturn(Optional.of(bulkMaterial));
     when(rawMaterialBatchRepository.findByRawMaterial(bulkMaterial))
@@ -289,6 +307,22 @@ class BulkPackingReadServiceTest {
     assertThat(result).hasSize(1);
     assertThat(result.getFirst().batchCode()).isEqualTo("RB-201");
     assertThat(result.getFirst().finishedGoodCode()).isEqualTo("FG-101-BULK");
+  }
+
+  @Test
+  void listBulkBatches_returnsEmptyWhenNoCatalogProductMatchesFinishedGoodFamily() {
+    FinishedGood fg = new FinishedGood();
+    fg.setProductCode("FG-999-4L");
+    ReflectionTestUtils.setField(fg, "id", 999L);
+    ProductionProduct unrelated = productionProduct("FG-OTHER");
+
+    when(finishedGoodRepository.findByCompanyAndId(company, 999L)).thenReturn(Optional.of(fg));
+    when(productionProductRepository.findByCompanyOrderByProductNameAsc(company))
+        .thenReturn(List.of(unrelated));
+    when(packingProductSupport.isMatchingChildSku("FG-999-4L", "FG-OTHER")).thenReturn(false);
+
+    assertThat(service.listBulkBatches(company, 999L)).isEmpty();
+    verify(rawMaterialRepository, never()).findByCompanyAndSkuIgnoreCase(eq(company), eq("FG-999-BULK"));
   }
 
   @Test
@@ -408,5 +442,12 @@ class BulkPackingReadServiceTest {
     batch.setQuantityAvailable(new BigDecimal("10"));
     batch.setUnitCost(new BigDecimal("6"));
     return batch;
+  }
+
+  private static ProductionProduct productionProduct(String skuCode) {
+    ProductionProduct product = new ProductionProduct();
+    product.setSkuCode(skuCode);
+    product.setProductName("Product " + skuCode);
+    return product;
   }
 }
