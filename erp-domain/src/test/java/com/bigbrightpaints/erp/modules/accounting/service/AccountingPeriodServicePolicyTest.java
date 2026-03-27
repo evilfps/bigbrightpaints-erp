@@ -221,12 +221,6 @@ class AccountingPeriodServicePolicyTest {
                 period.getEndDate(),
                 List.of("POSTED", "PARTIAL", "PAID")))
         .thenReturn(0L);
-    when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusInAndJournalMissing(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(PayrollRun.PayrollStatus.POSTED, PayrollRun.PayrollStatus.PAID)))
-        .thenReturn(0L);
     when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusIn(
             company, period.getStartDate(), period.getEndDate(), List.of("DRAFT")))
         .thenReturn(0L);
@@ -235,15 +229,6 @@ class AccountingPeriodServicePolicyTest {
             period.getStartDate(),
             period.getEndDate(),
             List.of("POSTED", "PARTIAL", "PAID")))
-        .thenReturn(0L);
-    when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusIn(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(
-                PayrollRun.PayrollStatus.DRAFT,
-                PayrollRun.PayrollStatus.CALCULATED,
-                PayrollRun.PayrollStatus.APPROVED)))
         .thenReturn(0L);
     authenticate("policy.admin", "ROLE_ADMIN");
 
@@ -311,12 +296,6 @@ class AccountingPeriodServicePolicyTest {
                 period.getEndDate(),
                 List.of("POSTED", "PARTIAL", "PAID")))
         .thenReturn(0L);
-    when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusInAndJournalMissing(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(PayrollRun.PayrollStatus.POSTED, PayrollRun.PayrollStatus.PAID)))
-        .thenReturn(0L);
     when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusIn(
             company, period.getStartDate(), period.getEndDate(), List.of("DRAFT")))
         .thenReturn(0L);
@@ -325,15 +304,6 @@ class AccountingPeriodServicePolicyTest {
             period.getStartDate(),
             period.getEndDate(),
             List.of("POSTED", "PARTIAL", "PAID")))
-        .thenReturn(0L);
-    when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusIn(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(
-                PayrollRun.PayrollStatus.DRAFT,
-                PayrollRun.PayrollStatus.CALCULATED,
-                PayrollRun.PayrollStatus.APPROVED)))
         .thenReturn(0L);
     authenticate("policy.admin", "ROLE_ADMIN");
 
@@ -415,12 +385,6 @@ class AccountingPeriodServicePolicyTest {
                 period.getEndDate(),
                 List.of("POSTED", "PARTIAL", "PAID")))
         .thenReturn(0L);
-    when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusInAndJournalMissing(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(PayrollRun.PayrollStatus.POSTED, PayrollRun.PayrollStatus.PAID)))
-        .thenReturn(0L);
     when(invoiceRepository.countByCompanyAndIssueDateBetweenAndStatusIn(
             company, period.getStartDate(), period.getEndDate(), List.of("DRAFT")))
         .thenReturn(0L);
@@ -429,15 +393,6 @@ class AccountingPeriodServicePolicyTest {
             period.getStartDate(),
             period.getEndDate(),
             List.of("POSTED", "PARTIAL", "PAID")))
-        .thenReturn(0L);
-    when(payrollRunRepository.countByCompanyAndPeriodBetweenAndStatusIn(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(
-                PayrollRun.PayrollStatus.DRAFT,
-                PayrollRun.PayrollStatus.CALCULATED,
-                PayrollRun.PayrollStatus.APPROVED)))
         .thenReturn(0L);
     authenticate("policy.admin", "ROLE_ADMIN");
 

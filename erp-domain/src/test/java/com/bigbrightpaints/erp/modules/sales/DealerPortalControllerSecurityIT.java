@@ -105,11 +105,14 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
     Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
     assertThat(asLong(data.get("dealerId"))).isEqualTo(dealerA.getId());
     assertThat(new BigDecimal(String.valueOf(data.get("totalOutstanding"))))
-        .isEqualByComparingTo("1180.00");
+        .isEqualByComparingTo("0");
+    assertThat(((Number) data.get("pendingOrderCount")).longValue()).isEqualTo(1L);
+    assertThat(new BigDecimal(String.valueOf(data.get("pendingOrderExposure"))))
+        .isEqualByComparingTo("5000.00");
     assertThat(new BigDecimal(String.valueOf(data.get("creditUsed"))))
-        .isEqualByComparingTo("6180.00");
+        .isEqualByComparingTo("5000.00");
     assertThat(new BigDecimal(String.valueOf(data.get("availableCredit"))))
-        .isEqualByComparingTo("93820.00");
+        .isEqualByComparingTo("95000.00");
   }
 
   @Test
