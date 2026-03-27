@@ -364,6 +364,13 @@ public class SuperAdminTenantControlPlaneService {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
           "Email change request is stale because the admin email has already changed");
     }
+    if (userAccountRepository
+        .findByEmailIgnoreCase(changeRequest.getRequestedEmail())
+        .filter(existingUser -> !existingUser.getId().equals(adminUser.getId()))
+        .isPresent()) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "Email already exists: " + changeRequest.getRequestedEmail());
+    }
     Instant now = CompanyTime.now(company);
     changeRequest.setVerifiedAt(now);
     changeRequest.setConfirmedAt(now);
