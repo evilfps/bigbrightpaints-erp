@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.truthsuite.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -26,7 +25,6 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.bigbrightpaints.erp.core.config.EmailProperties;
-import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.core.security.AuthScopeService;
@@ -72,7 +70,7 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
 
   @Test
   @SuppressWarnings("unchecked")
-  void requestReset_missingLifecycleTransactionFailsFast_runtimeCoverage() {
+  void requestReset_missingLifecycleTransactionStaysMasked_runtimeCoverage() {
     UserAccountRepository userRepository = mock(UserAccountRepository.class);
     PasswordResetTokenRepository tokenRepository = mock(PasswordResetTokenRepository.class);
     EmailService emailService = mock(EmailService.class);
@@ -88,9 +86,7 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
         .thenAnswer(invocation -> invocation.getArgument(0, org.springframework.transaction.support.TransactionCallback.class).doInTransaction(null));
     ReflectionTestUtils.setField(service, "tokenLifecycleTransactionTemplate", lifecycleTemplate);
 
-    assertThatThrownBy(() -> invokeRequest(service, "corr-tx-missing-123", null, null))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("active transaction");
+    invokeRequest(service, "corr-tx-missing-123", null, null);
 
     verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
     verify(emailService, never())
@@ -129,7 +125,7 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
   }
 
   @Test
-  void requestReset_propagatesUnexpectedDeliveryFailures_andCleansUpIssuedToken_runtimeCoverage() {
+  void requestReset_masksUnexpectedDeliveryFailures_andCleansUpIssuedToken_runtimeCoverage() {
     UserAccountRepository userRepository = mock(UserAccountRepository.class);
     PasswordResetTokenRepository tokenRepository = mock(PasswordResetTokenRepository.class);
     EmailService emailService = mock(EmailService.class);
@@ -145,9 +141,7 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
         .sendPasswordResetEmailRequired(
             eq("user@example.com"), eq("User"), anyString(), eq(TENANT_SCOPE));
 
-    assertThatThrownBy(() -> service.requestReset("user@example.com", TENANT_SCOPE))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("unexpected dispatch bug");
+    invokeRequest(service, "corr-delivery-mask-123", null, null);
 
     verify(tokenRepository).deleteByTokenDigest(anyString());
   }

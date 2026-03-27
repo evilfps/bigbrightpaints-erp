@@ -115,8 +115,18 @@ public class PasswordResetService {
         .filter(UserAccount::isEnabled)
         .ifPresent(
             user -> {
-              if (dispatchResetEmail(user, correlationId, "forgot_password")) {
-                auditResetRequested("forgot_password", user, scopeCode, correlationId);
+              try {
+                if (dispatchResetEmail(user, correlationId, "forgot_password")) {
+                  auditResetRequested("forgot_password", user, scopeCode, correlationId);
+                }
+              } catch (RuntimeException ex) {
+                log.warn(
+                    "event=password_reset.forgot_password.masked_failure policy={} correlationId={}"
+                        + " email={} outcome=masked_response exceptionClass={}",
+                    RESET_POLICY_SCOPE,
+                    correlationId,
+                    obfuscateEmail(user.getEmail()),
+                    ex.getClass().getSimpleName());
               }
             });
   }
