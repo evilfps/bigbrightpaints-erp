@@ -534,16 +534,12 @@ class TenantRuntimeEnforcementServiceTest {
   }
 
   @Test
-  void beginRequest_companyRuntimePolicyControlBypassesBlockedState_forPrivilegedActor() {
+  void beginRequest_canonicalPolicyControlBypassesBlockedState_forPrivilegedActor() {
     service.blockTenant("ACME", "incident-lock", "ops@bbp.com");
 
     TenantRuntimeEnforcementService.TenantRequestAdmission policyAdmission =
         service.beginRequest(
-            "ACME",
-            "/api/v1/companies/1/tenant-runtime/policy",
-            "PUT",
-            "super-admin@bbp.com",
-            true);
+            "ACME", "/api/v1/superadmin/tenants/1/limits", "PUT", "super-admin@bbp.com", true);
 
     assertThat(policyAdmission.isAdmitted()).isTrue();
     assertThat(policyAdmission.statusCode()).isEqualTo(HttpStatus.OK.value());
@@ -675,7 +671,7 @@ class TenantRuntimeEnforcementServiceTest {
     TenantRuntimeEnforcementService.TenantRequestAdmission controlTrailingSlashAllowed =
         service.beginRequest(
             "ACME", "/api/v1/superadmin/tenants/1/limits///", "PUT", "ops@bbp.com", true);
-    TenantRuntimeEnforcementService.TenantRequestAdmission companyPolicyControlAllowed =
+    TenantRuntimeEnforcementService.TenantRequestAdmission retiredCompanyPolicyControl =
         service.beginRequest(
             "ACME",
             "/api/v1/companies/1/tenant-runtime/policy///",
@@ -688,7 +684,8 @@ class TenantRuntimeEnforcementServiceTest {
     assertThat(blankMethodRejected.isAdmitted()).isFalse();
     assertThat(blankMethodRejected.statusCode()).isEqualTo(HttpStatus.LOCKED.value());
     assertThat(controlTrailingSlashAllowed.isAdmitted()).isTrue();
-    assertThat(companyPolicyControlAllowed.isAdmitted()).isTrue();
+    assertThat(retiredCompanyPolicyControl.isAdmitted()).isFalse();
+    assertThat(retiredCompanyPolicyControl.statusCode()).isEqualTo(HttpStatus.LOCKED.value());
     assertThat(missingPathRejected.isAdmitted()).isFalse();
     assertThat(missingPathRejected.statusCode()).isEqualTo(HttpStatus.LOCKED.value());
   }
@@ -706,7 +703,7 @@ class TenantRuntimeEnforcementServiceTest {
     assertThat(
             invokeIsPolicyControlRequest(
                 "/api/v1/companies/1/tenant-runtime/policy///", " put ", true))
-        .isTrue();
+        .isFalse();
     assertThat(
             invokeIsPolicyControlRequest("/api/v1/superadmin/tenants/1/limits///", " put ", true))
         .isTrue();
