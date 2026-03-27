@@ -37,7 +37,7 @@ class PortalFinanceControllerIT extends AbstractIntegrationTest {
   private static final String SALES_EMAIL = "portal-fin-sales@bbp.com";
   private static final String DEALER_EMAIL = "portal-fin-dealer@bbp.com";
   private static final String SUPER_ADMIN_EMAIL = "portal-fin-superadmin@bbp.com";
-  private static final String PASSWORD = "PortalFin123!";
+  private static final String PASSWORD = "changeme";
 
   @Autowired private TestRestTemplate rest;
   @Autowired private CompanyRepository companyRepository;
