@@ -298,7 +298,8 @@ class ReconciliationServiceTest {
     when(accountRepository.findByCompanyOrderByCodeAsc(company))
         .thenReturn(List.of(receivable, payable));
     when(dealerRepository.findByCompanyOrderByNameAsc(company)).thenReturn(List.of(dealer));
-    when(supplierRepository.findByCompanyOrderByNameAsc(company)).thenReturn(List.of(supplier));
+    when(supplierRepository.findByCompanyWithPayableAccountOrderByNameAsc(company))
+        .thenReturn(List.of(supplier));
     when(dealerLedgerRepository.aggregateBalances(company, List.of(1L)))
         .thenReturn(List.of(new DealerBalanceView(1L, new BigDecimal("430.00"))));
     when(supplierLedgerRepository.aggregateBalances(company, List.of(2L)))
@@ -399,7 +400,8 @@ class ReconciliationServiceTest {
     when(accountRepository.findByCompanyOrderByCodeAsc(company))
         .thenReturn(List.of(receivable, payable));
     when(dealerRepository.findByCompanyOrderByNameAsc(company)).thenReturn(List.of(dealer));
-    when(supplierRepository.findByCompanyOrderByNameAsc(company)).thenReturn(List.of(supplier));
+    when(supplierRepository.findByCompanyWithPayableAccountOrderByNameAsc(company))
+        .thenReturn(List.of(supplier));
 
     when(dealerLedgerRepository.aggregateBalances(company, List.of(31L)))
         .thenReturn(List.of(new DealerBalanceView(31L, new BigDecimal("430.00"))));
@@ -495,7 +497,8 @@ class ReconciliationServiceTest {
         .thenReturn(Optional.empty());
     when(accountRepository.findByCompanyOrderByCodeAsc(company)).thenReturn(List.of(receivable));
     when(dealerRepository.findByCompanyOrderByNameAsc(company)).thenReturn(List.of(dealer));
-    when(supplierRepository.findByCompanyOrderByNameAsc(company)).thenReturn(List.of());
+    when(supplierRepository.findByCompanyWithPayableAccountOrderByNameAsc(company))
+        .thenReturn(List.of());
     when(dealerLedgerRepository.aggregateBalances(company, List.of(51L)))
         .thenReturn(List.of(new DealerBalanceView(51L, new BigDecimal("100.00"))));
 
