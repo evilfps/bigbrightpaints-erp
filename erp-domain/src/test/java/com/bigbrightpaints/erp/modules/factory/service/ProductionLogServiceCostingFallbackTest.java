@@ -1,8 +1,10 @@
 package com.bigbrightpaints.erp.modules.factory.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -10,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -30,12 +33,14 @@ import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogDetailDto;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 
 @Tag("critical")
 @ExtendWith(MockitoExtension.class)
@@ -152,5 +157,73 @@ class ProductionLogServiceCostingFallbackTest {
     assertThat(dto.id()).isEqualTo(77L);
     assertThat(dto.productFamilyName()).isNull();
     assertThat(dto.allowedSellableSizes()).isEmpty();
+  }
+
+  @Test
+  void initializeSemiFinishedRawMaterial_usesFgValuationFallbackAccount() {
+    Company company = new Company();
+    ProductionProduct product = new ProductionProduct();
+    product.setProductName("Primer");
+    product.setSkuCode("FG-PRIMER");
+    product.setUnitOfMeasure("L");
+    product.setMetadata(Map.of("fgValuationAccountId", "811"));
+
+    when(rawMaterialRepository.save(org.mockito.ArgumentMatchers.any(RawMaterial.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    RawMaterial created =
+        ReflectionTestUtils.invokeMethod(
+            productionLogService,
+            "initializeSemiFinishedRawMaterial",
+            company,
+            product,
+            "FG-PRIMER-BULK");
+
+    assertThat(created.getSku()).isEqualTo("FG-PRIMER-BULK");
+    assertThat(created.getInventoryAccountId()).isEqualTo(811L);
+    assertThat(created.getUnitType()).isEqualTo("L");
+    assertThat(created.getMaterialType()).isEqualTo(MaterialType.PRODUCTION);
+  }
+
+  @Test
+  void ensureSemiFinishedRawMaterial_returnsLockedExistingMaterial() {
+    Company company = new Company();
+    ProductionProduct product = new ProductionProduct();
+    product.setProductName("Primer");
+    product.setSkuCode("FG-LOCK");
+    product.setMetadata(Map.of("semiFinishedAccountId", 900L));
+
+    RawMaterial existing = new RawMaterial();
+    existing.setSku("FG-LOCK-BULK");
+    existing.setInventoryAccountId(900L);
+    when(rawMaterialRepository.lockByCompanyAndSkuIgnoreCase(company, "FG-LOCK-BULK"))
+        .thenReturn(java.util.Optional.of(existing));
+
+    RawMaterial resolved =
+        ReflectionTestUtils.invokeMethod(
+            productionLogService, "ensureSemiFinishedRawMaterial", company, product);
+
+    assertThat(resolved).isSameAs(existing);
+    verify(rawMaterialRepository, never()).save(org.mockito.ArgumentMatchers.any(RawMaterial.class));
+  }
+
+  @Test
+  void initializeSemiFinishedRawMaterial_throwsWhenAccountMetadataMissing() {
+    Company company = new Company();
+    ProductionProduct product = new ProductionProduct();
+    product.setProductName("Primer");
+    product.setSkuCode("FG-NO-ACC");
+    product.setMetadata(Map.of());
+
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    productionLogService,
+                    "initializeSemiFinishedRawMaterial",
+                    company,
+                    product,
+                    "FG-NO-ACC-BULK"))
+        .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+        .hasMessageContaining("missing semi-finished account metadata");
   }
 }

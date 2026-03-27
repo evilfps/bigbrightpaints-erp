@@ -264,6 +264,37 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
   }
 
   @Test
+  void lockFinishedGoodByProductCode_returnsSellableSku() {
+    FinishedGood sellable = finishedGood(906L, "FG-LOCK-1L", "Sellable");
+    when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-LOCK-1L"))
+        .thenReturn(Optional.of(sellable));
+
+    FinishedGood locked = service.lockFinishedGoodByProductCode("FG-LOCK-1L");
+
+    assertThat(locked).isSameAs(sellable);
+  }
+
+  @Test
+  void listBatchesForFinishedGood_returnsBatchesForSellableSku() {
+    FinishedGood sellable = finishedGood(907L, "FG-BATCH-1L", "Sellable");
+    FinishedGoodBatch batch = new FinishedGoodBatch();
+    setId(batch, 1907L);
+    batch.setFinishedGood(sellable);
+    batch.setBatchCode("FG-BATCH-907");
+    batch.setQuantityTotal(new BigDecimal("4"));
+    batch.setQuantityAvailable(new BigDecimal("4"));
+    batch.setUnitCost(new BigDecimal("8"));
+
+    when(finishedGoodRepository.findByCompanyAndId(company, 907L)).thenReturn(Optional.of(sellable));
+    when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(sellable))
+        .thenReturn(List.of(batch));
+
+    assertThat(service.listBatchesForFinishedGood(907L)).hasSize(1);
+    assertThat(service.listBatchesForFinishedGood(907L).getFirst().batchCode())
+        .isEqualTo("FG-BATCH-907");
+  }
+
+  @Test
   void getLowStockThreshold_rejectsSemiFinishedBulkSku() {
     FinishedGood semiFinished = finishedGood(904L, "FG-LOW-BULK", "Semi Finished");
     when(finishedGoodRepository.findByCompanyAndId(company, 904L))

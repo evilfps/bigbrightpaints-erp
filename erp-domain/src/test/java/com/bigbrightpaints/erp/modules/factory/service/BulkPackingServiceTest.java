@@ -156,6 +156,40 @@ class BulkPackingServiceTest {
   }
 
   @Test
+  void trimReference_returnsBaseWhenWithinLimit() {
+    BulkPackingService service =
+        new BulkPackingService(null, null, null, null, null, null, null, null, null);
+
+    String reference =
+        ReflectionTestUtils.invokeMethod(service, "trimReference", "PACK-", "BULK-1", "abc123", 64);
+
+    assertThat(reference).isEqualTo("PACK-BULK-1-abc123");
+  }
+
+  @Test
+  void trimReference_returnsPrefixAndHashWhenBatchSpaceIsNonPositive() {
+    BulkPackingService service =
+        new BulkPackingService(null, null, null, null, null, null, null, null, null);
+
+    String reference =
+        ReflectionTestUtils.invokeMethod(service, "trimReference", "PACK-", "BULK-1", "1234567890", 8);
+
+    assertThat(reference).isEqualTo("PACK-1234567890");
+  }
+
+  @Test
+  void trimReference_trimsBatchWhenReferenceExceedsLimit() {
+    BulkPackingService service =
+        new BulkPackingService(null, null, null, null, null, null, null, null, null);
+
+    String reference =
+        ReflectionTestUtils.invokeMethod(
+            service, "trimReference", "PACK-", "BULK-BATCH-CODE-LONG", "abcd", 16);
+
+    assertThat(reference).isEqualTo("PACK-BULK-B-abcd");
+  }
+
+  @Test
   void createChildBatch_requiresActiveFinishedGood() {
     BulkPackingOrchestrator orchestrator =
         new BulkPackingOrchestrator(
@@ -444,6 +478,31 @@ class BulkPackingServiceTest {
   }
 
   @Test
+  void pack_rejectsNullRawMaterialSku() {
+    PackServiceFixture fixture = new PackServiceFixture();
+    BulkPackRequest request =
+        new BulkPackRequest(
+            157L,
+            List.of(new BulkPackRequest.PackLine(7L, BigDecimal.ONE, "1L", "L")),
+            LocalDate.of(2026, 3, 24),
+            null,
+            null,
+            null);
+
+    Company company = fixture.company("PACK-SKU-NULL");
+    RawMaterialBatch batch = fixture.bulkBatch(company, "FG-157-BULK", "BULK-157", "9");
+    batch.getRawMaterial().setSku(null);
+
+    when(fixture.companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(fixture.rawMaterialBatchRepository.lockByRawMaterialCompanyAndId(company, 157L))
+        .thenReturn(java.util.Optional.of(batch));
+
+    assertThatThrownBy(() -> fixture.service.pack(request))
+        .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+        .hasMessageContaining("is not a semi-finished bulk batch");
+  }
+
+  @Test
   void pack_rejectsWhenRequestedVolumeExceedsAvailableBulkQuantity() {
     PackServiceFixture fixture = new PackServiceFixture();
     BulkPackRequest request =
@@ -552,6 +611,93 @@ class BulkPackingServiceTest {
     verify(fixture.bulkPackingInventoryService).consumeBulkInventory(any(), any(), anyString());
     verify(fixture.packingJournalLinkHelper)
         .linkPackagingMovementsToJournal(any(), anyString(), eq(700L));
+  }
+
+  @Test
+  void pack_defaultsNullBulkUnitCostToZeroInCostingAndJournal() {
+    PackServiceFixture fixture = new PackServiceFixture();
+    BulkPackRequest request =
+        new BulkPackRequest(
+            160L,
+            List.of(new BulkPackRequest.PackLine(77L, new BigDecimal("2"), "1L", "L")),
+            LocalDate.of(2026, 3, 25),
+            null,
+            "ok",
+            "PACK-160");
+
+    Company company = fixture.company("PACK-NULL-COST");
+    RawMaterialBatch batch = fixture.bulkBatch(company, "FG-160-BULK", "BULK-160", "8");
+    batch.setCostPerUnit(null);
+    batch.getRawMaterial().setInventoryAccountId(410L);
+
+    FinishedGood fg = new FinishedGood();
+    fg.setValuationAccountId(510L);
+    fg.setProductCode("FG-160-1L");
+    FinishedGoodBatch childBatch = new FinishedGoodBatch();
+    childBatch.setFinishedGood(fg);
+    childBatch.setSizeLabel("1L");
+    childBatch.setQuantityTotal(new BigDecimal("2"));
+    childBatch.setUnitCost(new BigDecimal("5"));
+
+    when(fixture.companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(fixture.rawMaterialBatchRepository.lockByRawMaterialCompanyAndId(company, 160L))
+        .thenReturn(java.util.Optional.of(batch));
+    when(fixture.bulkPackingReadService.resolveIdempotentPack(any(), any(), anyString()))
+        .thenReturn(null);
+    when(fixture.bulkPackingOrchestrator.calculateTotalVolume(any()))
+        .thenReturn(new BigDecimal("2"));
+    when(fixture.bulkPackingCostService.consumePackagingIfRequired(any(), any(), anyString()))
+        .thenReturn(BulkPackCostSummary.empty());
+    when(fixture.bulkPackingOrchestrator.resolveTotalPacks(any())).thenReturn(2);
+    when(fixture.bulkPackingCostService.createCostingContext(any(), any(), anyInt()))
+        .thenReturn(new BulkPackCostingContext(BigDecimal.ZERO, BigDecimal.ZERO, Map.of(), false));
+    when(fixture.bulkPackingCostService.resolveLinePackagingCostPerUnit(any(), any(), anyInt()))
+        .thenReturn(BigDecimal.ZERO);
+    when(fixture.bulkPackingOrchestrator.createChildBatch(
+            any(), any(), any(), any(), any(), any(), anyString()))
+        .thenReturn(childBatch);
+    when(fixture.bulkPackingOrchestrator.buildBulkToSizeJournalLines(
+            any(), anyString(), any(), any(), any(), any()))
+        .thenReturn(
+            List.of(
+                new JournalEntryRequest.JournalLineRequest(
+                    410L, "line", new BigDecimal("8"), BigDecimal.ZERO)));
+    when(fixture.accountingFacade.postPackingJournal(anyString(), any(), anyString(), any()))
+        .thenReturn(
+            new JournalEntryDto(
+                701L,
+                null,
+                "REF-160",
+                LocalDate.of(2026, 3, 25),
+                "posted",
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
+
+    fixture.service.pack(request);
+
+    verify(fixture.bulkPackingCostService)
+        .createCostingContext(eq(BigDecimal.ZERO), any(), eq(2));
+    verify(fixture.bulkPackingOrchestrator)
+        .buildBulkToSizeJournalLines(
+            eq(410L), eq("BULK-160"), eq(BigDecimal.ZERO), any(), any(), any());
   }
 
   private static final class PackServiceFixture {

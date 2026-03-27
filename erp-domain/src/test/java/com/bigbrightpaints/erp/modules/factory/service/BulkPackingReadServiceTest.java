@@ -187,6 +187,60 @@ class BulkPackingReadServiceTest {
   }
 
   @Test
+  void resolveIdempotentPack_countsOnlyPositiveMatchingIssueVolume() {
+    RawMaterialBatch bulkBatch = rawBatch(13L, "BULK-13", "45", new BigDecimal("7"), null);
+
+    InventoryMovement receipt = new InventoryMovement();
+    receipt.setMovementType("RECEIPT");
+    receipt.setFinishedGoodBatch(childBatch(61L, "FG-61", "B-61"));
+    receipt.setQuantity(new BigDecimal("2"));
+    receipt.setUnitCost(new BigDecimal("11"));
+
+    RawMaterialBatch nullIdBatch = new RawMaterialBatch();
+    RawMaterialMovement nullIdIssue = new RawMaterialMovement();
+    nullIdIssue.setMovementType("ISSUE");
+    nullIdIssue.setRawMaterialBatch(nullIdBatch);
+    nullIdIssue.setQuantity(new BigDecimal("6"));
+    nullIdIssue.setUnitCost(new BigDecimal("1"));
+
+    RawMaterialMovement negativeIssue = new RawMaterialMovement();
+    negativeIssue.setMovementType("ISSUE");
+    negativeIssue.setRawMaterialBatch(bulkBatch);
+    negativeIssue.setQuantity(new BigDecimal("-3"));
+    negativeIssue.setUnitCost(new BigDecimal("7"));
+
+    RawMaterialMovement matchingPositiveIssue = new RawMaterialMovement();
+    matchingPositiveIssue.setMovementType("ISSUE");
+    matchingPositiveIssue.setRawMaterialBatch(bulkBatch);
+    matchingPositiveIssue.setQuantity(new BigDecimal("2"));
+    matchingPositiveIssue.setUnitCost(new BigDecimal("7"));
+
+    RawMaterialMovement nonIssueMatchingBatch = new RawMaterialMovement();
+    nonIssueMatchingBatch.setMovementType("RECEIPT");
+    nonIssueMatchingBatch.setRawMaterialBatch(bulkBatch);
+    nonIssueMatchingBatch.setQuantity(new BigDecimal("5"));
+    nonIssueMatchingBatch.setUnitCost(new BigDecimal("9"));
+
+    JournalEntry journalEntry = new JournalEntry();
+    ReflectionTestUtils.setField(journalEntry, "id", 778L);
+
+    when(inventoryMovementRepository
+            .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company, InventoryReference.PACKING_RECORD, "PACK-14"))
+        .thenReturn(List.of(receipt));
+    when(rawMaterialMovementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+            company, InventoryReference.PACKING_RECORD, "PACK-14"))
+        .thenReturn(List.of(nullIdIssue, negativeIssue, matchingPositiveIssue, nonIssueMatchingBatch));
+    when(journalEntryRepository.findByCompanyAndReferenceNumber(company, "PACK-14"))
+        .thenReturn(Optional.of(journalEntry));
+
+    BulkPackResponse response = service.resolveIdempotentPack(company, bulkBatch, "PACK-14");
+
+    assertThat(response.volumeDeducted()).isEqualByComparingTo(new BigDecimal("2"));
+    assertThat(response.packagingCost()).isEqualByComparingTo(new BigDecimal("6.00"));
+  }
+
+  @Test
   void listBulkBatches_returnsEmptyWhenBulkMaterialDoesNotExist() {
     FinishedGood fg = new FinishedGood();
     fg.setProductCode("FG-100");
@@ -197,6 +251,15 @@ class BulkPackingReadServiceTest {
         .thenReturn(Optional.empty());
 
     assertThat(service.listBulkBatches(company, 100L)).isEmpty();
+  }
+
+  @Test
+  void listBulkBatches_throwsWhenFinishedGoodMissing() {
+    when(finishedGoodRepository.findByCompanyAndId(company, 404L)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> service.listBulkBatches(company, 404L))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Finished good not found");
   }
 
   @Test
@@ -271,6 +334,15 @@ class BulkPackingReadServiceTest {
     nullBatchReceipt.setQuantity(BigDecimal.ONE);
     nullBatchReceipt.setUnitCost(BigDecimal.ONE);
 
+    FinishedGoodBatch nullIdBatch = new FinishedGoodBatch();
+    nullIdBatch.setFinishedGood(childA.getFinishedGood());
+    nullIdBatch.setBatchCode("FG-NULL-ID");
+    InventoryMovement nullIdBatchReceipt = new InventoryMovement();
+    nullIdBatchReceipt.setMovementType("RECEIPT");
+    nullIdBatchReceipt.setFinishedGoodBatch(nullIdBatch);
+    nullIdBatchReceipt.setQuantity(BigDecimal.ONE);
+    nullIdBatchReceipt.setUnitCost(BigDecimal.ONE);
+
     when(rawMaterialBatchRepository.findByRawMaterial_CompanyAndId(company, 301L))
         .thenReturn(Optional.of(parentBatch));
     when(rawMaterialMovementRepository.findByRawMaterialBatchOrderByCreatedAtAsc(parentBatch))
@@ -278,13 +350,24 @@ class BulkPackingReadServiceTest {
     when(inventoryMovementRepository
             .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
                 eq(company), eq(InventoryReference.PACKING_RECORD), eq("PACK-201-A")))
-        .thenReturn(List.of(receiptA, duplicateReceiptA, nonReceipt, nullBatchReceipt));
+        .thenReturn(List.of(receiptA, duplicateReceiptA, nonReceipt, nullBatchReceipt, nullIdBatchReceipt));
 
     List<BulkPackResponse.ChildBatchDto> result = service.listChildBatches(company, 301L);
 
     assertThat(result).hasSize(1);
     assertThat(result.getFirst().id()).isEqualTo(401L);
     assertThat(result.getFirst().finishedGoodCode()).isEqualTo("FG-401");
+  }
+
+  @Test
+  void toChildBatchDto_handlesNullMovementSafely() {
+    BulkPackResponse.ChildBatchDto dto = service.toChildBatchDto((InventoryMovement) null);
+
+    assertThat(dto.id()).isNull();
+    assertThat(dto.finishedGoodCode()).isNull();
+    assertThat(dto.quantity()).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(dto.unitCost()).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(dto.totalValue()).isEqualByComparingTo(BigDecimal.ZERO);
   }
 
   @Test

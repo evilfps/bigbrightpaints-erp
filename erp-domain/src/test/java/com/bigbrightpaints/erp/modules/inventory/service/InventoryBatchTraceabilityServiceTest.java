@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.inventory.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -58,7 +59,7 @@ class InventoryBatchTraceabilityServiceTest {
 
     company = new Company();
     company.setCode("BTRACE");
-    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
   }
 
   @Test
@@ -250,5 +251,64 @@ class InventoryBatchTraceabilityServiceTest {
     assertThatThrownBy(() -> inventoryBatchTraceabilityService.getBatchMovementHistory(32L, null))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Batch not found: 32");
+  }
+
+  @Test
+  void autoLookup_rejectsAmbiguousIdAcrossRawAndFinishedWhenNotSemiFinished() {
+    FinishedGood fg = new FinishedGood();
+    fg.setCompany(company);
+    fg.setProductCode("FG-TRACE-1L");
+    fg.setName("Sellable");
+
+    FinishedGoodBatch finishedBatch = new FinishedGoodBatch();
+    ReflectionTestUtils.setField(finishedBatch, "id", 33L);
+    finishedBatch.setFinishedGood(fg);
+    finishedBatch.setBatchCode("FG-TRACE-33");
+
+    RawMaterial raw = new RawMaterial();
+    raw.setCompany(company);
+    raw.setSku("RM-TRACE-33");
+    raw.setName("Raw Material");
+    raw.setUnitType("KG");
+
+    RawMaterialBatch rawBatch = new RawMaterialBatch();
+    ReflectionTestUtils.setField(rawBatch, "id", 33L);
+    rawBatch.setRawMaterial(raw);
+    rawBatch.setBatchCode("RM-TRACE-33");
+
+    when(finishedGoodBatchRepository.findByFinishedGood_CompanyAndId(company, 33L))
+        .thenReturn(Optional.of(finishedBatch));
+    when(rawMaterialBatchRepository.findByRawMaterial_CompanyAndId(company, 33L))
+        .thenReturn(Optional.of(rawBatch));
+
+    assertThatThrownBy(() -> inventoryBatchTraceabilityService.getBatchMovementHistory(33L, null))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("ambiguous");
+  }
+
+  @Test
+  void getBatchMovementHistory_rejectsUnsupportedBatchType() {
+    assertThatThrownBy(() -> inventoryBatchTraceabilityService.getBatchMovementHistory(11L, "BULK"))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Unsupported batchType");
+  }
+
+  @Test
+  void isSemiFinishedBatch_handlesNullAndSellableBatches() {
+    FinishedGoodBatch noFinishedGood = new FinishedGoodBatch();
+    boolean noFinishedGoodResult =
+        ReflectionTestUtils.invokeMethod(
+            inventoryBatchTraceabilityService, "isSemiFinishedBatch", noFinishedGood);
+
+    FinishedGood sellableFg = new FinishedGood();
+    sellableFg.setProductCode("FG-TRACE-1L");
+    FinishedGoodBatch sellableBatch = new FinishedGoodBatch();
+    sellableBatch.setFinishedGood(sellableFg);
+    boolean sellableResult =
+        ReflectionTestUtils.invokeMethod(
+            inventoryBatchTraceabilityService, "isSemiFinishedBatch", sellableBatch);
+
+    assertThat(noFinishedGoodResult).isFalse();
+    assertThat(sellableResult).isFalse();
   }
 }

@@ -16,8 +16,10 @@ com.bigbrightpaints.erp.modules.factory.service.FactoryServiceTest
 com.bigbrightpaints.erp.modules.factory.service.PackingAllowedSizeServiceTest
 com.bigbrightpaints.erp.modules.factory.service.PackingIdempotencyServiceTest
 com.bigbrightpaints.erp.modules.factory.service.PackingInventoryServiceTest
+com.bigbrightpaints.erp.modules.factory.service.PackingBatchServiceTest
 com.bigbrightpaints.erp.modules.factory.service.PackingReadServiceTest
 com.bigbrightpaints.erp.modules.factory.service.PackingServiceTest
+com.bigbrightpaints.erp.modules.factory.service.ProductionLogServiceCostingFallbackTest
 com.bigbrightpaints.erp.modules.factory.service.PackagingMaterialServiceTest
 com.bigbrightpaints.erp.modules.factory.service.BulkPackingServiceTest
 com.bigbrightpaints.erp.modules.factory.service.BulkPackingReadServiceTest
