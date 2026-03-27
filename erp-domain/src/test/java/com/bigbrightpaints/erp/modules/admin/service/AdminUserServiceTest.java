@@ -719,6 +719,45 @@ class AdminUserServiceTest {
   }
 
   @Test
+  void updateUser_superAdminCompanyTransferRejectsScopedEmailCollisionBeforeTokenRevocation() {
+    Company foreignCompany = new Company();
+    ReflectionTestUtils.setField(foreignCompany, "id", 21L);
+    foreignCompany.setCode("FOREIGN");
+
+    UserAccount user =
+        new UserAccount("transfer-user@example.com", "TEST", "hash", "Transfer User");
+    ReflectionTestUtils.setField(user, "id", 404L);
+    user.setCompany(company);
+
+    when(userRepository.findById(404L)).thenReturn(Optional.of(user));
+    when(companyRepository.findById(21L)).thenReturn(Optional.of(foreignCompany));
+    when(userRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCaseAndIdNot(
+            "transfer-user@example.com", "FOREIGN", 404L))
+        .thenReturn(true);
+
+    SecurityContextHolder.getContext()
+        .setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                "super-admin@bbp.com",
+                "n/a",
+                List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
+
+    try {
+      assertThatThrownBy(
+              () -> service.updateUser(404L, new UpdateUserRequest("Transferred User", 21L, null, null)))
+          .isInstanceOf(ApplicationException.class)
+          .hasMessageContaining("Email already exists in target company scope");
+    } finally {
+      SecurityContextHolder.clearContext();
+    }
+
+    assertThat(user.getCompany()).isEqualTo(company);
+    assertThat(user.getAuthScopeCode()).isEqualTo("TEST");
+    verify(tokenBlacklistService, never()).revokeAllUserTokens(anyString());
+    verify(refreshTokenService, never()).revokeAllForUser(any());
+  }
+
+  @Test
   void suspend_crossTenantUser_forTenantAdmin_usesScopedLockAndMasksTargetAsMissing() {
     Company foreignCompany = new Company();
     ReflectionTestUtils.setField(foreignCompany, "id", 21L);

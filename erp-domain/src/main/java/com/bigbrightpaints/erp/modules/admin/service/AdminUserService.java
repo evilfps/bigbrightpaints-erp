@@ -218,6 +218,7 @@ public class AdminUserService {
     }
     if (request.companyId() != null) {
       Company targetCompany = resolveTargetCompanyForCreate(company, request.companyId());
+      assertScopedEmailAvailableForTransfer(user, targetCompany);
       user.setCompany(targetCompany);
       user.setAuthScopeCode(targetCompany.getCode());
       requiresReauth = true; // Company access changed
@@ -468,6 +469,19 @@ public class AdminUserService {
             () ->
                 com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                     "Company not found: " + companyId));
+  }
+
+  private void assertScopedEmailAvailableForTransfer(UserAccount user, Company targetCompany) {
+    if (user == null || targetCompany == null || !StringUtils.hasText(user.getEmail())) {
+      return;
+    }
+    Long userId = user.getId();
+    if (userId == null
+        || userRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCaseAndIdNot(
+            user.getEmail(), targetCompany.getCode(), userId)) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "Email already exists in target company scope");
+    }
   }
 
   private boolean hasSuperAdminAuthority() {
