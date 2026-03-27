@@ -1,0 +1,51 @@
+{
+  "milestone": "dealer-finance-hard-cut",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": false,
+      "command": "cd /home/realnigga/Desktop/Mission-control && bash scripts/gate_fast.sh",
+      "exitCode": 1
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "description": "Override applied for scrutiny progression: `gate_fast` remains red only on the known unrelated O2C dispatch provenance suite (`TS_O2CDispatchProvenanceViewsAndEquivalenceTest` returning `404 NOT_FOUND` instead of `200 OK`). Per user instruction, ERP-21 must proceed without absorbing that fix.",
+      "sourceFeature": "scrutiny-validator-dealer-finance-hard-cut"
+    },
+    {
+      "description": "Final PR readiness still requires rerunning the full gates and obtaining a green result before merge; this override only allows the mission to continue past the unrelated baseline blocker during ERP-21 execution.",
+      "sourceFeature": "scrutiny-validator-dealer-finance-hard-cut"
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [],
+  "override": {
+    "applied": true,
+    "reason": "User explicitly instructed the ERP-21 team to classify the unrelated baseline blocker with proof, not absorb the O2C fix into ERP-21, proceed with ERP-21, and rerun full gates before merge.",
+    "evidence": [
+      "Mission AGENTS.md known pre-existing blocker guidance",
+      "Worker handoffs for `portal-finance-canonical-hosts`, `dealer-finance-retired-host-cleanup`, and `scrutiny-validator-dealer-finance-hard-cut`",
+      "Targeted ERP-21 tests and runtime probes passed for the completed dealer-finance features"
+    ]
+  }
+}
