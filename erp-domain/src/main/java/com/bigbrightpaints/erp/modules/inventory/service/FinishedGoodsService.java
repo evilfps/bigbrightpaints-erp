@@ -12,10 +12,8 @@ import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationResponse;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchPreviewDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchDto;
-import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodLowStockThresholdDto;
-import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.StockSummaryDto;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
@@ -57,10 +55,6 @@ public class FinishedGoodsService {
     return workflowEngine.currentWeightedAverageCost(fg);
   }
 
-  public FinishedGoodDto updateFinishedGood(Long id, FinishedGoodRequest request) {
-    return workflowEngine.updateFinishedGood(id, request);
-  }
-
   public List<FinishedGoodBatchDto> listBatchesForFinishedGood(Long finishedGoodId) {
     return workflowEngine.listBatchesForFinishedGood(finishedGoodId);
   }
@@ -80,14 +74,6 @@ public class FinishedGoodsService {
   public FinishedGoodLowStockThresholdDto updateLowStockThreshold(
       Long finishedGoodId, BigDecimal threshold) {
     return workflowEngine.updateLowStockThreshold(finishedGoodId, threshold);
-  }
-
-  public FinishedGoodDto createFinishedGood(FinishedGoodRequest request) {
-    return workflowEngine.createFinishedGood(request);
-  }
-
-  public FinishedGoodBatchDto registerBatch(FinishedGoodBatchRequest request) {
-    return workflowEngine.registerBatch(request);
   }
 
   public List<PackagingSlipDto> listPackagingSlips() {

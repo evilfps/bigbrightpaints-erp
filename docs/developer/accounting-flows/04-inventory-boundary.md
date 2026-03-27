@@ -42,15 +42,16 @@ flowchart LR
   - `RawMaterialService.recordReceipt` / `adjustStock`
   - direct accounting facade post
 
-### Finished-Good Batch Receipt
+### Finished-Good Batch Visibility and Threshold Control
 
-- entry: `FinishedGoodController.registerBatch`
+- entry:
+  - `FinishedGoodController.listBatches`
+  - `FinishedGoodController.getLowStockThreshold`
+  - `FinishedGoodController.updateLowStockThreshold`
 - canonical path:
-  - `FinishedGoodsWorkflowEngineService.registerBatch`
-  - `InventoryMovementRecorder.recordFinishedGoodMovement`
-  - publish `InventoryMovementEvent`
-  - `InventoryAccountingEventListener.onInventoryMovement`
-  - `AccountingService.createJournalEntry`
+  - `FinishedGoodsWorkflowEngineService.listBatchesForFinishedGood`
+  - `FinishedGoodsWorkflowEngineService.getLowStockThreshold`
+  - `FinishedGoodsWorkflowEngineService.updateLowStockThreshold`
 
 ### Dispatch Confirmation
 
@@ -81,5 +82,5 @@ flowchart LR
 - `RawMaterialService.recordReceipt`
 - `RawMaterialService.adjustStock`
 - `InventoryAdjustmentService.createAdjustmentInternal`
-- `FinishedGoodsWorkflowEngineService.registerBatch`
+- `FinishedGoodsWorkflowEngineService.updateLowStockThreshold`
 - `InventoryMovementRecorder.publishMovementEventIfSupported`

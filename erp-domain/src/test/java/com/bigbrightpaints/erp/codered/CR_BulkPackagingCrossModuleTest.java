@@ -725,7 +725,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
             .findByCompanyAndProductCode(company, sku)
             .orElseGet(
                 () -> {
-                  var dto = finishedGoodsService.createFinishedGood(req);
+                  var dto = createFinishedGoodForTest(req);
                   return finishedGoodRepository.findById(dto.id()).orElseThrow();
                 });
     CompanyContextHolder.clear();
@@ -768,7 +768,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
     FinishedGood semiFinished =
         ensureFinishedGood(company, semiSku, accounts.get("SF_INV"), accounts);
     CompanyContextHolder.setCompanyCode(companyCode);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             semiFinished.getId(),
             productionCode,

@@ -35,8 +35,9 @@ Verified role behavior for accounting portal scope:
   - Supplier `GET` endpoints allow `ROLE_FACTORY` too.
   - Raw-material endpoints allow `ROLE_FACTORY` too, but `retired raw-material intake endpoint` excludes `ROLE_FACTORY`.
   - Opening stock import `POST /api/v1/inventory/opening-stock` allows `ROLE_FACTORY` along with `ROLE_ADMIN|ROLE_ACCOUNTING`.
-  - Finished-goods write endpoints (`POST/PUT /api/v1/finished-goods`, `POST /api/v1/finished-goods/{id}/batches`) exclude `ROLE_ACCOUNTING` and require `ROLE_ADMIN` or `ROLE_FACTORY`.
+  - Finished-goods direct write aliases are retired; stock-bearing creation/update flows are canonicalized under `/api/v1/catalog/items`.
   - Finished-goods low-stock and batch-list reads exclude `ROLE_ACCOUNTING` (`ROLE_ADMIN|ROLE_FACTORY|ROLE_SALES` only).
+  - `PUT /api/v1/finished-goods/{id}/low-stock-threshold` allows `ROLE_ACCOUNTING` alongside `ROLE_ADMIN|ROLE_FACTORY`.
   - `GET /api/v1/accounting/sales/returns` allows `ROLE_SALES` in addition to accounting/admin.
 
 ## Shared Foundation APIs (Used Across All Accounting Routes)
@@ -200,13 +201,12 @@ These rows are required for the period-close maker-checker UX, but they live out
 | Function | Method | Path | Required params | Optional params | Cache | Debounce | Idempotent |
 |---|---|---|---|---|---|---|---|
 | `finishedGoodListFinishedGoods` | GET | `/api/v1/finished-goods` | - | - | Yes | No | Yes |
-| `finishedGoodCreateFinishedGood` | POST | `/api/v1/finished-goods` | name (body), productCode (body) | cogsAccountId (body), costingMethod (body), discountAccountId (body), revenueAccountId (body), taxAccountId (body), unit (body), valuationAccountId (body) | No | No | No |
 | `finishedGoodGetLowStockItems` | GET | `/api/v1/finished-goods/low-stock` | - | threshold (query) | Yes | No | Yes |
 | `finishedGoodGetStockSummary` | GET | `/api/v1/finished-goods/stock-summary` | - | - | Yes | No | Yes |
 | `finishedGoodGetFinishedGood` | GET | `/api/v1/finished-goods/{id}` | id (path) | - | Yes | No | Yes |
-| `finishedGoodUpdateFinishedGood` | PUT | `/api/v1/finished-goods/{id}` | id (path), name (body), productCode (body) | cogsAccountId (body), costingMethod (body), discountAccountId (body), revenueAccountId (body), taxAccountId (body), unit (body), valuationAccountId (body) | No | No | Yes |
 | `finishedGoodListBatches` | GET | `/api/v1/finished-goods/{id}/batches` | id (path) | - | Yes | No | Yes |
-| `finishedGoodRegisterBatch` | POST | `/api/v1/finished-goods/{id}/batches` | finishedGoodId (body), id (path), quantity (body), unitCost (body) | batchCode (body), expiryDate (body), manufacturedAt (body) | No | No | No |
+| `finishedGoodGetLowStockThreshold` | GET | `/api/v1/finished-goods/{id}/low-stock-threshold` | id (path) | - | Yes | No | Yes |
+| `finishedGoodUpdateLowStockThreshold` | PUT | `/api/v1/finished-goods/{id}/low-stock-threshold` | id (path), threshold (body) | - | No | No | Yes |
 | `inventoryAdjustmentListAdjustments` | GET | `/api/v1/inventory/adjustments` | - | - | Yes | No | Yes |
 | `inventoryAdjustmentCreateAdjustment` | POST | `/api/v1/inventory/adjustments` | adjustmentAccountId (body), lines (body), lines[].finishedGoodId (body), lines[].quantity (body), lines[].unitCost (body), type (body) | Idempotency-Key (header), adjustmentDate (body), adminOverride (body), idempotencyKey (body), lines[].note (body), reason (body) | No | No | No |
 | `inventoryImportOpeningStock` | POST | `/api/v1/inventory/opening-stock` | file (multipart body), Idempotency-Key (header), openingStockBatchKey (query) | - | No | No | Conditional |
@@ -285,8 +285,6 @@ These rows are required for the period-close maker-checker UX, but they live out
 - `DELETE /api/v1/hr/employees/{id}` documents no explicit error responses (only: 200).
 - `DELETE /api/v1/hr/employees/{id}` is mutating but defines only `200` (missing richer status semantics).
 - `GET /api/v1/finished-goods/{id}` documents no explicit error responses (only: 200).
-- `PUT /api/v1/finished-goods/{id}` documents no explicit error responses (only: 200).
-- `PUT /api/v1/finished-goods/{id}` is mutating but defines only `200` (missing richer status semantics).
 - `retired raw-material CRUD endpoint` documents no explicit error responses (only: 200).
 - `retired raw-material CRUD endpoint` is mutating but defines only `200` (missing richer status semantics).
 - `retired raw-material CRUD endpoint` documents no explicit error responses (only: 200).
@@ -349,11 +347,10 @@ These rows are required for the period-close maker-checker UX, but they live out
 - `POST /api/v1/hr/attendance/bulk-mark` documents no explicit error responses (only: 200).
 - `POST /api/v1/hr/attendance/bulk-mark` is mutating but defines only `200` (missing richer status semantics).
 - `GET /api/v1/finished-goods` documents no explicit error responses (only: 200).
-- `POST /api/v1/finished-goods` documents no explicit error responses (only: 200).
-- `POST /api/v1/finished-goods` is mutating but defines only `200` (missing richer status semantics).
 - `GET /api/v1/finished-goods/{id}/batches` documents no explicit error responses (only: 200).
-- `POST /api/v1/finished-goods/{id}/batches` documents no explicit error responses (only: 200).
-- `POST /api/v1/finished-goods/{id}/batches` is mutating but defines only `200` (missing richer status semantics).
+- `GET /api/v1/finished-goods/{id}/low-stock-threshold` documents no explicit error responses (only: 200).
+- `PUT /api/v1/finished-goods/{id}/low-stock-threshold` documents no explicit error responses (only: 200).
+- `PUT /api/v1/finished-goods/{id}/low-stock-threshold` is mutating but defines only `200` (missing richer status semantics).
 - `retired raw-material CRUD endpoint (replaced by /api/v1/catalog/items itemClass workflow)` documents no explicit error responses (only: 200).
 - `retired raw-material CRUD endpoint (replaced by /api/v1/catalog/items itemClass workflow)` documents no explicit error responses (only: 200).
 - `retired raw-material CRUD endpoint (replaced by /api/v1/catalog/items itemClass workflow)` is mutating but defines only `200` (missing richer status semantics).

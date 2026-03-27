@@ -90,7 +90,7 @@ class CR_DispatchBusinessMathFuzzTest extends AbstractIntegrationTest {
 
     FinishedGood fg = ensureFinishedGoodWithCatalog(company, accounts, "FG-FUZZ-" + shortId());
     CompanyContextHolder.setCompanyCode(companyCode);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-FUZZ",
@@ -360,7 +360,7 @@ class CR_DispatchBusinessMathFuzzTest extends AbstractIntegrationTest {
             .findByCompanyAndProductCode(company, sku)
             .orElseGet(
                 () -> {
-                  var dto = finishedGoodsService.createFinishedGood(req);
+                  var dto = createFinishedGoodForTest(req);
                   return finishedGoodRepository.findById(dto.id()).orElseThrow();
                 });
     ensureCatalogProduct(company, fg);

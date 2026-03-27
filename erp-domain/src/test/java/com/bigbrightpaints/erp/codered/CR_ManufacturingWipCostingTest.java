@@ -99,7 +99,7 @@ class CR_ManufacturingWipCostingTest extends AbstractIntegrationTest {
     FinishedGood semiFinished =
         ensureFinishedGood(company, bulkSku, accounts.get("SF_INV"), accounts);
     CompanyContextHolder.setCompanyCode(companyCode);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             semiFinished.getId(),
             productionCode,
@@ -399,7 +399,7 @@ class CR_ManufacturingWipCostingTest extends AbstractIntegrationTest {
             .findByCompanyAndProductCode(company, sku)
             .orElseGet(
                 () -> {
-                  var dto = finishedGoodsService.createFinishedGood(req);
+                  var dto = createFinishedGoodForTest(req);
                   return finishedGoodRepository.findById(dto.id()).orElseThrow();
                 });
     CompanyContextHolder.clear();

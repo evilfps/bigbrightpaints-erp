@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.truthsuite.inventory;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -24,13 +23,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.core.env.Environment;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
-import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.accounting.service.CostingMethodService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -58,7 +54,6 @@ import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 class TS_InventoryDispatchStateRuntimeCoverageTest {
 
   @Mock private CompanyContextService companyContextService;
-  @Mock private CompanyEntityLookup companyEntityLookup;
   @Mock private FinishedGoodRepository finishedGoodRepository;
   @Mock private FinishedGoodBatchRepository finishedGoodBatchRepository;
   @Mock private PackagingSlipRepository packagingSlipRepository;
@@ -66,12 +61,10 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
   @Mock private InventoryReservationRepository inventoryReservationRepository;
   @Mock private BatchNumberService batchNumberService;
   @Mock private SalesOrderRepository salesOrderRepository;
-  @Mock private CompanyDefaultAccountsService companyDefaultAccountsService;
   @Mock private CostingMethodService costingMethodService;
   @Mock private GstService gstService;
   @Mock private ApplicationEventPublisher eventPublisher;
   @Mock private CompanyClock companyClock;
-  @Mock private Environment environment;
 
   private FinishedGoodsWorkflowEngineService service;
   private Company company;
@@ -82,7 +75,6 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
     service =
         new FinishedGoodsWorkflowEngineService(
             companyContextService,
-            companyEntityLookup,
             finishedGoodRepository,
             finishedGoodBatchRepository,
             packagingSlipRepository,
@@ -90,13 +82,10 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
             inventoryReservationRepository,
             batchNumberService,
             salesOrderRepository,
-            companyDefaultAccountsService,
             costingMethodService,
             gstService,
             eventPublisher,
-            companyClock,
-            environment,
-            false);
+            companyClock);
 
     company = new Company();
     setId(company, 1L);
@@ -131,30 +120,6 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
               }
               return slip;
             });
-  }
-
-  @Test
-  void lockFinishedGood_requiresActiveLinkedProduct() {
-    FinishedGood finishedGood = new FinishedGood();
-    ReflectionTestUtils.setField(finishedGood, "id", 901L);
-    finishedGood.setCompany(company);
-    finishedGood.setProductCode("FG-901");
-    when(companyEntityLookup.lockActiveFinishedGood(company, 901L)).thenReturn(finishedGood);
-
-    FinishedGood locked = ReflectionTestUtils.invokeMethod(service, "lockFinishedGood", 901L);
-
-    assertThat(locked).isSameAs(finishedGood);
-    verify(companyEntityLookup).lockActiveFinishedGood(company, 901L);
-  }
-
-  @Test
-  void lockFinishedGood_rejectsInactiveLinkedProduct() {
-    when(companyEntityLookup.lockActiveFinishedGood(company, 902L))
-        .thenThrow(new IllegalArgumentException("inactive"));
-
-    assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "lockFinishedGood", 902L))
-        .isInstanceOf(RuntimeException.class)
-        .hasMessageContaining("Finished good not found");
   }
 
   @Test

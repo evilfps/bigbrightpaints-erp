@@ -860,7 +860,7 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
             accounts.get("REV").getId(),
             accounts.get("DISC").getId(),
             accounts.get("GST_OUT").getId());
-    finishedGoodsService.createFinishedGood(request);
+    createFinishedGoodForTest(request);
     FinishedGood fg =
         finishedGoodRepository.findByCompanyAndProductCode(company, productCode).orElseThrow();
     ProductionProduct product =
@@ -953,7 +953,7 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
       FinishedGood fg, BigDecimal qty, BigDecimal unitCost, Instant manufacturedAt) {
     FinishedGoodBatchRequest request =
         new FinishedGoodBatchRequest(fg.getId(), null, qty, unitCost, manufacturedAt, null);
-    finishedGoodsService.registerBatch(request);
+    registerFinishedGoodBatchForTest(request);
   }
 
   private BigDecimal consumeCost(FinishedGood fg, BigDecimal quantity) {

@@ -142,7 +142,7 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
     String sku = "FG-OPS-" + UUID.randomUUID().toString().substring(0, 6);
     FinishedGood fg = createFinishedGood(sku);
     ensureCatalogProduct(fg, new BigDecimal("125.00"), new BigDecimal("18.00"));
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-OPS",
@@ -550,7 +550,7 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
         .findByCompanyAndProductCode(company, productCode)
         .orElseGet(
             () -> {
-              var dto = finishedGoodsService.createFinishedGood(req);
+              var dto = createFinishedGoodForTest(req);
               return finishedGoodRepository.findById(dto.id()).orElseThrow();
             });
   }

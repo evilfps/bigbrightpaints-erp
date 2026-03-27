@@ -94,7 +94,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
     CompanyContextHolder.setCompanyCode(companyCode);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-1",
@@ -243,7 +243,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
     CompanyContextHolder.setCompanyCode(companyCode);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-1",
@@ -393,7 +393,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
     CompanyContextHolder.setCompanyCode(companyCode);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-1",
@@ -476,7 +476,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
     CompanyContextHolder.setCompanyCode(companyCode);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-1",
@@ -551,7 +551,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
     CompanyContextHolder.setCompanyCode(companyCode);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-1",
@@ -651,7 +651,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
     CompanyContextHolder.setCompanyCode(companyCode);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-1",
@@ -739,7 +739,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
     CompanyContextHolder.setCompanyCode(companyCode);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-1",
@@ -939,7 +939,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
             .orElseGet(
                 () -> {
                   CompanyContextHolder.setCompanyCode(company.getCode());
-                  var dto = finishedGoodsService.createFinishedGood(req);
+                  var dto = createFinishedGoodForTest(req);
                   CompanyContextHolder.clear();
                   return finishedGoodRepository.findById(dto.id()).orElseThrow();
                 });

@@ -90,7 +90,7 @@ class DispatchConfirmationIT extends AbstractIntegrationTest {
     String sku = "FG-DISP-" + UUID.randomUUID().toString().substring(0, 6);
     FinishedGood fg = createFinishedGood(sku);
     ensureCatalogProduct(fg);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-DISP",
@@ -166,7 +166,7 @@ class DispatchConfirmationIT extends AbstractIntegrationTest {
     String sku = "FG-BO-" + UUID.randomUUID().toString().substring(0, 6);
     FinishedGood fg = createFinishedGood(sku);
     ensureCatalogProduct(fg);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-BO",
@@ -311,7 +311,7 @@ class DispatchConfirmationIT extends AbstractIntegrationTest {
         .findByCompanyAndProductCode(company, productCode)
         .orElseGet(
             () -> {
-              var dto = finishedGoodsService.createFinishedGood(req);
+              var dto = createFinishedGoodForTest(req);
               return finishedGoodRepository.findById(dto.id()).orElseThrow();
             });
   }
