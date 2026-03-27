@@ -296,9 +296,26 @@ class CompanyContextFilterControlPlaneBindingTest {
         .isEqualTo(42L);
   }
 
+  @Test
+  void retiredSharedSupportPrefix_isNotClassifiedAsTenantBusinessKnowledge() {
+    assertThat(isTenantBusinessRequestBlockedForSuperAdmin("/api/v1/support")).isFalse();
+    assertThat(isTenantBusinessRequestBlockedForSuperAdmin("/api/v1/support/tickets")).isFalse();
+    assertThat(isTenantBusinessRequestBlockedForSuperAdmin("/api/v1/portal/support/tickets"))
+        .isTrue();
+    assertThat(
+            isTenantBusinessRequestBlockedForSuperAdmin(
+                "/api/v1/dealer-portal/support/tickets"))
+        .isTrue();
+  }
+
   private Long extractCompanyId(String path) {
     return (Long)
         ReflectionTestUtils.invokeMethod(filter, "extractCompanyIdFromControlPlanePath", path);
+  }
+
+  private boolean isTenantBusinessRequestBlockedForSuperAdmin(String path) {
+    return ReflectionTestUtils.invokeMethod(
+        filter, "isTenantBusinessRequestBlockedForSuperAdmin", path);
   }
 
   private void authenticate(String email, Set<String> authorities, Set<String> companyCodes) {

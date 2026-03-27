@@ -326,6 +326,19 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
             Map.class);
     assertThat(retiredSharedAdminResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 
+    ResponseEntity<Map> retiredSharedSuperAdminResponse =
+        rest.exchange(
+            "/api/v1/support/tickets",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "category", "SUPPORT",
+                    "subject", "retired-super-admin-" + System.nanoTime(),
+                    "description", "Shared support host must stay unmapped for super admins too"),
+                authHeaders(login(SUPER_ADMIN_EMAIL, ROOT_TENANT), ROOT_TENANT)),
+            Map.class);
+    assertThat(retiredSharedSuperAdminResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
     ResponseEntity<Map> response =
         rest.exchange(
             "/api/v1/portal/support/tickets",

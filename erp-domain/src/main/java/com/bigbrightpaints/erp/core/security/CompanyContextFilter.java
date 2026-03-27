@@ -71,7 +71,6 @@ public class CompanyContextFilter extends OncePerRequestFilter {
           "/api/v1/invoices",
           "/api/v1/reports",
           "/api/v1/exports",
-          "/api/v1/support",
           "/api/v1/factory",
           "/api/v1/production",
           "/api/v1/hr",
