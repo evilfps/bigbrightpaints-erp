@@ -203,7 +203,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         if (!StringUtils.hasText(tokenCompanyCode)) {
           log.warn(
               "Rejecting authenticated request without company claim. path={}",
-              request.getRequestURI());
+              sanitizeForLog(request.getRequestURI()));
           writeAccessDenied(
               response, "COMPANY_CONTEXT_MISSING", "Authenticated token missing company context");
           return;
@@ -213,9 +213,9 @@ public class CompanyContextFilter extends OncePerRequestFilter {
           log.warn(
               "Rejecting company header mismatch. tokenCompanyCode={}, headerCompanyCode={},"
                   + " path={}",
-              tokenCompanyCode,
-              requestedCompany,
-              request.getRequestURI());
+              sanitizeForLog(tokenCompanyCode),
+              sanitizeForLog(requestedCompany),
+              sanitizeForLog(request.getRequestURI()));
           writeAccessDenied(
               response,
               "COMPANY_CONTEXT_MISMATCH",
@@ -232,7 +232,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         }
         requestedCompany = null;
       }
-      String companyCode = StringUtils.hasText(requestedCompany) ? requestedCompany.trim() : null;
+      String companyCode = normalizeCompanyCode(requestedCompany);
       if (hasSuperAdminAuthority() && authScopeService.isPlatformScope(companyCode)) {
         if (!lifecycleControlRequest && !isPlatformScopedRequestAllowed(runtimePath)) {
           writeAccessDenied(response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);
@@ -251,20 +251,24 @@ public class CompanyContextFilter extends OncePerRequestFilter {
           return;
         }
         String pathTargetCompanyCode =
-            companyService.resolveCompanyCodeById(lifecycleControlCompanyId);
-        if (!StringUtils.hasText(pathTargetCompanyCode)) {
+            normalizeCompanyCode(companyService.resolveCompanyCodeById(lifecycleControlCompanyId));
+        if (pathTargetCompanyCode == null) {
           denyControlPlaneRequest(response);
           return;
         }
         if (hasSuperAdminAuthority()) {
-          companyCode = pathTargetCompanyCode.trim();
+          companyCode = pathTargetCompanyCode;
           lifecycleControlBypass = true;
-        } else if (!StringUtils.hasText(companyCode)
-            || !companyCode.trim().equalsIgnoreCase(pathTargetCompanyCode.trim())) {
-          denyControlPlaneRequest(response);
-          return;
         } else {
-          companyCode = pathTargetCompanyCode.trim();
+          if (companyCode == null) {
+            denyControlPlaneRequest(response);
+            return;
+          }
+          if (!companyCode.equalsIgnoreCase(pathTargetCompanyCode)) {
+            denyControlPlaneRequest(response);
+            return;
+          }
+          companyCode = pathTargetCompanyCode;
         }
       }
       if (companyCode != null) {
@@ -280,7 +284,8 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         // Recovery endpoints for non-active tenants are intended for super-admin operators
         // even when they are not explicitly attached to the tenant membership list.
         if (!lifecycleControlBypass && !validateCompanyAccess(companyCode)) {
-          log.warn("User attempted to access unauthorized company: {}", companyCode);
+          log.warn(
+              "User attempted to access unauthorized company: {}", sanitizeForLog(companyCode));
           writeAccessDenied(
               response, "COMPANY_ACCESS_DENIED", "Access denied to company: " + companyCode);
           return;
@@ -305,9 +310,9 @@ public class CompanyContextFilter extends OncePerRequestFilter {
             log.warn(
                 "Rejecting request because tenant runtime admission was unavailable."
                     + " companyCode={}, path={}, method={}",
-                companyCode,
-                runtimePath,
-                request.getMethod());
+                sanitizeForLog(companyCode),
+                sanitizeForLog(runtimePath),
+                sanitizeForLog(request.getMethod()));
             admission = TenantRuntimeEnforcementService.TenantRequestAdmission.notTracked();
             writeAccessDenied(
                 response,
@@ -452,13 +457,23 @@ public class CompanyContextFilter extends OncePerRequestFilter {
     return resolveCompanyBoundControlBinding(path, method) != null;
   }
 
-  private boolean isLifecycleControlRequest(Object path, String method) {
-    return isLifecycleControlRequest(path == null ? null : path.toString(), method);
-  }
-
   private boolean hasTenantRuntimePolicyControlAuthority(String path, String method) {
     CompanyBoundControlBinding binding = resolveCompanyBoundControlBinding(path, method);
     return binding != null && binding.tenantRuntimePolicyControl();
+  }
+
+  private String normalizeCompanyCode(String rawCompanyCode) {
+    if (!StringUtils.hasText(rawCompanyCode)) {
+      return null;
+    }
+    return rawCompanyCode.trim();
+  }
+
+  private String sanitizeForLog(String rawValue) {
+    if (rawValue == null) {
+      return null;
+    }
+    return rawValue.replace('\n', '_').replace('\r', '_');
   }
 
   private Long parseCompanyId(String rawCompanyId) {
