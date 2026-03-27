@@ -29,6 +29,7 @@ BusinessDocumentTruthsTest
 DealerControllerTest
 DealerControllerSecurityIT
 DealerPortalControllerSecurityIT
+com.bigbrightpaints.erp.modules.admin.SupportTicketControllerIT
 com.bigbrightpaints.erp.modules.sales.controller.DealerPortalControllerExportAuditTest
 DealerPortalServiceTest
 DealerServiceTest
@@ -95,4 +96,5 @@ com.bigbrightpaints.erp.modules.sales.service.SalesServiceTest
 com.bigbrightpaints.erp.modules.purchasing.domain.SupplierLifecycleGuardTest
 com.bigbrightpaints.erp.modules.inventory.service.PackagingSlipServiceTest
 com.bigbrightpaints.erp.shared.dto.TruthRailsSharedDtoContractTest
+com.bigbrightpaints.erp.orchestrator.service.EventPublisherServiceTest
 com.bigbrightpaints.erp.orchestrator.service.IntegrationCoordinatorTest
