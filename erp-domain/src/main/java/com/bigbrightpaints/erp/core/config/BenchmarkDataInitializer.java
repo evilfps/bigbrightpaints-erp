@@ -321,11 +321,7 @@ public class BenchmarkDataInitializer {
                 + " not exist");
       }
       UserAccount user =
-          new UserAccount(
-              normalizedEmail,
-              company.getCode(),
-              encoder.encode(adminPassword.trim()),
-              "Benchmark Admin");
+          new UserAccount(normalizedEmail, company.getCode(), encoder.encode(adminPassword.trim()), "Benchmark Admin");
       user.setMustChangePassword(true);
       user.setCompany(company);
       user.addRole(admin);

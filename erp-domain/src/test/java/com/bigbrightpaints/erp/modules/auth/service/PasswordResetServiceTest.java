@@ -271,6 +271,59 @@ class PasswordResetServiceTest {
     verify(tokenRepository, never()).deleteByTokenDigest(anyString());
   }
 
+  @Test
+  void requestResetByAdminRejectsNullTargetUser() {
+    assertThrows(ApplicationException.class, () -> passwordResetService.requestResetByAdmin(null));
+  }
+
+  @Test
+  void resetPasswordRejectsDisabledScopedUser() {
+    UserAccount user = enabledUser("disabled@example.com", TENANT_SCOPE);
+    user.setEnabled(false);
+    PasswordResetToken token =
+        PasswordResetToken.digestOnly(
+            user,
+            AuthTokenDigests.passwordResetTokenDigest("raw-token"),
+            Instant.now().plusSeconds(600));
+    when(tokenRepository.findByTokenDigest(AuthTokenDigests.passwordResetTokenDigest("raw-token")))
+        .thenReturn(Optional.of(token));
+
+    assertThrows(
+        ApplicationException.class,
+        () -> passwordResetService.resetPassword("raw-token", "NewPass123", "NewPass123"));
+  }
+
+  @Test
+  void helperSanitizers_coverNullBlankLongAndAnonymousExceptions() {
+    assertEquals(
+        "<empty>",
+        (String)
+            ReflectionTestUtils.invokeMethod(
+                passwordResetService, "sanitizeForPlainTextLog", "   "));
+    assertEquals(
+        "<unknown>",
+        (String)
+            ReflectionTestUtils.invokeMethod(
+                passwordResetService, "sanitizeExceptionClass", (Object) null));
+    org.assertj.core.api.Assertions.assertThat(
+            (String)
+                ReflectionTestUtils.invokeMethod(
+                    passwordResetService, "normalizeEmail", (Object) null))
+        .isNull();
+    assertEquals(
+        "x".repeat(160),
+        (String)
+            ReflectionTestUtils.invokeMethod(
+                passwordResetService, "sanitizeForPlainTextLog", "x".repeat(170)));
+    String anonymousClass =
+        (String)
+            ReflectionTestUtils.invokeMethod(
+                passwordResetService,
+                "sanitizeExceptionClass",
+                new RuntimeException("boom") {});
+    org.assertj.core.api.Assertions.assertThat(anonymousClass).contains("PasswordResetServiceTest");
+  }
+
   private UserAccount enabledUser(String email, String scopeCode) {
     UserAccount user = new UserAccount(email, scopeCode, "hash", "User");
     user.setEnabled(true);

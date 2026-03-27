@@ -317,12 +317,11 @@ public class TenantOnboardingService {
     blueprints.add(new AccountBlueprint("RM-CONSUMPTION", "Raw Material Consumption", AccountType.COGS, "EXP"));
     blueprints.add(new AccountBlueprint("DIRECT-MATERIAL-CONSUMPTION", "Direct Material Consumption", AccountType.COGS, "EXP"));
     for (int index = 1; index <= 24; index++) {
-      blueprints.add(
-          new AccountBlueprint(
-              "GEN-" + index,
-              "Generic Account " + index,
-              index % 2 == 0 ? AccountType.EXPENSE : AccountType.ASSET,
-              index % 2 == 0 ? "EXP" : "AST"));
+      blueprints.add(new AccountBlueprint(
+          "GEN-" + index,
+          "Generic Account " + index,
+          index % 2 == 0 ? AccountType.EXPENSE : AccountType.ASSET,
+          index % 2 == 0 ? "EXP" : "AST"));
     }
     return blueprints;
   }
@@ -330,12 +329,11 @@ public class TenantOnboardingService {
   private List<AccountBlueprint> indianTemplateExtensions() {
     List<AccountBlueprint> blueprints = new ArrayList<>();
     for (int index = 1; index <= 12; index++) {
-      blueprints.add(
-          new AccountBlueprint(
-              "IND-" + index,
-              "Indian Standard Account " + index,
-              index % 2 == 0 ? AccountType.LIABILITY : AccountType.EXPENSE,
-              index % 2 == 0 ? "LIAB" : "EXP"));
+      blueprints.add(new AccountBlueprint(
+          "IND-" + index,
+          "Indian Standard Account " + index,
+          index % 2 == 0 ? AccountType.LIABILITY : AccountType.EXPENSE,
+          index % 2 == 0 ? "LIAB" : "EXP"));
     }
     return blueprints;
   }
@@ -343,16 +341,16 @@ public class TenantOnboardingService {
   private List<AccountBlueprint> manufacturingTemplateExtensions() {
     List<AccountBlueprint> blueprints = new ArrayList<>();
     for (int index = 1; index <= 16; index++) {
-      blueprints.add(
-          new AccountBlueprint(
-              "MFG-" + index,
-              "Manufacturing Account " + index,
-              index % 2 == 0 ? AccountType.ASSET : AccountType.EXPENSE,
-              index % 2 == 0 ? "AST" : "EXP"));
+      blueprints.add(new AccountBlueprint(
+          "MFG-" + index,
+          "Manufacturing Account " + index,
+          index % 2 == 0 ? AccountType.ASSET : AccountType.EXPENSE,
+          index % 2 == 0 ? "AST" : "EXP"));
     }
     return blueprints;
   }
 
   private record AccountBlueprint(
-      String code, String name, AccountType type, String parentCode) {}
+      String code, String name, AccountType type, String parentCode) {
+  }
 }

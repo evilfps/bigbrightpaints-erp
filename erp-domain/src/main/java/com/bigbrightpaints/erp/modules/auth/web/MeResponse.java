@@ -9,4 +9,5 @@ public record MeResponse(
     boolean mfaEnabled,
     boolean mustChangePassword,
     List<String> roles,
-    List<String> permissions) {}
+    List<String> permissions) {
+}

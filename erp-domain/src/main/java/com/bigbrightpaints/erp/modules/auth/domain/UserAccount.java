@@ -16,11 +16,9 @@ import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import jakarta.persistence.*;
 
 @Entity
-@Table(
-    name = "app_users",
-    uniqueConstraints = {
-      @UniqueConstraint(name = "uq_app_users_email_scope", columnNames = {"email", "auth_scope_code"})
-    })
+@Table(name = "app_users", uniqueConstraints = {
+  @UniqueConstraint(name = "uq_app_users_email_scope", columnNames = {"email", "auth_scope_code"})
+})
 public class UserAccount extends VersionedEntity {
 
   @Id

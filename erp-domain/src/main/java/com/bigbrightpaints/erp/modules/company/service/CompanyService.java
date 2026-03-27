@@ -855,11 +855,12 @@ public class CompanyService {
   }
 
   private void synchronizeScopedAccountsToCompanyCode(Company company, String normalizedCompanyCode) {
-    if (company == null
-        || company.getId() == null
-        || !StringUtils.hasText(normalizedCompanyCode)
-        || userAccountRepository == null
-        || normalizedCompanyCode.equalsIgnoreCase(company.getCode())) {
+    boolean missingSynchronizationContext =
+        company == null
+            || company.getId() == null
+            || !StringUtils.hasText(normalizedCompanyCode)
+            || userAccountRepository == null;
+    if (missingSynchronizationContext || normalizedCompanyCode.equalsIgnoreCase(company.getCode())) {
       return;
     }
     var companyUsers = userAccountRepository.findByCompany_Id(company.getId());

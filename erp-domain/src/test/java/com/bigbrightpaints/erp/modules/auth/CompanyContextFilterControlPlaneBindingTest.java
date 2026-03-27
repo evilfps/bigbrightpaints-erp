@@ -216,6 +216,74 @@ class CompanyContextFilterControlPlaneBindingTest {
   }
 
   @Test
+  void platformScopeAllowlist_exposesOnlyPlatformControlRoutes() {
+    assertThat(
+            (Boolean)
+                ReflectionTestUtils.invokeMethod(
+                    filter, "isPlatformScopedRequestAllowed", "/api/v1/admin/settings"))
+        .isTrue();
+    assertThat(
+            (Boolean)
+                ReflectionTestUtils.invokeMethod(
+                    filter, "isPlatformScopedRequestAllowed", "/api/v1/companies"))
+        .isTrue();
+    assertThat(
+            (Boolean)
+                ReflectionTestUtils.invokeMethod(
+                    filter, "isPlatformScopedRequestAllowed", "/api/v1/audit/business-events"))
+        .isFalse();
+    assertThat(
+            (Boolean)
+                ReflectionTestUtils.invokeMethod(
+                    filter,
+                    "hasTenantRuntimePolicyControlAuthority",
+                    "/api/v1/superadmin/tenants/42/limits",
+                    "PUT"))
+        .isFalse();
+  }
+
+  @Test
+  void platformScopedSuperAdmin_rejectsNonAllowlistedBusinessWorkflow()
+      throws ServletException, IOException {
+    authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of());
+    when(authScopeService.isPlatformScope("PLATFORM")).thenReturn(true);
+
+    MockHttpServletRequest request = request("GET", "/api/v1/audit/business-events");
+    request.setAttribute("jwtClaims", claimsFor("PLATFORM"));
+    request.addHeader("X-Company-Code", "PLATFORM");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+    verify(filterChain, never()).doFilter(request, response);
+    verifyNoInteractions(companyService);
+  }
+
+  @Test
+  void canonicalTenantControlRequest_allowsTenantAdminWhenTokenCompanyMatchesPathTarget()
+      throws ServletException, IOException {
+    authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("TENANT-A"));
+    when(companyService.resolveCompanyCodeById(42L)).thenReturn("TENANT-A");
+    when(companyService.resolveLifecycleStateByCode("TENANT-A"))
+        .thenReturn(CompanyLifecycleState.ACTIVE);
+
+    MockHttpServletRequest request = request("PUT", "/api/v1/superadmin/tenants/42/limits");
+    request.setAttribute("jwtClaims", claimsFor("TENANT-A"));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(200);
+    verify(companyService).resolveCompanyCodeById(42L);
+    verify(companyService).resolveLifecycleStateByCode("TENANT-A");
+    verify(tenantRuntimeEnforcementService, never())
+        .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+    verify(filterChain).doFilter(request, response);
+  }
+
+  @Test
   void extractCompanyIdFromControlPlanePath_handlesCanonicalAndMalformedValues() {
     assertThat(extractCompanyId(null)).isNull();
     assertThat(extractCompanyId("   ")).isNull();
@@ -229,7 +297,8 @@ class CompanyContextFilterControlPlaneBindingTest {
   }
 
   private Long extractCompanyId(String path) {
-    return ReflectionTestUtils.invokeMethod(filter, "extractCompanyIdFromControlPlanePath", path);
+    return (Long)
+        ReflectionTestUtils.invokeMethod(filter, "extractCompanyIdFromControlPlanePath", path);
   }
 
   private void authenticate(String email, Set<String> authorities, Set<String> companyCodes) {

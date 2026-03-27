@@ -42,42 +42,20 @@ public class CompanyContextFilter extends OncePerRequestFilter {
   private static final String AUDIT_API_PREFIX = "/api/v1/audit";
   private static final List<CompanyBoundControlRoute> COMPANY_BOUND_CONTROL_ROUTES =
       List.of(
-          new CompanyBoundControlRoute(
-              "GET", Pattern.compile("^/api/v1/superadmin/tenants/([^/]+)$"), false),
-          new CompanyBoundControlRoute(
-              "PUT", Pattern.compile("^/api/v1/superadmin/tenants/([^/]+)/lifecycle$"), false),
-          new CompanyBoundControlRoute(
-              "PUT", Pattern.compile("^/api/v1/superadmin/tenants/([^/]+)/limits$"), false),
-          new CompanyBoundControlRoute(
-              "PUT", Pattern.compile("^/api/v1/superadmin/tenants/([^/]+)/modules$"), false),
-          new CompanyBoundControlRoute(
-              "POST",
-              Pattern.compile("^/api/v1/superadmin/tenants/([^/]+)/support/warnings$"),
-              false),
-          new CompanyBoundControlRoute(
-              "POST",
-              Pattern.compile("^/api/v1/superadmin/tenants/([^/]+)/support/admin-password-reset$"),
-              false),
-          new CompanyBoundControlRoute(
-              "PUT",
-              Pattern.compile("^/api/v1/superadmin/tenants/([^/]+)/support/context$"),
-              false),
-          new CompanyBoundControlRoute(
-              "POST",
-              Pattern.compile("^/api/v1/superadmin/tenants/([^/]+)/force-logout$"),
-              false),
-          new CompanyBoundControlRoute(
-              "PUT", Pattern.compile("^/api/v1/superadmin/tenants/([^/]+)/admins/main$"), false),
-          new CompanyBoundControlRoute(
-              "POST",
-              Pattern.compile(
-                  "^/api/v1/superadmin/tenants/([^/]+)/admins/[^/]+/email-change/request$"),
-              false),
-          new CompanyBoundControlRoute(
-              "POST",
-              Pattern.compile(
-                  "^/api/v1/superadmin/tenants/([^/]+)/admins/[^/]+/email-change/confirm$"),
-              false));
+          controlRoute("GET", "^/api/v1/superadmin/tenants/([^/]+)$", false),
+          controlRoute("PUT", "^/api/v1/superadmin/tenants/([^/]+)/lifecycle$", false),
+          controlRoute("PUT", "^/api/v1/superadmin/tenants/([^/]+)/limits$", false),
+          controlRoute("PUT", "^/api/v1/superadmin/tenants/([^/]+)/modules$", false),
+          controlRoute("POST", "^/api/v1/superadmin/tenants/([^/]+)/support/warnings$", false),
+          controlRoute(
+              "POST", "^/api/v1/superadmin/tenants/([^/]+)/support/admin-password-reset$", false),
+          controlRoute("PUT", "^/api/v1/superadmin/tenants/([^/]+)/support/context$", false),
+          controlRoute("POST", "^/api/v1/superadmin/tenants/([^/]+)/force-logout$", false),
+          controlRoute("PUT", "^/api/v1/superadmin/tenants/([^/]+)/admins/main$", false),
+          controlRoute(
+              "POST", "^/api/v1/superadmin/tenants/([^/]+)/admins/[^/]+/email-change/request$", false),
+          controlRoute(
+              "POST", "^/api/v1/superadmin/tenants/([^/]+)/admins/[^/]+/email-change/confirm$", false));
   private static final String CONTROL_PLANE_AUTH_DENIED_MESSAGE =
       "Access denied to company control request";
   private static final String SUPER_ADMIN_PLATFORM_ONLY_MESSAGE =
@@ -116,7 +94,8 @@ public class CompanyContextFilter extends OncePerRequestFilter {
   private static final Set<String> PUBLIC_PASSWORD_RESET_ENDPOINTS =
       Set.of("/api/v1/auth/password/forgot", "/api/v1/auth/password/reset");
   private record CompanyBoundControlRoute(
-      String method, Pattern pattern, boolean tenantRuntimePolicyControl) {}
+      String method, Pattern pattern, boolean tenantRuntimePolicyControl) {
+  }
 
   private record CompanyBoundControlBinding(Long companyId, boolean tenantRuntimePolicyControl) {}
 
@@ -150,8 +129,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
       }
       CompanyBoundControlBinding controlBinding =
           resolveCompanyBoundControlBinding(runtimePath, request.getMethod());
-      boolean lifecycleControlRequest =
-          controlBinding != null;
+      boolean lifecycleControlRequest = controlBinding != null;
       boolean tenantRuntimePolicyControlRequest =
           controlBinding != null && controlBinding.tenantRuntimePolicyControl();
       if (lifecycleControlRequest && !hasAuthenticatedPrincipal()) {
@@ -603,6 +581,12 @@ public class CompanyContextFilter extends OncePerRequestFilter {
       return null;
     }
     return method.trim().toUpperCase(Locale.ROOT);
+  }
+
+  private static CompanyBoundControlRoute controlRoute(
+      String method, String pathPattern, boolean tenantRuntimePolicyControl) {
+    return new CompanyBoundControlRoute(
+        method, Pattern.compile(pathPattern), tenantRuntimePolicyControl);
   }
 
   private String normalizePath(String path) {

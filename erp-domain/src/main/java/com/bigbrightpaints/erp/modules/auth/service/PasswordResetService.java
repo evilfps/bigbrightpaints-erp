@@ -115,7 +115,7 @@ public class PasswordResetService {
         .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizedEmail, scopeCode)
         .filter(UserAccount::isEnabled)
         .ifPresent(
-            user -> {
+            (user) -> {
               try {
                 if (dispatchResetEmail(user, correlationId, "forgot_password")) {
                   auditResetRequested("forgot_password", user, scopeCode, correlationId);
@@ -340,7 +340,7 @@ public class PasswordResetService {
       return;
     }
     tokenCleanupTransactionTemplate.executeWithoutResult(
-        status -> {
+        (status) -> {
           assertTokenLifecycleTransactionActive(
               "mark_delivered", correlationId, maskedEmail);
           tokenRepository.markDeliveredAt(issuedResetToken.id(), Instant.now());
@@ -372,8 +372,7 @@ public class PasswordResetService {
 
   private void enforceResetRateLimit(
       String operation, String normalizedEmail, String scopeCode, String correlationId) {
-    String rateLimitKey =
-        RATE_LIMIT_PREFIX + ":" + operation + ":" + scopeCode + ":" + normalizedEmail;
+    String rateLimitKey = RATE_LIMIT_PREFIX + ":" + operation + ":" + scopeCode + ":" + normalizedEmail;
     if (securityMonitoringService.checkRateLimit(rateLimitKey)) {
       return;
     }

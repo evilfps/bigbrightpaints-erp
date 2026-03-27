@@ -56,12 +56,11 @@ public class RefreshTokenService {
       return Optional.empty();
     }
     refreshTokenRepository.delete(stored);
-    return Optional.of(
-        new TokenRecord(
-            stored.getUserPublicId(),
-            stored.getAuthScopeCode(),
-            stored.getIssuedAt(),
-            stored.getExpiresAt()));
+    return Optional.of(new TokenRecord(
+        stored.getUserPublicId(),
+        stored.getAuthScopeCode(),
+        stored.getIssuedAt(),
+        stored.getExpiresAt()));
   }
 
   @Transactional
@@ -91,5 +90,6 @@ public class RefreshTokenService {
   }
 
   public record TokenRecord(
-      UUID userPublicId, String authScopeCode, Instant issuedAt, Instant expiresAt) {}
+      UUID userPublicId, String authScopeCode, Instant issuedAt, Instant expiresAt) {
+  }
 }

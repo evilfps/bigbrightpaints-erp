@@ -95,11 +95,6 @@ public class ScopedAccountBootstrapService {
   }
 
   private UserAccount createScopedAccount(
-      String scopeCode, String email, String displayName, Collection<Role> roles) {
-    return createScopedAccount(scopeCode, email, displayName, roles, generateTemporaryPassword());
-  }
-
-  private UserAccount createScopedAccount(
       String scopeCode,
       String email,
       String displayName,
@@ -115,10 +110,7 @@ public class ScopedAccountBootstrapService {
     String resolvedDisplayName = normalizeDisplayName(displayName);
     UserAccount account =
         new UserAccount(
-            normalizedEmail,
-            normalizedScopeCode,
-            passwordEncoder.encode(temporaryPassword),
-            resolvedDisplayName);
+            normalizedEmail, normalizedScopeCode, passwordEncoder.encode(temporaryPassword), resolvedDisplayName);
     account.setMustChangePassword(true);
     if (roles != null) {
       roles.stream().filter(java.util.Objects::nonNull).forEach(account::addRole);

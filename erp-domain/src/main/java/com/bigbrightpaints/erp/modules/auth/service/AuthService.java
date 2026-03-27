@@ -353,9 +353,8 @@ public class AuthService {
     return userAccountRepository
         .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizeEmail(email), scopeCode)
         .orElseThrow(
-            () ->
-                com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                    "Invalid credentials"));
+            () -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                "Invalid credentials"));
   }
 
   private boolean scopeMatches(UserAccount user, String scopeCode) {

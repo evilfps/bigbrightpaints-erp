@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -25,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
@@ -275,6 +277,23 @@ class AuthServiceAuditAttributionTest {
   }
 
   @Test
+  void refreshRejectsWhenRequestedScopeDoesNotMatchStoredScope() {
+    Instant issuedAt = Instant.parse("2026-01-01T00:00:00Z");
+    UUID userPublicId = UUID.randomUUID();
+    RefreshTokenService.TokenRecord record =
+        new RefreshTokenService.TokenRecord(
+            userPublicId, "BBB", issuedAt, issuedAt.plus(1, ChronoUnit.DAYS));
+
+    when(authScopeService.requireScopeCode("ACME")).thenReturn("ACME");
+    when(refreshTokenService.consume("refresh-old")).thenReturn(Optional.of(record));
+
+    assertThatThrownBy(() -> authService.refresh(new RefreshTokenRequest("refresh-old", "ACME")))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessage("Invalid refresh token");
+    verify(userAccountRepository, never()).findByPublicId(any());
+  }
+
+  @Test
   void logoutDerivesIdentityFromTokenSubject_whenRefreshingTokenIsAbsent() {
     Claims claims = org.mockito.Mockito.mock(Claims.class);
     Instant expiresAt = Instant.parse("2026-01-01T00:05:00Z");
@@ -326,6 +345,22 @@ class AuthServiceAuditAttributionTest {
               assertThat(event.getFormattedMessage())
                   .contains("Failed to blacklist access token during logout");
             });
+  }
+
+  @Test
+  void logoutUsesNullIdentityWhenAccessTokenSubjectIsNotUuid() {
+    Claims claims = org.mockito.Mockito.mock(Claims.class);
+    Instant expiresAt = Instant.parse("2026-01-01T00:05:00Z");
+    when(tokenService.parse("access-token")).thenReturn(claims);
+    when(claims.getSubject()).thenReturn("not-a-uuid");
+    when(claims.getId()).thenReturn("jti-logout");
+    when(claims.getExpiration()).thenReturn(Date.from(expiresAt));
+
+    authService.logout("   ", "access-token");
+
+    verify(tokenBlacklistService, never()).revokeAllUserTokens(anyString());
+    verify(refreshTokenService, never()).revokeAllForUser(any());
+    verify(tokenBlacklistService).blacklistToken("jti-logout", expiresAt, null, "logout");
   }
 
   @Test
@@ -381,6 +416,32 @@ class AuthServiceAuditAttributionTest {
     } finally {
       Locale.setDefault(originalLocale);
     }
+  }
+
+  @Test
+  void loginRejectsPlatformScopeForNonSuperAdmin() {
+    LoginRequest request =
+        new LoginRequest("tenant-user@example.com", "Passw0rd!", "PLATFORM", null, null);
+    UserAccount user = new UserAccount("tenant-user@example.com", "PLATFORM", "hash", "Tenant User");
+    user.setEnabled(true);
+    user.addRole(role("ROLE_ADMIN"));
+
+    when(authScopeService.requireScopeCode("PLATFORM")).thenReturn("PLATFORM");
+    when(authScopeService.isPlatformScope("PLATFORM")).thenReturn(true);
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "tenant-user@example.com", "PLATFORM"))
+        .thenReturn(Optional.of(user));
+    when(passwordEncoder.matches("Passw0rd!", "hash")).thenReturn(true);
+
+    assertThatThrownBy(() -> authService.login(request))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Invalid credentials");
+  }
+
+  @Test
+  void normalizeEmail_returnsNullForNullInput() {
+    assertThat((String) ReflectionTestUtils.invokeMethod(authService, "normalizeEmail", (Object) null))
+        .isNull();
   }
 
   private UserAccount userWithCompany(String email, String companyCode) {
