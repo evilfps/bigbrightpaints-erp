@@ -25,33 +25,24 @@ import com.bigbrightpaints.erp.modules.admin.dto.SupportTicketResponse;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
-import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 
 import jakarta.annotation.Nullable;
 
 @Service
-public class SupportTicketService {
-
-  private static final String ROLE_SUPER_ADMIN = "ROLE_SUPER_ADMIN";
-  private static final String ROLE_ADMIN = "ROLE_ADMIN";
-  private static final String ROLE_ACCOUNTING = "ROLE_ACCOUNTING";
+public class SupportTicketAccessSupport {
 
   private final SupportTicketRepository supportTicketRepository;
-  private final CompanyContextService companyContextService;
   private final SupportTicketGitHubSyncService supportTicketGitHubSyncService;
 
-  public SupportTicketService(
+  public SupportTicketAccessSupport(
       SupportTicketRepository supportTicketRepository,
-      CompanyContextService companyContextService,
       SupportTicketGitHubSyncService supportTicketGitHubSyncService) {
     this.supportTicketRepository = supportTicketRepository;
-    this.companyContextService = companyContextService;
     this.supportTicketGitHubSyncService = supportTicketGitHubSyncService;
   }
 
   @Transactional
-  public SupportTicketResponse create(SupportTicketCreateRequest request) {
-    Company company = companyContextService.requireCurrentCompany();
+  public SupportTicketResponse createTicket(Company company, SupportTicketCreateRequest request) {
     UserAccount actor = requireCurrentUser();
 
     SupportTicket ticket = new SupportTicket();
@@ -76,58 +67,7 @@ public class SupportTicketService {
     return toResponses(List.of(saved), actor.getId()).getFirst();
   }
 
-  @Transactional(readOnly = true)
-  public List<SupportTicketResponse> list() {
-    Company company = companyContextService.requireCurrentCompany();
-    UserAccount actor = requireCurrentUser();
-
-    List<SupportTicket> tickets;
-    Long actorUserId = actor.getId();
-    if (hasRole(actor, ROLE_SUPER_ADMIN)) {
-      tickets = supportTicketRepository.findAllByOrderByCreatedAtDesc();
-    } else if (hasAnyRole(actor, ROLE_ADMIN, ROLE_ACCOUNTING)) {
-      tickets = supportTicketRepository.findByCompanyOrderByCreatedAtDesc(company);
-    } else {
-      tickets =
-          supportTicketRepository.findByCompanyAndUserIdOrderByCreatedAtDesc(company, actorUserId);
-    }
-
-    return toResponses(tickets, actorUserId);
-  }
-
-  @Transactional(readOnly = true)
-  public SupportTicketResponse getById(Long ticketId) {
-    if (ticketId == null) {
-      throw new ApplicationException(
-          ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "ticketId is required");
-    }
-
-    Company company = companyContextService.requireCurrentCompany();
-    UserAccount actor = requireCurrentUser();
-
-    SupportTicket ticket;
-    if (hasRole(actor, ROLE_SUPER_ADMIN)) {
-      ticket = supportTicketRepository.findById(ticketId).orElseThrow(() -> notFound(ticketId));
-    } else {
-      ticket =
-          supportTicketRepository
-              .findByCompanyAndId(company, ticketId)
-              .orElseThrow(() -> notFound(ticketId));
-      if (!hasAnyRole(actor, ROLE_ADMIN, ROLE_ACCOUNTING)
-          && (ticket.getUserId() == null || !ticket.getUserId().equals(actor.getId()))) {
-        throw notFound(ticketId);
-      }
-    }
-
-    return toResponses(List.of(ticket), actor.getId()).getFirst();
-  }
-
-  private ApplicationException notFound(Long ticketId) {
-    return new ApplicationException(
-        ErrorCode.BUSINESS_ENTITY_NOT_FOUND, "Support ticket not found: " + ticketId);
-  }
-
-  private UserAccount requireCurrentUser() {
+  public UserAccount requireCurrentUser() {
     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
     if (authentication == null || !authentication.isAuthenticated()) {
       throw new ApplicationException(
@@ -149,46 +89,20 @@ public class SupportTicketService {
         "Authenticated principal is not a user account: " + actor);
   }
 
-  private boolean hasRole(UserAccount user, String roleName) {
-    if (user == null || user.getRoles() == null || !StringUtils.hasText(roleName)) {
-      return false;
-    }
-    return user.getRoles().stream().anyMatch(role -> roleName.equalsIgnoreCase(role.getName()));
-  }
-
-  private boolean hasAnyRole(UserAccount user, String... roleNames) {
-    for (String roleName : roleNames) {
-      if (hasRole(user, roleName)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private SupportTicketCategory parseCategory(String rawCategory) {
-    String normalized = normalizeRequired(rawCategory, "category", 32).toUpperCase(Locale.ROOT);
-    try {
-      return SupportTicketCategory.valueOf(normalized);
-    } catch (IllegalArgumentException ex) {
+  public Long requireTicketId(@Nullable Long ticketId) {
+    if (ticketId == null) {
       throw new ApplicationException(
-          ErrorCode.VALIDATION_INVALID_INPUT, "Invalid category: " + rawCategory);
+          ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "ticketId is required");
     }
+    return ticketId;
   }
 
-  private String normalizeRequired(String value, String fieldName, int maxLength) {
-    if (!StringUtils.hasText(value)) {
-      throw new ApplicationException(
-          ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, fieldName + " is required");
-    }
-    String trimmed = value.trim();
-    if (trimmed.length() > maxLength) {
-      throw new ApplicationException(
-          ErrorCode.VALIDATION_OUT_OF_RANGE, fieldName + " exceeds max length " + maxLength);
-    }
-    return trimmed;
+  public ApplicationException notFound(Long ticketId) {
+    return new ApplicationException(
+        ErrorCode.BUSINESS_ENTITY_NOT_FOUND, "Support ticket not found: " + ticketId);
   }
 
-  private List<SupportTicketResponse> toResponses(
+  public List<SupportTicketResponse> toResponses(
       List<SupportTicket> tickets, @Nullable Long actorUserId) {
     if (tickets == null || tickets.isEmpty()) {
       return List.of();
@@ -221,6 +135,29 @@ public class SupportTicketService {
                   ticket.getUpdatedAt());
             })
         .toList();
+  }
+
+  private SupportTicketCategory parseCategory(String rawCategory) {
+    String normalized = normalizeRequired(rawCategory, "category", 32).toUpperCase(Locale.ROOT);
+    try {
+      return SupportTicketCategory.valueOf(normalized);
+    } catch (IllegalArgumentException ex) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_INPUT, "Invalid category: " + rawCategory);
+    }
+  }
+
+  private String normalizeRequired(String value, String fieldName, int maxLength) {
+    if (!StringUtils.hasText(value)) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, fieldName + " is required");
+    }
+    String trimmed = value.trim();
+    if (trimmed.length() > maxLength) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_OUT_OF_RANGE, fieldName + " exceeds max length " + maxLength);
+    }
+    return trimmed;
   }
 
   private Map<Long, String> resolveRequesterEmails(

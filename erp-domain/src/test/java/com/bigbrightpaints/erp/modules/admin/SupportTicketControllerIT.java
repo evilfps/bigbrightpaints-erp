@@ -35,10 +35,10 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
   private static final String ROOT_TENANT = "ROOTSUP";
 
   private static final String PASSWORD = "Admin@123";
-  private static final String REQUESTER_A_EMAIL = "support.requester.a@bbp.com";
-  private static final String TEAMMATE_A_EMAIL = "support.teammate.a@bbp.com";
+  private static final String DEALER_A_EMAIL = "support.dealer.a@bbp.com";
+  private static final String DEALER_B_EMAIL = "support.dealer.b@bbp.com";
   private static final String ADMIN_A_EMAIL = "support.admin.a@bbp.com";
-  private static final String REQUESTER_B_EMAIL = "support.requester.b@bbp.com";
+  private static final String ADMIN_B_EMAIL = "support.admin.b@bbp.com";
   private static final String SUPER_ADMIN_EMAIL = "support.superadmin@bbp.com";
 
   @Autowired private TestRestTemplate rest;
@@ -52,13 +52,13 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
   @BeforeEach
   void seedUsers() {
     dataSeeder.ensureUser(
-        REQUESTER_A_EMAIL, PASSWORD, "Support Requester A", TENANT_A, List.of("ROLE_SALES"));
+        DEALER_A_EMAIL, PASSWORD, "Support Dealer A", TENANT_A, List.of("ROLE_DEALER"));
     dataSeeder.ensureUser(
-        TEAMMATE_A_EMAIL, PASSWORD, "Support Teammate A", TENANT_A, List.of("ROLE_SALES"));
+        DEALER_B_EMAIL, PASSWORD, "Support Dealer B", TENANT_A, List.of("ROLE_DEALER"));
     dataSeeder.ensureUser(
         ADMIN_A_EMAIL, PASSWORD, "Support Admin A", TENANT_A, List.of("ROLE_ADMIN"));
     dataSeeder.ensureUser(
-        REQUESTER_B_EMAIL, PASSWORD, "Support Requester B", TENANT_B, List.of("ROLE_SALES"));
+        ADMIN_B_EMAIL, PASSWORD, "Support Admin B", TENANT_B, List.of("ROLE_ADMIN"));
     dataSeeder.ensureUser(
         SUPER_ADMIN_EMAIL,
         PASSWORD,
@@ -68,14 +68,14 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void createTicket_persistsAndReturnsApiEnvelope() {
-    String token = login(REQUESTER_A_EMAIL, TENANT_A);
+  void portalCreate_persistsAndReturnsApiEnvelope() {
+    String token = login(ADMIN_A_EMAIL, TENANT_A);
     HttpHeaders headers = authHeaders(token, TENANT_A);
 
-    String subject = "Support create flow " + System.nanoTime();
+    String subject = "Portal support create flow " + System.nanoTime();
     ResponseEntity<Map> response =
         rest.exchange(
-            "/api/v1/support/tickets",
+            "/api/v1/portal/support/tickets",
             HttpMethod.POST,
             new HttpEntity<>(
                 Map.of(
@@ -102,101 +102,233 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void listEndpoint_appliesRoleScopedVisibility() {
-    String marker = "scope-" + System.nanoTime();
-    String selfSubject = marker + "-self";
-    String teammateSubject = marker + "-teammate";
-    String foreignSubject = marker + "-foreign";
+  void dealerCreate_persistsAndReturnsApiEnvelope() {
+    String token = login(DEALER_A_EMAIL, TENANT_A);
+    HttpHeaders headers = authHeaders(token, TENANT_A);
 
-    seedTicket(TENANT_A, REQUESTER_A_EMAIL, selfSubject);
-    seedTicket(TENANT_A, TEAMMATE_A_EMAIL, teammateSubject);
-    seedTicket(TENANT_B, REQUESTER_B_EMAIL, foreignSubject);
-
-    ResponseEntity<Map> requesterResponse =
-        rest.exchange(
-            "/api/v1/support/tickets",
-            HttpMethod.GET,
-            new HttpEntity<>(authHeaders(login(REQUESTER_A_EMAIL, TENANT_A), TENANT_A)),
-            Map.class);
-    assertThat(requesterResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Set<String> requesterSubjects = subjectsFromListResponse(requesterResponse);
-    assertThat(requesterSubjects).contains(selfSubject);
-    assertThat(requesterSubjects).doesNotContain(teammateSubject, foreignSubject);
-
-    ResponseEntity<Map> adminResponse =
-        rest.exchange(
-            "/api/v1/support/tickets",
-            HttpMethod.GET,
-            new HttpEntity<>(authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
-            Map.class);
-    assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Set<String> adminSubjects = subjectsFromListResponse(adminResponse);
-    assertThat(adminSubjects).contains(selfSubject, teammateSubject);
-    assertThat(adminSubjects).doesNotContain(foreignSubject);
-
-    ResponseEntity<Map> superAdminResponse =
-        rest.exchange(
-            "/api/v1/support/tickets",
-            HttpMethod.GET,
-            new HttpEntity<>(authHeaders(login(SUPER_ADMIN_EMAIL, ROOT_TENANT), ROOT_TENANT)),
-            Map.class);
-    assertForbiddenPlatformOnly(superAdminResponse);
-  }
-
-  @Test
-  void getByIdEndpoint_enforcesScopedAccessRules() {
-    Long ownTicket = seedTicket(TENANT_A, REQUESTER_A_EMAIL, "detail-own-" + System.nanoTime());
-    Long teammateTicket =
-        seedTicket(TENANT_A, TEAMMATE_A_EMAIL, "detail-team-" + System.nanoTime());
-    Long foreignTicket =
-        seedTicket(TENANT_B, REQUESTER_B_EMAIL, "detail-foreign-" + System.nanoTime());
-
-    ResponseEntity<Map> requesterForbidden =
-        rest.exchange(
-            "/api/v1/support/tickets/" + teammateTicket,
-            HttpMethod.GET,
-            new HttpEntity<>(authHeaders(login(REQUESTER_A_EMAIL, TENANT_A), TENANT_A)),
-            Map.class);
-    assertThat(requesterForbidden.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-
-    ResponseEntity<Map> requesterOwn =
-        rest.exchange(
-            "/api/v1/support/tickets/" + ownTicket,
-            HttpMethod.GET,
-            new HttpEntity<>(authHeaders(login(REQUESTER_A_EMAIL, TENANT_A), TENANT_A)),
-            Map.class);
-    assertThat(requesterOwn.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-    ResponseEntity<Map> adminAllowed =
-        rest.exchange(
-            "/api/v1/support/tickets/" + teammateTicket,
-            HttpMethod.GET,
-            new HttpEntity<>(authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
-            Map.class);
-    assertThat(adminAllowed.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-    ResponseEntity<Map> adminForeignDenied =
-        rest.exchange(
-            "/api/v1/support/tickets/" + foreignTicket,
-            HttpMethod.GET,
-            new HttpEntity<>(authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
-            Map.class);
-    assertThat(adminForeignDenied.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-
-    ResponseEntity<Map> superAdminAllowed =
-        rest.exchange(
-            "/api/v1/support/tickets/" + foreignTicket,
-            HttpMethod.GET,
-            new HttpEntity<>(authHeaders(login(SUPER_ADMIN_EMAIL, ROOT_TENANT), ROOT_TENANT)),
-            Map.class);
-    assertForbiddenPlatformOnly(superAdminAllowed);
-  }
-
-  @Test
-  void createEndpoint_deniesSuperAdminTenantWorkflowAccess() {
+    String subject = "Dealer support create flow " + System.nanoTime();
     ResponseEntity<Map> response =
         rest.exchange(
+            "/api/v1/dealer-portal/support/tickets",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "category", "SUPPORT",
+                    "subject", subject,
+                    "description", "Dealer cannot reconcile invoice payment"),
+                headers),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().get("success")).isEqualTo(Boolean.TRUE);
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+    assertThat(data).isNotNull();
+    assertThat(data.get("subject")).isEqualTo(subject);
+    assertThat(data.get("category")).isEqualTo("SUPPORT");
+    assertThat(data.get("companyCode")).isEqualTo(TENANT_A);
+    assertThat(data.get("id")).isNotNull();
+
+    Long createdId = Long.parseLong(data.get("id").toString());
+    assertThat(supportTicketRepository.findById(createdId)).isPresent();
+  }
+
+  @Test
+  void listEndpoints_applyHostSpecificVisibilityAndRetireSharedHost() {
+    String marker = "scope-" + System.nanoTime();
+    String adminSubject = marker + "-admin";
+    String dealerOwnSubject = marker + "-dealer-own";
+    String dealerPeerSubject = marker + "-dealer-peer";
+    String foreignSubject = marker + "-foreign";
+
+    seedTicket(TENANT_A, ADMIN_A_EMAIL, adminSubject);
+    seedTicket(TENANT_A, DEALER_A_EMAIL, dealerOwnSubject);
+    seedTicket(TENANT_A, DEALER_B_EMAIL, dealerPeerSubject);
+    seedTicket(TENANT_B, ADMIN_B_EMAIL, foreignSubject);
+
+    ResponseEntity<Map> portalAdminResponse =
+        rest.exchange(
+            "/api/v1/portal/support/tickets",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(portalAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Set<String> portalAdminSubjects = subjectsFromListResponse(portalAdminResponse);
+    assertThat(portalAdminSubjects).contains(adminSubject, dealerOwnSubject, dealerPeerSubject);
+    assertThat(portalAdminSubjects).doesNotContain(foreignSubject);
+
+    ResponseEntity<Map> dealerResponse =
+        rest.exchange(
+            "/api/v1/dealer-portal/support/tickets",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(DEALER_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(dealerResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Set<String> dealerSubjects = subjectsFromListResponse(dealerResponse);
+    assertThat(dealerSubjects).contains(dealerOwnSubject);
+    assertThat(dealerSubjects).doesNotContain(adminSubject, dealerPeerSubject, foreignSubject);
+
+    ResponseEntity<Map> portalDealerDenied =
+        rest.exchange(
+            "/api/v1/portal/support/tickets",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(DEALER_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(portalDealerDenied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+    ResponseEntity<Map> dealerPortalAdminDenied =
+        rest.exchange(
+            "/api/v1/dealer-portal/support/tickets",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(dealerPortalAdminDenied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+    ResponseEntity<Map> retiredSharedAdmin =
+        rest.exchange(
             "/api/v1/support/tickets",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(retiredSharedAdmin.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
+    ResponseEntity<Map> retiredSharedDealer =
+        rest.exchange(
+            "/api/v1/support/tickets",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(DEALER_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(retiredSharedDealer.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+  }
+
+  @Test
+  void detailEndpoints_enforceHostAndTenantBoundaries() {
+    Long dealerOwnTicket =
+        seedTicket(TENANT_A, DEALER_A_EMAIL, "detail-dealer-own-" + System.nanoTime());
+    Long dealerPeerTicket =
+        seedTicket(TENANT_A, DEALER_B_EMAIL, "detail-dealer-peer-" + System.nanoTime());
+    Long adminTicket = seedTicket(TENANT_A, ADMIN_A_EMAIL, "detail-admin-" + System.nanoTime());
+    Long foreignTicket = seedTicket(TENANT_B, ADMIN_B_EMAIL, "detail-foreign-" + System.nanoTime());
+
+    ResponseEntity<Map> dealerOwnResponse =
+        rest.exchange(
+            "/api/v1/dealer-portal/support/tickets/" + dealerOwnTicket,
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(DEALER_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(dealerOwnResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    ResponseEntity<Map> dealerPeerDenied =
+        rest.exchange(
+            "/api/v1/dealer-portal/support/tickets/" + dealerPeerTicket,
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(DEALER_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(dealerPeerDenied.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
+    ResponseEntity<Map> dealerCrossHostProbe =
+        rest.exchange(
+            "/api/v1/dealer-portal/support/tickets/" + adminTicket,
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(DEALER_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(dealerCrossHostProbe.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
+    ResponseEntity<Map> dealerForeignDenied =
+        rest.exchange(
+            "/api/v1/dealer-portal/support/tickets/" + foreignTicket,
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(DEALER_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(dealerForeignDenied.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
+    ResponseEntity<Map> portalAdminResponse =
+        rest.exchange(
+            "/api/v1/portal/support/tickets/" + dealerOwnTicket,
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(portalAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    ResponseEntity<Map> portalForeignDenied =
+        rest.exchange(
+            "/api/v1/portal/support/tickets/" + foreignTicket,
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(portalForeignDenied.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
+    ResponseEntity<Map> portalDealerDenied =
+        rest.exchange(
+            "/api/v1/portal/support/tickets/" + dealerOwnTicket,
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(DEALER_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(portalDealerDenied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+    ResponseEntity<Map> dealerPortalAdminDenied =
+        rest.exchange(
+            "/api/v1/dealer-portal/support/tickets/" + dealerOwnTicket,
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(dealerPortalAdminDenied.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+    ResponseEntity<Map> retiredSharedAdmin =
+        rest.exchange(
+            "/api/v1/support/tickets/" + adminTicket,
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(retiredSharedAdmin.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+  }
+
+  @Test
+  void createEndpoints_denyCrossHostRolesAndSuperAdminTenantWorkflowAccess() {
+    ResponseEntity<Map> dealerOnPortalResponse =
+        rest.exchange(
+            "/api/v1/portal/support/tickets",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "category", "SUPPORT",
+                    "subject", "dealer-on-portal-" + System.nanoTime(),
+                    "description", "Dealer must not post portal support tickets"),
+                authHeaders(login(DEALER_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(dealerOnPortalResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+    ResponseEntity<Map> adminOnDealerPortalResponse =
+        rest.exchange(
+            "/api/v1/dealer-portal/support/tickets",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "category", "SUPPORT",
+                    "subject", "admin-on-dealer-portal-" + System.nanoTime(),
+                    "description", "Admin must not post dealer portal support tickets"),
+                authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(adminOnDealerPortalResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+    ResponseEntity<Map> retiredSharedAdminResponse =
+        rest.exchange(
+            "/api/v1/support/tickets",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "category", "SUPPORT",
+                    "subject", "retired-admin-" + System.nanoTime(),
+                    "description", "Shared support host must be gone"),
+                authHeaders(login(ADMIN_A_EMAIL, TENANT_A), TENANT_A)),
+            Map.class);
+    assertThat(retiredSharedAdminResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
+    ResponseEntity<Map> response =
+        rest.exchange(
+            "/api/v1/portal/support/tickets",
             HttpMethod.POST,
             new HttpEntity<>(
                 Map.of(

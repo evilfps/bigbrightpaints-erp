@@ -136,6 +136,15 @@ Track cleanup, duplicate-truth removals, dead-code retirement, and production-re
 - **Evidence:** `PortalFinanceControllerIT`, `DealerControllerSecurityIT`, `DealerPortalControllerSecurityIT`, `ReportControllerRouteContractIT`, `StatementAgingIT`, `DealerLedgerIT`, `OpenApiSnapshotIT`, `docs/endpoint-inventory.md`, `erp-domain/docs/endpoint_inventory.tsv`, `.factory/library/frontend-handoff.md`, and `docs/accounting-portal-frontend-engineer-handoff.md`.
 - **Follow-up:** keep future internal receivables drill-ins on `/api/v1/portal/finance/**` only, and treat any new dealer/accounting/report alias as duplicate-truth regression.
 
+## 2026-03-27 — `support-host-split-hard-cut`
+
+- **Area:** support host ownership, tenant scoping, and stale shared-surface cleanup
+- **Risk addressed:** the shared `/api/v1/support/**` contract let dealer and internal support traffic share one mixed host with generic `isAuthenticated()` access, which preserved stale visibility assumptions and made route retirement proof impossible.
+- **Cleanup/remediation performed:** replaced the shared controller/service path with `PortalSupportTicketController` on `/api/v1/portal/support/tickets/**` plus `DealerPortalSupportTicketController` on `/api/v1/dealer-portal/support/tickets/**`, split the support services into explicit portal-vs-dealer read scopes, refreshed `openapi.json`, and rewrote the touched inventory/workflow/frontend handoff docs to publish only the host-specific support routes.
+- **Duplicate-truth or dead-code impact:** retired the shared `/api/v1/support/tickets` and `/api/v1/support/tickets/{ticketId}` surface along with the mixed-visibility controller/service assumptions, so legacy callers now fail closed while dealer support remains self-scoped and portal support remains tenant-scoped for admin/accounting operators.
+- **Evidence:** `SupportTicketControllerIT`, `SuperAdminTenantWorkflowIsolationIT`, `CompanyContextFilterControlPlaneBindingTest`, `TS_RuntimeSupportTicketServiceExecutableCoverageTest`, `openapi.json`, `docs/endpoint-inventory.md`, `erp-domain/docs/endpoint_inventory.tsv`, `docs/code-review/architecture-overview.md`, `docs/code-review/flows/admin-governance.md`, `docs/workflows/admin-and-tenant-management.md`, and `.factory/library/frontend-handoff.md`.
+- **Follow-up:** keep future support UX and docs pinned to the split portal hosts only, and treat any reintroduction of `/api/v1/support/**` as duplicate-truth regression.
+
 ## 2026-03-14 — `remove-orchestrator-dispatch-journal`
 
 - **Area:** orchestrator O2C dispatch containment and duplicate-truth retirement.

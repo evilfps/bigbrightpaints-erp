@@ -15,9 +15,9 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `669a529a04b11387e8276854c9236c84e45f74147ee73514f85eb5302a1f4daf`)
-- OpenAPI total paths: `281`
-- OpenAPI total operations: `333`
+- OpenAPI snapshot: `openapi.json` (sha256 `c9559add0778823eedc7e170ca20d7e2c2caed2df32b5fb65d74af5494bc2380`)
+- OpenAPI total paths: `283`
+- OpenAPI total operations: `336`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
 
 ## Summary by module
@@ -53,7 +53,7 @@ Portal scope guardrail:
 | `sales` | 16 | /api/v1/sales/dashboard, /api/v1/sales/dealers, /api/v1/sales/dealers/search |
 | `superadmin` | 17 | /api/v1/superadmin/changelog, /api/v1/superadmin/changelog/{id}, /api/v1/superadmin/dashboard |
 | `suppliers` | 5 | /api/v1/suppliers, /api/v1/suppliers/{id}, /api/v1/suppliers/{id}/activate |
-| `support` | 2 | /api/v1/support/tickets, /api/v1/support/tickets/{ticketId} |
+| `support` | 4 | /api/v1/portal/support/tickets, /api/v1/dealer-portal/support/tickets, /api/v1/portal/support/tickets/{ticketId} |
 
 ## `accounting`
 
@@ -423,5 +423,7 @@ Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packagi
 
 ## `support`
 
-- `GET, POST` `/api/v1/support/tickets`
-- `GET` `/api/v1/support/tickets/{ticketId}`
+- `GET, POST` `/api/v1/portal/support/tickets`
+- `GET` `/api/v1/portal/support/tickets/{ticketId}`
+- `GET, POST` `/api/v1/dealer-portal/support/tickets`
+- `GET` `/api/v1/dealer-portal/support/tickets/{ticketId}`

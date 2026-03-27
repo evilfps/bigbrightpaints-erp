@@ -544,31 +544,32 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
 
 | Method | Path | Auth | Request | Response `data` |
 |---|---|---|---|---|
-| `POST` | `/api/v1/support/tickets` | `isAuthenticated()` | `SupportTicketCreateRequest` | `SupportTicketResponse` |
-| `GET` | `/api/v1/support/tickets` | `isAuthenticated()` | none | `SupportTicketListResponse` |
-| `GET` | `/api/v1/support/tickets/{ticketId}` | `isAuthenticated()` | none | `SupportTicketResponse` |
+| `POST` | `/api/v1/portal/support/tickets` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | `SupportTicketCreateRequest` | `SupportTicketResponse` |
+| `GET` | `/api/v1/portal/support/tickets` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | none | `SupportTicketListResponse` |
+| `GET` | `/api/v1/portal/support/tickets/{ticketId}` | `ROLE_ADMIN` or `ROLE_ACCOUNTING` | none | `SupportTicketResponse` |
+| `POST` | `/api/v1/dealer-portal/support/tickets` | `ROLE_DEALER` | `SupportTicketCreateRequest` | `SupportTicketResponse` |
+| `GET` | `/api/v1/dealer-portal/support/tickets` | `ROLE_DEALER` | none | `SupportTicketListResponse` |
+| `GET` | `/api/v1/dealer-portal/support/tickets/{ticketId}` | `ROLE_DEALER` | none | `SupportTicketResponse` |
 
 All endpoints return `ApiResponse<T>` envelopes.
 
 ##### User flows
 
-1. **Create support ticket (any authenticated user)**
-   1. Submit `POST /api/v1/support/tickets` with category, subject, description.
+1. **Create support ticket from the canonical host**
+   1. Internal support operators submit `POST /api/v1/portal/support/tickets`; dealer users submit `POST /api/v1/dealer-portal/support/tickets`.
    2. Backend persists ticket locally as `OPEN` and returns ticket payload immediately.
    3. Backend asynchronously attempts GitHub issue creation (`erp.github.*` driven).
    4. If GitHub integration is disabled/misconfigured/down, local ticket remains visible and carries `githubLastError`.
 
-2. **List support tickets (role-scoped visibility)**
-   1. Call `GET /api/v1/support/tickets`.
-   2. Visibility rules:
-      - `ROLE_SUPER_ADMIN`: all tickets across tenants.
-      - `ROLE_ADMIN` or `ROLE_ACCOUNTING`: all tickets in active tenant.
-      - Other authenticated roles: only self-created tickets (`userId` match).
+2. **List support tickets on the host-bound surface**
+   1. Internal support operators call `GET /api/v1/portal/support/tickets` and see tenant-scoped tickets for their company.
+   2. Dealer users call `GET /api/v1/dealer-portal/support/tickets` and see only self-created tickets (`userId` match).
+   3. Dealer users are forbidden on the portal host, admin/accounting users are forbidden on the dealer host, and the shared `/api/v1/support/**` surface is retired.
 
 3. **Get ticket details**
-   1. Call `GET /api/v1/support/tickets/{ticketId}`.
-   2. Same visibility scope rules apply as list endpoint.
-   3. Out-of-scope tickets return `BUS_003` (not found) to avoid cross-tenant/user leakage.
+   1. Internal support operators call `GET /api/v1/portal/support/tickets/{ticketId}`.
+   2. Dealer users call `GET /api/v1/dealer-portal/support/tickets/{ticketId}`.
+   3. Out-of-scope tickets return `BUS_003` (not found) to avoid tenant, peer-dealer, or cross-host leakage.
 
 4. **Background sync + resolution notification**
    1. Scheduler runs every 5 minutes and polls GitHub state for open/in-progress tickets with linked issue numbers.
