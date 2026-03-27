@@ -471,9 +471,8 @@ public class AdminUserService {
     return companyRepository
         .findById(companyId)
         .orElseThrow(
-            () ->
-                com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                    "Company not found: " + companyId));
+            () -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                "Company not found: " + companyId));
   }
 
   private void assertScopedEmailAvailableForTransfer(UserAccount user, Company targetCompany) {
@@ -733,9 +732,7 @@ public class AdminUserService {
   }
 
   private String resolveTargetCompanyCodes(UserAccount user) {
-    if (user == null
-        || user.getCompany() == null
-        || !StringUtils.hasText(user.getCompany().getCode())) {
+    if (user == null || user.getCompany() == null || !StringUtils.hasText(user.getCompany().getCode())) {
       return null;
     }
     return user.getCompany().getCode().trim();
