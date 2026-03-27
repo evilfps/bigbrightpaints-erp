@@ -8,7 +8,7 @@ This dictionary helps you understand the BigBright ERP codebase structure and ma
 
 ### Quick Navigation
 - **New to the codebase?** Start with [AI Context](AI_CONTEXT.md) for a token-efficient overview
-- **Adding a new feature?** Check [Extension Points](WHERE_should_new_code_go.md) for safe areas
+- **Adding a new feature?** Check [Extension Points](WHERE_SHOULD_NEW_CODE_GO.md) for safe areas
 - **Looking for a specific class?** Use the [Master Index](MASTER_INDEX.md) to find it
 - **Understanding module structure?** Browse the [Module Documentation](modules/)
 
