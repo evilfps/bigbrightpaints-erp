@@ -53,6 +53,8 @@ Probe retired routes with the strongest actor that used to be allowed on them. A
 
 - Aggressive deletion is correct inside ERP-21 lane ownership.
 - If cleanup crosses into ERP-22/ERP-23 or an unrelated module refactor, return to orchestrator instead of widening the packet.
+- If the known unrelated O2C dispatch provenance baseline blocker is still red during ERP-21 development, classify it with proof, do not absorb the fix into ERP-21, and continue the packet.
+- Before merge or final PR handoff, rerun the required gates and make sure the final PR is green.
 
 ## Contract Surfaces That Must Stay In Sync
 

@@ -63,12 +63,17 @@ None.
 1. Run the feature-specific targeted tests from `features.json`.
 2. Run `MIGRATION_SET=v2 mvn compile -q` from `erp-domain/`.
 3. Run `MIGRATION_SET=v2 mvn test -Pgate-fast -Djacoco.skip=true` unless the orchestrator has explicitly scoped the feature to a smaller temporary check during iteration.
-4. Run the relevant contract guards from `.factory/services.yaml`.
-5. If your feature changes runtime routes, reset the runtime and capture exact `curl` probes showing:
+4. If `gate-fast` is already red in the known unrelated O2C dispatch provenance lane before or during ERP-21 development:
+   - capture proof of the unrelated failure,
+   - do not absorb that fix into ERP-21,
+   - continue ERP-21 implementation and scoped verification anyway.
+5. Before final handoff for merge/PR readiness, rerun the full required gates and ensure the final PR state is green.
+6. Run the relevant contract guards from `.factory/services.yaml`.
+7. If your feature changes runtime routes, reset the runtime and capture exact `curl` probes showing:
    - canonical host success
    - retired host absence
    - denied role or tenant mismatch behavior
-6. Re-read your diff looking for stale route names, unused helpers, or doc drift you missed.
+8. Re-read your diff looking for stale route names, unused helpers, or doc drift you missed.
 
 ### Step 6: Produce a strict handoff
 Your handoff must include:
@@ -152,4 +157,4 @@ Your handoff must include:
 - The feature cannot finish without widening into ERP-22/ERP-23 or an unrelated module refactor.
 - A required canonical-host decision is missing from the mission artifacts.
 - R2-governed accounting or migration work becomes broader than the feature description allows.
-- Release-gate failures reveal unrelated platform debt that should be classified/escalated instead of absorbed into ERP-21.
+- The final rerun of required gates for PR readiness is still red, even after classifying any unrelated baseline blocker separately from ERP-21.
