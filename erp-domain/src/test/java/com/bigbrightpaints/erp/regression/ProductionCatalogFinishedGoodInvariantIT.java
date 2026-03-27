@@ -276,8 +276,13 @@ class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
             Map.class);
 
     assertThat(productionLogResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(data(productionLogResponse)).containsKeys("id", "productionCode");
-    assertThat(finishedGoodRepository.findByCompanyAndProductCode(company, sku + "-BULK"))
+    Map<String, Object> productionData = data(productionLogResponse);
+    assertThat(productionData).containsKeys("id", "productionCode");
+    String productionCode = String.valueOf(productionData.get("productionCode"));
+
+    RawMaterial semiFinished =
+        rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, sku + "-BULK").orElseThrow();
+    assertThat(rawMaterialBatchRepository.findByRawMaterialAndBatchCode(semiFinished, productionCode))
         .isPresent();
   }
 
