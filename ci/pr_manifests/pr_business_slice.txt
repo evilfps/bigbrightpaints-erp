@@ -32,6 +32,7 @@ DealerPortalControllerSecurityIT
 com.bigbrightpaints.erp.modules.sales.controller.DealerPortalControllerExportAuditTest
 DealerPortalServiceTest
 DealerServiceTest
+com.bigbrightpaints.erp.modules.sales.service.DunningServiceTest
 com.bigbrightpaints.erp.modules.sales.dto.CreditLimitRequestCreateRequestTest
 com.bigbrightpaints.erp.modules.sales.dto.CreditLimitRequestDecisionRequestTest
 com.bigbrightpaints.erp.modules.sales.dto.CreditLimitRequestDtoTest

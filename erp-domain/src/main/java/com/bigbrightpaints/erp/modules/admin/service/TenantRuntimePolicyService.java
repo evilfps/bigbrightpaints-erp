@@ -144,7 +144,7 @@ public class TenantRuntimePolicyService {
   }
 
   private long countTotalUsers(Long companyId) {
-    return userAccountRepository.findDistinctByCompanies_Id(companyId).size();
+    return userAccountRepository.countByCompany_Id(companyId);
   }
 
   private String safe(String value) {

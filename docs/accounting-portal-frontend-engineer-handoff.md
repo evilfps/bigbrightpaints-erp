@@ -49,8 +49,7 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 | `profileGet` | GET | `/api/v1/auth/profile` | Load profile drawer/page |
 | `profileUpdate` | PUT | `/api/v1/auth/profile` | Save profile updates |
 | `authChangePassword` | POST | `/api/v1/auth/password/change` | Password update |
-| `companiesList` | GET | `/api/v1/companies` | Company switch list |
-| `companiesSwitch` | POST | `/api/v1/multi-company/companies/switch` | Switch accounting company context |
+| `companiesList` | GET | `/api/v1/companies` | Current-scope company metadata |
 | `authLogout` | POST | `/api/v1/auth/logout` | Sign out |
 
 ## Setup Journey Ownership (Current-State)
@@ -76,11 +75,11 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 ### M18-S9A Parity Closure (Do Not Drift)
 
 - M17-S1 canonical API contract source-of-truth is `openapi.json`; parity checks are non-mutating and fail on drift instead of rewriting docs.
-- M17-S2 handoff parity expectation is the curated **143**-row baseline from `docs/accounting-portal-endpoint-map.md`, with only the documented `+9` dependency rows and `+4` code-verified period-close workflow supplement rows allowed beyond that set.
+- M17-S2 handoff parity expectation is the curated **143**-row baseline from `docs/accounting-portal-endpoint-map.md`, with only the documented `+8` dependency rows and `+4` code-verified period-close workflow supplement rows allowed beyond that set.
 - Endpoint-map parity lock in this handoff is the same curated **143** baseline (it does not claim full accounting-portal OpenAPI coverage).
-- Current handoff inventory total is **156** unique `METHOD /api/v1/...` rows = `143` portal-owned parity rows + `9` intentional dependencies + `4` code-verified period-close workflow supplement rows.
-- Intentional dependency-only rows (`+9` vs endpoint map):
-  - Shared foundation APIs (7): `GET /api/v1/auth/me`, `GET /api/v1/auth/profile`, `PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/multi-company/companies/switch`, `POST /api/v1/auth/logout`
+- Current handoff inventory total is **155** unique `METHOD /api/v1/...` rows = `143` portal-owned parity rows + `8` intentional dependencies + `4` code-verified period-close workflow supplement rows.
+- Intentional dependency-only rows (`+8` vs endpoint map):
+  - Shared foundation APIs (6): `GET /api/v1/auth/me`, `GET /api/v1/auth/profile`, `PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/auth/logout`
   - Dealer support APIs (2): `GET /api/v1/sales/dealers`, `GET /api/v1/sales/dealers/search`
 - Code-verified period-close workflow supplement rows (`+4` vs endpoint map parity lock):
   - `GET /api/v1/admin/approvals`
@@ -424,7 +423,7 @@ These rows are required for the period-close maker-checker UX, but they live out
 |---|---|---|---|---|
 | `My Profile` | `/accounting/profile` | `profileGet`, `profileUpdate` | Form skeleton; inline validation + toast | `isAuthenticated()` |
 | `Change Password` | `/accounting/profile?tab=password` | `authChangePassword` | Submit spinner; inline validation | `isAuthenticated()` |
-| `Switch Company` | Company switch modal | `companiesList`, `companiesSwitch` | Modal loader; on success hard refresh accounting data caches | `isAuthenticated()` + company membership check. `companiesList` additionally needs one of `ROLE_ADMIN|ROLE_ACCOUNTING|ROLE_SALES` |
+| `Company Scope` | Read-only tenant badge / metadata | `companiesList` | Inline load with page bootstrap; no post-login switch action exists | `isAuthenticated()`; `companiesList` additionally needs one of `ROLE_ADMIN|ROLE_ACCOUNTING|ROLE_SALES` |
 | `Sign Out` | Redirect `/auth/login` | `authLogout` | Immediate spinner; fallback local sign-out on failure | `isAuthenticated()` |
 
 | Route | Purpose | Backend-enforced gate (exact) |

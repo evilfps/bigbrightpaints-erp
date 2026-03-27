@@ -74,7 +74,7 @@ class DispatchConfirmationIT extends AbstractIntegrationTest {
         "Dispatch User",
         COMPANY_CODE,
         List.of("ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_SALES", "ROLE_FACTORY"));
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
     company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
     company.setBaseCurrency("INR");
     companyRepository.save(company);

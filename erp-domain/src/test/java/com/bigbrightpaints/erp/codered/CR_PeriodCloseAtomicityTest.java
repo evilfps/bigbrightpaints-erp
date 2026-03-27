@@ -76,7 +76,7 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
   void closePeriod_blocksConcurrentPosting() throws Exception {
     String companyCode = "CR-CLOSE-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate today = TestDateUtils.safeDate(company);
       AccountingPeriod period = accountingPeriodService.ensurePeriod(company, today);
@@ -94,7 +94,7 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
       CompletableFuture<AccountingPeriodDto> closeFuture =
           CompletableFuture.supplyAsync(
               () -> {
-                CompanyContextHolder.setCompanyId(companyCode);
+                CompanyContextHolder.setCompanyCode(companyCode);
                 try {
                   return forceClosePeriod(
                       period.getId(), "CODE-RED close request", "CODE-RED close approval");
@@ -110,7 +110,7 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
       CompletableFuture<?> postFuture =
           CompletableFuture.supplyAsync(
               () -> {
-                CompanyContextHolder.setCompanyId(companyCode);
+                CompanyContextHolder.setCompanyCode(companyCode);
                 try {
                   return postJournal(
                       today,
@@ -144,7 +144,7 @@ class CR_PeriodCloseAtomicityTest extends AbstractIntegrationTest {
   void requestCloseAndReopen_areIdempotent() {
     String companyCode = "CR-CLOSE-IDEMP-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate today = TestDateUtils.safeDate(company);
       AccountingPeriod period = accountingPeriodService.ensurePeriod(company, today);

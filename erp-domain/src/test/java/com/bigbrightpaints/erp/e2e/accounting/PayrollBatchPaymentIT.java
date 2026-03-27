@@ -45,7 +45,7 @@ public class PayrollBatchPaymentIT extends AbstractIntegrationTest {
   @Test
   void should_create_payroll_run_lines_and_post_journal() {
     Company company = dataSeeder.ensureCompany(COMPANY_CODE, "Payroll Batch Co");
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
 
     Account cash = accountRepository.findByCompanyAndCodeIgnoreCase(company, "CASH").orElseThrow();
     Account expense =

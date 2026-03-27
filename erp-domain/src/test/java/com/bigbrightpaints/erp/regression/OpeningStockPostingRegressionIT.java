@@ -116,7 +116,7 @@ class OpeningStockPostingRegressionIT extends AbstractIntegrationTest {
             .getId());
     companyRepository.save(company);
 
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
   }
 
   @AfterEach

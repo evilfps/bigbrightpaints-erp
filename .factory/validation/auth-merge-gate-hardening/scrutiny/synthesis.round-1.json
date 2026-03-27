@@ -59,14 +59,6 @@
     {
       "observation": "Update .factory/library/auth-hardening.md to say the forgot-password persistence-failure hardening is complete.",
       "reason": "rejected because the underlying feature still has a blocking cleanup-failure gap; shared knowledge should not be refreshed until the product defect is fixed."
-    },
-    {
-      "observation": "Update .factory/library/auth-hardening.md to remove the retired backfill/raw-token fallback rollout notes.",
-      "reason": "rejected for this run because library edits are documentation-only changes outside the requested scrutiny-validation scope."
-    },
-    {
-      "observation": "Update .factory/library/frontend-handoff.md to remove the legacy cid JWT claim from the documented token shape.",
-      "reason": "rejected for this run because library edits are documentation-only changes outside the requested scrutiny-validation scope."
     }
   ],
   "previousRound": null

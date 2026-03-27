@@ -62,6 +62,8 @@ public class MfaControllerIT extends AbstractIntegrationTest {
   void enrollment_and_activation_require_totp_for_login() {
     String token = obtainAccessToken(null, null);
     SetupPayload setup = startEnrollment(token);
+    assertThat(setup.qrUri()).contains("mfa-user");
+    assertThat(setup.qrUri()).contains("MFA");
 
     String activationCode = TotpTestUtils.generateCurrentCode(setup.secret());
     ResponseEntity<Map> activateResp =
@@ -105,10 +107,11 @@ public class MfaControllerIT extends AbstractIntegrationTest {
     assertThat(setupResp.getStatusCode()).isEqualTo(HttpStatus.OK);
     Map<String, Object> setupData = apiData(setupResp);
     String secret = setupData.get("secret").toString();
+    String qrUri = setupData.get("qrUri").toString();
     @SuppressWarnings("unchecked")
     List<String> recoveryCodes =
         ((List<Object>) setupData.get("recoveryCodes")).stream().map(Object::toString).toList();
-    return new SetupPayload(secret, recoveryCodes);
+    return new SetupPayload(secret, qrUri, recoveryCodes);
   }
 
   private String obtainAccessToken(String mfaCode, String recoveryCode) {
@@ -159,5 +162,5 @@ public class MfaControllerIT extends AbstractIntegrationTest {
     assertThat(data.get("required")).isEqualTo(Boolean.TRUE);
   }
 
-  private record SetupPayload(String secret, List<String> recoveryCodes) {}
+  private record SetupPayload(String secret, String qrUri, List<String> recoveryCodes) {}
 }

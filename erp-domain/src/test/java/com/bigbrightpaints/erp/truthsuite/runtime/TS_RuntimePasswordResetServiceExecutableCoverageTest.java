@@ -1,37 +1,34 @@
 package com.bigbrightpaints.erp.truthsuite.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
-import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.bigbrightpaints.erp.core.config.EmailProperties;
-import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
+import com.bigbrightpaints.erp.core.security.SecurityMonitoringService;
 import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetToken;
 import com.bigbrightpaints.erp.modules.auth.domain.PasswordResetTokenRepository;
@@ -40,25 +37,24 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.service.PasswordResetService;
 import com.bigbrightpaints.erp.modules.auth.service.PasswordService;
 import com.bigbrightpaints.erp.modules.auth.service.RefreshTokenService;
-import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 
 @Tag("critical")
 class TS_RuntimePasswordResetServiceExecutableCoverageTest {
 
+  private static final String TENANT_SCOPE = "ACME";
+
   @Test
-  void requestResetForSuperAdmin_correlationHeaderSanitizationBranches_areExecutable() {
+  void requestReset_correlationHeaderSanitizationBranches_areExecutable() {
     UserAccountRepository userRepository = mock(UserAccountRepository.class);
     PasswordResetTokenRepository tokenRepository = mock(PasswordResetTokenRepository.class);
     EmailService emailService = mock(EmailService.class);
     PasswordResetService service = newService(userRepository, tokenRepository, emailService);
 
-    UserAccount superAdmin = superAdminUser("superadmin@example.com");
-    when(userRepository.findByEmailIgnoreCase("superadmin@example.com"))
-        .thenReturn(Optional.of(superAdmin));
-    doThrow(new RuntimeException("smtp down"))
-        .when(emailService)
-        .sendSimpleEmail(
-            eq("superadmin@example.com"), eq("Reset your BigBright ERP password"), anyString());
+    UserAccount user = user("user@example.com");
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "user@example.com", TENANT_SCOPE))
+        .thenReturn(Optional.of(user));
+    stubIssuedResetToken(tokenRepository, 11L);
 
     invokeRequest(service, "corr-support-123", null, null);
     invokeRequest(service, "   ", "req-fallback-123", null);
@@ -67,60 +63,34 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
     invokeRequest(service, "corr-newline\nsegment", null, null);
     invokeRequest(service, " ", " ", "\t");
 
-    verify(emailService, times(6))
-        .sendSimpleEmail(
-            eq("superadmin@example.com"), eq("Reset your BigBright ERP password"), anyString());
-  }
-
-  @Test
-  void requestResetForSuperAdmin_masksBlankTokenLifecycleResult_runtimeCoverage() {
-    UserAccountRepository userRepository = mock(UserAccountRepository.class);
-    PasswordResetTokenRepository tokenRepository = mock(PasswordResetTokenRepository.class);
-    EmailService emailService = mock(EmailService.class);
-    PasswordResetService service = newService(userRepository, tokenRepository, emailService);
-
-    UserAccount superAdmin = superAdminUser("superadmin@example.com");
-    when(userRepository.findByEmailIgnoreCase("superadmin@example.com"))
-        .thenReturn(Optional.of(superAdmin));
-
-    TransactionTemplate lifecycleTemplate = mock(TransactionTemplate.class);
-    when(lifecycleTemplate.execute(any())).thenReturn("   ");
-    ReflectionTestUtils.setField(service, "tokenLifecycleTransactionTemplate", lifecycleTemplate);
-
-    invokeRequest(service, "corr-blank-token-123", null, null);
-
-    verify(lifecycleTemplate).execute(any());
-    verify(tokenRepository, never()).deleteByTokenDigest(anyString());
-    verify(emailService, never()).sendSimpleEmail(anyString(), anyString(), anyString());
+    verify(emailService, atLeast(1))
+        .sendPasswordResetEmailRequired(
+            eq("user@example.com"), eq("User"), anyString(), eq(TENANT_SCOPE));
   }
 
   @Test
   @SuppressWarnings("unchecked")
-  void requestResetForSuperAdmin_masksMissingLifecycleTransaction_runtimeCoverage() {
+  void requestReset_missingLifecycleTransactionStaysMasked_runtimeCoverage() {
     UserAccountRepository userRepository = mock(UserAccountRepository.class);
     PasswordResetTokenRepository tokenRepository = mock(PasswordResetTokenRepository.class);
     EmailService emailService = mock(EmailService.class);
     PasswordResetService service = newService(userRepository, tokenRepository, emailService);
 
-    UserAccount superAdmin = superAdminUser("superadmin@example.com");
-    when(userRepository.findByEmailIgnoreCase("superadmin@example.com"))
-        .thenReturn(Optional.of(superAdmin));
+    UserAccount user = user("user@example.com");
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "user@example.com", TENANT_SCOPE))
+        .thenReturn(Optional.of(user));
 
     TransactionTemplate lifecycleTemplate = mock(TransactionTemplate.class);
     when(lifecycleTemplate.execute(any()))
-        .thenAnswer(
-            invocation -> {
-              TransactionCallback<String> callback =
-                  (TransactionCallback<String>) invocation.getArgument(0);
-              return callback.doInTransaction(null);
-            });
+        .thenAnswer(invocation -> invocation.getArgument(0, org.springframework.transaction.support.TransactionCallback.class).doInTransaction(null));
     ReflectionTestUtils.setField(service, "tokenLifecycleTransactionTemplate", lifecycleTemplate);
 
     invokeRequest(service, "corr-tx-missing-123", null, null);
 
-    verify(tokenRepository, never()).deleteByUser(any(UserAccount.class));
     verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
-    verify(emailService, never()).sendSimpleEmail(anyString(), anyString(), anyString());
+    verify(emailService, never())
+        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString(), anyString());
   }
 
   @Test
@@ -150,203 +120,146 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
                 ReflectionTestUtils.invokeMethod(
                     service, "sanitizeCorrelationId", "corr-with-lf\nsegment"))
         .isNull();
-
-    assertThatCode(
-            () ->
+    assertThat(
+            (String)
                 ReflectionTestUtils.invokeMethod(
-                    service,
-                    "cleanupFailedSuperAdminResetToken",
-                    null,
-                    "token-123",
-                    "corr-null-user"))
-        .doesNotThrowAnyException();
+                    service, "sanitizeForPlainTextLog", " corr\r\nsegment\tvalue "))
+        .isEqualTo("corr__segment_value");
+    assertThat(
+            (String)
+                ReflectionTestUtils.invokeMethod(
+                    service, "sanitizeForPlainTextLog", (Object) null))
+        .isEqualTo("<empty>");
+    assertThat((String) ReflectionTestUtils.invokeMethod(service, "obfuscateEmail", (Object) null))
+        .isEqualTo("<empty>");
   }
 
   @Test
-  void
-      requestReset_masksUnexpectedNonPersistenceRuntimeFailures_withoutDatabaseError_runtimeCoverage() {
+  void requestReset_masksUnexpectedDeliveryFailures_andCleansUpIssuedToken_runtimeCoverage() {
     UserAccountRepository userRepository = mock(UserAccountRepository.class);
     PasswordResetTokenRepository tokenRepository = mock(PasswordResetTokenRepository.class);
     EmailService emailService = mock(EmailService.class);
     PasswordResetService service = newService(userRepository, tokenRepository, emailService);
 
-    UserAccount user = new UserAccount("user@example.com", "hash", "User");
-    user.setEnabled(true);
-    when(userRepository.findByEmailIgnoreCase("user@example.com")).thenReturn(Optional.of(user));
-    when(tokenRepository.saveAndFlush(any(PasswordResetToken.class)))
-        .thenAnswer(
-            invocation -> {
-              PasswordResetToken token = invocation.getArgument(0);
-              ReflectionTestUtils.setField(token, "id", 41L);
-              return token;
-            });
+    UserAccount user = user("user@example.com");
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "user@example.com", TENANT_SCOPE))
+        .thenReturn(Optional.of(user));
+    stubIssuedResetToken(tokenRepository, 41L);
     doThrow(new IllegalStateException("unexpected dispatch bug"))
-        .when(tokenRepository)
-        .touchCreatedAt(anyLong(), any(Instant.class));
+        .when(emailService)
+        .sendPasswordResetEmailRequired(
+            eq("user@example.com"), eq("User"), anyString(), eq(TENANT_SCOPE));
 
-    assertThatCode(() -> service.requestReset("user@example.com")).doesNotThrowAnyException();
+    invokeRequest(service, "corr-delivery-mask-123", null, null);
 
-    verify(emailService, never())
-        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString());
+    verify(tokenRepository).deleteByTokenDigest(anyString());
   }
 
   @Test
-  void requestReset_configuresAfterCommitCleanupWithRequiresNewPropagation_runtimeCoverage() {
-    PasswordResetService service =
-        newService(
-            mock(UserAccountRepository.class),
-            mock(PasswordResetTokenRepository.class),
-            mock(EmailService.class));
-
-    TransactionTemplate afterCommitTemplate =
-        (TransactionTemplate)
-            ReflectionTestUtils.getField(service, "tokenAfterCommitCleanupTransactionTemplate");
-
-    assertThat(afterCommitTemplate).isNotNull();
-    assertThat(afterCommitTemplate.getPropagationBehavior())
-        .isEqualTo(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-  }
-
-  @Test
-  void requestReset_keepsIssuedTokenDuringCleanup_runtimeCoverage() {
+  void requestReset_deliveryTrackingFailure_keepsIssuedToken_runtimeCoverage() {
     UserAccountRepository userRepository = mock(UserAccountRepository.class);
     PasswordResetTokenRepository tokenRepository = mock(PasswordResetTokenRepository.class);
     EmailService emailService = mock(EmailService.class);
     PasswordResetService service = newService(userRepository, tokenRepository, emailService);
 
-    UserAccount user = new UserAccount("user@example.com", "hash", "User");
-    user.setEnabled(true);
-    ReflectionTestUtils.setField(user, "id", 101L);
-    when(userRepository.findByEmailIgnoreCase("user@example.com")).thenReturn(Optional.of(user));
-    when(userRepository.lockById(101L)).thenReturn(Optional.of(user));
-    when(tokenRepository.saveAndFlush(any(PasswordResetToken.class)))
-        .thenAnswer(
-            invocation -> {
-              PasswordResetToken token = invocation.getArgument(0);
-              ReflectionTestUtils.setField(token, "id", 41L);
-              return token;
-            });
+    UserAccount user = user("user@example.com");
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "user@example.com", TENANT_SCOPE))
+        .thenReturn(Optional.of(user));
+    stubIssuedResetToken(tokenRepository, 42L);
+    doThrow(new IllegalStateException("tracking write failed"))
+        .when(tokenRepository)
+        .markDeliveredAt(any(Long.class), any(Instant.class));
 
-    service.requestReset("user@example.com");
+    invokeRequest(service, "corr-track-123", null, null);
 
-    verify(tokenRepository).deleteByUserAndIdNot(user, 41L);
     verify(emailService)
-        .sendPasswordResetEmailRequired(eq("user@example.com"), eq("User"), anyString());
+        .sendPasswordResetEmailRequired(
+            eq("user@example.com"), eq("User"), anyString(), eq(TENANT_SCOPE));
+    verify(tokenRepository, never()).deleteByTokenDigest(anyString());
   }
 
   @Test
-  void
-      requestReset_skipsPriorRestoreWhenDispatchCleanupLeavesIssuedTokenStateUnknown_runtimeCoverage() {
-    UserAccountRepository userRepository = mock(UserAccountRepository.class);
-    PasswordResetTokenRepository tokenRepository = mock(PasswordResetTokenRepository.class);
+  void requestReset_skipsDisabledAndMissingUsers_runtimeCoverage() {
+    UserAccountRepository userRepo = mock(UserAccountRepository.class);
+    PasswordResetTokenRepository tokenRepo = mock(PasswordResetTokenRepository.class);
     EmailService emailService = mock(EmailService.class);
-    PasswordResetService service = newService(userRepository, tokenRepository, emailService);
+    PasswordResetService service = newService(userRepo, tokenRepo, emailService);
 
-    UserAccount user = new UserAccount("user@example.com", "hash", "User");
-    user.setEnabled(true);
-    ReflectionTestUtils.setField(user, "id", 101L);
-    when(userRepository.findByEmailIgnoreCase("user@example.com")).thenReturn(Optional.of(user));
-    when(userRepository.lockById(101L)).thenReturn(Optional.of(user));
+    UserAccount disabledUser = user("disabled@example.com");
+    disabledUser.setEnabled(false);
+    when(userRepo.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("disabled@example.com", "ACME"))
+        .thenReturn(Optional.of(disabledUser));
+    when(userRepo.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("missing@example.com", "ACME"))
+        .thenReturn(Optional.empty());
 
-    PasswordResetToken priorToken =
-        PasswordResetToken.digestOnly(
-            user, passwordResetDigest("prior-reset-token"), Instant.now().plusSeconds(600));
-    ReflectionTestUtils.setField(priorToken, "id", 7L);
-    ReflectionTestUtils.setField(priorToken, "deliveredAt", Instant.now().minusSeconds(30));
-    when(tokenRepository.findTopDeliveredByUserAndIdNotOrderByDeliveredAtDescCreatedAtDescIdDesc(
-            eq(user), anyLong()))
-        .thenReturn(Optional.of(priorToken));
-    when(tokenRepository.saveAndFlush(any(PasswordResetToken.class)))
-        .thenAnswer(
-            invocation -> {
-              PasswordResetToken token = invocation.getArgument(0);
-              if (ReflectionTestUtils.getField(token, "id") == null) {
-                ReflectionTestUtils.setField(token, "id", 41L);
-              }
-              return token;
-            });
-    doThrow(new RuntimeException("smtp down"))
-        .when(emailService)
-        .sendPasswordResetEmailRequired(eq("user@example.com"), eq("User"), anyString());
-    doThrow(new DataAccessResourceFailureException("cleanup unavailable"))
-        .when(tokenRepository)
-        .deleteByTokenDigest(anyString());
+    invokeRequest(service, "disabled-corr-123", null, null, "disabled@example.com");
+    invokeRequest(service, "missing-corr-123", null, null, "missing@example.com");
 
-    assertThatCode(() -> service.requestReset("user@example.com")).doesNotThrowAnyException();
-
-    verify(userRepository, atLeast(3)).lockById(101L);
-    verify(userRepository, never()).findById(101L);
-    verify(tokenRepository).saveAndFlush(any(PasswordResetToken.class));
-    verify(tokenRepository).deleteByTokenDigest(anyString());
-  }
-
-  @Test
-  void
-      requestReset_skipsPriorRestoreWhenIssuedTokenAlreadyMissingDuringDispatchCleanup_runtimeCoverage() {
-    UserAccountRepository userRepository = mock(UserAccountRepository.class);
-    PasswordResetTokenRepository tokenRepository = mock(PasswordResetTokenRepository.class);
-    EmailService emailService = mock(EmailService.class);
-    PasswordResetService service = newService(userRepository, tokenRepository, emailService);
-
-    UserAccount user = new UserAccount("user@example.com", "hash", "User");
-    user.setEnabled(true);
-    ReflectionTestUtils.setField(user, "id", 101L);
-    when(userRepository.findByEmailIgnoreCase("user@example.com")).thenReturn(Optional.of(user));
-    when(userRepository.lockById(101L)).thenReturn(Optional.of(user));
-    TransactionTemplate cleanupTemplate =
-        new TransactionTemplate(new ResourcelessTransactionManager());
-    cleanupTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
-    ReflectionTestUtils.setField(
-        service, "tokenAfterCommitCleanupTransactionTemplate", cleanupTemplate);
-
-    PasswordResetToken priorToken =
-        PasswordResetToken.digestOnly(
-            user, passwordResetDigest("prior-reset-token"), Instant.now().plusSeconds(600));
-    ReflectionTestUtils.setField(priorToken, "id", 7L);
-    ReflectionTestUtils.setField(priorToken, "deliveredAt", Instant.now().minusSeconds(30));
-    when(tokenRepository.findTopDeliveredByUserAndIdNotOrderByDeliveredAtDescCreatedAtDescIdDesc(
-            eq(user), anyLong()))
-        .thenReturn(Optional.of(priorToken));
-    when(tokenRepository.saveAndFlush(any(PasswordResetToken.class)))
-        .thenAnswer(
-            invocation -> {
-              PasswordResetToken token = invocation.getArgument(0);
-              if (ReflectionTestUtils.getField(token, "id") == null) {
-                ReflectionTestUtils.setField(token, "id", 41L);
-              }
-              return token;
-            });
-    doThrow(new RuntimeException("smtp down"))
-        .when(emailService)
-        .sendPasswordResetEmailRequired(eq("user@example.com"), eq("User"), anyString());
-    when(tokenRepository.deleteByTokenDigest(anyString())).thenReturn(0);
-
-    assertThatCode(() -> service.requestReset("user@example.com")).doesNotThrowAnyException();
-
-    verify(tokenRepository).deleteByTokenDigest(anyString());
-    verify(userRepository, never()).findById(101L);
+    verify(tokenRepo, never()).deleteByTokenDigest(anyString());
+    verify(tokenRepo, never()).saveAndFlush(any(PasswordResetToken.class));
+    verify(emailService, never())
+        .sendPasswordResetEmailRequired(anyString(), anyString(), anyString(), anyString());
   }
 
   private PasswordResetService newService(
       UserAccountRepository userRepository,
       PasswordResetTokenRepository tokenRepository,
       EmailService emailService) {
-    when(tokenRepository.markDeliveredAt(anyLong(), any(Instant.class))).thenReturn(1);
+    AuthScopeService authScopeService = mock(AuthScopeService.class);
+    SecurityMonitoringService securityMonitoringService = mock(SecurityMonitoringService.class);
+    when(authScopeService.requireScopeCode(anyString()))
+        .thenAnswer(
+            invocation ->
+                invocation.getArgument(0, String.class).trim().toUpperCase(Locale.ROOT));
+    when(securityMonitoringService.checkRateLimit(anyString())).thenReturn(true);
+    when(tokenRepository.saveAndFlush(any(PasswordResetToken.class)))
+        .thenAnswer(
+            invocation -> {
+              PasswordResetToken token = invocation.getArgument(0);
+              if (ReflectionTestUtils.getField(token, "id") == null) {
+                ReflectionTestUtils.setField(token, "id", 1L);
+              }
+              return token;
+            });
     return new PasswordResetService(
         userRepository,
         tokenRepository,
         mock(PasswordService.class),
         emailService,
         emailProperties(),
+        mock(AuditService.class),
+        securityMonitoringService,
         mock(TokenBlacklistService.class),
         mock(RefreshTokenService.class),
+        authScopeService,
         new ResourcelessTransactionManager());
+  }
+
+  private void stubIssuedResetToken(PasswordResetTokenRepository tokenRepository, long tokenId) {
+    when(tokenRepository.saveAndFlush(any(PasswordResetToken.class)))
+        .thenAnswer(
+            invocation -> {
+              PasswordResetToken token = invocation.getArgument(0);
+              ReflectionTestUtils.setField(token, "id", tokenId);
+              return token;
+            });
   }
 
   private void invokeRequest(
       PasswordResetService service, String correlationId, String requestId, String traceId) {
+    invokeRequest(service, correlationId, requestId, traceId, "user@example.com");
+  }
+
+  private void invokeRequest(
+      PasswordResetService service,
+      String correlationId,
+      String requestId,
+      String traceId,
+      String email) {
     MockHttpServletRequest request =
-        new MockHttpServletRequest("POST", "/api/v1/auth/password/forgot/superadmin");
+        new MockHttpServletRequest("POST", "/api/v1/auth/password/forgot");
     if (correlationId != null) {
       request.addHeader("X-Correlation-Id", correlationId);
     }
@@ -358,24 +271,16 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
     }
     RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
     try {
-      assertThatCode(() -> service.requestResetForSuperAdmin("superadmin@example.com"))
-          .doesNotThrowAnyException();
+      service.requestReset(email, TENANT_SCOPE);
     } finally {
       RequestContextHolder.resetRequestAttributes();
     }
   }
 
-  private UserAccount superAdminUser(String email) {
-    UserAccount user = new UserAccount(email, "hash", "Super Admin");
+  private UserAccount user(String email) {
+    UserAccount user = new UserAccount(email, TENANT_SCOPE, "hash", "User");
     user.setEnabled(true);
-    Role role = new Role();
-    role.setName("ROLE_SUPER_ADMIN");
-    user.addRole(role);
     return user;
-  }
-
-  private String passwordResetDigest(String token) {
-    return IdempotencyUtils.sha256Hex("password-reset-token:" + token);
   }
 
   private EmailProperties emailProperties() {

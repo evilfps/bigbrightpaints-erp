@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.modules.company.controller;
 
 import java.util.List;
-import java.util.Set;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -35,29 +34,27 @@ public class CompanyController {
     if (isSuperAdmin(principal)) {
       return ResponseEntity.ok(ApiResponse.success(companyService.findAll()));
     }
-    return ResponseEntity.ok(
-        ApiResponse.success(companyService.findAll(requireCompanyContext(principal))));
+    return ResponseEntity.ok(ApiResponse.success(companyService.findAll(requireCompanyContext(principal))));
   }
 
   @DeleteMapping("/{id}")
   @PreAuthorize("hasAuthority('ROLE_ADMIN')")
   public ResponseEntity<Void> delete(
       @AuthenticationPrincipal UserPrincipal principal, @PathVariable Long id) {
-    Set<Company> allowedCompanies = requireCompanyContext(principal);
-    if (allowedCompanies.stream().noneMatch(c -> c.getId().equals(id))) {
+    Company allowedCompany = requireCompanyContext(principal);
+    if (allowedCompany.getId() == null || !allowedCompany.getId().equals(id)) {
       throw new AccessDeniedException("Not allowed to delete company");
     }
     throw new AccessDeniedException("Deleting companies is not permitted");
   }
 
-  private Set<Company> requireCompanyContext(UserPrincipal principal) {
+  private Company requireCompanyContext(UserPrincipal principal) {
     if (principal == null
         || principal.getUser() == null
-        || principal.getUser().getCompanies() == null
-        || principal.getUser().getCompanies().isEmpty()) {
+        || principal.getUser().getCompany() == null) {
       throw new AccessDeniedException("Missing authenticated company context");
     }
-    return principal.getUser().getCompanies();
+    return principal.getUser().getCompany();
   }
 
   private boolean isSuperAdmin(UserPrincipal principal) {

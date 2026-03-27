@@ -150,7 +150,6 @@ GET	/api/v1/invoices/dealers/{dealerId}	com.bigbrightpaints.erp.modules.invoice.
 GET	/api/v1/invoices/{id}	com.bigbrightpaints.erp.modules.invoice.controller.InvoiceController#getInvoice	src/main/java/com/bigbrightpaints/erp/modules/invoice/controller/InvoiceController.java
 POST	/api/v1/invoices/{id}/email	com.bigbrightpaints.erp.modules.invoice.controller.InvoiceController#sendInvoiceEmail	src/main/java/com/bigbrightpaints/erp/modules/invoice/controller/InvoiceController.java
 GET	/api/v1/invoices/{id}/pdf	com.bigbrightpaints.erp.modules.invoice.controller.InvoiceController#downloadInvoicePdf	src/main/java/com/bigbrightpaints/erp/modules/invoice/controller/InvoiceController.java
-POST	/api/v1/multi-company/companies/switch	com.bigbrightpaints.erp.modules.company.controller.MultiCompanyController#switchCompany	src/main/java/com/bigbrightpaints/erp/modules/company/controller/MultiCompanyController.java
 GET	/api/v1/orchestrator/dashboard/admin	com.bigbrightpaints.erp.orchestrator.controller.DashboardController#adminDashboard	src/main/java/com/bigbrightpaints/erp/orchestrator/controller/DashboardController.java
 GET	/api/v1/orchestrator/dashboard/factory	com.bigbrightpaints.erp.orchestrator.controller.DashboardController#factoryDashboard	src/main/java/com/bigbrightpaints/erp/orchestrator/controller/DashboardController.java
 GET	/api/v1/orchestrator/dashboard/finance	com.bigbrightpaints.erp.orchestrator.controller.DashboardController#financeDashboard	src/main/java/com/bigbrightpaints/erp/orchestrator/controller/DashboardController.java

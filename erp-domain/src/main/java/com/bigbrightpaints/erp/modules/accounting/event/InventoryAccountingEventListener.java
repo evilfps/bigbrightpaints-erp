@@ -90,7 +90,7 @@ public class InventoryAccountingEventListener {
                   () -> new IllegalStateException("Company not found: " + event.companyId()));
 
       // Set company context for the accounting service
-      CompanyContextHolder.setCompanyId(company.getCode());
+      CompanyContextHolder.setCompanyCode(company.getCode());
 
       // Build idempotent reference from source event
       String refNumber = buildIdempotentRevalReference(event);
@@ -198,7 +198,7 @@ public class InventoryAccountingEventListener {
               .findById(event.companyId())
               .orElseThrow(() -> new IllegalStateException("Company not found"));
 
-      CompanyContextHolder.setCompanyId(company.getCode());
+      CompanyContextHolder.setCompanyCode(company.getCode());
 
       // Build idempotent reference from source event
       String refNumber = buildIdempotentMovementReference(event);

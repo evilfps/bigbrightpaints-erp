@@ -337,7 +337,7 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
     SalesOrder orderB =
         dataSeeder.ensureSalesOrder(companyB.getCode(), "SO-B-1", new BigDecimal("50"));
 
-    CompanyContextHolder.setCompanyId(companyA.getCode());
+    CompanyContextHolder.setCompanyCode(companyA.getCode());
 
     assertThrows(
         com.bigbrightpaints.erp.core.exception.ApplicationException.class,
@@ -347,7 +347,7 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
   @Test
   void updateRawMaterialDefaultsNullThresholdsToZero() {
     Company company = dataSeeder.ensureCompany("RM-CO", "Raw Material Co");
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
 
     var created =
         rawMaterialService.createRawMaterial(
@@ -376,7 +376,7 @@ class AuditFixesIntegrationTest extends AbstractIntegrationTest {
   @Test
   void rawMaterialBatchCodesMustBeUniquePerMaterial() {
     Company company = dataSeeder.ensureCompany("RM-DUP", "Raw Material Dup Co");
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
 
     Account inventory = new Account();
     inventory.setCompany(company);

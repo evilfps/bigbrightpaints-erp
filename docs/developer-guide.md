@@ -259,7 +259,7 @@ Under `com.bigbrightpaints.erp.modules.<module>`:
 
 ## Common issues
 - **401/403 on tenant routes**
-  - Verify JWT carries company claim (`companyCode`/`cid`) and matches request headers.
+  - Verify JWT carries the canonical `companyCode` claim and matches request headers.
   - Check `CompanyContextFilter` logs for mismatch diagnostics.
 - **Module suddenly forbidden**
   - Tenant module gating may disable optional modules (`MANUFACTURING`, `HR_PAYROLL`, etc.).
@@ -281,8 +281,8 @@ Under `com.bigbrightpaints.erp.modules.<module>`:
 4. For compliance events, check accounting compliance audit records and metadata (period/journal actions).
 
 ## Debugging tenant context issues
-- Verify authenticated user belongs to target company (`UserPrincipal` company memberships).
-- Ensure `X-Company-Code` and legacy headers are not conflicting.
+- Verify the authenticated scoped account is bound to the target company (`UserPrincipal` company context).
+- Use only `X-Company-Code` for authenticated tenant context; `X-Company-Id` is unsupported and fails closed.
 - For control-plane endpoints (`/api/v1/companies/*/tenant-runtime/policy`, lifecycle routes), confirm superadmin authority.
 - Watch `CompanyContextFilter` warnings:
   - mismatched header claims

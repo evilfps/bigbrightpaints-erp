@@ -1695,7 +1695,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
 
   private Company seedCompany(String code) {
     Company company = dataSeeder.ensureCompany(code, code + " Ltd");
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     return company;
   }
 

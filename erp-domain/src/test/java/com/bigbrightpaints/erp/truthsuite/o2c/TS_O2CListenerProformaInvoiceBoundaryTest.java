@@ -194,7 +194,7 @@ class TS_O2CListenerProformaInvoiceBoundaryTest extends AbstractIntegrationTest 
 
   private Company bootstrapCompany(String companyCode) {
     dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     company.setTimezone("UTC");
     company.setBaseCurrency("INR");
@@ -202,7 +202,7 @@ class TS_O2CListenerProformaInvoiceBoundaryTest extends AbstractIntegrationTest 
   }
 
   private void activateCompany(Company company) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
   }
 
   private Map<String, Account> ensureCoreAccounts(Company company) {

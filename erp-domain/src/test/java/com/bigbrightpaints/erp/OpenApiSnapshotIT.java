@@ -77,13 +77,7 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         "#/components/schemas/ForgotPasswordRequest",
         "200",
         "#/components/schemas/ApiResponseString");
-    assertOperationContract(
-        root,
-        "/api/v1/auth/password/forgot/superadmin",
-        "post",
-        "#/components/schemas/ForgotPasswordRequest",
-        "410",
-        "#/components/schemas/ApiResponseMapStringString");
+    assertOperationMissing(root, "/api/v1/auth/password/forgot/superadmin", "post");
     assertOperationContract(
         root,
         "/api/v1/auth/password/reset",

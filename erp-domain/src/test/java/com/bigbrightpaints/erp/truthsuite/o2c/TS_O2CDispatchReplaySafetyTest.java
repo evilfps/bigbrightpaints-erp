@@ -337,7 +337,7 @@ class TS_O2CDispatchReplaySafetyTest extends AbstractIntegrationTest {
 
   private Company bootstrapCompany(String companyCode, String timezone) {
     dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     company.setTimezone(timezone);
     company.setBaseCurrency("INR");
@@ -524,7 +524,7 @@ class TS_O2CDispatchReplaySafetyTest extends AbstractIntegrationTest {
       String productCode,
       BigDecimal quantity,
       BigDecimal unitPrice) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     BigDecimal totalAmount = unitPrice.multiply(quantity).setScale(2, RoundingMode.HALF_UP);
     var orderDto =
         salesService.createOrder(

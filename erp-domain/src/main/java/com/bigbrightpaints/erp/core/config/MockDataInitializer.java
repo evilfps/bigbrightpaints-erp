@@ -123,7 +123,7 @@ public class MockDataInitializer {
       seedBatches(company, batchRepository, finishedGoodRepository, fg, fgLifo, fgKit);
 
       // Seed a handful of journals for UI exploration
-      CompanyContextHolder.setCompanyId(company.getCode());
+      CompanyContextHolder.setCompanyCode(company.getCode());
       seedSalesPurchaseAndCogs(accountingService, company, dealer, supplier, accounts);
       // Add some traffic to show balances
       for (int i = 0; i < 10; i++) {
@@ -286,7 +286,10 @@ public class MockDataInitializer {
       return;
     }
     String normalizedEmail = adminEmail.trim().toLowerCase(Locale.ROOT);
-    UserAccount existingAdmin = userRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
+    UserAccount existingAdmin =
+        userRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizedEmail, company.getCode())
+            .orElse(null);
     if (existingAdmin == null) {
       if (!StringUtils.hasText(adminPassword)) {
         throw new IllegalStateException(
@@ -294,14 +297,21 @@ public class MockDataInitializer {
                 + " exist");
       }
       UserAccount user =
-          new UserAccount(normalizedEmail, encoder.encode(adminPassword.trim()), "Mock Admin");
+          new UserAccount(normalizedEmail, company.getCode(), encoder.encode(adminPassword.trim()), "Mock Admin");
       user.setMustChangePassword(true);
-      user.addCompany(company);
+      user.setCompany(company);
       user.addRole(admin);
       user.addRole(accounting);
       user.addRole(sales);
       userRepository.save(user);
+      return;
     }
+    existingAdmin.setAuthScopeCode(company.getCode());
+    existingAdmin.setCompany(company);
+    existingAdmin.addRole(admin);
+    existingAdmin.addRole(accounting);
+    existingAdmin.addRole(sales);
+    userRepository.save(existingAdmin);
   }
 
   private Dealer seedDealer(Company company, DealerRepository dealerRepository, Account ar) {

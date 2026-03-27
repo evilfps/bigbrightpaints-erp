@@ -1,5 +1,16 @@
 # Migration Runbook
 
+## 2026-03-27 — `migration_v2/V168__auth_v2_scoped_accounts.sql` + `migration_v2/V169__auth_v2_single_company_account.sql`
+
+- **Purpose:** hard-cut auth identity to one scoped account per `(normalized_email, auth_scope_code)`, split shared-email multi-company users into independent scoped credentials, migrate refresh-token attribution onto scoped accounts, and enforce one company binding per tenant-scoped login while keeping the platform scope as the only superadmin realm.
+- **Release-guard posture:** this packet was rebased after ERP-37 and renumbered from the earlier draft `V167`/`V168` pair to `V168`/`V169` so it lands after the merged superadmin control-plane schema. The migration fails fast on platform-code collisions, normalized email collisions, and ambiguous refresh-token backfills instead of carrying compatibility shims.
+- **Forward plan:** apply `V168__auth_v2_scoped_accounts.sql`, then `V169__auth_v2_single_company_account.sql`, then deploy the auth-v2 backend packet from branch `auth-v2-hard-cut` so runtime code, reset flows, MFA scope, and refresh-token/session semantics all match the new schema in one cut. Keep the ERP-37 canonical superadmin control plane live with the same deployment so platform-scoped tenant control continues to work against the rebased auth contract.
+- **Dry-run commands:**
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -Dtest=TS_AuthV2ScopedAccountsMigrationContractTest test`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -Dtest=AuthPlatformScopeCodeIT,AuthTenantAuthorityIT,AuthPasswordResetPublicContractIT,AdminUserServiceTest,CompanyControllerIT,CompanyContextFilterControlPlaneBindingTest,SuperAdminControllerTest,SuperAdminTenantControlPlaneServiceTest,CompanyServiceTest,TenantAdminProvisioningServiceTest,TenantOnboardingServiceTest,PasswordResetServiceTest,TenantRuntimeEnforcementServiceTest,TS_RuntimePasswordResetServiceExecutableCoverageTest,TS_RuntimeCompanyContextFilterExecutableCoverageTest,TS_RuntimeCompanyControllerExecutableCoverageTest,TS_RuntimeTenantPolicyControlExecutableCoverageTest,TS_AuthV2ScopedAccountsMigrationContractTest test`
+  - `bash ci/check-enterprise-policy.sh`
+- **Rollback strategy:** treat `V168` and `V169` as a coordinated app-and-schema cut. Once applied, do not redeploy the pre-auth-v2 backend against that database. If rollout must be abandoned after execution, keep the auth-v2-compatible backend live or restore the tenant/database from a pre-`V168` snapshot/PITR before attempting any broader rollback.
+
 ## 2026-03-26 — `migration_v2/V167__erp37_superadmin_control_plane_hard_cut.sql`
 
 - **Purpose:** hard-cut tenant control onto one canonical `/api/v1/superadmin/tenants/{id}/...` family by rewriting lifecycle storage to `ACTIVE/SUSPENDED/DEACTIVATED`, renaming the concurrency quota column to `quota_max_concurrent_requests`, persisting main-admin/support/onboarding truth on `companies`, and creating first-class `tenant_support_warnings` plus `tenant_admin_email_change_requests`.

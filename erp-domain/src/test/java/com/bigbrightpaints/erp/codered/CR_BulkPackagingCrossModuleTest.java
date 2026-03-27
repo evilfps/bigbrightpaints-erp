@@ -113,7 +113,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
     FinishedGood packTarget = ensurePackTarget(company, bulkProduct, accounts, "1L");
 
     LocalDate packingDate = TestDateUtils.safeDate(company);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     packingService.recordPacking(
         new PackingRequest(
             log.getId(),
@@ -138,7 +138,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
     FinishedGood childFour =
         ensureFinishedGood(company, "CR-CHILD-4L-" + shortId(), accounts.get("FG_INV"), accounts);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     BulkPackResponse response =
         bulkPackingService.pack(
             new BulkPackRequest(
@@ -266,7 +266,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
     FinishedGood packTarget = ensurePackTarget(company, bulkProduct, accounts, "1L");
 
     LocalDate packingDate = TestDateUtils.safeDate(company);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     packingService.recordPacking(
         new PackingRequest(
             log.getId(),
@@ -289,7 +289,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
     FinishedGood childOne =
         ensureFinishedGood(company, "CR-CHILD-1L-" + shortId(), accounts.get("FG_INV"), accounts);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     assertThatThrownBy(
             () ->
                 bulkPackingService.pack(
@@ -351,7 +351,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
     FinishedGood packTarget = ensurePackTarget(company, bulkProduct, accounts, "1L");
 
     LocalDate packingDate = TestDateUtils.safeDate(company);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     packingService.recordPacking(
         new PackingRequest(
             log.getId(),
@@ -388,7 +388,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
             "CODE-RED bulk pack idempotent",
             idempotencyKey);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     BulkPackResponse first = bulkPackingService.pack(request);
     String packReference = resolvePackReference(company);
     int inventoryMovements = countInventoryMovements(company, packReference);
@@ -450,7 +450,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
     FinishedGood packTarget = ensurePackTarget(company, bulkProduct, accounts, "1L");
 
     LocalDate packingDate = TestDateUtils.safeDate(company);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     packingService.recordPacking(
         new PackingRequest(
             log.getId(),
@@ -493,7 +493,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
             Duration.ofSeconds(30),
             threadIndex ->
                 () -> {
-                  CompanyContextHolder.setCompanyId(companyCode);
+                  CompanyContextHolder.setCompanyCode(companyCode);
                   try {
                     return bulkPackingService.pack(request);
                   } finally {
@@ -575,7 +575,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
 
   private Company bootstrapCompany(String companyCode, String timezone) {
     dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     company.setTimezone(timezone);
     company.setBaseCurrency("INR");
@@ -708,7 +708,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
 
   private FinishedGood ensureFinishedGood(
       Company company, String sku, Account valuationAccount, Map<String, Account> accounts) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     FinishedGoodRequest req =
         new FinishedGoodRequest(
             sku,
@@ -767,7 +767,7 @@ class CR_BulkPackagingCrossModuleTest extends AbstractIntegrationTest {
     String semiSku = productSku + "-BULK";
     FinishedGood semiFinished =
         ensureFinishedGood(company, semiSku, accounts.get("SF_INV"), accounts);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     finishedGoodsService.registerBatch(
         new FinishedGoodBatchRequest(
             semiFinished.getId(),

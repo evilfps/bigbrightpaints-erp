@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.auth.service;
 
+import java.util.UUID;
+
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -20,9 +22,15 @@ public class UserAccountDetailsService implements UserDetailsService {
 
   @Override
   public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+    UUID publicId;
+    try {
+      publicId = UUID.fromString(username);
+    } catch (IllegalArgumentException ex) {
+      throw new UsernameNotFoundException("User not found: " + username, ex);
+    }
     UserAccount user =
         repository
-            .findByEmailIgnoreCase(username)
+            .findByPublicId(publicId)
             .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
     return new UserPrincipal(user);
   }

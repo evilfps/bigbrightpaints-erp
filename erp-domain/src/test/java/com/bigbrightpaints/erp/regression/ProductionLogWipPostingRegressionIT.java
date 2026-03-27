@@ -68,7 +68,7 @@ class ProductionLogWipPostingRegressionIT extends AbstractIntegrationTest {
   @BeforeEach
   void setUp() {
     company = dataSeeder.ensureCompany(COMPANY_CODE, COMPANY_CODE + " Ltd");
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
 
     rmInventory = ensureAccount(company, "INV", "Inventory", AccountType.ASSET);
     wipAccount = ensureAccount(company, "WIP", "Work in Progress", AccountType.ASSET);

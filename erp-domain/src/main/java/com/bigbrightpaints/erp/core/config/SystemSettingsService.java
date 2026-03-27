@@ -17,6 +17,7 @@ import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 import org.springframework.web.cors.CorsConfiguration;
 
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsDto;
 import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsUpdateRequest;
 
@@ -30,6 +31,7 @@ public class SystemSettingsService {
   private final EmailProperties emailProperties;
   private final SystemSettingsRepository settingsRepository;
   private final Environment environment;
+  private final AuthScopeService authScopeService;
   private final CopyOnWriteArrayList<String> allowedOrigins = new CopyOnWriteArrayList<>();
   private final boolean environmentValidationEnabled;
   private final boolean allowTailscaleHttpOrigins;
@@ -51,6 +53,7 @@ public class SystemSettingsService {
   public SystemSettingsService(
       EmailProperties emailProperties,
       SystemSettingsRepository settingsRepository,
+      AuthScopeService authScopeService,
       Environment environment,
       @Value("${erp.cors.allowed-origins:http://localhost:3002}") String corsOrigins,
       @Value("${erp.environment.validation.enabled:false}") boolean environmentValidationEnabled,
@@ -60,6 +63,7 @@ public class SystemSettingsService {
       @Value("${erp.export.require-approval:false}") boolean exportApprovalRequired) {
     this.emailProperties = emailProperties;
     this.settingsRepository = settingsRepository;
+    this.authScopeService = authScopeService;
     this.environment = environment;
     this.environmentValidationEnabled = environmentValidationEnabled;
     this.allowTailscaleHttpOrigins = allowTailscaleHttpOrigins;
@@ -149,6 +153,7 @@ public class SystemSettingsService {
         autoApprovalEnabled,
         periodLockEnforced,
         exportApprovalRequired,
+        authScopeService.getPlatformScopeCode(),
         emailProperties.isEnabled(),
         emailProperties.getFromAddress(),
         emailProperties.getBaseUrl(),
@@ -168,6 +173,9 @@ public class SystemSettingsService {
     }
     if (request.exportApprovalRequired() != null) {
       setExportApprovalRequired(request.exportApprovalRequired());
+    }
+    if (request.platformAuthCode() != null) {
+      authScopeService.updatePlatformScopeCode(request.platformAuthCode());
     }
     if (request.mailEnabled() != null) {
       emailProperties.setEnabled(request.mailEnabled());

@@ -25,16 +25,17 @@ public class RefreshTokenService {
   }
 
   @Transactional
-  public String issue(String userEmail, Instant expiresAt) {
-    return issue(userEmail, Instant.now(), expiresAt);
+  public String issue(UUID userPublicId, String authScopeCode, Instant expiresAt) {
+    return issue(userPublicId, authScopeCode, Instant.now(), expiresAt);
   }
 
   @Transactional
-  public String issue(String userEmail, Instant issuedAt, Instant expiresAt) {
+  public String issue(
+      UUID userPublicId, String authScopeCode, Instant issuedAt, Instant expiresAt) {
     String token = UUID.randomUUID().toString();
     RefreshToken record =
         RefreshToken.digestOnly(
-            AuthTokenDigests.refreshTokenDigest(token), userEmail, issuedAt, expiresAt);
+            AuthTokenDigests.refreshTokenDigest(token), userPublicId, authScopeCode, issuedAt, expiresAt);
     refreshTokenRepository.save(record);
     return token;
   }
@@ -55,8 +56,11 @@ public class RefreshTokenService {
       return Optional.empty();
     }
     refreshTokenRepository.delete(stored);
-    return Optional.of(
-        new TokenRecord(stored.getUserEmail(), stored.getIssuedAt(), stored.getExpiresAt()));
+    return Optional.of(new TokenRecord(
+        stored.getUserPublicId(),
+        stored.getAuthScopeCode(),
+        stored.getIssuedAt(),
+        stored.getExpiresAt()));
   }
 
   @Transactional
@@ -69,11 +73,11 @@ public class RefreshTokenService {
   }
 
   @Transactional
-  public void revokeAllForUser(String userEmail) {
-    if (userEmail == null || userEmail.isBlank()) {
+  public void revokeAllForUser(UUID userPublicId) {
+    if (userPublicId == null) {
       return;
     }
-    refreshTokenRepository.deleteByUserEmail(userEmail);
+    refreshTokenRepository.deleteByUserPublicId(userPublicId);
   }
 
   @Scheduled(fixedDelay = 3600000) // 1 hour
@@ -85,5 +89,7 @@ public class RefreshTokenService {
     }
   }
 
-  public record TokenRecord(String userEmail, Instant issuedAt, Instant expiresAt) {}
+  public record TokenRecord(
+      UUID userPublicId, String authScopeCode, Instant issuedAt, Instant expiresAt) {
+  }
 }

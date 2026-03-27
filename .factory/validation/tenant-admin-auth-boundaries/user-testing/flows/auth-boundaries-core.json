@@ -158,11 +158,6 @@
           "observed": "`POST /api/v1/auth/login` with `companyCode=UTTAAB2` for `uat.sales@example.com` returned 400 JSON with `success=false`, `code=VAL_001`, `reason=User not assigned to company: UTTAAB2`, and a trace id/path payload."
         },
         {
-          "action": "Probe the retired super-admin forgot-password alias",
-          "expected": "Retired alias returns a controlled retirement contract",
-          "observed": "`POST /api/v1/auth/password/forgot/superadmin` returned 410 JSON with message `Deprecated super-admin forgot-password alias has been retired; use the supported recovery routes` and canonical replacement paths in `data`."
-        },
-        {
           "action": "Run auth-hardening regression suites",
           "expected": "Auth-sensitive contract tests pass",
           "observed": "The targeted Maven subset passed (54 tests total) and included `AuthHardeningIT`, `AuthControllerIT`, `CompanyContextFilterPasswordResetBypassTest`, and `OpenApiSnapshotIT`."

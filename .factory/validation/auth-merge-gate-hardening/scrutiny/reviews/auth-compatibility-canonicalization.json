@@ -6,7 +6,7 @@
   "diffReviewed": true,
   "status": "fail",
   "codeReview": {
-    "summary": "The implementation itself removes the raw-token refresh/reset fallbacks, retires `cid` emission from new JWTs, enforces canonical company-code binding, and leaves the deprecated superadmin forgot alias as a 410 tombstone with no product-side effects. The blocking gap is in the regression proof: the new cross-flow test that is supposed to prove `forgot -> reset -> login -> refresh -> /auth/me` still works bypasses the forgot-issued token by inserting its own digest row directly with `JdbcTemplate`, so it does not actually verify that the forgot path still produces a usable digest-backed reset token after the compatibility removal.",
+    "summary": "The implementation itself removes the raw-token refresh/reset fallbacks, retires `cid` emission from new JWTs, enforces canonical company-code binding, and deletes the retired superadmin forgot alias from the live contract. The blocking gap is in the regression proof: the new cross-flow test that is supposed to prove `forgot -> reset -> login -> refresh -> /auth/me` still works bypasses the forgot-issued token by inserting its own digest row directly with `JdbcTemplate`, so it does not actually verify that the forgot path still produces a usable digest-backed reset token after the compatibility removal.",
     "issues": [
       {
         "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/AuthPasswordResetPublicContractIT.java",
@@ -16,18 +16,7 @@
       }
     ]
   },
-  "sharedStateObservations": [
-    {
-      "area": "knowledge",
-      "observation": "The shared auth hardening note is now stale: it still documents startup backfill and raw-token fallback as active rollout behavior even though this feature retired both paths.",
-      "evidence": ".factory/library/auth-hardening.md:27-28 still says `AuthSecretStorageBackfillRunner` backfills legacy plaintext rows and runtime lookup/revoke/reset flows fall back to legacy raw-token columns, while commit 20ed8adc removes those fallbacks and turns `AuthSecretStorageBackfillRunner` into a no-op log-only runner."
-    },
-    {
-      "area": "skills",
-      "observation": "The security-backend worker guidance says auth-surface changes that alter token or header contracts must update shared frontend guidance, but the packet left the frontend handoff stale after removing the `cid` JWT claim.",
-      "evidence": "security-backend-worker SKILL.md Step 5 requires updating `.factory/library/frontend-handoff.md` for touched auth/admin surface changes. Commit 20ed8adc removes `cid` emission in `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/JwtTokenService.java`, but `.factory/library/frontend-handoff.md:104` still says access tokens contain `cid`."
-    }
-  ],
+  "sharedStateObservations": [],
   "addressesFailureFrom": null,
   "summary": "FAIL. The product code looks aligned with canonical-only auth behavior, but the new recovery-flow regression test does not actually prove forgot-issued digest tokens still work because it injects its own token row after the forgot call."
 }

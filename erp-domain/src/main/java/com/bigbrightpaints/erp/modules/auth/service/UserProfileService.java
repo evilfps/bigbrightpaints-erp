@@ -1,8 +1,5 @@
 package com.bigbrightpaints.erp.modules.auth.service;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -10,7 +7,6 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.web.ProfileResponse;
 import com.bigbrightpaints.erp.modules.auth.web.UpdateProfileRequest;
-import com.bigbrightpaints.erp.modules.company.domain.Company;
 
 import jakarta.transaction.Transactional;
 
@@ -52,8 +48,6 @@ public class UserProfileService {
   }
 
   private ProfileResponse toResponse(UserAccount user) {
-    List<String> companyCodes =
-        user.getCompanies().stream().map(Company::getCode).collect(Collectors.toList());
     return new ProfileResponse(
         user.getEmail(),
         user.getDisplayName(),
@@ -63,8 +57,21 @@ public class UserProfileService {
         user.getPhoneSecondary(),
         user.getSecondaryEmail(),
         user.isMfaEnabled(),
-        companyCodes,
+        resolveCompanyCode(user),
         user.getCreatedAt(),
         user.getPublicId());
+  }
+
+  private String resolveCompanyCode(UserAccount user) {
+    if (user == null) {
+      return null;
+    }
+    if (StringUtils.hasText(user.getAuthScopeCode())) {
+      return user.getAuthScopeCode();
+    }
+    if (user.getCompany() == null || !StringUtils.hasText(user.getCompany().getCode())) {
+      return null;
+    }
+    return user.getCompany().getCode();
   }
 }

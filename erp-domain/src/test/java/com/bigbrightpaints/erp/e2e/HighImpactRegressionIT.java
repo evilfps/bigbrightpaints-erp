@@ -130,7 +130,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
         "HI Test Admin",
         COMPANY_CODE_A,
         List.of("ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_SALES", "ROLE_FACTORY"));
-    CompanyContextHolder.setCompanyId(COMPANY_CODE_A);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE_A);
     companyA = companyRepository.findByCodeIgnoreCase(COMPANY_CODE_A).orElseThrow();
     companyA.setBaseCurrency("INR");
     companyRepository.save(companyA);
@@ -142,7 +142,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
 
     // Setup second company for multi-tenant tests
     dataSeeder.ensureCompany(COMPANY_CODE_B, "HI Test Company B");
-    CompanyContextHolder.setCompanyId(COMPANY_CODE_B);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE_B);
     companyB = companyRepository.findByCodeIgnoreCase(COMPANY_CODE_B).orElseThrow();
     companyB.setBaseCurrency("INR");
     companyRepository.save(companyB);
@@ -150,7 +150,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
     dealerB = ensureDealer(companyB, "DEALER-B", "Test Dealer B", accountsB.get("AR"));
     supplierB = ensureSupplier(companyB, "SUP-B", "Test Supplier B", accountsB.get("AP"));
 
-    CompanyContextHolder.setCompanyId(COMPANY_CODE_A);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE_A);
     headers = authHeaders();
     SecurityContextHolder.getContext()
         .setAuthentication(new UsernamePasswordAuthenticationToken(ADMIN_EMAIL, ADMIN_PASSWORD));
@@ -457,7 +457,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
         executor.submit(
             () -> {
               startLatch.await();
-              CompanyContextHolder.setCompanyId(COMPANY_CODE_A);
+              CompanyContextHolder.setCompanyCode(COMPANY_CODE_A);
               SecurityContextHolder.getContext()
                   .setAuthentication(new UsernamePasswordAuthenticationToken(ADMIN_EMAIL, "n/a"));
               return inventoryAdjustmentService.createAdjustment(
@@ -480,7 +480,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
         executor.submit(
             () -> {
               startLatch.await();
-              CompanyContextHolder.setCompanyId(COMPANY_CODE_A);
+              CompanyContextHolder.setCompanyCode(COMPANY_CODE_A);
               SecurityContextHolder.getContext()
                   .setAuthentication(new UsernamePasswordAuthenticationToken(ADMIN_EMAIL, "n/a"));
               return inventoryAdjustmentService.createAdjustment(
@@ -844,7 +844,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
     String sharedReferenceId = "SHARED-REF-" + UUID.randomUUID();
 
     // Create FG and reservation in Company A
-    CompanyContextHolder.setCompanyId(COMPANY_CODE_A);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE_A);
     String productCodeA = "FG-ISO-A-" + UUID.randomUUID().toString().substring(0, 8);
     FinishedGood fgA = createFinishedGood(companyA, productCodeA, accountsA, brandA);
     finishedGoodsService.registerBatch(
@@ -882,7 +882,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
         finishedGoodRepository.findById(fgA.getId()).orElseThrow().getCurrentStock();
 
     // Create FG in Company B with same-ish product code pattern
-    CompanyContextHolder.setCompanyId(COMPANY_CODE_B);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE_B);
     String productCodeB = "FG-ISO-B-" + UUID.randomUUID().toString().substring(0, 8);
     ProductionBrand brandB = ensureBrand(companyB, "BRAND-B");
     FinishedGood fgB = createFinishedGood(companyB, productCodeB, accountsB, brandB);
@@ -899,7 +899,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
         finishedGoodRepository.findById(fgB.getId()).orElseThrow().getCurrentStock();
 
     // Dispatch in Company A
-    CompanyContextHolder.setCompanyId(COMPANY_CODE_A);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE_A);
     List<FinishedGoodsService.DispatchPosting> postingsA =
         finishedGoodsService.markSlipDispatched(orderA.getId());
 
@@ -911,7 +911,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
         .isLessThan(stockABefore);
 
     // Verify Company B stock unchanged
-    CompanyContextHolder.setCompanyId(COMPANY_CODE_B);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE_B);
     BigDecimal stockBAfter =
         finishedGoodRepository.findById(fgB.getId()).orElseThrow().getCurrentStock();
     assertThat(stockBAfter)
@@ -919,7 +919,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
         .isEqualByComparingTo(stockBBefore);
 
     // Verify postings only hit Company A accounts
-    CompanyContextHolder.setCompanyId(COMPANY_CODE_A);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE_A);
     assertThat(postingsA).as("Dispatch postings should exist for Company A").isNotEmpty();
     for (FinishedGoodsService.DispatchPosting posting : postingsA) {
       Account invAccount = accountRepository.findById(posting.inventoryAccountId()).orElseThrow();
@@ -1007,7 +1007,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
     invoice.getLines().add(line);
     invoiceRepository.save(invoice);
 
-    CompanyContextHolder.setCompanyId(COMPANY_CODE_A);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE_A);
     InvoicePdfService.PdfDocument pdfDoc = invoicePdfService.renderInvoicePdf(invoice.getId());
 
     // Assert non-empty body
@@ -1066,7 +1066,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
   }
 
   private Account ensureAccount(Company company, String code, String name, AccountType type) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     return accountRepository
         .findByCompanyAndCodeIgnoreCase(company, code)
         .orElseGet(
@@ -1082,7 +1082,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
   }
 
   private Dealer ensureDealer(Company company, String code, String name, Account arAccount) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     return dealerRepository
         .findByCompanyAndCodeIgnoreCase(company, code)
         .orElseGet(
@@ -1099,7 +1099,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
   }
 
   private Supplier ensureSupplier(Company company, String code, String name, Account apAccount) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     return supplierRepository
         .findByCompanyAndCodeIgnoreCase(company, code)
         .orElseGet(
@@ -1115,7 +1115,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
   }
 
   private ProductionBrand ensureBrand(Company company, String code) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     return productionBrandRepository
         .findByCompanyAndCodeIgnoreCase(company, code)
         .orElseGet(
@@ -1130,7 +1130,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
 
   private FinishedGood createFinishedGood(
       Company company, String productCode, Map<String, Account> accounts, ProductionBrand brand) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     return finishedGoodRepository
         .findByCompanyAndProductCode(company, productCode)
         .orElseGet(
@@ -1171,7 +1171,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
   }
 
   private Invoice createInvoice(Company company, Dealer dealer, BigDecimal amount) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     Invoice invoice = new Invoice();
     invoice.setCompany(company);
     invoice.setDealer(dealer);

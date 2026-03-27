@@ -75,7 +75,7 @@ public class RevaluationCogsIT extends AbstractIntegrationTest {
         "Reval Admin",
         COMPANY_CODE,
         List.of("ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_SALES"));
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
     company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
     brand =
         productionBrandRepository

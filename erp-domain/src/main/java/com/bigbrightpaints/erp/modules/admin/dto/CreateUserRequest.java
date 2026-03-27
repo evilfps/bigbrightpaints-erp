@@ -8,7 +8,6 @@ import jakarta.validation.constraints.NotEmpty;
 
 public record CreateUserRequest(
     @Email @NotBlank String email,
-    String password, // Optional: auto-generate if null/empty
     @NotBlank String displayName,
-    @NotEmpty List<Long> companyIds,
+    Long companyId,
     @NotEmpty List<String> roles) {}

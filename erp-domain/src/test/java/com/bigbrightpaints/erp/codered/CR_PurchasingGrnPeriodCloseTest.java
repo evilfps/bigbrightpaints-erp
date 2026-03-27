@@ -74,7 +74,7 @@ class CR_PurchasingGrnPeriodCloseTest extends AbstractIntegrationTest {
     grn.setStatus("RECEIVED");
     goodsReceiptRepository.save(grn);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     accountingPeriodService.listPeriods(); // ensure periods exist
     AccountingPeriod period =
         accountingPeriodRepository
@@ -110,7 +110,7 @@ class CR_PurchasingGrnPeriodCloseTest extends AbstractIntegrationTest {
 
     LocalDate today = TestDateUtils.safeDate(company);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     accountingPeriodService.listPeriods();
     AccountingPeriod period =
         accountingPeriodRepository
@@ -142,7 +142,7 @@ class CR_PurchasingGrnPeriodCloseTest extends AbstractIntegrationTest {
 
   private Company bootstrapCompany(String companyCode) {
     dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     company.setTimezone("UTC");
     company.setBaseCurrency("INR");

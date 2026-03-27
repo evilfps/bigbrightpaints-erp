@@ -49,7 +49,7 @@ public class ReconciliationControlsIT extends AbstractIntegrationTest {
 
   @BeforeEach
   void setUp() {
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
     dataSeeder.ensureCompany(COMPANY_CODE, "Reconciliation Co");
   }
 

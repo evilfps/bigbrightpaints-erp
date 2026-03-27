@@ -38,7 +38,7 @@ public class PayrollRunIdempotencyIT extends AbstractIntegrationTest {
     LocalDate start = LocalDate.now().minusDays(7);
     LocalDate end = LocalDate.now().minusDays(1);
 
-    CompanyContextHolder.setCompanyId(companyA.getCode());
+    CompanyContextHolder.setCompanyCode(companyA.getCode());
     PayrollService.PayrollRunDto runA1 =
         payrollService.createPayrollRun(
             new PayrollService.CreatePayrollRunRequest(
@@ -58,7 +58,7 @@ public class PayrollRunIdempotencyIT extends AbstractIntegrationTest {
         .extracting(ex -> ((ApplicationException) ex).getErrorCode())
         .isEqualTo(ErrorCode.CONCURRENCY_CONFLICT);
 
-    CompanyContextHolder.setCompanyId(companyB.getCode());
+    CompanyContextHolder.setCompanyCode(companyB.getCode());
     PayrollService.PayrollRunDto runB1 =
         payrollService.createPayrollRun(
             new PayrollService.CreatePayrollRunRequest(
@@ -90,7 +90,7 @@ public class PayrollRunIdempotencyIT extends AbstractIntegrationTest {
     run.setCreatedBy("SYSTEM");
     PayrollRun saved = payrollRunRepository.save(run);
 
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     assertThatThrownBy(() -> payrollService.postPayrollToAccounting(saved.getId()))
         .isInstanceOf(ApplicationException.class)
         .satisfies(

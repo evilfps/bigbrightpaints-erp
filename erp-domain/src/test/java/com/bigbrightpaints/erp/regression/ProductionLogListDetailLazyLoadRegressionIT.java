@@ -63,7 +63,7 @@ class ProductionLogListDetailLazyLoadRegressionIT extends AbstractIntegrationTes
   @BeforeEach
   void setUp() {
     company = dataSeeder.ensureCompany(COMPANY_CODE, COMPANY_CODE + " Ltd");
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
 
     rmInventory = ensureAccount("INV-LF015", "Inventory", AccountType.ASSET);
     wipAccount = ensureAccount("WIP-LF015", "Work in Progress", AccountType.ASSET);

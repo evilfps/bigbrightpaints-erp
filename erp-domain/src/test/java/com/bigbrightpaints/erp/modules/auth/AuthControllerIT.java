@@ -96,7 +96,7 @@ public class AuthControllerIT extends AbstractIntegrationTest {
     assertThat(data).isNotNull();
     assertThat(data.get("email")).isEqualTo(ADMIN_EMAIL);
     assertThat(data.get("companyCode")).isEqualTo(COMPANY_CODE);
-    assertThat(data.get("companyId")).isEqualTo(COMPANY_CODE);
+    assertThat(data).doesNotContainKey("companyId");
     List<String> roles = (List<String>) data.get("roles");
     assertThat(roles).isNotNull();
     assertThat(roles).contains("ROLE_ADMIN");
@@ -221,7 +221,7 @@ public class AuthControllerIT extends AbstractIntegrationTest {
     String accessToken = loginPayload.get("accessToken").toString();
     String refreshToken = loginPayload.get("refreshToken").toString();
 
-    UserAccount user = userAccountRepository.findByEmailIgnoreCase(ADMIN_EMAIL).orElseThrow();
+    UserAccount user = scopedUser(ADMIN_EMAIL);
     passwordResetTokenRepository.deleteByUser(user);
     String resetToken = "digest-reset-token";
     passwordResetTokenRepository.save(
@@ -353,7 +353,7 @@ public class AuthControllerIT extends AbstractIntegrationTest {
 
   @Test
   void overlappingPublicAndAdminResetRequests_leaveLatestResetLinkUsable() throws Exception {
-    UserAccount resetTarget = userAccountRepository.findByEmailIgnoreCase(USER_EMAIL).orElseThrow();
+    UserAccount resetTarget = scopedUser(USER_EMAIL);
     String adminAccessToken = login(ADMIN_EMAIL, ADMIN_PASSWORD).get("accessToken").toString();
 
     CountDownLatch bothEmailsQueued = new CountDownLatch(2);
@@ -366,7 +366,7 @@ public class AuthControllerIT extends AbstractIntegrationTest {
               return null;
             })
         .when(emailService)
-        .sendPasswordResetEmailRequired(eq(USER_EMAIL), eq("Reset Target"), anyString());
+        .sendPasswordResetEmailRequired(eq(USER_EMAIL), eq("Reset Target"), anyString(), eq(COMPANY_CODE));
 
     ExecutorService executor = Executors.newFixedThreadPool(2);
     try {
@@ -376,7 +376,9 @@ public class AuthControllerIT extends AbstractIntegrationTest {
                   rest.exchange(
                       "/api/v1/auth/password/forgot",
                       HttpMethod.POST,
-                      new HttpEntity<>(Map.of("email", USER_EMAIL), jsonHeaders()),
+                      new HttpEntity<>(
+                          Map.of("email", USER_EMAIL, "companyCode", COMPANY_CODE),
+                          jsonHeaders()),
                       Map.class));
       Future<ResponseEntity<Map>> adminForceReset =
           executor.submit(
@@ -436,9 +438,15 @@ public class AuthControllerIT extends AbstractIntegrationTest {
   }
 
   private void markMustChangePassword(String email) {
-    UserAccount user = userAccountRepository.findByEmailIgnoreCase(email).orElseThrow();
+    UserAccount user = scopedUser(email);
     user.setMustChangePassword(true);
     userAccountRepository.save(user);
+  }
+
+  private UserAccount scopedUser(String email) {
+    return userAccountRepository
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(email, COMPANY_CODE)
+        .orElseThrow();
   }
 
   private HttpHeaders bearer(String accessToken) {

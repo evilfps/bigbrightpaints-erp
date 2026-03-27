@@ -86,7 +86,7 @@ class CR_OpeningStockImportIdempotencyIT extends AbstractIntegrationTest {
 
     ensurePreparedRawMaterialSku("RM-OPEN-1", "Resin", inventory);
     ensurePreparedFinishedGoodSku("FG-OPEN-1", "Paint 1L", inventory, cogs, revenue, tax);
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
   }
 
   @AfterEach

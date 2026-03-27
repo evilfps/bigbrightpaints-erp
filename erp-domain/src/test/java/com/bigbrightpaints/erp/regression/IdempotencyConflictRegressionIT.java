@@ -47,7 +47,7 @@ class IdempotencyConflictRegressionIT extends AbstractIntegrationTest {
   @BeforeEach
   void setUp() {
     company = dataSeeder.ensureCompany(COMPANY_CODE, "LF-023 Ltd");
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
     dealer = dealerRepository.findByCompanyAndCodeIgnoreCase(company, "FIX-DEALER").orElseThrow();
     finishedGood =
         finishedGoodRepository.findByCompanyAndProductCode(company, "FG-FIXTURE").orElseThrow();

@@ -5,6 +5,6 @@
 
 ## Notes
 
-- `POST /api/v1/auth/password/forgot` keeps the same request body and the same generic success payload for unknown-user, disabled-user, and delivery/configuration-masked cases.
-- When reset-token persistence fails before a reset link can be stored, the endpoint now returns a controlled non-success `ApiResponse` instead of the normal generic success contract.
-- Frontend code does not need a payload-shape migration, but any UX that assumed forgot-password always returns `200 OK` should tolerate a controlled temporary-failure response.
+- `POST /api/v1/auth/password/forgot` keeps the same request body and generic success payload only for masked unknown-user and disabled-user cases.
+- For a known scoped account, reset-token persistence failures, disabled reset-email configuration, and SMTP delivery failures now fail closed instead of returning the generic success contract.
+- Frontend code does not need a payload-shape migration, but any UX that assumed forgot-password always returns `200 OK` must now treat controlled recovery failures as retryable or support-routed errors.

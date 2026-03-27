@@ -76,7 +76,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
     firstReturnDate = invoiceDate.plusDays(4);
     secondReturnDate = invoiceDate.plusDays(5);
     company = dataSeeder.ensureCompany(COMPANY_CODE, "LF-022 Materials");
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
 
     Account inventory = ensureAccount(company, "INV-LF022", "Inventory", AccountType.ASSET);
     Account payable = ensureAccount(company, "AP-LF022", "Accounts Payable", AccountType.LIABILITY);

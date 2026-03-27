@@ -62,7 +62,7 @@ class CR_PackagingSlipConcurrencyIT extends AbstractIntegrationTest {
             Duration.ofSeconds(30),
             index ->
                 () -> {
-                  CompanyContextHolder.setCompanyId(companyCode);
+                  CompanyContextHolder.setCompanyCode(companyCode);
                   try {
                     return finishedGoodsService.reserveForOrder(order);
                   } finally {

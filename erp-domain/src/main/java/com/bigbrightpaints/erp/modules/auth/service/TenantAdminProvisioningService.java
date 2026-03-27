@@ -2,14 +2,10 @@ package com.bigbrightpaints.erp.modules.auth.service;
 
 import java.util.Locale;
 
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import com.bigbrightpaints.erp.core.notification.EmailService;
-import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
-import com.bigbrightpaints.erp.core.util.PasswordUtils;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -23,58 +19,50 @@ public class TenantAdminProvisioningService {
   private final UserAccountRepository userAccountRepository;
   private final RoleService roleService;
   private final RoleRepository roleRepository;
-  private final PasswordEncoder passwordEncoder;
-  private final EmailService emailService;
-  private final TokenBlacklistService tokenBlacklistService;
-  private final RefreshTokenService refreshTokenService;
+  private final ScopedAccountBootstrapService scopedAccountBootstrapService;
+  private final PasswordResetService passwordResetService;
 
   public TenantAdminProvisioningService(
       UserAccountRepository userAccountRepository,
       RoleService roleService,
       RoleRepository roleRepository,
-      PasswordEncoder passwordEncoder,
-      EmailService emailService,
-      TokenBlacklistService tokenBlacklistService,
-      RefreshTokenService refreshTokenService) {
+      ScopedAccountBootstrapService scopedAccountBootstrapService,
+      PasswordResetService passwordResetService) {
     this.userAccountRepository = userAccountRepository;
     this.roleService = roleService;
     this.roleRepository = roleRepository;
-    this.passwordEncoder = passwordEncoder;
-    this.emailService = emailService;
-    this.tokenBlacklistService = tokenBlacklistService;
-    this.refreshTokenService = refreshTokenService;
+    this.scopedAccountBootstrapService = scopedAccountBootstrapService;
+    this.passwordResetService = passwordResetService;
   }
 
-  public boolean isCredentialEmailDeliveryEnabled() {
-    return emailService.isCredentialEmailDeliveryEnabled();
+  public boolean isCredentialProvisioningReady() {
+    return scopedAccountBootstrapService.isCredentialProvisioningReady();
   }
 
   @Transactional
-  public ProvisionedTenantAdmin provisionInitialAdmin(
+  public UserAccount provisionInitialAdmin(
       Company company, String firstAdminEmail, String firstAdminDisplayName) {
     if (company == null || company.getId() == null) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Company must be persisted before admin provisioning");
     }
     String normalizedEmail = normalizeEmail(firstAdminEmail, "firstAdminEmail");
-    if (userAccountRepository.findByEmailIgnoreCase(normalizedEmail).isPresent()) {
+    if (userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+        normalizedEmail, company.getCode())) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "First admin email already exists: " + normalizedEmail);
     }
     Role adminRole = requireAdminRole();
-    String temporaryPassword = PasswordUtils.generateTemporaryPassword(14);
     UserAccount firstAdmin =
-        new UserAccount(
+        scopedAccountBootstrapService.provisionTenantAccount(
+            company,
             normalizedEmail,
-            passwordEncoder.encode(temporaryPassword),
-            resolveFirstAdminDisplayName(firstAdminDisplayName, company));
-    firstAdmin.setMustChangePassword(true);
-    firstAdmin.addCompany(company);
-    firstAdmin.addRole(adminRole);
-    firstAdmin = userAccountRepository.saveAndFlush(firstAdmin);
-    emailService.sendUserCredentialsEmailRequired(
-        firstAdmin.getEmail(), firstAdmin.getDisplayName(), temporaryPassword, company.getCode());
-    return new ProvisionedTenantAdmin(firstAdmin.getId(), firstAdmin.getEmail());
+            resolveFirstAdminDisplayName(firstAdminDisplayName, company),
+            java.util.List.of(adminRole));
+    company.setMainAdminUserId(firstAdmin.getId());
+    company.setOnboardingAdminEmail(firstAdmin.getEmail());
+    company.setOnboardingAdminUserId(firstAdmin.getId());
+    return firstAdmin;
   }
 
   @Transactional
@@ -86,15 +74,14 @@ public class TenantAdminProvisioningService {
     String normalizedEmail = normalizeEmail(adminEmail, "adminEmail");
     UserAccount user =
         userAccountRepository
-            .findByEmailIgnoreCase(normalizedEmail)
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizedEmail, company.getCode())
             .orElseThrow(
                 () ->
                     com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                         "Admin user not found: " + normalizedEmail));
-    boolean assigned =
-        user.getCompanies().stream()
-            .anyMatch(tenant -> tenant.getId() != null && tenant.getId().equals(company.getId()));
-    if (!assigned) {
+    if (user.getCompany() == null
+        || user.getCompany().getId() == null
+        || !user.getCompany().getId().equals(company.getId())) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Admin user is not assigned to company: " + company.getCode());
     }
@@ -102,16 +89,7 @@ public class TenantAdminProvisioningService {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Target user is not an admin for company: " + company.getCode());
     }
-    String temporaryPassword = PasswordUtils.generateTemporaryPassword(14);
-    user.setPasswordHash(passwordEncoder.encode(temporaryPassword));
-    user.setMustChangePassword(true);
-    user.setFailedLoginAttempts(0);
-    user.setLockedUntil(null);
-    userAccountRepository.save(user);
-    tokenBlacklistService.revokeAllUserTokens(user.getEmail());
-    refreshTokenService.revokeAllForUser(user.getEmail());
-    emailService.sendUserCredentialsEmailRequired(
-        user.getEmail(), user.getDisplayName(), temporaryPassword, company.getCode());
+    passwordResetService.requestResetByAdmin(user);
     return user.getEmail();
   }
 
@@ -160,6 +138,4 @@ public class TenantAdminProvisioningService {
                 com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
                     "ROLE_ADMIN must exist before tenant admin provisioning"));
   }
-
-  public record ProvisionedTenantAdmin(Long userId, String email) {}
 }

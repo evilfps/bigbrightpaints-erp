@@ -72,7 +72,7 @@ public class InventoryGlReconciliationIT extends AbstractIntegrationTest {
 
   @BeforeEach
   void setCompanyContext() {
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
     dataSeeder.ensureCompany(COMPANY_CODE, "Inventory GL Co");
   }
 

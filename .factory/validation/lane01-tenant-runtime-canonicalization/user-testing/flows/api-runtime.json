@@ -161,7 +161,7 @@
         {
           "action": "GET /api/v1/auth/me again with the same token",
           "expected": "200 success after recovery.",
-          "observed": "status 200; body={'success': True, 'data': {'email': 'validation.admin@example.com', 'displayName': 'Validation Admin', 'companyCode': 'MOCK', 'mfaEnabled': False, 'mustChangePassword': False, 'roles': ['ROLE_ACCOUNTING', 'ROLE_ADMIN', 'ROLE_SALES'], 'permissions': ['dispatch.confirm', 'factory.dispatch', 'payroll.run', 'portal:accounting', 'portal:dealer', 'portal:factory', 'portal:sales'], 'companyId': 'MOCK'}, 'timestamp': 1773545607.033503}"
+          "observed": "status 200; body={'success': True, 'data': {'email': 'validation.admin@example.com', 'displayName': 'Validation Admin', 'companyCode': 'MOCK', 'mfaEnabled': False, 'mustChangePassword': False, 'roles': ['ROLE_ACCOUNTING', 'ROLE_ADMIN', 'ROLE_SALES'], 'permissions': ['dispatch.confirm', 'factory.dispatch', 'payroll.run', 'portal:accounting', 'portal:dealer', 'portal:factory', 'portal:sales']}, 'timestamp': 1773545607.033503}"
         }
       ],
       "evidence": [

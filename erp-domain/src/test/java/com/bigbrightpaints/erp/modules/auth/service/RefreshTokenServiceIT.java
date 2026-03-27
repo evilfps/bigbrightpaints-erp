@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.auth.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,7 +16,6 @@ import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 class RefreshTokenServiceTest extends AbstractIntegrationTest {
 
   @Autowired private RefreshTokenService refreshTokenService;
-
   @Autowired private RefreshTokenRepository refreshTokenRepository;
 
   @BeforeEach
@@ -25,15 +25,19 @@ class RefreshTokenServiceTest extends AbstractIntegrationTest {
 
   @Test
   void issue_persists_digest_only_consume_removes_and_replay_is_rejected() {
+    UUID userPublicId = UUID.randomUUID();
     Instant expiresAt = Instant.now().plusSeconds(300);
-    String token = refreshTokenService.issue("user@example.com", expiresAt);
+    String token = refreshTokenService.issue(userPublicId, "ACME", expiresAt);
 
     RefreshToken stored = refreshTokenRepository.findAll().getFirst();
     assertThat(stored.getToken()).isNull();
     assertThat(stored.getTokenDigest()).isNotNull();
+    assertThat(stored.getUserPublicId()).isEqualTo(userPublicId);
+    assertThat(stored.getAuthScopeCode()).isEqualTo("ACME");
 
     RefreshTokenService.TokenRecord record = refreshTokenService.consume(token).orElseThrow();
-    assertThat(record.userEmail()).isEqualTo("user@example.com");
+    assertThat(record.userPublicId()).isEqualTo(userPublicId);
+    assertThat(record.authScopeCode()).isEqualTo("ACME");
     assertThat(record.expiresAt()).isAfterOrEqualTo(expiresAt.minusSeconds(1));
     assertThat(record.expiresAt()).isBeforeOrEqualTo(expiresAt.plusSeconds(1));
     assertThat(refreshTokenService.consume(token)).isEmpty();
@@ -42,12 +46,13 @@ class RefreshTokenServiceTest extends AbstractIntegrationTest {
 
   @Test
   void consume_expired_token_returns_empty_and_deletes() {
+    UUID userPublicId = UUID.randomUUID();
     Instant issuedAt = Instant.now().minusSeconds(120);
     Instant expiredAt = Instant.now().minusSeconds(60);
     String rawToken = "expired-token";
     RefreshToken token =
         RefreshToken.digestOnly(
-            AuthTokenDigests.refreshTokenDigest(rawToken), "user@example.com", issuedAt, expiredAt);
+            AuthTokenDigests.refreshTokenDigest(rawToken), userPublicId, "ACME", issuedAt, expiredAt);
     refreshTokenRepository.save(token);
 
     assertThat(refreshTokenService.consume(rawToken)).isEmpty();
@@ -57,37 +62,29 @@ class RefreshTokenServiceTest extends AbstractIntegrationTest {
   }
 
   @Test
-  void consume_rejects_legacy_raw_token_rows() {
-    Instant issuedAt = Instant.now().minusSeconds(30);
-    Instant expiresAt = Instant.now().plusSeconds(300);
-    refreshTokenRepository.save(
-        new RefreshToken("legacy-token", "legacy@example.com", issuedAt, expiresAt));
+  void revokeAllForUser_removes_only_matching_public_id() {
+    UUID targetUser = UUID.randomUUID();
+    UUID otherUser = UUID.randomUUID();
+    refreshTokenService.issue(targetUser, "ACME", Instant.now().plusSeconds(300));
+    refreshTokenService.issue(targetUser, "BBB", Instant.now().plusSeconds(300));
+    refreshTokenService.issue(otherUser, "ACME", Instant.now().plusSeconds(300));
 
-    assertThat(refreshTokenService.consume("legacy-token")).isEmpty();
-    assertThat(refreshTokenRepository.findAll()).hasSize(1);
-  }
-
-  @Test
-  void revoke_rejects_legacy_raw_token_rows() {
-    Instant issuedAt = Instant.now().minusSeconds(30);
-    Instant expiresAt = Instant.now().plusSeconds(300);
-    refreshTokenRepository.save(
-        new RefreshToken("legacy-token", "legacy@example.com", issuedAt, expiresAt));
-
-    refreshTokenService.revoke("legacy-token");
-
-    assertThat(refreshTokenRepository.findAll()).hasSize(1);
-  }
-
-  @Test
-  void revokeAllForUser_removes_user_tokens_only() {
-    refreshTokenService.issue("user@example.com", Instant.now().plusSeconds(300));
-    refreshTokenService.issue("User@Example.com", Instant.now().plusSeconds(300));
-    refreshTokenService.issue("other@example.com", Instant.now().plusSeconds(300));
-
-    refreshTokenService.revokeAllForUser("USER@example.com");
+    refreshTokenService.revokeAllForUser(targetUser);
 
     assertThat(refreshTokenRepository.findAll())
-        .allMatch(record -> record.getUserEmail().equalsIgnoreCase("other@example.com"));
+        .extracting(RefreshToken::getUserPublicId)
+        .containsExactly(otherUser);
+  }
+
+  @Test
+  void blankAndNullTokens_areIgnoredByConsumeAndRevoke() {
+    assertThat(refreshTokenService.consume(null)).isEmpty();
+    assertThat(refreshTokenService.consume(" ")).isEmpty();
+
+    refreshTokenService.revoke(null);
+    refreshTokenService.revoke(" ");
+    refreshTokenService.revokeAllForUser(null);
+
+    assertThat(refreshTokenRepository.findAll()).isEmpty();
   }
 }

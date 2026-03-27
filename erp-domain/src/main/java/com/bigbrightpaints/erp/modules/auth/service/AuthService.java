@@ -3,15 +3,14 @@ package com.bigbrightpaints.erp.modules.auth.service;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.LockedException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
@@ -19,6 +18,7 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.core.security.JwtProperties;
 import com.bigbrightpaints.erp.core.security.JwtTokenService;
 import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
@@ -45,7 +45,6 @@ public class AuthService {
   private static final Duration LOCKOUT_DURATION = Duration.ofMinutes(15);
   private static final String SUPER_ADMIN_ROLE = "ROLE_SUPER_ADMIN";
 
-  private final AuthenticationManager authenticationManager;
   private final JwtTokenService tokenService;
   private final RefreshTokenService refreshTokenService;
   private final UserAccountRepository userAccountRepository;
@@ -55,9 +54,10 @@ public class AuthService {
   private final TokenBlacklistService tokenBlacklistService;
   private final AuditService auditService;
   private final TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+  private final PasswordEncoder passwordEncoder;
+  private final AuthScopeService authScopeService;
 
   public AuthService(
-      AuthenticationManager authenticationManager,
       JwtTokenService tokenService,
       RefreshTokenService refreshTokenService,
       UserAccountRepository userAccountRepository,
@@ -66,8 +66,9 @@ public class AuthService {
       MfaService mfaService,
       TokenBlacklistService tokenBlacklistService,
       AuditService auditService,
-      TenantRuntimeEnforcementService tenantRuntimeEnforcementService) {
-    this.authenticationManager = authenticationManager;
+      TenantRuntimeEnforcementService tenantRuntimeEnforcementService,
+      PasswordEncoder passwordEncoder,
+      AuthScopeService authScopeService) {
     this.tokenService = tokenService;
     this.refreshTokenService = refreshTokenService;
     this.userAccountRepository = userAccountRepository;
@@ -77,44 +78,47 @@ public class AuthService {
     this.tokenBlacklistService = tokenBlacklistService;
     this.auditService = auditService;
     this.tenantRuntimeEnforcementService = tenantRuntimeEnforcementService;
+    this.passwordEncoder = passwordEncoder;
+    this.authScopeService = authScopeService;
   }
 
   public AuthResponse login(LoginRequest request) {
     UserAccount user = null;
+    boolean failedSecretValidation = false;
     try {
-      user =
-          userAccountRepository
-              .findByEmailIgnoreCase(request.email())
-              .orElseThrow(
-                  () ->
-                      com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                          "Invalid credentials"));
+      String scopeCode = authScopeService.requireScopeCode(request.companyCode());
+      user = requireScopedAccount(request.email(), scopeCode);
       ensureEnabledForAuthentication(user);
       enforceLock(user);
-      Authentication authentication =
-          authenticationManager.authenticate(
-              new UsernamePasswordAuthenticationToken(request.email(), request.password()));
-      UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
-      ensureEnabledForAuthentication(principal.getUser());
-      Company company = resolveCompanyForUser(principal.getUser(), request.companyCode());
-      tenantRuntimeEnforcementService.enforceAuthOperationAllowed(
-          company.getCode(), user.getEmail(), "LOGIN");
-      mfaService.verifyDuringLogin(principal.getUser(), request.mfaCode(), request.recoveryCode());
+      if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+        failedSecretValidation = true;
+        registerFailure(user);
+        throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+            "Invalid credentials");
+      }
+      Company company = resolveCompanyForScope(user, scopeCode);
+      if (company != null) {
+        tenantRuntimeEnforcementService.enforceAuthOperationAllowed(
+            company.getCode(), user.getEmail(), "LOGIN");
+      }
+      mfaService.verifyDuringLogin(user, request.mfaCode(), request.recoveryCode());
       resetLock(user);
       auditService.logAuthSuccess(
           AuditEvent.LOGIN_SUCCESS,
           user.getEmail(),
-          company.getCode(),
-          Map.of("companyCode", company.getCode()));
+          scopeCode,
+          Map.of("companyCode", scopeCode));
       Map<String, Object> claims = new HashMap<>();
-      claims.put("name", principal.getUser().getDisplayName());
+      claims.put("name", user.getDisplayName());
+      claims.put("email", user.getEmail());
       Instant issuedAt = Instant.now();
       String accessToken =
           tokenService.generateAccessToken(
-              principal.getUsername(), company.getCode(), claims, issuedAt);
+              user.getPublicId().toString(), scopeCode, claims, issuedAt);
       String refreshToken =
           refreshTokenService.issue(
-              principal.getUsername(),
+              user.getPublicId(),
+              scopeCode,
               issuedAt,
               issuedAt.plusSeconds(properties.getRefreshTokenTtlSeconds()));
       return new AuthResponse(
@@ -122,21 +126,11 @@ public class AuthService {
           accessToken,
           refreshToken,
           properties.getAccessTokenTtlSeconds(),
-          company.getCode(),
-          principal.getUser().getDisplayName(),
+          scopeCode,
+          user.getDisplayName(),
           user.isMustChangePassword());
-    } catch (AuthenticationException ex) {
-      if (user != null) {
-        registerFailure(user);
-      }
-      auditService.logAuthFailure(
-          AuditEvent.LOGIN_FAILURE,
-          normalizeAuditIdentifier(request.email()),
-          normalizeAuditIdentifier(request.companyCode()),
-          Map.of("reason", "Authentication failed"));
-      throw ex;
     } catch (RuntimeException ex) {
-      if (user != null && isMfaFailure(ex)) {
+      if (user != null && isMfaFailure(ex) && !failedSecretValidation) {
         registerFailure(user);
       }
       String reason = ex.getMessage();
@@ -153,6 +147,7 @@ public class AuthService {
   }
 
   public AuthResponse refresh(RefreshTokenRequest request) {
+    String requestedScopeCode = authScopeService.requireScopeCode(request.companyCode());
     RefreshTokenService.TokenRecord record =
         refreshTokenService
             .consume(request.refreshToken())
@@ -160,56 +155,66 @@ public class AuthService {
                 () ->
                     com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                         "Invalid refresh token"));
-    String userEmail = record.userEmail();
-    if (tokenBlacklistService.isUserTokenRevoked(userEmail, record.issuedAt())) {
+    if (!requestedScopeCode.equalsIgnoreCase(record.authScopeCode())) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "Invalid refresh token");
+    }
+    String accountKey = record.userPublicId().toString();
+    if (tokenBlacklistService.isUserTokenRevoked(accountKey, record.issuedAt())) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Refresh token revoked");
     }
     UserAccount user =
         userAccountRepository
-            .findByEmailIgnoreCase(userEmail)
+            .findByPublicId(record.userPublicId())
             .orElseThrow(
                 () ->
                     com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                         "User not found"));
     ensureEnabledForAuthentication(user);
     enforceLock(user);
-    Company company = resolveCompanyForUser(user, request.companyCode());
-    tenantRuntimeEnforcementService.enforceAuthOperationAllowed(
-        company.getCode(), userEmail, "REFRESH_TOKEN");
+    Company company = resolveCompanyForScope(user, requestedScopeCode);
+    if (company != null) {
+      tenantRuntimeEnforcementService.enforceAuthOperationAllowed(
+          company.getCode(), user.getEmail(), "REFRESH_TOKEN");
+    }
     Map<String, Object> claims = Map.of("name", user.getDisplayName());
     Instant issuedAt = Instant.now();
     String accessToken =
-        tokenService.generateAccessToken(userEmail, company.getCode(), claims, issuedAt);
+        tokenService.generateAccessToken(
+            user.getPublicId().toString(), requestedScopeCode, claims, issuedAt);
     String refreshToken =
         refreshTokenService.issue(
-            userEmail, issuedAt, issuedAt.plusSeconds(properties.getRefreshTokenTtlSeconds()));
+            user.getPublicId(),
+            requestedScopeCode,
+            issuedAt,
+            issuedAt.plusSeconds(properties.getRefreshTokenTtlSeconds()));
     return new AuthResponse(
         "Bearer",
         accessToken,
         refreshToken,
         properties.getAccessTokenTtlSeconds(),
-        company.getCode(),
+        requestedScopeCode,
         user.getDisplayName(),
         user.isMustChangePassword());
   }
 
-  private Company resolveCompanyForUser(UserAccount user, String companyCode) {
-    Company company =
-        companyRepository
-            .findByCodeIgnoreCase(companyCode)
-            .orElseThrow(
-                () ->
-                    com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                        "Company not found: " + companyCode));
-    if (hasSuperAdminRole(user)) {
-      return company;
-    }
-    boolean member =
-        user.getCompanies().stream().anyMatch(c -> c.getCode().equalsIgnoreCase(companyCode));
-    if (!member) {
+  private Company resolveCompanyForScope(UserAccount user, String scopeCode) {
+    if (user == null || !scopeMatches(user, scopeCode)) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "User not assigned to company: " + companyCode);
+          "Invalid credentials");
+    }
+    if (authScopeService.isPlatformScope(scopeCode)) {
+      if (!hasSuperAdminRole(user)) {
+        throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+            "Invalid credentials");
+      }
+      return null;
+    }
+    Company company = user.getCompany();
+    if (company == null || !user.belongsToCompanyCode(scopeCode)) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "Invalid credentials");
     }
     return company;
   }
@@ -240,23 +245,24 @@ public class AuthService {
 
   public void logout(String refreshToken, String accessToken) {
     Claims accessTokenClaims = parseLogoutClaims(accessToken);
-    String tokenUserEmail = extractTokenSubject(accessTokenClaims);
+    UUID tokenUserPublicId = extractTokenSubject(accessTokenClaims);
 
-    if (tokenUserEmail != null) {
-      revokeActiveSessions(tokenUserEmail);
+    if (tokenUserPublicId != null) {
+      revokeActiveSessions(tokenUserPublicId);
     } else if (refreshToken != null && !refreshToken.isBlank()) {
       refreshTokenService.revoke(refreshToken);
     }
 
-    blacklistAccessToken(accessTokenClaims, tokenUserEmail);
+    blacklistAccessToken(accessTokenClaims, tokenUserPublicId);
   }
 
-  private void revokeActiveSessions(String userEmail) {
-    if (userEmail == null || userEmail.isBlank()) {
+  private void revokeActiveSessions(UUID userPublicId) {
+    if (userPublicId == null) {
       return;
     }
-    tokenBlacklistService.revokeAllUserTokens(userEmail);
-    refreshTokenService.revokeAllForUser(userEmail);
+    String accountKey = userPublicId.toString();
+    tokenBlacklistService.revokeAllUserTokens(accountKey);
+    refreshTokenService.revokeAllForUser(userPublicId);
   }
 
   private Claims parseLogoutClaims(String accessToken) {
@@ -274,7 +280,7 @@ public class AuthService {
     }
   }
 
-  private String extractTokenSubject(Claims claims) {
+  private UUID extractTokenSubject(Claims claims) {
     if (claims == null) {
       return null;
     }
@@ -283,10 +289,17 @@ public class AuthService {
       return null;
     }
     String normalized = subject.trim();
-    return normalized.isEmpty() ? null : normalized;
+    if (normalized.isEmpty()) {
+      return null;
+    }
+    try {
+      return UUID.fromString(normalized);
+    } catch (IllegalArgumentException ex) {
+      return null;
+    }
   }
 
-  private void blacklistAccessToken(Claims claims, String userEmail) {
+  private void blacklistAccessToken(Claims claims, UUID userPublicId) {
     if (claims == null) {
       return;
     }
@@ -298,7 +311,8 @@ public class AuthService {
     Instant expiration = claims.getExpiration().toInstant();
 
     try {
-      tokenBlacklistService.blacklistToken(tokenId, expiration, userEmail, "logout");
+      tokenBlacklistService.blacklistToken(
+          tokenId, expiration, userPublicId != null ? userPublicId.toString() : null, "logout");
     } catch (Exception ex) {
       String actor = SecurityActorResolver.resolveActorWithSystemProcessFallback();
       log.warn(
@@ -331,7 +345,28 @@ public class AuthService {
     }
     userAccountRepository.save(user);
     if (locked) {
-      revokeActiveSessions(user.getEmail());
+      revokeActiveSessions(user.getPublicId());
     }
+  }
+
+  private UserAccount requireScopedAccount(String email, String scopeCode) {
+    return userAccountRepository
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizeEmail(email), scopeCode)
+        .orElseThrow(
+            () -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                "Invalid credentials"));
+  }
+
+  private boolean scopeMatches(UserAccount user, String scopeCode) {
+    return user != null
+        && user.getAuthScopeCode() != null
+        && user.getAuthScopeCode().equalsIgnoreCase(scopeCode);
+  }
+
+  private String normalizeEmail(String email) {
+    if (email == null) {
+      return null;
+    }
+    return email.trim().toLowerCase(Locale.ROOT);
   }
 }

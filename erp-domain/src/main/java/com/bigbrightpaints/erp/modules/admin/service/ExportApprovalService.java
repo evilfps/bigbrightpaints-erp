@@ -160,19 +160,17 @@ public class ExportApprovalService {
 
     UserAccount actor =
         userAccountRepository
-            .findByEmailIgnoreCase(actorEmail)
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(actorEmail, company.getCode())
             .orElseThrow(
                 () ->
                     new ApplicationException(
                         ErrorCode.BUSINESS_ENTITY_NOT_FOUND,
                         "User not found for actor: " + actorEmail));
 
-    boolean inCompany =
-        actor.getCompanies().stream()
-            .anyMatch(
-                userCompany ->
-                    company.getId() != null && company.getId().equals(userCompany.getId()));
-    if (!inCompany) {
+    if (actor.getCompany() == null
+        || actor.getCompany().getId() == null
+        || company.getId() == null
+        || !company.getId().equals(actor.getCompany().getId())) {
       throw new ApplicationException(
               ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS, "Actor not scoped to active company")
           .withDetail("actor", actorEmail)

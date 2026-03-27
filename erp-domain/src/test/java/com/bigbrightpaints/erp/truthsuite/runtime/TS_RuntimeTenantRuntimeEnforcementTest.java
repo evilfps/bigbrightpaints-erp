@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -29,6 +30,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.core.security.CompanyContextFilter;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
@@ -50,6 +52,8 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
 
   @Mock private CompanyService companyService;
 
+  @Mock private AuthScopeService authScopeService;
+
   private CompanyContextFilter filter;
 
   @BeforeEach
@@ -58,7 +62,9 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
         new CompanyContextFilter(
             tenantRuntimeEnforcementService,
             companyService,
+            authScopeService,
             new ObjectMapper().findAndRegisterModules());
+    lenient().when(authScopeService.isPlatformScope(anyString())).thenReturn(false);
   }
 
   @AfterEach
@@ -91,7 +97,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
     filter.doFilter(request, response, new MockFilterChain());
 
     assertThat(response.getStatus()).isEqualTo(403);
-    verifyNoInteractions(companyService);
+    verify(companyService).resolveLifecycleStateByCode("ACME");
   }
 
   @Test
@@ -221,13 +227,16 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
     assertThat(
             (Boolean)
                 ReflectionTestUtils.invokeMethod(
-                    filter, "isTenantControlRequest", "/api/v1/superadmin/tenants/7/limits", "PUT"))
+                    filter,
+                    "isLifecycleControlRequest",
+                    "/api/v1/superadmin/tenants/7/limits",
+                    "PUT"))
         .isTrue();
     assertThat(
             (Boolean)
                 ReflectionTestUtils.invokeMethod(
                     filter,
-                    "isTenantControlRequest",
+                    "isLifecycleControlRequest",
                     "/api/v1/superadmin/tenants/7/admins/3/email-change/confirm",
                     "POST"))
         .isTrue();
@@ -235,7 +244,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
             (Boolean)
                 ReflectionTestUtils.invokeMethod(
                     filter,
-                    "isTenantControlRequest",
+                    "isLifecycleControlRequest",
                     "/api/v1/superadmin/tenants/7/limits",
                     "PATCH"))
         .isFalse();
@@ -244,7 +253,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
   private Claims claims(String companyCode, String legacyCompanyId) {
     Claims claims = mock(Claims.class);
     when(claims.get("companyCode", String.class)).thenReturn(companyCode);
-    when(claims.get("cid", String.class)).thenReturn(legacyCompanyId);
+    lenient().when(claims.get("cid", String.class)).thenReturn(legacyCompanyId);
     return claims;
   }
 
@@ -252,7 +261,8 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
     UserAccount user = new UserAccount(email, "hash", "Operator");
     Company company = new Company();
     company.setCode(companyCode);
-    user.addCompany(company);
+    user.setCompany(company);
+    user.setAuthScopeCode(companyCode);
     UserPrincipal principal = new UserPrincipal(user);
     SecurityContextHolder.getContext()
         .setAuthentication(

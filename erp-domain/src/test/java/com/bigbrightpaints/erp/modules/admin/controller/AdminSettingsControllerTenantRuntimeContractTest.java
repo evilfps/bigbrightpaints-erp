@@ -7,10 +7,14 @@ import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.security.access.prepost.PreAuthorize;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminNotifyRequest;
@@ -18,6 +22,7 @@ import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsDto;
 import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsUpdateRequest;
 import com.bigbrightpaints.erp.modules.admin.service.ExportApprovalService;
 import com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyService;
+import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.company.service.ModuleGatingService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
@@ -62,6 +67,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
             true,
             true,
             true,
+            "PLATFORM",
             true,
             "ops@bigbrightpaints.com",
             "https://mail.bigbrightpaints.com",
@@ -98,6 +104,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
             false,
             true,
             true,
+            "PLATFORM",
             true,
             "noreply@bigbrightpaints.com",
             "https://mail.bigbrightpaints.com",
@@ -109,6 +116,7 @@ class AdminSettingsControllerTenantRuntimeContractTest {
             false,
             true,
             true,
+            "PLATFORM",
             true,
             "noreply@bigbrightpaints.com",
             "https://mail.bigbrightpaints.com",
@@ -134,6 +142,151 @@ class AdminSettingsControllerTenantRuntimeContractTest {
     assertThat(response.message()).isEqualTo("Settings updated");
     assertThat(response.data()).isEqualTo(updated);
     verify(systemSettingsService).update(request);
+  }
+
+  @Test
+  void updateSettings_audits_requested_fields_with_explicit_placeholders() {
+    SystemSettingsService systemSettingsService = mock(SystemSettingsService.class);
+    AuditService auditService = mock(AuditService.class);
+    SystemSettingsDto before =
+        new SystemSettingsDto(
+            java.util.List.of("https://portal.bigbrightpaints.com"),
+            true,
+            false,
+            true,
+            "PLATFORM",
+            true,
+            "ops@bigbrightpaints.com",
+            "https://mail.bigbrightpaints.com",
+            false,
+            true);
+    SystemSettingsUpdateRequest request =
+        new SystemSettingsUpdateRequest(
+            java.util.List.of("https://portal.bigbrightpaints.com"),
+            null,
+            null,
+            false,
+            "plat\nform",
+            true,
+            "noreply@bigbrightpaints.com",
+            "https://mail.bigbrightpaints.com",
+            true,
+            false);
+    SystemSettingsDto after =
+        new SystemSettingsDto(
+            java.util.List.of("https://portal.bigbrightpaints.com"),
+            true,
+            false,
+            false,
+            "PLATFORM",
+            true,
+            "noreply@bigbrightpaints.com",
+            "https://mail.bigbrightpaints.com",
+            true,
+            false);
+    when(systemSettingsService.snapshot()).thenReturn(before);
+    when(systemSettingsService.update(request)).thenReturn(after);
+
+    AdminSettingsController controller =
+        new AdminSettingsController(
+            systemSettingsService,
+            mock(EmailService.class),
+            mock(CompanyContextService.class),
+            mock(TenantRuntimePolicyService.class),
+            mock(ExportApprovalService.class),
+            mock(CreditRequestRepository.class),
+            mock(CreditLimitOverrideRequestRepository.class),
+            mock(PeriodCloseRequestRepository.class),
+            mock(PayrollRunRepository.class),
+            auditService,
+            mock(ModuleGatingService.class));
+
+    controller.updateSettings(request);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(auditService)
+        .logAuthSuccess(
+            org.mockito.ArgumentMatchers.eq(AuditEvent.CONFIGURATION_CHANGED),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.isNull(),
+            metadataCaptor.capture());
+    Map<String, String> metadata = metadataCaptor.getValue();
+    assertThat(metadata.get("requestedAutoApprovalEnabled")).isEqualTo("<not_requested>");
+    assertThat(metadata.get("requestedPeriodLockEnforced")).isEqualTo("<not_requested>");
+    assertThat(metadata.get("requestedExportApprovalRequired")).isEqualTo("false");
+    assertThat(metadata.get("requestedPlatformAuthCode")).isEqualTo("<redacted>");
+  }
+
+  @Test
+  void updateSettings_redacts_platform_auth_code_when_settings_update_runs() {
+    SystemSettingsService systemSettingsService = mock(SystemSettingsService.class);
+    AuditService auditService = mock(AuditService.class);
+    SystemSettingsDto before =
+        new SystemSettingsDto(
+            java.util.List.of("https://portal.bigbrightpaints.com"),
+            true,
+            false,
+            true,
+            "PLATFORM",
+            true,
+            "ops@bigbrightpaints.com",
+            "https://mail.bigbrightpaints.com",
+            false,
+            true);
+    SystemSettingsUpdateRequest request =
+        new SystemSettingsUpdateRequest(
+            java.util.List.of("https://portal.bigbrightpaints.com"),
+            null,
+            null,
+            false,
+            null,
+            true,
+            "noreply@bigbrightpaints.com",
+            "https://mail.bigbrightpaints.com",
+            true,
+            false);
+    SystemSettingsDto after =
+        new SystemSettingsDto(
+            java.util.List.of("https://portal.bigbrightpaints.com"),
+            true,
+            false,
+            false,
+            "PLATFORM",
+            true,
+            "noreply@bigbrightpaints.com",
+            "https://mail.bigbrightpaints.com",
+            true,
+            false);
+    when(systemSettingsService.snapshot()).thenReturn(before);
+    when(systemSettingsService.update(request)).thenReturn(after);
+
+    AdminSettingsController controller =
+        new AdminSettingsController(
+            systemSettingsService,
+            mock(EmailService.class),
+            mock(CompanyContextService.class),
+            mock(TenantRuntimePolicyService.class),
+            mock(ExportApprovalService.class),
+            mock(CreditRequestRepository.class),
+            mock(CreditLimitOverrideRequestRepository.class),
+            mock(PeriodCloseRequestRepository.class),
+            mock(PayrollRunRepository.class),
+            auditService,
+            mock(ModuleGatingService.class));
+
+    controller.updateSettings(request);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(auditService)
+        .logAuthSuccess(
+            org.mockito.ArgumentMatchers.eq(AuditEvent.CONFIGURATION_CHANGED),
+            org.mockito.ArgumentMatchers.any(),
+            org.mockito.ArgumentMatchers.isNull(),
+            metadataCaptor.capture());
+    Map<String, String> metadata = metadataCaptor.getValue();
+    assertThat(metadata.get("requestedPlatformAuthCode")).isEqualTo("<redacted>");
   }
 
   @Test

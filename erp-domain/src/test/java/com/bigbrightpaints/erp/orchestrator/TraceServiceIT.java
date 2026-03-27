@@ -40,12 +40,12 @@ public class TraceServiceIT extends AbstractIntegrationTest {
 
     traceService.record(traceId, "TEST_EVENT", companyA.getCode(), Map.of("k", "v"));
 
-    CompanyContextHolder.setCompanyId(companyA.getCode());
+    CompanyContextHolder.setCompanyCode(companyA.getCode());
     List<AuditRecord> scoped = traceService.getTrace(traceId);
     assertThat(scoped).hasSize(1);
     assertThat(scoped.get(0).getCompanyId()).isEqualTo(companyA.getId());
 
-    CompanyContextHolder.setCompanyId(companyB.getCode());
+    CompanyContextHolder.setCompanyCode(companyB.getCode());
     assertThat(traceService.getTrace(traceId)).isEmpty();
 
     assertThat(

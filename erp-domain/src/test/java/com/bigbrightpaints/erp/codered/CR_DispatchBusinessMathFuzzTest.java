@@ -89,7 +89,7 @@ class CR_DispatchBusinessMathFuzzTest extends AbstractIntegrationTest {
     Dealer dealer = ensureDealer(company, accounts.get("AR"));
 
     FinishedGood fg = ensureFinishedGoodWithCatalog(company, accounts, "FG-FUZZ-" + shortId());
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     finishedGoodsService.registerBatch(
         new FinishedGoodBatchRequest(
             fg.getId(),
@@ -128,7 +128,7 @@ class CR_DispatchBusinessMathFuzzTest extends AbstractIntegrationTest {
       }
       BigDecimal totalAmount = null; // let the service compute totals for fuzz coverage
 
-      CompanyContextHolder.setCompanyId(companyCode);
+      CompanyContextHolder.setCompanyCode(companyCode);
       var orderDto =
           salesService.createOrder(
               new SalesOrderRequest(
@@ -252,7 +252,7 @@ class CR_DispatchBusinessMathFuzzTest extends AbstractIntegrationTest {
 
   private Company bootstrapCompany(String companyCode, String timezone) {
     dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     company.setTimezone(timezone);
     company.setBaseCurrency("INR");
@@ -354,7 +354,7 @@ class CR_DispatchBusinessMathFuzzTest extends AbstractIntegrationTest {
             accounts.get("REV").getId(),
             accounts.get("DISC").getId(),
             accounts.get("GST_OUT").getId());
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     FinishedGood fg =
         finishedGoodRepository
             .findByCompanyAndProductCode(company, sku)

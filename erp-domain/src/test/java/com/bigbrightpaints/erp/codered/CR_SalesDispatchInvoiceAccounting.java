@@ -338,7 +338,7 @@ class CR_SalesDispatchInvoiceAccounting extends AbstractIntegrationTest {
                 Duration.ofSeconds(45),
                 threadIndex ->
                     () -> {
-                      CompanyContextHolder.setCompanyId(companyCode);
+                      CompanyContextHolder.setCompanyCode(companyCode);
                       try {
                         return salesService.confirmDispatch(request);
                       } finally {
@@ -379,7 +379,7 @@ class CR_SalesDispatchInvoiceAccounting extends AbstractIntegrationTest {
 
   private Company bootstrapCompany(String companyCode, String timezone) {
     dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     company.setTimezone(timezone);
     company.setBaseCurrency("INR");
@@ -565,7 +565,7 @@ class CR_SalesDispatchInvoiceAccounting extends AbstractIntegrationTest {
       String productCode,
       BigDecimal quantity,
       BigDecimal unitPrice) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     BigDecimal totalAmount =
         unitPrice.multiply(quantity).setScale(2, java.math.RoundingMode.HALF_UP);
     var orderDto =

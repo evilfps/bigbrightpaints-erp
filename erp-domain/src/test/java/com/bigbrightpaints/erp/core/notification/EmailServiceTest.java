@@ -130,31 +130,6 @@ class EmailServiceTest {
   }
 
   @Test
-  void sendUserCredentialsEmail_bestEffortDoesNotThrowWhenSmtpSendFails() {
-    doThrow(new MailSendException("smtp-failed"))
-        .when(mailSender)
-        .send(any(MimeMessagePreparator.class));
-
-    assertThatCode(
-            () ->
-                emailService.sendUserCredentialsEmail(
-                    "user@example.com", "User", "Temp@12345", "SKE"))
-        .doesNotThrowAnyException();
-  }
-
-  @Test
-  void sendUserCredentialsEmail_bestEffortSkipsWhenDeliveryDisabled() {
-    emailProperties.setSendCredentials(false);
-
-    assertThatCode(
-            () ->
-                emailService.sendUserCredentialsEmail(
-                    "user@example.com", "User", "Temp@12345", "SKE"))
-        .doesNotThrowAnyException();
-    verifyNoInteractions(mailSender);
-  }
-
-  @Test
   void sendUserCredentialsEmailRequiredThrowsWhenSmtpSendFails() {
     doThrow(new MailSendException("smtp-failed"))
         .when(mailSender)
@@ -330,5 +305,14 @@ class EmailServiceTest {
               ApplicationException appEx = (ApplicationException) ex;
               assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.SYSTEM_CONFIGURATION_ERROR);
             });
+  }
+
+  @Test
+  void formatUtcTimestamp_returnsNullWhenTimestampMissing() {
+    assertThat(
+            (String)
+                ReflectionTestUtils.invokeMethod(
+                    emailService, "formatUtcTimestamp", (Instant) null))
+        .isNull();
   }
 }

@@ -14,7 +14,7 @@
         },
         {
           "source": "docs/code-review/flows/company-tenant-control-plane.md",
-          "observed": "Entrypoints/service-chain sections explicitly cover canonical and alias super-admin company controls, tenant onboarding, company CRUD, lifecycle changes, multi-company context switching, module gating, tenant runtime policy/usage metrics, and support recovery paths."
+          "observed": "Entrypoints/service-chain sections explicitly cover canonical super-admin company controls, tenant onboarding, company directory/update flows, lifecycle changes, scoped company binding, module gating, tenant runtime policy/usage metrics, and support recovery paths."
         },
         {
           "source": "python3 assertion check (2026-03-06)",

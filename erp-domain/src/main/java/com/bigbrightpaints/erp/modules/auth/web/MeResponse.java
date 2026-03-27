@@ -2,8 +2,6 @@ package com.bigbrightpaints.erp.modules.auth.web;
 
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
 public record MeResponse(
     String email,
     String displayName,
@@ -12,9 +10,4 @@ public record MeResponse(
     boolean mustChangePassword,
     List<String> roles,
     List<String> permissions) {
-  @Deprecated
-  @JsonProperty("companyId")
-  public String legacyCompanyId() {
-    return companyCode;
-  }
 }

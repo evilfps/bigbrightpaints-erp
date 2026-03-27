@@ -70,7 +70,7 @@ class CR_MfgProducedAtTimezoneTest extends AbstractIntegrationTest {
     LocalDate today = companyClock.today(company);
     String localDate = today.format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     ProductionLog first =
         productionLogRepository
             .findById(
@@ -147,7 +147,7 @@ class CR_MfgProducedAtTimezoneTest extends AbstractIntegrationTest {
 
   private Company bootstrapCompany(String companyCode, String timezone) {
     dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     company.setTimezone(timezone);
     company.setBaseCurrency("INR");

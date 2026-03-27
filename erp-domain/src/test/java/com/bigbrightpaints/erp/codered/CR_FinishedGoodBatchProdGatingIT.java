@@ -79,7 +79,7 @@ class CR_FinishedGoodBatchProdGatingIT extends AbstractIntegrationTest {
                   fg.setReservedStock(BigDecimal.ZERO);
                   return finishedGoodRepository.save(fg);
                 });
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
   }
 
   @AfterEach

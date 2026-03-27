@@ -64,10 +64,10 @@
           }
         },
         {
-          "name": "Support hard-reset response does not leak temporary credentials and preserves credential email behavior",
+          "name": "Support hard-reset response does not leak credentials and delivered reset link works",
           "observed": {
             "status": 200,
-            "message": "Admin credentials reset and emailed",
+            "message": "Admin reset link emailed",
             "dataKeys": [
               "adminEmail",
               "companyCode",
@@ -75,10 +75,9 @@
               "status"
             ],
             "responseLeakDetected": false,
-            "mailSubject": "Your BigBright ERP account credentials",
-            "tempPasswordParsed": true,
-            "reloginStatus": 200,
-            "mustChangePassword": true
+            "mailSubject": "Reset your BigBright ERP password",
+            "tokenExtracted": true,
+            "resetStatus": 200
           }
         }
       ],

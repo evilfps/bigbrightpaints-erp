@@ -52,7 +52,7 @@ class CR_CatalogImportIdempotencyIT extends AbstractIntegrationTest {
     Company company = ensureCompany("CR-CAT-IDEMP-" + shortId());
     ensureDefaultAccounts(company);
 
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     MockMultipartFile file = csvFile("Safari", "Emulsion White");
     CatalogImportResponse first = productionCatalogService.importCatalog(file, "CAT-IDEMP-001");
     CatalogImportResponse second = productionCatalogService.importCatalog(file, "CAT-IDEMP-001");
@@ -77,7 +77,7 @@ class CR_CatalogImportIdempotencyIT extends AbstractIntegrationTest {
     Company company = ensureCompany("CR-CAT-IDEMP-" + shortId());
     ensureDefaultAccounts(company);
 
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     productionCatalogService.importCatalog(csvFile("Safari", "Emulsion White"), "CAT-IDEMP-002");
 
     assertThatThrownBy(

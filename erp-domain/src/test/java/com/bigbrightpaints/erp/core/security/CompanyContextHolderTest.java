@@ -12,7 +12,6 @@ class CompanyContextHolderTest {
   void setGetClear_cycle() {
     CompanyContextHolder.setCompanyCode("ACME");
     assertThat(CompanyContextHolder.getCompanyCode()).isEqualTo("ACME");
-    assertThat(CompanyContextHolder.getCompanyId()).isEqualTo("ACME");
     CompanyContextHolder.clear();
     assertThat(CompanyContextHolder.getCompanyCode()).isNull();
   }

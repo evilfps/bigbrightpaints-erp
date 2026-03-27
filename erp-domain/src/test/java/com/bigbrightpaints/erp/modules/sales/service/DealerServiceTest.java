@@ -13,12 +13,10 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,12 +25,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -44,6 +41,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.OverdueInvoiceDto;
 import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.bigbrightpaints.erp.modules.auth.service.ScopedAccountBootstrapService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
@@ -63,6 +61,7 @@ class DealerServiceTest {
   @Mock private RoleService roleService;
   @Mock private PasswordEncoder passwordEncoder;
   @Mock private EmailService emailService;
+  @Mock private AuthScopeService authScopeService;
   @Mock private AccountRepository accountRepository;
 
   @Mock
@@ -75,17 +74,20 @@ class DealerServiceTest {
 
   private DealerService dealerService;
   private Company company;
+  private ScopedAccountBootstrapService scopedAccountBootstrapService;
 
   @BeforeEach
   void setUp() {
+    scopedAccountBootstrapService =
+        new ScopedAccountBootstrapService(
+            userAccountRepository, passwordEncoder, emailService, authScopeService);
     dealerService =
         new DealerService(
             dealerRepository,
             companyContextService,
             userAccountRepository,
             roleService,
-            passwordEncoder,
-            emailService,
+            scopedAccountBootstrapService,
             accountRepository,
             dealerLedgerService,
             statementService,
@@ -97,6 +99,9 @@ class DealerServiceTest {
     company.setCode("TEST");
 
     lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    lenient()
+        .when(authScopeService.requireScopeCode(anyString()))
+        .thenAnswer(invocation -> invocation.getArgument(0, String.class).trim().toUpperCase());
     lenient()
         .when(
             dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(eq(company), anyString()))
@@ -118,8 +123,11 @@ class DealerServiceTest {
               return dealer;
             });
     lenient()
-        .when(userAccountRepository.findByEmailIgnoreCase(anyString()))
+        .when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(anyString(), anyString()))
         .thenReturn(Optional.empty());
+    lenient()
+        .when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(anyString(), anyString()))
+        .thenReturn(false);
     lenient()
         .when(userAccountRepository.save(any(UserAccount.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
@@ -150,42 +158,26 @@ class DealerServiceTest {
     lenient().when(companyClock.now(company)).thenReturn(Instant.parse("2026-02-23T10:00:00Z"));
   }
 
-  @AfterEach
-  void tearDown() {
-    if (TransactionSynchronizationManager.isSynchronizationActive()) {
-      TransactionSynchronizationManager.clearSynchronization();
-    }
-  }
-
   @Test
-  void createDealer_sendsCredentialsOnlyAfterCommit() {
-    TransactionSynchronizationManager.initSynchronization();
-
+  void createDealer_sendsScopedCredentialsEmailForNewPortalUser() {
     dealerService.createDealer(request());
-
-    verify(emailService, never()).sendUserCredentialsEmail(anyString(), anyString(), anyString());
-    List<TransactionSynchronization> synchronizations =
-        new ArrayList<>(TransactionSynchronizationManager.getSynchronizations());
-    assertThat(synchronizations).hasSize(1);
-
-    synchronizations.forEach(TransactionSynchronization::afterCommit);
 
     verify(emailService)
-        .sendUserCredentialsEmail(eq("dealer@example.com"), eq("Test Dealer"), anyString());
+        .sendUserCredentialsEmailRequired(
+            eq("dealer@example.com"), eq("Test Dealer"), anyString(), eq("TEST"));
   }
 
   @Test
-  void createDealer_doesNotSendCredentialsWhenTransactionRollsBack() {
-    TransactionSynchronizationManager.initSynchronization();
+  void createDealer_reusesExistingScopedPortalUserWithoutSendingNewCredentials() {
+    UserAccount existingPortalUser = new UserAccount("dealer@example.com", "TEST", "hash", "Test Dealer");
+    existingPortalUser.setCompany(company);
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("dealer@example.com", "TEST"))
+        .thenReturn(Optional.of(existingPortalUser));
 
     dealerService.createDealer(request());
 
-    List<TransactionSynchronization> synchronizations =
-        new ArrayList<>(TransactionSynchronizationManager.getSynchronizations());
-    synchronizations.forEach(
-        sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
-
-    verify(emailService, never()).sendUserCredentialsEmail(anyString(), anyString(), anyString());
+    verify(emailService, never())
+        .sendUserCredentialsEmailRequired(anyString(), anyString(), anyString(), anyString());
   }
 
   @Test

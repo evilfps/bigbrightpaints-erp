@@ -202,7 +202,7 @@ class CR_PeriodCloseDriftScansTest extends AbstractIntegrationTest {
   void predeployScans_areCleanForClosedPeriod() {
     String companyCode = "CR-SCAN-CLEAN-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate today = TestDateUtils.safeDate(company);
       LocalDate periodDate = today.minusMonths(1);
@@ -232,7 +232,7 @@ class CR_PeriodCloseDriftScansTest extends AbstractIntegrationTest {
   void predeployScans_detectLatePostingAndDrift() {
     String companyCode = "CR-SCAN-DRIFT-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate today = TestDateUtils.safeDate(company);
       LocalDate periodDate = today.minusMonths(1);
@@ -265,7 +265,7 @@ class CR_PeriodCloseDriftScansTest extends AbstractIntegrationTest {
   void predeployScans_detectMissingSnapshot() {
     String companyCode = "CR-SCAN-MISSING-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate today = TestDateUtils.safeDate(company);
       LocalDate periodDate = today.minusMonths(1);
@@ -295,7 +295,7 @@ class CR_PeriodCloseDriftScansTest extends AbstractIntegrationTest {
   void predeployScans_detectSnapshotTotalsMismatch() {
     String companyCode = "CR-SCAN-SNAP-TOTAL-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate today = TestDateUtils.safeDate(company);
       LocalDate periodDate = today.minusMonths(1);

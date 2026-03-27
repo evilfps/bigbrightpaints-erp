@@ -21,6 +21,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.core.security.CompanyContextFilter;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
@@ -35,6 +36,8 @@ class CompanyContextFilterPasswordResetBypassTest {
 
   @Mock private CompanyService companyService;
 
+  @Mock private AuthScopeService authScopeService;
+
   @Mock private FilterChain filterChain;
 
   private CompanyContextFilter filter;
@@ -45,6 +48,7 @@ class CompanyContextFilterPasswordResetBypassTest {
         new CompanyContextFilter(
             tenantRuntimeEnforcementService,
             companyService,
+            authScopeService,
             new ObjectMapper().findAndRegisterModules());
   }
 
@@ -56,12 +60,6 @@ class CompanyContextFilterPasswordResetBypassTest {
   @Test
   void resetPasswordEndpoint_isNotBlockedByCompanyHeader() throws ServletException, IOException {
     assertPublicPasswordResetBypass("/api/v1/auth/password/reset");
-  }
-
-  @Test
-  void retiredSuperAdminForgotAlias_isNotBlockedByCompanyHeader()
-      throws ServletException, IOException {
-    assertPublicPasswordResetBypass("/api/v1/auth/password/forgot/superadmin");
   }
 
   @Test

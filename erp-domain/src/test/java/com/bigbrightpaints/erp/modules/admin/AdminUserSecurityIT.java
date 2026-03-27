@@ -451,8 +451,8 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
             "Quota Limited User",
             "roles",
             List.of("ROLE_SALES"),
-            "companyIds",
-            List.of(activeCompany.getId()));
+            "companyId",
+            activeCompany.getId());
     ResponseEntity<Map> createResponse =
         rest.exchange(
             "/api/v1/admin/users",

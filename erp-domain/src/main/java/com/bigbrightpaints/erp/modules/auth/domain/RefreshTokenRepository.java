@@ -17,11 +17,11 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select t from RefreshToken t where t.tokenDigest = :tokenDigest")
-  Optional<RefreshToken> findForUpdateByTokenDigest(@Param("tokenDigest") String tokenDigest);
+    Optional<RefreshToken> findForUpdateByTokenDigest(@Param("tokenDigest") String tokenDigest);
 
   @Modifying
-  @Query("delete from RefreshToken t where lower(t.userEmail) = lower(:userEmail)")
-  int deleteByUserEmail(@Param("userEmail") String userEmail);
+  @Query("delete from RefreshToken t where t.userPublicId = :userPublicId")
+  int deleteByUserPublicId(@Param("userPublicId") java.util.UUID userPublicId);
 
   @Modifying
   @Query("delete from RefreshToken t where t.tokenDigest = :tokenDigest")

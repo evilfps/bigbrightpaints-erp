@@ -90,7 +90,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
     Supplier supplier = ensureSupplier(company, accounts.get("AP"));
     RawMaterial rm = ensureRawMaterial(company, accounts.get("RM_INV"), "CR-RM");
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     RawMaterialPurchaseResponse purchase =
         createPurchaseFlow(supplier, rm, TestDateUtils.safeDate(company));
     CompanyContextHolder.clear();
@@ -110,7 +110,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
     assertThat(po.getStatus()).isEqualTo("CLOSED");
     CoderedDbAssertions.assertNoNegativeInventory(jdbcTemplate, company.getId());
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     ReconciliationService.SupplierReconciliationResult reconciliation =
         reconciliationService.reconcileApWithSupplierLedger();
     CompanyContextHolder.clear();
@@ -125,7 +125,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
     Supplier supplier = ensureSupplier(company, accounts.get("AP"));
     String importedSku = ("CR-RM-IMP-" + shortId()).toUpperCase(Locale.ROOT);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     CatalogImportResponse importResponse =
         productionCatalogService.importCatalog(
             rawMaterialCatalogCsv(importedSku), "CR-RM-IMP-IDEMP-" + shortId());
@@ -151,7 +151,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
     RawMaterial rm = ensureRawMaterial(company, accounts.get("RM_INV"), "CR-RM");
     LocalDate today = TestDateUtils.safeDate(company);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     PurchaseOrderResponse po =
         createApprovedPurchaseOrder(
             supplier, rm, today, new BigDecimal("10"), new BigDecimal("12.50"));
@@ -199,7 +199,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
     RawMaterial rm = ensureRawMaterial(company, accounts.get("RM_INV"), "CR-RM");
     LocalDate today = TestDateUtils.safeDate(company);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     PurchaseOrderResponse po =
         createApprovedPurchaseOrder(
             supplier, rm, today, new BigDecimal("5"), new BigDecimal("8.75"));
@@ -248,7 +248,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
             Duration.ofSeconds(20),
             ignored ->
                 () -> {
-                  CompanyContextHolder.setCompanyId(companyCode);
+                  CompanyContextHolder.setCompanyCode(companyCode);
                   try {
                     return purchasingService.createPurchase(request);
                   } finally {
@@ -271,7 +271,7 @@ class CR_PurchasingToApAccountingTest extends AbstractIntegrationTest {
 
   private Company bootstrapCompany(String companyCode) {
     dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     company.setTimezone("UTC");
     company.setBaseCurrency("INR");

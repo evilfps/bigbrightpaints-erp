@@ -244,15 +244,15 @@ public class SuperAdminTenantControlPlaneService {
   public SuperAdminTenantForceLogoutDto forceLogoutAllUsers(Long companyId, String reason) {
     Company company = requireCompany(companyId);
     String actor = currentActor();
-    List<UserAccount> users = userAccountRepository.findDistinctByCompanies_Id(companyId);
+    List<UserAccount> users = userAccountRepository.findByCompany_Id(companyId);
     assertTenantExclusiveUsers(company, users, "tenant force logout");
     String normalizedReason = normalizeOptionalReason(reason, "support-request");
     for (UserAccount user : users) {
-      if (!StringUtils.hasText(user.getEmail())) {
+      if (user == null || user.getPublicId() == null) {
         continue;
       }
-      tokenBlacklistService.revokeAllUserTokens(user.getEmail());
-      refreshTokenService.revokeAllForUser(user.getEmail());
+      tokenBlacklistService.revokeAllUserTokens(user.getPublicId().toString());
+      refreshTokenService.revokeAllForUser(user.getPublicId());
     }
     Instant occurredAt = CompanyTime.now(company);
     logAuditSuccess(
@@ -292,7 +292,9 @@ public class SuperAdminTenantControlPlaneService {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "newEmail must differ from the current admin email");
     }
-    if (userAccountRepository.findByEmailIgnoreCase(normalizedRequestedEmail).isPresent()) {
+    if (userAccountRepository
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizedRequestedEmail, company.getCode())
+        .isPresent()) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Email already exists: " + normalizedRequestedEmail);
     }
@@ -365,7 +367,8 @@ public class SuperAdminTenantControlPlaneService {
           "Email change request is stale because the admin email has already changed");
     }
     if (userAccountRepository
-        .findByEmailIgnoreCase(changeRequest.getRequestedEmail())
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            changeRequest.getRequestedEmail(), company.getCode())
         .filter(existingUser -> !existingUser.getId().equals(adminUser.getId()))
         .isPresent()) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
@@ -378,10 +381,8 @@ public class SuperAdminTenantControlPlaneService {
     adminUser.setEmail(changeRequest.getRequestedEmail());
     userAccountRepository.save(adminUser);
     tenantAdminEmailChangeRequestRepository.save(changeRequest);
-    tokenBlacklistService.revokeAllUserTokens(changeRequest.getCurrentEmail());
-    refreshTokenService.revokeAllForUser(changeRequest.getCurrentEmail());
-    tokenBlacklistService.revokeAllUserTokens(adminUser.getEmail());
-    refreshTokenService.revokeAllForUser(adminUser.getEmail());
+    tokenBlacklistService.revokeAllUserTokens(adminUser.getPublicId().toString());
+    refreshTokenService.revokeAllForUser(adminUser.getPublicId());
     logAuditSuccess(
         company,
         "tenant-admin-email-change-confirmed",
@@ -536,7 +537,7 @@ public class SuperAdminTenantControlPlaneService {
     }
     UserAccount user =
         userAccountRepository
-            .findByIdAndCompanies_Id(adminUserId, company.getId())
+            .findByIdAndCompany_Id(adminUserId, company.getId())
             .orElseThrow(
                 () ->
                     com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
@@ -682,15 +683,8 @@ public class SuperAdminTenantControlPlaneService {
   }
 
   private boolean isSharedAcrossCompanies(UserAccount user) {
-    if (user == null || user.getCompanies() == null) {
-      return false;
-    }
-    return user.getCompanies().stream()
-            .filter(company -> company != null && company.getId() != null)
-            .map(Company::getId)
-            .distinct()
-            .count()
-        > 1L;
+    // Auth v2 hard-cut binds each account to exactly one tenant company.
+    return false;
   }
 
   private String currentActor() {

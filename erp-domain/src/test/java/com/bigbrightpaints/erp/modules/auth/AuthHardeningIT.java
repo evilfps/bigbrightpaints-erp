@@ -75,9 +75,9 @@ public class AuthHardeningIT extends AbstractIntegrationTest {
             "companyCode", COMPANY);
     for (int i = 0; i < 5; i++) {
       ResponseEntity<Map> resp = rest.postForEntity("/api/v1/auth/login", badReq, Map.class);
-      assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+      assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
-    UserAccount user = userAccountRepository.findByEmailIgnoreCase(USER_EMAIL).orElseThrow();
+    UserAccount user = scopedUser();
     assertThat(user.getFailedLoginAttempts()).isGreaterThanOrEqualTo(5);
     assertThat(user.getLockedUntil()).isNotNull();
     Instant lockedUntil = user.getLockedUntil();
@@ -100,7 +100,7 @@ public class AuthHardeningIT extends AbstractIntegrationTest {
     assertThat(lockedError).containsEntry("code", "AUTH_005");
     assertThat(lockedError).containsEntry("message", "Account is locked");
     assertThat(lockedError).containsKey("traceId");
-    user = userAccountRepository.findByEmailIgnoreCase(USER_EMAIL).orElseThrow();
+    user = scopedUser();
     assertThat(user.getLockedUntil()).isAfterOrEqualTo(lockedUntil);
 
     // Manually clear lock for verification
@@ -138,7 +138,7 @@ public class AuthHardeningIT extends AbstractIntegrationTest {
             "companyCode", COMPANY);
     for (int i = 0; i < 5; i++) {
       ResponseEntity<Map> resp = rest.postForEntity("/api/v1/auth/login", badReq, Map.class);
-      assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+      assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     HttpHeaders accessHeaders = new HttpHeaders();
@@ -158,5 +158,11 @@ public class AuthHardeningIT extends AbstractIntegrationTest {
             Map.class);
     assertThat(refreshResponse.getStatusCode())
         .isIn(HttpStatus.BAD_REQUEST, HttpStatus.UNAUTHORIZED);
+  }
+
+  private UserAccount scopedUser() {
+    return userAccountRepository
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(USER_EMAIL, COMPANY)
+        .orElseThrow();
   }
 }

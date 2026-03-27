@@ -73,7 +73,7 @@ class PerformanceBudgetIT extends AbstractIntegrationTest {
                 () -> new IllegalStateException("Fixture dealer missing for " + COMPANY_CODE));
     seedOrders(company, dealer, 5);
 
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
 
     Statistics stats = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
     stats.setStatisticsEnabled(true);

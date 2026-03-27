@@ -106,10 +106,7 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
       assertThat(data.get("defaultAccountingPeriodCreated")).isEqualTo(true);
       assertThat(data.get("adminEmail").toString()).isEqualTo(adminEmail);
       assertThat(data.get("tenantAdminProvisioned")).isEqualTo(true);
-      assertThat(data).doesNotContainKey("adminTemporaryPassword");
-      assertThat(data.get("credentialsEmailSent")).isEqualTo(true);
-      assertThat(data.get("credentialsEmailedAt")).isNotNull();
-      assertThat(data.get("mainAdminUserId")).isNotNull();
+      assertThat(data).doesNotContainKeys("temporaryPassword", "adminTemporaryPassword");
 
       Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
       List<Account> accounts = accountRepository.findByCompanyOrderByCodeAsc(company);
@@ -139,8 +136,11 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
           .isPresent();
       assertThat(data.get("accountingPeriodId")).isNotNull();
 
-      UserAccount admin = userAccountRepository.findByEmailIgnoreCase(adminEmail).orElseThrow();
-      assertThat(admin.getCompanies()).extracting(Company::getCode).contains(companyCode);
+      UserAccount admin =
+          userAccountRepository
+              .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(adminEmail, companyCode)
+              .orElseThrow();
+      assertThat(admin.getCompany()).extracting(Company::getCode).isEqualTo(companyCode);
       assertThat(admin.getRoles()).extracting(Role::getName).contains("ROLE_ADMIN");
       assertThat(admin.isMustChangePassword()).isTrue();
     }

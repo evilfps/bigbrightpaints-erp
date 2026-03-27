@@ -41,7 +41,7 @@ class CR_Reports_AsOfBalancesStable_AfterLatePostingIT extends AbstractIntegrati
   void trialBalanceAsOf_isStableAfterLatePosting() {
     String companyCode = "CR-ASOF-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate asOfDate = TestDateUtils.safeDate(company);
       Account cash = ensureAccount(company, "CASH-ASOF", "Cash", AccountType.ASSET);

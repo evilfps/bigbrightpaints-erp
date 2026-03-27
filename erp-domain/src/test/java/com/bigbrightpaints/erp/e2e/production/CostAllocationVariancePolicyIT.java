@@ -92,7 +92,7 @@ public class CostAllocationVariancePolicyIT extends AbstractIntegrationTest {
   void init() {
     companyCode = COMPANY_CODE_PREFIX + "-" + System.nanoTime();
     company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     wip = ensureAccount("WIP", AccountType.ASSET);
     rmInventory = ensureAccount("INV-RM", AccountType.ASSET);
     packagingInventory = ensureAccount("INV-PACK", AccountType.ASSET);

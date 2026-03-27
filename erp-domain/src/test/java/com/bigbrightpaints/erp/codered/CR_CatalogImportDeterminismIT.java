@@ -48,7 +48,7 @@ class CR_CatalogImportDeterminismIT extends AbstractIntegrationTest {
     Company company = ensureCompany(companyCode);
     ensureDefaultAccounts(company);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     CatalogImportResponse first = productionCatalogService.importCatalog(csvFile());
     List<ProductionProduct> productsAfterFirst =
         productRepository.findByCompanyOrderByProductNameAsc(company);
@@ -80,7 +80,7 @@ class CR_CatalogImportDeterminismIT extends AbstractIntegrationTest {
     brand.setCode("TENANTA");
     brand = brandRepository.save(brand);
 
-    CompanyContextHolder.setCompanyId(companyB.getCode());
+    CompanyContextHolder.setCompanyCode(companyB.getCode());
     ProductCreateRequest request =
         new ProductCreateRequest(
             brand.getId(),

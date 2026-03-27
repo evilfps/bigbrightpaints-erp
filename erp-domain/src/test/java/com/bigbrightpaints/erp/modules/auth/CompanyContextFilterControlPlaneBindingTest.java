@@ -31,6 +31,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.core.security.CompanyContextFilter;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
@@ -55,6 +56,8 @@ class CompanyContextFilterControlPlaneBindingTest {
 
   @Mock private CompanyService companyService;
 
+  @Mock private AuthScopeService authScopeService;
+
   @Mock private FilterChain filterChain;
 
   private CompanyContextFilter filter;
@@ -65,7 +68,9 @@ class CompanyContextFilterControlPlaneBindingTest {
         new CompanyContextFilter(
             tenantRuntimeEnforcementService,
             companyService,
+            authScopeService,
             new ObjectMapper().findAndRegisterModules());
+    lenient().when(authScopeService.isPlatformScope(anyString())).thenReturn(false);
   }
 
   @AfterEach
@@ -211,7 +216,75 @@ class CompanyContextFilterControlPlaneBindingTest {
   }
 
   @Test
-  void extractCompanyIdFromLifecycleControlPath_handlesCanonicalAndMalformedValues() {
+  void platformScopeAllowlist_exposesOnlyPlatformControlRoutes() {
+    assertThat(
+            (Boolean)
+                ReflectionTestUtils.invokeMethod(
+                    filter, "isPlatformScopedRequestAllowed", "/api/v1/admin/settings"))
+        .isTrue();
+    assertThat(
+            (Boolean)
+                ReflectionTestUtils.invokeMethod(
+                    filter, "isPlatformScopedRequestAllowed", "/api/v1/companies"))
+        .isTrue();
+    assertThat(
+            (Boolean)
+                ReflectionTestUtils.invokeMethod(
+                    filter, "isPlatformScopedRequestAllowed", "/api/v1/audit/business-events"))
+        .isFalse();
+    assertThat(
+            (Boolean)
+                ReflectionTestUtils.invokeMethod(
+                    filter,
+                    "hasTenantRuntimePolicyControlAuthority",
+                    "/api/v1/superadmin/tenants/42/limits",
+                    "PUT"))
+        .isFalse();
+  }
+
+  @Test
+  void platformScopedSuperAdmin_rejectsNonAllowlistedBusinessWorkflow()
+      throws ServletException, IOException {
+    authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of());
+    when(authScopeService.isPlatformScope("PLATFORM")).thenReturn(true);
+
+    MockHttpServletRequest request = request("GET", "/api/v1/audit/business-events");
+    request.setAttribute("jwtClaims", claimsFor("PLATFORM"));
+    request.addHeader("X-Company-Code", "PLATFORM");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(response.getContentAsString()).contains("SUPER_ADMIN_PLATFORM_ONLY");
+    verify(filterChain, never()).doFilter(request, response);
+    verifyNoInteractions(companyService);
+  }
+
+  @Test
+  void canonicalTenantControlRequest_allowsTenantAdminWhenTokenCompanyMatchesPathTarget()
+      throws ServletException, IOException {
+    authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("TENANT-A"));
+    when(companyService.resolveCompanyCodeById(42L)).thenReturn("TENANT-A");
+    when(companyService.resolveLifecycleStateByCode("TENANT-A"))
+        .thenReturn(CompanyLifecycleState.ACTIVE);
+
+    MockHttpServletRequest request = request("PUT", "/api/v1/superadmin/tenants/42/limits");
+    request.setAttribute("jwtClaims", claimsFor("TENANT-A"));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(200);
+    verify(companyService).resolveCompanyCodeById(42L);
+    verify(companyService).resolveLifecycleStateByCode("TENANT-A");
+    verify(tenantRuntimeEnforcementService, never())
+        .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+    verify(filterChain).doFilter(request, response);
+  }
+
+  @Test
+  void extractCompanyIdFromControlPlanePath_handlesCanonicalAndMalformedValues() {
     assertThat(extractCompanyId(null)).isNull();
     assertThat(extractCompanyId("   ")).isNull();
     assertThat(extractCompanyId("/api/v1/private")).isNull();
@@ -224,16 +297,18 @@ class CompanyContextFilterControlPlaneBindingTest {
   }
 
   private Long extractCompanyId(String path) {
-    return ReflectionTestUtils.invokeMethod(
-        filter, "extractCompanyIdFromLifecycleControlPath", path);
+    return (Long)
+        ReflectionTestUtils.invokeMethod(filter, "extractCompanyIdFromControlPlanePath", path);
   }
 
   private void authenticate(String email, Set<String> authorities, Set<String> companyCodes) {
     UserAccount user = new UserAccount(email, "hash", "Operator");
-    for (String companyCode : companyCodes) {
+    if (!companyCodes.isEmpty()) {
+      String companyCode = companyCodes.iterator().next();
       Company company = new Company();
       company.setCode(companyCode);
-      user.addCompany(company);
+      user.setCompany(company);
+      user.setAuthScopeCode(companyCode);
     }
     UserPrincipal principal = new UserPrincipal(user);
     List<SimpleGrantedAuthority> granted =

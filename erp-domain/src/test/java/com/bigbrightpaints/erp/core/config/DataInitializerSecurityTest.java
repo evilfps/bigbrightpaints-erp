@@ -49,7 +49,8 @@ class DataInitializerSecurityTest {
         "   ",
         "ignored");
 
-    verify(userRepository, never()).findByEmailIgnoreCase(anyString());
+    verify(userRepository, never())
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(anyString(), anyString());
     verify(userRepository, never()).save(any(UserAccount.class));
     verify(passwordEncoder, never()).encode(anyString());
   }
@@ -57,7 +58,8 @@ class DataInitializerSecurityTest {
   @Test
   void dataInitializer_requiresDevAdminPasswordForNewUser() {
     DataInitializer initializer = new DataInitializer();
-    when(userRepository.findByEmailIgnoreCase("dev.admin@bbp.com")).thenReturn(Optional.empty());
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("dev.admin@bbp.com", "BBP"))
+        .thenReturn(Optional.empty());
 
     assertThatThrownBy(
             () ->
@@ -81,7 +83,8 @@ class DataInitializerSecurityTest {
     DataInitializer initializer = new DataInitializer();
     Company company = company("BBP");
     Role adminRole = role("ROLE_ADMIN");
-    when(userRepository.findByEmailIgnoreCase("dev.admin@bbp.com")).thenReturn(Optional.empty());
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("dev.admin@bbp.com", "BBP"))
+        .thenReturn(Optional.empty());
     when(passwordEncoder.encode("DevAdmin@123!")).thenReturn("enc-dev");
     when(userRepository.save(any(UserAccount.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
@@ -102,7 +105,7 @@ class DataInitializerSecurityTest {
     assertThat(savedUser.getEmail()).isEqualTo("dev.admin@bbp.com");
     assertThat(savedUser.getDisplayName()).isEqualTo("Dev Admin");
     assertThat(savedUser.isMustChangePassword()).isTrue();
-    assertThat(savedUser.getCompanies()).contains(company);
+    assertThat(savedUser.getCompany()).isEqualTo(company);
     assertThat(savedUser.getRoles()).extracting(Role::getName).contains("ROLE_ADMIN");
     verify(passwordEncoder).encode("DevAdmin@123!");
   }
@@ -113,7 +116,7 @@ class DataInitializerSecurityTest {
     Company company = company("BBP");
     Role adminRole = role("ROLE_ADMIN");
     UserAccount existingUser = new UserAccount("dev.admin@bbp.com", "existing-hash", "Existing");
-    when(userRepository.findByEmailIgnoreCase("dev.admin@bbp.com"))
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("dev.admin@bbp.com", "BBP"))
         .thenReturn(Optional.of(existingUser));
 
     assertThatThrownBy(
@@ -141,7 +144,7 @@ class DataInitializerSecurityTest {
     Company company = company("BBP");
     Role adminRole = role("ROLE_ADMIN");
     UserAccount existingUser = new UserAccount("dev.admin@bbp.com", "existing-hash", "Existing");
-    when(userRepository.findByEmailIgnoreCase("dev.admin@bbp.com"))
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("dev.admin@bbp.com", "BBP"))
         .thenReturn(Optional.of(existingUser));
     when(passwordEncoder.matches("WrongPassword@123", "existing-hash")).thenReturn(false);
 
@@ -168,7 +171,7 @@ class DataInitializerSecurityTest {
     Company company = company("BBP");
     Role adminRole = role("ROLE_ADMIN");
     UserAccount existingUser = new UserAccount("dev.admin@bbp.com", "existing-hash", "Existing");
-    when(userRepository.findByEmailIgnoreCase("dev.admin@bbp.com"))
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("dev.admin@bbp.com", "BBP"))
         .thenReturn(Optional.of(existingUser));
     when(passwordEncoder.matches("DevAdmin@123!", "existing-hash")).thenReturn(true);
     when(userRepository.save(any(UserAccount.class)))
@@ -187,7 +190,7 @@ class DataInitializerSecurityTest {
     verify(passwordEncoder).matches("DevAdmin@123!", "existing-hash");
     verify(userRepository).save(existingUser);
     assertThat(existingUser.getDisplayName()).isEqualTo("Dev Admin");
-    assertThat(existingUser.getCompanies()).contains(company);
+    assertThat(existingUser.getCompany()).isEqualTo(company);
     assertThat(existingUser.getRoles()).extracting(Role::getName).contains("ROLE_ADMIN");
   }
 
@@ -199,7 +202,9 @@ class DataInitializerSecurityTest {
     when(roleRepository.findByName("ROLE_ACCOUNTING"))
         .thenReturn(Optional.of(role("ROLE_ACCOUNTING")));
     when(roleRepository.findByName("ROLE_SALES")).thenReturn(Optional.of(role("ROLE_SALES")));
-    when(userRepository.findByEmailIgnoreCase("mock.admin@bbp.com")).thenReturn(Optional.empty());
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "mock.admin@bbp.com", "MOCK"))
+        .thenReturn(Optional.empty());
 
     assertThatThrownBy(
             () ->
@@ -232,7 +237,8 @@ class DataInitializerSecurityTest {
         "   ",
         "ignored");
 
-    verify(userRepository, never()).findByEmailIgnoreCase(anyString());
+    verify(userRepository, never())
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(anyString(), anyString());
     verify(userRepository, never()).save(any(UserAccount.class));
     verify(passwordEncoder, never()).encode(anyString());
   }
@@ -245,7 +251,9 @@ class DataInitializerSecurityTest {
     when(roleRepository.findByName("ROLE_ACCOUNTING"))
         .thenReturn(Optional.of(role("ROLE_ACCOUNTING")));
     when(roleRepository.findByName("ROLE_SALES")).thenReturn(Optional.of(role("ROLE_SALES")));
-    when(userRepository.findByEmailIgnoreCase("mock.admin@bbp.com")).thenReturn(Optional.empty());
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "mock.admin@bbp.com", "MOCK"))
+        .thenReturn(Optional.empty());
     when(passwordEncoder.encode("MockAdmin@123!")).thenReturn("enc-mock");
     when(userRepository.save(any(UserAccount.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
@@ -273,7 +281,8 @@ class DataInitializerSecurityTest {
         .thenReturn(Optional.of(role("ROLE_ACCOUNTING")));
     when(roleRepository.findByName("ROLE_SALES")).thenReturn(Optional.of(role("ROLE_SALES")));
     when(roleRepository.findByName("ROLE_FACTORY")).thenReturn(Optional.of(role("ROLE_FACTORY")));
-    when(userRepository.findByEmailIgnoreCase("benchmark.admin@bbp.com"))
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "benchmark.admin@bbp.com", "BBP"))
         .thenReturn(Optional.empty());
 
     assertThatThrownBy(
@@ -307,7 +316,8 @@ class DataInitializerSecurityTest {
         "   ",
         "ignored");
 
-    verify(userRepository, never()).findByEmailIgnoreCase(anyString());
+    verify(userRepository, never())
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(anyString(), anyString());
     verify(userRepository, never()).save(any(UserAccount.class));
     verify(passwordEncoder, never()).encode(anyString());
   }
@@ -321,7 +331,8 @@ class DataInitializerSecurityTest {
         .thenReturn(Optional.of(role("ROLE_ACCOUNTING")));
     when(roleRepository.findByName("ROLE_SALES")).thenReturn(Optional.of(role("ROLE_SALES")));
     when(roleRepository.findByName("ROLE_FACTORY")).thenReturn(Optional.of(role("ROLE_FACTORY")));
-    when(userRepository.findByEmailIgnoreCase("benchmark.admin@bbp.com"))
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "benchmark.admin@bbp.com", "BBP"))
         .thenReturn(Optional.empty());
     when(passwordEncoder.encode("BenchmarkAdmin@123!")).thenReturn("enc-benchmark");
     when(userRepository.save(any(UserAccount.class)))
@@ -349,7 +360,8 @@ class DataInitializerSecurityTest {
     when(roleRepository.findByName("ROLE_ACCOUNTING"))
         .thenReturn(Optional.of(role("ROLE_ACCOUNTING")));
     when(roleRepository.findByName("ROLE_SALES")).thenReturn(Optional.of(role("ROLE_SALES")));
-    when(userRepository.findByEmailIgnoreCase("mock.admin@bbp.com"))
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "mock.admin@bbp.com", "MOCK"))
         .thenReturn(
             Optional.of(new UserAccount("mock.admin@bbp.com", "existing-hash", "Mock Admin")));
 
@@ -375,7 +387,8 @@ class DataInitializerSecurityTest {
         .thenReturn(Optional.of(role("ROLE_ACCOUNTING")));
     when(roleRepository.findByName("ROLE_SALES")).thenReturn(Optional.of(role("ROLE_SALES")));
     when(roleRepository.findByName("ROLE_FACTORY")).thenReturn(Optional.of(role("ROLE_FACTORY")));
-    when(userRepository.findByEmailIgnoreCase("benchmark.admin@bbp.com"))
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "benchmark.admin@bbp.com", "BBP"))
         .thenReturn(
             Optional.of(
                 new UserAccount("benchmark.admin@bbp.com", "existing-hash", "Benchmark Admin")));

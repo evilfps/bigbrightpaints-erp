@@ -510,7 +510,9 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
   private long createPendingExportRequest(String reportType, String parameters) {
     Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
     UserAccount accountingUser =
-        userAccountRepository.findByEmailIgnoreCase(ACCOUNTING_EMAIL).orElseThrow();
+        userAccountRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(ACCOUNTING_EMAIL, COMPANY_CODE)
+            .orElseThrow();
 
     ExportRequest request = new ExportRequest();
     request.setCompany(company);
@@ -561,7 +563,9 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
   private void ensureDealerPortalMapping() {
     Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
     UserAccount dealerUser =
-        userAccountRepository.findByEmailIgnoreCase(DEALER_EMAIL).orElseThrow();
+        userAccountRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(DEALER_EMAIL, COMPANY_CODE)
+            .orElseThrow();
     Dealer dealer =
         dealerRepository
             .findByCompanyAndCodeIgnoreCase(company, DEALER_CODE)

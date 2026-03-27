@@ -44,7 +44,7 @@ class InventoryAccountingEventListenerIT extends AbstractIntegrationTest {
   @BeforeEach
   void setUp() {
     company = dataSeeder.ensureCompany(COMPANY_CODE, "Inventory Events Co");
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     inventoryAccount = ensureAccount("INV-TEST", "Inventory", AccountType.ASSET);
     cogsAccount = ensureAccount("COGS-TEST", "COGS", AccountType.EXPENSE);
   }

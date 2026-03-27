@@ -44,7 +44,7 @@ class CR_Reports_CashFlow_NotZeroByConstructionIT extends AbstractIntegrationTes
   void cashFlow_netChangeReflectsCashMovement() {
     String companyCode = "CR-CF-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate entryDate = TestDateUtils.safeDate(company);
       Account cash = ensureAccount(company, "CASH-CF", "Cash", AccountType.ASSET);
@@ -70,7 +70,7 @@ class CR_Reports_CashFlow_NotZeroByConstructionIT extends AbstractIntegrationTes
   void statements_useNaturalSigns_andCashFlowSplitsSections() {
     String companyCode = "CR-CF-SIGN-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate entryDate = TestDateUtils.safeDate(company);
       Account cash = ensureAccount(company, "CASH-SPLIT", "Cash", AccountType.ASSET);
@@ -126,7 +126,7 @@ class CR_Reports_CashFlow_NotZeroByConstructionIT extends AbstractIntegrationTes
   void cashFlow_apportionsMixedCounterpartySections_withinSingleCashJournal() {
     String companyCode = "CR-CF-MIXED-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate entryDate = TestDateUtils.safeDate(company);
       Account cash = ensureAccount(company, "CASH-MIX", "Cash", AccountType.ASSET);

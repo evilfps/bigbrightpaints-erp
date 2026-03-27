@@ -123,7 +123,7 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
   @BeforeEach
   void init() {
     company = dataSeeder.ensureCompany(COMPANY_CODE, COMPANY_CODE + " Ltd");
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
     wip = ensureAccount("WIP", AccountType.ASSET);
     rmInventory = ensureAccount("INV-RM", AccountType.ASSET);
     packagingInventory = ensureAccount("INV-PACK", AccountType.ASSET);

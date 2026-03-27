@@ -85,7 +85,7 @@ class BulkPackingImportedCatalogPackagingIT extends AbstractIntegrationTest {
   void setUp() {
     companyCode = "M13-S2-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     bulkInventoryAccount = ensureAccount("INV-BULK-M13S2", "Bulk Inventory", AccountType.ASSET);
     childInventoryAccount = ensureAccount("INV-CHILD-M13S2", "Child Inventory", AccountType.ASSET);
     packagingInventoryAccount =

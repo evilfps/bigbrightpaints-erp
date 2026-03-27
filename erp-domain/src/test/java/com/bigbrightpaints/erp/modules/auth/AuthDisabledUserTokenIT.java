@@ -35,7 +35,7 @@ class AuthDisabledUserTokenIT extends AbstractIntegrationTest {
   void seedUser() {
     dataSeeder.ensureUser(
         USER_EMAIL, USER_PASSWORD, "Disabled User", COMPANY_CODE, java.util.List.of("ROLE_ADMIN"));
-    UserAccount user = userAccountRepository.findByEmailIgnoreCase(USER_EMAIL).orElseThrow();
+    UserAccount user = scopedUser();
     user.setEnabled(true);
     user.setPasswordHash(passwordEncoder.encode(USER_PASSWORD));
     user.setFailedLoginAttempts(0);
@@ -47,7 +47,7 @@ class AuthDisabledUserTokenIT extends AbstractIntegrationTest {
   void disabledUserToken_isRejectedEvenWhenJwtStillValid() {
     String token = loginToken();
 
-    UserAccount user = userAccountRepository.findByEmailIgnoreCase(USER_EMAIL).orElseThrow();
+    UserAccount user = scopedUser();
     user.setEnabled(false);
     userAccountRepository.save(user);
 
@@ -62,7 +62,7 @@ class AuthDisabledUserTokenIT extends AbstractIntegrationTest {
 
   @Test
   void disabledUser_cannotLoginAndReceivesAuthDisabledErrorCode() {
-    UserAccount user = userAccountRepository.findByEmailIgnoreCase(USER_EMAIL).orElseThrow();
+    UserAccount user = scopedUser();
     user.setEnabled(false);
     userAccountRepository.save(user);
 
@@ -90,7 +90,7 @@ class AuthDisabledUserTokenIT extends AbstractIntegrationTest {
     Map<String, Object> loginPayload = loginPayload();
     String refreshToken = loginPayload.get("refreshToken").toString();
 
-    UserAccount user = userAccountRepository.findByEmailIgnoreCase(USER_EMAIL).orElseThrow();
+    UserAccount user = scopedUser();
     user.setEnabled(false);
     userAccountRepository.save(user);
 
@@ -108,6 +108,12 @@ class AuthDisabledUserTokenIT extends AbstractIntegrationTest {
 
   private String loginToken() {
     return loginPayload().get("accessToken").toString();
+  }
+
+  private UserAccount scopedUser() {
+    return userAccountRepository
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(USER_EMAIL, COMPANY_CODE)
+        .orElseThrow();
   }
 
   private Map<String, Object> loginPayload() {

@@ -372,8 +372,7 @@ class PurchasingServiceTest {
     purchaseLine.setQuantity(BigDecimal.valueOf(200));
     purchase.getLines().add(purchaseLine);
     when(purchaseRepository.lockByCompanyAndId(company, 30L)).thenReturn(Optional.of(purchase));
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     when(companyClock.today(company)).thenReturn(LocalDate.now());
     when(accountingFacade.postPurchaseReturn(
             any(), any(), any(), any(), any(), any(), any(), any()))
@@ -418,8 +417,7 @@ class PurchasingServiceTest {
     purchaseLine.setQuantity(BigDecimal.TEN);
     purchase.getLines().add(purchaseLine);
     when(purchaseRepository.lockByCompanyAndId(company, 40L)).thenReturn(Optional.of(purchase));
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     when(companyClock.today(company)).thenReturn(LocalDate.now());
 
     JournalEntryDto journalDto = dummyJournal("PRN-SUP001-ABC123");
@@ -475,8 +473,7 @@ class PurchasingServiceTest {
     purchaseLine.setReturnedQuantity(BigDecimal.valueOf(8));
     purchase.getLines().add(purchaseLine);
     when(purchaseRepository.lockByCompanyAndId(company, 50L)).thenReturn(Optional.of(purchase));
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     when(companyClock.today(company)).thenReturn(LocalDate.now());
     when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
             company, "PURCHASE_RETURN", "PRN-TEST-0001"))
@@ -513,8 +510,7 @@ class PurchasingServiceTest {
     purchaseLine.setQuantity(BigDecimal.TEN);
     purchase.getLines().add(purchaseLine);
     when(purchaseRepository.lockByCompanyAndId(company, 60L)).thenReturn(Optional.of(purchase));
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     when(companyClock.today(company)).thenReturn(LocalDate.now());
     when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
             company, "PURCHASE_RETURN", "PRN-TEST-0001"))
@@ -568,8 +564,7 @@ class PurchasingServiceTest {
     purchaseLine.setQuantity(BigDecimal.ONE);
     purchase.getLines().add(purchaseLine);
     when(purchaseRepository.lockByCompanyAndId(company, 61L)).thenReturn(Optional.of(purchase));
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     when(companyClock.today(company)).thenReturn(LocalDate.now());
     when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
             company, "PURCHASE_RETURN", "PRN-TEST-0001"))
@@ -628,8 +623,7 @@ class PurchasingServiceTest {
     when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-002"))
         .thenReturn(Optional.empty());
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     GoodsReceipt goodsReceipt = stubGoodsReceipt(300L, 200L, BigDecimal.TEN, BigDecimal.valueOf(5));
 
     JournalEntry journalEntry = new JournalEntry();
@@ -681,8 +675,7 @@ class PurchasingServiceTest {
     when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-003"))
         .thenReturn(Optional.empty());
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     GoodsReceipt goodsReceipt = stubGoodsReceipt(301L, 201L, BigDecimal.TEN, BigDecimal.valueOf(5));
 
     JournalEntryDto journalDto = dummyJournal("RMP-SUP001-INV003", 999L);
@@ -735,8 +728,7 @@ class PurchasingServiceTest {
     when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-003A"))
         .thenReturn(Optional.empty());
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     stubGoodsReceipt(311L, 211L, BigDecimal.TEN, BigDecimal.valueOf(5));
 
     RawMaterialPurchaseRequest request =
@@ -775,8 +767,7 @@ class PurchasingServiceTest {
     when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-003B"))
         .thenReturn(Optional.empty());
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     stubGoodsReceipt(312L, 212L, BigDecimal.TEN, new BigDecimal("5.90"));
 
     rawMaterial.setGstRate(BigDecimal.ZERO);
@@ -816,8 +807,7 @@ class PurchasingServiceTest {
     when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-004"))
         .thenReturn(Optional.empty());
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     GoodsReceipt goodsReceipt =
         stubGoodsReceipt(302L, 202L, new BigDecimal("10"), new BigDecimal("5.00"));
 
@@ -878,8 +868,7 @@ class PurchasingServiceTest {
     when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-004A"))
         .thenReturn(Optional.empty());
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     stubGoodsReceipt(305L, 205L, new BigDecimal("10"), new BigDecimal("5.00"));
 
     JournalEntryDto journalDto = dummyJournal("RMP-SUP001-INV004A", 1004L);
@@ -938,8 +927,7 @@ class PurchasingServiceTest {
     when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-004B"))
         .thenReturn(Optional.empty());
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     stubGoodsReceipt(306L, 206L, new BigDecimal("10"), new BigDecimal("5.00"));
 
     RawMaterialPurchaseRequest request =
@@ -977,8 +965,7 @@ class PurchasingServiceTest {
     when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-004C"))
         .thenReturn(Optional.empty());
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     stubGoodsReceipt(307L, 207L, new BigDecimal("10"), new BigDecimal("5.00"));
 
     RawMaterialPurchaseRequest request =
@@ -1016,8 +1003,7 @@ class PurchasingServiceTest {
     when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-005"))
         .thenReturn(Optional.empty());
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     GoodsReceipt goodsReceipt =
         stubGoodsReceipt(303L, 203L, new BigDecimal("10"), new BigDecimal("5.90"));
 
@@ -1078,8 +1064,7 @@ class PurchasingServiceTest {
     when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-006"))
         .thenReturn(Optional.empty());
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     GoodsReceipt goodsReceipt =
         stubGoodsReceipt(304L, 204L, new BigDecimal("3"), new BigDecimal("1.99"));
 
@@ -1140,8 +1125,7 @@ class PurchasingServiceTest {
 
     RawMaterial privateMaterial =
         buildRawMaterial(21L, "Private Material", InventoryType.PRIVATE, BigDecimal.ZERO, 201L);
-    when(rawMaterialRepository.lockByCompanyAndId(company, 21L))
-        .thenReturn(Optional.of(privateMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 21L)).thenReturn(privateMaterial);
     GoodsReceipt goodsReceipt =
         stubGoodsReceiptForMaterial(
             privateMaterial, 305L, 205L, BigDecimal.TEN, BigDecimal.valueOf(5));
@@ -1176,8 +1160,7 @@ class PurchasingServiceTest {
     when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-008"))
         .thenReturn(Optional.empty());
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     GoodsReceipt goodsReceipt = stubGoodsReceipt(306L, 206L, BigDecimal.TEN, BigDecimal.valueOf(5));
     rawMaterial.setGstRate(new BigDecimal("18.00"));
 
@@ -1211,13 +1194,11 @@ class PurchasingServiceTest {
     when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-009"))
         .thenReturn(Optional.empty());
-    when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
-        .thenReturn(Optional.of(rawMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
 
     RawMaterial privateMaterial =
         buildRawMaterial(21L, "Private Material", InventoryType.PRIVATE, BigDecimal.ZERO, 201L);
-    when(rawMaterialRepository.lockByCompanyAndId(company, 21L))
-        .thenReturn(Optional.of(privateMaterial));
+    when(companyEntityLookup.lockActiveRawMaterial(company, 21L)).thenReturn(privateMaterial);
 
     PurchaseOrder order =
         buildPurchaseOrder(207L, supplier, rawMaterial, BigDecimal.TEN, BigDecimal.valueOf(5));

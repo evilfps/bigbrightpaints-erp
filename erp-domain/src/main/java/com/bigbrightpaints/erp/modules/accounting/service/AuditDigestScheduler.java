@@ -40,7 +40,7 @@ public class AuditDigestScheduler {
         .forEach(
             company -> {
               try {
-                CompanyContextHolder.setCompanyId(company.getCode());
+                CompanyContextHolder.setCompanyCode(company.getCode());
                 LocalDate yesterday = companyClock.today(company).minusDays(1);
                 var digest = accountingService.auditDigest(yesterday, yesterday);
                 if (digest.entries().isEmpty()) {

@@ -76,7 +76,7 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
   void setUp() {
     companyCode = "RM-CAT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     inventoryAccount = ensureAccount("RM-INV", "Raw Material Inventory", AccountType.ASSET);
     alternateInventoryAccount =
         ensureAccount("RM-INV-ALT", "Raw Material Inventory Alt", AccountType.ASSET);

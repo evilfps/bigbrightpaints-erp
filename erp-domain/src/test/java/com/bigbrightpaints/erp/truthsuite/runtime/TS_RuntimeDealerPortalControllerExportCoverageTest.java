@@ -99,7 +99,7 @@ class TS_RuntimeDealerPortalControllerExportCoverageTest {
     when(company.getId()).thenReturn(42L);
     when(company.getCode()).thenReturn("ACME");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(userAccountRepository.findDistinctByCompanies_Id(42L)).thenReturn(List.of());
+    when(userAccountRepository.findByCompany_Id(42L)).thenReturn(List.of());
     when(tenantRuntimeEnforcementService.snapshot("ACME"))
         .thenReturn(
             new TenantRuntimeEnforcementService.TenantRuntimeSnapshot(

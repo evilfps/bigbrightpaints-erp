@@ -106,7 +106,7 @@ class CR_RawMaterialIntakeIdempotencyIT extends AbstractIntegrationTest {
       material = rawMaterialRepository.save(material);
     }
 
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
   }
 
   @AfterEach

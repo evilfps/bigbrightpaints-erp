@@ -93,7 +93,7 @@ class TenantRuntimeEnforcementServiceTest {
               return Optional.ofNullable(companiesByCode.get(code.trim().toUpperCase(Locale.ROOT)));
             });
     lenient()
-        .when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(anyLong()))
+        .when(userAccountRepository.countByCompany_IdAndEnabledTrue(anyLong()))
         .thenAnswer(
             invocation -> {
               Long companyId = invocation.getArgument(0, Long.class);
@@ -534,6 +534,18 @@ class TenantRuntimeEnforcementServiceTest {
   }
 
   @Test
+  void beginRequest_canonicalPolicyControlBypassesBlockedState_forPrivilegedActor() {
+    service.blockTenant("ACME", "incident-lock", "ops@bbp.com");
+
+    TenantRuntimeEnforcementService.TenantRequestAdmission policyAdmission =
+        service.beginRequest(
+            "ACME", "/api/v1/superadmin/tenants/1/limits", "PUT", "super-admin@bbp.com", true);
+
+    assertThat(policyAdmission.isAdmitted()).isTrue();
+    assertThat(policyAdmission.statusCode()).isEqualTo(HttpStatus.OK.value());
+  }
+
+  @Test
   void beginRequest_policyControlRequiresPrivilegedFlag() {
     service.holdTenant("ACME", "manual-hold", "ops@bbp.com");
 
@@ -659,12 +671,21 @@ class TenantRuntimeEnforcementServiceTest {
     TenantRuntimeEnforcementService.TenantRequestAdmission controlTrailingSlashAllowed =
         service.beginRequest(
             "ACME", "/api/v1/superadmin/tenants/1/limits///", "PUT", "ops@bbp.com", true);
+    TenantRuntimeEnforcementService.TenantRequestAdmission retiredCompanyPolicyControl =
+        service.beginRequest(
+            "ACME",
+            "/api/v1/companies/1/tenant-runtime/policy///",
+            "PUT",
+            "ops@bbp.com",
+            true);
     TenantRuntimeEnforcementService.TenantRequestAdmission missingPathRejected =
         service.beginRequest("ACME", null, "PUT", "ops@bbp.com", true);
 
     assertThat(blankMethodRejected.isAdmitted()).isFalse();
     assertThat(blankMethodRejected.statusCode()).isEqualTo(HttpStatus.LOCKED.value());
     assertThat(controlTrailingSlashAllowed.isAdmitted()).isTrue();
+    assertThat(retiredCompanyPolicyControl.isAdmitted()).isFalse();
+    assertThat(retiredCompanyPolicyControl.statusCode()).isEqualTo(HttpStatus.LOCKED.value());
     assertThat(missingPathRejected.isAdmitted()).isFalse();
     assertThat(missingPathRejected.statusCode()).isEqualTo(HttpStatus.LOCKED.value());
   }
@@ -678,6 +699,10 @@ class TenantRuntimeEnforcementServiceTest {
     assertThat(invokeIsPolicyControlRequest("/", "PUT", true)).isFalse();
     assertThat(
             invokeIsPolicyControlRequest("/api/v1/admin/tenant-runtime/policy///", " put ", true))
+        .isFalse();
+    assertThat(
+            invokeIsPolicyControlRequest(
+                "/api/v1/companies/1/tenant-runtime/policy///", " put ", true))
         .isFalse();
     assertThat(
             invokeIsPolicyControlRequest("/api/v1/superadmin/tenants/1/limits///", " put ", true))

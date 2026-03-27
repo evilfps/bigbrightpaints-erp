@@ -86,11 +86,11 @@ public class PasswordService {
   }
 
   private void revokeExistingSessions(UserAccount user) {
-    if (user == null || !StringUtils.hasText(user.getEmail())) {
+    if (user == null || user.getPublicId() == null) {
       return;
     }
-    tokenBlacklistService.revokeAllUserTokens(user.getEmail());
-    refreshTokenService.revokeAllForUser(user.getEmail());
+    tokenBlacklistService.revokeAllUserTokens(user.getPublicId().toString());
+    refreshTokenService.revokeAllForUser(user.getPublicId());
   }
 
   private void ensureNotReused(UserAccount user, String candidate) {

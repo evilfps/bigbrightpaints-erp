@@ -90,7 +90,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
                 new InventoryAdjustmentRequest.LineRequest(
                     fg.getId(), new BigDecimal("5"), new BigDecimal("12.50"), "Damaged batch")));
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     InventoryAdjustmentDto result = inventoryAdjustmentService.createAdjustment(request);
     CompanyContextHolder.clear();
 
@@ -121,7 +121,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
                 new InventoryAdjustmentRequest.LineRequest(
                     fg.getId(), new BigDecimal("4"), new BigDecimal("10.00"), "Damaged")));
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     InventoryAdjustmentDto first = inventoryAdjustmentService.createAdjustment(baseRequest);
     InventoryAdjustmentDto second = inventoryAdjustmentService.createAdjustment(baseRequest);
     CompanyContextHolder.clear();
@@ -145,7 +145,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
                 new InventoryAdjustmentRequest.LineRequest(
                     fg.getId(), new BigDecimal("5"), new BigDecimal("10.00"), "Damaged")));
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     assertThatThrownBy(() -> inventoryAdjustmentService.createAdjustment(mismatch))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Idempotency key already used");
@@ -181,7 +181,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
             Duration.ofSeconds(30),
             idx ->
                 () -> {
-                  CompanyContextHolder.setCompanyId(companyCode);
+                  CompanyContextHolder.setCompanyCode(companyCode);
                   try {
                     return inventoryAdjustmentService.createAdjustment(request);
                   } finally {
@@ -250,7 +250,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
                 new InventoryAdjustmentRequest.LineRequest(
                     fg.getId(), new BigDecimal("2"), new BigDecimal("10.00"), "WAC adjustment")));
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     InventoryAdjustmentDto first = inventoryAdjustmentService.createAdjustment(request);
     CompanyContextHolder.clear();
 
@@ -264,7 +264,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
     assertThat(olderAfterFirst.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("1"));
     assertThat(olderAfterFirst.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("1"));
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     InventoryAdjustmentDto second = inventoryAdjustmentService.createAdjustment(request);
     CompanyContextHolder.clear();
     assertThat(second.id()).isEqualTo(first.id());
@@ -327,7 +327,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
                     new BigDecimal("10.00"),
                     "WAC tie adjustment")));
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     InventoryAdjustmentDto first = inventoryAdjustmentService.createAdjustment(request);
     CompanyContextHolder.clear();
 
@@ -340,7 +340,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
     assertThat(secondBatchAfter.getQuantityTotal()).isEqualByComparingTo(new BigDecimal("3"));
     assertThat(secondBatchAfter.getQuantityAvailable()).isEqualByComparingTo(new BigDecimal("3"));
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     InventoryAdjustmentDto second = inventoryAdjustmentService.createAdjustment(request);
     CompanyContextHolder.clear();
     assertThat(second.id()).isEqualTo(first.id());
@@ -403,7 +403,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
     Locale previous = Locale.getDefault();
     Locale.setDefault(Locale.forLanguageTag("tr-TR"));
     try {
-      CompanyContextHolder.setCompanyId(companyCode);
+      CompanyContextHolder.setCompanyCode(companyCode);
       inventoryAdjustmentService.createAdjustment(request);
       CompanyContextHolder.clear();
     } finally {
@@ -449,7 +449,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
     SalesOrder order =
         createOrder(company, "SO-DISP-WAC-" + shortId(), fg.getProductCode(), new BigDecimal("2"));
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       finishedGoodsService.reserveForOrder(order);
       var postings = finishedGoodsService.markSlipDispatched(order.getId());
@@ -485,7 +485,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
 
   private Company bootstrapCompany(String companyCode) {
     dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     company.setTimezone("UTC");
     company.setBaseCurrency("INR");
@@ -500,7 +500,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
     Account revenue = ensureAccount(company, "REV", "Revenue", AccountType.REVENUE);
     Account tax = ensureAccount(company, "GST_OUT", "GST Output", AccountType.LIABILITY);
 
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     Company fresh = companyRepository.findById(company.getId()).orElseThrow();
     if (fresh.getDefaultInventoryAccountId() == null) {
       fresh.setDefaultInventoryAccountId(inventory.getId());
@@ -548,7 +548,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
 
   private FinishedGood ensureFinishedGood(
       Company company, String sku, Map<String, Account> accounts, String costingMethod) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     FinishedGoodRequest request =
         new FinishedGoodRequest(
             sku,
@@ -574,7 +574,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
 
   private void seedBatch(
       Company company, FinishedGood finishedGood, BigDecimal quantity, BigDecimal unitCost) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     finishedGoodsService.registerBatch(
         new FinishedGoodBatchRequest(
             finishedGood.getId(), "BATCH-" + shortId(), quantity, unitCost, Instant.now(), null));
@@ -589,7 +589,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
       BigDecimal unitCost,
       Instant manufacturedAt,
       LocalDate expiryDate) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     try {
       finishedGoodsService.registerBatch(
           new FinishedGoodBatchRequest(
@@ -683,7 +683,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
         createOrder(
             company, "SO-SEL-PAR-" + shortId(), finishedGood.getProductCode(), BigDecimal.ONE);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       finishedGoodsService.reserveForOrder(order);
     } finally {
@@ -723,7 +723,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
                     new BigDecimal("10.00"),
                     "selector parity adjustment")));
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       inventoryAdjustmentService.createAdjustment(request);
     } finally {

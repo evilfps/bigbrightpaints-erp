@@ -23,7 +23,7 @@ import org.springframework.http.ResponseEntity;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLog;
-import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -46,6 +46,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   private static final String TENANT_A = "AUTH-TENANT-A";
   private static final String TENANT_B = "AUTH-TENANT-B";
   private static final String ROOT_TENANT = "AUTH-ROOT";
+  private static final String PLATFORM_SCOPE = AuthScopeService.DEFAULT_PLATFORM_AUTH_CODE;
 
   private static final String ADMIN_EMAIL = "tenant-admin@bbp.com";
   private static final String ROLE_GUARD_ADMIN_EMAIL = "role-guard-admin@bbp.com";
@@ -60,6 +61,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
   @Autowired private CompanyRepository companyRepository;
 
+  @Autowired private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+
   @Autowired private EntityManager entityManager;
 
   @Autowired private UserAccountRepository userAccountRepository;
@@ -69,10 +72,6 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   @Autowired private PermissionRepository permissionRepository;
 
   @Autowired private RoleService roleService;
-
-  @Autowired private SystemSettingsRepository systemSettingsRepository;
-
-  @Autowired private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
 
   @BeforeEach
   void setUp() {
@@ -99,6 +98,12 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         "Super Admin",
         ROOT_TENANT,
         List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
+    dataSeeder.ensureUser(
+        SUPER_ADMIN_EMAIL,
+        PASSWORD,
+        "Platform Super Admin",
+        PLATFORM_SCOPE,
+        List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
     // Give super admin access to a regular tenant for delegated tenant-admin creation.
     dataSeeder.ensureUser(
         SUPER_ADMIN_EMAIL,
@@ -112,25 +117,24 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         "Hierarchy Super Admin",
         TENANT_A,
         List.of("ROLE_SUPER_ADMIN"));
-    resetSeededUserState(ADMIN_EMAIL);
-    resetSeededUserState(ROLE_GUARD_ADMIN_EMAIL);
-    resetSeededUserState(NON_PRIVILEGED_ADMIN_EMAIL);
-    resetSeededUserState("other-admin@bbp.com");
-    resetSeededUserState(SALES_SYNC_EMAIL);
-    resetSeededUserState(ACCOUNTING_SYNC_EMAIL);
-    resetSeededUserState(SUPER_ADMIN_EMAIL);
-    resetSeededUserState(SUPER_ADMIN_HIERARCHY_EMAIL);
+    resetSeededUserState(ADMIN_EMAIL, TENANT_A);
+    resetSeededUserState(ROLE_GUARD_ADMIN_EMAIL, TENANT_A);
+    resetSeededUserState(NON_PRIVILEGED_ADMIN_EMAIL, TENANT_A);
+    resetSeededUserState("other-admin@bbp.com", TENANT_B);
+    resetSeededUserState(SALES_SYNC_EMAIL, TENANT_A);
+    resetSeededUserState(ACCOUNTING_SYNC_EMAIL, TENANT_A);
+    resetSeededUserState(SUPER_ADMIN_EMAIL, ROOT_TENANT);
+    resetSeededUserState(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
+    resetSeededUserState(SUPER_ADMIN_EMAIL, TENANT_A);
+    resetSeededUserState(SUPER_ADMIN_HIERARCHY_EMAIL, TENANT_A);
     resetTenantLifecycle(TENANT_A);
     resetTenantLifecycle(TENANT_B);
     resetTenantLifecycle(ROOT_TENANT);
-    resetTenantRuntimePolicy(TENANT_A);
-    resetTenantRuntimePolicy(TENANT_B);
-    resetTenantRuntimePolicy(ROOT_TENANT);
   }
 
-  private void resetSeededUserState(String email) {
+  private void resetSeededUserState(String email, String companyCode) {
     userAccountRepository
-        .findByEmailIgnoreCase(email)
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(email, companyCode)
         .ifPresent(
             user -> {
               user.setEnabled(true);
@@ -149,28 +153,14 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
               company.setLifecycleState(CompanyLifecycleState.ACTIVE);
               company.setLifecycleReason(null);
               companyRepository.save(company);
-            });
-  }
-
-  private void resetTenantRuntimePolicy(String companyCode) {
-    companyRepository
-        .findByCodeIgnoreCase(companyCode)
-        .ifPresent(
-            company -> {
-              Long companyId = company.getId();
-              if (companyId == null) {
-                return;
-              }
-              systemSettingsRepository.deleteById("tenant.runtime.hold-state." + companyId);
-              systemSettingsRepository.deleteById("tenant.runtime.hold-reason." + companyId);
-              systemSettingsRepository.deleteById("tenant.runtime.max-active-users." + companyId);
-              systemSettingsRepository.deleteById(
-                  "tenant.runtime.max-requests-per-minute." + companyId);
-              systemSettingsRepository.deleteById(
-                  "tenant.runtime.max-concurrent-requests." + companyId);
-              systemSettingsRepository.deleteById("tenant.runtime.policy-reference." + companyId);
-              systemSettingsRepository.deleteById("tenant.runtime.policy-updated-at." + companyId);
-              tenantRuntimeEnforcementService.invalidatePolicyCache(companyCode);
+              tenantRuntimeEnforcementService.updatePolicy(
+                  company.getCode(),
+                  TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE,
+                  "AUTH_TENANT_AUTHORITY_IT_RESET",
+                  null,
+                  null,
+                  null,
+                  "AuthTenantAuthorityIT");
             });
   }
 
@@ -191,12 +181,13 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     assertThat(companyRepository.findByCodeIgnoreCase(newCode)).isEmpty();
-    assertThat(userAccountRepository.findByEmailIgnoreCase(firstAdminEmail)).isEmpty();
+    assertThat(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(firstAdminEmail, newCode))
+        .isEmpty();
   }
 
   @Test
   void super_admin_can_bootstrap_new_tenant() {
-    String token = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
+    String token = login(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
     String newCode = "TEN-ALLOW-" + System.nanoTime();
     String firstAdminEmail = "allowed-bootstrap-" + System.nanoTime() + "@bbp.com";
 
@@ -206,13 +197,16 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(
                 tenantOnboardingPayload("Allowed Bootstrap", newCode, firstAdminEmail),
-                jsonHeaders(token, ROOT_TENANT)),
+                jsonHeaders(token, PLATFORM_SCOPE)),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     Company saved = companyRepository.findByCodeIgnoreCase(newCode).orElseThrow();
     assertThat(saved.getCode()).isEqualTo(newCode);
-    assertThat(userAccountRepository.findByEmailIgnoreCase(firstAdminEmail)).isPresent();
+    assertThat(
+            userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+                firstAdminEmail, newCode))
+        .isPresent();
     @SuppressWarnings("unchecked")
     Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
     assertThat(data)
@@ -223,14 +217,12 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         .containsEntry("defaultAccountingPeriodCreated", true)
         .containsEntry("tenantAdminProvisioned", true);
     assertThat(data.get("adminEmail")).isEqualTo(firstAdminEmail);
-    assertThat(data.get("credentialsEmailSent")).isEqualTo(true);
-    assertThat(data.get("credentialsEmailedAt")).isNotNull();
-    assertThat(data.get("mainAdminUserId")).isNotNull();
+    assertThat(data).doesNotContainKeys("temporaryPassword", "adminTemporaryPassword");
   }
 
   @Test
   void super_admin_can_bootstrap_new_tenant_with_first_admin_credentials_provisioning() {
-    String token = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
+    String token = login(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
     String newCode = "TEN-ADM-" + System.nanoTime();
     String firstAdminEmail = "first-admin-" + System.nanoTime() + "@bbp.com";
     Map<String, Object> payload =
@@ -241,19 +233,25 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         rest.exchange(
             "/api/v1/superadmin/tenants/onboard",
             HttpMethod.POST,
-            new HttpEntity<>(payload, jsonHeaders(token, ROOT_TENANT)),
+            new HttpEntity<>(payload, jsonHeaders(token, PLATFORM_SCOPE)),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     Company savedCompany = companyRepository.findByCodeIgnoreCase(newCode).orElseThrow();
     assertThat(savedCompany.getDefaultGstRate()).isEqualByComparingTo("18");
     UserAccount firstAdmin =
-        userAccountRepository.findByEmailIgnoreCase(firstAdminEmail).orElseThrow();
+        userAccountRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(firstAdminEmail, newCode)
+            .orElseThrow();
     assertThat(firstAdmin.isMustChangePassword()).isTrue();
-    assertThat(firstAdmin.getCompanies())
-        .anyMatch(company -> company.getCode().equalsIgnoreCase(newCode));
+    assertThat(firstAdmin.getCompany()).extracting(Company::getCode).isEqualTo(newCode);
     assertThat(firstAdmin.getRoles())
         .anyMatch(role -> "ROLE_ADMIN".equalsIgnoreCase(role.getName()));
+    assertThat(savedCompany.getMainAdminUserId()).isEqualTo(firstAdmin.getId());
+    assertThat(savedCompany.getOnboardingAdminEmail()).isEqualTo(firstAdminEmail);
+    assertThat(savedCompany.getOnboardingAdminUserId()).isEqualTo(firstAdmin.getId());
+    assertThat(savedCompany.getOnboardingCoaTemplateCode()).isEqualTo("MANUFACTURING");
+    assertThat(savedCompany.getOnboardingCompletedAt()).isNotNull();
     @SuppressWarnings("unchecked")
     Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
     assertThat(data)
@@ -261,14 +259,12 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         .containsEntry("adminEmail", firstAdminEmail)
         .containsEntry("tenantAdminProvisioned", true)
         .containsEntry("templateCode", "MANUFACTURING");
-    assertThat(data.get("credentialsEmailSent")).isEqualTo(true);
-    assertThat(data.get("credentialsEmailedAt")).isNotNull();
-    assertThat(data.get("mainAdminUserId")).isNotNull();
+    assertThat(data).doesNotContainKeys("temporaryPassword", "adminTemporaryPassword");
   }
 
   @Test
   void super_admin_can_reset_tenant_admin_password_for_support() {
-    String superToken = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
+    String superToken = login(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
     Long tenantAId =
         companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
 
@@ -277,12 +273,23 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
             "/api/v1/superadmin/tenants/" + tenantAId + "/support/admin-password-reset",
             HttpMethod.POST,
             new HttpEntity<>(
-                Map.of("adminEmail", ADMIN_EMAIL), jsonHeaders(superToken, ROOT_TENANT)),
+                Map.of("adminEmail", ADMIN_EMAIL), jsonHeaders(superToken, PLATFORM_SCOPE)),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    UserAccount admin = userAccountRepository.findByEmailIgnoreCase(ADMIN_EMAIL).orElseThrow();
-    assertThat(admin.isMustChangePassword()).isTrue();
+    assertThat(response.getBody()).isNotNull();
+    @SuppressWarnings("unchecked")
+    Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+    assertThat(data)
+        .containsEntry("companyId", tenantAId.intValue())
+        .containsEntry("companyCode", TENANT_A)
+        .containsEntry("adminEmail", ADMIN_EMAIL)
+        .containsEntry("status", "reset-link-emailed");
+    UserAccount admin =
+        userAccountRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(ADMIN_EMAIL, TENANT_A)
+            .orElseThrow();
+    assertThat(admin.isMustChangePassword()).isFalse();
   }
 
   @Test
@@ -293,9 +300,9 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         rootOnlySuperAdminEmail,
         PASSWORD,
         "Root Only Support Super Admin",
-        ROOT_TENANT,
+        PLATFORM_SCOPE,
         List.of("ROLE_SUPER_ADMIN"));
-    String superToken = login(rootOnlySuperAdminEmail, ROOT_TENANT);
+    String superToken = login(rootOnlySuperAdminEmail, PLATFORM_SCOPE);
     Long tenantAId =
         companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
 
@@ -304,7 +311,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
             "/api/v1/superadmin/tenants/" + tenantAId + "/support/admin-password-reset",
             HttpMethod.POST,
             new HttpEntity<>(
-                Map.of("adminEmail", ADMIN_EMAIL), jsonHeaders(superToken, ROOT_TENANT)),
+                Map.of("adminEmail", ADMIN_EMAIL), jsonHeaders(superToken, PLATFORM_SCOPE)),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -394,10 +401,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
   @Test
   void
-      super_admin_can_suspend_and_deactivate_tenant_and_suspended_lifecycle_allows_authenticated_reads_until_deactivated()
+      super_admin_can_hold_and_block_tenant_and_hold_lifecycle_allows_authenticated_reads_until_blocked()
           throws InterruptedException {
     String adminToken = login(ADMIN_EMAIL, TENANT_A);
-    String superToken = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
+    String superToken = login(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
     Long tenantAId =
         companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
 
@@ -411,7 +418,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     String holdReason = "Compliance review in progress";
     ResponseEntity<Map> holdResponse =
-        updateLifecycleState(tenantAId, superToken, ROOT_TENANT, "SUSPENDED", holdReason);
+        updateLifecycleState(tenantAId, superToken, PLATFORM_SCOPE, "SUSPENDED", holdReason);
     assertThat(holdResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     @SuppressWarnings("unchecked")
     Map<String, Object> holdData = (Map<String, Object>) holdResponse.getBody().get("data");
@@ -441,7 +448,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     String blockReason = "Critical security incident";
     ResponseEntity<Map> blockResponse =
-        updateLifecycleState(tenantAId, superToken, ROOT_TENANT, "DEACTIVATED", blockReason);
+        updateLifecycleState(tenantAId, superToken, PLATFORM_SCOPE, "DEACTIVATED", blockReason);
     assertThat(blockResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
     AuditLog blockEvidence =
@@ -450,8 +457,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
             log ->
                 SUPER_ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
                     && TENANT_A.equalsIgnoreCase(log.getMetadata().get("targetCompanyCode"))
-                    && "DEACTIVATED"
-                        .equalsIgnoreCase(log.getMetadata().get("companyLifecycleState"))
+                    && "DEACTIVATED".equalsIgnoreCase(
+                        log.getMetadata().get("companyLifecycleState"))
                     && blockReason.equals(log.getMetadata().get("companyLifecycleReason")));
     assertThat(blockEvidence.getMetadata().get("lifecycleEvidence"))
         .isEqualTo("immutable-audit-log");
@@ -468,12 +475,12 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
   @Test
   void lifecycle_state_change_requires_reason_metadata() {
-    String superToken = login(SUPER_ADMIN_EMAIL, ROOT_TENANT);
+    String superToken = login(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
     Long tenantAId =
         companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
 
     ResponseEntity<Map> response =
-        updateLifecycleState(tenantAId, superToken, ROOT_TENANT, "SUSPENDED", " ");
+        updateLifecycleState(tenantAId, superToken, PLATFORM_SCOPE, "SUSPENDED", " ");
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
   }
 
@@ -492,12 +499,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 Map.of(
                     "email",
                     candidateEmail,
-                    "password",
-                    "ChangeMe123!",
                     "displayName",
                     "Tenant Admin Candidate",
-                    "companyIds",
-                    List.of(tenantAId),
+                    "companyId",
+                    tenantAId,
                     "roles",
                     List.of("ROLE_ADMIN")),
                 jsonHeaders(token, TENANT_A)),
@@ -532,12 +537,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 Map.of(
                     "email",
                     candidateEmail,
-                    "password",
-                    "ChangeMe123!",
                     "displayName",
                     "Created By Super Admin",
-                    "companyIds",
-                    List.of(tenantAId),
+                    "companyId",
+                    tenantAId,
                     "roles",
                     List.of("ROLE_ADMIN")),
                 jsonHeaders(token, TENANT_A)),
@@ -559,9 +562,9 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         rootOnlySuperAdminEmail,
         PASSWORD,
         "Root Only Create Super Admin",
-        ROOT_TENANT,
+        PLATFORM_SCOPE,
         List.of("ROLE_SUPER_ADMIN"));
-    String token = login(rootOnlySuperAdminEmail, ROOT_TENANT);
+    String token = login(rootOnlySuperAdminEmail, PLATFORM_SCOPE);
     Long tenantAId =
         companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
     String candidateEmail = "root-super-candidate-" + System.nanoTime() + "@bbp.com";
@@ -574,15 +577,13 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 Map.of(
                     "email",
                     candidateEmail,
-                    "password",
-                    "ChangeMe123!",
                     "displayName",
                     "Created By Root Super Admin",
-                    "companyIds",
-                    List.of(tenantAId),
+                    "companyId",
+                    tenantAId,
                     "roles",
                     List.of("ROLE_ADMIN")),
-                jsonHeaders(token, ROOT_TENANT)),
+                jsonHeaders(token, PLATFORM_SCOPE)),
             Map.class);
 
     assertControlledAccessDenied(
@@ -626,7 +627,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void tenant_detail_endpoint_is_super_admin_only() {
+  void tenant_metrics_endpoint_is_super_admin_only() {
     Long tenantAId =
         companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
 
@@ -639,12 +640,12 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
             Map.class);
     assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
-    String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
+    String superAdminToken = login(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
     ResponseEntity<Map> superAdminResponse =
         rest.exchange(
             "/api/v1/superadmin/tenants/" + tenantAId,
             HttpMethod.GET,
-            new HttpEntity<>(jsonHeaders(superAdminToken, TENANT_A)),
+            new HttpEntity<>(jsonHeaders(superAdminToken, PLATFORM_SCOPE)),
             Map.class);
     assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -654,6 +655,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     Map<String, Object> data = (Map<String, Object>) body.get("data");
     assertThat(data).isNotNull();
     assertThat(data.get("companyCode")).isEqualTo(TENANT_A);
+    assertThat(data).containsKeys("lifecycleState", "limits", "usage", "availableActions");
     @SuppressWarnings("unchecked")
     Map<String, Object> limits = (Map<String, Object>) data.get("limits");
     @SuppressWarnings("unchecked")
@@ -665,17 +667,15 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
             "quotaMaxStorageBytes",
             "quotaMaxConcurrentRequests",
             "quotaSoftLimitEnabled",
-            "quotaHardLimitEnabled")
-        .doesNotContainKeys("quotaMaxConcurrentSessions", "apiRateLimitPerMinute");
+            "quotaHardLimitEnabled");
     assertThat(usage)
         .containsKeys(
             "activeUserCount",
             "apiActivityCount",
             "apiErrorCount",
             "apiErrorRateInBasisPoints",
-            "auditStorageBytes",
-            "currentConcurrentRequests")
-        .doesNotContainKeys("distinctSessionCount", "storageBytes");
+            "currentConcurrentRequests",
+            "auditStorageBytes");
     Number apiActivityCount = (Number) usage.get("apiActivityCount");
     Number apiErrorCount = (Number) usage.get("apiErrorCount");
     Number apiErrorRateInBasisPoints = (Number) usage.get("apiErrorRateInBasisPoints");
@@ -699,21 +699,22 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         rootOnlySuperAdminEmail,
         PASSWORD,
         "Root Only Path Super Admin",
-        ROOT_TENANT,
+        PLATFORM_SCOPE,
         List.of("ROLE_SUPER_ADMIN"));
     Long tenantAId =
         companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
-    String token = login(rootOnlySuperAdminEmail, ROOT_TENANT);
+    String token = login(rootOnlySuperAdminEmail, PLATFORM_SCOPE);
 
     ResponseEntity<Map> holdResponse =
-        updateLifecycleState(tenantAId, token, ROOT_TENANT, "SUSPENDED", "path-binding-hardening");
+        updateLifecycleState(
+            tenantAId, token, PLATFORM_SCOPE, "SUSPENDED", "path-binding-hardening");
     assertThat(holdResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
     ResponseEntity<Map> metricsResponse =
         rest.exchange(
             "/api/v1/superadmin/tenants/" + tenantAId,
             HttpMethod.GET,
-            new HttpEntity<>(jsonHeaders(token, ROOT_TENANT)),
+            new HttpEntity<>(jsonHeaders(token, PLATFORM_SCOPE)),
             Map.class);
     assertThat(metricsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     @SuppressWarnings("unchecked")
@@ -723,29 +724,35 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     Map<String, Object> metricsData = (Map<String, Object>) metricsBody.get("data");
     assertThat(metricsData).isNotNull();
     assertThat(metricsData.get("companyCode")).isEqualTo(TENANT_A);
-    assertThat(metricsData.get("lifecycleState")).isEqualTo("SUSPENDED");
 
     ResponseEntity<Map> restoreResponse =
         updateLifecycleState(
-            tenantAId, token, ROOT_TENANT, "ACTIVE", "path-binding-hardening-restore");
+            tenantAId, token, PLATFORM_SCOPE, "ACTIVE", "path-binding-hardening-restore");
     assertThat(restoreResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
   }
 
   @Test
-  void tenant_limits_update_is_super_admin_only() {
+  void tenant_configuration_update_is_super_admin_only() {
     Long tenantAId =
         companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
 
     String adminToken = login(ADMIN_EMAIL, TENANT_A);
     ResponseEntity<Map> adminResponse =
-        updateTenantLimits(
-            tenantAId, adminToken, TENANT_A, 120L, 3_000L, 2_097_152L, 7L, false, true);
+        updateTenantLimits(tenantAId, adminToken, TENANT_A, null, null, null, null, null, null);
     assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
-    String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
+    String superAdminToken = login(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
     ResponseEntity<Map> superAdminResponse =
         updateTenantLimits(
-            tenantAId, superAdminToken, TENANT_A, 120L, 3_000L, 2_097_152L, 7L, false, true);
+            tenantAId,
+            superAdminToken,
+            PLATFORM_SCOPE,
+            120L,
+            3_000L,
+            2_097_152L,
+            7L,
+            false,
+            true);
     assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
   }
 
@@ -754,13 +761,13 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     Long tenantAId =
         companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
     String adminToken = login(ADMIN_EMAIL, TENANT_A);
-    String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
+    String superAdminToken = login(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
 
     ResponseEntity<Map> configureSoftOnly =
         updateTenantLimits(
             tenantAId,
             superAdminToken,
-            TENANT_A,
+            PLATFORM_SCOPE,
             1L,
             1_000_000L,
             1_000_000_000L,
@@ -779,7 +786,15 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> resetResponse =
         updateTenantLimits(
-            tenantAId, superAdminToken, TENANT_A, 120L, 3_000L, 2_097_152L, 7L, false, true);
+            tenantAId,
+            superAdminToken,
+            PLATFORM_SCOPE,
+            120L,
+            3_000L,
+            2_097_152L,
+            7L,
+            false,
+            true);
     assertThat(resetResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
   }
 
@@ -804,16 +819,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     assertThat(unauthenticatedWithHeader.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
     ResponseEntity<Map> idorUpdate =
-        rest.exchange(
-            "/api/v1/superadmin/tenants/" + tenantBId + "/limits",
-            HttpMethod.PUT,
-            new HttpEntity<>(
-                Map.of(
-                    "quotaMaxActiveUsers", 25,
-                    "quotaMaxApiRequests", 500,
-                    "quotaMaxConcurrentRequests", 5),
-                jsonHeaders(token, TENANT_A)),
-            Map.class);
+        updateLifecycleState(
+            tenantBId, token, TENANT_A, "SUSPENDED", "cross-tenant-lifecycle-attempt");
     assertThat(idorUpdate.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
   }
 
@@ -889,10 +896,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
   @Test
   void startupRoleSynchronization_realignsDispatchConfirmAuthoritiesForSystemRoles() {
-    addRolePermission("ROLE_SALES", "dispatch.confirm");
     removeRolePermission("ROLE_ADMIN", "dispatch.confirm");
     removeRolePermission("ROLE_ACCOUNTING", "dispatch.confirm");
     removeRolePermission("ROLE_FACTORY", "dispatch.confirm");
+    addRolePermission("ROLE_SALES", "dispatch.confirm");
 
     int synchronizedRoles = roleService.synchronizeSystemRoles();
 
@@ -926,12 +933,10 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                 Map.of(
                     "email",
                     candidateEmail,
-                    "password",
-                    "ChangeMe123!",
                     "displayName",
                     "Sales Operator",
-                    "companyIds",
-                    List.of(tenantAId),
+                    "companyId",
+                    tenantAId,
                     "roles",
                     List.of("ROLE_SALES")),
                 jsonHeaders(token, TENANT_A)),
@@ -955,7 +960,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     String token = login(ADMIN_EMAIL, TENANT_A);
     Long foreignUserId =
         userAccountRepository
-            .findByEmailIgnoreCase("other-admin@bbp.com")
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("other-admin@bbp.com", TENANT_B)
             .map(UserAccount::getId)
             .orElseThrow();
     long missingUserId = foreignUserId + 10_000L;
@@ -1045,7 +1050,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     String token = login(SUPER_ADMIN_EMAIL, TENANT_A);
     Long foreignUserId =
         userAccountRepository
-            .findByEmailIgnoreCase("other-admin@bbp.com")
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("other-admin@bbp.com", TENANT_B)
             .map(UserAccount::getId)
             .orElseThrow();
 
@@ -1321,8 +1326,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     if (present) {
       role.getPermissions().add(permission);
     } else {
-      role.getPermissions()
-          .removeIf(existing -> permissionCode.equalsIgnoreCase(existing.getCode()));
+      role.getPermissions().removeIf(existing -> permissionCode.equalsIgnoreCase(existing.getCode()));
     }
     roleRepository.save(role);
   }

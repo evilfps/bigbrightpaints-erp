@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.auth.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 import java.time.Clock;
@@ -13,8 +14,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.bigbrightpaints.erp.core.security.CryptoService;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.bigbrightpaints.erp.modules.auth.exception.InvalidMfaException;
 import com.bigbrightpaints.erp.modules.auth.exception.MfaRequiredException;
 import com.bigbrightpaints.erp.test.support.TotpTestUtils;
 
@@ -59,6 +62,56 @@ class MfaServiceTest {
 
     assertDoesNotThrow(() -> mfaService.verifyDuringLogin(user, code, null));
     verifyNoInteractions(repository);
+  }
+
+  @Test
+  void beginEnrollment_buildsScopeAwareQrLabel() {
+    UserAccount user = new UserAccount("user@bbp.dev", "MOCK", "hash", "User");
+
+    MfaService.MfaEnrollment enrollment = mfaService.beginEnrollment(user);
+
+    assertThat(enrollment.qrUri()).contains("user");
+    assertThat(enrollment.qrUri()).contains("MOCK");
+  }
+
+  @Test
+  void disable_acceptsRecoveryCodeAndClearsEnrollment() {
+    UserAccount user = userWithSecret();
+    user.setMfaRecoveryCodeHashes(java.util.List.of("hash-1"));
+    when(passwordEncoder.matches("RECOVERY1", "hash-1")).thenReturn(true);
+
+    mfaService.disable(user, null, "RECOVERY1");
+
+    assertThat(user.isMfaEnabled()).isFalse();
+    assertThat(user.getMfaSecret()).isNull();
+    assertThat(user.getMfaRecoveryCodeHashes()).isEmpty();
+    verify(repository).save(user);
+  }
+
+  @Test
+  void verifyDuringLogin_acceptsRecoveryCodeAndPersistsConsumption() {
+    UserAccount user = userWithSecret();
+    user.setMfaRecoveryCodeHashes(java.util.List.of("hash-1"));
+    when(passwordEncoder.matches("RECOVERY1", "hash-1")).thenReturn(true);
+
+    assertDoesNotThrow(() -> mfaService.verifyDuringLogin(user, null, " RECOVERY1 "));
+
+    verify(repository).save(user);
+    assertThat(user.getMfaRecoveryCodeHashes()).isEmpty();
+  }
+
+  @Test
+  void verifyDuringLogin_rejectsInvalidVerifier() {
+    UserAccount user = userWithSecret();
+
+    assertThrows(InvalidMfaException.class, () -> mfaService.verifyDuringLogin(user, "000000", null));
+  }
+
+  @Test
+  void activate_requiresValidTotp() {
+    UserAccount user = userWithSecret();
+
+    assertThrows(ApplicationException.class, () -> mfaService.activate(user, "000000"));
   }
 
   private UserAccount userWithSecret() {

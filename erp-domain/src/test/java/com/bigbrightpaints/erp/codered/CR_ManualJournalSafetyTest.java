@@ -120,7 +120,7 @@ class CR_ManualJournalSafetyTest extends AbstractIntegrationTest {
             Duration.ofSeconds(30),
             threadIndex ->
                 () -> {
-                  CompanyContextHolder.setCompanyId(companyCode);
+                  CompanyContextHolder.setCompanyCode(companyCode);
                   try {
                     return accountingService.createManualJournalEntry(sanitized, idempotencyKey);
                   } finally {
@@ -188,7 +188,7 @@ class CR_ManualJournalSafetyTest extends AbstractIntegrationTest {
                 new JournalEntryRequest.JournalLineRequest(
                     expense.getId(), "Cr", BigDecimal.ZERO, new BigDecimal("99.90"))));
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     assertThatThrownBy(
             () -> accountingService.createManualJournalEntry(invalidUnbalanced, idempotencyKey))
         .isInstanceOf(RuntimeException.class);
@@ -214,7 +214,7 @@ class CR_ManualJournalSafetyTest extends AbstractIntegrationTest {
                 new JournalEntryRequest.JournalLineRequest(
                     expense.getId(), "Cr", BigDecimal.ZERO, new BigDecimal("100.00"))));
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     JournalEntryDto first = accountingService.createManualJournalEntry(valid, idempotencyKey);
     JournalEntryDto second = accountingService.createManualJournalEntry(valid, idempotencyKey);
     CompanyContextHolder.clear();
@@ -227,7 +227,7 @@ class CR_ManualJournalSafetyTest extends AbstractIntegrationTest {
 
   private Company bootstrapCompany(String companyCode) {
     dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     company.setTimezone("UTC");
     company.setBaseCurrency("INR");

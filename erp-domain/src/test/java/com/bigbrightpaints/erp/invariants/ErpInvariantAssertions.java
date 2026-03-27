@@ -352,9 +352,9 @@ public class ErpInvariantAssertions {
   }
 
   private <T> T withCompanyContext(String companyCode, java.util.concurrent.Callable<T> work) {
-    String previous = CompanyContextHolder.getCompanyId();
+    String previous = CompanyContextHolder.getCompanyCode();
     try {
-      CompanyContextHolder.setCompanyId(companyCode);
+      CompanyContextHolder.setCompanyCode(companyCode);
       return work.call();
     } catch (Exception ex) {
       throw new AssertionError("Failed to resolve balances for company " + companyCode, ex);
@@ -362,7 +362,7 @@ public class ErpInvariantAssertions {
       if (previous == null) {
         CompanyContextHolder.clear();
       } else {
-        CompanyContextHolder.setCompanyId(previous);
+        CompanyContextHolder.setCompanyCode(previous);
       }
     }
   }

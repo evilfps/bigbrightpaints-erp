@@ -9,7 +9,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
@@ -28,7 +27,6 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.admin.dto.TenantRuntimeMetricsDto;
-import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -78,8 +76,7 @@ class TenantRuntimePolicyServiceTest {
                 2,
                 3,
                 2L));
-    when(userAccountRepository.findDistinctByCompanies_Id(42L))
-        .thenReturn(List.of(user(true), user(false), user(true)));
+    when(userAccountRepository.countByCompany_Id(42L)).thenReturn(3L);
 
     TenantRuntimeMetricsDto metrics = service.metrics();
 
@@ -96,6 +93,8 @@ class TenantRuntimePolicyServiceTest {
     assertThat(metrics.inFlightRequests()).isEqualTo(3);
     assertThat(metrics.policyReference()).isEqualTo("bootstrap");
     assertThat(metrics.policyUpdatedAt()).isNull();
+    verify(userAccountRepository).countByCompany_Id(42L);
+    verify(userAccountRepository, never()).findByCompany_Id(42L);
   }
 
   @Test
@@ -187,14 +186,6 @@ class TenantRuntimePolicyServiceTest {
     result.setCode(code);
     return result;
   }
-
-  private UserAccount user(boolean enabled) {
-    String email = enabled ? "enabled-user@example.com" : "disabled-user@example.com";
-    UserAccount account = new UserAccount(email, "hash", "User");
-    account.setEnabled(enabled);
-    return account;
-  }
-
   private TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot(
       TenantRuntimeEnforcementService.TenantRuntimeState state,
       String reasonCode,

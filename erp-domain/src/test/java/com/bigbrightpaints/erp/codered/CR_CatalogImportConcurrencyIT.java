@@ -57,7 +57,7 @@ class CR_CatalogImportConcurrencyIT extends AbstractIntegrationTest {
             Duration.ofSeconds(30),
             threadIndex ->
                 () -> {
-                  CompanyContextHolder.setCompanyId(companyCode);
+                  CompanyContextHolder.setCompanyCode(companyCode);
                   try {
                     return productionCatalogService.importCatalog(
                         csvFile(), keyBase + "-" + threadIndex);

@@ -42,7 +42,7 @@ class ProductionCatalogDiscountDefaultRegressionIT extends AbstractIntegrationTe
   @BeforeEach
   void setUp() {
     company = dataSeeder.ensureCompany(COMPANY_CODE, COMPANY_CODE + " Ltd");
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
 
     inventoryAccount = ensureAccount("INV", "Inventory", AccountType.ASSET);
     cogsAccount = ensureAccount("COGS", "COGS", AccountType.COGS);

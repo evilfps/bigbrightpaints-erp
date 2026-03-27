@@ -5,4 +5,4 @@ import java.util.List;
 import jakarta.validation.constraints.NotBlank;
 
 public record UpdateUserRequest(
-    @NotBlank String displayName, List<Long> companyIds, List<String> roles, Boolean enabled) {}
+    @NotBlank String displayName, Long companyId, List<String> roles, Boolean enabled) {}

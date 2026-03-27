@@ -9,6 +9,7 @@ com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeTenantRuntimeEnforcementTes
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimePasswordResetServiceExecutableCoverageTest
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeRefreshTokenServiceExecutableCoverageTest
 com.bigbrightpaints.erp.modules.company.service.TS_RuntimeCompanyServiceExecutableCoverageTest
+com.bigbrightpaints.erp.core.security.AuthScopeServiceTest
 com.bigbrightpaints.erp.modules.company.CompanyControllerIT
 com.bigbrightpaints.erp.modules.company.SuperAdminControllerIT
 com.bigbrightpaints.erp.modules.company.TenantOnboardingControllerTest
@@ -23,12 +24,23 @@ com.bigbrightpaints.erp.modules.company.service.SuperAdminTenantControlPlaneServ
 com.bigbrightpaints.erp.modules.company.service.TenantOnboardingServiceTest
 com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingServiceStandardJournalTest
+com.bigbrightpaints.erp.modules.auth.AuthControllerIT
+com.bigbrightpaints.erp.modules.auth.ProfileControllerIT
+com.bigbrightpaints.erp.modules.auth.AuthPlatformScopeCodeIT
 com.bigbrightpaints.erp.modules.auth.AuthTenantAuthorityIT
 com.bigbrightpaints.erp.modules.auth.TenantRuntimeEnforcementAuthIT
 com.bigbrightpaints.erp.modules.auth.AuthPasswordResetPublicContractIT
 com.bigbrightpaints.erp.modules.auth.CompanyContextFilterControlPlaneBindingTest
+com.bigbrightpaints.erp.modules.auth.service.AuthServiceAuditAttributionTest
 com.bigbrightpaints.erp.modules.auth.service.PasswordResetServiceTest
+com.bigbrightpaints.erp.modules.auth.service.PasswordServiceTest
+com.bigbrightpaints.erp.modules.auth.service.MfaServiceTest
+com.bigbrightpaints.erp.modules.auth.service.RefreshTokenServiceTest
+com.bigbrightpaints.erp.modules.auth.service.ScopedAccountBootstrapServiceIT
+com.bigbrightpaints.erp.modules.auth.service.ScopedAccountBootstrapServiceTest
 com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningServiceTest
+com.bigbrightpaints.erp.modules.auth.service.UserAccountDetailsServiceTest
+com.bigbrightpaints.erp.modules.auth.service.UserProfileServiceTest
 com.bigbrightpaints.erp.OpenApiSnapshotIT
 com.bigbrightpaints.erp.modules.admin.ChangelogControllerSecurityIT
 com.bigbrightpaints.erp.modules.admin.controller.AdminSettingsControllerTenantRuntimeContractTest
@@ -47,3 +59,4 @@ com.bigbrightpaints.erp.modules.rbac.service.RoleServiceTest
 com.bigbrightpaints.erp.modules.rbac.domain.SystemRoleTest
 com.bigbrightpaints.erp.modules.auth.SuperAdminTenantWorkflowIsolationIT
 com.bigbrightpaints.erp.orchestrator.OrchestratorControllerIT
+com.bigbrightpaints.erp.modules.company.controller.CompanyControllerTest

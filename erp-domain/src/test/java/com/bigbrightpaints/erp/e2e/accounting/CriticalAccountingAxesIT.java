@@ -133,7 +133,7 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
         "Axes Admin",
         COMPANY_CODE,
         List.of("ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_SALES", "ROLE_FACTORY"));
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
     company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
     company.setDefaultGstRate(BigDecimal.ZERO);
     ensureBaseAccounts();
@@ -524,7 +524,7 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
     CompletableFuture<JournalEntryDto> canonicalFuture =
         CompletableFuture.supplyAsync(
             () -> {
-              CompanyContextHolder.setCompanyId(COMPANY_CODE);
+              CompanyContextHolder.setCompanyCode(COMPANY_CODE);
               try {
                 return postSalesJournalWithRetry(orderNumber, today, base, tax, total, null);
               } finally {
@@ -535,7 +535,7 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
     CompletableFuture<JournalEntryDto> aliasFuture =
         CompletableFuture.supplyAsync(
             () -> {
-              CompanyContextHolder.setCompanyId(COMPANY_CODE);
+              CompanyContextHolder.setCompanyCode(COMPANY_CODE);
               try {
                 return postSalesJournalWithRetry(
                     orderNumber, today, base, tax, total, aliasReference);
@@ -644,7 +644,7 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
                 i ->
                     CompletableFuture.runAsync(
                         () -> {
-                          CompanyContextHolder.setCompanyId(COMPANY_CODE);
+                          CompanyContextHolder.setCompanyCode(COMPANY_CODE);
                           JournalEntryRequest request =
                               new JournalEntryRequest(
                                   "CC-" + UUID.randomUUID(),

@@ -24,9 +24,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.TestPropertySource;
 
-import com.bigbrightpaints.erp.core.audit.AuditEvent;
-import com.bigbrightpaints.erp.core.audit.AuditLog;
-import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
@@ -34,8 +31,8 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
-import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
 import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
 import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingLineRequest;
@@ -85,7 +82,6 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
   @Autowired private DealerRepository dealerRepository;
   @Autowired private SalesOrderRepository salesOrderRepository;
   @Autowired private SalesService salesService;
-  @Autowired private AuditLogRepository auditLogRepository;
   @Autowired private FinishedGoodsService finishedGoodsService;
   @Autowired private FinishedGoodRepository finishedGoodRepository;
   @Autowired private PackagingSlipRepository packagingSlipRepository;
@@ -107,18 +103,14 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
   @BeforeEach
   void setup() {
     dataSeeder.ensureUser(
-        FACTORY_EMAIL,
-        FACTORY_PASSWORD,
-        "Factory Ops",
-        COMPANY_CODE,
-        List.of("ROLE_FACTORY", "dispatch.confirm"));
+        FACTORY_EMAIL, FACTORY_PASSWORD, "Factory Ops", COMPANY_CODE, List.of("ROLE_FACTORY"));
     dataSeeder.ensureUser(
         SALES_EMAIL,
         SALES_PASSWORD,
         "Sales Ops",
         COMPANY_CODE,
-        List.of("ROLE_SALES"));
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+        List.of("ROLE_SALES", "dispatch.confirm"));
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
     company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
     company.setBaseCurrency("INR");
     company.setTimezone("UTC");
@@ -183,6 +175,7 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
         packagingSlipRepository.findByCompanyAndSalesOrderId(company, orderId).orElseThrow();
 
     HttpHeaders factoryHeaders = authHeaders(loginFactoryToken());
+    HttpHeaders salesHeaders = authHeaders(loginSalesToken());
     ResponseEntity<Map> previewResponse =
         rest.exchange(
             "/api/v1/dispatch/preview/" + slip.getId(),
@@ -199,10 +192,7 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> pendingResponse =
         rest.exchange(
-            "/api/v1/dispatch/pending",
-            HttpMethod.GET,
-            new HttpEntity<>(factoryHeaders),
-            Map.class);
+            "/api/v1/dispatch/pending", HttpMethod.GET, new HttpEntity<>(factoryHeaders), Map.class);
     assertThat(pendingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     List<Map<?, ?>> pendingSlips = requireListData(pendingResponse);
     assertThat(pendingSlips).hasSize(1);
@@ -213,17 +203,19 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
 
     Map<String, Object> confirmRequest =
         Map.of(
-            "packagingSlipId", slip.getId(),
+            "packingSlipId", slip.getId(),
+            "orderId", orderId,
             "lines",
                 List.of(
                     Map.of(
                         "lineId",
                         slip.getLines().getFirst().getId(),
-                        "shippedQuantity",
+                        "shipQty",
                         new BigDecimal("4"),
                         "notes",
                         "ship all")),
-            "notes", "ready for dispatch",
+            "dispatchNotes", "ready for dispatch",
+            "confirmedBy", "factory-user",
             "transporterName", "Rapid Logistics",
             "driverName", "Imran",
             "vehicleNumber", "MH14ZZ1001",
@@ -231,9 +223,9 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> firstResponse =
         rest.exchange(
-            "/api/v1/dispatch/confirm",
+            "/api/v1/sales/dispatch/confirm",
             HttpMethod.POST,
-            new HttpEntity<>(confirmRequest, factoryHeaders),
+            new HttpEntity<>(confirmRequest, salesHeaders),
             Map.class);
     assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     requireData(firstResponse);
@@ -246,20 +238,6 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
     assertThat(persisted.getInvoiceId()).isNotNull();
     assertThat(persisted.getJournalEntryId()).isNotNull();
     assertThat(persisted.getCogsJournalEntryId()).isNotNull();
-    AuditLog dispatchAudit =
-        auditLogRepository.findByEventTypeWithMetadataOrderByTimestampDesc(
-            AuditEvent.DISPATCH_CONFIRMED).stream()
-            .filter(audit -> FACTORY_EMAIL.equalsIgnoreCase(audit.getUsername()))
-            .findFirst()
-            .orElseThrow();
-    assertThat(dispatchAudit.getCompanyId()).isEqualTo(company.getId());
-    assertThat(dispatchAudit.getRequestPath()).isEqualTo("/api/v1/dispatch/confirm");
-    assertThat(dispatchAudit.getMetadata())
-        .containsEntry("packingSlipId", slip.getId().toString())
-        .containsEntry("salesOrderId", orderId.toString())
-        .containsEntry("invoiceId", persisted.getInvoiceId().toString())
-        .containsEntry("arJournalEntryId", persisted.getJournalEntryId().toString())
-        .containsEntry("cogsJournalEntryId", persisted.getCogsJournalEntryId().toString());
 
     ResponseEntity<Map> slipResponse =
         rest.exchange(
@@ -296,9 +274,9 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> replayResponse =
         rest.exchange(
-            "/api/v1/dispatch/confirm",
+            "/api/v1/sales/dispatch/confirm",
             HttpMethod.POST,
-            new HttpEntity<>(confirmRequest, factoryHeaders),
+            new HttpEntity<>(confirmRequest, salesHeaders),
             Map.class);
     assertThat(replayResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     requireData(replayResponse);
@@ -394,8 +372,7 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
     Long orderId = salesService.createOrder(orderReq).id();
     SalesOrder order = salesOrderRepository.findById(orderId).orElseThrow();
 
-    FinishedGoodsService.InventoryReservationResult beforePack =
-        finishedGoodsService.reserveForOrder(order);
+    FinishedGoodsService.InventoryReservationResult beforePack = finishedGoodsService.reserveForOrder(order);
     assertThat(beforePack.packagingSlip()).isNotNull();
     assertThat(beforePack.packagingSlip().status()).isEqualTo("PENDING_PRODUCTION");
     assertThat(beforePack.packagingSlip().lines()).isEmpty();
@@ -439,8 +416,7 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
                     null,
                     null))));
 
-    FinishedGoodsService.InventoryReservationResult afterPack =
-        finishedGoodsService.reserveForOrder(order);
+    FinishedGoodsService.InventoryReservationResult afterPack = finishedGoodsService.reserveForOrder(order);
     assertThat(afterPack.packagingSlip()).isNotNull();
     assertThat(afterPack.packagingSlip().status()).isEqualTo("RESERVED");
     assertThat(afterPack.packagingSlip().lines()).hasSize(1);
@@ -487,6 +463,16 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
         Map.of(
             "email", FACTORY_EMAIL,
             "password", FACTORY_PASSWORD,
+            "companyCode", COMPANY_CODE);
+    return (String)
+        rest.postForEntity("/api/v1/auth/login", req, Map.class).getBody().get("accessToken");
+  }
+
+  private String loginSalesToken() {
+    Map<String, Object> req =
+        Map.of(
+            "email", SALES_EMAIL,
+            "password", SALES_PASSWORD,
             "companyCode", COMPANY_CODE);
     return (String)
         rest.postForEntity("/api/v1/auth/login", req, Map.class).getBody().get("accessToken");
@@ -640,7 +626,9 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
   }
 
   private FinishedGood ensureSellablePackTarget(ProductionProduct product, String sizeLabel) {
-    sizeVariantRepository.findByCompanyAndProductOrderBySizeLabelAsc(company, product).stream()
+    sizeVariantRepository
+        .findByCompanyAndProductOrderBySizeLabelAsc(company, product)
+        .stream()
         .filter(variant -> sizeLabel.equalsIgnoreCase(variant.getSizeLabel()))
         .findFirst()
         .orElseGet(

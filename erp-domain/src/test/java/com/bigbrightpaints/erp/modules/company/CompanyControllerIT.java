@@ -53,30 +53,9 @@ class CompanyControllerIT extends AbstractIntegrationTest {
         "Hierarchy Super Admin",
         COMPANY_CODE,
         List.of("ROLE_SUPER_ADMIN"));
-    userAccountRepository
-        .findByEmailIgnoreCase(ADMIN_EMAIL)
-        .ifPresent(
-            user -> {
-              user.setMustChangePassword(false);
-              user.setEnabled(true);
-              userAccountRepository.save(user);
-            });
-    userAccountRepository
-        .findByEmailIgnoreCase(SUPER_ADMIN_EMAIL)
-        .ifPresent(
-            user -> {
-              user.setMustChangePassword(false);
-              user.setEnabled(true);
-              userAccountRepository.save(user);
-            });
-    userAccountRepository
-        .findByEmailIgnoreCase(HIERARCHY_SUPER_ADMIN_EMAIL)
-        .ifPresent(
-            user -> {
-              user.setMustChangePassword(false);
-              user.setEnabled(true);
-              userAccountRepository.save(user);
-            });
+    updateUserState(ADMIN_EMAIL, COMPANY_CODE);
+    updateUserState(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
+    updateUserState(HIERARCHY_SUPER_ADMIN_EMAIL, COMPANY_CODE);
     companyRepository
         .findByCodeIgnoreCase(COMPANY_CODE)
         .ifPresent(
@@ -223,5 +202,16 @@ class CompanyControllerIT extends AbstractIntegrationTest {
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).isNotNull();
     return response.getBody().get("accessToken").toString();
+  }
+
+  private void updateUserState(String email, String companyCode) {
+    userAccountRepository
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(email, companyCode)
+        .ifPresent(
+            user -> {
+              user.setMustChangePassword(false);
+              user.setEnabled(true);
+              userAccountRepository.save(user);
+            });
   }
 }

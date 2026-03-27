@@ -91,7 +91,7 @@ class CR_OpeningStockImportProdGatingIT extends AbstractIntegrationTest {
             .orElseThrow()
             .getId());
     companyRepository.save(company);
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
   }
 
   @AfterEach

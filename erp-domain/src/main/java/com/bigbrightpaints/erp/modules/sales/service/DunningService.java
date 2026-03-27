@@ -85,7 +85,7 @@ public class DunningService {
         .forEach(
             company -> {
               try {
-                CompanyContextHolder.setCompanyId(company.getCode());
+                CompanyContextHolder.setCompanyCode(company.getCode());
                 LocalDate today = companyClock.today(company);
                 List<Dealer> dealers = dealerRepository.findByCompanyOrderByNameAsc(company);
                 for (Dealer dealer : dealers) {

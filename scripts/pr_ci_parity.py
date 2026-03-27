@@ -44,6 +44,7 @@ ROUTED_SHARDS = (
         "label": "accounting",
         "manifest": "ci/pr_manifests/pr_accounting.txt",
         "artifact": "pr-jacoco-accounting",
+        "maven_args": ["-Dtest.groups="],
     },
     {
         "job": "pr-idempotency-outbox",
@@ -60,6 +61,7 @@ ROUTED_SHARDS = (
         "label": "business-slice",
         "manifest": "ci/pr_manifests/pr_business_slice.txt",
         "artifact": "pr-jacoco-business-slice",
+        "maven_args": ["-Dtest.groups="],
     },
     {
         "job": "pr-persistence-smoke",

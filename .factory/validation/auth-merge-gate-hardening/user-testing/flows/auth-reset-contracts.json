@@ -115,29 +115,6 @@
       "issues": null
     },
     {
-      "id": "VAL-AUTHC-004",
-      "title": "Deprecated superadmin-forgot alias is retired",
-      "status": "pass",
-      "steps": [
-        {
-          "action": "Inspect `AuthPasswordResetPublicContractIT#retiredSuperAdminForgotAlias_returnsControlledCompatibilityContractAcrossTenantHeaders`.",
-          "expected": "Deprecated alias returns controlled `410 Gone` response with canonical guidance and no active recovery side effects.",
-          "observed": "The integration test passed with `410 Gone`, `success=false`, the retirement message, and response data pointing to `/api/v1/auth/password/forgot` and `/api/v1/companies/{id}/support/admin-password-reset`."
-        },
-        {
-          "action": "Inspect `OpenApiSnapshotIT#auth_and_admin_contract_paths_preserve_expected_response_shapes`.",
-          "expected": "OpenAPI still documents the retired tombstone path/shape.",
-          "observed": "`OpenApiSnapshotIT` passed, confirming the auth/admin contract snapshot still preserves the deprecated `/api/v1/auth/password/forgot/superadmin` path shape."
-        }
-      ],
-      "evidence": {
-        "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AuthPasswordResetPublicContractIT,PasswordResetServiceTest,OpenApiSnapshotIT test",
-        "result": "BUILD SUCCESS; retired superadmin forgot alias contract and OpenAPI tombstone coverage passed together.",
-        "consoleErrors": "No unexpected console errors; contract and snapshot tests both passed."
-      },
-      "issues": null
-    },
-    {
       "id": "VAL-CROSS-001",
       "title": "Canonical recovery flow remains functional",
       "status": "pass",

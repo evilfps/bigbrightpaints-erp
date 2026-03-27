@@ -344,32 +344,36 @@ class SuperAdminTenantControlPlaneServiceTest {
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
     UserAccount first = adminUser(11L, "admin1@acme.com", "ROLE_ADMIN", company);
     UserAccount second = adminUser(12L, "  ", "ROLE_ADMIN", company);
-    when(userAccountRepository.findDistinctByCompanies_Id(7L))
+    when(userAccountRepository.findByCompany_Id(7L))
         .thenReturn(java.util.List.of(first, second));
 
     SuperAdminTenantForceLogoutDto response = service.forceLogoutAllUsers(7L, "   ");
 
     assertThat(response.revokedUserCount()).isEqualTo(2);
     assertThat(response.reason()).isEqualTo("support-request");
-    verify(tokenBlacklistService).revokeAllUserTokens("admin1@acme.com");
-    verify(refreshTokenService).revokeAllForUser("admin1@acme.com");
-    verify(tokenBlacklistService, never()).revokeAllUserTokens("  ");
+    verify(tokenBlacklistService).revokeAllUserTokens(first.getPublicId().toString());
+    verify(refreshTokenService).revokeAllForUser(first.getPublicId());
+    verify(tokenBlacklistService).revokeAllUserTokens(second.getPublicId().toString());
+    verify(refreshTokenService).revokeAllForUser(second.getPublicId());
   }
 
   @Test
-  void forceLogoutAllUsers_rejectsSharedUsers() {
+  void forceLogoutAllUsers_skipsNullUsersAndUsersWithoutPublicId() {
     Company company = company(7L, "ACME");
-    Company foreignCompany = company(8L, "BETA");
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
-    UserAccount sharedUser = adminUser(11L, "shared-admin@acme.com", "ROLE_ADMIN", company);
-    sharedUser.addCompany(foreignCompany);
-    when(userAccountRepository.findDistinctByCompanies_Id(7L)).thenReturn(List.of(sharedUser));
+    UserAccount revocable = adminUser(11L, "admin1@acme.com", "ROLE_ADMIN", company);
+    UserAccount missingPublicId = new UserAccount("admin2@acme.com", "ACME", "hash", "Admin Two");
+    missingPublicId.setCompany(company);
+    when(userAccountRepository.findByCompany_Id(7L))
+        .thenReturn(java.util.Arrays.asList(null, missingPublicId, revocable));
 
-    assertThatThrownBy(() -> service.forceLogoutAllUsers(7L, "support"))
-        .hasMessageContaining("Cannot perform tenant force logout while shared users are assigned");
+    SuperAdminTenantForceLogoutDto response = service.forceLogoutAllUsers(7L, "incident");
 
-    verify(tokenBlacklistService, never()).revokeAllUserTokens(any(String.class));
-    verify(refreshTokenService, never()).revokeAllForUser(any(String.class));
+    assertThat(response.revokedUserCount()).isEqualTo(3);
+    verify(tokenBlacklistService).revokeAllUserTokens(revocable.getPublicId().toString());
+    verify(refreshTokenService).revokeAllForUser(revocable.getPublicId());
+    verify(tokenBlacklistService, never()).revokeAllUserTokens("null");
+    verify(refreshTokenService, never()).revokeAllForUser((java.util.UUID) null);
   }
 
   @Test
@@ -378,7 +382,7 @@ class SuperAdminTenantControlPlaneServiceTest {
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
     UserAccount admin = adminUser(91L, "main-admin@acme.com", "ROLE_ADMIN", company);
     admin.setDisplayName("Main Admin");
-    when(userAccountRepository.findByIdAndCompanies_Id(91L, 7L)).thenReturn(Optional.of(admin));
+    when(userAccountRepository.findByIdAndCompany_Id(91L, 7L)).thenReturn(Optional.of(admin));
 
     MainAdminSummaryDto response = service.replaceMainAdmin(7L, 91L);
 
@@ -392,7 +396,7 @@ class SuperAdminTenantControlPlaneServiceTest {
     Company company = company(7L, "ACME");
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
     UserAccount user = adminUser(91L, "user@acme.com", "ROLE_USER", company);
-    when(userAccountRepository.findByIdAndCompanies_Id(91L, 7L)).thenReturn(Optional.of(user));
+    when(userAccountRepository.findByIdAndCompany_Id(91L, 7L)).thenReturn(Optional.of(user));
 
     assertThatThrownBy(() -> service.replaceMainAdmin(7L, 91L))
         .hasMessageContaining("Target user is not an admin for company: ACME");
@@ -403,8 +407,9 @@ class SuperAdminTenantControlPlaneServiceTest {
     Company company = company(7L, "ACME");
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
     UserAccount admin = adminUser(91L, "admin@acme.com", "ROLE_ADMIN", company);
-    when(userAccountRepository.findByIdAndCompanies_Id(91L, 7L)).thenReturn(Optional.of(admin));
-    when(userAccountRepository.findByEmailIgnoreCase("new-admin@acme.com")).thenReturn(Optional.empty());
+    when(userAccountRepository.findByIdAndCompany_Id(91L, 7L)).thenReturn(Optional.of(admin));
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("new-admin@acme.com", "ACME"))
+        .thenReturn(Optional.empty());
     when(tenantAdminEmailChangeRequestRepository.save(any(TenantAdminEmailChangeRequest.class)))
         .thenAnswer(
             invocation -> {
@@ -433,12 +438,13 @@ class SuperAdminTenantControlPlaneServiceTest {
     Company company = company(7L, "ACME");
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
     UserAccount admin = adminUser(91L, "admin@acme.com", "ROLE_ADMIN", company);
-    when(userAccountRepository.findByIdAndCompanies_Id(91L, 7L)).thenReturn(Optional.of(admin));
+    when(userAccountRepository.findByIdAndCompany_Id(91L, 7L)).thenReturn(Optional.of(admin));
 
     assertThatThrownBy(() -> service.requestAdminEmailChange(7L, 91L, "admin@acme.com"))
         .hasMessageContaining("newEmail must differ from the current admin email");
 
-    when(userAccountRepository.findByEmailIgnoreCase("taken@acme.com")).thenReturn(Optional.of(new UserAccount()));
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("taken@acme.com", "ACME"))
+        .thenReturn(Optional.of(new UserAccount()));
     assertThatThrownBy(() -> service.requestAdminEmailChange(7L, 91L, "taken@acme.com"))
         .hasMessageContaining("Email already exists: taken@acme.com");
   }
@@ -448,27 +454,10 @@ class SuperAdminTenantControlPlaneServiceTest {
     Company company = company(7L, "ACME");
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
     UserAccount admin = adminUser(91L, "admin@acme.com", "ROLE_ADMIN", company);
-    when(userAccountRepository.findByIdAndCompanies_Id(91L, 7L)).thenReturn(Optional.of(admin));
+    when(userAccountRepository.findByIdAndCompany_Id(91L, 7L)).thenReturn(Optional.of(admin));
 
     assertThatThrownBy(() -> service.requestAdminEmailChange(7L, 91L, "   "))
         .hasMessageContaining("newEmail is required");
-  }
-
-  @Test
-  void requestAdminEmailChange_rejectsSharedAdminAccounts() {
-    Company company = company(7L, "ACME");
-    Company foreignCompany = company(8L, "BETA");
-    when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
-    UserAccount sharedAdmin = adminUser(91L, "admin@acme.com", "ROLE_ADMIN", company);
-    sharedAdmin.addCompany(foreignCompany);
-    when(userAccountRepository.findByIdAndCompanies_Id(91L, 7L)).thenReturn(Optional.of(sharedAdmin));
-
-    assertThatThrownBy(() -> service.requestAdminEmailChange(7L, 91L, "new-admin@acme.com"))
-        .hasMessageContaining("Cannot perform tenant admin email change for shared user");
-
-    verify(emailService, never())
-        .sendAdminEmailChangeVerificationRequired(
-            any(String.class), any(String.class), any(String.class), any(String.class), any(Instant.class));
   }
 
   @Test
@@ -476,7 +465,7 @@ class SuperAdminTenantControlPlaneServiceTest {
     Company company = company(7L, "ACME");
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
     UserAccount admin = adminUser(91L, "admin@acme.com", "ROLE_ADMIN", company);
-    when(userAccountRepository.findByIdAndCompanies_Id(91L, 7L)).thenReturn(Optional.of(admin));
+    when(userAccountRepository.findByIdAndCompany_Id(91L, 7L)).thenReturn(Optional.of(admin));
     TenantAdminEmailChangeRequest request = new TenantAdminEmailChangeRequest();
     ReflectionTestUtils.setField(request, "id", 301L);
     request.setCompanyId(7L);
@@ -497,10 +486,8 @@ class SuperAdminTenantControlPlaneServiceTest {
     assertThat(request.isConsumed()).isTrue();
     assertThat(request.getVerifiedAt()).isNotNull();
     assertThat(request.getConfirmedAt()).isNotNull();
-    verify(tokenBlacklistService).revokeAllUserTokens("admin@acme.com");
-    verify(refreshTokenService).revokeAllForUser("admin@acme.com");
-    verify(tokenBlacklistService).revokeAllUserTokens("new-admin@acme.com");
-    verify(refreshTokenService).revokeAllForUser("new-admin@acme.com");
+    verify(tokenBlacklistService).revokeAllUserTokens(admin.getPublicId().toString());
+    verify(refreshTokenService).revokeAllForUser(admin.getPublicId());
   }
 
   @Test
@@ -508,7 +495,7 @@ class SuperAdminTenantControlPlaneServiceTest {
     Company company = company(7L, "ACME");
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
     UserAccount admin = adminUser(91L, "admin@acme.com", "ROLE_ADMIN", company);
-    when(userAccountRepository.findByIdAndCompanies_Id(91L, 7L)).thenReturn(Optional.of(admin));
+    when(userAccountRepository.findByIdAndCompany_Id(91L, 7L)).thenReturn(Optional.of(admin));
     when(tenantAdminEmailChangeRequestRepository.findById(404L)).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> service.confirmAdminEmailChange(7L, 91L, 404L, "x"))
@@ -538,7 +525,7 @@ class SuperAdminTenantControlPlaneServiceTest {
     Company company = company(7L, "ACME");
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
     UserAccount admin = adminUser(91L, "admin@acme.com", "ROLE_ADMIN", company);
-    when(userAccountRepository.findByIdAndCompanies_Id(91L, 7L)).thenReturn(Optional.of(admin));
+    when(userAccountRepository.findByIdAndCompany_Id(91L, 7L)).thenReturn(Optional.of(admin));
 
     TenantAdminEmailChangeRequest consumed = new TenantAdminEmailChangeRequest();
     consumed.setCompanyId(7L);
@@ -560,20 +547,12 @@ class SuperAdminTenantControlPlaneServiceTest {
   }
 
   @Test
-  void confirmAdminEmailChange_rejectsSharedAdminAccountsAndStaleRequests() {
+  void confirmAdminEmailChange_rejectsStaleRequests() {
     Company company = company(7L, "ACME");
-    Company foreignCompany = company(8L, "BETA");
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
 
-    UserAccount sharedAdmin = adminUser(91L, "admin@acme.com", "ROLE_ADMIN", company);
-    sharedAdmin.addCompany(foreignCompany);
-    when(userAccountRepository.findByIdAndCompanies_Id(91L, 7L)).thenReturn(Optional.of(sharedAdmin));
-
-    assertThatThrownBy(() -> service.confirmAdminEmailChange(7L, 91L, 305L, "verify-123"))
-        .hasMessageContaining("Cannot perform tenant admin email change for shared user");
-
     UserAccount exclusiveAdmin = adminUser(92L, "current@acme.com", "ROLE_ADMIN", company);
-    when(userAccountRepository.findByIdAndCompanies_Id(92L, 7L)).thenReturn(Optional.of(exclusiveAdmin));
+    when(userAccountRepository.findByIdAndCompany_Id(92L, 7L)).thenReturn(Optional.of(exclusiveAdmin));
 
     TenantAdminEmailChangeRequest staleRequest = new TenantAdminEmailChangeRequest();
     staleRequest.setCompanyId(7L);
@@ -593,7 +572,7 @@ class SuperAdminTenantControlPlaneServiceTest {
     Company company = company(7L, "ACME");
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
     UserAccount admin = adminUser(91L, "admin@acme.com", "ROLE_ADMIN", company);
-    when(userAccountRepository.findByIdAndCompanies_Id(91L, 7L)).thenReturn(Optional.of(admin));
+    when(userAccountRepository.findByIdAndCompany_Id(91L, 7L)).thenReturn(Optional.of(admin));
 
     TenantAdminEmailChangeRequest request = new TenantAdminEmailChangeRequest();
     request.setCompanyId(7L);
@@ -605,7 +584,7 @@ class SuperAdminTenantControlPlaneServiceTest {
     when(tenantAdminEmailChangeRequestRepository.findById(307L)).thenReturn(Optional.of(request));
 
     UserAccount competingUser = adminUser(123L, "new-admin@acme.com", "ROLE_ADMIN", company);
-    when(userAccountRepository.findByEmailIgnoreCase("new-admin@acme.com"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("new-admin@acme.com", "ACME"))
         .thenReturn(Optional.of(competingUser));
 
     assertThatThrownBy(() -> service.confirmAdminEmailChange(7L, 91L, 307L, "verify-123"))
@@ -621,7 +600,7 @@ class SuperAdminTenantControlPlaneServiceTest {
     Company company = company(7L, "ACME");
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
     UserAccount admin = adminUser(91L, "admin@acme.com", "ROLE_ADMIN", company);
-    when(userAccountRepository.findByIdAndCompanies_Id(91L, 7L)).thenReturn(Optional.of(admin));
+    when(userAccountRepository.findByIdAndCompany_Id(91L, 7L)).thenReturn(Optional.of(admin));
 
     TenantAdminEmailChangeRequest request = new TenantAdminEmailChangeRequest();
     ReflectionTestUtils.setField(request, "id", 308L);
@@ -634,7 +613,7 @@ class SuperAdminTenantControlPlaneServiceTest {
     when(tenantAdminEmailChangeRequestRepository.findById(308L)).thenReturn(Optional.of(request));
 
     UserAccount sameAdminRecord = adminUser(91L, "new-admin@acme.com", "ROLE_ADMIN", company);
-    when(userAccountRepository.findByEmailIgnoreCase("new-admin@acme.com"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("new-admin@acme.com", "ACME"))
         .thenReturn(Optional.of(sameAdminRecord));
     when(userAccountRepository.save(admin)).thenReturn(admin);
     when(tenantAdminEmailChangeRequestRepository.save(request)).thenReturn(request);
@@ -678,12 +657,12 @@ class SuperAdminTenantControlPlaneServiceTest {
   }
 
   private UserAccount adminUser(Long id, String email, String roleName, Company company) {
-    UserAccount user = new UserAccount(email, "hash", "Admin " + email);
+    UserAccount user = new UserAccount(email, company.getCode(), "hash", "Admin " + email);
     ReflectionTestUtils.setField(user, "id", id);
     Role role = new Role();
     role.setName(roleName);
     user.addRole(role);
-    user.addCompany(company);
+    user.setCompany(company);
     return user;
   }
 }

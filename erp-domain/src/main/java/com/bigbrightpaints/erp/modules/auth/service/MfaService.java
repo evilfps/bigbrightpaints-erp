@@ -242,9 +242,19 @@ public class MfaService {
 
   private String buildOtpAuthUri(UserAccount user, String secret) {
     String label =
-        UriUtils.encodePathSegment(issuer + ":" + user.getEmail(), StandardCharsets.UTF_8);
+        UriUtils.encodePathSegment(
+            issuer + ":" + scopedAccountLabel(user), StandardCharsets.UTF_8);
     String encodedIssuer = UriUtils.encode(issuer, StandardCharsets.UTF_8);
     return "otpauth://totp/" + label + "?secret=" + secret + "&issuer=" + encodedIssuer;
+  }
+
+  private String scopedAccountLabel(UserAccount user) {
+    String email = user.getEmail();
+    String authScopeCode = normalizeCode(user.getAuthScopeCode());
+    if (!StringUtils.hasText(authScopeCode)) {
+      return email;
+    }
+    return email + " (" + authScopeCode + ")";
   }
 
   private void clearMfa(UserAccount user) {

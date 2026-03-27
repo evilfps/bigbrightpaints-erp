@@ -200,14 +200,7 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
         prefix.toLowerCase(Locale.ROOT) + "-" + suffix.toLowerCase(Locale.ROOT) + "@bbp.com";
     Long companyId = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd").getId();
     dataSeeder.ensureUser(email, PASSWORD, prefix + " User", companyCode, List.of("ROLE_ADMIN"));
-    userAccountRepository
-        .findByEmailIgnoreCase(email)
-        .ifPresent(
-            user -> {
-              user.setMustChangePassword(false);
-              user.setEnabled(true);
-              userAccountRepository.save(user);
-            });
+    resetUserState(email, companyCode);
     resetTenantRuntimePolicy(companyId, companyCode);
     return new Scenario(companyCode, email);
   }
@@ -234,14 +227,8 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
         "Runtime Company Super Admin",
         targetCompanyCode,
         List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
-    userAccountRepository
-        .findByEmailIgnoreCase(superAdminEmail)
-        .ifPresent(
-            user -> {
-              user.setMustChangePassword(false);
-              user.setEnabled(true);
-              userAccountRepository.save(user);
-            });
+    resetUserState(superAdminEmail, ROOT_COMPANY_CODE);
+    resetUserState(superAdminEmail, targetCompanyCode);
     Long companyId =
         dataSeeder.ensureCompany(targetCompanyCode, targetCompanyCode + " Ltd").getId();
     String rootToken = login(superAdminEmail, ROOT_COMPANY_CODE);
@@ -283,6 +270,17 @@ class TenantRuntimeEnforcementAuthIT extends AbstractIntegrationTest {
     systemSettingsRepository.deleteById("tenant.runtime.policy-reference." + companyId);
     systemSettingsRepository.deleteById("tenant.runtime.policy-updated-at." + companyId);
     tenantRuntimeEnforcementService.invalidatePolicyCache(companyCode);
+  }
+
+  private void resetUserState(String email, String companyCode) {
+    userAccountRepository
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(email, companyCode)
+        .ifPresent(
+            user -> {
+              user.setMustChangePassword(false);
+              user.setEnabled(true);
+              userAccountRepository.save(user);
+            });
   }
 
   private Map<String, Object> loginTokens(String email, String companyCode) {

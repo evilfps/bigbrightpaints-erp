@@ -45,7 +45,6 @@ public class OpenApiTaggingConfig {
     if (normalized.startsWith("/api/v1/admin")
         || normalized.startsWith("/api/v1/auth")
         || normalized.startsWith("/api/v1/companies")
-        || normalized.startsWith("/api/v1/multi-company")
         || normalized.startsWith("/api/v1/orchestrator")
         || normalized.startsWith("/api/v1/portal")
         || normalized.startsWith("/api/v1/demo")

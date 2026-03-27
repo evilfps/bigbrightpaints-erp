@@ -82,7 +82,7 @@ class ReportControllerSecurityIT extends AbstractIntegrationTest {
         COMPANY_A_CODE,
         List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
     userAccountRepository
-        .findByEmailIgnoreCase(SUPER_ADMIN_EMAIL)
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(SUPER_ADMIN_EMAIL, COMPANY_A_CODE)
         .ifPresent(
             user -> {
               user.setMustChangePassword(false);

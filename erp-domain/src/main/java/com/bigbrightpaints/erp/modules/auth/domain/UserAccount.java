@@ -3,8 +3,9 @@ package com.bigbrightpaints.erp.modules.auth.domain;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
@@ -15,7 +16,9 @@ import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "app_users")
+@Table(name = "app_users", uniqueConstraints = {
+  @UniqueConstraint(name = "uq_app_users_email_scope", columnNames = {"email", "auth_scope_code"})
+})
 public class UserAccount extends VersionedEntity {
 
   @Id
@@ -25,8 +28,11 @@ public class UserAccount extends VersionedEntity {
   @Column(name = "public_id", nullable = false)
   private UUID publicId;
 
-  @Column(nullable = false, unique = true)
+  @Column(nullable = false)
   private String email;
+
+  @Column(name = "auth_scope_code", nullable = false, length = 64)
+  private String authScopeCode;
 
   @Column(name = "password_hash", nullable = false)
   private String passwordHash;
@@ -47,12 +53,9 @@ public class UserAccount extends VersionedEntity {
       inverseJoinColumns = @JoinColumn(name = "role_id"))
   private Set<Role> roles = new HashSet<>();
 
-  @ManyToMany(fetch = FetchType.EAGER)
-  @JoinTable(
-      name = "user_companies",
-      joinColumns = @JoinColumn(name = "user_id"),
-      inverseJoinColumns = @JoinColumn(name = "company_id"))
-  private Set<Company> companies = new HashSet<>();
+  @ManyToOne(fetch = FetchType.EAGER)
+  @JoinColumn(name = "company_id")
+  private Company company;
 
   @Column(name = "mfa_secret")
   private String mfaSecret;
@@ -90,8 +93,13 @@ public class UserAccount extends VersionedEntity {
   public UserAccount() {}
 
   public UserAccount(String email, String passwordHash, String displayName) {
+    this(email, "LEGACY-" + UUID.randomUUID().toString().substring(0, 8), passwordHash, displayName);
+  }
+
+  public UserAccount(String email, String authScopeCode, String passwordHash, String displayName) {
     this.publicId = UUID.randomUUID();
     this.email = email;
+    this.authScopeCode = normalizeScopeCode(authScopeCode);
     this.passwordHash = passwordHash;
     this.displayName = displayName;
     this.enabled = true;
@@ -126,6 +134,14 @@ public class UserAccount extends VersionedEntity {
 
   public String getPasswordHash() {
     return passwordHash;
+  }
+
+  public String getAuthScopeCode() {
+    return authScopeCode;
+  }
+
+  public void setAuthScopeCode(String authScopeCode) {
+    this.authScopeCode = normalizeScopeCode(authScopeCode);
   }
 
   public String getDisplayName() {
@@ -216,12 +232,23 @@ public class UserAccount extends VersionedEntity {
     return roles;
   }
 
-  public Set<Company> getCompanies() {
-    return companies;
+  public Company getCompany() {
+    return company;
   }
 
-  public void addCompany(Company company) {
-    companies.add(company);
+  public void setCompany(Company company) {
+    this.company = company;
+  }
+
+  public void clearCompany() {
+    this.company = null;
+  }
+
+  public boolean belongsToCompanyCode(String companyCode) {
+    if (companyCode == null || companyCode.isBlank() || company == null || company.getCode() == null) {
+      return false;
+    }
+    return company.getCode().equalsIgnoreCase(companyCode);
   }
 
   public void addRole(Role role) {
@@ -269,5 +296,12 @@ public class UserAccount extends VersionedEntity {
 
   public Instant getCreatedAt() {
     return createdAt;
+  }
+
+  private String normalizeScopeCode(String authScopeCode) {
+    if (authScopeCode == null) {
+      return null;
+    }
+    return authScopeCode.trim().toUpperCase(Locale.ROOT);
   }
 }

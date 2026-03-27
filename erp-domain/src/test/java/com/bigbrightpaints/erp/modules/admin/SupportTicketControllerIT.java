@@ -211,7 +211,10 @@ class SupportTicketControllerIT extends AbstractIntegrationTest {
 
   private Long seedTicket(String companyCode, String userEmail, String subject) {
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
-    UserAccount requester = userAccountRepository.findByEmailIgnoreCase(userEmail).orElseThrow();
+    UserAccount requester =
+        userAccountRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(userEmail, companyCode)
+            .orElseThrow();
 
     SupportTicket ticket = new SupportTicket();
     ticket.setCompany(company);

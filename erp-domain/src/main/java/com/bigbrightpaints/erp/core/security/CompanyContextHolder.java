@@ -14,16 +14,6 @@ public final class CompanyContextHolder {
     return CONTEXT.get();
   }
 
-  @Deprecated
-  public static void setCompanyId(String companyId) {
-    setCompanyCode(companyId);
-  }
-
-  @Deprecated
-  public static String getCompanyId() {
-    return getCompanyCode();
-  }
-
   public static void clear() {
     CONTEXT.remove();
   }

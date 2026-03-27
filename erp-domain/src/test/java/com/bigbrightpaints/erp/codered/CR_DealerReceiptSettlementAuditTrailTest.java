@@ -93,7 +93,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
 
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     finishedGoodsService.registerBatch(
         new FinishedGoodBatchRequest(
             fg.getId(),
@@ -137,7 +137,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
             Duration.ofSeconds(30),
             threadIndex ->
                 () -> {
-                  CompanyContextHolder.setCompanyId(companyCode);
+                  CompanyContextHolder.setCompanyCode(companyCode);
                   try {
                     return accountingService.recordDealerReceipt(receiptRequest);
                   } finally {
@@ -181,7 +181,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         jdbcTemplate, company.getId(), journalId);
     CoderedDbAssertions.assertAuditLogRecordedForJournal(jdbcTemplate, journalId);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     ReconciliationService.ReconciliationResult reconciliation =
         reconciliationService.reconcileArWithDealerLedger();
     CompanyContextHolder.clear();
@@ -195,7 +195,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
 
     CoderedDbAssertions.assertNoNegativeInventory(jdbcTemplate, company.getId());
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       JournalEntryDto retry = accountingService.recordDealerReceipt(receiptRequest);
       assertThat(retry.id()).as("retry returns same receipt").isEqualTo(journalId);
@@ -242,7 +242,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
 
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     finishedGoodsService.registerBatch(
         new FinishedGoodBatchRequest(
             fg.getId(),
@@ -292,7 +292,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
             Duration.ofSeconds(30),
             threadIndex ->
                 () -> {
-                  CompanyContextHolder.setCompanyId(companyCode);
+                  CompanyContextHolder.setCompanyCode(companyCode);
                   try {
                     return accountingService.settleDealerInvoices(settlementRequest);
                   } finally {
@@ -337,7 +337,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         jdbcTemplate, company.getId(), journalId);
     CoderedDbAssertions.assertAuditLogRecordedForJournal(jdbcTemplate, journalId);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       PartnerSettlementResponse retry = accountingService.settleDealerInvoices(settlementRequest);
       assertThat(retry.journalEntry().id())
@@ -392,7 +392,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
 
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     finishedGoodsService.registerBatch(
         new FinishedGoodBatchRequest(
             fg.getId(),
@@ -441,7 +441,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
             Duration.ofSeconds(30),
             threadIndex ->
                 () -> {
-                  CompanyContextHolder.setCompanyId(companyCode);
+                  CompanyContextHolder.setCompanyCode(companyCode);
                   try {
                     return accountingService.settleDealerInvoices(settlementRequest);
                   } finally {
@@ -475,7 +475,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
 
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     finishedGoodsService.registerBatch(
         new FinishedGoodBatchRequest(
             fg.getId(),
@@ -511,7 +511,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
             null,
             null);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       PartnerSettlementResponse first = accountingService.settleDealerInvoices(settlementRequest);
       PartnerSettlementResponse replay = accountingService.settleDealerInvoices(settlementRequest);
@@ -550,7 +550,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
 
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     finishedGoodsService.registerBatch(
         new FinishedGoodBatchRequest(
             fg.getId(),
@@ -616,7 +616,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
                     "Apply to invoice")),
             null);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       PartnerSettlementResponse first = accountingService.settleDealerInvoices(firstRequest);
       assertThat(first.journalEntry().id()).isNotNull();
@@ -650,7 +650,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
 
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     finishedGoodsService.registerBatch(
         new FinishedGoodBatchRequest(
             fg.getId(),
@@ -704,7 +704,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
                     null,
                     "Apply to invoice")));
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       JournalEntryDto first = accountingService.recordDealerReceipt(firstRequest);
       JournalEntryDto second = accountingService.recordDealerReceipt(secondRequest);
@@ -738,7 +738,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
 
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     finishedGoodsService.registerBatch(
         new FinishedGoodBatchRequest(
             fg.getId(),
@@ -776,7 +776,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
             "CODE-RED split receipt",
             "DRS-KEY-2-" + UUID.randomUUID());
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       JournalEntryDto first = accountingService.recordDealerReceiptSplit(firstRequest);
       JournalEntryDto second = accountingService.recordDealerReceiptSplit(secondRequest);
@@ -802,7 +802,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
 
   private Company bootstrapCompany(String companyCode, String timezone) {
     dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     company.setTimezone(timezone);
     company.setBaseCurrency("INR");
@@ -938,7 +938,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
             .findByCompanyAndProductCode(company, sku)
             .orElseGet(
                 () -> {
-                  CompanyContextHolder.setCompanyId(company.getCode());
+                  CompanyContextHolder.setCompanyCode(company.getCode());
                   var dto = finishedGoodsService.createFinishedGood(req);
                   CompanyContextHolder.clear();
                   return finishedGoodRepository.findById(dto.id()).orElseThrow();
@@ -988,7 +988,7 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
       String productCode,
       BigDecimal quantity,
       BigDecimal unitPrice) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     BigDecimal totalAmount =
         unitPrice.multiply(quantity).setScale(2, java.math.RoundingMode.HALF_UP);
     var orderDto =

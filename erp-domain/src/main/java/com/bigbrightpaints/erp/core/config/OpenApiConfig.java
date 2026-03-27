@@ -21,7 +21,7 @@ public class OpenApiConfig {
         .info(
             new Info()
                 .title("BigBright ERP Domain API")
-                .description("Core APIs for multi-company ERP platform")
+                .description("Core APIs for the scoped-account multi-tenant ERP platform")
                 .version("v1")
                 .license(new License().name("Proprietary")))
         .externalDocs(

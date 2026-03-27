@@ -37,7 +37,6 @@ public class TenantRuntimeEnforcementService {
   private static final String CANONICAL_SUPERADMIN_TENANT_LIMITS_PREFIX =
       "/api/v1/superadmin/tenants/";
   private static final String CANONICAL_SUPERADMIN_TENANT_LIMITS_SUFFIX = "/limits";
-
   private final CompanyRepository companyRepository;
   private final SystemSettingsRepository systemSettingsRepository;
   private final UserAccountRepository userAccountRepository;
@@ -187,7 +186,7 @@ public class TenantRuntimeEnforcementService {
                     com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                         "Company not found: " + normalizedCompany));
     long activeUsers =
-        userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(company.getId());
+        userAccountRepository.countByCompany_IdAndEnabledTrue(company.getId());
     int maxActiveUsers = policy.effectiveMaxActiveUsers(defaultMaxActiveUsers);
     if (activeUsers > maxActiveUsers) {
       incrementRejectedCount(usageCounters);
@@ -549,7 +548,7 @@ public class TenantRuntimeEnforcementService {
     return companyRepository
         .findByCodeIgnoreCase(companyCode)
         .map(Company::getId)
-        .map(userAccountRepository::countDistinctByCompanies_IdAndEnabledTrue)
+        .map(userAccountRepository::countByCompany_IdAndEnabledTrue)
         .orElse(0L);
   }
 

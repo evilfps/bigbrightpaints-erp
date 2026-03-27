@@ -72,7 +72,7 @@ class ProductionLogAtomicityRegressionIT extends AbstractIntegrationTest {
   @BeforeEach
   void setUp() {
     company = dataSeeder.ensureCompany(COMPANY_CODE, COMPANY_CODE + " Ltd");
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
 
     rmInventory = ensureAccount("INV-LF016", "Inventory", AccountType.ASSET);
     wipAccount = ensureAccount("WIP-LF016", "Work in Progress", AccountType.ASSET);

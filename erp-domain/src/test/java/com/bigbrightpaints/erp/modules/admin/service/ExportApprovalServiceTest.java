@@ -58,7 +58,7 @@ class ExportApprovalServiceTest {
 
     actor = new UserAccount("admin@bbp.com", "hash", "Export Admin");
     ReflectionTestUtils.setField(actor, "id", 11L);
-    actor.addCompany(company);
+    actor.setCompany(company);
 
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     SecurityContextHolder.getContext()
@@ -68,7 +68,7 @@ class ExportApprovalServiceTest {
 
   @Test
   void createRequest_persistsPendingExportRequestForActor() {
-    when(userAccountRepository.findByEmailIgnoreCase("admin@bbp.com"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@bbp.com", "EXP"))
         .thenReturn(Optional.of(actor));
     when(exportRequestRepository.save(any(ExportRequest.class)))
         .thenAnswer(

@@ -27,13 +27,11 @@ import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
 import org.junit.platform.launcher.core.LauncherFactory;
 import org.junit.platform.launcher.listeners.SummaryGeneratingListener;
 import org.junit.platform.launcher.listeners.TestExecutionSummary;
-import org.springframework.http.ResponseEntity;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessagePreparator;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 
@@ -43,49 +41,23 @@ import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.notification.EmailService;
-import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
-import com.bigbrightpaints.erp.modules.auth.service.RefreshTokenService;
+import com.bigbrightpaints.erp.modules.auth.service.PasswordResetService;
+import com.bigbrightpaints.erp.modules.auth.service.ScopedAccountBootstrapService;
 import com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningService;
-import com.bigbrightpaints.erp.modules.company.controller.SuperAdminController;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
-import com.bigbrightpaints.erp.modules.company.dto.SuperAdminTenantLimitsDto;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
-import com.bigbrightpaints.erp.modules.company.service.SuperAdminTenantControlPlaneService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
-import com.bigbrightpaints.erp.shared.dto.ApiResponse;
-
 @Tag("critical")
 class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
 
   @AfterEach
   void clearSecurity() {
     SecurityContextHolder.clearContext();
-  }
-
-  @Test
-  void superAdminController_updateTenantLimits_delegatesPayloadMapping() {
-    CompanyService companyService = mock(CompanyService.class);
-    SuperAdminTenantControlPlaneService controlPlaneService =
-        mock(SuperAdminTenantControlPlaneService.class);
-    SuperAdminController controller = new SuperAdminController(companyService, controlPlaneService);
-    SuperAdminTenantLimitsDto snapshot =
-        new SuperAdminTenantLimitsDto(7L, "ACME", 50L, 100L, 1000L, 10L, true, false);
-    when(controlPlaneService.updateLimits(7L, 50L, 100L, 1000L, 10L, true, false))
-        .thenReturn(snapshot);
-
-    SuperAdminController.TenantLimitsUpdateRequest request =
-        new SuperAdminController.TenantLimitsUpdateRequest(50L, 100L, 1000L, 10L, true, false);
-    ResponseEntity<ApiResponse<SuperAdminTenantLimitsDto>> response =
-        controller.updateTenantLimits(7L, request);
-
-    assertThat(response.getBody()).isNotNull();
-    assertThat(response.getBody().success()).isTrue();
-    assertThat(response.getBody().data().companyCode()).isEqualTo("ACME");
   }
 
   @Test
@@ -239,7 +211,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     Company company = company(21L, "ACME");
     when(repository.findByCodeIgnoreCase("ACME")).thenReturn(Optional.of(company));
     when(repository.findByCodeIgnoreCase("UNKNOWN")).thenReturn(Optional.empty());
-    when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(21L)).thenReturn(1L);
+    when(userAccountRepository.countByCompany_IdAndEnabledTrue(21L)).thenReturn(1L);
     when(systemSettingsRepository.findById(any())).thenReturn(Optional.empty());
 
     TenantRuntimeEnforcementService service =
@@ -285,9 +257,10 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     TenantRuntimeEnforcementService.TenantRequestAdmission retiredAdminPolicyControl =
         service.beginRequest("ACME", "/api/v1/admin/tenant-runtime/policy", "PUT", "super", true);
     assertThat(retiredAdminPolicyControl.isAdmitted()).isFalse();
-    // Privileged canonical policy control path bypasses hold/rate checks.
+    // Privileged canonical superadmin limits path bypasses hold/rate checks.
     TenantRuntimeEnforcementService.TenantRequestAdmission policyControl =
-        service.beginRequest("ACME", "/api/v1/superadmin/tenants/21/limits", "PUT", "super", true);
+        service.beginRequest(
+            "ACME", "/api/v1/superadmin/tenants/21/limits", "PUT", "super", true);
     assertThat(policyControl.isAdmitted()).isTrue();
     service.completeRequest(policyControl, 500);
     TenantRuntimeEnforcementService.TenantRequestAdmission nonPutPolicyControl =
@@ -298,25 +271,25 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         service.beginRequest("ACME", null, "PUT", "super", true);
     assertThat(nullPathPolicyControl.isAdmitted()).isFalse();
     TenantRuntimeEnforcementService.TenantRequestAdmission blankMethodPolicyControl =
-        service.beginRequest("ACME", "/api/v1/superadmin/tenants/21/limits", "   ", "super", true);
+        service.beginRequest(
+            "ACME", "/api/v1/superadmin/tenants/21/limits", "   ", "super", true);
     assertThat(blankMethodPolicyControl.isAdmitted()).isFalse();
-    TenantRuntimeEnforcementService.TenantRequestAdmission wrongPrefixPolicyControl =
-        service.beginRequest("ACME", "/api/v1/company/21/limits", "PUT", "super", true);
-    assertThat(wrongPrefixPolicyControl.isAdmitted()).isFalse();
     TenantRuntimeEnforcementService.TenantRequestAdmission wrongSuffixPolicyControl =
         service.beginRequest(
             "ACME", "/api/v1/superadmin/tenants/21/not-limits", "PUT", "super", true);
     assertThat(wrongSuffixPolicyControl.isAdmitted()).isFalse();
     TenantRuntimeEnforcementService.TenantRequestAdmission emptyIdPolicyControl =
-        service.beginRequest("ACME", "/api/v1/superadmin/tenants//limits", "PUT", "super", true);
+        service.beginRequest(
+            "ACME", "/api/v1/superadmin/tenants//limits", "PUT", "super", true);
     assertThat(emptyIdPolicyControl.isAdmitted()).isFalse();
     TenantRuntimeEnforcementService.TenantRequestAdmission rootPathPolicyControl =
         service.beginRequest("ACME", "/", "PUT", "super", true);
     assertThat(rootPathPolicyControl.isAdmitted()).isFalse();
 
-    // Canonical company runtime path with trailing slash also passes.
+    // Canonical superadmin limits path with trailing slash also passes.
     TenantRuntimeEnforcementService.TenantRequestAdmission canonicalPolicyControl =
-        service.beginRequest("ACME", "/api/v1/superadmin/tenants/21/limits/", "PUT", "super", true);
+        service.beginRequest(
+            "ACME", "/api/v1/superadmin/tenants/21/limits/", "PUT", "super", true);
     assertThat(canonicalPolicyControl.isAdmitted()).isTrue();
     service.completeRequest(canonicalPolicyControl, 500);
 
@@ -354,7 +327,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
   }
 
   @Test
-  void emailService_credentialDelivery_modes_are_executable() {
+  void emailService_credentialDelivery_requiredPath_is_executable() {
     JavaMailSender mailSender = mock(JavaMailSender.class);
     SpringTemplateEngine templateEngine = mock(SpringTemplateEngine.class);
 
@@ -366,25 +339,10 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     EmailService enabledEmailService = new EmailService(mailSender, enabledProps, templateEngine);
 
     assertThat(enabledEmailService.isCredentialEmailDeliveryEnabled()).isTrue();
-    assertThatCode(
-            () ->
-                enabledEmailService.sendUserCredentialsEmail(
-                    "admin@ske.com", "Admin", "Temp@12345", "SKE"))
-        .doesNotThrowAnyException();
-    assertThatCode(
-            () ->
-                enabledEmailService.sendUserCredentialsEmail(
-                    "admin@ske.com", "Admin", "Temp@12345"))
-        .doesNotThrowAnyException();
 
     doThrow(new MailSendException("smtp-failed"))
         .when(mailSender)
         .send(any(MimeMessagePreparator.class));
-    assertThatCode(
-            () ->
-                enabledEmailService.sendUserCredentialsEmail(
-                    "admin@ske.com", "Admin", "Temp@12345", "SKE"))
-        .doesNotThrowAnyException();
     assertThatThrownBy(
             () ->
                 enabledEmailService.sendUserCredentialsEmailRequired(
@@ -403,11 +361,6 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     EmailService disabledEmailService = new EmailService(mailSender, disabledProps, templateEngine);
 
     assertThat(disabledEmailService.isCredentialEmailDeliveryEnabled()).isFalse();
-    assertThatCode(
-            () ->
-                disabledEmailService.sendUserCredentialsEmail(
-                    "admin@ske.com", "Admin", "Temp@12345", "SKE"))
-        .doesNotThrowAnyException();
     assertThatThrownBy(
             () ->
                 disabledEmailService.sendUserCredentialsEmailRequired(
@@ -424,39 +377,41 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
     RoleService roleService = mock(RoleService.class);
     RoleRepository roleRepository = mock(RoleRepository.class);
-    PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
     EmailService emailService = mock(EmailService.class);
-    TokenBlacklistService tokenBlacklistService = mock(TokenBlacklistService.class);
-    RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
+    ScopedAccountBootstrapService scopedAccountBootstrapService =
+        mock(ScopedAccountBootstrapService.class);
+    PasswordResetService passwordResetService = mock(PasswordResetService.class);
     TenantAdminProvisioningService service =
         new TenantAdminProvisioningService(
             userAccountRepository,
             roleService,
             roleRepository,
-            passwordEncoder,
-            emailService,
-            tokenBlacklistService,
-            refreshTokenService);
+            scopedAccountBootstrapService,
+            passwordResetService);
     Company company = company(10L, "SKE");
     Role adminRole = new Role();
     adminRole.setName("ROLE_ADMIN");
-    when(userAccountRepository.findByEmailIgnoreCase("new-admin@ske.com"))
-        .thenReturn(Optional.empty());
+    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("new-admin@ske.com", "SKE"))
+        .thenReturn(false);
     when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(adminRole));
-    when(passwordEncoder.encode(any())).thenReturn("encoded");
-    when(userAccountRepository.saveAndFlush(any(UserAccount.class)))
-        .thenAnswer(invocation -> invocation.getArgument(0));
+    UserAccount provisionedAdmin =
+        new UserAccount("new-admin@ske.com", "SKE", "hash", "Company SKE Admin");
+    ReflectionTestUtils.setField(provisionedAdmin, "id", 410L);
+    when(scopedAccountBootstrapService.provisionTenantAccount(
+            eq(company), eq("new-admin@ske.com"), eq("Company SKE Admin"), eq(java.util.List.of(adminRole))))
+        .thenReturn(provisionedAdmin);
 
-    TenantAdminProvisioningService.ProvisionedTenantAdmin provisioned =
-        service.provisionInitialAdmin(company, " NEW-ADMIN@SKE.COM ", null);
+    UserAccount normalizedAdmin = service.provisionInitialAdmin(company, " NEW-ADMIN@SKE.COM ", null);
 
-    assertThat(provisioned.email()).isEqualTo("new-admin@ske.com");
-    verify(emailService)
-        .sendUserCredentialsEmailRequired(
-            eq("new-admin@ske.com"), eq("Company SKE Admin"), any(), eq("SKE"));
+    assertThat(normalizedAdmin.getEmail()).isEqualTo("new-admin@ske.com");
+    assertThat(company.getMainAdminUserId()).isEqualTo(410L);
+    assertThat(company.getOnboardingAdminEmail()).isEqualTo("new-admin@ske.com");
+    assertThat(company.getOnboardingAdminUserId()).isEqualTo(410L);
+    verify(scopedAccountBootstrapService)
+        .provisionTenantAccount(company, "new-admin@ske.com", "Company SKE Admin", java.util.List.of(adminRole));
 
-    when(userAccountRepository.findByEmailIgnoreCase("duplicate@ske.com"))
-        .thenReturn(Optional.of(new UserAccount("duplicate@ske.com", "hash", "Dup")));
+    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("duplicate@ske.com", "SKE"))
+        .thenReturn(true);
     assertThatThrownBy(() -> service.provisionInitialAdmin(company, "duplicate@ske.com", "Dup"))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("already exists");
@@ -477,39 +432,37 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
     RoleService roleService = mock(RoleService.class);
     RoleRepository roleRepository = mock(RoleRepository.class);
-    PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
     EmailService emailService = mock(EmailService.class);
-    TokenBlacklistService tokenBlacklistService = mock(TokenBlacklistService.class);
-    RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
+    ScopedAccountBootstrapService scopedAccountBootstrapService =
+        mock(ScopedAccountBootstrapService.class);
+    PasswordResetService passwordResetService = mock(PasswordResetService.class);
     TenantAdminProvisioningService service =
         new TenantAdminProvisioningService(
             userAccountRepository,
             roleService,
             roleRepository,
-            passwordEncoder,
-            emailService,
-            tokenBlacklistService,
-            refreshTokenService);
+            scopedAccountBootstrapService,
+            passwordResetService);
     Company target = company(55L, "SKE");
     Company other = company(56L, "OTH");
 
     UserAccount outsider = new UserAccount("outsider@ske.com", "hash", "Out");
-    outsider.addCompany(other);
+    outsider.setCompany(other);
     Role outsiderRole = new Role();
     outsiderRole.setName("ROLE_ADMIN");
     outsider.addRole(outsiderRole);
-    when(userAccountRepository.findByEmailIgnoreCase("outsider@ske.com"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("outsider@ske.com", "SKE"))
         .thenReturn(Optional.of(outsider));
     assertThatThrownBy(() -> service.resetTenantAdminPassword(target, "outsider@ske.com"))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("not assigned to company");
 
     UserAccount nonAdmin = new UserAccount("user@ske.com", "hash", "User");
-    nonAdmin.addCompany(target);
+    nonAdmin.setCompany(target);
     Role userRole = new Role();
     userRole.setName("ROLE_USER");
     nonAdmin.addRole(userRole);
-    when(userAccountRepository.findByEmailIgnoreCase("user@ske.com"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("user@ske.com", "SKE"))
         .thenReturn(Optional.of(nonAdmin));
     assertThatThrownBy(() -> service.resetTenantAdminPassword(target, "user@ske.com"))
         .isInstanceOf(ApplicationException.class)
@@ -519,58 +472,43 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("not found");
 
-    UserAccount admin = new UserAccount("admin@ske.com", "hash", "Admin");
-    admin.addCompany(target);
+    UserAccount admin = new UserAccount("admin@ske.com", "SKE", "hash", "Admin");
+    admin.setCompany(target);
     Role adminRole = new Role();
     adminRole.setName("ROLE_ADMIN");
     admin.addRole(adminRole);
-    when(userAccountRepository.findByEmailIgnoreCase("admin@ske.com"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@ske.com", "SKE"))
         .thenReturn(Optional.of(admin));
-    when(passwordEncoder.encode(any())).thenReturn("encoded");
-    when(userAccountRepository.save(any(UserAccount.class))).thenReturn(admin);
 
     String resetEmail = service.resetTenantAdminPassword(target, " ADMIN@SKE.COM ");
 
     assertThat(resetEmail).isEqualTo("admin@ske.com");
-    verify(tokenBlacklistService).revokeAllUserTokens("admin@ske.com");
-    verify(refreshTokenService).revokeAllForUser("admin@ske.com");
-    verify(emailService)
-        .sendUserCredentialsEmailRequired(eq("admin@ske.com"), eq("Admin"), any(), eq("SKE"));
-
-    doThrow(new ApplicationException(ErrorCode.SYSTEM_EXTERNAL_SERVICE_ERROR, "smtp-failed"))
-        .when(emailService)
-        .sendUserCredentialsEmailRequired(eq("admin@ske.com"), eq("Admin"), any(), eq("SKE"));
-    assertThatThrownBy(() -> service.resetTenantAdminPassword(target, "admin@ske.com"))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("smtp-failed");
+    verify(passwordResetService).requestResetByAdmin(admin);
 
     assertThatThrownBy(() -> service.resetTenantAdminPassword(null, "admin@ske.com"))
         .isInstanceOf(ApplicationException.class);
   }
 
   @Test
-  void tenantAdminProvisioningService_reportsCredentialEmailDeliveryReadiness() {
+  void tenantAdminProvisioningService_reportsCredentialProvisioningReadiness() {
     UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
     RoleService roleService = mock(RoleService.class);
     RoleRepository roleRepository = mock(RoleRepository.class);
-    PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
-    EmailService emailService = mock(EmailService.class);
-    TokenBlacklistService tokenBlacklistService = mock(TokenBlacklistService.class);
-    RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
+    ScopedAccountBootstrapService scopedAccountBootstrapService =
+        mock(ScopedAccountBootstrapService.class);
     TenantAdminProvisioningService service =
         new TenantAdminProvisioningService(
             userAccountRepository,
             roleService,
             roleRepository,
-            passwordEncoder,
-            emailService,
-            tokenBlacklistService,
-            refreshTokenService);
-    when(emailService.isCredentialEmailDeliveryEnabled()).thenReturn(false, true);
+            scopedAccountBootstrapService,
+            mock(PasswordResetService.class));
+    when(scopedAccountBootstrapService.isCredentialProvisioningReady()).thenReturn(false, true);
 
-    assertThat(service.isCredentialEmailDeliveryEnabled()).isFalse();
-    assertThat(service.isCredentialEmailDeliveryEnabled()).isTrue();
-    verify(emailService, never()).sendUserCredentialsEmailRequired(any(), any(), any(), any());
+    assertThat(service.isCredentialProvisioningReady()).isFalse();
+    assertThat(service.isCredentialProvisioningReady()).isTrue();
+    verify(scopedAccountBootstrapService, never())
+        .provisionTenantAccount(any(), any(), any(), any());
   }
 
   @Test

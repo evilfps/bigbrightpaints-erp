@@ -172,7 +172,7 @@ class CompanyQuotaContractTest {
     company.setQuotaSoftLimitEnabled(false);
     company.setQuotaHardLimitEnabled(true);
     when(repository.findById(1L)).thenReturn(Optional.of(company));
-    when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(1L)).thenReturn(4L);
+    when(userAccountRepository.countByCompany_IdAndEnabledTrue(1L)).thenReturn(4L);
     when(auditLogRepository.countApiActivityByCompanyId(1L)).thenReturn(80L);
     when(auditLogRepository.estimateAuditStorageBytesByCompanyId(1L)).thenReturn(3_000L);
     when(auditLogRepository.countDistinctSessionActivityByCompanyId(1L)).thenReturn(2L);

@@ -310,7 +310,10 @@ public class BenchmarkDataInitializer {
       return;
     }
     String normalizedEmail = adminEmail.trim().toLowerCase(Locale.ROOT);
-    UserAccount existingAdmin = userRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
+    UserAccount existingAdmin =
+        userRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizedEmail, company.getCode())
+            .orElse(null);
     if (existingAdmin == null) {
       if (!StringUtils.hasText(adminPassword)) {
         throw new IllegalStateException(
@@ -318,15 +321,23 @@ public class BenchmarkDataInitializer {
                 + " not exist");
       }
       UserAccount user =
-          new UserAccount(normalizedEmail, encoder.encode(adminPassword.trim()), "Benchmark Admin");
+          new UserAccount(normalizedEmail, company.getCode(), encoder.encode(adminPassword.trim()), "Benchmark Admin");
       user.setMustChangePassword(true);
-      user.addCompany(company);
+      user.setCompany(company);
       user.addRole(admin);
       user.addRole(accounting);
       user.addRole(sales);
       user.addRole(factory);
       userRepository.save(user);
+      return;
     }
+    existingAdmin.setAuthScopeCode(company.getCode());
+    existingAdmin.setCompany(company);
+    existingAdmin.addRole(admin);
+    existingAdmin.addRole(accounting);
+    existingAdmin.addRole(sales);
+    existingAdmin.addRole(factory);
+    userRepository.save(existingAdmin);
   }
 
   private void seedSuppliers(Company company, SupplierRepository supplierRepository, Account ap) {

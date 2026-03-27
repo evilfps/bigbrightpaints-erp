@@ -96,7 +96,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
 
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-RET-" + shortId(), BigDecimal.ZERO);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     finishedGoodsService.registerBatch(
         new FinishedGoodBatchRequest(
             fg.getId(),
@@ -141,7 +141,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
             "discount override for credit-note idempotency regression",
             overrideRequestId);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var dispatch = salesService.confirmDispatch(request);
     CompanyContextHolder.clear();
 
@@ -161,7 +161,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
             Duration.ofSeconds(30),
             threadIndex ->
                 () -> {
-                  CompanyContextHolder.setCompanyId(companyCode);
+                  CompanyContextHolder.setCompanyCode(companyCode);
                   try {
                     return salesReturnService.processReturn(returnRequest);
                   } finally {
@@ -206,7 +206,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
 
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-CN-" + shortId(), BigDecimal.ZERO);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     finishedGoodsService.registerBatch(
         new FinishedGoodBatchRequest(
             fg.getId(),
@@ -251,7 +251,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
             "discount override for credit-note idempotency regression",
             overrideRequestId);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var dispatch = salesService.confirmDispatch(request);
     CompanyContextHolder.clear();
 
@@ -279,7 +279,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
             Duration.ofSeconds(30),
             threadIndex ->
                 () -> {
-                  CompanyContextHolder.setCompanyId(companyCode);
+                  CompanyContextHolder.setCompanyCode(companyCode);
                   try {
                     return accountingService.postCreditNote(creditRequest);
                   } finally {
@@ -309,7 +309,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
         .as("outstanding reduced once")
         .isEqualByComparingTo(startingOutstanding.subtract(creditAmount));
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       JournalEntryDto retry = accountingService.postCreditNote(creditRequest);
       assertThat(retry.id()).as("retry returns same credit note").isEqualTo(journalId);
@@ -346,7 +346,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(
             company, accounts, "FG-CN-DISC-" + shortId(), BigDecimal.ZERO);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     finishedGoodsService.registerBatch(
         new FinishedGoodBatchRequest(
             fg.getId(),
@@ -391,7 +391,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
             "discount override for credit-note idempotency regression",
             overrideRequestId);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var dispatch = salesService.confirmDispatch(request);
     CompanyContextHolder.clear();
 
@@ -415,7 +415,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
             idempotencyKey,
             Boolean.FALSE);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       JournalEntryDto first = accountingService.postCreditNote(creditRequest);
       JournalEntryDto retry = accountingService.postCreditNote(creditRequest);
@@ -432,7 +432,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
 
   private Company bootstrapCompany(String companyCode, String timezone) {
     dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     company.setTimezone(timezone);
     company.setBaseCurrency("INR");
@@ -566,7 +566,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
             .findByCompanyAndProductCode(company, sku)
             .orElseGet(
                 () -> {
-                  CompanyContextHolder.setCompanyId(company.getCode());
+                  CompanyContextHolder.setCompanyCode(company.getCode());
                   var dto = finishedGoodsService.createFinishedGood(req);
                   CompanyContextHolder.clear();
                   return finishedGoodRepository.findById(dto.id()).orElseThrow();
@@ -616,7 +616,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
       String productCode,
       BigDecimal quantity,
       BigDecimal unitPrice) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     BigDecimal totalAmount = unitPrice.multiply(quantity).setScale(2, RoundingMode.HALF_UP);
     var orderDto =
         salesService.createOrder(
@@ -640,7 +640,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
 
   private Long createApprovedDispatchOverride(
       String companyCode, Long dealerId, Long slipId, Long orderId, BigDecimal dispatchAmount) {
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       var created =
           creditLimitOverrideService.createRequest(

@@ -18,8 +18,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingBucketDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
@@ -64,13 +66,13 @@ class DunningServiceTest {
     dealer.setName("Dealer One");
     dealer.setEmail("dealer@example.com");
 
-    when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(dealerRepository.findByCompanyAndId(company, 1L)).thenReturn(Optional.of(dealer));
-    when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 23));
   }
 
   @Test
   void evaluateDealerHold_setsOnHoldAndSendsReminderWhenOverdueThresholdExceeded() {
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(dealerRepository.findByCompanyAndId(company, 1L)).thenReturn(Optional.of(dealer));
+    when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 23));
     when(statementService.dealerAging(eq(1L), eq(LocalDate.of(2026, 2, 23)), eq(null)))
         .thenReturn(
             new AgingSummaryResponse(
@@ -97,6 +99,9 @@ class DunningServiceTest {
 
   @Test
   void evaluateDealerHold_doesNotSendReminderWhenWithinThreshold() {
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(dealerRepository.findByCompanyAndId(company, 1L)).thenReturn(Optional.of(dealer));
+    when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 23));
     when(statementService.dealerAging(eq(1L), eq(LocalDate.of(2026, 2, 23)), eq(null)))
         .thenReturn(
             new AgingSummaryResponse(
@@ -110,5 +115,28 @@ class DunningServiceTest {
     assertThat(placed).isFalse();
     verify(dealerRepository, never()).save(any(Dealer.class));
     verify(emailService, never()).sendSimpleEmail(any(), any(), any());
+  }
+
+  @Test
+  void dailyDunningSweep_setsCompanyCodeContextBeforeDealerAging() {
+    ReflectionTestUtils.setField(dealer, "id", 1L);
+    dealer.setStatus("ACTIVE");
+    when(companyRepository.findAll()).thenReturn(List.of(company));
+    when(dealerRepository.findByCompanyOrderByNameAsc(company)).thenReturn(List.of(dealer));
+    when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 23));
+    when(statementService.dealerAging(eq(1L), eq(LocalDate.of(2026, 2, 23)), eq(null)))
+        .thenAnswer(
+            invocation -> {
+              assertThat(CompanyContextHolder.getCompanyCode()).isEqualTo("TEST");
+              return new AgingSummaryResponse(
+                  1L,
+                  "Dealer One",
+                  BigDecimal.ZERO,
+                  List.of(new AgingBucketDto("45+", 45, null, BigDecimal.ZERO)));
+            });
+
+    dunningService.dailyDunningSweep();
+
+    assertThat(CompanyContextHolder.getCompanyCode()).isNull();
   }
 }

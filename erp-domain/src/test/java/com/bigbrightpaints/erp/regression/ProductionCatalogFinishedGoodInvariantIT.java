@@ -74,7 +74,7 @@ class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
   @BeforeEach
   void setUp() {
     company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
 
     inventoryAccount = ensureAccount("INV", "Inventory", AccountType.ASSET);
     cogsAccount = ensureAccount("COGS", "COGS", AccountType.COGS);

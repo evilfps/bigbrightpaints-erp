@@ -25,10 +25,12 @@ import org.springframework.util.StringUtils;
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
+import com.bigbrightpaints.erp.modules.auth.service.PasswordResetService;
 import com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
@@ -76,9 +78,11 @@ public class CompanyService {
   private final TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
   private final TenantAdminProvisioningService tenantAdminProvisioningService;
   private final TenantLifecycleService tenantLifecycleService;
+  private final PasswordResetService passwordResetService;
+  private final AuthScopeService authScopeService;
 
   public CompanyService(CompanyRepository repository) {
-    this(repository, null, null, null, null, null, null);
+    this(repository, null, null, null, null, null, null, null, null);
   }
 
   public CompanyService(
@@ -86,7 +90,7 @@ public class CompanyService {
       AuditService auditService,
       UserAccountRepository userAccountRepository,
       AuditLogRepository auditLogRepository) {
-    this(repository, auditService, userAccountRepository, auditLogRepository, null, null, null);
+    this(repository, auditService, userAccountRepository, auditLogRepository, null, null, null, null, null);
   }
 
   public CompanyService(
@@ -102,6 +106,8 @@ public class CompanyService {
         auditLogRepository,
         tenantRuntimeEnforcementService,
         null,
+        null,
+        null,
         null);
   }
 
@@ -113,7 +119,9 @@ public class CompanyService {
       AuditLogRepository auditLogRepository,
       TenantRuntimeEnforcementService tenantRuntimeEnforcementService,
       TenantAdminProvisioningService tenantAdminProvisioningService,
-      TenantLifecycleService tenantLifecycleService) {
+      TenantLifecycleService tenantLifecycleService,
+      PasswordResetService passwordResetService,
+      AuthScopeService authScopeService) {
     this.repository = repository;
     this.auditService = auditService;
     this.userAccountRepository = userAccountRepository;
@@ -121,17 +129,19 @@ public class CompanyService {
     this.tenantRuntimeEnforcementService = tenantRuntimeEnforcementService;
     this.tenantAdminProvisioningService = tenantAdminProvisioningService;
     this.tenantLifecycleService = tenantLifecycleService;
+    this.passwordResetService = passwordResetService;
+    this.authScopeService = authScopeService;
   }
 
   public List<CompanyDto> findAll() {
     return repository.findAll().stream().map(this::toDto).toList();
   }
 
-  public List<CompanyDto> findAll(Set<Company> companies) {
-    if (companies == null || companies.isEmpty()) {
+  public List<CompanyDto> findAll(Company company) {
+    if (company == null) {
       return List.of();
     }
-    return companies.stream().map(this::toDto).toList();
+    return List.of(toDto(company));
   }
 
   @Transactional
@@ -177,6 +187,7 @@ public class CompanyService {
     assertBoundControlPlaneCompanyMatchesTarget(company.getCode());
     String normalizedCompanyCode = normalizeCompanyCode(request.code());
     ensureCompanyCodeAvailableForUpdate(id, normalizedCompanyCode);
+    synchronizeScopedAccountsToCompanyCode(company, normalizedCompanyCode);
     company.setName(request.name());
     company.setCode(normalizedCompanyCode);
     company.setTimezone(request.timezone());
@@ -230,11 +241,6 @@ public class CompanyService {
   public void delete(Long id, Set<Company> allowedCompanies) {
     requireMembershipById(id, allowedCompanies);
     repository.deleteById(id);
-  }
-
-  public CompanyDto switchCompany(String companyCode, Set<Company> allowedCompanies) {
-    requireMembershipByCode(companyCode, allowedCompanies);
-    return toDto(findByCode(companyCode));
   }
 
   @Transactional
@@ -562,7 +568,7 @@ public class CompanyService {
                     com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                         "Company not found"));
     assertBoundControlPlaneCompanyMatchesTarget(company.getCode());
-    requireCredentialProvisioningReady();
+    requirePasswordResetReady();
     String resetEmail =
         tenantAdminProvisioningService.resetTenantAdminPassword(company, adminEmail);
     if (auditService != null) {
@@ -582,7 +588,7 @@ public class CompanyService {
           true, "tenant-admin-password-reset", company.getCode(), authentication);
     }
     return new CompanyAdminCredentialResetDto(
-        company.getId(), company.getCode(), resetEmail, "credentials-emailed");
+        company.getId(), company.getCode(), resetEmail, "reset-link-emailed");
   }
 
   private CompanyTenantMetricsDto buildTenantMetrics(Company company) {
@@ -765,6 +771,9 @@ public class CompanyService {
     if (!StringUtils.hasText(boundCompanyCode)) {
       return;
     }
+    if (authScopeService != null && authScopeService.isPlatformScope(boundCompanyCode)) {
+      return;
+    }
     if (!boundCompanyCode.trim().equalsIgnoreCase(targetCompanyCode.trim())) {
       throw new AccessDeniedException("Bound company context does not match targeted tenant");
     }
@@ -816,6 +825,10 @@ public class CompanyService {
   }
 
   private void ensureCompanyCodeAvailableForCreate(String companyCode) {
+    if (authScopeService != null && authScopeService.isPlatformScope(companyCode)) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "Company code conflicts with platform auth code: " + companyCode);
+    }
     repository
         .findByCodeIgnoreCase(companyCode)
         .ifPresent(
@@ -826,6 +839,10 @@ public class CompanyService {
   }
 
   private void ensureCompanyCodeAvailableForUpdate(Long companyId, String companyCode) {
+    if (authScopeService != null && authScopeService.isPlatformScope(companyCode)) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "Company code conflicts with platform auth code: " + companyCode);
+    }
     repository
         .findByCodeIgnoreCase(companyCode)
         .ifPresent(
@@ -835,6 +852,26 @@ public class CompanyService {
                     "Company code already exists: " + companyCode);
               }
             });
+  }
+
+  private void synchronizeScopedAccountsToCompanyCode(Company company, String normalizedCompanyCode) {
+    if (company == null
+        || company.getId() == null
+        || !StringUtils.hasText(normalizedCompanyCode)
+        || userAccountRepository == null
+        || normalizedCompanyCode.equalsIgnoreCase(company.getCode())) {
+      return;
+    }
+    var companyUsers = userAccountRepository.findByCompany_Id(company.getId());
+    for (var companyUser : companyUsers) {
+      if (userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCaseAndIdNot(
+          companyUser.getEmail(), normalizedCompanyCode, companyUser.getId())) {
+        throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+            "Scoped account already exists for email in company code: " + companyUser.getEmail());
+      }
+    }
+    companyUsers.forEach(user -> user.setAuthScopeCode(normalizedCompanyCode));
+    userAccountRepository.saveAll(companyUsers);
   }
 
   private BigDecimal resolveDefaultGstRateForCreate(BigDecimal requestedDefaultGstRate) {
@@ -860,10 +897,22 @@ public class CompanyService {
 
   private void requireCredentialProvisioningReady() {
     requireCredentialProvisioningDependencies();
-    if (!tenantAdminProvisioningService.isCredentialEmailDeliveryEnabled()) {
+    if (!tenantAdminProvisioningService.isCredentialProvisioningReady()) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
           "Credential email delivery is disabled; enable erp.mail.enabled=true and"
               + " erp.mail.send-credentials=true");
+    }
+  }
+
+  private void requirePasswordResetReady() {
+    if (passwordResetService == null) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+          "Password reset dependencies are not available");
+    }
+    if (!passwordResetService.isResetEmailDeliveryEnabled()) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+          "Password reset email delivery is disabled; enable erp.mail.enabled=true and"
+              + " erp.mail.send-password-reset=true");
     }
   }
 
@@ -992,17 +1041,9 @@ public class CompanyService {
     if (authentication != null
         && authentication.getPrincipal() instanceof UserPrincipal principal
         && principal.getUser() != null
-        && principal.getUser().getCompanies() != null) {
-      String scope =
-          principal.getUser().getCompanies().stream()
-              .map(Company::getCode)
-              .filter(StringUtils::hasText)
-              .map(String::trim)
-              .sorted(String.CASE_INSENSITIVE_ORDER)
-              .collect(Collectors.joining(","));
-      if (StringUtils.hasText(scope)) {
-        return scope;
-      }
+        && principal.getUser().getCompany() != null
+        && StringUtils.hasText(principal.getUser().getCompany().getCode())) {
+      return principal.getUser().getCompany().getCode().trim();
     }
     return "none";
   }
@@ -1011,7 +1052,7 @@ public class CompanyService {
     if (userAccountRepository == null) {
       return 0L;
     }
-    return userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(companyId);
+    return userAccountRepository.countByCompany_IdAndEnabledTrue(companyId);
   }
 
   private long countApiActivity(Long companyId) {

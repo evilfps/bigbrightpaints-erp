@@ -30,8 +30,8 @@
         },
         {
           "action": "Probe authorized super-admin support reset and admin force reset after restarting the compose runtime with explicit MailHog SMTP overrides",
-          "expected": "Authorized super-admin reset paths succeed without temporary-credential leakage",
-          "observed": "`POST /api/v1/admin/users/3/force-reset-password` returned 200 `Password reset link sent`, and `POST /api/v1/companies/2/support/admin-password-reset` returned 200 `Admin credentials reset and emailed` with `data={companyId:2, companyCode:UTTAAB2, adminEmail:ut.taab.admin2@example.com, status:credentials-emailed}` and no temporary-password fields."
+          "expected": "Authorized super-admin reset paths succeed without plaintext-credential leakage",
+          "observed": "`POST /api/v1/admin/users/3/force-reset-password` returned 200 `Password reset link sent`, and `POST /api/v1/companies/2/support/admin-password-reset` returned 200 `Admin reset link emailed` with `data={companyId:2, companyCode:UTTAAB2, adminEmail:ut.taab.admin2@example.com, status:reset-link-emailed}` and no plaintext-password fields."
         },
         {
           "action": "Run the boundary regression suites covering reset/control behavior",
@@ -51,7 +51,7 @@
             "companyId": 2,
             "companyCode": "UTTAAB2",
             "adminEmail": "ut.taab.admin2@example.com",
-            "status": "credentials-emailed"
+            "status": "reset-link-emailed"
           }
         },
         "tests": {

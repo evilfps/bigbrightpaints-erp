@@ -12,5 +12,5 @@ public record UserDto(
     boolean enabled,
     boolean mfaEnabled,
     List<String> roles,
-    List<String> companies,
+    String companyCode,
     Instant lastLoginAt) {}

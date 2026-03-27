@@ -35,10 +35,14 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
+import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
+import com.bigbrightpaints.erp.modules.auth.service.PasswordResetService;
 import com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
@@ -68,7 +72,11 @@ class CompanyServiceTest {
 
   @Mock private TenantAdminProvisioningService tenantAdminProvisioningService;
 
+  @Mock private PasswordResetService passwordResetService;
+
   @Mock private CompanyClock companyClock;
+
+  @Mock private AuthScopeService authScopeService;
 
   private TenantLifecycleService tenantLifecycleService;
 
@@ -87,35 +95,15 @@ class CompanyServiceTest {
             auditLogRepository,
             tenantRuntimeEnforcementService,
             tenantAdminProvisioningService,
-            tenantLifecycleService);
+            tenantLifecycleService,
+            passwordResetService,
+            authScopeService);
   }
 
   @AfterEach
   void tearDown() {
     SecurityContextHolder.clearContext();
     CompanyContextHolder.clear();
-  }
-
-  @Test
-  void switchCompany_deniesWhenNotMember() {
-    Company allowed = company(1L, "ACME");
-
-    assertThatThrownBy(() -> companyService.switchCompany("BBP", Set.of(allowed)))
-        .isInstanceOf(AccessDeniedException.class)
-        .hasMessageContaining("Not allowed");
-
-    verify(repository, never()).findByCodeIgnoreCase("BBP");
-  }
-
-  @Test
-  void switchCompany_returnsDtoWhenMember() {
-    Company allowed = company(1L, "ACME");
-    when(repository.findByCodeIgnoreCase("acme")).thenReturn(Optional.of(allowed));
-
-    CompanyDto dto = companyService.switchCompany("acme", Set.of(allowed));
-
-    assertThat(dto.id()).isEqualTo(1L);
-    assertThat(dto.code()).isEqualTo("ACME");
   }
 
   @Test
@@ -271,7 +259,7 @@ class CompanyServiceTest {
     when(repository.findByCodeIgnoreCase("SKE")).thenReturn(Optional.empty());
     when(repository.save(org.mockito.ArgumentMatchers.any(Company.class)))
         .thenAnswer(invocation -> invocation.getArgument(0, Company.class));
-    when(tenantAdminProvisioningService.isCredentialEmailDeliveryEnabled()).thenReturn(true);
+    when(tenantAdminProvisioningService.isCredentialProvisioningReady()).thenReturn(true);
 
     CompanyRequest request =
         new CompanyRequest(
@@ -297,6 +285,35 @@ class CompanyServiceTest {
             org.mockito.ArgumentMatchers.any(Company.class),
             eq("tenant-admin@ske.com"),
             eq("SKE Tenant Admin"));
+  }
+
+  @Test
+  void create_rejectsWhenCredentialProvisioningIsNotReady() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    when(repository.findByCodeIgnoreCase("SKE")).thenReturn(Optional.empty());
+    when(tenantAdminProvisioningService.isCredentialProvisioningReady()).thenReturn(false);
+
+    CompanyRequest request =
+        new CompanyRequest(
+            "SKE Corp",
+            "ske",
+            "UTC",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "tenant-admin@ske.com",
+            "SKE Tenant Admin");
+
+    assertThatThrownBy(() -> companyService.create(request))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Credential email delivery is disabled");
+
+    verify(tenantAdminProvisioningService, never())
+        .provisionInitialAdmin(any(Company.class), any(), any());
   }
 
   @Test
@@ -453,6 +470,115 @@ class CompanyServiceTest {
   }
 
   @Test
+  void update_synchronizes_user_auth_scope_codes_when_company_code_changes() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    Company target = company(2L, "ACME");
+    UserAccount tenantUser = new UserAccount("user@example.com", "ACME", "hash", "User");
+    ReflectionTestUtils.setField(tenantUser, "id", 7L);
+    tenantUser.setCompany(target);
+    when(repository.findById(2L)).thenReturn(Optional.of(target));
+    when(userAccountRepository.findByCompany_Id(2L)).thenReturn(List.of(tenantUser));
+    CompanyRequest request = new CompanyRequest("New Name", "NEW", "UTC", BigDecimal.TEN);
+
+    CompanyDto dto = companyService.update(2L, request, Set.of(target));
+
+    assertThat(dto.code()).isEqualTo("NEW");
+    assertThat(tenantUser.getAuthScopeCode()).isEqualTo("NEW");
+    verify(userAccountRepository).saveAll(List.of(tenantUser));
+  }
+
+  @Test
+  void update_rejects_company_code_that_conflicts_with_platform_auth_code() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    Company target = company(2L, "ACME");
+    when(repository.findById(2L)).thenReturn(Optional.of(target));
+    when(authScopeService.isPlatformScope("PLATFORM")).thenReturn(true);
+    CompanyRequest request = new CompanyRequest("New Name", "platform", "UTC", BigDecimal.TEN);
+
+    assertThatThrownBy(() -> companyService.update(2L, request, Set.of(target)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Company code conflicts with platform auth code: PLATFORM");
+
+    verify(userAccountRepository, never()).findByCompany_Id(anyLong());
+    verify(userAccountRepository, never()).saveAll(any());
+  }
+
+  @Test
+  void update_allowsBoundMatchingContextWhenAuthScopeServiceIsUnavailable() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    CompanyContextHolder.setCompanyCode("ACME");
+    Company target = company(2L, "ACME");
+    CompanyRequest request = new CompanyRequest("New Name", "bbb", "UTC", BigDecimal.TEN);
+    CompanyService withoutAuthScopeService =
+        new CompanyService(
+            repository,
+            auditService,
+            userAccountRepository,
+            auditLogRepository,
+            tenantRuntimeEnforcementService,
+            tenantAdminProvisioningService,
+            tenantLifecycleService,
+            passwordResetService,
+            null);
+    when(repository.findById(2L)).thenReturn(Optional.of(target));
+    when(repository.findByCodeIgnoreCase("BBB")).thenReturn(Optional.empty());
+    when(userAccountRepository.findByCompany_Id(2L)).thenReturn(List.of());
+    CompanyDto dto = withoutAuthScopeService.update(2L, request, Set.of(target));
+
+    assertThat(dto.code()).isEqualTo("BBB");
+  }
+
+  @Test
+  void create_rejects_company_code_that_conflicts_with_platform_auth_code() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    when(authScopeService.isPlatformScope("PLATFORM")).thenReturn(true);
+    CompanyRequest request = new CompanyRequest("Platform", "platform", "UTC", BigDecimal.TEN);
+
+    assertThatThrownBy(() -> companyService.create(request))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Company code conflicts with platform auth code: PLATFORM");
+
+    verify(repository, never()).findByCodeIgnoreCase(any());
+  }
+
+  @Test
+  void update_allowsPlatformScopeBoundContextForSuperAdminControlPlane() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    CompanyContextHolder.setCompanyCode("PLATFORM");
+    Company target = company(2L, "ACME");
+    when(repository.findById(2L)).thenReturn(Optional.of(target));
+    when(repository.findByCodeIgnoreCase("ACME")).thenReturn(Optional.of(target));
+    when(authScopeService.isPlatformScope("PLATFORM")).thenReturn(true);
+    CompanyRequest request = new CompanyRequest("New Name", "ACME", "UTC", BigDecimal.TEN);
+
+    CompanyDto response = companyService.update(2L, request, Set.of(target));
+
+    assertThat(response.code()).isEqualTo("ACME");
+    assertThat(response.name()).isEqualTo("New Name");
+  }
+
+  @Test
+  void update_rejects_scoped_account_conflict_when_company_code_changes() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    Company target = company(2L, "ACME");
+    UserAccount tenantUser = new UserAccount("user@example.com", "ACME", "hash", "User");
+    ReflectionTestUtils.setField(tenantUser, "id", 7L);
+    tenantUser.setCompany(target);
+    when(repository.findById(2L)).thenReturn(Optional.of(target));
+    when(userAccountRepository.findByCompany_Id(2L)).thenReturn(List.of(tenantUser));
+    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCaseAndIdNot(
+            "user@example.com", "NEW", 7L))
+        .thenReturn(true);
+    CompanyRequest request = new CompanyRequest("New Name", "NEW", "UTC", BigDecimal.TEN);
+
+    assertThatThrownBy(() -> companyService.update(2L, request, Set.of(target)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Scoped account already exists for email in company code");
+
+    verify(userAccountRepository, never()).saveAll(any());
+  }
+
+  @Test
   void create_usesRequestedDefaultGstRateWhenProvided() {
     authenticateAs("ROLE_SUPER_ADMIN");
     Company incoming = company(7L, "SKE");
@@ -493,12 +619,71 @@ class CompanyServiceTest {
     CompanyDto dto = companyService.create(request);
 
     assertThat(dto.code()).isEqualTo("SKE");
-    verify(tenantAdminProvisioningService, never()).isCredentialEmailDeliveryEnabled();
+    verify(tenantAdminProvisioningService, never()).isCredentialProvisioningReady();
     verify(tenantAdminProvisioningService, never())
         .provisionInitialAdmin(
             org.mockito.ArgumentMatchers.any(Company.class),
             org.mockito.ArgumentMatchers.anyString(),
             org.mockito.ArgumentMatchers.anyString());
+  }
+
+  @Test
+  void synchronizeScopedAccountsToCompanyCode_shortCircuitsAcrossGuardClauses() {
+    CompanyService withoutUserRepository =
+        new CompanyService(
+            repository,
+            auditService,
+            null,
+            auditLogRepository,
+            tenantRuntimeEnforcementService,
+            tenantAdminProvisioningService,
+            tenantLifecycleService,
+            passwordResetService,
+            authScopeService);
+    Company persisted = company(7L, "ACME");
+
+    assertThatCode(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService,
+                    "synchronizeScopedAccountsToCompanyCode",
+                    null,
+                    "BBB"))
+        .doesNotThrowAnyException();
+    assertThatCode(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService,
+                    "synchronizeScopedAccountsToCompanyCode",
+                    company(null, "ACME"),
+                    "BBB"))
+        .doesNotThrowAnyException();
+    assertThatCode(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService,
+                    "synchronizeScopedAccountsToCompanyCode",
+                    persisted,
+                    "   "))
+        .doesNotThrowAnyException();
+    assertThatCode(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    withoutUserRepository,
+                    "synchronizeScopedAccountsToCompanyCode",
+                    persisted,
+                    "BBB"))
+        .doesNotThrowAnyException();
+    assertThatCode(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService,
+                    "synchronizeScopedAccountsToCompanyCode",
+                    persisted,
+                    "ACME"))
+        .doesNotThrowAnyException();
+
+    verifyNoInteractions(userAccountRepository);
   }
 
   @Test
@@ -594,7 +779,7 @@ class CompanyServiceTest {
     company.setLifecycleState(CompanyLifecycleState.SUSPENDED);
     company.setLifecycleReason("compliance-review");
     when(repository.findById(1L)).thenReturn(Optional.of(company));
-    when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(1L)).thenReturn(3L);
+    when(userAccountRepository.countByCompany_IdAndEnabledTrue(1L)).thenReturn(3L);
     when(auditLogRepository.countApiActivityByCompanyId(1L)).thenReturn(20L);
     when(auditLogRepository.countApiFailureActivityByCompanyId(1L)).thenReturn(5L);
     when(auditLogRepository.countDistinctSessionActivityByCompanyId(1L)).thenReturn(2L);
@@ -624,7 +809,7 @@ class CompanyServiceTest {
         .isInstanceOf(AccessDeniedException.class)
         .hasMessageContaining("SUPER_ADMIN authority required for tenant metrics");
 
-    verify(userAccountRepository, never()).countDistinctByCompanies_IdAndEnabledTrue(1L);
+    verify(userAccountRepository, never()).countByCompany_IdAndEnabledTrue(1L);
     verify(auditLogRepository, never()).countApiActivityByCompanyId(1L);
     verify(auditLogRepository, never()).countApiFailureActivityByCompanyId(1L);
     verify(auditLogRepository, never()).countDistinctSessionActivityByCompanyId(1L);
@@ -637,7 +822,7 @@ class CompanyServiceTest {
     configureHardLimitEnvelope(company);
     company.setQuotaMaxActiveUsers(1L);
     when(repository.findById(1L)).thenReturn(Optional.of(company));
-    when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(1L)).thenReturn(2L);
+    when(userAccountRepository.countByCompany_IdAndEnabledTrue(1L)).thenReturn(2L);
 
     assertThat(companyService.isRuntimeAccessAllowed(1L)).isFalse();
   }
@@ -680,7 +865,7 @@ class CompanyServiceTest {
     Company company = company(1L, "ACME");
     configureHardLimitEnvelope(company);
     when(repository.findById(1L)).thenReturn(Optional.of(company));
-    when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(1L)).thenReturn(50L);
+    when(userAccountRepository.countByCompany_IdAndEnabledTrue(1L)).thenReturn(50L);
     when(auditLogRepository.countApiActivityByCompanyId(1L)).thenReturn(20L);
     when(auditLogRepository.estimateAuditStorageBytesByCompanyId(1L)).thenReturn(10_000L);
     when(auditLogRepository.countDistinctSessionActivityByCompanyId(1L))
@@ -706,7 +891,7 @@ class CompanyServiceTest {
     when(repository.findById(1L)).thenReturn(Optional.of(company));
 
     assertThat(companyService.isRuntimeAccessAllowed(1L)).isTrue();
-    verify(userAccountRepository, never()).countDistinctByCompanies_IdAndEnabledTrue(1L);
+    verify(userAccountRepository, never()).countByCompany_IdAndEnabledTrue(1L);
   }
 
   @Test
@@ -793,7 +978,7 @@ class CompanyServiceTest {
     Company company = company(1L, "ACME");
     configureHardLimitEnvelope(company);
     when(repository.findById(1L)).thenReturn(Optional.of(company));
-    when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(1L))
+    when(userAccountRepository.countByCompany_IdAndEnabledTrue(1L))
         .thenThrow(new RuntimeException("telemetry-store-down"));
 
     assertThat(companyService.isRuntimeAccessAllowed(1L)).isFalse();
@@ -804,7 +989,7 @@ class CompanyServiceTest {
     Company company = company(1L, "ACME");
     configureHardLimitEnvelope(company);
     when(repository.findById(1L)).thenReturn(Optional.of(company));
-    when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(1L)).thenReturn(50L);
+    when(userAccountRepository.countByCompany_IdAndEnabledTrue(1L)).thenReturn(50L);
     when(auditLogRepository.countApiActivityByCompanyId(1L)).thenReturn(20L);
     when(auditLogRepository.estimateAuditStorageBytesByCompanyId(1L)).thenReturn(10_000L);
     when(auditLogRepository.countDistinctSessionActivityByCompanyId(1L)).thenReturn(5L);
@@ -828,6 +1013,51 @@ class CompanyServiceTest {
         .isEqualTo(CompanyLifecycleState.ACTIVE);
     assertThat(companyService.resolveLifecycleStateById(null))
         .isEqualTo(CompanyLifecycleState.DEACTIVATED);
+  }
+
+  @Test
+  void helperMembershipChecks_failClosedForNullBlankAndNonMemberInputs() {
+    Company allowed = company(1L, "ACME");
+
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService, "requireMembershipById", null, Set.of(allowed)))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService, "requireMembershipById", 2L, Set.of(allowed)))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService, "requireMembershipByCode", " ", Set.of(allowed)))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService, "requireMembershipByCode", "BBB", Set.of(allowed)))
+        .isInstanceOf(AccessDeniedException.class);
+  }
+
+  @Test
+  void normalizeStateCode_rejectsNonTwoCharacterValues() {
+    assertThatThrownBy(
+            () -> ReflectionTestUtils.invokeMethod(companyService, "normalizeStateCode", "ABC"))
+        .hasMessageContaining("State code must be exactly 2 characters");
+  }
+
+  @Test
+  void requireSuperAdminForTenantBootstrap_deniesNonSuperAdmin() {
+    authenticateAs("ROLE_ADMIN");
+
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService, "requireSuperAdminForTenantBootstrap", "MOCK"))
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessageContaining("SUPER_ADMIN authority required for tenant bootstrap");
   }
 
   @Test
@@ -928,11 +1158,11 @@ class CompanyServiceTest {
   }
 
   @Test
-  void resetTenantAdminPassword_resetsAndEmailsTemporaryCredentials() {
+  void resetTenantAdminPassword_emailsScopedResetLink() {
     authenticateAs("ROLE_SUPER_ADMIN");
     Company company = company(5L, "SKE");
     when(repository.findById(5L)).thenReturn(Optional.of(company));
-    when(tenantAdminProvisioningService.isCredentialEmailDeliveryEnabled()).thenReturn(true);
+    when(passwordResetService.isResetEmailDeliveryEnabled()).thenReturn(true);
     when(tenantAdminProvisioningService.resetTenantAdminPassword(company, "tenant-admin@ske.com"))
         .thenReturn("tenant-admin@ske.com");
 
@@ -946,15 +1176,15 @@ class CompanyServiceTest {
   }
 
   @Test
-  void resetTenantAdminPassword_rejectsWhenCredentialEmailDeliveryIsDisabled() {
+  void resetTenantAdminPassword_rejectsWhenPasswordResetEmailDeliveryIsDisabled() {
     authenticateAs("ROLE_SUPER_ADMIN");
     Company company = company(5L, "SKE");
     when(repository.findById(5L)).thenReturn(Optional.of(company));
-    when(tenantAdminProvisioningService.isCredentialEmailDeliveryEnabled()).thenReturn(false);
+    when(passwordResetService.isResetEmailDeliveryEnabled()).thenReturn(false);
 
     assertThatThrownBy(() -> companyService.resetTenantAdminPassword(5L, "tenant-admin@ske.com"))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Credential email delivery is disabled");
+        .hasMessageContaining("Password reset email delivery is disabled");
 
     verify(tenantAdminProvisioningService, never())
         .resetTenantAdminPassword(company, "tenant-admin@ske.com");
@@ -976,6 +1206,45 @@ class CompanyServiceTest {
   }
 
   @Test
+  void resetTenantAdminPassword_surfacesDisabledAdminAsError() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    Company company = company(5L, "SKE");
+    when(repository.findById(5L)).thenReturn(Optional.of(company));
+    when(passwordResetService.isResetEmailDeliveryEnabled()).thenReturn(true);
+    when(tenantAdminProvisioningService.resetTenantAdminPassword(company, "tenant-admin@ske.com"))
+        .thenThrow(
+            new ApplicationException(
+                ErrorCode.AUTH_ACCOUNT_DISABLED, ErrorCode.AUTH_ACCOUNT_DISABLED.getDefaultMessage()));
+
+    assertThatThrownBy(() -> companyService.resetTenantAdminPassword(5L, "tenant-admin@ske.com"))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Account is disabled");
+  }
+
+  @Test
+  void resetTenantAdminPassword_requiresPasswordResetDependencies() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    CompanyService withoutPasswordReset =
+        new CompanyService(
+            repository,
+            auditService,
+            userAccountRepository,
+            auditLogRepository,
+            tenantRuntimeEnforcementService,
+            tenantAdminProvisioningService,
+            tenantLifecycleService,
+            null,
+            authScopeService);
+    Company company = company(5L, "SKE");
+    when(repository.findById(5L)).thenReturn(Optional.of(company));
+
+    assertThatThrownBy(
+            () -> withoutPasswordReset.resetTenantAdminPassword(5L, "tenant-admin@ske.com"))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Password reset dependencies are not available");
+  }
+
+  @Test
   void getSuperAdminDashboard_aggregatesTenantUsageAndQuotas() {
     authenticateAs("ROLE_SUPER_ADMIN");
     Company alpha = company(10L, "ALPHA");
@@ -991,8 +1260,8 @@ class CompanyServiceTest {
     beta.setQuotaMaxApiRequests(200L);
     beta.setLifecycleState(CompanyLifecycleState.SUSPENDED);
     when(repository.findAll()).thenReturn(List.of(alpha, beta));
-    when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(10L)).thenReturn(8L);
-    when(userAccountRepository.countDistinctByCompanies_IdAndEnabledTrue(11L)).thenReturn(12L);
+    when(userAccountRepository.countByCompany_IdAndEnabledTrue(10L)).thenReturn(8L);
+    when(userAccountRepository.countByCompany_IdAndEnabledTrue(11L)).thenReturn(12L);
     when(auditLogRepository.countApiActivityByCompanyId(10L)).thenReturn(90L);
     when(auditLogRepository.countApiActivityByCompanyId(11L)).thenReturn(110L);
     when(auditLogRepository.countApiFailureActivityByCompanyId(10L)).thenReturn(3L);

@@ -76,7 +76,7 @@ class CR_TimeDateSafetyTest extends AbstractIntegrationTest {
     ensureAccount(
         company, "PROFESSIONAL-TAX-PAYABLE", "Professional Tax Payable", AccountType.LIABILITY);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
 
     // Accounting: entryDate defaults to CompanyClock.today(company)
     var manual =
@@ -138,7 +138,7 @@ class CR_TimeDateSafetyTest extends AbstractIntegrationTest {
 
   private Company bootstrapCompany(String companyCode, String timezone) {
     dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     company.setTimezone(timezone);
     company.setBaseCurrency("INR");

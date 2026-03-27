@@ -57,8 +57,9 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
         "Audit Super Admin",
         TENANT_A,
         List.of("ROLE_SUPER_ADMIN", "ROLE_ADMIN"));
-    resetSeededUserState(ADMIN_EMAIL);
-    resetSeededUserState(SUPER_ADMIN_EMAIL);
+    resetSeededUserState(ADMIN_EMAIL, TENANT_A);
+    resetSeededUserState(SUPER_ADMIN_EMAIL, ROOT_TENANT);
+    resetSeededUserState(SUPER_ADMIN_EMAIL, TENANT_A);
     resetTenantLifecycle(TENANT_A);
     resetTenantLifecycle(ROOT_TENANT);
   }
@@ -141,9 +142,9 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
     assertThat(data.get("companyCode")).isEqualTo(TENANT_A);
   }
 
-  private void resetSeededUserState(String email) {
+  private void resetSeededUserState(String email, String companyCode) {
     userAccountRepository
-        .findByEmailIgnoreCase(email)
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(email, companyCode)
         .ifPresent(
             user -> {
               user.setEnabled(true);
@@ -183,7 +184,10 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
   private Long seedSupportTicket(String companyCode, String email, String subject) {
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     Long userId =
-        userAccountRepository.findByEmailIgnoreCase(email).map(user -> user.getId()).orElseThrow();
+        userAccountRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(email, companyCode)
+            .map(user -> user.getId())
+            .orElseThrow();
 
     SupportTicket ticket = new SupportTicket();
     ticket.setCompany(company);

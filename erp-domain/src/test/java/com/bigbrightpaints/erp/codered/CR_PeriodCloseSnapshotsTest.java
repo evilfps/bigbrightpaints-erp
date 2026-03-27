@@ -60,7 +60,7 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
   void trialBalanceAsOf_usesSnapshotForClosedPeriod() {
     String companyCode = "CR-SNAP-GL-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate today = TestDateUtils.safeDate(company);
       LocalDate periodDate = today.minusMonths(1);
@@ -99,7 +99,7 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
   void accountBalanceAsOf_closedSnapshot_normalizesCreditNaturalSign() {
     String companyCode = "CR-SNAP-BAL-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate today = TestDateUtils.safeDate(company);
       LocalDate periodDate = today.minusMonths(1);
@@ -131,7 +131,7 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
   void accountBalanceAsOf_creditNormal_isStableAcrossClosedOpenBoundary() {
     String companyCode = "CR-SNAP-BND-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate today = TestDateUtils.safeDate(company);
       LocalDate periodDate = today.minusMonths(1);
@@ -167,7 +167,7 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
   void balanceSheetAsOf_usesSnapshotForClosedPeriod() {
     String companyCode = "CR-SNAP-BS-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate today = TestDateUtils.safeDate(company);
       LocalDate periodDate = today.minusMonths(1);
@@ -208,7 +208,7 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
   void trialBalanceReportAsOf_includesSnapshotMetadata() {
     String companyCode = "CR-SNAP-TB-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate today = TestDateUtils.safeDate(company);
       LocalDate periodDate = today.minusMonths(1);
@@ -239,7 +239,7 @@ class CR_PeriodCloseSnapshotsTest extends AbstractIntegrationTest {
   void inventoryValuationAsOf_usesSnapshotForClosedPeriod() {
     String companyCode = "CR-SNAP-INV-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate today = TestDateUtils.safeDate(company);
       LocalDate periodDate = today.minusMonths(1);

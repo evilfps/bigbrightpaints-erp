@@ -42,7 +42,7 @@ class CR_TemporalTrialBalanceParityIT extends AbstractIntegrationTest {
   void openPeriodTemporalTrialBalance_matchesReportSignConventions() {
     String companyCode = "CR-OPEN-TB-" + System.nanoTime();
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       LocalDate asOfDate = TestDateUtils.safeDate(company);
       Account cash =

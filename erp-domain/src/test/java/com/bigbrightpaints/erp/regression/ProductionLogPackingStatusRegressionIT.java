@@ -87,7 +87,7 @@ class ProductionLogPackingStatusRegressionIT extends AbstractIntegrationTest {
   @BeforeEach
   void setUp() {
     company = dataSeeder.ensureCompany(COMPANY_CODE, COMPANY_CODE + " Ltd");
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
 
     rmInventory = ensureAccount("INV-RM", "Raw Material Inventory", AccountType.ASSET);
     packagingInventory = ensureAccount("INV-PACK", "Packaging Inventory", AccountType.ASSET);

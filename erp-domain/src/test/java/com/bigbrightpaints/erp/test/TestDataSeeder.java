@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.bigbrightpaints.erp.core.service.CriticalFixtureService;
+import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -35,6 +36,7 @@ public class TestDataSeeder {
   private final UserAccountRepository userRepository;
   private final SalesOrderRepository salesOrderRepository;
   private final PasswordEncoder passwordEncoder;
+  private final AuthScopeService authScopeService;
   private final ObjectProvider<CriticalFixtureService> criticalFixtureService;
 
   public TestDataSeeder(
@@ -44,6 +46,7 @@ public class TestDataSeeder {
       UserAccountRepository userRepository,
       SalesOrderRepository salesOrderRepository,
       PasswordEncoder passwordEncoder,
+      AuthScopeService authScopeService,
       ObjectProvider<CriticalFixtureService> criticalFixtureService) {
     this.companyRepository = companyRepository;
     this.roleRepository = roleRepository;
@@ -51,6 +54,7 @@ public class TestDataSeeder {
     this.userRepository = userRepository;
     this.salesOrderRepository = salesOrderRepository;
     this.passwordEncoder = passwordEncoder;
+    this.authScopeService = authScopeService;
     this.criticalFixtureService = criticalFixtureService;
   }
 
@@ -83,20 +87,26 @@ public class TestDataSeeder {
       String displayName,
       String companyCode,
       List<String> roleNames) {
-    Company company = ensureCompany(companyCode, companyCode + " Ltd");
+    String scopeCode = authScopeService.requireScopeCode(companyCode);
+    Company company =
+        authScopeService.isPlatformScope(scopeCode) ? null : ensureCompany(scopeCode, scopeCode + " Ltd");
     UserAccount user =
         userRepository
-            .findByEmailIgnoreCase(email)
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(email, scopeCode)
             .orElseGet(
                 () -> {
                   UserAccount account =
-                      new UserAccount(email, passwordEncoder.encode(rawPassword), displayName);
-                  account.getCompanies().add(company);
+                      new UserAccount(
+                          email, scopeCode, passwordEncoder.encode(rawPassword), displayName);
+                  if (company != null) {
+                    account.setCompany(company);
+                  }
                   return account;
                 });
+    user.setAuthScopeCode(scopeCode);
     user.setDisplayName(displayName);
     user.setPasswordHash(passwordEncoder.encode(rawPassword));
-    user.getCompanies().add(company);
+    user.setCompany(company);
     roleNames.forEach(roleName -> user.addRole(ensureRole(roleName)));
     return userRepository.save(user);
   }

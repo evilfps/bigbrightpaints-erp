@@ -215,6 +215,8 @@ jobs:
           bash scripts/run_test_manifest.sh \
             --profile pr-fast \
             --label accounting \
+            --batch-size 10 \
+            --maven-arg -Dtest.groups= \
             --manifest ci/pr_manifests/pr_accounting.txt
 
       - name: Upload shard coverage
@@ -285,6 +287,7 @@ jobs:
           bash scripts/run_test_manifest.sh \
             --profile pr-fast \
             --label business-slice \
+            --maven-arg -Dtest.groups= \
             --manifest ci/pr_manifests/pr_business_slice.txt
 
       - name: Upload shard coverage

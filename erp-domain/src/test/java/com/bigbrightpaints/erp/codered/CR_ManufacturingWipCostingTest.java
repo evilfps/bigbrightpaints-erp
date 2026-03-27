@@ -98,7 +98,7 @@ class CR_ManufacturingWipCostingTest extends AbstractIntegrationTest {
     String bulkSku = product.getSkuCode() + "-BULK";
     FinishedGood semiFinished =
         ensureFinishedGood(company, bulkSku, accounts.get("SF_INV"), accounts);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     finishedGoodsService.registerBatch(
         new FinishedGoodBatchRequest(
             semiFinished.getId(),
@@ -116,7 +116,7 @@ class CR_ManufacturingWipCostingTest extends AbstractIntegrationTest {
     ensurePackagingSizeMapping(company, bucket, "1L");
     FinishedGood packTarget = ensurePackTarget(company, product, accounts, "1L");
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     LocalDate packingDate = LocalDate.of(2025, 3, 31);
     packingService.recordPacking(
         new PackingRequest(
@@ -187,7 +187,7 @@ class CR_ManufacturingWipCostingTest extends AbstractIntegrationTest {
     createFullyPackedLog(
         company, product, "CR-BATCH-OUT-" + shortId(), new BigDecimal("10"), excluded);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var first =
         costAllocationService.allocateCosts(
             new CostAllocationRequest(
@@ -256,7 +256,7 @@ class CR_ManufacturingWipCostingTest extends AbstractIntegrationTest {
 
   private Company bootstrapCompany(String companyCode, String timezone) {
     dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     company.setTimezone(timezone);
     company.setBaseCurrency("INR");
@@ -382,7 +382,7 @@ class CR_ManufacturingWipCostingTest extends AbstractIntegrationTest {
 
   private FinishedGood ensureFinishedGood(
       Company company, String sku, Account valuation, Map<String, Account> accounts) {
-    CompanyContextHolder.setCompanyId(company.getCode());
+    CompanyContextHolder.setCompanyCode(company.getCode());
     FinishedGoodRequest req =
         new FinishedGoodRequest(
             sku,

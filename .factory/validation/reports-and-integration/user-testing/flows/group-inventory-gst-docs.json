@@ -185,7 +185,7 @@
         {
           "action": "Verify endpoint map",
           "expected": "All auth endpoints with HTTP method, path, auth requirement, request/response types",
-          "observed": "13 endpoints documented: login, refresh-token, logout, me, password/change, password/forgot, password/forgot/superadmin, password/reset, profile (GET/PUT), mfa/setup, mfa/activate, mfa/disable."
+          "observed": "12 endpoints documented: login, refresh-token, logout, me, password/change, password/forgot, password/reset, profile (GET/PUT), mfa/setup, mfa/activate, mfa/disable."
         },
         {
           "action": "Verify user flows",

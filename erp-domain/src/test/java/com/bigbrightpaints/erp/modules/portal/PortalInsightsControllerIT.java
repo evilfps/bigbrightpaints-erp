@@ -106,22 +106,8 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
         "Super Admin",
         COMPANY_CODE,
         List.of("ROLE_SUPER_ADMIN"));
-    userAccountRepository
-        .findByEmailIgnoreCase(ADMIN_EMAIL)
-        .ifPresent(
-            user -> {
-              user.setMustChangePassword(false);
-              user.setEnabled(true);
-              userAccountRepository.save(user);
-            });
-    userAccountRepository
-        .findByEmailIgnoreCase(SUPER_ADMIN_EMAIL)
-        .ifPresent(
-            user -> {
-              user.setMustChangePassword(false);
-              user.setEnabled(true);
-              userAccountRepository.save(user);
-            });
+    resetUserState(ADMIN_EMAIL, COMPANY_CODE);
+    resetUserState(SUPER_ADMIN_EMAIL, COMPANY_CODE);
     resetTenantRuntimePolicy(company.getId(), company.getCode());
 
     SalesOrder order = new SalesOrder();
@@ -436,6 +422,17 @@ public class PortalInsightsControllerIT extends AbstractIntegrationTest {
     systemSettingsRepository.deleteById("tenant.runtime.policy-reference." + companyId);
     systemSettingsRepository.deleteById("tenant.runtime.policy-updated-at." + companyId);
     tenantRuntimeEnforcementService.invalidatePolicyCache(companyCode);
+  }
+
+  private void resetUserState(String email, String companyCode) {
+    userAccountRepository
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(email, companyCode)
+        .ifPresent(
+            user -> {
+              user.setMustChangePassword(false);
+              user.setEnabled(true);
+              userAccountRepository.save(user);
+            });
   }
 
   private SalesOrder saveSalesOrder(String orderNumber, String status, BigDecimal totalAmount) {

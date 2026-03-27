@@ -76,7 +76,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
         new PayrollService.CreatePayrollRunRequest(
             PayrollRun.RunType.WEEKLY, start, end, "CODE-RED weekly payroll");
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var first = payrollService.createPayrollRun(request);
     var second = payrollService.createPayrollRun(request);
     CompanyContextHolder.clear();
@@ -92,7 +92,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
             Duration.ofSeconds(30),
             threadIndex ->
                 () -> {
-                  CompanyContextHolder.setCompanyId(companyCode);
+                  CompanyContextHolder.setCompanyCode(companyCode);
                   try {
                     return payrollService.createPayrollRun(request);
                   } finally {
@@ -128,7 +128,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     LocalDate start = anchor.minusDays(30);
     LocalDate end = anchor.minusDays(1);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var runDto =
         payrollService.createPayrollRun(
             new PayrollService.CreatePayrollRunRequest(
@@ -140,7 +140,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     payrollRunRepository.save(run);
     seedMinimalPayrollLines(company, run, BigDecimal.valueOf(1000), BigDecimal.valueOf(100), null);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var posted = payrollService.postPayrollToAccounting(run.getId());
     CompanyContextHolder.clear();
 
@@ -156,7 +156,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
         .startsWith("PAYROLL-");
     CoderedDbAssertions.assertBalancedJournal(journalEntryRepository, journal.getId());
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var reposted = payrollService.postPayrollToAccounting(run.getId());
     CompanyContextHolder.clear();
 
@@ -187,7 +187,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
 
     LocalDate statutoryStart = anchor.minusDays(20);
     LocalDate statutoryEnd = anchor.minusDays(10);
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var runWithStatutoryDto =
         payrollService.createPayrollRun(
             new PayrollService.CreatePayrollRunRequest(
@@ -215,7 +215,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
           line.setLineTotal(line.getNetPay());
         });
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var postedWithStatutory = payrollService.postPayrollToAccounting(runWithStatutory.getId());
     CompanyContextHolder.clear();
 
@@ -258,7 +258,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     LocalDate start = anchor.minusDays(30);
     LocalDate end = anchor.minusDays(1);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var runDto =
         payrollService.createPayrollRun(
             new PayrollService.CreatePayrollRunRequest(
@@ -270,7 +270,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     payrollRunRepository.save(run);
     seedMinimalPayrollLines(company, run, BigDecimal.valueOf(1000), BigDecimal.ZERO, null);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       assertThatThrownBy(() -> payrollService.postPayrollToAccounting(run.getId()))
           .isInstanceOf(ApplicationException.class)
@@ -322,7 +322,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     LocalDate start = anchor.minusDays(30);
     LocalDate end = anchor.minusDays(1);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var runDto =
         payrollService.createPayrollRun(
             new PayrollService.CreatePayrollRunRequest(
@@ -337,7 +337,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     payrollRunRepository.save(run);
     seedMinimalPayrollLines(company, run, BigDecimal.valueOf(1000), BigDecimal.valueOf(100), null);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     try {
       assertThatThrownBy(() -> payrollService.postPayrollToAccounting(run.getId()))
           .isInstanceOf(ApplicationException.class)
@@ -368,7 +368,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     LocalDate start = anchor.minusDays(30);
     LocalDate end = anchor.minusDays(1);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var runDto =
         payrollService.createPayrollRun(
             new PayrollService.CreatePayrollRunRequest(
@@ -380,7 +380,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     payrollRunRepository.save(run);
     seedMinimalPayrollLines(company, run, BigDecimal.valueOf(1000), BigDecimal.ZERO, null);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     payrollService.postPayrollToAccounting(run.getId());
     CompanyContextHolder.clear();
 
@@ -389,7 +389,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     first.setGrossPay(first.getGrossPay().add(BigDecimal.valueOf(250)));
     payrollRunLineRepository.save(first);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     assertThatThrownBy(() -> payrollService.postPayrollToAccounting(run.getId()))
         .isInstanceOf(ApplicationException.class)
         .extracting(ex -> ((ApplicationException) ex).getErrorCode())
@@ -415,7 +415,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     PayrollRun saved = payrollRunRepository.save(run);
     seedMinimalPayrollLines(company, saved, BigDecimal.valueOf(500), BigDecimal.ZERO, null);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var posted = payrollService.postPayrollToAccounting(saved.getId());
     CompanyContextHolder.clear();
 
@@ -441,7 +441,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     LocalDate start = anchor.minusDays(30);
     LocalDate end = anchor.minusDays(1);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var runDto =
         payrollService.createPayrollRun(
             new PayrollService.CreatePayrollRunRequest(
@@ -453,7 +453,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     payrollRunRepository.save(run);
     seedMinimalPayrollLines(company, run, BigDecimal.valueOf(1000), BigDecimal.ZERO, null);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var postedDto = payrollService.postPayrollToAccounting(run.getId());
     CompanyContextHolder.clear();
 
@@ -463,7 +463,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     assertThat(posted.getJournalEntryId()).as("posting journal stored").isNotNull();
     assertThat(posted.getPaymentJournalEntryId()).as("payment journal not yet recorded").isNull();
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     assertThatThrownBy(() -> payrollService.markAsPaid(posted.getId(), "PAYMENT-MISSING"))
         .isInstanceOf(ApplicationException.class)
         .extracting(ex -> ((ApplicationException) ex).getErrorCode())
@@ -471,7 +471,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     CompanyContextHolder.clear();
 
     BigDecimal expectedPayable = new BigDecimal("2000");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var payment =
         accountingService.recordPayrollPayment(
             new PayrollPaymentRequest(
@@ -526,7 +526,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     assertThat(cashDebit).as("Cash has no debit in payment journal").isZero();
     assertThat(cashCredit).as("Cr cash").isEqualByComparingTo(expectedPayable);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     payrollService.markAsPaid(afterPayment.getId(), payment.referenceNumber());
     CompanyContextHolder.clear();
 
@@ -551,7 +551,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     LocalDate start = anchor.minusDays(30);
     LocalDate end = anchor.minusDays(1);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var runDto =
         payrollService.createPayrollRun(
             new PayrollService.CreatePayrollRunRequest(
@@ -563,7 +563,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     payrollRunRepository.save(run);
     seedMinimalPayrollLines(company, run, BigDecimal.valueOf(1000), BigDecimal.ZERO, null);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     payrollService.postPayrollToAccounting(run.getId());
     CompanyContextHolder.clear();
 
@@ -583,7 +583,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
             Duration.ofSeconds(30),
             threadIndex ->
                 () -> {
-                  CompanyContextHolder.setCompanyId(companyCode);
+                  CompanyContextHolder.setCompanyCode(companyCode);
                   try {
                     return accountingService.recordPayrollPayment(request);
                   } finally {
@@ -622,7 +622,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     LocalDate start = anchor.minusDays(30);
     LocalDate end = anchor.minusDays(1);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var runDto =
         payrollService.createPayrollRun(
             new PayrollService.CreatePayrollRunRequest(
@@ -634,7 +634,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     payrollRunRepository.save(run);
     seedMinimalPayrollLines(company, run, BigDecimal.valueOf(1000), BigDecimal.ZERO, null);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     payrollService.postPayrollToAccounting(run.getId());
     accountingService.recordPayrollPayment(
         new PayrollPaymentRequest(
@@ -646,7 +646,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
             "CODE-RED payroll payment"));
     CompanyContextHolder.clear();
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     assertThatThrownBy(
             () ->
                 accountingService.recordPayrollPayment(
@@ -675,7 +675,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     LocalDate start = anchor.minusDays(30);
     LocalDate end = anchor.minusDays(1);
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     var runDto =
         payrollService.createPayrollRun(
             new PayrollService.CreatePayrollRunRequest(
@@ -696,7 +696,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
               employeeRepository.save(employee);
             });
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     payrollService.postPayrollToAccounting(run.getId());
     accountingService.recordPayrollPayment(
         new PayrollPaymentRequest(
@@ -720,7 +720,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
                   .isEqualByComparingTo("400");
             });
 
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     payrollService.markAsPaid(run.getId(), "PAYROLL-PAID-REF-RETRY");
     CompanyContextHolder.clear();
 
@@ -738,7 +738,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
 
   private Company bootstrapCompany(String companyCode) {
     dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
-    CompanyContextHolder.setCompanyId(companyCode);
+    CompanyContextHolder.setCompanyCode(companyCode);
     Company company = companyRepository.findByCodeIgnoreCase(companyCode).orElseThrow();
     company.setTimezone("UTC");
     company.setBaseCurrency("INR");

@@ -86,7 +86,7 @@ public class WipToFinishedCostIT extends AbstractIntegrationTest {
         "WIP Admin",
         COMPANY,
         List.of("ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_FACTORY", "ROLE_SALES"));
-    CompanyContextHolder.setCompanyId(COMPANY);
+    CompanyContextHolder.setCompanyCode(COMPANY);
     company = companyRepository.findByCodeIgnoreCase(COMPANY).orElseThrow();
     brand =
         productionBrandRepository

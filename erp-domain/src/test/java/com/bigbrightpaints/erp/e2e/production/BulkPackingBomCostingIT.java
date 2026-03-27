@@ -60,7 +60,7 @@ public class BulkPackingBomCostingIT extends AbstractIntegrationTest {
   @BeforeEach
   void init() {
     company = dataSeeder.ensureCompany(COMPANY_CODE, COMPANY_CODE + " Ltd");
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
     bulkInventory = ensureAccount("INV-BULK", AccountType.ASSET);
     fgInventory = ensureAccount("INV-FG", AccountType.ASSET);
     packagingInventory = ensureAccount("INV-PACK", AccountType.ASSET);

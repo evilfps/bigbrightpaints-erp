@@ -13,6 +13,6 @@ public record ProfileResponse(
     String phoneSecondary,
     String secondaryEmail,
     boolean mfaEnabled,
-    List<String> companies,
+    String companyCode,
     Instant createdAt,
     UUID publicId) {}

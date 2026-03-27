@@ -47,7 +47,7 @@ class JournalReferenceMappingRegressionIT extends AbstractIntegrationTest {
   @BeforeEach
   void setUp() {
     company = dataSeeder.ensureCompany(COMPANY_CODE, "Journal Ref Mapping Ltd");
-    CompanyContextHolder.setCompanyId(COMPANY_CODE);
+    CompanyContextHolder.setCompanyCode(COMPANY_CODE);
     cash = ensureAccount("CASH", "Cash", AccountType.ASSET);
     revenue = ensureAccount("REV", "Revenue", AccountType.REVENUE);
   }
