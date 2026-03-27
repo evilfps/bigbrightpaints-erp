@@ -5,6 +5,24 @@
   "tests_root": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite",
   "tests": [
     {
+      "id": "test-catalog::auth-ts-authv2scopedaccountsmigrationcontracttest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/auth/TS_AuthV2ScopedAccountsMigrationContractTest.java",
+      "module": "auth",
+      "owner": "lane02-auth-hardening",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": false
+    },
+    {
       "id": "test-catalog::accounting-ts-accountingauditsafetycoveragetest-java",
       "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/TS_AccountingAuditSafetyCoverageTest.java",
       "module": "accounting",
