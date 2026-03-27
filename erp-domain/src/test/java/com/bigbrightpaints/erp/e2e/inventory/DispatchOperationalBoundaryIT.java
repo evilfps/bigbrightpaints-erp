@@ -206,18 +206,17 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
 
     Map<String, Object> confirmRequest =
         Map.of(
-            "packingSlipId", slip.getId(),
-            "orderId", orderId,
+            "packagingSlipId", slip.getId(),
             "lines",
                 List.of(
                     Map.of(
                         "lineId",
                         slip.getLines().getFirst().getId(),
-                        "shipQty",
+                        "shippedQuantity",
                         new BigDecimal("4"),
                         "notes",
                         "ship all")),
-            "dispatchNotes", "ready for dispatch",
+            "notes", "ready for dispatch",
             "confirmedBy", "factory-user",
             "transporterName", "Rapid Logistics",
             "driverName", "Imran",
@@ -226,9 +225,9 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> firstResponse =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
-            new HttpEntity<>(confirmRequest, salesHeaders),
+            new HttpEntity<>(confirmRequest, factoryHeaders),
             Map.class);
     assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     requireData(firstResponse);
@@ -277,9 +276,9 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> replayResponse =
         rest.exchange(
-            "/api/v1/sales/dispatch/confirm",
+            "/api/v1/dispatch/confirm",
             HttpMethod.POST,
-            new HttpEntity<>(confirmRequest, salesHeaders),
+            new HttpEntity<>(confirmRequest, factoryHeaders),
             Map.class);
     assertThat(replayResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     requireData(replayResponse);

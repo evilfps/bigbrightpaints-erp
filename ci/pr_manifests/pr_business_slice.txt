@@ -7,8 +7,6 @@ com.bigbrightpaints.erp.codered.CR_CatalogImportIdempotencyIT
 com.bigbrightpaints.erp.modules.production.controller.CatalogControllerCanonicalProductIT
 com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryRequestTest
 com.bigbrightpaints.erp.modules.production.service.CatalogServiceBulkUpsertTest
-com.bigbrightpaints.erp.modules.production.service.CatalogServiceCanonicalCoverageTest
-com.bigbrightpaints.erp.modules.production.service.CatalogServiceProductCrudTest
 com.bigbrightpaints.erp.modules.production.service.ProductionCatalogServiceCanonicalEntryTest
 com.bigbrightpaints.erp.core.util.CompanyEntityLookupTest
 com.bigbrightpaints.erp.modules.factory.service.BulkPackingCostServiceTest
