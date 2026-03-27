@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.core.config;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -24,6 +25,9 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.service.PasswordPolicy;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceLine;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
@@ -34,6 +38,16 @@ import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 public class ValidationSeedDataInitializer {
 
   private static final Logger log = LoggerFactory.getLogger(ValidationSeedDataInitializer.class);
+  private static final LocalDate VALIDATION_INVOICE_ISSUE_DATE = LocalDate.of(2026, 1, 15);
+  private static final LocalDate VALIDATION_INVOICE_DUE_DATE = LocalDate.of(2026, 1, 30);
+  private static final BigDecimal VALIDATION_INVOICE_SUBTOTAL = new BigDecimal("1000.00");
+  private static final BigDecimal VALIDATION_INVOICE_TAX = new BigDecimal("180.00");
+  private static final BigDecimal VALIDATION_INVOICE_TOTAL = new BigDecimal("1180.00");
+  private static final BigDecimal VALIDATION_INVOICE_TAX_RATE = new BigDecimal("18.00");
+  private static final BigDecimal VALIDATION_HALF_TAX = new BigDecimal("90.00");
+  private static final String VALIDATION_INVOICE_NOTES = "Validation seed invoice fixture";
+  private static final String VALIDATION_INVOICE_PRODUCT_CODE = "VAL-SEED-ITEM";
+  private static final String VALIDATION_INVOICE_LINE_DESCRIPTION = "Validation seed invoice line";
 
   @Bean
   CommandLineRunner seedValidationActors(
@@ -42,6 +56,7 @@ public class ValidationSeedDataInitializer {
       UserAccountRepository userAccountRepository,
       DealerRepository dealerRepository,
       AccountRepository accountRepository,
+      InvoiceRepository invoiceRepository,
       PasswordEncoder passwordEncoder,
       PasswordPolicy passwordPolicy,
       AuthScopeService authScopeService,
@@ -125,13 +140,14 @@ public class ValidationSeedDataInitializer {
               mockCompany.getCode(),
               List.of(mockCompany),
               List.of(dealerRole));
-      ensureDealer(
-          dealerRepository,
-          mockCompany,
-          mockReceivable,
-          dealerUser,
-          "VALID-DEALER",
-          "Validation Dealer");
+      Dealer mockDealer =
+          ensureDealer(
+              dealerRepository,
+              mockCompany,
+              mockReceivable,
+              dealerUser,
+              "VALID-DEALER",
+              "Validation Dealer");
 
       UserAccount rivalDealerUser =
           ensureUser(
@@ -143,13 +159,16 @@ public class ValidationSeedDataInitializer {
               rivalCompany.getCode(),
               List.of(rivalCompany),
               List.of(dealerRole));
-      ensureDealer(
-          dealerRepository,
-          rivalCompany,
-          rivalReceivable,
-          rivalDealerUser,
-          "RIVAL-DEALER",
-          "Rival Validation Dealer");
+      Dealer rivalDealer =
+          ensureDealer(
+              dealerRepository,
+              rivalCompany,
+              rivalReceivable,
+              rivalDealerUser,
+              "RIVAL-DEALER",
+              "Rival Validation Dealer");
+      ensureValidationInvoiceFixture(invoiceRepository, mockDealer, "VAL-MOCK-INV-001");
+      ensureValidationInvoiceFixture(invoiceRepository, rivalDealer, "VAL-RIVAL-INV-001");
 
       ensureUser(
           userAccountRepository,
@@ -312,5 +331,47 @@ public class ValidationSeedDataInitializer {
     dealer.setOutstandingBalance(
         existingOutstandingBalance == null ? BigDecimal.ZERO : existingOutstandingBalance);
     return dealerRepository.save(dealer);
+  }
+
+  private Invoice ensureValidationInvoiceFixture(
+      InvoiceRepository invoiceRepository, Dealer dealer, String invoiceNumber) {
+    Invoice invoice =
+        invoiceRepository.findByCompanyAndDealerOrderByIssueDateDesc(dealer.getCompany(), dealer).stream()
+            .filter(existing -> invoiceNumber.equalsIgnoreCase(existing.getInvoiceNumber()))
+            .findFirst()
+            .orElseGet(Invoice::new);
+    invoice.setCompany(dealer.getCompany());
+    invoice.setDealer(dealer);
+    invoice.setInvoiceNumber(invoiceNumber);
+    invoice.setStatus("ISSUED");
+    invoice.setIssueDate(VALIDATION_INVOICE_ISSUE_DATE);
+    invoice.setDueDate(VALIDATION_INVOICE_DUE_DATE);
+    invoice.setSubtotal(VALIDATION_INVOICE_SUBTOTAL);
+    invoice.setTaxTotal(VALIDATION_INVOICE_TAX);
+    invoice.setTotalAmount(VALIDATION_INVOICE_TOTAL);
+    invoice.setOutstandingAmount(VALIDATION_INVOICE_TOTAL);
+    invoice.setCurrency("INR");
+    invoice.setNotes(VALIDATION_INVOICE_NOTES);
+    invoice.getLines().clear();
+    invoice.getLines().add(buildValidationInvoiceLine(invoice));
+    return invoiceRepository.save(invoice);
+  }
+
+  private InvoiceLine buildValidationInvoiceLine(Invoice invoice) {
+    InvoiceLine line = new InvoiceLine();
+    line.setInvoice(invoice);
+    line.setProductCode(VALIDATION_INVOICE_PRODUCT_CODE);
+    line.setDescription(VALIDATION_INVOICE_LINE_DESCRIPTION);
+    line.setQuantity(BigDecimal.ONE.setScale(2));
+    line.setUnitPrice(VALIDATION_INVOICE_SUBTOTAL);
+    line.setTaxRate(VALIDATION_INVOICE_TAX_RATE);
+    line.setTaxableAmount(VALIDATION_INVOICE_SUBTOTAL);
+    line.setTaxAmount(VALIDATION_INVOICE_TAX);
+    line.setCgstAmount(VALIDATION_HALF_TAX);
+    line.setSgstAmount(VALIDATION_HALF_TAX);
+    line.setIgstAmount(BigDecimal.ZERO.setScale(2));
+    line.setDiscountAmount(BigDecimal.ZERO.setScale(2));
+    line.setLineTotal(VALIDATION_INVOICE_SUBTOTAL);
+    return line;
   }
 }
