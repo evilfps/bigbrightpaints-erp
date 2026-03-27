@@ -342,14 +342,14 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> foreignTenantResponse =
         rest.exchange(
-            "/api/v1/companies/" + tenantBId + "/support/admin-password-reset",
+            "/api/v1/superadmin/tenants/" + tenantBId + "/support/admin-password-reset",
             HttpMethod.POST,
             new HttpEntity<>(Map.of("adminEmail", ADMIN_EMAIL), jsonHeaders(token, TENANT_A)),
             Map.class);
 
     ResponseEntity<Map> unknownTenantResponse =
         rest.exchange(
-            "/api/v1/companies/" + unknownCompanyId + "/support/admin-password-reset",
+            "/api/v1/superadmin/tenants/" + unknownCompanyId + "/support/admin-password-reset",
             HttpMethod.POST,
             new HttpEntity<>(Map.of("adminEmail", ADMIN_EMAIL), jsonHeaders(token, TENANT_A)),
             Map.class);
@@ -819,21 +819,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     assertThat(unauthenticatedWithHeader.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
     ResponseEntity<Map> idorUpdate =
-        rest.exchange(
-            "/api/v1/companies/" + tenantBId,
-            HttpMethod.PUT,
-            new HttpEntity<>(
-                Map.of(
-                    "name",
-                    "Cross Tenant Update",
-                    "code",
-                    TENANT_B,
-                    "timezone",
-                    "UTC",
-                    "defaultGstRate",
-                    18.0),
-                jsonHeaders(token, TENANT_A)),
-            Map.class);
+        updateLifecycleState(
+            tenantBId, token, TENANT_A, "SUSPENDED", "cross-tenant-lifecycle-attempt");
     assertThat(idorUpdate.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
   }
 

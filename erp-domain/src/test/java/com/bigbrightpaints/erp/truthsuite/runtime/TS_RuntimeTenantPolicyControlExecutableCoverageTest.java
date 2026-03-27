@@ -27,7 +27,6 @@ import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
 import org.junit.platform.launcher.core.LauncherFactory;
 import org.junit.platform.launcher.listeners.SummaryGeneratingListener;
 import org.junit.platform.launcher.listeners.TestExecutionSummary;
-import org.springframework.http.ResponseEntity;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessagePreparator;
@@ -47,38 +46,18 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.service.PasswordResetService;
 import com.bigbrightpaints.erp.modules.auth.service.ScopedAccountBootstrapService;
 import com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningService;
-import com.bigbrightpaints.erp.modules.company.controller.CompanyController;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
-import com.bigbrightpaints.erp.shared.dto.ApiResponse;
-
 @Tag("critical")
 class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
 
   @AfterEach
   void clearSecurity() {
     SecurityContextHolder.clearContext();
-  }
-
-  @Test
-  void companyController_updateTenantRuntimePolicy_delegatesPayloadMapping() {
-    CompanyService companyService = mock(CompanyService.class);
-    CompanyController controller = new CompanyController(companyService);
-    TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot = snapshot("ACME");
-    when(companyService.updateTenantRuntimePolicy(eq(7L), any())).thenReturn(snapshot);
-
-    CompanyController.CompanyTenantRuntimePolicyRequest request =
-        new CompanyController.CompanyTenantRuntimePolicyRequest("HOLD", "incident", 10, 100, 50);
-    ResponseEntity<ApiResponse<TenantRuntimeEnforcementService.TenantRuntimeSnapshot>> response =
-        controller.updateTenantRuntimePolicy(7L, request);
-
-    assertThat(response.getBody()).isNotNull();
-    assertThat(response.getBody().success()).isTrue();
-    assertThat(response.getBody().data().companyCode()).isEqualTo("ACME");
   }
 
   @Test
@@ -295,11 +274,6 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         service.beginRequest(
             "ACME", "/api/v1/superadmin/tenants/21/limits", "   ", "super", true);
     assertThat(blankMethodPolicyControl.isAdmitted()).isFalse();
-    TenantRuntimeEnforcementService.TenantRequestAdmission companyRuntimePolicyControl =
-        service.beginRequest(
-            "ACME", "/api/v1/companies/21/tenant-runtime/policy", "PUT", "super", true);
-    assertThat(companyRuntimePolicyControl.isAdmitted()).isTrue();
-    service.completeRequest(companyRuntimePolicyControl, 500);
     TenantRuntimeEnforcementService.TenantRequestAdmission wrongSuffixPolicyControl =
         service.beginRequest(
             "ACME", "/api/v1/superadmin/tenants/21/not-limits", "PUT", "super", true);

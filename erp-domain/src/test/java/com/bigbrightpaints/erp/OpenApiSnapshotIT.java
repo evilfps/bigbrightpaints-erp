@@ -102,23 +102,152 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         "#/components/schemas/ApiResponseSystemSettingsDto");
     assertOperationContract(
         root,
-        "/api/v1/admin/tenant-runtime/metrics",
-        "get",
-        null,
-        "200",
-        "#/components/schemas/ApiResponseTenantRuntimeMetricsDto");
-    assertOperationContract(
-        root,
         "/api/v1/superadmin/tenants/onboard",
         "post",
         "#/components/schemas/TenantOnboardingRequest",
         "200",
         "#/components/schemas/ApiResponseTenantOnboardingResponse");
-    assertOperationMissing(root, "/api/v1/multi-company/companies/switch", "post");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/dashboard",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseCompanySuperAdminDashboardDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/tenants",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseListSuperAdminTenantSummaryDto");
+    assertQueryParameter(root, "/api/v1/superadmin/tenants", "get", "status");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/tenants/{id}",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseSuperAdminTenantDetailDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/tenants/{id}/lifecycle",
+        "put",
+        "#/components/schemas/CompanyLifecycleStateRequest",
+        "200",
+        "#/components/schemas/ApiResponseCompanyLifecycleStateDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/tenants/{id}/limits",
+        "put",
+        "#/components/schemas/TenantLimitsUpdateRequest",
+        "200",
+        "#/components/schemas/ApiResponseSuperAdminTenantLimitsDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/tenants/{id}/modules",
+        "put",
+        "#/components/schemas/TenantModulesUpdateRequest",
+        "200",
+        "#/components/schemas/ApiResponseCompanyEnabledModulesDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/tenants/{id}/support/warnings",
+        "post",
+        "#/components/schemas/TenantSupportWarningRequest",
+        "200",
+        "#/components/schemas/ApiResponseCompanySupportWarningDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/tenants/{id}/support/admin-password-reset",
+        "post",
+        "#/components/schemas/TenantAdminPasswordResetRequest",
+        "200",
+        "#/components/schemas/ApiResponseCompanyAdminCredentialResetDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/tenants/{id}/support/context",
+        "put",
+        "#/components/schemas/TenantSupportContextUpdateRequest",
+        "200",
+        "#/components/schemas/ApiResponseSuperAdminTenantSupportContextDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/tenants/{id}/force-logout",
+        "post",
+        "#/components/schemas/TenantForceLogoutRequest",
+        "200",
+        "#/components/schemas/ApiResponseSuperAdminTenantForceLogoutDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/tenants/{id}/admins/main",
+        "put",
+        "#/components/schemas/TenantMainAdminUpdateRequest",
+        "200",
+        "#/components/schemas/ApiResponseMainAdminSummaryDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/request",
+        "post",
+        "#/components/schemas/TenantAdminEmailChangeRequest",
+        "200",
+        "#/components/schemas/ApiResponseSuperAdminTenantAdminEmailChangeRequestDto");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/confirm",
+        "post",
+        "#/components/schemas/TenantAdminEmailChangeConfirmRequest",
+        "200",
+        "#/components/schemas/ApiResponseSuperAdminTenantAdminEmailChangeConfirmationDto");
+    assertOperationContract(
+        root,
+        "/api/v1/changelog",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponsePageResponseChangelogEntryResponse");
+    assertQueryParameter(root, "/api/v1/changelog", "get", "page");
+    assertQueryParameter(root, "/api/v1/changelog", "get", "size");
+    assertOperationContract(
+        root,
+        "/api/v1/changelog/latest-highlighted",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseChangelogEntryResponse");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/changelog",
+        "post",
+        "#/components/schemas/ChangelogEntryRequest",
+        "200",
+        "#/components/schemas/ApiResponseChangelogEntryResponse");
+    assertOperationContract(
+        root,
+        "/api/v1/superadmin/changelog/{id}",
+        "put",
+        "#/components/schemas/ChangelogEntryRequest",
+        "200",
+        "#/components/schemas/ApiResponseChangelogEntryResponse");
+    assertOperationContract(root, "/api/v1/superadmin/changelog/{id}", "delete", null, "204", null);
+    assertOperationMissing(root, "/api/v1/admin/tenant-runtime/metrics", "get");
     assertOperationMissing(root, "/api/v1/admin/tenant-runtime/policy", "put");
+    assertOperationMissing(root, "/api/v1/admin/changelog", "post");
+    assertOperationMissing(root, "/api/v1/admin/changelog/{id}", "put");
+    assertOperationMissing(root, "/api/v1/admin/changelog/{id}", "delete");
     assertOperationMissing(root, "/api/v1/companies", "post");
+    assertOperationMissing(root, "/api/v1/companies/{id}/lifecycle-state", "put");
+    assertOperationMissing(root, "/api/v1/companies/{id}/tenant-metrics", "get");
+    assertOperationMissing(root, "/api/v1/companies/{id}/tenant-runtime/policy", "put");
+    assertOperationMissing(root, "/api/v1/companies/{id}/support/admin-password-reset", "post");
+    assertOperationMissing(root, "/api/v1/companies/{id}/support/warnings", "post");
     assertOperationMissing(root, "/api/v1/companies/superadmin/tenants", "post");
     assertOperationMissing(root, "/api/v1/companies/superadmin/tenants/{id}", "put");
+    assertOperationMissing(root, "/api/v1/superadmin/tenants/{id}/usage", "get");
+    assertOperationMissing(root, "/api/v1/superadmin/tenants/{id}/activate", "post");
+    assertOperationMissing(root, "/api/v1/superadmin/tenants/{id}/deactivate", "post");
+    assertOperationMissing(root, "/api/v1/superadmin/tenants/{id}/suspend", "post");
+    assertOperationMissing(root, "/api/v1/superadmin/tenants/{id}/lifecycle-state", "put");
     assertOperationContract(
         root,
         "/api/v1/admin/users/{userId}/force-reset-password",
@@ -338,8 +467,7 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertThat(requestProperties.has("mixedQuantity")).isTrue();
     assertThat(requestProperties.has("materials")).isTrue();
     assertThat(requestProperties.has("addToFinishedGoods"))
-        .withFailMessage(
-            "ProductionLogRequest must not expose retired addToFinishedGoods toggle")
+        .withFailMessage("ProductionLogRequest must not expose retired addToFinishedGoods toggle")
         .isFalse();
 
     JsonNode detailDto = root.path("components").path("schemas").path("ProductionLogDetailDto");
@@ -359,7 +487,8 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertThat(unpackedProperties.has("productFamilyName")).isTrue();
     assertThat(unpackedProperties.has("allowedSellableSizes")).isTrue();
 
-    JsonNode packingLineRequest = root.path("components").path("schemas").path("PackingLineRequest");
+    JsonNode packingLineRequest =
+        root.path("components").path("schemas").path("PackingLineRequest");
     List<String> packingLineRequired = new ArrayList<>();
     packingLineRequest.path("required").forEach(node -> packingLineRequired.add(node.asText()));
     assertThat(packingLineRequired).contains("childFinishedGoodId");
@@ -377,10 +506,12 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         "#/components/schemas/PackingRequest",
         "200",
         "#/components/schemas/ApiResponseProductionLogDetailDto");
-    assertOperationMissing(root, "/api/v1/factory/packing-records/{productionLogId}/complete", "post");
+    assertOperationMissing(
+        root, "/api/v1/factory/packing-records/{productionLogId}/complete", "post");
     assertOperationMissing(root, "/api/v1/factory/pack", "post");
 
-    JsonNode parameters = root.path("paths").path("/api/v1/factory/packing-records").path("post").path("parameters");
+    JsonNode parameters =
+        root.path("paths").path("/api/v1/factory/packing-records").path("post").path("parameters");
     List<String> parameterNames = new ArrayList<>();
     parameters.forEach(parameter -> parameterNames.add(parameter.path("name").asText()));
     assertThat(parameterNames).containsExactly("Idempotency-Key");

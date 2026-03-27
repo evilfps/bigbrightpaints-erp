@@ -40,33 +40,8 @@ public class CompanyContextFilter extends OncePerRequestFilter {
 
   private static final Logger log = LoggerFactory.getLogger(CompanyContextFilter.class);
   private static final String AUDIT_API_PREFIX = "/api/v1/audit";
-  private static final String COMPANY_API_PREFIX = "/api/v1/companies/";
-  private static final String SUPERADMIN_TENANTS_API_PREFIX = "/api/v1/superadmin/tenants/";
-  private static final String LIFECYCLE_STATE_SUFFIX = "/lifecycle-state";
-  private static final String TENANT_METRICS_SUFFIX = "/tenant-metrics";
-  private static final String TENANT_RUNTIME_POLICY_SUFFIX = "/tenant-runtime/policy";
-  private static final String SUPPORT_ADMIN_PASSWORD_RESET_SUFFIX = "/support/admin-password-reset";
-  private static final String SUPPORT_WARNINGS_SUFFIX = "/support/warnings";
-  private static final String SUPERADMIN_TENANT_LIFECYCLE_SUFFIX = "/lifecycle";
-  private static final String SUPERADMIN_TENANT_LIMITS_SUFFIX = "/limits";
-  private static final String SUPERADMIN_TENANT_MODULES_SUFFIX = "/modules";
-  private static final String SUPERADMIN_TENANT_SUPPORT_CONTEXT_SUFFIX = "/support/context";
-  private static final String SUPERADMIN_TENANT_FORCE_LOGOUT_SUFFIX = "/force-logout";
-  private static final String SUPERADMIN_TENANT_MAIN_ADMIN_SUFFIX = "/admins/main";
   private static final List<CompanyBoundControlRoute> COMPANY_BOUND_CONTROL_ROUTES =
       List.of(
-          new CompanyBoundControlRoute(
-              "POST", Pattern.compile("^/api/v1/companies/([^/]+)/lifecycle-state$"), false),
-          new CompanyBoundControlRoute(
-              "GET", Pattern.compile("^/api/v1/companies/([^/]+)/tenant-metrics$"), false),
-          new CompanyBoundControlRoute(
-              "PUT", Pattern.compile("^/api/v1/companies/([^/]+)/tenant-runtime/policy$"), true),
-          new CompanyBoundControlRoute(
-              "PUT", Pattern.compile("^/api/v1/companies/([^/]+)$"), false),
-          new CompanyBoundControlRoute(
-              "POST",
-              Pattern.compile("^/api/v1/companies/([^/]+)/support/admin-password-reset$"),
-              false),
           new CompanyBoundControlRoute(
               "GET", Pattern.compile("^/api/v1/superadmin/tenants/([^/]+)$"), false),
           new CompanyBoundControlRoute(
@@ -614,9 +589,6 @@ public class CompanyContextFilter extends OncePerRequestFilter {
     if (normalizedPath.equals("/api/v1/companies")) {
       return true;
     }
-    if (isPlatformCompanyControlRequest(normalizedPath)) {
-      return true;
-    }
     if (normalizedPath.equals("/api/v1/admin/settings")) {
       return true;
     }
@@ -624,40 +596,6 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         || normalizedPath.startsWith("/api/v1/auth/")
         || normalizedPath.equals("/api/v1/superadmin")
         || normalizedPath.startsWith("/api/v1/superadmin/");
-  }
-
-  private boolean isPlatformCompanyControlRequest(String normalizedPath) {
-    if (!StringUtils.hasText(normalizedPath)
-        || !normalizedPath.startsWith(COMPANY_API_PREFIX)
-        || normalizedPath.length() <= COMPANY_API_PREFIX.length()) {
-      return false;
-    }
-    String companyControlPath = normalizedPath.substring(COMPANY_API_PREFIX.length());
-    int delimiterIndex = companyControlPath.indexOf('/');
-    if (delimiterIndex < 0) {
-      return isNumericPathSegment(companyControlPath);
-    }
-    String companyIdSegment = companyControlPath.substring(0, delimiterIndex);
-    String suffix = companyControlPath.substring(delimiterIndex);
-    if (!isNumericPathSegment(companyIdSegment)) {
-      return false;
-    }
-    return TENANT_METRICS_SUFFIX.equals(suffix)
-        || TENANT_RUNTIME_POLICY_SUFFIX.equals(suffix)
-        || SUPPORT_ADMIN_PASSWORD_RESET_SUFFIX.equals(suffix)
-        || SUPPORT_WARNINGS_SUFFIX.equals(suffix);
-  }
-
-  private boolean isNumericPathSegment(String value) {
-    if (!StringUtils.hasText(value)) {
-      return false;
-    }
-    for (int index = 0; index < value.length(); index++) {
-      if (!Character.isDigit(value.charAt(index))) {
-        return false;
-      }
-    }
-    return true;
   }
 
   private String normalizeMethod(String method) {
