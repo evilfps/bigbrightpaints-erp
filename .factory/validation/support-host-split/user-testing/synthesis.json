@@ -1,0 +1,21 @@
+{
+  "milestone": "support-host-split",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-SUPPORT-001",
+    "VAL-SUPPORT-002",
+    "VAL-SUPPORT-003",
+    "VAL-SUPPORT-004"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null
+}
