@@ -324,6 +324,39 @@ class PasswordResetServiceTest {
     org.assertj.core.api.Assertions.assertThat(anonymousClass).contains("PasswordResetServiceTest");
   }
 
+  @Test
+  void helperMethods_coverDisabledDeliveryAndNullLifecycleShortCircuits() {
+    emailProperties.setSendPasswordReset(false);
+    assertEquals(false, passwordResetService.isResetEmailDeliveryEnabled());
+
+    UserAccount disabledUser = enabledUser("user@example.com", TENANT_SCOPE);
+    disabledUser.setEnabled(false);
+    org.assertj.core.api.Assertions.assertThat(
+            (Object)
+                ReflectionTestUtils.invokeMethod(
+                    passwordResetService, "lockUserForResetIssuance", disabledUser))
+        .isNull();
+
+    UserAccount unsavedUser = enabledUser("user@example.com", TENANT_SCOPE);
+    assertEquals(
+        unsavedUser,
+        ReflectionTestUtils.invokeMethod(
+            passwordResetService, "lockUserForResetIssuance", unsavedUser));
+
+    assertDoesNotThrow(
+        () ->
+            ReflectionTestUtils.invokeMethod(
+                passwordResetService, "cleanupIssuedResetToken", null, "corr", "masked"));
+    assertDoesNotThrow(
+        () ->
+            ReflectionTestUtils.invokeMethod(
+                passwordResetService, "markIssuedResetTokenDelivered", null, "corr", "masked"));
+    assertEquals(
+        false,
+        ReflectionTestUtils.invokeMethod(
+            passwordResetService, "dispatchResetEmail", null, "corr", "forgot_password"));
+  }
+
   private UserAccount enabledUser(String email, String scopeCode) {
     UserAccount user = new UserAccount(email, scopeCode, "hash", "User");
     user.setEnabled(true);

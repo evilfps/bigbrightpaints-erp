@@ -853,6 +853,51 @@ class CompanyServiceTest {
   }
 
   @Test
+  void helperMembershipChecks_failClosedForNullBlankAndNonMemberInputs() {
+    Company allowed = company(1L, "ACME");
+
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService, "requireMembershipById", null, Set.of(allowed)))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService, "requireMembershipById", 2L, Set.of(allowed)))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService, "requireMembershipByCode", " ", Set.of(allowed)))
+        .isInstanceOf(AccessDeniedException.class);
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService, "requireMembershipByCode", "BBB", Set.of(allowed)))
+        .isInstanceOf(AccessDeniedException.class);
+  }
+
+  @Test
+  void normalizeStateCode_rejectsNonTwoCharacterValues() {
+    assertThatThrownBy(
+            () -> ReflectionTestUtils.invokeMethod(companyService, "normalizeStateCode", "ABC"))
+        .hasMessageContaining("State code must be exactly 2 characters");
+  }
+
+  @Test
+  void requireSuperAdminForTenantBootstrap_deniesNonSuperAdmin() {
+    authenticateAs("ROLE_ADMIN");
+
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService, "requireSuperAdminForTenantBootstrap", "MOCK"))
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessageContaining("SUPER_ADMIN authority required for tenant bootstrap");
+  }
+
+  @Test
   void updateTenantRuntimePolicy_deniesTenantAdmin() {
     authenticateAs("ROLE_ADMIN");
     Company company = company(1L, "ACME");

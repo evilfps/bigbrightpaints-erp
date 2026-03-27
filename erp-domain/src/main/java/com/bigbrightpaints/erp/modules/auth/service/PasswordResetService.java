@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionCallbackWithoutResult;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
@@ -39,7 +40,8 @@ import jakarta.servlet.http.HttpServletRequest;
 public class PasswordResetService {
 
   private static final Logger log = LoggerFactory.getLogger(PasswordResetService.class);
-  private static final long RESET_TOKEN_TTL_SECONDS = 3600; // 1 hour
+  // 1 hour
+  private static final long RESET_TOKEN_TTL_SECONDS = 3600;
   private static final String RESET_POLICY_SCOPE = "SCOPED_ACCOUNT";
   private static final String CORRELATION_ID_HEADER = "X-Correlation-Id";
   private static final String REQUEST_ID_HEADER = "X-Request-Id";
@@ -111,28 +113,14 @@ public class PasswordResetService {
     String normalizedEmail = normalizeEmail(email);
     String scopeCode = authScopeService.requireScopeCode(companyCode);
     enforceResetRateLimit("forgot_password", normalizedEmail, scopeCode, correlationId);
-    userAccountRepository
-        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizedEmail, scopeCode)
-        .filter(UserAccount::isEnabled)
-        .ifPresent(
-            (user) -> {
-              try {
-                if (dispatchResetEmail(user, correlationId, "forgot_password")) {
-                  auditResetRequested("forgot_password", user, scopeCode, correlationId);
-                }
-              } catch (RuntimeException ex) {
-                String safeCorrelationId = sanitizeForPlainTextLog(correlationId);
-                String safeMaskedEmail = sanitizeForPlainTextLog(obfuscateEmail(user.getEmail()));
-                String safeExceptionClass = sanitizeExceptionClass(ex);
-                log.warn(
-                    "event=password_reset.forgot_password.masked_failure policy={} correlationId={}"
-                        + " email={} outcome=masked_response exceptionClass={}",
-                    RESET_POLICY_SCOPE,
-                    safeCorrelationId,
-                    safeMaskedEmail,
-                    safeExceptionClass);
-              }
-            });
+    UserAccount user =
+        userAccountRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizedEmail, scopeCode)
+            .filter(UserAccount::isEnabled)
+            .orElse(null);
+    if (user != null) {
+      dispatchResetEmailMaskedPublic(user, correlationId, scopeCode);
+    }
   }
 
   @Transactional
@@ -339,12 +327,41 @@ public class PasswordResetService {
     if (issuedResetToken == null || issuedResetToken.id() == null) {
       return;
     }
-    tokenCleanupTransactionTemplate.executeWithoutResult(
-        (status) -> {
-          assertTokenLifecycleTransactionActive(
-              "mark_delivered", correlationId, maskedEmail);
-          tokenRepository.markDeliveredAt(issuedResetToken.id(), Instant.now());
+    tokenCleanupTransactionTemplate.execute(
+        new TransactionCallbackWithoutResult() {
+          @Override
+          protected void doInTransactionWithoutResult(
+              org.springframework.transaction.TransactionStatus status) {
+            markIssuedResetTokenDeliveredInLifecycleTransaction(
+                issuedResetToken, correlationId, maskedEmail);
+          }
         });
+  }
+
+  private void dispatchResetEmailMaskedPublic(
+      UserAccount user, String correlationId, String scopeCode) {
+    try {
+      if (dispatchResetEmail(user, correlationId, "forgot_password")) {
+        auditResetRequested("forgot_password", user, scopeCode, correlationId);
+      }
+    } catch (RuntimeException ex) {
+      String safeCorrelationId = sanitizeForPlainTextLog(correlationId);
+      String safeMaskedEmail = sanitizeForPlainTextLog(obfuscateEmail(user.getEmail()));
+      String safeExceptionClass = sanitizeExceptionClass(ex);
+      log.warn(
+          "event=password_reset.forgot_password.masked_failure policy={} correlationId={}"
+              + " email={} outcome=masked_response exceptionClass={}",
+          RESET_POLICY_SCOPE,
+          safeCorrelationId,
+          safeMaskedEmail,
+          safeExceptionClass);
+    }
+  }
+
+  private void markIssuedResetTokenDeliveredInLifecycleTransaction(
+      IssuedResetToken issuedResetToken, String correlationId, String maskedEmail) {
+    assertTokenLifecycleTransactionActive("mark_delivered", correlationId, maskedEmail);
+    tokenRepository.markDeliveredAt(issuedResetToken.id(), Instant.now());
   }
 
   private void assertTokenLifecycleTransactionActive(

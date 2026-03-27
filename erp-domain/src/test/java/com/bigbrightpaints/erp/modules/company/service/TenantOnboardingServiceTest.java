@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.company.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -10,7 +11,9 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.Test;
@@ -202,6 +205,74 @@ class TenantOnboardingServiceTest {
             .orElseThrow();
     assertThat(cogs.getType()).isEqualTo(AccountType.COGS);
     assertThat(openingBalance.getType()).isEqualTo(AccountType.EQUITY);
+  }
+
+  @Test
+  void helperMethods_rejectInvalidInputAndDuplicates() {
+    TenantOnboardingService service = newService();
+    when(companyRepository.findByCodeIgnoreCase("MOCK")).thenReturn(java.util.Optional.of(new Company()));
+    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "admin@mock.com", "MOCK"))
+        .thenReturn(true);
+
+    assertThatThrownBy(
+            () -> ReflectionTestUtils.invokeMethod(service, "normalizeCompanyCode", "   "))
+        .hasMessageContaining("Company code is required");
+    assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "normalizeEmail", " "))
+        .hasMessageContaining("firstAdminEmail is required");
+    assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "ensureCompanyCodeAvailable", "MOCK"))
+        .hasMessageContaining("Company code already exists");
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    service, "ensureAdminEmailAvailable", "admin@mock.com", "MOCK"))
+        .hasMessageContaining("First admin email already exists in company scope");
+    assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "validateTemplateSize", "GENERIC", 49))
+        .hasMessageContaining("must generate 50-100 accounts");
+    assertThatThrownBy(
+            () -> ReflectionTestUtils.invokeMethod(service, "resolveTemplateBlueprints", "UNKNOWN"))
+        .hasMessageContaining("Unsupported CoA template");
+  }
+
+  @Test
+  void helperMethods_coverTemplateVariantsAndMissingDefaultAccounts() {
+    TenantOnboardingService service = newService();
+    Company company = new Company();
+
+    @SuppressWarnings("unchecked")
+    List<Object> indian =
+        (List<Object>)
+            ReflectionTestUtils.invokeMethod(service, "resolveTemplateBlueprints", "indian_standard");
+    @SuppressWarnings("unchecked")
+    List<Object> manufacturing =
+        (List<Object>)
+            ReflectionTestUtils.invokeMethod(service, "resolveTemplateBlueprints", "manufacturing");
+    assertThat(indian).hasSizeGreaterThan(50);
+    assertThat(manufacturing).hasSizeGreaterThan(indian.size());
+
+    ReflectionTestUtils.invokeMethod(
+        service, "applyCompanyDefaultAccounts", company, new HashMap<String, Account>());
+
+    assertThat(company.getDefaultInventoryAccountId()).isNull();
+    assertThat(company.getDefaultCogsAccountId()).isNull();
+    assertThat(company.getDefaultRevenueAccountId()).isNull();
+    assertThat(company.getDefaultDiscountAccountId()).isNull();
+    assertThat(company.getDefaultTaxAccountId()).isNull();
+    assertThat(company.getGstInputTaxAccountId()).isNull();
+    assertThat(company.getGstPayableAccountId()).isNull();
+    assertThat(company.getPayrollCashAccount()).isNull();
+    assertThat(company.getPayrollExpenseAccount()).isNull();
+  }
+
+  @Test
+  void initializeDefaultSystemSettings_skipsExistingKeys() {
+    TenantOnboardingService service = newService();
+    when(systemSettingsRepository.existsById(anyString())).thenReturn(true);
+
+    Boolean changed = ReflectionTestUtils.invokeMethod(service, "initializeDefaultSystemSettings");
+
+    assertThat(changed).isFalse();
+    verify(systemSettingsRepository, never()).save(any());
   }
 
   private TenantOnboardingService newService() {

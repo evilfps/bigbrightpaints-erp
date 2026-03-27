@@ -75,4 +75,16 @@ class RefreshTokenServiceTest extends AbstractIntegrationTest {
         .extracting(RefreshToken::getUserPublicId)
         .containsExactly(otherUser);
   }
+
+  @Test
+  void blankAndNullTokens_areIgnoredByConsumeAndRevoke() {
+    assertThat(refreshTokenService.consume(null)).isEmpty();
+    assertThat(refreshTokenService.consume(" ")).isEmpty();
+
+    refreshTokenService.revoke(null);
+    refreshTokenService.revoke(" ");
+    refreshTokenService.revokeAllForUser(null);
+
+    assertThat(refreshTokenRepository.findAll()).isEmpty();
+  }
 }

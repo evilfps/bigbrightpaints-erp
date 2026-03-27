@@ -57,4 +57,15 @@ class UserProfileServiceTest {
 
     assertThat(userProfileService.view(user).companyCode()).isNull();
   }
+
+  @Test
+  void view_returnsNullWhenCompanyExistsButCodeIsBlank() {
+    UserAccount user = new UserAccount("user@example.com", "hash", "User");
+    user.setAuthScopeCode(null);
+    Company company = new Company();
+    company.setCode(" ");
+    user.setCompany(company);
+
+    assertThat(userProfileService.view(user).companyCode()).isNull();
+  }
 }

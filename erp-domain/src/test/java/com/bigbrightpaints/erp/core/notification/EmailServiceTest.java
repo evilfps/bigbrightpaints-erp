@@ -306,4 +306,13 @@ class EmailServiceTest {
               assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.SYSTEM_CONFIGURATION_ERROR);
             });
   }
+
+  @Test
+  void formatUtcTimestamp_returnsNullWhenTimestampMissing() {
+    assertThat(
+            (String)
+                ReflectionTestUtils.invokeMethod(
+                    emailService, "formatUtcTimestamp", (Instant) null))
+        .isNull();
+  }
 }

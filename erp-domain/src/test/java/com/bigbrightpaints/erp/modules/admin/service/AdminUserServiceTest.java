@@ -104,7 +104,7 @@ class AdminUserServiceTest {
     company = new Company();
     ReflectionTestUtils.setField(company, "id", 1L);
     company.setCode("TEST");
-    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
     lenient()
         .when(authScopeService.requireScopeCode(anyString()))
         .thenAnswer(invocation -> invocation.getArgument(0, String.class).trim().toUpperCase());
@@ -933,5 +933,82 @@ class AdminUserServiceTest {
     assertThat(foreignUser.isEnabled()).isFalse();
     verify(tokenBlacklistService).revokeAllUserTokens(foreignUser.getPublicId().toString());
     verify(refreshTokenService).revokeAllForUser(foreignUser.getPublicId());
+  }
+
+  @Test
+  void helper_createDealerForUser_buildsFreshDealerAndReceivableWhenNoDealerExists() {
+    UserAccount user = new UserAccount("fresh-dealer@example.com", "TEST", "hash", "Fresh Dealer");
+    Company tenant = new Company();
+    ReflectionTestUtils.setField(tenant, "id", 8L);
+    tenant.setCode("TEST");
+    when(dealerRepository.findByCompanyAndPortalUserEmail(tenant, user.getEmail()))
+        .thenReturn(Optional.empty());
+    when(dealerRepository.findByCompanyAndEmailIgnoreCase(tenant, user.getEmail()))
+        .thenReturn(Optional.empty());
+    when(dealerRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString()))
+        .thenReturn(Optional.empty());
+
+    ReflectionTestUtils.invokeMethod(service, "createDealerForUser", user, tenant);
+
+    verify(dealerRepository, times(2)).save(any(Dealer.class));
+    verify(accountRepository).save(any(Account.class));
+  }
+
+  @Test
+  void helper_scopeResolutionAndProtectionBranches_failClosed() {
+    UserAccount user = new UserAccount("user@example.com", "TEST", "hash", "User");
+    ReflectionTestUtils.setField(user, "id", 901L);
+    Company foreignCompany = new Company();
+    ReflectionTestUtils.setField(foreignCompany, "id", 22L);
+    foreignCompany.setCode("FOREIGN");
+    user.setCompany(foreignCompany);
+
+    assertThat(
+            (Object)
+                ReflectionTestUtils.invokeMethod(
+                    service, "resolveActorScopedTargetCompanies", user, (Company) null))
+        .isEqualTo(List.of());
+
+    assertThat(
+            (Object)
+                ReflectionTestUtils.invokeMethod(
+                    service, "resolveActorScopedTargetCompanies", null, company))
+        .isEqualTo(List.of(company));
+
+    Company protectedTenant = new Company();
+    ReflectionTestUtils.setField(protectedTenant, "id", 1L);
+    protectedTenant.setCode("TEST");
+    protectedTenant.setMainAdminUserId(901L);
+    user.setCompany(protectedTenant);
+
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    service, "assertNotProtectedMainAdmin", user, company, "disable"))
+        .hasMessageContaining("Replace the tenant main admin");
+  }
+
+  @Test
+  void helper_attachRoles_skipsBlankAndNormalizesSystemRolePrefix() {
+    UserAccount user = new UserAccount("user@example.com", "TEST", "hash", "User");
+    when(roleService.isSystemRole("ROLE_ADMIN")).thenReturn(true);
+
+    ReflectionTestUtils.invokeMethod(service, "attachRoles", user, List.of(" ", "admin"));
+
+    assertThat(user.getRoles()).extracting(Role::getName).containsExactly("ROLE_ADMIN");
+  }
+
+  @Test
+  void helper_lastLoginLookups_failClosedWhenInputsAreMissing() {
+    assertThat(
+            (Object)
+                ReflectionTestUtils.invokeMethod(
+                    service, "resolveLastLoginByEmail", null, List.of(new UserAccount())))
+        .isEqualTo(Map.of());
+
+    UserAccount blankEmailUser = new UserAccount("user@example.com", "TEST", "hash", "User");
+    blankEmailUser.setEmail(" ");
+    assertThat((Object) ReflectionTestUtils.invokeMethod(service, "resolveLastLoginAt", blankEmailUser))
+        .isNull();
   }
 }

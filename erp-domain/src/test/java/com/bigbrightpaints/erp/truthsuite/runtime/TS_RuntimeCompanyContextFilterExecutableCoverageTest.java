@@ -154,6 +154,74 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
   }
 
   @Test
+  void doFilter_rejectsAuthenticatedRequestWithoutCompanyClaim() throws ServletException, IOException {
+    authenticate("admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ACME"));
+    Claims claims = mock(Claims.class);
+    when(claims.get("companyCode", String.class)).thenReturn(null);
+
+    MockHttpServletRequest request = request("GET", "/api/v1/private");
+    request.setAttribute("jwtClaims", claims);
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(response.getContentAsString()).contains("Authenticated token missing company context");
+    verify(filterChain, never()).doFilter(request, response);
+  }
+
+  @Test
+  void doFilter_rejectsMalformedControlPlaneTenantId() throws ServletException, IOException {
+    authenticate("ops@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("ROOT"));
+
+    MockHttpServletRequest request =
+        request("PUT", "/api/v1/superadmin/tenants/not-a-number/lifecycle");
+    request.setAttribute("jwtClaims", claimsFor("ROOT"));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(response.getContentAsString()).contains("Access denied to company control request");
+    verify(filterChain, never()).doFilter(request, response);
+  }
+
+  @Test
+  void doFilter_rejectsTenantControlRequestWhenScopedClaimIsMissing() throws ServletException, IOException {
+    authenticate("admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ACME"));
+    when(companyService.resolveCompanyCodeById(42L)).thenReturn("ACME");
+
+    MockHttpServletRequest request = request("PUT", "/api/v1/superadmin/tenants/42/lifecycle");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(response.getContentAsString()).contains("Access denied to company control request");
+    verify(filterChain, never()).doFilter(request, response);
+  }
+
+  @Test
+  void doFilter_rejectsWhenTenantRuntimeAdmissionUnavailable() throws ServletException, IOException {
+    authenticate("admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ACME"));
+    when(companyService.resolveLifecycleStateByCode("ACME"))
+        .thenReturn(CompanyLifecycleState.ACTIVE);
+    when(tenantRuntimeEnforcementService.beginRequest(
+            "ACME", "/api/v1/private", "GET", "admin@bbp.com", false))
+        .thenReturn(null);
+
+    MockHttpServletRequest request = request("GET", "/api/v1/private");
+    request.setAttribute("jwtClaims", claimsFor("ACME"));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(response.getContentAsString()).contains("Tenant runtime admission is unavailable");
+    verify(filterChain, never()).doFilter(request, response);
+  }
+
+  @Test
   void helperMethods_coverCanonicalControlPathAndPathResolutionBranches() {
     assertThat(invokeIsLifecycleControlRequest("/api/v1/superadmin/tenants/77", "GET")).isTrue();
     assertThat(invokeIsLifecycleControlRequest("/api/v1/superadmin/tenants/77/lifecycle", "PUT"))
@@ -195,8 +263,20 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         .isTrue();
     assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin("/api/v1/orchestrator/health"))
         .isFalse();
+    assertThat(
+            invokeIsTenantBusinessRequestBlockedForSuperAdmin(
+                "/api/v1/accounting/periods/2026-Q1/reopen"))
+        .isFalse();
+    assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin("/api/v1/accounting/journals"))
+        .isTrue();
     assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/audit/business-events")).isTrue();
     assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/admin/settings")).isFalse();
+    assertThat(invokeHasTenantRuntimePolicyControlAuthority("/api/v1/superadmin/tenants/77/limits", "PUT"))
+        .isFalse();
+    assertThat(invokeExtractCompanyIdFromControlPlanePath("/api/v1/superadmin/tenants/not-a-number/limits"))
+        .isNull();
+    assertThat(invokeSanitizeForLog("bad\nvalue\r")).isEqualTo("bad_value_");
+    assertThat(invokeSanitizeForLog(null)).isNull();
   }
 
   private boolean invokeIsLifecycleControlRequest(String path, String method) {
@@ -225,6 +305,20 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
 
   private boolean invokeIsTenantAuditWorkflowRequest(String path) {
     return (Boolean) ReflectionTestUtils.invokeMethod(filter, "isTenantAuditWorkflowRequest", path);
+  }
+
+  private boolean invokeHasTenantRuntimePolicyControlAuthority(String path, String method) {
+    return (Boolean)
+        ReflectionTestUtils.invokeMethod(
+            filter, "hasTenantRuntimePolicyControlAuthority", path, method);
+  }
+
+  private Long invokeExtractCompanyIdFromControlPlanePath(String path) {
+    return (Long) ReflectionTestUtils.invokeMethod(filter, "extractCompanyIdFromControlPlanePath", path);
+  }
+
+  private String invokeSanitizeForLog(String value) {
+    return ReflectionTestUtils.invokeMethod(filter, "sanitizeForLog", value);
   }
 
   private void authenticate(String email, Set<String> authorities, Set<String> companyCodes) {
