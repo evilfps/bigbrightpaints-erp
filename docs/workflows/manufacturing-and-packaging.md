@@ -22,6 +22,8 @@ This guide explains the flow from planning to dispatch-ready finished stock.
 - Parent semi-finished bulk batches for a selected sellable FG: `GET /api/v1/factory/bulk-batches/{finishedGoodId}`
 - Child batches from bulk: `GET /api/v1/factory/bulk-batches/{parentBatchId}/children`
 
+Boundary note: the only packing mutation is `POST /api/v1/factory/packing-records`. The two `/bulk-batches/*` endpoints are read-only lookup/traceability helpers and do not create, update, or complete packing.
+
 ## Troubleshooting Quick Notes
 
 1. **Production log saved but FG not available:** confirm the remaining pack quantity was recorded on `POST /api/v1/factory/packing-records`; production logging alone may not create dispatch-size stock.

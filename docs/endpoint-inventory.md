@@ -243,7 +243,7 @@ Portal scope guardrail:
 - `GET` `/api/v1/factory/unpacked-batches`
 
 Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packaging Setup / Rules contract. Pack requests fail closed when a size is missing active, usable packaging setup, when `Idempotency-Key` is missing, or when legacy replay headers are sent.
-Bulk operator note: `/api/v1/factory/bulk-batches/{finishedGoodId}` is read-only and resolves semi-finished inventory through canonical catalog product-family mapping; `-BULK` stays internal raw-material truth and is not a finished-good contract.
+Bulk operator note: `/api/v1/factory/bulk-batches/{finishedGoodId}` and `/api/v1/factory/bulk-batches/{parentBatchId}/children` are read-only helper surfaces for parent/child traceability. The only public packing mutation remains `POST /api/v1/factory/packing-records`. `-BULK` stays internal raw-material truth and is not a finished-good contract.
 
 ## `finished-goods`
 

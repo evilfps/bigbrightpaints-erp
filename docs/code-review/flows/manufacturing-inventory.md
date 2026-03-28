@@ -216,6 +216,7 @@ This entire chain fails closed when account metadata is incomplete. Missing `wip
 - The only public packing mutation remains `POST /api/v1/factory/packing-records`.
 - `listBulkBatches(...)` resolves the parent semi-finished raw material through catalog product-family matching, then maps to the internal semi-finished SKU contract.
 - `listChildBatches(...)` uses recorded packing references to list child finished-good receipts for a parent bulk batch.
+- These bulk-batch reads are selector/traceability views only; they are not an alternate packing execution or completion path.
 - Historical replay resolution (`resolveIdempotentPack(...)`) remains read-only evidence logic for deterministic prior-effect lookup.
 
 `TS_PackingIdempotencyAndFacadeBoundaryTest` and `TS_BulkPackDeterministicReferenceTest` are the key replay-safety evidence here.
