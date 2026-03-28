@@ -45,8 +45,12 @@ import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReservationRepo
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipLine;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
-import com.bigbrightpaints.erp.modules.inventory.service.BatchNumberService;
+import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsDispatchEngine;
+import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsReservationEngine;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsWorkflowEngineService;
+import com.bigbrightpaints.erp.modules.inventory.service.InventoryMovementRecorder;
+import com.bigbrightpaints.erp.modules.inventory.service.InventoryValuationService;
+import com.bigbrightpaints.erp.modules.inventory.service.PackagingSlipService;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 
@@ -61,12 +65,13 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
   @Mock private PackagingSlipRepository packagingSlipRepository;
   @Mock private InventoryMovementRepository inventoryMovementRepository;
   @Mock private InventoryReservationRepository inventoryReservationRepository;
-  @Mock private BatchNumberService batchNumberService;
   @Mock private SalesOrderRepository salesOrderRepository;
   @Mock private CostingMethodService costingMethodService;
   @Mock private GstService gstService;
   @Mock private ApplicationEventPublisher eventPublisher;
   @Mock private CompanyClock companyClock;
+  @Mock private FinishedGoodsReservationEngine reservationEngine;
+  @Mock private PackagingSlipService packagingSlipService;
 
   private FinishedGoodsWorkflowEngineService service;
   private Company company;
@@ -74,20 +79,36 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
 
   @BeforeEach
   void setUp() {
-    service =
-        new FinishedGoodsWorkflowEngineService(
+    InventoryValuationService inventoryValuationService =
+        new InventoryValuationService(
+            finishedGoodBatchRepository, costingMethodService, companyClock);
+    InventoryMovementRecorder movementRecorder =
+        new InventoryMovementRecorder(inventoryMovementRepository, eventPublisher, companyClock);
+    FinishedGoodsDispatchEngine dispatchEngine =
+        new FinishedGoodsDispatchEngine(
             companyContextService,
             finishedGoodRepository,
             finishedGoodBatchRepository,
             packagingSlipRepository,
             inventoryMovementRepository,
             inventoryReservationRepository,
-            batchNumberService,
             salesOrderRepository,
-            costingMethodService,
             gstService,
-            eventPublisher,
-            companyClock);
+            companyClock,
+            movementRecorder,
+            reservationEngine,
+            packagingSlipService,
+            inventoryValuationService);
+    service =
+        new FinishedGoodsWorkflowEngineService(
+            companyContextService,
+            finishedGoodRepository,
+            finishedGoodBatchRepository,
+            null,
+            inventoryValuationService,
+            reservationEngine,
+            dispatchEngine,
+            packagingSlipService);
 
     company = new Company();
     setId(company, 1L);
@@ -99,7 +120,6 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(costingMethodService.resolveActiveMethod(any(Company.class), any()))
         .thenReturn(CostingMethod.FIFO);
-    when(batchNumberService.nextPackagingSlipNumber(any(Company.class))).thenReturn("PS-900");
 
     when(finishedGoodRepository.saveAll(any()))
         .thenAnswer(invocation -> toList(invocation.getArgument(0)));
@@ -139,7 +159,7 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
     assertThat(fixture.slip.getDispatchedAt()).isEqualTo(fixedNow);
     assertThat(fixture.reservation.getStatus()).isEqualTo("PARTIAL");
     assertThat(fixture.line.getBackorderQuantity()).isEqualByComparingTo(new BigDecimal("5"));
-    verify(packagingSlipRepository).saveAndFlush(any(PackagingSlip.class));
+    verify(packagingSlipRepository).save(any(PackagingSlip.class));
   }
 
   @Test
@@ -175,7 +195,7 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
     assertThat(fixture.slip.getDispatchedAt()).isNull();
     assertThat(fixture.reservation.getStatus()).isEqualTo("PARTIAL");
     assertThat(fixture.line.getBackorderQuantity()).isEqualByComparingTo(new BigDecimal("10"));
-    verify(packagingSlipRepository).saveAndFlush(any(PackagingSlip.class));
+    verify(packagingSlipRepository).save(any(PackagingSlip.class));
   }
 
   @Test
@@ -229,7 +249,7 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
 
     assertThat(fixture.slip.getStatus()).isEqualTo(initialStatus);
     assertThat(fixture.slip.getDispatchedAt()).isNull();
-    verify(packagingSlipRepository).saveAndFlush(any(PackagingSlip.class));
+    verify(packagingSlipRepository).save(any(PackagingSlip.class));
   }
 
   @Test

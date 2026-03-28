@@ -85,7 +85,7 @@ public class ReportService {
   private final RawMaterialMovementRepository rawMaterialMovementRepository;
   private final CompanyEntityLookup companyEntityLookup;
   private final CompanyClock companyClock;
-  private final InventoryValuationService inventoryValuationService;
+  private final InventoryValuationQueryService inventoryValuationService;
   private final TrialBalanceReportQueryService trialBalanceReportQueryService;
   private final ProfitLossReportQueryService profitLossReportQueryService;
   private final BalanceSheetReportQueryService balanceSheetReportQueryService;
@@ -112,7 +112,7 @@ public class ReportService {
       RawMaterialMovementRepository rawMaterialMovementRepository,
       CompanyEntityLookup companyEntityLookup,
       CompanyClock companyClock,
-      InventoryValuationService inventoryValuationService,
+      InventoryValuationQueryService inventoryValuationService,
       TrialBalanceReportQueryService trialBalanceReportQueryService,
       ProfitLossReportQueryService profitLossReportQueryService,
       BalanceSheetReportQueryService balanceSheetReportQueryService,
@@ -382,7 +382,7 @@ public class ReportService {
     ReportContext context = resolveReportContext(asOfDate);
     if (context.source() == ReportSource.SNAPSHOT && context.snapshot() != null) {
       AccountingPeriodSnapshot snapshot = context.snapshot();
-      InventoryValuationService.InventorySnapshot inventorySnapshot =
+      InventoryValuationQueryService.InventorySnapshot inventorySnapshot =
           inventoryValuationService.snapshotAsOf(context.company(), context.asOfDate());
       return mapInventorySnapshot(
           inventorySnapshot,
@@ -392,26 +392,26 @@ public class ReportService {
     }
     Company company = context.company();
     if (context.source() == ReportSource.AS_OF) {
-      InventoryValuationService.InventorySnapshot snapshot =
+      InventoryValuationQueryService.InventorySnapshot snapshot =
           inventoryValuationService.snapshotAsOf(company, context.asOfDate());
       return mapInventorySnapshot(
           snapshot, snapshot.totalValue(), snapshot.lowStockItems(), context.metadata());
     }
-    InventoryValuationService.InventorySnapshot snapshot =
+    InventoryValuationQueryService.InventorySnapshot snapshot =
         inventoryValuationService.currentSnapshot(company);
     return mapInventorySnapshot(
         snapshot, snapshot.totalValue(), snapshot.lowStockItems(), context.metadata());
   }
 
   private InventoryValuationDto mapInventorySnapshot(
-      InventoryValuationService.InventorySnapshot snapshot,
+      InventoryValuationQueryService.InventorySnapshot snapshot,
       BigDecimal totalValueOverride,
       long lowStockOverride,
       ReportMetadata metadata) {
-    InventoryValuationService.InventorySnapshot effective =
+    InventoryValuationQueryService.InventorySnapshot effective =
         snapshot != null
             ? snapshot
-            : new InventoryValuationService.InventorySnapshot(
+            : new InventoryValuationQueryService.InventorySnapshot(
                 BigDecimal.ZERO, 0L, "FIFO", List.of());
     List<InventoryValuationItemDto> items =
         effective.items() == null
@@ -701,7 +701,7 @@ public class ReportService {
   @Transactional(readOnly = true)
   public ReconciliationSummaryDto inventoryReconciliation() {
     Company company = companyContextService.requireCurrentCompany();
-    InventoryValuationService.InventorySnapshot totals =
+    InventoryValuationQueryService.InventorySnapshot totals =
         inventoryValuationService.currentSnapshot(company);
     BigDecimal ledgerBalance = resolveInventoryLedgerBalance(company);
     BigDecimal variance = totals.totalValue().subtract(ledgerBalance);
@@ -746,7 +746,7 @@ public class ReportService {
       Long bankAccountId, BigDecimal statementBalance) {
     Company company = companyContextService.requireCurrentCompany();
     Account bankAccount = companyEntityLookup.requireAccount(company, bankAccountId);
-    InventoryValuationService.InventorySnapshot totals =
+    InventoryValuationQueryService.InventorySnapshot totals =
         inventoryValuationService.currentSnapshot(company);
     BigDecimal ledgerInventoryBalance = resolveInventoryLedgerBalance(company);
     BigDecimal physicalInventoryValue = totals.totalValue();

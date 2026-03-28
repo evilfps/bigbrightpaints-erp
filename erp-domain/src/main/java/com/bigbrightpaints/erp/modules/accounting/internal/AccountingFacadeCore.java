@@ -68,7 +68,7 @@ import com.bigbrightpaints.erp.modules.sales.util.SalesOrderReference;
  * @author ERP Development Team
  * @since 1.0
  */
-public class AccountingFacadeCore {
+class AccountingFacadeCore {
 
   private static final Logger log = LoggerFactory.getLogger(AccountingFacadeCore.class);
   private static final BigDecimal BALANCE_TOLERANCE = BigDecimal.ZERO;

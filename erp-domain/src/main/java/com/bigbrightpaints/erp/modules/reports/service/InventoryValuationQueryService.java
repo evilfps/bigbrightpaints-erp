@@ -37,7 +37,7 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 
 @Service("reportsInventoryValuationService")
-public class InventoryValuationService {
+public class InventoryValuationQueryService {
 
   private final RawMaterialRepository rawMaterialRepository;
   private final RawMaterialBatchRepository rawMaterialBatchRepository;
@@ -48,7 +48,7 @@ public class InventoryValuationService {
   private final ProductionProductRepository productionProductRepository;
   private final AccountingPeriodRepository accountingPeriodRepository;
 
-  public InventoryValuationService(
+  public InventoryValuationQueryService(
       RawMaterialRepository rawMaterialRepository,
       RawMaterialBatchRepository rawMaterialBatchRepository,
       FinishedGoodRepository finishedGoodRepository,

@@ -80,7 +80,7 @@ class ReportServiceInventoryAndGstTest {
   @Mock private RawMaterialMovementRepository rawMaterialMovementRepository;
   @Mock private CompanyEntityLookup companyEntityLookup;
   @Mock private CompanyClock companyClock;
-  @Mock private InventoryValuationService inventoryValuationService;
+  @Mock private InventoryValuationQueryService inventoryValuationService;
   @Mock private TrialBalanceReportQueryService trialBalanceReportQueryService;
   @Mock private ProfitLossReportQueryService profitLossReportQueryService;
   @Mock private BalanceSheetReportQueryService balanceSheetReportQueryService;
@@ -146,10 +146,10 @@ class ReportServiceInventoryAndGstTest {
     when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
         .thenReturn(Optional.of(period));
 
-    InventoryValuationService.InventoryItemSnapshot rawItem =
-        new InventoryValuationService.InventoryItemSnapshot(
+    InventoryValuationQueryService.InventoryItemSnapshot rawItem =
+        new InventoryValuationQueryService.InventoryItemSnapshot(
             1L,
-            InventoryValuationService.InventoryTypeBucket.RAW_MATERIAL,
+            InventoryValuationQueryService.InventoryTypeBucket.RAW_MATERIAL,
             "RM-001",
             "Titanium",
             "RAW_MATERIAL",
@@ -160,10 +160,10 @@ class ReportServiceInventoryAndGstTest {
             new BigDecimal("10"),
             new BigDecimal("80"),
             true);
-    InventoryValuationService.InventoryItemSnapshot fgItem =
-        new InventoryValuationService.InventoryItemSnapshot(
+    InventoryValuationQueryService.InventoryItemSnapshot fgItem =
+        new InventoryValuationQueryService.InventoryItemSnapshot(
             2L,
-            InventoryValuationService.InventoryTypeBucket.FINISHED_GOOD,
+            InventoryValuationQueryService.InventoryTypeBucket.FINISHED_GOOD,
             "FG-100",
             "Primer",
             "PAINT",
@@ -175,8 +175,8 @@ class ReportServiceInventoryAndGstTest {
             new BigDecimal("100"),
             false);
 
-    InventoryValuationService.InventorySnapshot snapshot =
-        new InventoryValuationService.InventorySnapshot(
+    InventoryValuationQueryService.InventorySnapshot snapshot =
+        new InventoryValuationQueryService.InventorySnapshot(
             new BigDecimal("180.00"), 1L, "FIFO", List.of(rawItem, fgItem));
 
     when(inventoryValuationService.currentSnapshot(company)).thenReturn(snapshot);
@@ -219,7 +219,7 @@ class ReportServiceInventoryAndGstTest {
         .thenReturn(Optional.of(period));
     when(inventoryValuationService.currentSnapshot(company))
         .thenReturn(
-            new InventoryValuationService.InventorySnapshot(BigDecimal.ZERO, 0L, null, List.of()));
+            new InventoryValuationQueryService.InventorySnapshot(BigDecimal.ZERO, 0L, null, List.of()));
 
     InventoryValuationDto response = reportService.inventoryValuation();
 
@@ -274,7 +274,7 @@ class ReportServiceInventoryAndGstTest {
         .thenReturn(List.of(inventoryAccount));
     when(inventoryValuationService.currentSnapshot(company))
         .thenReturn(
-            new InventoryValuationService.InventorySnapshot(
+            new InventoryValuationQueryService.InventorySnapshot(
                 new BigDecimal("450"), 1L, "FIFO", List.of()));
 
     ReconciliationDashboardDto dashboard =

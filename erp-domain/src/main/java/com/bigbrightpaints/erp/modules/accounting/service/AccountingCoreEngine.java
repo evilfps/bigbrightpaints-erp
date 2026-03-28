@@ -25,7 +25,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 
 import jakarta.persistence.EntityManager;
 
-public abstract class AccountingCoreEngine extends AccountingCoreEngineCore {
+abstract class AccountingCoreEngine extends AccountingCoreEngineCore {
 
   public AccountingCoreEngine(
       CompanyContextService companyContextService,

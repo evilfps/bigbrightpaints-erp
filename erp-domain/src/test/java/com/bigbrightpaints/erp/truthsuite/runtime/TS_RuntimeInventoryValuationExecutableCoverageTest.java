@@ -27,7 +27,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
-import com.bigbrightpaints.erp.modules.reports.service.InventoryValuationService;
+import com.bigbrightpaints.erp.modules.reports.service.InventoryValuationQueryService;
 
 @Tag("critical")
 @Tag("reconciliation")
@@ -53,8 +53,8 @@ class TS_RuntimeInventoryValuationExecutableCoverageTest {
         mock(ProductionProductRepository.class);
     AccountingPeriodRepository accountingPeriodRepository = mock(AccountingPeriodRepository.class);
 
-    InventoryValuationService service =
-        new InventoryValuationService(
+    InventoryValuationQueryService service =
+        new InventoryValuationQueryService(
             rawMaterialRepository,
             rawMaterialBatchRepository,
             finishedGoodRepository,
@@ -97,7 +97,7 @@ class TS_RuntimeInventoryValuationExecutableCoverageTest {
     when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
         .thenReturn(java.util.Optional.empty());
 
-    InventoryValuationService.InventorySnapshot snapshot = service.currentSnapshot(company);
+    InventoryValuationQueryService.InventorySnapshot snapshot = service.currentSnapshot(company);
 
     assertThat(snapshot.totalValue()).isEqualByComparingTo("150.00");
     assertThat(snapshot.lowStockItems()).isEqualTo(0L);

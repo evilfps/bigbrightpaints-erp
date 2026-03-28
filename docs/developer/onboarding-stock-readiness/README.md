@@ -35,6 +35,8 @@ This packet is hard-cut.
   Retired seams and delete-first rules for future cleanup in this area.
 - [05-definition-of-done-and-update-hygiene.md](./05-definition-of-done-and-update-hygiene.md)
   Scope, proof, stop rules, and doc hygiene.
+- [06-stock-truth-decision.md](./06-stock-truth-decision.md)
+  Wave 3 stock-truth decision: authoritative writers, derived fields, and Wave 4 constraints.
 
 ## Current-State Contract
 

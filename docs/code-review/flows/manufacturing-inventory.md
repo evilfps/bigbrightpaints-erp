@@ -254,7 +254,7 @@ The codebase has two valuation layers.
 - Invalidates cache on adjustments, packing receipts, dispatch, and other finished-good mutations.
 - Chooses dispatch/adjustment batch order according to active costing method.
 
-#### Reporting valuation (`modules.reports.service.InventoryValuationService`)
+#### Reporting valuation (`modules.reports.service.InventoryValuationQueryService`)
 
 - Produces current and `asOf` snapshots for raw materials and finished goods.
 - For historical valuation, it starts from current stock and reverses movements after the cutoff date rather than reading a materialized historical snapshot table.
@@ -335,7 +335,7 @@ Recovery is strongest where explicit replay anchors exist: catalog import, openi
 | medium | bootstrap / configuration drift | The canonical stock-bearing item path currently fails in the seeded `MOCK` tenant because company default accounts are not configured; the retired accounting bulk-variant helper and `POST /api/v1/catalog/items` return `VAL_007` until defaults are seeded. | live backend probes on the retired accounting bulk-variant helper and `POST /api/v1/catalog/items`, `ProductionCatalogService`, company default-account requirements in finance setup | Demo/QA environments can appear catalog-ready but still reject the manufacturing-safe creation paths that inventory, valuation, reservation, and dispatch depend on. |
 | medium | bootstrap strictness | Opening-stock import now fails closed when a prepared SKU lacks a finished-good mirror (`Finished good mirror missing for prepared SKU ...`) instead of auto-creating one. | `OpeningStockImportService.handleFinishedGood(...)`, readiness checks in `SkuReadinessService` | This prevents silent catalog/inventory divergence, but it turns incomplete SKU provisioning into an immediate import blocker that operators must fix first. |
 | medium | packaging setup drift | Packing now fails closed when Packaging Setup is missing, inactive, or unusable, including zero-cost setup resolution. | `PackagingMaterialService.consumePackagingMaterial(...)` | Operators cannot finish packing until Packaging Setup / Rules are corrected, but the fail-closed contract avoids silent under-costing and skipped packaging consumption. |
-| medium | historical valuation model | Report-time `asOf` valuation is reconstructed by reversing later movements from current stock, not by reading a historical snapshot table. | `modules.reports.service.InventoryValuationService` | Any movement corruption, missing journal link, or manual data repair can distort historical valuation and reconciliation reports long after the operational event. |
+| medium | historical valuation model | Report-time `asOf` valuation is reconstructed by reversing later movements from current stock, not by reading a historical snapshot table. | `modules.reports.service.InventoryValuationQueryService` | Any movement corruption, missing journal link, or manual data repair can distort historical valuation and reconciliation reports long after the operational event. |
 | medium | noncanonical manual paths | Manual raw-material intake remains an admin escape hatch outside the stronger purchasing receipt workflow. | `RawMaterialService`, `application.yml` | This path still widens the drift surface because it bypasses the primary purchasing flow invariants that normally create stock. |
 
 ## Security, privacy, protocol, performance, and observability notes

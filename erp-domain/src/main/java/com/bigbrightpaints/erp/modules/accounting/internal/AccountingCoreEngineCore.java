@@ -79,7 +79,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 
 import jakarta.persistence.EntityManager;
 
-public abstract class AccountingCoreEngineCore {
+abstract class AccountingCoreEngineCore {
 
   private static final Logger log = LoggerFactory.getLogger(AccountingCoreEngineCore.class);
 

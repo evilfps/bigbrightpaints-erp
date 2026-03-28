@@ -40,7 +40,7 @@ import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchPreviewDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.StockSummaryDto;
-import com.bigbrightpaints.erp.modules.reports.service.InventoryValuationService;
+import com.bigbrightpaints.erp.modules.reports.service.InventoryValuationQueryService;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderItem;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
@@ -63,7 +63,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
 
   @Autowired private SalesOrderRepository salesOrderRepository;
 
-  @Autowired private InventoryValuationService inventoryValuationService;
+  @Autowired private InventoryValuationQueryService inventoryValuationService;
 
   @Autowired private AccountingPeriodRepository accountingPeriodRepository;
 
@@ -653,7 +653,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
             .filter(item -> "FG-WAC-PARITY".equals(item.code()))
             .findFirst()
             .orElseThrow();
-    InventoryValuationService.InventorySnapshot snapshot =
+    InventoryValuationQueryService.InventorySnapshot snapshot =
         inventoryValuationService.currentSnapshot(company);
 
     assertThat(summary.weightedAverageCost()).isEqualByComparingTo(new BigDecimal("10.4"));

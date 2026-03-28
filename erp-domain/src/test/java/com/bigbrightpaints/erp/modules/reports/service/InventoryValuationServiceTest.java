@@ -53,7 +53,7 @@ class InventoryValuationServiceTest {
   @Mock private AccountingPeriodRepository accountingPeriodRepository;
   @Mock private CompanyClock companyClock;
 
-  @InjectMocks private InventoryValuationService inventoryValuationService;
+  @InjectMocks private InventoryValuationQueryService inventoryValuationService;
 
   @BeforeEach
   void setUp() {
@@ -104,7 +104,7 @@ class InventoryValuationServiceTest {
     when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
         .thenReturn(java.util.Optional.empty());
 
-    InventoryValuationService.InventorySnapshot snapshot =
+    InventoryValuationQueryService.InventorySnapshot snapshot =
         inventoryValuationService.currentSnapshot(company);
 
     assertThat(snapshot.totalValue()).isEqualByComparingTo("150.00");
@@ -151,7 +151,7 @@ class InventoryValuationServiceTest {
     when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
         .thenReturn(java.util.Optional.empty());
 
-    InventoryValuationService.InventorySnapshot snapshot =
+    InventoryValuationQueryService.InventorySnapshot snapshot =
         inventoryValuationService.currentSnapshot(company);
 
     assertThat(snapshot.totalValue()).isEqualByComparingTo("200.00");
@@ -198,7 +198,7 @@ class InventoryValuationServiceTest {
     when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
         .thenReturn(java.util.Optional.empty());
 
-    InventoryValuationService.InventorySnapshot snapshot =
+    InventoryValuationQueryService.InventorySnapshot snapshot =
         inventoryValuationService.currentSnapshot(company);
 
     assertThat(snapshot.totalValue()).isEqualByComparingTo("100.00");
@@ -230,7 +230,7 @@ class InventoryValuationServiceTest {
     when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
         .thenReturn(java.util.Optional.empty());
 
-    InventoryValuationService.InventorySnapshot snapshot =
+    InventoryValuationQueryService.InventorySnapshot snapshot =
         inventoryValuationService.currentSnapshot(company);
 
     assertThat(snapshot.totalValue()).isEqualByComparingTo("15.00");
@@ -276,7 +276,7 @@ class InventoryValuationServiceTest {
     when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
         .thenReturn(java.util.Optional.empty());
 
-    InventoryValuationService.InventorySnapshot snapshot =
+    InventoryValuationQueryService.InventorySnapshot snapshot =
         inventoryValuationService.currentSnapshot(company);
 
     assertThat(snapshot.totalValue()).isEqualByComparingTo("26.00");
@@ -327,7 +327,7 @@ class InventoryValuationServiceTest {
     when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
         .thenReturn(java.util.Optional.of(period));
 
-    InventoryValuationService.InventorySnapshot snapshot =
+    InventoryValuationQueryService.InventorySnapshot snapshot =
         inventoryValuationService.currentSnapshot(company);
 
     assertThat(snapshot.costingMethod()).isEqualTo("WEIGHTED_AVERAGE");
@@ -351,7 +351,7 @@ class InventoryValuationServiceTest {
     when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
         .thenReturn(java.util.Optional.of(period));
 
-    InventoryValuationService.InventorySnapshot snapshot =
+    InventoryValuationQueryService.InventorySnapshot snapshot =
         inventoryValuationService.currentSnapshot(company);
 
     assertThat(snapshot.costingMethod()).isEqualTo("FIFO");
@@ -433,7 +433,7 @@ class InventoryValuationServiceTest {
             company, Instant.parse("2026-03-16T00:00:00Z")))
         .thenReturn(List.of());
 
-    InventoryValuationService.InventorySnapshot snapshot =
+    InventoryValuationQueryService.InventorySnapshot snapshot =
         inventoryValuationService.snapshotAsOf(company, LocalDate.of(2026, 3, 15));
 
     assertThat(snapshot.totalValue()).isEqualByComparingTo("110.00");

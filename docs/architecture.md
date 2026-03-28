@@ -39,6 +39,12 @@ Most operational modules post financial effects through accounting facade/core A
 - Factory/production/packing → WIP/consumption/value journals (`ProductionLogService`, `PackingService`, `BulkPackingService`).
 - Payroll run posting/payment → payroll journals (`PayrollPostingService`, `AccountingCoreEngineCore.postPayrollRun`).
 
+Canonical seam rule after Wave 3:
+
+- Inject `AccountingFacade`, `AccountingService`, `AccountingPeriodService`, `ReconciliationService`, and `AccountingAuditTrailService` at module boundaries.
+- Treat the `*Core` / `*Engine` accounting ladder as internal implementation scaffolding, not as new public service entrypoints.
+- Operational finished-good costing stays in `modules.inventory.service.InventoryValuationService`; report and snapshot valuation reads live in `modules.reports.service.InventoryValuationQueryService`.
+
 Key facade entrypoint: `JournalCreationRequest` encapsulates debit/credit lines, source module/reference, and period date semantics (`erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/dto/JournalCreationRequest.java`).
 
 ## 2) End-to-end business flow architecture
@@ -135,6 +141,7 @@ Evidence and invariants:
 - Material issue + labor/overhead journals are posted to WIP/consumption accounts (`ProductionLogService.postMaterialJournal`, `postLaborOverheadJournal`).
 - Semi-finished and finished-good batch registration updates stock and movement lines (`ProductionLogService.registerSemiFinishedBatch`, `PackingService.executeLine`, `BulkPackingService.createChildBatches`).
 - Packing idempotency uses reserved keys/hash with replay resolution and journal/movement linking helpers (`PackingService.reserveIfNeeded`, `packingJournalLinkHelper.linkPackagingMovementsToJournal`).
+- The stock-truth decision for Wave 4 is documented in [`docs/developer/onboarding-stock-readiness/06-stock-truth-decision.md`](./developer/onboarding-stock-readiness/06-stock-truth-decision.md); later packets must treat batch rows as authoritative stock state and aggregate stock fields as derived summaries.
 
 Primary files:
 
