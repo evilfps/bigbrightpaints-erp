@@ -17,7 +17,7 @@ public record SupplierResponse(
     String phone,
     String address,
     BigDecimal creditLimit,
-    BigDecimal outstandingBalance,
+    BigDecimal balance,
     Long payableAccountId,
     String payableAccountCode,
     String gstNumber,
@@ -39,7 +39,7 @@ public record SupplierResponse(
       String phone,
       String address,
       BigDecimal creditLimit,
-      BigDecimal outstandingBalance,
+      BigDecimal balance,
       Long payableAccountId,
       String payableAccountCode) {
     this(
@@ -52,7 +52,7 @@ public record SupplierResponse(
         phone,
         address,
         creditLimit,
-        outstandingBalance,
+        balance,
         payableAccountId,
         payableAccountCode,
         null,

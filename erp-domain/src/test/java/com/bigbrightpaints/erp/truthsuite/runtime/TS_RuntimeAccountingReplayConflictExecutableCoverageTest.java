@@ -43,7 +43,6 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
-import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditTrailService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
@@ -604,15 +603,13 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
     when(dealerReceiptService.recordDealerReceiptSplit(any())).thenReturn(null);
     when(settlementService.settleDealerInvoices(any())).thenReturn(null);
-    when(settlementService.recordSupplierPayment(any())).thenReturn(null);
     when(settlementService.settleSupplierInvoices(any())).thenReturn(null);
 
     controller.recordDealerReceipt(controllerDealerReceiptRequest("   "), "HDR-DR", null);
     controller.recordDealerHybridReceipt(
         controllerDealerReceiptSplitRequest("   "), "HDR-DRS", null);
     controller.settleDealer(controllerDealerSettlementRequest("   "), "HDR-ADS", null);
-    controller.recordSupplierPayment(controllerSupplierPaymentRequest("   "), "HDR-AP", null);
-    controller.settleSupplier(controllerSupplierSettlementRequest("   "), "HDR-APS", null);
+    controller.settleSupplier(controllerSupplierSettlementRequest("   "), "HDR-APS");
 
     ArgumentCaptor<DealerReceiptRequest> dealerCaptor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
@@ -628,11 +625,6 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
         ArgumentCaptor.forClass(DealerSettlementRequest.class);
     verify(settlementService).settleDealerInvoices(dealerSettlementCaptor.capture());
     assertThat(dealerSettlementCaptor.getValue().idempotencyKey()).isEqualTo("HDR-ADS");
-
-    ArgumentCaptor<SupplierPaymentRequest> supplierPaymentCaptor =
-        ArgumentCaptor.forClass(SupplierPaymentRequest.class);
-    verify(settlementService).recordSupplierPayment(supplierPaymentCaptor.capture());
-    assertThat(supplierPaymentCaptor.getValue().idempotencyKey()).isEqualTo("HDR-AP");
 
     ArgumentCaptor<SupplierSettlementRequest> supplierSettlementCaptor =
         ArgumentCaptor.forClass(SupplierSettlementRequest.class);
@@ -651,15 +643,13 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
     when(dealerReceiptService.recordDealerReceiptSplit(any())).thenReturn(null);
     when(settlementService.settleDealerInvoices(any())).thenReturn(null);
-    when(settlementService.recordSupplierPayment(any())).thenReturn(null);
     when(settlementService.settleSupplierInvoices(any())).thenReturn(null);
 
     controller.recordDealerReceipt(controllerDealerReceiptRequest("BODY-DR"), "BODY-DR", null);
     controller.recordDealerHybridReceipt(
         controllerDealerReceiptSplitRequest("BODY-DRS"), "BODY-DRS", null);
     controller.settleDealer(controllerDealerSettlementRequest("BODY-ADS"), "BODY-ADS", null);
-    controller.recordSupplierPayment(controllerSupplierPaymentRequest("BODY-AP"), "BODY-AP", null);
-    controller.settleSupplier(controllerSupplierSettlementRequest("BODY-APS"), "BODY-APS", null);
+    controller.settleSupplier(controllerSupplierSettlementRequest("BODY-APS"), "BODY-APS");
 
     ArgumentCaptor<DealerReceiptRequest> dealerCaptor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
@@ -675,11 +665,6 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
         ArgumentCaptor.forClass(DealerSettlementRequest.class);
     verify(settlementService).settleDealerInvoices(dealerSettlementCaptor.capture());
     assertThat(dealerSettlementCaptor.getValue().idempotencyKey()).isEqualTo("BODY-ADS");
-
-    ArgumentCaptor<SupplierPaymentRequest> supplierPaymentCaptor =
-        ArgumentCaptor.forClass(SupplierPaymentRequest.class);
-    verify(settlementService).recordSupplierPayment(supplierPaymentCaptor.capture());
-    assertThat(supplierPaymentCaptor.getValue().idempotencyKey()).isEqualTo("BODY-AP");
 
     ArgumentCaptor<SupplierSettlementRequest> supplierSettlementCaptor =
         ArgumentCaptor.forClass(SupplierSettlementRequest.class);
@@ -698,14 +683,12 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
     when(dealerReceiptService.recordDealerReceiptSplit(any())).thenReturn(null);
     when(settlementService.settleDealerInvoices(any())).thenReturn(null);
-    when(settlementService.recordSupplierPayment(any())).thenReturn(null);
     when(settlementService.settleSupplierInvoices(any())).thenReturn(null);
 
     controller.recordDealerReceipt(controllerDealerReceiptRequest(null), null, null);
     controller.recordDealerHybridReceipt(controllerDealerReceiptSplitRequest(null), null, null);
     controller.settleDealer(controllerDealerSettlementRequest(null), null, null);
-    controller.recordSupplierPayment(controllerSupplierPaymentRequest(null), null, null);
-    controller.settleSupplier(controllerSupplierSettlementRequest(null), null, null);
+    controller.settleSupplier(controllerSupplierSettlementRequest(null), null);
 
     ArgumentCaptor<DealerReceiptRequest> dealerCaptor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
@@ -721,11 +704,6 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
         ArgumentCaptor.forClass(DealerSettlementRequest.class);
     verify(settlementService).settleDealerInvoices(dealerSettlementCaptor.capture());
     assertThat(dealerSettlementCaptor.getValue().idempotencyKey()).isNull();
-
-    ArgumentCaptor<SupplierPaymentRequest> supplierPaymentCaptor =
-        ArgumentCaptor.forClass(SupplierPaymentRequest.class);
-    verify(settlementService).recordSupplierPayment(supplierPaymentCaptor.capture());
-    assertThat(supplierPaymentCaptor.getValue().idempotencyKey()).isNull();
 
     ArgumentCaptor<SupplierSettlementRequest> supplierSettlementCaptor =
         ArgumentCaptor.forClass(SupplierSettlementRequest.class);
@@ -744,14 +722,12 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
     when(dealerReceiptService.recordDealerReceiptSplit(any())).thenReturn(null);
     when(settlementService.settleDealerInvoices(any())).thenReturn(null);
-    when(settlementService.recordSupplierPayment(any())).thenReturn(null);
     when(settlementService.settleSupplierInvoices(any())).thenReturn(null);
 
     controller.recordDealerReceipt(null, "HDR-DR", "LEGACY-DR");
     controller.recordDealerHybridReceipt(null, "HDR-DRS", "LEGACY-DRS");
     controller.settleDealer(null, "HDR-ADS", "LEGACY-ADS");
-    controller.recordSupplierPayment(null, "HDR-AP", "LEGACY-AP");
-    controller.settleSupplier(null, "HDR-APS", "LEGACY-APS");
+    controller.settleSupplier(null, "HDR-APS");
 
     ArgumentCaptor<DealerReceiptRequest> dealerCaptor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
@@ -767,11 +743,6 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
         ArgumentCaptor.forClass(DealerSettlementRequest.class);
     verify(settlementService).settleDealerInvoices(dealerSettlementCaptor.capture());
     assertThat(dealerSettlementCaptor.getValue()).isNull();
-
-    ArgumentCaptor<SupplierPaymentRequest> supplierPaymentCaptor =
-        ArgumentCaptor.forClass(SupplierPaymentRequest.class);
-    verify(settlementService).recordSupplierPayment(supplierPaymentCaptor.capture());
-    assertThat(supplierPaymentCaptor.getValue()).isNull();
 
     ArgumentCaptor<SupplierSettlementRequest> supplierSettlementCaptor =
         ArgumentCaptor.forClass(SupplierSettlementRequest.class);
@@ -1483,17 +1454,6 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
         "DR-SPLIT-REF-1",
         "memo",
         idempotencyKey);
-  }
-
-  private SupplierPaymentRequest controllerSupplierPaymentRequest(String idempotencyKey) {
-    return new SupplierPaymentRequest(
-        301L,
-        201L,
-        new BigDecimal("75.00"),
-        "AP-REF-1",
-        "memo",
-        idempotencyKey,
-        controllerAllocations());
   }
 
   private DealerSettlementRequest controllerDealerSettlementRequest(String idempotencyKey) {

@@ -198,7 +198,8 @@ public class ReconciliationServiceCore {
   public SupplierReconciliationResult reconcileApWithSupplierLedger() {
     Company company = companyContextService.requireCurrentCompany();
     List<Account> allAccounts = accountRepository.findByCompanyOrderByCodeAsc(company);
-    List<Supplier> suppliers = supplierRepository.findByCompanyOrderByNameAsc(company);
+    List<Supplier> suppliers =
+        supplierRepository.findByCompanyWithPayableAccountOrderByNameAsc(company);
     List<Account> apAccounts = resolvePayableAccounts(allAccounts, suppliers);
 
     BigDecimal totalApBalance =
@@ -229,19 +230,20 @@ public class ReconciliationServiceCore {
 
     for (Supplier supplier : suppliers) {
       BigDecimal ledgerBalance = supplierBalances.getOrDefault(supplier.getId(), BigDecimal.ZERO);
-      BigDecimal outstandingBalance =
-          supplier.getOutstandingBalance() != null
-              ? supplier.getOutstandingBalance()
+      Account payableAccount = supplier.getPayableAccount();
+      BigDecimal supplierPayableAccountBalance =
+          payableAccount != null && payableAccount.getBalance() != null
+              ? payableAccount.getBalance().negate()
               : BigDecimal.ZERO;
 
-      BigDecimal supplierVariance = outstandingBalance.subtract(ledgerBalance);
+      BigDecimal supplierVariance = supplierPayableAccountBalance.subtract(ledgerBalance);
       if (supplierVariance.abs().compareTo(TOLERANCE) > 0) {
         discrepancies.add(
             new SupplierDiscrepancy(
                 supplier.getId(),
                 supplier.getCode(),
                 supplier.getName(),
-                outstandingBalance,
+                supplierPayableAccountBalance,
                 ledgerBalance,
                 supplierVariance));
       }
@@ -504,7 +506,8 @@ public class ReconciliationServiceCore {
                 .map(DealerBalanceView::balance)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-    List<Supplier> suppliers = supplierRepository.findByCompanyOrderByNameAsc(company);
+    List<Supplier> suppliers =
+        supplierRepository.findByCompanyWithPayableAccountOrderByNameAsc(company);
     List<Account> apAccounts = resolvePayableAccounts(allAccounts, suppliers);
     List<Long> supplierIds = suppliers.stream().map(Supplier::getId).toList();
     BigDecimal supplierLedgerNet =
@@ -590,7 +593,7 @@ public class ReconciliationServiceCore {
         receivableDealer.map(Dealer::getOutstandingBalance).map(this::safe).orElse(BigDecimal.ZERO);
     BigDecimal payableAmount =
         payableSupplier
-            .map(Supplier::getOutstandingBalance)
+            .map(supplier -> resolveSupplierLedgerBalance(payableCompany, supplier))
             .map(this::safe)
             .orElse(BigDecimal.ZERO);
 
@@ -617,6 +620,13 @@ public class ReconciliationServiceCore {
       return null;
     }
     return code.trim();
+  }
+
+  private BigDecimal resolveSupplierLedgerBalance(Company company, Supplier supplier) {
+    return supplierLedgerRepository
+        .aggregateBalance(company, supplier)
+        .map(SupplierBalanceView::balance)
+        .orElse(BigDecimal.ZERO);
   }
 
   private List<Account> resolveReceivableAccounts(List<Account> accounts, List<Dealer> dealers) {

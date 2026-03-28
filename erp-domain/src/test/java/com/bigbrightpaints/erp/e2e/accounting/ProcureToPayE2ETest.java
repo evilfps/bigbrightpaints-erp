@@ -444,7 +444,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
 
     ResponseEntity<Map> paymentResp =
         rest.exchange(
-            "/api/v1/accounting/suppliers/payments",
+            "/api/v1/accounting/settlements/suppliers",
             HttpMethod.POST,
             new HttpEntity<>(paymentReq, headers),
             Map.class);

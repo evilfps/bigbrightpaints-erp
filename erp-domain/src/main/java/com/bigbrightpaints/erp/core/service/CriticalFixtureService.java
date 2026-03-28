@@ -163,7 +163,6 @@ public class CriticalFixtureService {
                   s.setCompany(company);
                   s.setName("Fixture Supplier");
                   s.setCode("FIX-SUP");
-                  s.setOutstandingBalance(BigDecimal.ZERO);
                   return supplierRepository.save(s);
                 });
     supplier.setPayableAccount(payable);

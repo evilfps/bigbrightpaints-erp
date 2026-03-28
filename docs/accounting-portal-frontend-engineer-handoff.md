@@ -150,7 +150,6 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 | `acctSettleSupplier` | POST | `/api/v1/accounting/settlements/suppliers` | allocations (body), allocations[].appliedAmount (body), cashAccountId (body), supplierId (body) | Idempotency-Key (header), adminOverride (body), allocations[].discountAmount (body), allocations[].fxAdjustment (body), allocations[].invoiceId (body), allocations[].memo (body), allocations[].purchaseId (body), allocations[].writeOffAmount (body), discountAccountId (body), fxGainAccountId (body), fxLossAccountId (body), idempotencyKey (body), memo (body), referenceNumber (body), settlementDate (body), writeOffAccountId (body) | No | No | No |
 | `acctSupplierStatement` | GET | `/api/v1/accounting/statements/suppliers/{supplierId}` | supplierId (path) | from (query), to (query) | Yes | No | Yes |
 | `acctSupplierStatementPdf` | GET | `/api/v1/accounting/statements/suppliers/{supplierId}/pdf` | supplierId (path) | from (query), to (query) | Yes | No | Yes |
-| `acctRecordSupplierPayment` | POST | `/api/v1/accounting/suppliers/payments` | allocations (body), allocations[].appliedAmount (body), amount (body), cashAccountId (body), supplierId (body) | Idempotency-Key (header), allocations[].discountAmount (body), allocations[].fxAdjustment (body), allocations[].invoiceId (body), allocations[].memo (body), allocations[].purchaseId (body), allocations[].writeOffAmount (body), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
 | `acctGetTrialBalanceAsOf` | GET | `/api/v1/accounting/trial-balance/as-of` | date (query) | - | Yes | No | Yes |
 
 Canonical `/api/v1/reports/**` accounting endpoints in the table above run through `ReportController` and the shared `GlobalExceptionHandler`, not `AccountingController`'s retired always-400 handler. Frontend callers must branch on HTTP status plus `data.code` and `data.reason` instead of assuming every application failure is `400`. Current mapping for these routes is: validation `400`, `MODULE_DISABLED` `403`, `BUSINESS_ENTITY_NOT_FOUND` `404`, and business/concurrency/data conflicts `409`.
@@ -508,12 +507,12 @@ These rows are required for the period-close maker-checker UX, but they live out
 
 ### `/accounting/ap/suppliers-purchases`
 - Purpose: Supplier master, PO/GRN, raw-material purchase lifecycle, AP settlement/payment.
-- Required API calls: `supplierListSuppliers`, `supplierCreateSupplier`, `supplierUpdateSupplier`, `poListPurchaseOrders`, `poCreatePurchaseOrder`, `poListGoodsReceipts`, `poCreateGoodsReceipt`, `rmPurchaseListPurchases`, `rmPurchaseCreatePurchase`, `rmPurchaseRecordPurchaseReturn`, `acctRecordSupplierPayment`, `acctSettleSupplier`, `acctSupplierAging`, `acctSupplierStatement`
+- Required API calls: `supplierListSuppliers`, `supplierCreateSupplier`, `supplierUpdateSupplier`, `poListPurchaseOrders`, `poCreatePurchaseOrder`, `poListGoodsReceipts`, `poCreateGoodsReceipt`, `rmPurchaseListPurchases`, `rmPurchaseCreatePurchase`, `rmPurchaseRecordPurchaseReturn`, `acctSettleSupplier`, `acctSupplierAging`, `acctSupplierStatement`
 - Loading state: multi-step workflow steppers; document header/line skeletons; AP aging empty states; payment action confirmations.
 - Empty state: no rows / no open items / no period data for selected filters.
 - Error state: inline widget errors + page-level retry + action-level toast; preserve user filters and unsaved inputs.
 - Suggested table columns: PO/GRN/Purchase columns: docNo, supplier, docDate, qty, taxableValue, tax, total, postingStatus.
-- Suggested form fields: From `PurchaseOrderRequest`, `RawMaterialPurchaseRequest`, `SupplierPaymentRequest`, `SupplierSettlementRequest`.
+- Suggested form fields: From `PurchaseOrderRequest`, `RawMaterialPurchaseRequest`, `SupplierSettlementRequest`.
 - Role/permission gate: `ROLE_ADMIN or ROLE_ACCOUNTING` for AP workflows; supplier `GET` endpoints also permit `ROLE_FACTORY`.
 
 ### `/accounting/inventory/sku-catalog`

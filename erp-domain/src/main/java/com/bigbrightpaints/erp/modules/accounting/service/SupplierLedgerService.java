@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 
@@ -42,7 +43,18 @@ public class SupplierLedgerService
 
   @Transactional
   public void recordLedgerEntry(Supplier supplier, LedgerContext context) {
-    super.recordLedgerEntry(supplier, context);
+    Objects.requireNonNull(supplier, "Partner is required for ledger entry");
+    Objects.requireNonNull(context, "Ledger context is required");
+
+    BigDecimal debit = normalizeAmount(context.debit());
+    BigDecimal credit = normalizeAmount(context.credit());
+    if (debit.compareTo(BigDecimal.ZERO) == 0 && credit.compareTo(BigDecimal.ZERO) == 0) {
+      return;
+    }
+
+    SupplierLedgerEntry entry = createEntry();
+    populateEntry(entry, supplier, context, debit, credit);
+    persistEntry(entry);
   }
 
   public Map<Long, BigDecimal> currentBalances(Collection<Long> supplierIds) {
@@ -98,9 +110,7 @@ public class SupplierLedgerService
 
   @Override
   protected void updateOutstandingBalance(Supplier partner, BigDecimal balance) {
-    BigDecimal normalized = balance != null ? balance : BigDecimal.ZERO;
-    partner.setOutstandingBalance(normalized);
-    supplierRepository.save(partner);
+    // Supplier balance is ledger-derived read-model data only; do not persist a supplier-row cache.
   }
 
   @Override
@@ -118,5 +128,9 @@ public class SupplierLedgerService
     entry.setJournalEntry(context.journalEntry());
     entry.setDebit(debit);
     entry.setCredit(credit);
+  }
+
+  private BigDecimal normalizeAmount(BigDecimal amount) {
+    return amount == null ? BigDecimal.ZERO : amount;
   }
 }

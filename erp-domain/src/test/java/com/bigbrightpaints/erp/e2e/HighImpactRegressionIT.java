@@ -1108,7 +1108,6 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
               supplier.setCompany(company);
               supplier.setCode(code);
               supplier.setName(name);
-              supplier.setOutstandingBalance(BigDecimal.ZERO);
               supplier.setPayableAccount(apAccount);
               return supplierRepository.save(supplier);
             });

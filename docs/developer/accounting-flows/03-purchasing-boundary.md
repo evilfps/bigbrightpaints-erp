@@ -78,7 +78,7 @@ flowchart LR
 - `PurchaseInvoiceService` is nearly pure pass-through to `PurchaseInvoiceEngine`
 - `PurchaseInvoiceEngine.setPurchaseOrderService(...)` is setter wiring and a small seam
 - `PurchaseResponseMapper` mixes purchasing read state with accounting settlement references
-- `Supplier.outstandingBalance` mirrors subledger truth and can drift from live ledger reads
+- Supplier balance should remain a ledger-derived read-model value (`SupplierResponse.balance`), never a persisted supplier-row cache
 
 ## Review Hotspots
 

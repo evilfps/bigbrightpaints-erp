@@ -365,7 +365,6 @@ public class BenchmarkDataInitializer {
                 sup.setEmail(s[2]);
                 sup.setPayableAccount(ap);
                 sup.setCreditLimit(new BigDecimal("1000000"));
-                sup.setOutstandingBalance(BigDecimal.ZERO);
                 return supplierRepository.save(sup);
               });
     }

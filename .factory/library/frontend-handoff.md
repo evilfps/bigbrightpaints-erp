@@ -717,11 +717,10 @@ Catalog note (2026-03-21): accounting-facing stock-bearing setup now uses the ca
 | `POST` | `/api/v1/accounting/settlements/suppliers` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `SupplierSettlementRequest` | `PartnerSettlementResponse` |
 | `GET` | `/api/v1/accounting/statements/suppliers/{supplierId}` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `PartnerStatementResponse` |
 | `GET` | `/api/v1/accounting/statements/suppliers/{supplierId}/pdf` | `hasAuthority('ROLE_ADMIN')` | `—` | `byte[]` |
-| `POST` | `/api/v1/accounting/suppliers/payments` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `SupplierPaymentRequest` | `JournalEntryDto` |
 | `POST` | `/api/v1/accounting/suppliers/{supplierId}/auto-settle` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `AutoSettlementRequest` | `PartnerSettlementResponse` |
 | `GET` | `/api/v1/accounting/trial-balance/as-of` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `TemporalBalanceService.TrialBalanceSnapshot` |
 
-_Total documented accounting endpoints: **83**._
+_Total documented accounting endpoints: **82**._
 
 #### Required User Flows (API call sequences)
 
@@ -743,7 +742,7 @@ _Total documented accounting endpoints: **83**._
    1. Dealer lookup + outstanding context: `GET /api/v1/dealers`, statement/aging endpoints as needed
    2. Dealer auto-settle: `POST /api/v1/accounting/dealers/{dealerId}/auto-settle`
    3. Supplier auto-settle: `POST /api/v1/accounting/suppliers/{supplierId}/auto-settle`
-   4. For explicit allocation flows use `POST /settlements/dealers`, `POST /settlements/suppliers`, `POST /receipts/dealer`, `POST /suppliers/payments`
+   4. For explicit allocation flows use `POST /settlements/dealers`, `POST /settlements/suppliers`, `POST /receipts/dealer`
 
 4. **Period close / reopen**
    1. Load periods: `GET /api/v1/accounting/periods`
@@ -1069,14 +1068,6 @@ _Total documented accounting endpoints: **83**._
   - `idempotencyKey`: `String` — validation `—`
   - `adminOverride`: `Boolean` — validation `—`
   - `allocations`: `List<SettlementAllocationRequest>` — validation `@NotEmpty; @Valid`
-- **`SupplierPaymentRequest`**
-  - `supplierId`: `Long` — validation `@NotNull`
-  - `cashAccountId`: `Long` — validation `@NotNull`
-  - `amount`: `BigDecimal` — validation `@NotNull; @DecimalMin(value = "0.01")`
-  - `referenceNumber`: `String` — validation `—`
-  - `memo`: `String` — validation `—`
-  - `idempotencyKey`: `String` — validation `—`
-  - `allocations`: `List<SettlementAllocationRequest>` — validation `@NotEmpty(message = "Allocations are required for supplier payments; use settlement endpoints or include allocations"); @Valid`
 - **`multipart/form-data` (`POST /api/v1/accounting/opening-balances`)**
   - `file`: `MultipartFile` — required CSV upload part (`text/csv` recommended, accepted as multipart binary)
   - CSV required headers: `account_code,account_name,account_type,debit_amount,credit_amount,narration`
@@ -2344,7 +2335,7 @@ Guards:
 - Approve allowed only from `PENDING`
 - Suspend allowed only from `ACTIVE`
 - Activate allowed only from `APPROVED` or `SUSPENDED`
-- Non-active supplier records remain visible for lookup/reference, but purchase-order creation, goods-receipt progression, purchase invoice posting, purchase return posting, supplier payment posting, and supplier settlement posting now all fail closed until the supplier returns to `ACTIVE`.
+- Non-active supplier records remain visible for lookup/reference, but purchase-order creation, goods-receipt progression, purchase invoice posting, purchase return posting, and supplier settlement posting now all fail closed until the supplier returns to `ACTIVE`.
 
 ##### Purchase order lifecycle
 
@@ -2430,7 +2421,7 @@ Reference-only supplier blocker message contract:
   - `phone?: string`
   - `address?: string`
   - `creditLimit: decimal`
-  - `outstandingBalance: decimal`
+  - `balance: decimal` *(ledger-derived read-model value)*
   - `payableAccountId?: number`
   - `payableAccountCode?: string`
   - `gstNumber?: string`
@@ -3323,9 +3314,8 @@ Frontend orchestration notes:
 3. Approve PO: `POST /api/v1/purchasing/purchase-orders/{id}/approve`.
 4. Receive goods (GRN): `POST /api/v1/purchasing/goods-receipts`.
 5. Create purchase invoice: `POST /api/v1/purchasing/raw-material-purchases`.
-6. Pay supplier / settle AP:
-   - `POST /api/v1/accounting/suppliers/payments`
-   - or `POST /api/v1/accounting/settlements/suppliers`
+6. Settle AP:
+   - `POST /api/v1/accounting/settlements/suppliers`
 7. Reporting refresh sequence after posting/payment:
    - `GET /api/v1/reports/inventory-valuation`
    - `GET /api/v1/reports/gst-return`

@@ -352,7 +352,6 @@ public class MockDataInitializer {
                 });
     supplier.setPayableAccount(ap);
     supplier.setCreditLimit(new BigDecimal("500000"));
-    supplier.setOutstandingBalance(BigDecimal.ZERO);
     supplier.setEmail("supplier@mock.com");
     return supplierRepository.save(supplier);
   }

@@ -74,9 +74,7 @@ public class JournalReferenceResolver {
     }
     if (mappings.size() > 1) {
       logger.warn(
-          "Multiple journal reference mappings for {} reference '{}'; attempting resolution",
-          kind,
-          reference);
+          "Multiple journal reference mappings for {} reference; attempting resolution", kind);
     }
     Comparator<JournalReferenceMapping> comparator =
         Comparator.comparing(

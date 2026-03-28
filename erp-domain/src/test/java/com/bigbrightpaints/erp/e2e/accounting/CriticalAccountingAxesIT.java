@@ -1052,7 +1052,6 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
                   return s;
                 });
     supplierEntity.setCreditLimit(new BigDecimal("1000000"));
-    supplierEntity.setOutstandingBalance(BigDecimal.ZERO);
     supplierEntity.setPayableAccount(accounts.get("AP"));
     supplierEntity.setStatus("ACTIVE");
     return supplierRepository.save(supplierEntity);

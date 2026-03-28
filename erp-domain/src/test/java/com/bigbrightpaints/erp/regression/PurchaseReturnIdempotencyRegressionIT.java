@@ -92,12 +92,10 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
                   created.setCode("SUP-LF022");
                   created.setStatus(SupplierStatus.ACTIVE);
                   created.setPayableAccount(payable);
-                  created.setOutstandingBalance(BigDecimal.ZERO);
                   return supplierRepository.save(created);
                 });
     supplier.setStatus(SupplierStatus.ACTIVE);
     supplier.setPayableAccount(payable);
-    supplier.setOutstandingBalance(BigDecimal.ZERO);
     supplier = supplierRepository.save(supplier);
 
     material = new RawMaterial();

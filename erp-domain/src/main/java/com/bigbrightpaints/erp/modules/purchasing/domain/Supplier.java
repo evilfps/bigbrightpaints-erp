@@ -76,9 +76,6 @@ public class Supplier extends VersionedEntity {
   @PositiveOrZero
   private BigDecimal creditLimit = BigDecimal.ZERO;
 
-  @Column(name = "outstanding_balance", nullable = false)
-  private BigDecimal outstandingBalance = BigDecimal.ZERO;
-
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "payable_account_id")
   private Account payableAccount;
@@ -271,14 +268,6 @@ public class Supplier extends VersionedEntity {
 
   public void setCreditLimit(BigDecimal creditLimit) {
     this.creditLimit = creditLimit;
-  }
-
-  public BigDecimal getOutstandingBalance() {
-    return outstandingBalance;
-  }
-
-  public void setOutstandingBalance(BigDecimal outstandingBalance) {
-    this.outstandingBalance = outstandingBalance;
   }
 
   public Account getPayableAccount() {

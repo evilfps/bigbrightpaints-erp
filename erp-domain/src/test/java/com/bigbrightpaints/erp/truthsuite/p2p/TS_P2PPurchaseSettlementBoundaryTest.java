@@ -33,8 +33,11 @@ class TS_P2PPurchaseSettlementBoundaryTest {
     TruthSuiteFileAssert.assertContains(
         ACCOUNTING_CONTROLLER,
         "@RequestMapping(\"/api/v1/accounting\")",
-        "@PostMapping(\"/suppliers/payments\")",
         "@PostMapping(\"/settlements/suppliers\")");
+    String accountingController = TruthSuiteFileAssert.read(ACCOUNTING_CONTROLLER);
+    assertFalse(
+        accountingController.contains("@PostMapping(\"/suppliers/payments\")"),
+        "Accounting controller must expose supplier-money flow only through settlement endpoints");
 
     String purchasingController = TruthSuiteFileAssert.read(PURCHASING_CONTROLLER);
     assertFalse(

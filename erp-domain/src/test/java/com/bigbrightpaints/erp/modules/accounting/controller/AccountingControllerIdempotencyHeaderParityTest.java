@@ -21,7 +21,6 @@ import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptSplitRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
-import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerReceiptService;
@@ -132,75 +131,16 @@ class AccountingControllerIdempotencyHeaderParityTest {
   }
 
   @Test
-  void recordSupplierPayment_appliesLegacyHeaderWhenPrimaryMissing() {
-    AccountingController controller = controller();
-    when(settlementService.recordSupplierPayment(any())).thenReturn(null);
-
-    controller.recordSupplierPayment(supplierPaymentRequest(null), null, "legacy-001");
-
-    ArgumentCaptor<SupplierPaymentRequest> captor =
-        ArgumentCaptor.forClass(SupplierPaymentRequest.class);
-    verify(settlementService).recordSupplierPayment(captor.capture());
-    assertThat(captor.getValue().idempotencyKey()).isEqualTo("legacy-001");
-  }
-
-  @Test
-  void recordSupplierPayment_rejectsPrimaryLegacyHeaderMismatch() {
-    AccountingController controller = controller();
-    assertThatThrownBy(
-            () ->
-                controller.recordSupplierPayment(
-                    supplierPaymentRequest(null), "hdr-001", "legacy-001"))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Idempotency key mismatch");
-  }
-
-  @Test
-  void recordSupplierPayment_rejectsBodyHeaderMismatch() {
-    AccountingController controller = controller();
-
-    assertThatThrownBy(
-            () ->
-                controller.recordSupplierPayment(
-                    supplierPaymentRequest("body-001"), "hdr-001", null))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Idempotency key mismatch");
-  }
-
-  @Test
-  void recordSupplierPayment_blankBodyKeyFallsBackToHeader() {
-    AccountingController controller = controller();
-    when(settlementService.recordSupplierPayment(any())).thenReturn(null);
-
-    controller.recordSupplierPayment(supplierPaymentRequest("   "), "hdr-blank-003", null);
-
-    ArgumentCaptor<SupplierPaymentRequest> captor =
-        ArgumentCaptor.forClass(SupplierPaymentRequest.class);
-    verify(settlementService).recordSupplierPayment(captor.capture());
-    assertThat(captor.getValue().idempotencyKey()).isEqualTo("hdr-blank-003");
-  }
-
-  @Test
-  void settleSupplier_appliesLegacyHeaderWhenPrimaryMissing() {
+  void settleSupplier_appliesPrimaryHeaderWhenBodyMissing() {
     AccountingController controller = controller();
     when(settlementService.settleSupplierInvoices(any())).thenReturn(null);
 
-    controller.settleSupplier(supplierSettlementRequest(null), null, "legacy-001");
+    controller.settleSupplier(supplierSettlementRequest(null), "hdr-001");
 
     ArgumentCaptor<SupplierSettlementRequest> captor =
         ArgumentCaptor.forClass(SupplierSettlementRequest.class);
     verify(settlementService).settleSupplierInvoices(captor.capture());
-    assertThat(captor.getValue().idempotencyKey()).isEqualTo("legacy-001");
-  }
-
-  @Test
-  void settleSupplier_rejectsPrimaryLegacyHeaderMismatch() {
-    AccountingController controller = controller();
-    assertThatThrownBy(
-            () ->
-                controller.settleSupplier(supplierSettlementRequest(null), "hdr-001", "legacy-001"))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Idempotency key mismatch");
+    assertThat(captor.getValue().idempotencyKey()).isEqualTo("hdr-001");
   }
 
   @Test
@@ -208,7 +148,7 @@ class AccountingControllerIdempotencyHeaderParityTest {
     AccountingController controller = controller();
 
     assertThatThrownBy(
-            () -> controller.settleSupplier(supplierSettlementRequest("body-001"), "hdr-001", null))
+            () -> controller.settleSupplier(supplierSettlementRequest("body-001"), "hdr-001"))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Idempotency key mismatch");
   }
@@ -218,7 +158,7 @@ class AccountingControllerIdempotencyHeaderParityTest {
     AccountingController controller = controller();
     when(settlementService.settleSupplierInvoices(any())).thenReturn(null);
 
-    controller.settleSupplier(supplierSettlementRequest("   "), "hdr-blank-004", null);
+    controller.settleSupplier(supplierSettlementRequest("   "), "hdr-blank-004");
 
     ArgumentCaptor<SupplierSettlementRequest> captor =
         ArgumentCaptor.forClass(SupplierSettlementRequest.class);
@@ -326,11 +266,6 @@ class AccountingControllerIdempotencyHeaderParityTest {
         Boolean.FALSE,
         allocations(),
         null);
-  }
-
-  private SupplierPaymentRequest supplierPaymentRequest(String idempotencyKey) {
-    return new SupplierPaymentRequest(
-        3001L, 2001L, new BigDecimal("75.00"), "PAY-001", "memo", idempotencyKey, allocations());
   }
 
   private SupplierSettlementRequest supplierSettlementRequest(String idempotencyKey) {

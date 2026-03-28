@@ -188,7 +188,7 @@ public class SupplierService {
         .filter(account -> account.getType() == expectedType);
   }
 
-  private SupplierResponse toResponse(Supplier supplier, BigDecimal outstandingBalance) {
+  private SupplierResponse toResponse(Supplier supplier, BigDecimal balance) {
     Account payableAccount = supplier.getPayableAccount();
     Long accountId = payableAccount != null ? payableAccount.getId() : null;
     String accountCode = payableAccount != null ? payableAccount.getCode() : null;
@@ -202,7 +202,7 @@ public class SupplierService {
         supplier.getPhone(),
         supplier.getAddress(),
         supplier.getCreditLimit(),
-        outstandingBalance,
+        balance,
         accountId,
         accountCode,
         supplier.getGstNumber(),

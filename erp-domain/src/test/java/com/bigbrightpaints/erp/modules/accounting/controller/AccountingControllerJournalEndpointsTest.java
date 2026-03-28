@@ -21,6 +21,7 @@ import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
+import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
@@ -448,7 +449,7 @@ class AccountingControllerJournalEndpointsTest {
     when(settlementService.settleSupplierInvoices(any(SupplierSettlementRequest.class)))
         .thenReturn(expected);
 
-    controller.settleSupplier(request, "IDEMP-SUP-HDR-1", null);
+    controller.settleSupplier(request, "IDEMP-SUP-HDR-1");
 
     ArgumentCaptor<SupplierSettlementRequest> requestCaptor =
         ArgumentCaptor.forClass(SupplierSettlementRequest.class);
@@ -458,6 +459,36 @@ class AccountingControllerJournalEndpointsTest {
     assertThat(resolved.unappliedAmountApplication())
         .isEqualTo(SettlementAllocationApplication.ON_ACCOUNT);
     assertThat(resolved.idempotencyKey()).isEqualTo("IDEMP-SUP-HDR-1");
+  }
+
+  @Test
+  void autoSettleSupplier_appliesHeaderOnlyIdempotencyKey() {
+    SettlementService settlementService = mock(SettlementService.class);
+    AccountingController controller = controllerWithSettlementService(settlementService);
+    AutoSettlementRequest request =
+        new AutoSettlementRequest(
+            42L, new BigDecimal("75.00"), "AUTO-SUP-1", "auto supplier settlement", null);
+    PartnerSettlementResponse expected =
+        new PartnerSettlementResponse(
+            expectedJournal(703L, "AUTO-SUP-1"),
+            new BigDecimal("75.00"),
+            new BigDecimal("75.00"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            List.of());
+    when(settlementService.autoSettleSupplier(eq(8L), any(AutoSettlementRequest.class)))
+        .thenReturn(expected);
+
+    controller.autoSettleSupplier(8L, request, "IDEMP-SUP-AUTO-1");
+
+    ArgumentCaptor<AutoSettlementRequest> requestCaptor =
+        ArgumentCaptor.forClass(AutoSettlementRequest.class);
+    verify(settlementService).autoSettleSupplier(eq(8L), requestCaptor.capture());
+    AutoSettlementRequest resolved = requestCaptor.getValue();
+    assertThat(resolved.amount()).isEqualByComparingTo("75.00");
+    assertThat(resolved.idempotencyKey()).isEqualTo("IDEMP-SUP-AUTO-1");
   }
 
   @Test

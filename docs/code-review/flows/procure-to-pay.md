@@ -2,7 +2,7 @@
 
 ## Scope and evidence
 
-This review covers supplier master-data onboarding and lifecycle changes, purchase-order creation and approval, goods receipt posting, raw-material purchase invoicing, purchase returns, supplier payment/settlement/auto-settlement, supplier statement and aging views, and the accounting/inventory handoffs that turn physical receipts into AP truth.
+This review covers supplier master-data onboarding and lifecycle changes, purchase-order creation and approval, goods receipt posting, raw-material purchase invoicing, purchase returns, supplier settlement/auto-settlement, supplier statement and aging views, and the accounting/inventory handoffs that turn physical receipts into AP truth.
 
 Primary evidence:
 
@@ -43,7 +43,7 @@ Planning notes:
 | Purchase-order workflow | `GET/POST /api/v1/purchasing/purchase-orders`, `GET /api/v1/purchasing/purchase-orders/{id}`, `POST /api/v1/purchasing/purchase-orders/{id}/{approve|void|close}`, `GET /api/v1/purchasing/purchase-orders/{id}/timeline` | `PurchasingWorkflowController` | Canonical PO state machine plus persisted timeline history. |
 | Goods receipts | `GET/POST /api/v1/purchasing/goods-receipts`, `GET /api/v1/purchasing/goods-receipts/{id}` | `PurchasingWorkflowController` | Receipt creation is idempotent and period-locked. |
 | Purchase invoice and return | `GET/POST /api/v1/purchasing/raw-material-purchases`, `GET /api/v1/purchasing/raw-material-purchases/{id}`, `POST /api/v1/purchasing/raw-material-purchases/returns` | `RawMaterialPurchaseController` | Purchase invoice posting and purchase-return reversal surface. |
-| Supplier payment and settlement | `POST /api/v1/accounting/suppliers/payments`, `POST /api/v1/accounting/settlements/suppliers`, `POST /api/v1/accounting/suppliers/{supplierId}/auto-settle` | `AccountingController` | Explicit separation between direct payment allocations and broader settlement logic. |
+| Supplier settlement | `POST /api/v1/accounting/settlements/suppliers`, `POST /api/v1/accounting/suppliers/{supplierId}/auto-settle` | `AccountingController` | Canonical supplier money flow is settlement; auto-settlement builds and posts canonical allocations. |
 | Supplier statement and aging | `GET /api/v1/accounting/statements/suppliers/{supplierId}`, `GET /api/v1/accounting/aging/suppliers/{supplierId}`, admin-only PDF variants | `AccountingController` | Read models over supplier ledger entries with export audit logging. |
 
 The local `openapi.json` snapshot publishes at least the supplier CRUD/lifecycle routes and the major purchasing/accounting P2P surfaces above.
@@ -132,26 +132,13 @@ Purchase returns are posted through `PurchaseReturnService`.
 
 `PurchaseReturnIdempotencyRegressionIT` proves replay does not duplicate movements and that partial-then-final returns only mark the purchase `VOID` after the full quantity is returned.
 
-### 6. Supplier payment, settlement, and auto-settlement
+### 6. Supplier settlement and auto-settlement
 
 Accounting owns the cash-application side of P2P.
 
-#### Supplier payments
-
-`AccountingCoreEngineCore.recordSupplierPayment(...)` is the narrow, payment-only path.
-
-- Requires a positive amount plus explicit allocations.
-- Each allocation must point to a purchase, not an invoice.
-- Discount/write-off/FX adjustments are rejected on this path.
-- Allocation total must exactly equal payment amount.
-- The cash account must be an active `ASSET` account and cannot be the AR/AP control account.
-- Idempotency is by key/reference, with replay resolved through journal-reference mappings plus persisted `PartnerSettlementAllocation` rows.
-
-This path is intentionally strict: if the user wants on-account credits or adjustment lines, they must use the settlement endpoint instead.
-
 #### Supplier settlements
 
-`AccountingCoreEngineCore.settleSupplierInvoices(...)` is the broader open-item clearing path.
+`AccountingCoreEngineCore.settleSupplierInvoices(...)` is the canonical public open-item clearing path.
 
 - Allocations still cannot target invoices.
 - Purchase allocations may include discount/write-off/FX adjustments, but on-account lines (`purchaseId == null`) may not include those adjustment components.
@@ -161,12 +148,12 @@ This path is intentionally strict: if the user wants on-account credits or adjus
 
 #### Auto-settlement
 
-`autoSettleSupplier(...)` simply builds FIFO allocations and reuses the payment path.
+`autoSettleSupplier(...)` builds FIFO allocations and delegates to the canonical settlement posting flow.
 
 - `RawMaterialPurchaseRepository.lockOpenPurchasesForSettlement(...)` orders open purchases by `invoiceDate`, then `id`, under pessimistic lock.
 - The requested amount must be fully allocatable; otherwise the call fails closed rather than partially guessing.
 
-`TS_P2PPurchaseSettlementBoundaryTest`, `CR_PurchasingToApAccountingTest`, and `ProcureToPayE2ETest` cover the endpoint separation, idempotent replay, and outstanding-balance updates.
+`TS_P2PPurchaseSettlementBoundaryTest`, `CR_PurchasingToApAccountingTest`, and `ProcureToPayE2ETest` cover the settlement-only endpoint surface, idempotent replay, and outstanding-balance updates.
 
 ### 7. Supplier statements, aging, and sub-ledger read models
 
@@ -197,8 +184,8 @@ The key dependency is ledger sync quality: if purchase journals or settlement al
 - **Goods receipt:** explicit caller-supplied `Idempotency-Key` plus payload hashing and retry replay.
 - **Purchase invoice:** duplicate protection is composite: unique invoice number, one purchase per goods receipt, and movement journal-link guards.
 - **Purchase return:** reference number replay via existing `PURCHASE_RETURN` movements.
-- **Supplier payment / settlement:** idempotency key or reference number plus durable `PartnerSettlementAllocation` rows and journal-reference mappings.
-- **Auto-settlement:** inherits supplier-payment idempotency once FIFO allocations are built.
+- **Supplier settlement:** idempotency key or reference number plus durable `PartnerSettlementAllocation` rows and journal-reference mappings.
+- **Auto-settlement:** inherits supplier-settlement idempotency once FIFO allocations are built.
 
 The result is a mixed model: GRNs/payments/settlements are explicitly replay-safe, while supplier/PO create flows rely more on business keys and transaction isolation.
 
@@ -213,7 +200,7 @@ The result is a mixed model: GRNs/payments/settlements are explicitly replay-saf
 - Month-end checklist logic treats `PARTIAL`/`PAID` purchases as posted-ish, but still flags purchases missing journal links (`CR_PurchasingToApAccountingTest`).
 - Supplier statement/aging PDF exports emit audit metadata with resource type, resource id, operation, and format.
 
-Recovery is strongest where explicit replay anchors exist. GRNs, purchase returns, supplier payments, and supplier settlements can all deterministically replay. PO creation is weaker because it depends on client-generated order numbers rather than a durable idempotency contract.
+Recovery is strongest where explicit replay anchors exist. GRNs, purchase returns, and supplier settlements can all deterministically replay. PO creation is weaker because it depends on client-generated order numbers rather than a durable idempotency contract.
 
 ## Risk hotspots
 
@@ -250,7 +237,7 @@ Recovery is strongest where explicit replay anchors exist. GRNs, purchase return
 - `PurchasingWorkflowControllerTest` and `PurchasingWorkflowControllerSecurityContractTest` prove canonical `Idempotency-Key` handling and mutation-role protections.
 - `PurchaseOrderServiceTransitionMatrixTest` proves the canonical PO transition matrix and timeline persistence behavior.
 - `TS_P2PPurchaseJournalLinkageTest` proves purchase invoice posting is journal-first, movement-linking, and single-tax-mode constrained.
-- `CR_PurchasingToApAccountingTest` proves balanced journals, movement linkage, AP/sub-ledger reconciliation, concurrent invoice safety, and supplier payment/settlement idempotency.
+- `CR_PurchasingToApAccountingTest` proves balanced journals, movement linkage, AP/sub-ledger reconciliation, concurrent invoice safety, and supplier settlement idempotency.
 - `ProcureToPayE2ETest` proves happy-path purchase -> receipt -> purchase invoice -> supplier settlement, plus quantity/tax edge cases.
 - `PurchaseReturnIdempotencyRegressionIT` proves purchase-return replay safety and quantity/outstanding guards.
 - `TS_P2PPurchaseSettlementBoundaryTest` proves purchasing endpoints stay isolated from supplier-settlement endpoints and that purchase posting does not directly invoke settlement paths.
