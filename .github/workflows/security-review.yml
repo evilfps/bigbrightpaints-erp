@@ -69,27 +69,67 @@ jobs:
           archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
           curl -fsSLo "/tmp/${archive}" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
           curl -fsSLo /tmp/gitleaks_checksums.txt "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
-          grep " ${archive}$" /tmp/gitleaks_checksums.txt > /tmp/gitleaks_checksum_line.txt
+          awk -v archive="${archive}" '$2 == archive { print }' /tmp/gitleaks_checksums.txt > /tmp/gitleaks_checksum_line.txt
+          if [ "$(wc -l < /tmp/gitleaks_checksum_line.txt)" -ne 1 ]; then
+            echo "Unexpected number of checksum lines for ${archive}" >&2
+            exit 1
+          fi
           (cd /tmp && sha256sum -c gitleaks_checksum_line.txt)
           tar -xzf "/tmp/${archive}" -C /tmp gitleaks
           sudo install /tmp/gitleaks /usr/local/bin/gitleaks
 
-      - name: Run Gitleaks
+      - name: Determine Gitleaks log opts
+        id: gitleaks-log-opts
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          gitleaks git . \
-            --config .gitleaks.toml \
-            --redact \
-            --report-format json \
-            --report-path gitleaks-report.json
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
 
-      - name: Upload Gitleaks report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gitleaks-report
-          path: gitleaks-report.json
-          if-no-files-found: ignore
+          event_name = os.environ["GITHUB_EVENT_NAME"]
+          event_path = Path(os.environ["GITHUB_EVENT_PATH"])
+          head_sha = os.environ["GITHUB_SHA"]
+          event = json.loads(event_path.read_text())
+          log_opts = ""
+
+          if event_name == "pull_request":
+              base_sha = event["pull_request"]["base"]["sha"]
+              head_pr_sha = event["pull_request"]["head"]["sha"]
+              log_opts = f"{base_sha}..{head_pr_sha}"
+          elif event_name == "push":
+              before_sha = event.get("before") or ""
+              if before_sha and before_sha != "0" * 40:
+                  log_opts = f"{before_sha}..{head_sha}"
+              else:
+                  commit_count = max(len(event.get("commits", [])), 1)
+                  log_opts = f"--max-count={commit_count} {head_sha}"
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              print(f"log_opts={log_opts}", file=output)
+          PY
+
+      - name: Run Gitleaks
+        env:
+          GITLEAKS_LOG_OPTS: ${{ steps.gitleaks-log-opts.outputs.log_opts }}
+        run: |
+          set -euo pipefail
+          args=(
+            git
+            .
+            --config .gitleaks.toml
+            --redact
+            --report-format json
+            --report-path gitleaks-report.json
+          )
+          if [[ -n "${GITLEAKS_LOG_OPTS}" ]]; then
+            args+=(--log-opts "${GITLEAKS_LOG_OPTS}")
+          fi
+          gitleaks "${args[@]}"
 
   security-review-gate:
     name: Security Review Gate
