@@ -10,7 +10,7 @@
   - hard-cut tenant-admin approval/export ownership away from superadmin
   - hard-cut product/account default validation, GST health, and inventory-accounting default-off behavior
   - retire MCP sidecar and dead task scripts from CI/runtime surface
-  - add `V173__company_lifecycle_constraint_hard_cut.sql`, `V174__backfill_default_discount_accounts.sql`, and release-matrix/guard fixes needed for deployable Flyway v2 proof
+  - add `V173__company_lifecycle_constraint_hard_cut.sql`, `V174__backfill_default_discount_accounts.sql`, `V175__canonicalize_company_gst_accounts.sql`, and release-matrix/guard fixes needed for deployable Flyway v2 proof
   - publish the six-portal frontend contract plus the API handoff pack
 - Why this is R2: the packet changes live auth, tenant control-plane, accounting, inventory/manufacturing, release-guard, and migration surfaces. A wrong cut here can break tenant isolation, accounting posting, or rollout safety even when local tests are green.
 
@@ -21,6 +21,7 @@
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/**`
   - `erp-domain/src/main/resources/db/migration_v2/V173__company_lifecycle_constraint_hard_cut.sql`
   - `erp-domain/src/main/resources/db/migration_v2/V174__backfill_default_discount_accounts.sql`
+  - `erp-domain/src/main/resources/db/migration_v2/V175__canonicalize_company_gst_accounts.sql`
   - `scripts/gate_release.sh`
   - `scripts/verify_local.sh`
   - `scripts/release_migration_matrix.sh`
@@ -53,8 +54,8 @@
 - Rollback method:
   - before merge: abandon the packet branch/worktree and do not promote the artifact
   - after merge but before deploy: revert the packet commits together; do not partially keep the API/doc changes while reverting the runtime or migration changes
-  - after deploy: keep the ERP-48-compatible backend live unless the database is first restored to a pre-`V174` snapshot/PITR state
-  - do not hand-edit the database back toward mixed legacy/current lifecycle/default-account state; treat `V173` and `V174` as coordinated app-and-schema cuts
+  - after deploy: keep the ERP-48-compatible backend live unless the database is first restored to a pre-`V175` snapshot/PITR state
+  - do not hand-edit the database back toward mixed legacy/current lifecycle/default-account/tax-account state; treat `V173`, `V174`, and `V175` as coordinated app-and-schema cuts
 - Rollback trigger:
   - auth identity or tenant isolation deviates from `companyCode`-scoped `/api/v1/auth/me`
   - approval/export actions become visible to superadmin again

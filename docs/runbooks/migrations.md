@@ -1,5 +1,16 @@
 # Migration Runbook
 
+## 2026-03-29 — `migration_v2/V175__canonicalize_company_gst_accounts.sql`
+
+- **Purpose:** normalize company GST account bindings on upgrade paths so GST-mode tenants do not retain a null `gst_payable_account_id`, and non-GST tenants do not keep stale GST input/output/payable account IDs after the strict health checks ship.
+- **Release-guard posture:** this is another ERP-48 data canonicalization migration. It keeps the current fail-closed GST health/runtime rules intact by repairing old tenant rows instead of adding runtime fallbacks.
+- **Forward plan:** apply `V175__canonicalize_company_gst_accounts.sql` together with ERP-48. Non-GST tenants are cleared of `gstInputTaxAccountId`, `gstOutputTaxAccountId`, and `gstPayableAccountId`; GST-mode tenants backfill those fields from canonical GST/TDS/default-tax accounts where possible.
+- **Dry-run commands:**
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Dtest=GstConfigurationRegressionIT,ConfigurationHealthServiceTest test`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Derp.openapi.snapshot.verify=true -Dtest=OpenApiSnapshotIT test`
+  - `bash ci/check-enterprise-policy.sh`
+- **Rollback strategy:** treat `V175` as forward-only normalization inside ERP-48. If rollout must be abandoned after the migration is applied, keep the ERP-48-compatible backend live or restore the database from a pre-`V175` snapshot/PITR before reverting application code. Do not selectively repopulate GST account columns by hand.
+
 ## 2026-03-29 — `migration_v2/V174__backfill_default_discount_accounts.sql`
 
 - **Purpose:** backfill `companies.default_discount_account_id` for pre-hard-cut tenants so the canonical finished-good/account-default contract can remain fail-closed without breaking upgraded companies that still have a null discount default.
