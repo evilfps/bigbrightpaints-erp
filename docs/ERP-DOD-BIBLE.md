@@ -1328,3 +1328,527 @@ auth module (TenantAdminProvisioningService)
 **Owner**: Founder
 
 ---
+
+## Flow 3: Product / Customer / Supplier Masters
+
+### A. Flow Identity
+- **Flow Name**: Product / Customer / Supplier Masters
+- **Domain**: Master Data Management
+- **Portal**: Admin portal, Accounting workspace, Sales workspace, Factory-adjacent catalog reads
+- **P0 Status**: Foundation — order-to-cash, procure-to-pay, factory execution, inventory valuation, and GST reporting all depend on these masters being correct
+- **Source Modules**: production, sales, purchasing, inventory, accounting, factory, reports, auth
+- **Primary Entities**: `ProductionBrand` (`production_brands`), `ProductionProduct` (`production_products`), `Dealer` (`dealers`), `Supplier` (`suppliers`)
+- **Mirror / Dependent Entities**: `FinishedGood`, `RawMaterial`, `UserAccount`, `Account`
+- **Master Model**: All records are company-scoped. Product catalog setup fans out into inventory/accounting mirrors; dealer and supplier setup fan out into partner ledger accounts.
+
+### B. Business Objective
+Maintain the core commercial masters that every downstream transaction reuses: what can be sold or consumed, who can buy, and who can supply. This flow establishes the operational truth that later sales orders, production logs, packing, purchase orders, goods receipts, purchase invoices, statements, GST computations, and ledgers depend on.
+
+**What breaks if wrong:**
+- Sales orders reference inactive or misconfigured SKUs and fail at reservation, tax, or posting time
+- Factory execution creates WIP/finished-goods gaps because the product master lacks inventory/account metadata
+- Dealers receive wrong credit exposure or missing receivable account linkage
+- Suppliers can be referenced in P2P documents before approval/activation gates are satisfied
+- GST splits become wrong because dealer/supplier state codes or SKU GST rates are incorrect
+- Inventory valuation and reports drift because catalog mirrors do not match the master SKU truth
+
+### C. Actors
+
+| Actor | Role | Flow Capability |
+|-------|------|-----------------|
+| Admin | `ROLE_ADMIN` | Full create/update/deactivate authority across brands, catalog items, dealers, and suppliers |
+| Accounting | `ROLE_ACCOUNTING` | Catalog write, supplier write/approval/activation, dealer create/update, accounting-metadata visibility |
+| Sales | `ROLE_SALES` | Dealer create/update/search, catalog read, sales use of active SKU/dealer masters |
+| Factory | `ROLE_FACTORY` | Catalog read only, factory consumption of product masters and readiness data |
+| Dealer | `ROLE_DEALER` | No master maintenance; consumes dealer-scoped portal views only |
+
+**Role boundary highlights:**
+- Catalog mutations are restricted to `ROLE_ADMIN` and `ROLE_ACCOUNTING`
+- Catalog reads are broader: `ROLE_ADMIN`, `ROLE_ACCOUNTING`, `ROLE_SALES`, `ROLE_FACTORY`
+- Dealer create/update/list/search is allowed to Admin, Sales, and Accounting
+- Supplier create/update/approve/activate/suspend is allowed to Admin and Accounting; Factory gets read-only supplier access
+
+### D. Preconditions
+1. Authenticated request resolves a current company via `CompanyContextService.requireCurrentCompany()`
+2. Company-scoped uniqueness constraints remain intact (`brand.code`, `brand.name`, `product.sku`, `dealer.code`, `supplier.code`)
+3. For catalog item creation, the referenced brand exists in the same company and is active
+4. For finished-good item creation, company default accounts must be configured (inventory, COGS, revenue, tax; discount optional)
+5. For raw-material item creation, either explicit inventory account metadata or a company default inventory account must resolve to a valid account
+6. Dealer creation requires that the portal user email is not already mapped to another dealer portal relationship in the same company
+7. Supplier creation requires a unique supplier code within the company (generated from name if omitted)
+8. Supplier transactional usage later depends on the master reaching `ACTIVE`; `PENDING` and `APPROVED` remain reference-only states
+
+### E. Trigger
+- **User-initiated**: Catalog brand CRUD on `/api/v1/catalog/brands`
+- **User-initiated**: Catalog item CRUD/search on `/api/v1/catalog/items`
+- **User-initiated**: Catalog CSV import on `POST /api/v1/catalog/import`
+- **User-initiated**: Dealer create/update/list/search on `/api/v1/dealers`
+- **User-initiated**: Supplier create/update/approve/activate/suspend on `/api/v1/suppliers`
+- **System-initiated side effect**: Catalog item writes synchronize `FinishedGood` or `RawMaterial` mirror truth
+- **System-initiated side effect**: Dealer creation provisions/reuses a scoped portal `UserAccount` and ensures a receivable account
+- **System-initiated side effect**: Supplier creation ensures a payable account and encrypts bank fields at rest
+
+### F. Input Contract
+
+#### CatalogBrandRequest
+| Field | Type | Required | Validation |
+|-------|------|----------|------------|
+| `name` | String | Yes | Non-blank, unique per company |
+| `logoUrl` | String | No | Trimmed, nullable |
+| `description` | String | No | Trimmed, nullable |
+| `active` | Boolean | No | Defaults to `true` on create |
+
+#### CatalogItemRequest
+| Field | Type | Required | Validation |
+|-------|------|----------|------------|
+| `brandId` | Long | Yes | Must resolve to same-company active brand |
+| `name` | String | Yes | Non-blank; becomes canonical display name basis |
+| `itemClass` | String | Yes | `FINISHED_GOOD`, `RAW_MATERIAL`, or `PACKAGING_RAW_MATERIAL` |
+| `color` | String | Conditional | Required for finished goods |
+| `size` | String | Conditional | Required for finished goods and packaging raw materials |
+| `unitOfMeasure` | String | Yes | Non-blank; immutable after create |
+| `hsnCode` | String | Yes | Non-blank |
+| `basePrice` | BigDecimal | No | Must be `>= 0` |
+| `gstRate` | BigDecimal | Yes | `0..100` |
+| `minDiscountPercent` | BigDecimal | No | `0..100` |
+| `minSellingPrice` | BigDecimal | No | Must be `>= 0` |
+| `metadata` | Map | No | Account IDs and factory/accounting metadata |
+| `active` | Boolean | No | Defaults to `true` on create |
+
+#### CreateDealerRequest
+| Field | Type | Required | Validation / Default |
+|-------|------|----------|----------------------|
+| `name` | String | Yes | Non-blank |
+| `companyName` | String | Yes | Non-blank |
+| `contactEmail` | String | Yes | Valid email; used as dealer email + portal user scope lookup |
+| `contactPhone` | String | Yes | Non-blank |
+| `address` | String | No | Nullable |
+| `creditLimit` | BigDecimal | No | `>= 0`; defaults to zero if omitted in entity |
+| `gstNumber` | String | No | Must match 15-character GSTIN if supplied |
+| `stateCode` | String | No | Exactly 2 characters; normalized uppercase |
+| `gstRegistrationType` | Enum | No | Defaults to `UNREGISTERED` |
+| `paymentTerms` | Enum | No | Defaults to `NET_30` |
+| `region` | String | No | Normalized uppercase |
+
+#### SupplierRequest
+| Field | Type | Required | Validation / Default |
+|-------|------|----------|----------------------|
+| `name` | String | Yes | Non-blank, max 64 |
+| `code` | String | No | Unique per company; generated from name if omitted |
+| `contactEmail` | String | No | Valid email if supplied |
+| `contactPhone` | String | No | Max 32 |
+| `address` | String | No | Max 512 |
+| `creditLimit` | BigDecimal | No | `>= 0`; defaults to zero |
+| `gstNumber` | String | No | Must match 15-character GSTIN if supplied |
+| `stateCode` | String | No | Exactly 2 characters; normalized uppercase |
+| `gstRegistrationType` | Enum | No | Defaults to `UNREGISTERED` |
+| `paymentTerms` | Enum | No | Defaults to `NET_30` |
+| `bankAccountName/Number/IFSC/Branch` | String | No | Encrypted before persistence when non-blank |
+
+### G. Step-by-Step Lifecycle
+
+#### Product Brand + Item Lifecycle (Canonical Path)
+1. User creates or selects an active brand under `/api/v1/catalog/brands`
+2. `CatalogService.createBrand()` normalizes the name, enforces company-local uniqueness, derives a sanitized brand code, and saves `ProductionBrand`
+3. User creates an item via `POST /api/v1/catalog/items`
+4. `CatalogService.createItem()` converts the REST DTO into `CatalogItemCreateCommand`
+5. `ProductionCatalogService.createCatalogItem()`:
+   a. resolves/validates brand  
+   b. normalizes `itemClass` into catalog category  
+   c. composes canonical display name  
+   d. builds a canonical SKU if no custom SKU path is used internally  
+   e. rejects duplicate SKUs and reserved `-BULK` suffixes  
+   f. applies base price, GST, discount floor, HSN, metadata, active flag  
+   g. ensures finished-good account metadata or raw-material inventory mapping  
+   h. saves `ProductionProduct`
+6. `syncInventoryTruth()` creates or updates the downstream inventory mirror:
+   - finished goods create/update `FinishedGood`
+   - raw materials create/update `RawMaterial`
+   - opposite-side mirrors are deleted only when history proves that deletion is safe
+7. `CatalogService.getItem()` returns a denormalized item response with stock snapshot and readiness
+8. Later updates can change commercial/tax fields and metadata, but identity fields remain locked
+9. Deactivation sets `is_active=false`; it does not delete history or mirrors when references exist
+
+#### Dealer Master Lifecycle (Canonical Path)
+1. User calls `POST /api/v1/dealers`
+2. `DealerService.createDealer()` loads the current company and checks that the portal user email is not already mapped to another dealer relationship
+3. It either reuses an existing dealer row by company+email or creates a fresh dealer with a generated company-scoped code
+4. Dealer commercial and GST fields are normalized (GSTIN, state code, registration type, payment terms, region, credit limit)
+5. Dealer status is set to `ACTIVE`
+6. Service resolves a scoped portal user by `(email, companyCode)`:
+   - if present, reuse it
+   - if absent, provision a tenant account through `ScopedAccountBootstrapService` and attach `ROLE_DEALER`
+7. Service ensures the dealer has an active receivable account under `AR` control when available
+8. Dealer is linked to both portal user and receivable account and saved
+9. Dealer list/search responses include receivable-account identifiers and current outstanding balance from `DealerLedgerService`
+
+#### Supplier Master Lifecycle (Canonical Path)
+1. User calls `POST /api/v1/suppliers`
+2. `SupplierService.createSupplier()` creates the supplier in `PENDING`
+3. Service normalizes contact/GST/state/payment terms, sets credit limit, encrypts bank details, and resolves/generates a unique supplier code
+4. Service creates a payable account under `AP` control when available and links it to the supplier
+5. Supplier remains visible for read/reference purposes, but cannot be used transactionally
+6. User explicitly approves via `POST /api/v1/suppliers/{id}/approve` (`PENDING → APPROVED`)
+7. User explicitly activates via `POST /api/v1/suppliers/{id}/activate` (`APPROVED/SUSPENDED → ACTIVE`)
+8. Only after activation do P2P flows allow the supplier to create purchase orders, goods receipts, or purchase invoices
+9. Suspension via `POST /api/v1/suppliers/{id}/suspend` moves `ACTIVE → SUSPENDED`, preserving the master but fail-closing future transactions
+
+### H. State Machine
+
+#### Catalog Master States
+| Entity | States | Transition Notes |
+|--------|--------|------------------|
+| Brand | `ACTIVE`, `INACTIVE` | New brands default active; inactive brands remain readable but cannot seed new active item creation paths |
+| Item | `ACTIVE`, `INACTIVE` | Identity is fixed after create; deactivation blocks future sales usage but preserves history |
+| Inventory mirror | Present / blocked-delete | Mirror creation is automatic; mirror deletion is refused if stock, movements, reservations, purchasing, packing, or sales history exists |
+
+#### Dealer Lifecycle
+```
+[NOT EXISTS]
+    └─ createDealer() ─→ [ACTIVE]
+                           │
+                           ├─ updateDealer() ─→ [ACTIVE]
+                           └─ legacy SalesCoreEngine.deleteDealer() ─→ [INACTIVE]
+```
+
+**Important**: the canonical `DealerController` exposes create/update/list/search only. Inactivation exists in legacy `SalesCoreEngine` service code, not on the new public dealer-master surface.
+
+#### Supplier Lifecycle
+```
+[NOT EXISTS]
+    └─ createSupplier() ─→ [PENDING]
+                              │
+                        approveSupplier()
+                              ▼
+                          [APPROVED]
+                              │
+                       activateSupplier()
+                              ▼
+                           [ACTIVE]
+                              │
+                       suspendSupplier()
+                              ▼
+                         [SUSPENDED]
+                              │
+                       activateSupplier()
+                              ▼
+                           [ACTIVE]
+```
+
+**Guardrail**: only `ACTIVE` suppliers pass `requireTransactionalUsage(...)`.
+
+### I. Validation Rules
+
+| Rule | Context | Constraint |
+|------|---------|------------|
+| V-MD-01 | Brand name | Must be non-blank and unique per company |
+| V-MD-02 | Brand on item create | Must exist in the same company and be active |
+| V-MD-03 | Item class | Must normalize to `FINISHED_GOOD`, `RAW_MATERIAL`, or `PACKAGING_RAW_MATERIAL` |
+| V-MD-04 | Item SKU | Must be unique per company; `-BULK` suffix is reserved |
+| V-MD-05 | Finished-good identity | `brandId`, `itemClass`, color/spec, size, and unit of measure are immutable after create |
+| V-MD-06 | Commercial fields | `basePrice >= 0`, `minSellingPrice >= 0`, `gstRate 0..100`, `minDiscountPercent 0..100` |
+| V-MD-07 | Finished-good posting metadata | Required FG accounts must resolve directly or from company defaults |
+| V-MD-08 | Raw-material inventory metadata | Explicit inventory account IDs must resolve to same-company accounts |
+| V-MD-09 | Dealer portal mapping | Duplicate company+portal-user-email mappings are rejected |
+| V-MD-10 | Dealer GST | GSTIN must be valid if present; state code must be exactly 2 characters |
+| V-MD-11 | Dealer defaults | Missing registration type defaults to `UNREGISTERED`; payment terms default to `NET_30` |
+| V-MD-12 | Supplier code | Unique per company; auto-generated from normalized name if absent |
+| V-MD-13 | Supplier bank fields | Non-blank bank details are encrypted before persistence |
+| V-MD-14 | Supplier transitions | `PENDING→APPROVED`, `APPROVED/SUSPENDED→ACTIVE`, `ACTIVE→SUSPENDED` only |
+| V-MD-15 | Supplier transactional gate | Purchase flows reject suppliers unless status is `ACTIVE` |
+| V-MD-16 | Catalog import | File must be CSV; idempotency key/signature must match replayed payload |
+
+### J. Side Effects
+
+| Action | Side Effects |
+|--------|-------------|
+| Brand create/update/deactivate | `ProductionBrand` save; generated code remains the stable identifier for downstream SKU generation |
+| Item create/update | `ProductionProduct` save; mirror sync into `FinishedGood` or `RawMaterial`; readiness changes ripple to factory/sales/accounting stages |
+| Catalog import | `CatalogImport` record save; per-row upsert; `DATA_CREATE` audit event on success |
+| Dealer create | Dealer row save; portal user provision/reuse; `ROLE_DEALER` attachment; receivable account creation/reactivation |
+| Dealer update | Dealer commercial/GST master fields mutate; outstanding balance is re-derived from ledger service, not directly edited |
+| Supplier create | Supplier row save in `PENDING`; payable account creation; encrypted bank details persisted |
+| Supplier approve/activate/suspend | Status-only transition, but downstream purchasing eligibility changes immediately |
+
+### K. Inventory Effect
+Product masters are inventory-shaping masters, not stock-movement transactions.
+
+- Finished-good catalog items auto-create or synchronize `FinishedGood` records with valuation/COGS/revenue/tax/discount account bindings
+- Raw-material and packaging catalog items auto-create or synchronize `RawMaterial` records with unit, GST rate, material type, costing method, and inventory account linkage
+- Creating or updating masters does **not** change on-hand quantity directly
+- Deleting incompatible mirrors is fail-closed when stock, movements, reservations, packing mappings, purchase references, or sales references already exist
+- Dealer and supplier masters have **no direct stock movement**, but they gate which downstream documents can create inventory effects
+
+### L. Accounting Effect
+No journal entry is posted at master-creation time, but the accounting surface is established here.
+
+- Finished-good items require posting metadata that downstream O2C and factory flows rely on
+- Raw-material items require a valid inventory account mapping for valuation and purchase intake
+- Dealer creation creates a receivable account (`AR-*`) that later anchors sales journals, receipts, statements, and aging
+- Supplier creation creates a payable account (`AP-*`) that later anchors purchase journals, settlements, statements, and aging
+- If these accounts are missing or invalid, downstream posting fails closed instead of guessing
+
+### M. Tax Effect
+This flow sets tax master truth even though it does not post tax by itself.
+
+- Product `gstRate` and `hsnCode` are the default tax master values used by sales-order pricing and reporting
+- Dealer `stateCode` drives intra-state vs inter-state GST splitting together with company state code
+- Supplier `stateCode` does the same on purchase invoice and purchase return GST splits
+- Dealer and supplier `gstRegistrationType` default to `UNREGISTERED`, preventing null tax-class ambiguity
+- Raw-material purchase taxation uses raw-material GST rate first, then company default GST rate if needed; mixing GST and non-GST materials in a single purchase invoice is blocked
+
+### N. Failure Handling
+
+| Failure Scenario | Behavior | Recovery |
+|-----------------|----------|----------|
+| Duplicate brand name/code | Request fails before save | Use a different name/code |
+| Brand inactive during item create | Invalid state | Reactivate brand or choose another |
+| Duplicate or reserved SKU | Invalid input | Create a distinct SKU / avoid `-BULK` suffix |
+| Missing finished-good defaults | Invalid state with company-default-accounts message | Configure default accounts first |
+| Invalid metadata account reference | Invalid input naming offending SKU/account key | Supply a valid same-company account |
+| Item identity mutation attempt | Invalid input (`itemClass`, brand, color/spec, size, unit) | Create a new SKU instead |
+| Dealer portal email already mapped | Invalid input | Reuse/update existing dealer mapping intentionally |
+| Invalid GSTIN / state code | Validation error | Correct the master data |
+| Supplier not active in P2P flow | Invalid state with “reference only” explanation | Approve/activate supplier first |
+| Catalog import replay with different payload | Idempotency mismatch | Retry with matching file/key or new key |
+
+### O. Auditability
+Audit coverage is uneven across this flow.
+
+- `ProductionBrand`, `ProductionProduct`, `Dealer`, and `Supplier` all carry stable `publicId` values and persistence timestamps, which helps trace records across modules
+- Catalog import explicitly logs a `DATA_CREATE` audit event with idempotency key, file hash, and row counts
+- Supplier approval-policy objects (`SupplierApprovalDecision`) produce immutable maker/checker metadata, but the current supplier master CRUD endpoints do **not** capture that object during approve/activate actions
+- Dealer and supplier CRUD services do not emit dedicated `AuditService` events in the same way Flow 1 and Flow 2 do
+- As a result, downstream financial documents usually provide stronger audit evidence than the master mutations that enabled them
+
+### P. Reporting Impact
+- Catalog item lists expose stock and readiness snapshots used by setup and factory-adjacent users
+- Inventory valuation and related reports group or display brand/product master attributes
+- Aged debtors, dealer statements, and credit posture views depend on dealer master + receivable account linkage
+- Supplier balances, statements, settlements, and AP reconciliation depend on supplier master + payable account linkage
+- GST and purchase/sales reports consume SKU GST rate, HSN, and partner state-code truth from these masters
+
+### Q. Completion Criteria
+
+**Business terms**
+- A sellable SKU can be created, searched, and read with stable identity and readiness
+- A dealer can be created with portal access, credit posture, GST identity, and receivable linkage
+- A supplier can be created, approved, activated, suspended, and used only when active
+
+**System terms**
+- `ProductionBrand`, `ProductionProduct`, `Dealer`, and `Supplier` rows exist in the expected company scope
+- Finished-good or raw-material mirrors are synchronized to the catalog SKU truth
+- Dealer has `portalUser` + `receivableAccount`
+- Supplier has `payableAccount`
+- Readiness, search, and downstream document lookups resolve these masters without fallback/manual repair
+
+### R. Edge Cases
+
+| Edge Case | Expected Behavior |
+|-----------|------------------|
+| Existing scoped portal user with matching dealer email | Dealer creation reuses the user and does not send new credentials |
+| Existing dealer by email but no portal mapping yet | Service can reuse/update the dealer row and then attach portal user/account truth |
+| Sales/factory user reads catalog | Read succeeds, but accounting metadata is sanitized to `ACCOUNTING_CONFIGURATION_REQUIRED`-style blockers where needed |
+| Item deactivation after historical use | SKU becomes inactive for future sales, but history and mirrors remain preserved |
+| Attempt to flip item class after purchasing/factory/sales history | Rejected with explicit guidance to create a new SKU or reverse history |
+| Supplier approved but not activated | Visible for reference, but purchase flows reject transactional use |
+| Suspended supplier | Still readable, but all P2P transactional usage fails closed |
+| Packaging raw material without inventory account metadata | Falls back to company default inventory account when configured; otherwise readiness blocks remain |
+
+### S. Non-Negotiables
+1. **Company scope is the hard boundary** — all brand, product, dealer, and supplier lookups are company-bound
+2. **Catalog SKU identity is stable** — brand, class, color/spec, size, and unit-of-measure are not mutable in place once the SKU exists
+3. **Mirror truth is automatic** — product masters are not valid unless their inventory mirror state converges
+4. **Finished goods must be posting-ready** — missing FG account defaults are a blocker, not a warning
+5. **Dealer creation must converge auth + accounting truth** — portal user and receivable account cannot be optional side channels
+6. **Supplier transactional usage is fail-closed** — only `ACTIVE` suppliers may drive PO/GRN/purchase-invoice flows
+7. **GST/state master data matters operationally** — state-code and GST-rate mistakes propagate into tax splits and cannot be treated as cosmetic
+8. **Deactivation preserves history** — this flow prefers inactive/reference-only states over destructive deletion when downstream references exist
+
+### T. Open Decisions
+
+#### D-MD-001: Dealer Master Ownership
+**Question**: Should dealer master truth stay on `DealerService`, or should the legacy `SalesCoreEngine` dealer CRUD path be removed or explicitly demoted?
+**Context**: The canonical public write surface is `/api/v1/dealers`, but `SalesCoreEngine` still carries its own create/update/delete dealer logic and account-sync behavior.
+**Owner**: Founder
+
+#### D-MD-002: Supplier Approval Evidence Gap
+**Question**: Should supplier approval/activation endpoints require a `SupplierApprovalDecision` payload with maker/checker metadata?
+**Context**: Approval-policy primitives exist and are tested, but `SupplierService.approveSupplier()` and `activateSupplier()` currently perform status flips without that approval object.
+**Owner**: Founder
+
+#### D-MD-003: Master Data Audit Coverage
+**Question**: Should dealer/supplier/catalog CRUD emit dedicated `AuditService` events?
+**Context**: Flow 1 and Flow 2 are richly audited; Flow 3 currently has explicit audit only for catalog import.
+**Owner**: Founder
+
+#### D-MD-004: Supplier Reject / Archive State
+**Question**: Is `PENDING/APPROVED/ACTIVE/SUSPENDED` sufficient, or does the business need explicit `REJECTED` / `ARCHIVED` supplier states?
+**Context**: Current model allows suspension and reference-only visibility but no explicit rejection terminal state.
+**Owner**: Founder
+
+#### D-MD-005: Brand Rename Semantics
+**Question**: Should updating a brand name ever cascade into brand code or downstream SKU regeneration?
+**Context**: Current implementation lets the display name change while leaving existing brand code and generated SKU identities stable.
+**Owner**: Founder
+
+### Current Implementation Map
+
+#### API Endpoints
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `POST` | `/api/v1/catalog/brands` | ADMIN, ACCOUNTING | Create brand |
+| `GET` | `/api/v1/catalog/brands` | ADMIN, ACCOUNTING, SALES, FACTORY | List brands |
+| `PUT` | `/api/v1/catalog/brands/{brandId}` | ADMIN, ACCOUNTING | Update brand |
+| `DELETE` | `/api/v1/catalog/brands/{brandId}` | ADMIN, ACCOUNTING, SALES, FACTORY (controller-level broad guard) | Deactivate brand |
+| `POST` | `/api/v1/catalog/items` | ADMIN, ACCOUNTING | Create item |
+| `GET` | `/api/v1/catalog/items` | ADMIN, ACCOUNTING, SALES, FACTORY | Search items |
+| `PUT` | `/api/v1/catalog/items/{itemId}` | ADMIN, ACCOUNTING | Update item |
+| `DELETE` | `/api/v1/catalog/items/{itemId}` | ADMIN, ACCOUNTING, SALES, FACTORY (controller-level broad guard) | Deactivate item |
+| `POST` | `/api/v1/catalog/import` | ADMIN, ACCOUNTING | CSV import with idempotency |
+| `POST` | `/api/v1/dealers` | ADMIN, SALES, ACCOUNTING | Create dealer |
+| `PUT` | `/api/v1/dealers/{dealerId}` | ADMIN, SALES, ACCOUNTING | Update dealer |
+| `GET` | `/api/v1/dealers` | ADMIN, SALES, ACCOUNTING | List dealers |
+| `GET` | `/api/v1/dealers/search` | ADMIN, SALES, ACCOUNTING | Search dealers |
+| `POST` | `/api/v1/suppliers` | ADMIN, ACCOUNTING | Create supplier |
+| `PUT` | `/api/v1/suppliers/{id}` | ADMIN, ACCOUNTING | Update supplier |
+| `POST` | `/api/v1/suppliers/{id}/approve` | ADMIN, ACCOUNTING | Move to approved |
+| `POST` | `/api/v1/suppliers/{id}/activate` | ADMIN, ACCOUNTING | Move to active |
+| `POST` | `/api/v1/suppliers/{id}/suspend` | ADMIN, ACCOUNTING | Suspend active supplier |
+
+#### Key Services
+
+| Service | Module | Responsibility |
+|---------|--------|---------------|
+| `CatalogService` | production | Public catalog DTO orchestration, search/read sanitization |
+| `ProductionCatalogService` | production | Canonical create/update/import logic, SKU generation, mirror sync |
+| `SkuReadinessService` | production | Cross-stage readiness/blocker computation |
+| `DealerService` | sales | Canonical dealer master CRUD + portal user/account convergence |
+| `SupplierService` | purchasing | Canonical supplier master CRUD + lifecycle gating |
+| `PurchaseOrderService` | purchasing | Enforces supplier active-state transactional gate |
+| `GoodsReceiptService` | purchasing | Enforces supplier active-state and PO receivability |
+| `PurchaseInvoiceEngine` | purchasing | Enforces supplier payable-account + GST/state master usage |
+
+### Canonical Path Analysis
+
+#### `[CANONICAL]` Catalog Item Creation Path
+
+```text
+CatalogController.createItem()
+  → CatalogService.createItem()
+    → ProductionCatalogService.createCatalogItem()
+      → resolveBrand()
+      → buildCanonicalItemCode()
+      → ensureFinishedGoodAccounts() / resolveRawMaterialInventoryAccountId()
+      → ProductionProductRepository.save()
+      → syncInventoryTruth()
+        → ensureCatalogFinishedGood() or syncRawMaterial()
+```
+
+#### `[CANONICAL]` Dealer Creation Path
+
+```text
+DealerController.createDealer()
+  → DealerService.createDealer()
+    → DealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase()
+    → DealerRepository.findByCompanyAndEmailIgnoreCase()
+    → DealerProvisioningSupport.generateDealerCode()
+    → ScopedAccountBootstrapService.provisionTenantAccount() [if portal user missing]
+    → RoleService.ensureRoleExists("ROLE_DEALER")
+    → DealerProvisioningSupport.createReceivableAccount()
+    → DealerRepository.save()
+```
+
+#### `[CANONICAL]` Supplier Create → Approve → Activate Path
+
+```text
+SupplierController.createSupplier()
+  → SupplierService.createSupplier()
+    → resolveSupplierCode()
+    → applyBankDetails() [CryptoService.encrypt]
+    → createPayableAccount()
+    → SupplierRepository.save(status=PENDING)
+
+SupplierController.approveSupplier()
+  → SupplierService.approveSupplier() [PENDING → APPROVED]
+
+SupplierController.activateSupplier()
+  → SupplierService.activateSupplier() [APPROVED/SUSPENDED → ACTIVE]
+```
+
+#### `[NON-CANONICAL]` Dealer Legacy Service Path
+
+```text
+SalesService.createDealer()
+  → SalesDealerCrudService.createDealer()
+    → SalesCoreEngine.createDealer()
+```
+
+**Note**: this path still exists in service code, but the public write controller for Flow 3 is `DealerController`, not `SalesController`.
+
+### Cross-Module Coupling Map
+
+```text
+production module
+  → inventory module: ProductionCatalogService → FinishedGoodRepository, RawMaterialRepository
+  → accounting module: ProductionCatalogService → CompanyDefaultAccountsService
+  → factory module: SkuReadinessService → PackagingSizeMappingRepository
+  → purchasing module: ProductionCatalogService → PurchaseOrderRepository, GoodsReceiptRepository, RawMaterialPurchaseRepository
+  → sales module: ProductionCatalogService → SalesOrderItemRepository
+  → core/audit: ProductionCatalogService → AuditService (catalog import only)
+
+sales module (dealer master)
+  → auth module: DealerService → UserAccountRepository, ScopedAccountBootstrapService
+  → rbac module: DealerService → RoleService
+  → accounting module: DealerService → AccountRepository, DealerLedgerService, StatementService
+  → sales module: DealerService → SalesOrderRepository (credit exposure)
+
+purchasing module (supplier master)
+  → accounting module: SupplierService → AccountRepository, SupplierLedgerService
+  → core/security: SupplierService → CryptoService
+  → purchasing module: PurchaseOrderService/GoodsReceiptService/PurchaseInvoiceEngine → Supplier.requireTransactionalUsage()
+  → accounting module: PurchaseInvoiceEngine → GstService, payable-account posting
+```
+
+#### Tight Coupling Points
+
+| Source | Target | Type | Severity |
+|--------|--------|------|----------|
+| `ProductionCatalogService` | inventory repositories | Direct mirror synchronization | **HIGH** |
+| `ProductionCatalogService` | purchasing/sales repositories | Historical-reference guard checks before mirror deletion | **HIGH** |
+| `DealerService` | auth provisioning services | Dealer master directly provisions login identity | **HIGH** |
+| `DealerService` | accounting repositories/services | Dealer master directly ensures AR account and ledger-derived balance | **HIGH** |
+| `SupplierService` | `CryptoService` + `AccountRepository` | Supplier master owns both data protection and AP-account creation | **MEDIUM** |
+
+### Current Maturity Grade
+
+**Grade: 3 / 5** — operationally strong, but ownership is still split
+
+| Dimension | Score | Rationale |
+|-----------|-------|-----------|
+| Completeness | 4/5 | Product, dealer, and supplier masters all have working lifecycle surfaces |
+| Correctness | 4/5 | Strong validation, immutable SKU identity, supplier fail-closed gating, portal/account convergence |
+| Auditability | 2/5 | Import is audited, but ordinary dealer/supplier/catalog CRUD lacks dedicated audit events |
+| Architecture | 3/5 | Canonical paths are clear, but dealer and catalog ownership still span multiple services/modules |
+| Cross-module safety | 3/5 | Downstream guards are explicit, yet coupling is tight and highly stateful |
+
+### Done Checklist
+
+| # | Check | Status |
+|---|-------|--------|
+| 1 | Brand creation is company-scoped and uniqueness-protected | ✅ Pass |
+| 2 | Catalog items generate stable canonical SKUs | ✅ Pass |
+| 3 | Finished-good items synchronize finished-good mirror truth | ✅ Pass |
+| 4 | Raw-material items synchronize raw-material mirror truth | ✅ Pass |
+| 5 | Historical references block unsafe item-class flips or mirror deletion | ✅ Pass |
+| 6 | Dealer creation converges dealer row, portal user, and receivable account | ✅ Pass |
+| 7 | Dealer GST/state/terms normalization is enforced | ✅ Pass |
+| 8 | Supplier creation starts in `PENDING` with payable account linkage | ✅ Pass |
+| 9 | Supplier approval/activation/suspension transitions are guard-railed | ✅ Pass |
+| 10 | P2P flows reject non-active suppliers with clear fail-closed messages | ✅ Pass |
+| 11 | Catalog reads expose readiness while hiding accounting-only metadata from non-accounting viewers | ✅ Pass |
+| 12 | Catalog import is CSV-only and idempotent | ✅ Pass |
+
+---
+
