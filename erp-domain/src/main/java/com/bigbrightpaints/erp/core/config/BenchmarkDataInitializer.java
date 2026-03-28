@@ -55,7 +55,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
  * Products created match transactions.csv:
  * - Raw Materials: RM-WB, RM-TIO2, RM-BINDER, RM-COLORANT
  * - Packaging: PK-5L-CAN, PK-10L-CAN, PK-LABEL
- * - Semi-Finished: SF-PEE-BULK (bulk paint, auto-created from SF-PEE product)
+ * - Semi-Finished product seed: SF-PEE (runtime creates SF-PEE-BULK as raw-material inventory)
  * - Finished Goods: FG-PEE-5L, FG-PEE-10L
  *
  * Accounts use standard chart:
@@ -491,21 +491,7 @@ public class BenchmarkDataInitializer {
       ProductionProductRepository productRepository,
       Map<String, Account> accounts,
       ProductionBrand brand) {
-    // Semi-finished (bulk) product
-    // Note: ProductionProduct has skuCode="SF-PEE", the system auto-creates SF-PEE-BULK
-    // We create both the ProductionProduct (SF-PEE) and FinishedGood (SF-PEE-BULK)
-    ensureFinishedGood(
-        company,
-        finishedGoodRepository,
-        productRepository,
-        accounts,
-        brand,
-        "SF-PEE",
-        "Premium Enamel",
-        "L",
-        true,
-        accounts.get("SF_INV").getId(),
-        accounts.get("WIP_MIX").getId());
+    ensureSemiFinishedProduct(company, productRepository, accounts, brand);
 
     // Finished goods (packed)
     ensureFinishedGood(
@@ -517,7 +503,6 @@ public class BenchmarkDataInitializer {
         "FG-PEE-5L",
         "Premium Enamel 5L",
         "UNIT",
-        false,
         accounts.get("FG_INV").getId(),
         accounts.get("WIP_PACK").getId());
 
@@ -530,9 +515,34 @@ public class BenchmarkDataInitializer {
         "FG-PEE-10L",
         "Premium Enamel 10L",
         "UNIT",
-        false,
         accounts.get("FG_INV").getId(),
         accounts.get("WIP_PACK").getId());
+  }
+
+  private void ensureSemiFinishedProduct(
+      Company company,
+      ProductionProductRepository productRepository,
+      Map<String, Account> accounts,
+      ProductionBrand brand) {
+    productRepository
+        .findByCompanyAndSkuCode(company, "SF-PEE")
+        .orElseGet(
+            () -> {
+              ProductionProduct product = new ProductionProduct();
+              product.setCompany(company);
+              product.setBrand(brand);
+              product.setSkuCode("SF-PEE");
+              product.setProductName("Premium Enamel");
+              product.setCategory("SEMI_FINISHED");
+              product.setUnitOfMeasure("L");
+              product.setBasePrice(new BigDecimal("100"));
+              product.setGstRate(new BigDecimal("18"));
+              product.setMinDiscountPercent(BigDecimal.ZERO);
+              product.setMinSellingPrice(BigDecimal.ZERO);
+              product.setActive(true);
+              product.setMetadata(defaultProductMetadata(accounts, accounts.get("SF_INV").getId(), accounts.get("WIP_MIX").getId()));
+              return productRepository.save(product);
+            });
   }
 
   private void ensureFinishedGood(
@@ -544,15 +554,11 @@ public class BenchmarkDataInitializer {
       String sku,
       String name,
       String unit,
-      boolean isBulk,
       Long valuationAccountId,
       Long wipAccountId) {
-    // For bulk products: FinishedGood uses {sku}-BULK, ProductionProduct uses {sku}
-    // This matches the system's automatic creation pattern in ProductionLogService
-    String fgSku = isBulk ? sku + "-BULK" : sku;
-    String fgName = isBulk ? name + " (Bulk)" : name;
+    String fgSku = sku;
+    String fgName = name;
 
-    // Create FinishedGood entity
     finishedGoodRepository
         .findByCompanyAndProductCode(company, fgSku)
         .orElseGet(
@@ -573,8 +579,6 @@ public class BenchmarkDataInitializer {
               return finishedGoodRepository.save(fg);
             });
 
-    // Create ProductionProduct for production log integration
-    // Note: ProductionProduct uses the base sku (without -BULK suffix)
     productRepository
         .findByCompanyAndSkuCode(company, sku)
         .orElseGet(
@@ -584,29 +588,32 @@ public class BenchmarkDataInitializer {
               product.setBrand(brand);
               product.setSkuCode(sku);
               product.setProductName(name);
-              product.setCategory(isBulk ? "SEMI_FINISHED" : "FINISHED_GOOD");
+              product.setCategory("FINISHED_GOOD");
               product.setUnitOfMeasure(unit);
-              product.setBasePrice(isBulk ? new BigDecimal("100") : new BigDecimal("650"));
+              product.setBasePrice(new BigDecimal("650"));
               product.setGstRate(new BigDecimal("18"));
               product.setMinDiscountPercent(BigDecimal.ZERO);
               product.setMinSellingPrice(BigDecimal.ZERO);
               product.setActive(true);
-
-              // Set metadata for accounting integration
-              Map<String, Object> metadata = new HashMap<>();
-              metadata.put("wipAccountId", wipAccountId);
-              metadata.put("semiFinishedAccountId", accounts.get("SF_INV").getId());
-              metadata.put("fgValuationAccountId", valuationAccountId);
-              metadata.put("fgCogsAccountId", accounts.get("COGS").getId());
-              metadata.put("fgRevenueAccountId", accounts.get("REV").getId());
-              metadata.put("fgDiscountAccountId", accounts.get("DISC").getId());
-              metadata.put("fgTaxAccountId", accounts.get("GST_OUT").getId());
-              metadata.put("wastageAccountId", accounts.get("WASTAGE").getId());
-              metadata.put("laborAppliedAccountId", accounts.get("LABOR").getId());
-              metadata.put("overheadAppliedAccountId", accounts.get("OVERHEAD").getId());
-              product.setMetadata(metadata);
+              product.setMetadata(defaultProductMetadata(accounts, valuationAccountId, wipAccountId));
 
               return productRepository.save(product);
             });
+  }
+
+  private Map<String, Object> defaultProductMetadata(
+      Map<String, Account> accounts, Long valuationAccountId, Long wipAccountId) {
+    Map<String, Object> metadata = new HashMap<>();
+    metadata.put("wipAccountId", wipAccountId);
+    metadata.put("semiFinishedAccountId", accounts.get("SF_INV").getId());
+    metadata.put("fgValuationAccountId", valuationAccountId);
+    metadata.put("fgCogsAccountId", accounts.get("COGS").getId());
+    metadata.put("fgRevenueAccountId", accounts.get("REV").getId());
+    metadata.put("fgDiscountAccountId", accounts.get("DISC").getId());
+    metadata.put("fgTaxAccountId", accounts.get("GST_OUT").getId());
+    metadata.put("wastageAccountId", accounts.get("WASTAGE").getId());
+    metadata.put("laborAppliedAccountId", accounts.get("LABOR").getId());
+    metadata.put("overheadAppliedAccountId", accounts.get("OVERHEAD").getId());
+    return metadata;
   }
 }

@@ -1,5 +1,8 @@
 package com.bigbrightpaints.erp.test;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -11,9 +14,27 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyModule;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchRequest;
+import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodRequest;
+import com.bigbrightpaints.erp.modules.inventory.service.BatchNumberService;
+import com.bigbrightpaints.erp.modules.inventory.service.InventoryValuationService;
 
 @SpringBootTest(
     classes = TestApplication.class,
@@ -49,6 +70,13 @@ public abstract class AbstractIntegrationTest {
   @Autowired protected TestDataSeeder dataSeeder;
 
   @Autowired protected CompanyRepository companyRepository;
+  @Autowired protected CompanyContextService companyContextService;
+  @Autowired protected CompanyDefaultAccountsService companyDefaultAccountsService;
+  @Autowired protected FinishedGoodRepository finishedGoodRepository;
+  @Autowired protected FinishedGoodBatchRepository finishedGoodBatchRepository;
+  @Autowired protected InventoryMovementRepository inventoryMovementRepository;
+  @Autowired protected BatchNumberService batchNumberService;
+  @Autowired protected InventoryValuationService inventoryValuationService;
 
   @DynamicPropertySource
   static void registerDataSource(DynamicPropertyRegistry registry) {
@@ -111,5 +139,150 @@ public abstract class AbstractIntegrationTest {
     enabledModules.add(module.name());
     managedCompany.setEnabledModules(enabledModules);
     return companyRepository.save(managedCompany);
+  }
+
+  protected FinishedGoodDto createFinishedGoodForTest(FinishedGoodRequest request) {
+    Company company = companyContextService.requireCurrentCompany();
+    FinishedGood finishedGood = new FinishedGood();
+    finishedGood.setCompany(company);
+    finishedGood.setProductCode(request.productCode());
+    finishedGood.setName(request.name());
+    finishedGood.setUnit(request.unit() == null ? "UNIT" : request.unit());
+    finishedGood.setCostingMethod(
+        inventoryValuationService.normalizeCostingMethod(request.costingMethod()));
+    finishedGood.setCurrentStock(BigDecimal.ZERO);
+    finishedGood.setReservedStock(BigDecimal.ZERO);
+    finishedGood.setValuationAccountId(request.valuationAccountId());
+    finishedGood.setCogsAccountId(request.cogsAccountId());
+    finishedGood.setRevenueAccountId(request.revenueAccountId());
+    finishedGood.setDiscountAccountId(request.discountAccountId());
+    finishedGood.setTaxAccountId(request.taxAccountId());
+    applyDefaultAccountsIfMissing(finishedGood);
+    FinishedGood saved = finishedGoodRepository.save(finishedGood);
+    return toFinishedGoodDto(saved);
+  }
+
+  protected FinishedGoodBatchDto registerFinishedGoodBatchForTest(FinishedGoodBatchRequest request) {
+    Company company = companyContextService.requireCurrentCompany();
+    FinishedGood finishedGood =
+        finishedGoodRepository
+            .findByCompanyAndId(company, request.finishedGoodId())
+            .orElseThrow(
+                () ->
+                    new ApplicationException(
+                        ErrorCode.BUSINESS_ENTITY_NOT_FOUND, "Finished good not found"));
+
+    BigDecimal quantity = inventoryValuationService.safeQuantity(request.quantity());
+    if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_INPUT, "Batch quantity must be greater than zero");
+    }
+    BigDecimal unitCost = request.unitCost() != null ? request.unitCost() : BigDecimal.ZERO;
+    if (unitCost.compareTo(BigDecimal.ZERO) < 0) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_INPUT, "Batch unit cost cannot be negative");
+    }
+
+    Instant manufacturedAt =
+        request.manufacturedAt() == null
+            ? com.bigbrightpaints.erp.core.util.CompanyTime.now(company)
+            : request.manufacturedAt();
+    LocalDate producedDate =
+        request.manufacturedAt() == null
+            ? null
+            : LocalDate.ofInstant(
+                request.manufacturedAt(),
+                java.time.ZoneId.of(
+                    company.getTimezone() == null || company.getTimezone().isBlank()
+                        ? "UTC"
+                        : company.getTimezone()));
+    String batchCode =
+        request.batchCode() == null || request.batchCode().isBlank()
+            ? batchNumberService.nextFinishedGoodBatchCode(finishedGood, producedDate)
+            : request.batchCode().trim();
+
+    FinishedGoodBatch batch = new FinishedGoodBatch();
+    batch.setFinishedGood(finishedGood);
+    batch.setBatchCode(batchCode);
+    batch.setQuantityTotal(quantity);
+    batch.setQuantityAvailable(quantity);
+    batch.setUnitCost(unitCost);
+    batch.setManufacturedAt(manufacturedAt);
+    batch.setExpiryDate(request.expiryDate());
+    batch.setSource(InventoryBatchSource.PRODUCTION);
+    FinishedGoodBatch savedBatch = finishedGoodBatchRepository.save(batch);
+
+    finishedGood.setCurrentStock(
+        inventoryValuationService.safeQuantity(finishedGood.getCurrentStock()).add(quantity));
+    finishedGoodRepository.save(finishedGood);
+    inventoryValuationService.invalidateWeightedAverageCost(finishedGood.getId());
+
+    InventoryMovement movement = new InventoryMovement();
+    movement.setFinishedGood(finishedGood);
+    movement.setFinishedGoodBatch(savedBatch);
+    movement.setReferenceType(InventoryReference.MANUFACTURING_ORDER);
+    movement.setReferenceId(savedBatch.getPublicId().toString());
+    movement.setMovementType("RECEIPT");
+    movement.setQuantity(quantity);
+    movement.setUnitCost(unitCost);
+    inventoryMovementRepository.save(movement);
+
+    return toFinishedGoodBatchDto(savedBatch);
+  }
+
+  private void applyDefaultAccountsIfMissing(FinishedGood finishedGood) {
+    boolean needsDefaults =
+        finishedGood.getValuationAccountId() == null
+            || finishedGood.getCogsAccountId() == null
+            || finishedGood.getRevenueAccountId() == null
+            || finishedGood.getTaxAccountId() == null;
+    if (!needsDefaults) {
+      return;
+    }
+    var defaults = companyDefaultAccountsService.requireDefaults();
+    if (finishedGood.getValuationAccountId() == null) {
+      finishedGood.setValuationAccountId(defaults.inventoryAccountId());
+    }
+    if (finishedGood.getCogsAccountId() == null) {
+      finishedGood.setCogsAccountId(defaults.cogsAccountId());
+    }
+    if (finishedGood.getRevenueAccountId() == null) {
+      finishedGood.setRevenueAccountId(defaults.revenueAccountId());
+    }
+    if (finishedGood.getDiscountAccountId() == null && defaults.discountAccountId() != null) {
+      finishedGood.setDiscountAccountId(defaults.discountAccountId());
+    }
+    if (finishedGood.getTaxAccountId() == null) {
+      finishedGood.setTaxAccountId(defaults.taxAccountId());
+    }
+  }
+
+  private FinishedGoodDto toFinishedGoodDto(FinishedGood finishedGood) {
+    return new FinishedGoodDto(
+        finishedGood.getId(),
+        finishedGood.getPublicId(),
+        finishedGood.getProductCode(),
+        finishedGood.getName(),
+        finishedGood.getUnit(),
+        inventoryValuationService.safeQuantity(finishedGood.getCurrentStock()),
+        inventoryValuationService.safeQuantity(finishedGood.getReservedStock()),
+        finishedGood.getCostingMethod(),
+        finishedGood.getValuationAccountId(),
+        finishedGood.getCogsAccountId(),
+        finishedGood.getRevenueAccountId(),
+        finishedGood.getDiscountAccountId(),
+        finishedGood.getTaxAccountId());
+  }
+
+  private FinishedGoodBatchDto toFinishedGoodBatchDto(FinishedGoodBatch batch) {
+    return new FinishedGoodBatchDto(
+        batch.getId(),
+        batch.getPublicId(),
+        batch.getBatchCode(),
+        batch.getQuantityTotal(),
+        batch.getQuantityAvailable(),
+        batch.getUnitCost(),
+        batch.getManufacturedAt(),
+        batch.getExpiryDate());
   }
 }

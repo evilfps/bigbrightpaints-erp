@@ -20,9 +20,32 @@ public interface RawMaterialBatchRepository extends JpaRepository<RawMaterialBat
 
   java.util.Optional<RawMaterialBatch> findByRawMaterial_CompanyAndId(Company company, Long id);
 
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query(
+      """
+      select b from RawMaterialBatch b
+      where b.rawMaterial.company = :company
+        and b.id = :id
+      """)
+  java.util.Optional<RawMaterialBatch> lockByRawMaterialCompanyAndId(
+      @Param("company") Company company, @Param("id") Long id);
+
   List<RawMaterialBatch> findByRawMaterial_InventoryAccountId(Long inventoryAccountId);
 
   boolean existsByRawMaterialAndBatchCode(RawMaterial rawMaterial, String batchCode);
+
+  java.util.Optional<RawMaterialBatch> findByRawMaterialAndBatchCode(
+      RawMaterial rawMaterial, String batchCode);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query(
+      """
+      select b from RawMaterialBatch b
+      where b.rawMaterial = :rawMaterial
+        and b.batchCode = :batchCode
+      """)
+  java.util.Optional<RawMaterialBatch> lockByRawMaterialAndBatchCode(
+      @Param("rawMaterial") RawMaterial rawMaterial, @Param("batchCode") String batchCode);
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query(

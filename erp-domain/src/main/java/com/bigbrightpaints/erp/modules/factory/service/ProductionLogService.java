@@ -40,14 +40,8 @@ import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogDto;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogMaterialDto;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogPackingRecordDto;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogRequest;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource;
-import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
-import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.MaterialType;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
@@ -65,6 +59,7 @@ public class ProductionLogService {
 
   private static final DateTimeFormatter CODE_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
   private static final String MOVEMENT_TYPE_ISSUE = "ISSUE";
+  private static final String SEMI_FINISHED_SUFFIX = "-BULK";
   private static final RoundingMode COST_ROUNDING = RoundingMode.HALF_UP;
 
   private final CompanyContextService companyContextService;
@@ -76,9 +71,6 @@ public class ProductionLogService {
   private final AccountingFacade accountingFacade;
   private final CompanyEntityLookup companyEntityLookup;
   private final CompanyClock companyClock;
-  private final FinishedGoodRepository finishedGoodRepository;
-  private final FinishedGoodBatchRepository finishedGoodBatchRepository;
-  private final InventoryMovementRepository inventoryMovementRepository;
   private final PackingAllowedSizeService packingAllowedSizeService;
 
   public ProductionLogService(
@@ -91,9 +83,6 @@ public class ProductionLogService {
       AccountingFacade accountingFacade,
       CompanyEntityLookup companyEntityLookup,
       CompanyClock companyClock,
-      FinishedGoodRepository finishedGoodRepository,
-      FinishedGoodBatchRepository finishedGoodBatchRepository,
-      InventoryMovementRepository inventoryMovementRepository,
       PackingAllowedSizeService packingAllowedSizeService) {
     this.companyContextService = companyContextService;
     this.companyRepository = companyRepository;
@@ -104,9 +93,6 @@ public class ProductionLogService {
     this.accountingFacade = accountingFacade;
     this.companyEntityLookup = companyEntityLookup;
     this.companyClock = companyClock;
-    this.finishedGoodRepository = finishedGoodRepository;
-    this.finishedGoodBatchRepository = finishedGoodBatchRepository;
-    this.inventoryMovementRepository = inventoryMovementRepository;
     this.packingAllowedSizeService = packingAllowedSizeService;
   }
 
@@ -188,34 +174,37 @@ public class ProductionLogService {
       return;
     }
 
-    FinishedGood semiFinished = ensureSemiFinishedFinishedGood(company, product);
-    Long semiFinishedAccountId = semiFinished.getValuationAccountId();
+    RawMaterial semiFinished = ensureSemiFinishedRawMaterial(company, product);
+    Long semiFinishedAccountId = semiFinished.getInventoryAccountId();
     if (semiFinishedAccountId == null) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_REFERENCE,
-          "Semi-finished SKU " + semiFinished.getProductCode() + " missing valuation account");
+          "Semi-finished SKU " + semiFinished.getSku() + " missing inventory account");
     }
 
     String batchCode = log.getProductionCode();
-    FinishedGoodBatch batch =
-        finishedGoodBatchRepository
-            .findByFinishedGoodAndBatchCode(semiFinished, batchCode)
-            .orElseGet(() -> createSemiFinishedBatch(log, semiFinished, mixedQty, batchCode));
+    if (rawMaterialBatchRepository.lockByRawMaterialAndBatchCode(semiFinished, batchCode).isPresent()) {
+      throw new ApplicationException(
+          ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+          "Semi-finished batch already exists for production " + log.getProductionCode());
+    }
+    RawMaterialBatch batch = createSemiFinishedBatch(log, semiFinished, mixedQty, batchCode);
 
     BigDecimal current =
         Optional.ofNullable(semiFinished.getCurrentStock()).orElse(BigDecimal.ZERO);
     semiFinished.setCurrentStock(current.add(mixedQty));
-    finishedGoodRepository.save(semiFinished);
+    rawMaterialRepository.save(semiFinished);
 
-    InventoryMovement movement = new InventoryMovement();
-    movement.setFinishedGood(semiFinished);
-    movement.setFinishedGoodBatch(batch);
+    RawMaterialMovement movement = new RawMaterialMovement();
+    movement.setRawMaterial(semiFinished);
+    movement.setRawMaterialBatch(batch);
     movement.setReferenceType(InventoryReference.PRODUCTION_LOG);
     movement.setReferenceId(log.getProductionCode());
     movement.setMovementType("RECEIPT");
     movement.setQuantity(mixedQty);
-    movement.setUnitCost(log.getUnitCost());
-    InventoryMovement savedMovement = inventoryMovementRepository.save(movement);
+    movement.setUnitCost(
+        log.getUnitCost() != null ? log.getUnitCost() : BigDecimal.ZERO);
+    RawMaterialMovement savedMovement = rawMaterialMovementRepository.save(movement);
 
     BigDecimal amount = totalCost.setScale(2, COST_ROUNDING);
     if (amount.compareTo(BigDecimal.ZERO) > 0) {
@@ -237,65 +226,52 @@ public class ProductionLogService {
                   Boolean.FALSE));
       if (entry != null) {
         savedMovement.setJournalEntryId(entry.id());
-        inventoryMovementRepository.save(savedMovement);
+        rawMaterialMovementRepository.save(savedMovement);
       }
     }
   }
 
-  private FinishedGood ensureSemiFinishedFinishedGood(Company company, ProductionProduct product) {
-    String semiSku = product.getSkuCode() + "-BULK";
-    return finishedGoodRepository
-        .lockByCompanyAndProductCode(company, semiSku)
-        .orElseGet(() -> initializeSemiFinishedFinishedGood(company, product, semiSku));
+  private RawMaterial ensureSemiFinishedRawMaterial(Company company, ProductionProduct product) {
+    String semiSku = product.getSkuCode() + SEMI_FINISHED_SUFFIX;
+    return rawMaterialRepository
+        .lockByCompanyAndSkuIgnoreCase(company, semiSku)
+        .orElseGet(() -> initializeSemiFinishedRawMaterial(company, product, semiSku));
   }
 
-  private FinishedGood initializeSemiFinishedFinishedGood(
+  private RawMaterial initializeSemiFinishedRawMaterial(
       Company company, ProductionProduct product, String semiSku) {
-    Long valuationAccountId =
+    Long inventoryAccountId =
         Optional.ofNullable(metadataLong(product, "semiFinishedAccountId"))
             .orElse(metadataLong(product, "fgValuationAccountId"));
-    Long cogsAccountId = metadataLong(product, "fgCogsAccountId");
-    Long revenueAccountId = metadataLong(product, "fgRevenueAccountId");
-    Long discountAccountId = metadataLong(product, "fgDiscountAccountId");
-    Long taxAccountId = metadataLong(product, "fgTaxAccountId");
-    if (valuationAccountId == null
-        || cogsAccountId == null
-        || revenueAccountId == null
-        || discountAccountId == null
-        || taxAccountId == null) {
+    if (inventoryAccountId == null) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_REFERENCE,
-          "Product " + product.getProductName() + " missing finished good account metadata");
+          "Product " + product.getProductName() + " missing semi-finished account metadata");
     }
-    FinishedGood created = new FinishedGood();
+    RawMaterial created = new RawMaterial();
     created.setCompany(company);
-    created.setProductCode(semiSku);
+    created.setSku(semiSku);
     created.setName(product.getProductName() + " (Bulk)");
-    created.setUnit(Optional.ofNullable(product.getUnitOfMeasure()).orElse("UNIT"));
+    created.setUnitType(Optional.ofNullable(product.getUnitOfMeasure()).orElse("UNIT"));
     created.setCostingMethod("FIFO");
-    created.setValuationAccountId(valuationAccountId);
-    created.setCogsAccountId(cogsAccountId);
-    created.setRevenueAccountId(revenueAccountId);
-    created.setDiscountAccountId(discountAccountId);
-    created.setTaxAccountId(taxAccountId);
+    created.setInventoryAccountId(inventoryAccountId);
+    created.setMaterialType(MaterialType.PRODUCTION);
     created.setCurrentStock(BigDecimal.ZERO);
-    created.setReservedStock(BigDecimal.ZERO);
-    return finishedGoodRepository.save(created);
+    return rawMaterialRepository.save(created);
   }
 
-  private FinishedGoodBatch createSemiFinishedBatch(
-      ProductionLog log, FinishedGood semiFinished, BigDecimal quantity, String batchCode) {
-    FinishedGoodBatch batch = new FinishedGoodBatch();
-    batch.setFinishedGood(semiFinished);
+  private RawMaterialBatch createSemiFinishedBatch(
+      ProductionLog log, RawMaterial semiFinished, BigDecimal quantity, String batchCode) {
+    RawMaterialBatch batch = new RawMaterialBatch();
+    batch.setRawMaterial(semiFinished);
     batch.setBatchCode(batchCode);
-    batch.setQuantityTotal(quantity);
-    batch.setQuantityAvailable(quantity);
-    batch.setUnitCost(log.getUnitCost());
+    batch.setQuantity(quantity);
+    batch.setUnit(Optional.ofNullable(log.getUnitOfMeasure()).orElse("UNIT"));
+    batch.setCostPerUnit(log.getUnitCost() != null ? log.getUnitCost() : BigDecimal.ZERO);
+    batch.setReceivedAt(log.getProducedAt());
     batch.setManufacturedAt(log.getProducedAt());
-    batch.setBulk(true);
-    batch.setSizeLabel(log.getUnitOfMeasure());
-    batch.setSource(InventoryBatchSource.PRODUCTION);
-    return finishedGoodBatchRepository.save(batch);
+    batch.setSource(com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource.PRODUCTION);
+    return rawMaterialBatchRepository.save(batch);
   }
 
   @Transactional

@@ -97,7 +97,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-RET-" + shortId(), BigDecimal.ZERO);
     CompanyContextHolder.setCompanyCode(companyCode);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-RET-1",
@@ -207,7 +207,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-CN-" + shortId(), BigDecimal.ZERO);
     CompanyContextHolder.setCompanyCode(companyCode);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-CN-1",
@@ -347,7 +347,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
         ensureFinishedGoodWithCatalog(
             company, accounts, "FG-CN-DISC-" + shortId(), BigDecimal.ZERO);
     CompanyContextHolder.setCompanyCode(companyCode);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-CN-DISC-1",
@@ -567,7 +567,7 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
             .orElseGet(
                 () -> {
                   CompanyContextHolder.setCompanyCode(company.getCode());
-                  var dto = finishedGoodsService.createFinishedGood(req);
+                  var dto = createFinishedGoodForTest(req);
                   CompanyContextHolder.clear();
                   return finishedGoodRepository.findById(dto.id()).orElseThrow();
                 });

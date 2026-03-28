@@ -16,7 +16,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
-import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
@@ -32,7 +31,6 @@ class CatalogServiceBrandCrudTest {
   @Mock private CompanyEntityLookup companyEntityLookup;
   @Mock private ProductionBrandRepository brandRepository;
   @Mock private ProductionProductRepository productRepository;
-  @Mock private SizeVariantRepository sizeVariantRepository;
   @Mock private FinishedGoodRepository finishedGoodRepository;
   @Mock private RawMaterialRepository rawMaterialRepository;
   @Mock private SkuReadinessService skuReadinessService;
@@ -49,7 +47,6 @@ class CatalogServiceBrandCrudTest {
             companyEntityLookup,
             brandRepository,
             productRepository,
-            sizeVariantRepository,
             finishedGoodRepository,
             rawMaterialRepository,
             skuReadinessService,

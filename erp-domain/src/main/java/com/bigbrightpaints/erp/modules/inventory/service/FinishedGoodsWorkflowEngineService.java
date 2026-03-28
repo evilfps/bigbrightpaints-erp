@@ -1,26 +1,14 @@
 package com.bigbrightpaints.erp.modules.inventory.service;
 
 import java.math.BigDecimal;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
-import com.bigbrightpaints.erp.core.exception.ApplicationException;
-import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
-import com.bigbrightpaints.erp.core.util.CompanyTime;
-import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.accounting.service.CostingMethodService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -29,9 +17,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReservationRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
@@ -39,10 +25,8 @@ import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationResponse;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchPreviewDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchDto;
-import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodLowStockThresholdDto;
-import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.StockSummaryDto;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
@@ -53,13 +37,9 @@ import jakarta.transaction.Transactional;
 @Service
 public class FinishedGoodsWorkflowEngineService {
   private final CompanyContextService companyContextService;
-  private final CompanyEntityLookup companyEntityLookup;
   private final FinishedGoodRepository finishedGoodRepository;
   private final FinishedGoodBatchRepository finishedGoodBatchRepository;
   private final BatchNumberService batchNumberService;
-  private final CompanyDefaultAccountsService companyDefaultAccountsService;
-  private final Environment environment;
-  private final boolean manualBatchEnabled;
   private final InventoryValuationService inventoryValuationService;
   private final InventoryMovementRecorder movementRecorder;
   private final FinishedGoodsReservationEngine reservationEngine;
@@ -68,7 +48,6 @@ public class FinishedGoodsWorkflowEngineService {
 
   public FinishedGoodsWorkflowEngineService(
       CompanyContextService companyContextService,
-      CompanyEntityLookup companyEntityLookup,
       FinishedGoodRepository finishedGoodRepository,
       FinishedGoodBatchRepository finishedGoodBatchRepository,
       PackagingSlipRepository packagingSlipRepository,
@@ -76,21 +55,14 @@ public class FinishedGoodsWorkflowEngineService {
       InventoryReservationRepository inventoryReservationRepository,
       BatchNumberService batchNumberService,
       SalesOrderRepository salesOrderRepository,
-      CompanyDefaultAccountsService companyDefaultAccountsService,
       CostingMethodService costingMethodService,
       GstService gstService,
       ApplicationEventPublisher eventPublisher,
-      CompanyClock companyClock,
-      Environment environment,
-      @Value("${erp.inventory.finished-goods.batch.enabled:false}") boolean manualBatchEnabled) {
+      CompanyClock companyClock) {
     this.companyContextService = companyContextService;
-    this.companyEntityLookup = companyEntityLookup;
     this.finishedGoodRepository = finishedGoodRepository;
     this.finishedGoodBatchRepository = finishedGoodBatchRepository;
     this.batchNumberService = batchNumberService;
-    this.companyDefaultAccountsService = companyDefaultAccountsService;
-    this.environment = environment;
-    this.manualBatchEnabled = manualBatchEnabled;
     this.movementRecorder =
         new InventoryMovementRecorder(inventoryMovementRepository, eventPublisher, companyClock);
     this.inventoryValuationService =
@@ -168,45 +140,6 @@ public class FinishedGoodsWorkflowEngineService {
 
   public BigDecimal currentWeightedAverageCost(FinishedGood fg) {
     return inventoryValuationService.currentWeightedAverageCost(fg);
-  }
-
-  @Transactional
-  public FinishedGoodDto updateFinishedGood(Long id, FinishedGoodRequest request) {
-    Company company = companyContextService.requireCurrentCompany();
-    FinishedGood fg =
-        finishedGoodRepository
-            .lockByCompanyAndId(company, id)
-            .orElseThrow(
-                () ->
-                    com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                        "Finished good not found"));
-    if (request.name() != null) {
-      fg.setName(request.name());
-    }
-    if (request.unit() != null) {
-      fg.setUnit(request.unit());
-    }
-    if (request.costingMethod() != null) {
-      fg.setCostingMethod(
-          inventoryValuationService.normalizeCostingMethod(request.costingMethod()));
-    }
-    if (request.valuationAccountId() != null) {
-      fg.setValuationAccountId(request.valuationAccountId());
-    }
-    if (request.cogsAccountId() != null) {
-      fg.setCogsAccountId(request.cogsAccountId());
-    }
-    if (request.revenueAccountId() != null) {
-      fg.setRevenueAccountId(request.revenueAccountId());
-    }
-    if (request.discountAccountId() != null) {
-      fg.setDiscountAccountId(request.discountAccountId());
-    }
-    if (request.taxAccountId() != null) {
-      fg.setTaxAccountId(request.taxAccountId());
-    }
-    applyDefaultAccountsIfMissing(fg);
-    return toDto(finishedGoodRepository.save(fg));
   }
 
   public List<FinishedGoodBatchDto> listBatchesForFinishedGood(Long finishedGoodId) {
@@ -295,71 +228,6 @@ public class FinishedGoodsWorkflowEngineService {
     fg.setLowStockThreshold(resolvedThreshold);
     finishedGoodRepository.save(fg);
     return new FinishedGoodLowStockThresholdDto(fg.getId(), fg.getProductCode(), resolvedThreshold);
-  }
-
-  @Transactional
-  public FinishedGoodDto createFinishedGood(FinishedGoodRequest request) {
-    Company company = companyContextService.requireCurrentCompany();
-    FinishedGood finishedGood = new FinishedGood();
-    finishedGood.setCompany(company);
-    finishedGood.setProductCode(request.productCode());
-    finishedGood.setName(request.name());
-    finishedGood.setUnit(request.unit() == null ? "UNIT" : request.unit());
-    finishedGood.setCostingMethod(
-        inventoryValuationService.normalizeCostingMethod(request.costingMethod()));
-    finishedGood.setCurrentStock(BigDecimal.ZERO);
-    finishedGood.setReservedStock(BigDecimal.ZERO);
-    finishedGood.setValuationAccountId(request.valuationAccountId());
-    finishedGood.setCogsAccountId(request.cogsAccountId());
-    finishedGood.setRevenueAccountId(request.revenueAccountId());
-    finishedGood.setDiscountAccountId(request.discountAccountId());
-    finishedGood.setTaxAccountId(request.taxAccountId());
-    applyDefaultAccountsIfMissing(finishedGood);
-    return toDto(finishedGoodRepository.save(finishedGood));
-  }
-
-  @Transactional
-  public FinishedGoodBatchDto registerBatch(FinishedGoodBatchRequest request) {
-    assertManualBatchAllowed();
-    FinishedGood finishedGood = lockFinishedGood(request.finishedGoodId());
-    BigDecimal quantity = inventoryValuationService.safeQuantity(request.quantity());
-    if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Batch quantity must be greater than zero");
-    }
-    BigDecimal unitCost = request.unitCost() != null ? request.unitCost() : BigDecimal.ZERO;
-    if (unitCost.compareTo(BigDecimal.ZERO) < 0) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Batch unit cost cannot be negative");
-    }
-    FinishedGoodBatch batch = new FinishedGoodBatch();
-    batch.setFinishedGood(finishedGood);
-    batch.setBatchCode(
-        resolveBatchCode(finishedGood, request.batchCode(), request.manufacturedAt()));
-    batch.setQuantityTotal(quantity);
-    batch.setQuantityAvailable(quantity);
-    batch.setUnitCost(unitCost);
-    batch.setManufacturedAt(
-        request.manufacturedAt() == null
-            ? CompanyTime.now(finishedGood.getCompany())
-            : request.manufacturedAt());
-    batch.setExpiryDate(request.expiryDate());
-    batch.setSource(InventoryBatchSource.PRODUCTION);
-    FinishedGoodBatch savedBatch = finishedGoodBatchRepository.save(batch);
-    finishedGood.setCurrentStock(
-        inventoryValuationService.safeQuantity(finishedGood.getCurrentStock()).add(quantity));
-    finishedGoodRepository.save(finishedGood);
-    inventoryValuationService.invalidateWeightedAverageCost(finishedGood.getId());
-    movementRecorder.recordFinishedGoodMovement(
-        finishedGood,
-        savedBatch,
-        InventoryReference.MANUFACTURING_ORDER,
-        savedBatch.getPublicId().toString(),
-        "RECEIPT",
-        quantity,
-        unitCost,
-        null);
-    return toBatchDto(savedBatch);
   }
 
   public List<PackagingSlipDto> listPackagingSlips() {
@@ -453,73 +321,6 @@ public class FinishedGoodsWorkflowEngineService {
     inventoryValuationService.invalidateWeightedAverageCost(finishedGoodId);
   }
 
-  private FinishedGood lockFinishedGood(Long id) {
-    Company company = companyContextService.requireCurrentCompany();
-    try {
-      return companyEntityLookup.lockActiveFinishedGood(company, id);
-    } catch (IllegalArgumentException ex) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Finished good not found");
-    }
-  }
-
-  private void assertManualBatchAllowed() {
-    if (isProdProfile() && !manualBatchEnabled) {
-      throw new ApplicationException(
-              ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
-              "Manual finished good batch registration is disabled; use production logs and"
-                  + " packing.")
-          .withDetail("endpoint", "/api/v1/finished-goods/{id}/batches")
-          .withDetail("canonicalPath", "/api/v1/factory/production/logs")
-          .withDetail("setting", "erp.inventory.finished-goods.batch.enabled");
-    }
-  }
-
-  private boolean isProdProfile() {
-    return environment != null && environment.acceptsProfiles(Profiles.of("prod"));
-  }
-
-  private String resolveBatchCode(
-      FinishedGood finishedGood, String provided, Instant manufacturedAt) {
-    if (StringUtils.hasText(provided)) {
-      return provided.trim();
-    }
-    String timezone =
-        finishedGood.getCompany().getTimezone() == null
-            ? "UTC"
-            : finishedGood.getCompany().getTimezone();
-    LocalDate produced =
-        manufacturedAt != null ? LocalDate.ofInstant(manufacturedAt, ZoneId.of(timezone)) : null;
-    return batchNumberService.nextFinishedGoodBatchCode(finishedGood, produced);
-  }
-
-  private void applyDefaultAccountsIfMissing(FinishedGood finishedGood) {
-    boolean needsDefaults =
-        finishedGood.getValuationAccountId() == null
-            || finishedGood.getCogsAccountId() == null
-            || finishedGood.getRevenueAccountId() == null
-            || finishedGood.getTaxAccountId() == null;
-    if (!needsDefaults) {
-      return;
-    }
-    var defaults = companyDefaultAccountsService.requireDefaults();
-    if (finishedGood.getValuationAccountId() == null) {
-      finishedGood.setValuationAccountId(defaults.inventoryAccountId());
-    }
-    if (finishedGood.getCogsAccountId() == null) {
-      finishedGood.setCogsAccountId(defaults.cogsAccountId());
-    }
-    if (finishedGood.getRevenueAccountId() == null) {
-      finishedGood.setRevenueAccountId(defaults.revenueAccountId());
-    }
-    if (finishedGood.getDiscountAccountId() == null && defaults.discountAccountId() != null) {
-      finishedGood.setDiscountAccountId(defaults.discountAccountId());
-    }
-    if (finishedGood.getTaxAccountId() == null) {
-      finishedGood.setTaxAccountId(defaults.taxAccountId());
-    }
-  }
-
   private FinishedGoodDto toDto(FinishedGood finishedGood) {
     return new FinishedGoodDto(
         finishedGood.getId(),
@@ -548,4 +349,5 @@ public class FinishedGoodsWorkflowEngineService {
         batch.getManufacturedAt(),
         batch.getExpiryDate());
   }
+
 }

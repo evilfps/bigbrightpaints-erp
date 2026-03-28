@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.modules.factory.service;
 
 import java.math.BigDecimal;
-import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
@@ -10,37 +9,33 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
-import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
-import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatch;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 
 @Service
 public class PackingInventoryService {
 
   private final CompanyContextService companyContextService;
-  private final FinishedGoodRepository finishedGoodRepository;
-  private final FinishedGoodBatchRepository finishedGoodBatchRepository;
-  private final InventoryMovementRepository inventoryMovementRepository;
-  private final FinishedGoodsService finishedGoodsService;
+  private final RawMaterialRepository rawMaterialRepository;
+  private final RawMaterialBatchRepository rawMaterialBatchRepository;
+  private final RawMaterialMovementRepository rawMaterialMovementRepository;
   private final PackingProductSupport packingProductSupport;
 
   public PackingInventoryService(
       CompanyContextService companyContextService,
-      FinishedGoodRepository finishedGoodRepository,
-      FinishedGoodBatchRepository finishedGoodBatchRepository,
-      InventoryMovementRepository inventoryMovementRepository,
-      FinishedGoodsService finishedGoodsService,
+      RawMaterialRepository rawMaterialRepository,
+      RawMaterialBatchRepository rawMaterialBatchRepository,
+      RawMaterialMovementRepository rawMaterialMovementRepository,
       PackingProductSupport packingProductSupport) {
     this.companyContextService = companyContextService;
-    this.finishedGoodRepository = finishedGoodRepository;
-    this.finishedGoodBatchRepository = finishedGoodBatchRepository;
-    this.inventoryMovementRepository = inventoryMovementRepository;
-    this.finishedGoodsService = finishedGoodsService;
+    this.rawMaterialRepository = rawMaterialRepository;
+    this.rawMaterialBatchRepository = rawMaterialBatchRepository;
+    this.rawMaterialMovementRepository = rawMaterialMovementRepository;
     this.packingProductSupport = packingProductSupport;
   }
 
@@ -50,52 +45,33 @@ public class PackingInventoryService {
       return null;
     }
     Company company = companyContextService.requireCurrentCompany();
-    String semiSku = packingProductSupport.semiFinishedSku(log.getProduct());
-    FinishedGood semiFinished =
-        finishedGoodRepository
-            .lockByCompanyAndProductCode(company, semiSku)
-            .orElseThrow(
-                () ->
-                    new ApplicationException(
-                        ErrorCode.VALIDATION_INVALID_REFERENCE,
-                        "Semi-finished SKU "
-                            + semiSku
-                            + " not found for production "
-                            + log.getProductionCode()));
-    FinishedGoodBatch batch =
-        finishedGoodBatchRepository
-            .lockByFinishedGoodAndBatchCode(semiFinished, log.getProductionCode())
-            .orElseThrow(
-                () ->
-                    new ApplicationException(
-                        ErrorCode.VALIDATION_INVALID_REFERENCE,
-                        "Semi-finished batch " + log.getProductionCode() + " not found"));
-    if (batch.getQuantityAvailable().compareTo(quantity) < 0) {
+    RawMaterial semiFinished = lockSemiFinishedMaterial(company, log);
+    RawMaterialBatch batch = lockSemiFinishedBatch(semiFinished, log.getProductionCode());
+    if (batch.getQuantity().compareTo(quantity) < 0) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_INPUT,
           "Insufficient semi-finished stock for " + log.getProductionCode());
     }
 
-    batch.allocate(quantity);
-    BigDecimal total = Optional.ofNullable(batch.getQuantityTotal()).orElse(BigDecimal.ZERO);
-    batch.setQuantityTotal(total.subtract(quantity));
-    finishedGoodBatchRepository.save(batch);
+    batch.setQuantity(batch.getQuantity().subtract(quantity));
+    rawMaterialBatchRepository.save(batch);
 
-    semiFinished.adjustStock(quantity.negate(), "PACKING");
-    finishedGoodRepository.save(semiFinished);
-    finishedGoodsService.invalidateWeightedAverageCost(semiFinished.getId());
+    semiFinished.setCurrentStock(
+        semiFinished.getCurrentStock().subtract(quantity));
+    rawMaterialRepository.save(semiFinished);
 
-    InventoryMovement issue = new InventoryMovement();
-    issue.setFinishedGood(semiFinished);
-    issue.setFinishedGoodBatch(batch);
+    RawMaterialMovement issue = new RawMaterialMovement();
+    issue.setRawMaterial(semiFinished);
+    issue.setRawMaterialBatch(batch);
     issue.setReferenceType(InventoryReference.PACKING_RECORD);
     issue.setReferenceId(log.getProductionCode() + "-PACK-" + packingRecordId);
     issue.setMovementType("ISSUE");
     issue.setQuantity(quantity);
-    issue.setUnitCost(batch.getUnitCost());
-    InventoryMovement savedIssue = inventoryMovementRepository.save(issue);
+    issue.setUnitCost(batch.getCostPerUnit() != null ? batch.getCostPerUnit() : BigDecimal.ZERO);
+    RawMaterialMovement savedIssue = rawMaterialMovementRepository.save(issue);
 
-    return new SemiFinishedConsumption(semiFinished, batch, savedIssue, batch.getUnitCost());
+    return new SemiFinishedConsumption(
+        semiFinished, batch, savedIssue, issue.getUnitCost());
   }
 
   public void consumeSemiFinishedWastage(ProductionLog log, BigDecimal wastageQty) {
@@ -103,55 +79,58 @@ public class PackingInventoryService {
       return;
     }
     Company company = companyContextService.requireCurrentCompany();
-    String semiSku = packingProductSupport.semiFinishedSku(log.getProduct());
-    FinishedGood semiFinished =
-        finishedGoodRepository
-            .lockByCompanyAndProductCode(company, semiSku)
-            .orElseThrow(
-                () ->
-                    new ApplicationException(
-                        ErrorCode.VALIDATION_INVALID_REFERENCE,
-                        "Semi-finished SKU "
-                            + semiSku
-                            + " not found for production "
-                            + log.getProductionCode()));
-    FinishedGoodBatch batch =
-        finishedGoodBatchRepository
-            .lockByFinishedGoodAndBatchCode(semiFinished, log.getProductionCode())
-            .orElseThrow(
-                () ->
-                    new ApplicationException(
-                        ErrorCode.VALIDATION_INVALID_REFERENCE,
-                        "Semi-finished batch " + log.getProductionCode() + " not found"));
-    if (batch.getQuantityAvailable().compareTo(wastageQty) < 0) {
+    RawMaterial semiFinished = lockSemiFinishedMaterial(company, log);
+    RawMaterialBatch batch = lockSemiFinishedBatch(semiFinished, log.getProductionCode());
+    if (batch.getQuantity().compareTo(wastageQty) < 0) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_INPUT,
           "Insufficient semi-finished stock for wastage on " + log.getProductionCode());
     }
 
-    batch.allocate(wastageQty);
-    BigDecimal total = Optional.ofNullable(batch.getQuantityTotal()).orElse(BigDecimal.ZERO);
-    batch.setQuantityTotal(total.subtract(wastageQty));
-    finishedGoodBatchRepository.save(batch);
+    batch.setQuantity(batch.getQuantity().subtract(wastageQty));
+    rawMaterialBatchRepository.save(batch);
 
-    semiFinished.adjustStock(wastageQty.negate(), "PACKING_WASTAGE");
-    finishedGoodRepository.save(semiFinished);
-    finishedGoodsService.invalidateWeightedAverageCost(semiFinished.getId());
+    semiFinished.setCurrentStock(
+        semiFinished.getCurrentStock().subtract(wastageQty));
+    rawMaterialRepository.save(semiFinished);
 
-    InventoryMovement issue = new InventoryMovement();
-    issue.setFinishedGood(semiFinished);
-    issue.setFinishedGoodBatch(batch);
+    RawMaterialMovement issue = new RawMaterialMovement();
+    issue.setRawMaterial(semiFinished);
+    issue.setRawMaterialBatch(batch);
     issue.setReferenceType(InventoryReference.PRODUCTION_LOG);
     issue.setReferenceId(log.getProductionCode());
     issue.setMovementType("WASTAGE");
     issue.setQuantity(wastageQty);
-    issue.setUnitCost(batch.getUnitCost());
-    inventoryMovementRepository.save(issue);
+    issue.setUnitCost(batch.getCostPerUnit() != null ? batch.getCostPerUnit() : BigDecimal.ZERO);
+    rawMaterialMovementRepository.save(issue);
+  }
+
+  private RawMaterial lockSemiFinishedMaterial(Company company, ProductionLog log) {
+    String semiSku = packingProductSupport.semiFinishedSku(log.getProduct());
+    return rawMaterialRepository
+        .lockByCompanyAndSkuIgnoreCase(company, semiSku)
+        .orElseThrow(
+            () -> new ApplicationException(
+                ErrorCode.VALIDATION_INVALID_REFERENCE,
+                "Semi-finished SKU "
+                    + semiSku
+                    + " not found for production "
+                    + log.getProductionCode()));
+  }
+
+  private RawMaterialBatch lockSemiFinishedBatch(RawMaterial semiFinished, String productionCode) {
+    return rawMaterialBatchRepository
+        .lockByRawMaterialAndBatchCode(semiFinished, productionCode)
+        .orElseThrow(
+            () -> new ApplicationException(
+                ErrorCode.VALIDATION_INVALID_REFERENCE,
+                "Semi-finished batch " + productionCode + " not found"));
   }
 
   public record SemiFinishedConsumption(
-      FinishedGood semiFinished,
-      FinishedGoodBatch batch,
-      InventoryMovement movement,
-      BigDecimal unitCost) {}
+      RawMaterial semiFinished,
+      RawMaterialBatch batch,
+      RawMaterialMovement movement,
+      BigDecimal unitCost) {
+  }
 }

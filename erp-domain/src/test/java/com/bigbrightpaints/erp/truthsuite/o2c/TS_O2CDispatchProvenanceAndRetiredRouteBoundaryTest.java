@@ -333,7 +333,7 @@ class TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest extends AbstractIntegr
     Dealer dealer = ensureDealer(company, accounts.get("AR"), COMPANY_STATE_CODE);
     FinishedGood finishedGood =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), unitPrice, gstRate);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             finishedGood.getId(),
             "BATCH-" + shortId(),
@@ -525,7 +525,7 @@ class TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest extends AbstractIntegr
             .findByCompanyAndProductCode(company, sku)
             .orElseGet(
                 () -> {
-                  var dto = finishedGoodsService.createFinishedGood(request);
+                  var dto = createFinishedGoodForTest(request);
                   return finishedGoodRepository.findById(dto.id()).orElseThrow();
                 });
     ensureCatalogProduct(company, finishedGood, unitPrice, gstRate);

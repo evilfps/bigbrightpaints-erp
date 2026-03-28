@@ -21,8 +21,8 @@ import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 @Tag("critical")
 class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
 
-  private static final String CATALOG_PRODUCT_ENTRY_PATH = "/api/v1/catalog/items";
-  private static final String CATALOG_PRODUCT_ENTRY_OPERATION = "catalog-product-entry";
+  private static final String CATALOG_ITEM_PATH = "/api/v1/catalog/items";
+  private static final String CATALOG_ITEM_OPERATION = "catalog-item";
   private static final String CATALOG_BULK_VARIANTS_PATH = "/api/v1/catalog/products/bulk-variants";
   private static final String CATALOG_BULK_VARIANTS_OPERATION = "catalog-bulk-variants";
 
@@ -33,7 +33,7 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
     setActiveProfile(handler, "prod");
 
     ApplicationException ex =
-        catalogProductEntryConflictException()
+        catalogItemConflictException()
             .withDetail("generated", List.of(Map.of("sku", "HB-SKU-RED-1L")))
             .withDetail(
                 "conflicts",
@@ -43,7 +43,7 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
             .withDetail("internalLeak", Map.of("sql", "select * from products"));
 
     MockHttpServletRequest canonicalRequest = new MockHttpServletRequest();
-    canonicalRequest.setRequestURI(CATALOG_PRODUCT_ENTRY_PATH + "/");
+    canonicalRequest.setRequestURI(CATALOG_ITEM_PATH + "/");
 
     ResponseEntity<ApiResponse<Map<String, Object>>> canonicalResponse =
         handler.handleApplicationException(ex, canonicalRequest);
@@ -52,14 +52,14 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
     Map<String, Object> canonicalDetails = requireDetails(canonicalResponse);
     assertThat(canonicalDetails)
         .containsOnlyKeys("generated", "conflicts", "wouldCreate", "created", "operation")
-        .containsEntry("operation", CATALOG_PRODUCT_ENTRY_OPERATION)
+        .containsEntry("operation", CATALOG_ITEM_OPERATION)
         .doesNotContainKey("internalLeak");
 
     MockHttpServletRequest prefixedRequest = new MockHttpServletRequest();
     prefixedRequest.setContextPath("/tenant");
     prefixedRequest.setServletPath("/erp");
-    prefixedRequest.setPathInfo(CATALOG_PRODUCT_ENTRY_PATH);
-    prefixedRequest.setRequestURI("/tenant/erp" + CATALOG_PRODUCT_ENTRY_PATH);
+    prefixedRequest.setPathInfo(CATALOG_ITEM_PATH);
+    prefixedRequest.setRequestURI("/tenant/erp" + CATALOG_ITEM_PATH);
 
     ResponseEntity<ApiResponse<Map<String, Object>>> prefixedResponse =
         handler.handleApplicationException(ex, prefixedRequest);
@@ -68,7 +68,7 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
     Map<String, Object> prefixedDetails = requireDetails(prefixedResponse);
     assertThat(prefixedDetails)
         .containsKey("conflicts")
-        .containsEntry("operation", CATALOG_PRODUCT_ENTRY_OPERATION);
+        .containsEntry("operation", CATALOG_ITEM_OPERATION);
   }
 
   @Test
@@ -78,14 +78,14 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
     setActiveProfile(handler, "prod");
 
     ApplicationException wrongOperation =
-        catalogProductEntryConflictException()
+        catalogItemConflictException()
             .withDetail("operation", "catalog-bulk-import")
             .withDetail(
                 "conflicts",
                 List.of(Map.of("sku", "HB-SKU-RED-1L", "reason", "SKU_ALREADY_EXISTS")));
 
     MockHttpServletRequest canonicalRequest = new MockHttpServletRequest();
-    canonicalRequest.setRequestURI(CATALOG_PRODUCT_ENTRY_PATH);
+    canonicalRequest.setRequestURI(CATALOG_ITEM_PATH);
 
     ResponseEntity<ApiResponse<Map<String, Object>>> wrongOperationResponse =
         handler.handleApplicationException(wrongOperation, canonicalRequest);
@@ -93,7 +93,7 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
     assertThat(requireBodyData(wrongOperationResponse)).doesNotContainKey("details");
 
     ApplicationException wrongPath =
-        catalogProductEntryConflictException()
+        catalogItemConflictException()
             .withDetail(
                 "conflicts",
                 List.of(Map.of("sku", "HB-SKU-RED-1L", "reason", "SKU_ALREADY_EXISTS")));
@@ -154,7 +154,7 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
     setActiveProfile(devHandler, "dev");
 
     ApplicationException devException =
-        catalogProductEntryConflictException()
+        catalogItemConflictException()
             .withDetail(
                 "conflicts",
                 List.of(Map.of("sku", "HB-SKU-RED-1L", "reason", "SKU_ALREADY_EXISTS")))
@@ -171,7 +171,7 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
     assertThat(devDetails)
         .containsKey("conflicts")
         .containsKey("internalLeak")
-        .containsEntry("operation", CATALOG_PRODUCT_ENTRY_OPERATION);
+        .containsEntry("operation", CATALOG_ITEM_OPERATION);
 
     GlobalExceptionHandler prodHandler = new GlobalExceptionHandler();
     setActiveProfile(prodHandler, "prod");
@@ -179,9 +179,9 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
     ApplicationException emptyDetails =
         new ApplicationException(
             ErrorCode.CONCURRENCY_CONFLICT,
-            "Catalog product entry has SKU conflicts. Resolve conflicts and retry.");
+            "Catalog item write has SKU conflicts. Resolve conflicts and retry.");
     MockHttpServletRequest matchingRequest = new MockHttpServletRequest();
-    matchingRequest.setRequestURI(CATALOG_PRODUCT_ENTRY_PATH);
+    matchingRequest.setRequestURI(CATALOG_ITEM_PATH);
 
     ResponseEntity<ApiResponse<Map<String, Object>>> prodResponse =
         prodHandler.handleApplicationException(emptyDetails, matchingRequest);
@@ -200,8 +200,8 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
         ReflectionTestUtils.invokeMethod(
             handler,
             "resolveResponseDetails",
-            catalogProductEntryConflictException(),
-            request(CATALOG_PRODUCT_ENTRY_PATH),
+            catalogItemConflictException(),
+            request(CATALOG_ITEM_PATH),
             null);
     assertThat(noDetails).isEmpty();
 
@@ -210,9 +210,9 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
         ReflectionTestUtils.invokeMethod(
             handler,
             "sanitizeCatalogConflictDetails",
-            catalogProductEntryConflictException(),
-            request(CATALOG_PRODUCT_ENTRY_PATH),
-            Map.of("operation", CATALOG_PRODUCT_ENTRY_OPERATION));
+            catalogItemConflictException(),
+            request(CATALOG_ITEM_PATH),
+            Map.of("operation", CATALOG_ITEM_OPERATION));
     assertThat(allowlistedSubset).containsOnlyKeys("operation");
 
     Boolean nullExceptionRejected =
@@ -220,28 +220,28 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
             handler,
             "isCatalogConflictDetailsSafeToExpose",
             null,
-            request(CATALOG_PRODUCT_ENTRY_PATH),
-            Map.of("operation", CATALOG_PRODUCT_ENTRY_OPERATION));
+            request(CATALOG_ITEM_PATH),
+            Map.of("operation", CATALOG_ITEM_OPERATION));
     assertThat(nullExceptionRejected).isFalse();
 
     Boolean nullRequestRejected =
         ReflectionTestUtils.invokeMethod(
             handler,
             "isCatalogConflictDetailsSafeToExpose",
-            catalogProductEntryConflictException(),
+            catalogItemConflictException(),
             null,
-            Map.of("operation", CATALOG_PRODUCT_ENTRY_OPERATION));
+            Map.of("operation", CATALOG_ITEM_OPERATION));
     assertThat(nullRequestRejected).isFalse();
 
     ApplicationException wrongCode =
         new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "invalid")
-            .withDetail("operation", CATALOG_PRODUCT_ENTRY_OPERATION);
+            .withDetail("operation", CATALOG_ITEM_OPERATION);
     Boolean wrongCodeRejected =
         ReflectionTestUtils.invokeMethod(
             handler,
             "isCatalogConflictDetailsSafeToExpose",
             wrongCode,
-            request(CATALOG_PRODUCT_ENTRY_PATH),
+            request(CATALOG_ITEM_PATH),
             wrongCode.getDetails());
     assertThat(wrongCodeRejected).isFalse();
 
@@ -252,8 +252,8 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
 
     String pathInfoFallback =
         ReflectionTestUtils.invokeMethod(
-            handler, "joinServletPathAndPathInfo", "/", CATALOG_PRODUCT_ENTRY_PATH);
-    assertThat(pathInfoFallback).isEqualTo(CATALOG_PRODUCT_ENTRY_PATH);
+            handler, "joinServletPathAndPathInfo", "/", CATALOG_ITEM_PATH);
+    assertThat(pathInfoFallback).isEqualTo(CATALOG_ITEM_PATH);
 
     String emptyUri = ReflectionTestUtils.invokeMethod(handler, "stripContextPath", "", "/tenant");
     assertThat(emptyUri).isEmpty();
@@ -269,20 +269,20 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
 
     Boolean nullPathRejected =
         ReflectionTestUtils.invokeMethod(
-            handler, "matchesEndpointPath", "", CATALOG_PRODUCT_ENTRY_PATH);
+            handler, "matchesEndpointPath", "", CATALOG_ITEM_PATH);
     assertThat(nullPathRejected).isFalse();
 
     Boolean blankEndpointRejected =
         ReflectionTestUtils.invokeMethod(
-            handler, "matchesEndpointPath", "/erp" + CATALOG_PRODUCT_ENTRY_PATH, "");
+            handler, "matchesEndpointPath", "/erp" + CATALOG_ITEM_PATH, "");
     assertThat(blankEndpointRejected).isFalse();
 
     Boolean prefixedPathAccepted =
         ReflectionTestUtils.invokeMethod(
             handler,
             "matchesEndpointPath",
-            "/erp" + CATALOG_PRODUCT_ENTRY_PATH,
-            CATALOG_PRODUCT_ENTRY_PATH);
+            "/erp" + CATALOG_ITEM_PATH,
+            CATALOG_ITEM_PATH);
     assertThat(prefixedPathAccepted).isTrue();
 
     String normalizedWithoutSlash =
@@ -295,14 +295,14 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
     String normalizedTrimmed =
         ReflectionTestUtils.invokeMethod(
             handler, "normalizeEndpointPath", " /api/v1/catalog/items/ ");
-    assertThat(normalizedTrimmed).isEqualTo(CATALOG_PRODUCT_ENTRY_PATH);
+    assertThat(normalizedTrimmed).isEqualTo(CATALOG_ITEM_PATH);
   }
 
-  private static ApplicationException catalogProductEntryConflictException() {
+  private static ApplicationException catalogItemConflictException() {
     return new ApplicationException(
             ErrorCode.CONCURRENCY_CONFLICT,
-            "Catalog product entry has SKU conflicts. Resolve conflicts and retry.")
-        .withDetail("operation", CATALOG_PRODUCT_ENTRY_OPERATION);
+            "Catalog item write has SKU conflicts. Resolve conflicts and retry.")
+        .withDetail("operation", CATALOG_ITEM_OPERATION);
   }
 
   private static ApplicationException catalogBulkVariantConflictException() {

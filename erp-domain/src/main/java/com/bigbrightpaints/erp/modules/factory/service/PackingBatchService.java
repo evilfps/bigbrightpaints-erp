@@ -26,6 +26,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 
 @Service
@@ -35,16 +36,19 @@ public class PackingBatchService {
   private final PackingProductSupport packingProductSupport;
   private final AccountingFacade accountingFacade;
   private final InventoryMovementRepository inventoryMovementRepository;
+  private final RawMaterialMovementRepository rawMaterialMovementRepository;
 
   public PackingBatchService(
       FinishedGoodBatchRegistrar finishedGoodBatchRegistrar,
       PackingProductSupport packingProductSupport,
       AccountingFacade accountingFacade,
-      InventoryMovementRepository inventoryMovementRepository) {
+      InventoryMovementRepository inventoryMovementRepository,
+      RawMaterialMovementRepository rawMaterialMovementRepository) {
     this.finishedGoodBatchRegistrar = finishedGoodBatchRegistrar;
     this.packingProductSupport = packingProductSupport;
     this.accountingFacade = accountingFacade;
     this.inventoryMovementRepository = inventoryMovementRepository;
+    this.rawMaterialMovementRepository = rawMaterialMovementRepository;
   }
 
   public FinishedGoodBatch registerFinishedGoodBatch(
@@ -67,28 +71,15 @@ public class PackingBatchService {
     }
     BigDecimal totalUnitCost = baseUnitCost.add(packagingCostPerUnit);
 
-    boolean bulkBatch =
-        Optional.ofNullable(log.getProduct())
-            .map(ProductionProduct::getSkuCode)
-            .filter(StringUtils::hasText)
-            .map(
-                parentSku ->
-                    packingProductSupport.isMatchingChildSku(
-                            finishedGood.getProductCode(), parentSku)
-                        && parentSku.trim().equalsIgnoreCase(finishedGood.getProductCode()))
-            .orElse(false);
-
     FinishedGoodBatchRegistrar.ReceiptRegistrationResult registrationResult =
         finishedGoodBatchRegistrar.registerReceipt(
             new FinishedGoodBatchRegistrar.ReceiptRegistrationRequest(
                 finishedGood,
-                semiFinished != null ? semiFinished.batch() : null,
                 null,
                 quantity,
                 totalUnitCost,
                 log.getProducedAt(),
                 packedDate,
-                bulkBatch,
                 InventoryBatchSource.PRODUCTION,
                 sizeVariant != null ? sizeVariant.getSizeLabel() : record.getPackagingSize(),
                 InventoryReference.PACKING_RECORD,
@@ -124,8 +115,13 @@ public class PackingBatchService {
     Long wipAccountId = packingProductSupport.requireWipAccountId(log.getProduct());
     Long semiFinishedAccountId =
         semiFinished != null
-            ? semiFinished.semiFinished().getValuationAccountId()
+            ? semiFinished.semiFinished().getInventoryAccountId()
             : packingProductSupport.requireSemiFinishedAccountId(log.getProduct());
+    if (semiFinishedAccountId == null) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_REFERENCE,
+          "Semi-finished account is missing for " + log.getProductionCode());
+    }
 
     Long fgAccountId = finishedGood.getValuationAccountId();
     if (fgAccountId == null) {
@@ -169,7 +165,7 @@ public class PackingBatchService {
     inventoryMovementRepository.save(movement);
     if (semiFinished != null && semiFinished.movement() != null) {
       semiFinished.movement().setJournalEntryId(entry.id());
-      inventoryMovementRepository.save(semiFinished.movement());
+      rawMaterialMovementRepository.save(semiFinished.movement());
     }
   }
 }

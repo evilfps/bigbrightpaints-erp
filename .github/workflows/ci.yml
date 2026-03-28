@@ -30,6 +30,7 @@ on:
 
 env:
   MIGRATION_SET: v2
+  TESTCONTAINERS_RYUK_DISABLED: "true"
 
 jobs:
   knowledgebase-lint:

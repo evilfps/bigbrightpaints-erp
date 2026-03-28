@@ -1,18 +1,17 @@
 # Migration Runbook
 
-## 2026-03-27 — `migration_v2/V170__supplier_outstanding_balance_hard_cut.sql`
+## 2026-03-27 — `migration_v2/V171__drop_finished_good_batch_legacy_bulk_flag.sql`
 
-- **Purpose:** remove the retired supplier-row cached balance (`suppliers.outstanding_balance`) so supplier payable truth is ledger-derived only, and keep settlement as the canonical supplier-money public flow.
-- **Release-guard posture:** this is a hard-cut packet with no compatibility fallback path. Runtime and schema must ship together so no code depends on the dropped column.
-- **Forward plan:** apply `V170__supplier_outstanding_balance_hard_cut.sql`, deploy the ERP-22 backend packet that reads supplier balance only from supplier ledger views, verify settlement-only supplier-money routing, then refresh OpenAPI/docs in the same packet.
+- **Purpose:** remove the retired `finished_good_batches.is_bulk` flag and its supporting index so FG batch storage no longer carries the legacy BULK/semi-finished marker in the canonical inventory model.
+- **Release-guard posture:** this is a hard-cut cleanup migration tied to ERP-23; runtime code in the same packet no longer depends on `is_bulk`, and the change is intentionally fail-fast (no compatibility bridge column retained).
+- **Forward plan:** apply `V171__drop_finished_good_batch_legacy_bulk_flag.sql`, deploy the ERP-23 hard-cut packet together with this migration, and keep the canonical catalog item + FG stock-truth paths as the only live model.
 - **Dry-run commands:**
-  - `cd erp-domain && MIGRATION_SET=v2 mvn -DskipTests test-compile`
-  - `cd erp-domain && DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=AccountingControllerIdempotencyHeaderParityTest,AccountingControllerJournalEndpointsTest,TS_RuntimeAccountingReplayConflictExecutableCoverageTest,TS_P2PPurchaseSettlementBoundaryTest,ReconciliationServiceTest,ProcureToPayE2ETest test`
-  - `cd erp-domain && DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=OpenApiSnapshotIT -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true test`
-  - `bash scripts/guard_openapi_contract_drift.sh`
-  - `bash scripts/guard_accounting_portal_scope_contract.sh`
-  - `bash ci/check-enterprise-policy.sh`
-- **Rollback strategy:** treat `V170` as a coordinated app-and-schema cut. Do not restore supplier-row balance cache or legacy public supplier-payment routes. If rollback is required after execution, restore tenant/database from a pre-`V170` snapshot/PITR and redeploy the pre-cut backend as one unit.
+  - `cd erp-domain && mvn -Dtest=GlobalExceptionHandlerTest,TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest,OpeningStockPostingRegressionIT,ProductionCatalogFinishedGoodInvariantIT,ProductionCatalogRawMaterialInvariantIT,ProductionCatalogDiscountDefaultRegressionIT,CR_CatalogImportDeterminismIT test`
+  - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-23-fg-stock-truth && bash scripts/guard_openapi_contract_drift.sh`
+  - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-23-fg-stock-truth && bash scripts/guard_legacy_migration_freeze.sh`
+  - `cd erp-domain && mvn -Pgate-fast -Djacoco.skip=true test`
+  - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-23-fg-stock-truth && git diff --check`
+- **Rollback strategy:** treat `V171` as a coordinated app-and-schema cut. Do not redeploy pre-ERP-23 code against a database where `is_bulk` is dropped. If rollback is required, prefer restoring a pre-`V171` snapshot/PITR; emergency SQL backfill to re-add `is_bulk` is only for short-term recovery when snapshot restore is unavailable.
 
 ## 2026-03-27 — `migration_v2/V168__auth_v2_scoped_accounts.sql` + `migration_v2/V169__auth_v2_single_company_account.sql`
 
@@ -71,7 +70,7 @@
 - **Dry-run commands:**
   - `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -DskipTests test-compile`
   - `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -Dtest='RawMaterialControllerTest,OpeningStockImportServiceTest,ProductionCatalogServiceCanonicalEntryTest,CR_CatalogImportDeterminismIT,ProductionCatalogDiscountDefaultRegressionIT,ProductionCatalogFinishedGoodInvariantIT,ProductionCatalogRawMaterialInvariantIT,AccountingCatalogControllerSecurityIT,CatalogControllerCanonicalProductIT' test`
-  - `export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock; mvn -B -ntp -Dtest='OpenApiSnapshotIT,AccountingCatalogControllerSecurityIT,CompanyControllerIT,TenantOnboardingControllerTest,AuthTenantAuthorityIT#admin_cannot_bootstrap_new_tenant+super_admin_can_bootstrap_new_tenant+super_admin_can_bootstrap_new_tenant_with_first_admin_credentials_provisioning,GlobalExceptionHandlerTest,OpeningStockPostingRegressionIT,OpeningStockImportControllerTest,OpeningStockImportServiceTest,TenantOnboardingServiceTest,CatalogServiceCanonicalCoverageTest,CatalogServiceProductCrudTest,ProductionCatalogServiceCanonicalEntryTest,ProductionCatalogServiceBulkVariantRaceTest,SkuReadinessServiceTest' test`
+  - `export DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock; mvn -B -ntp -Dtest='OpenApiSnapshotIT,AccountingCatalogControllerSecurityIT,CompanyControllerIT,TenantOnboardingControllerTest,AuthTenantAuthorityIT#admin_cannot_bootstrap_new_tenant+super_admin_can_bootstrap_new_tenant+super_admin_can_bootstrap_new_tenant_with_first_admin_credentials_provisioning,GlobalExceptionHandlerTest,OpeningStockPostingRegressionIT,OpeningStockImportControllerTest,OpeningStockImportServiceTest,TenantOnboardingServiceTest,ProductionCatalogServiceCanonicalEntryTest,ProductionCatalogServiceBulkVariantRaceTest,SkuReadinessServiceTest' test`
   - `python3 scripts/changed_files_coverage.py --jacoco erp-domain/target/site/jacoco/jacoco.xml --diff-base origin/main`
 - **Rollback strategy:** if the packet must be reverted before merge, deploy the previous backend build first, then execute `DROP INDEX IF EXISTS uq_opening_stock_imports_company_replay_key; ALTER TABLE public.opening_stock_imports DROP COLUMN IF EXISTS replay_protection_key; ALTER TABLE public.opening_stock_imports DROP COLUMN IF EXISTS results_json;` in the same maintenance window so reverted code does not inherit persisted row-result payloads or replay keys it does not serve.
 
@@ -81,7 +80,7 @@
 - **Forward plan:** add nullable `variant_group_id` and `product_family_name` to `production_products`, create the `(company_id, variant_group_id)` lookup index, refresh the OpenAPI snapshot, and only then expose the canonical product/import paths that depend on the new schema.
 - **Dry-run commands:**
   - `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -Djacoco.skip=true -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true -Dtest=OpenApiSnapshotIT test`
-  - `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -Djacoco.skip=true -Dtest=OpenApiSnapshotIT,CatalogServiceProductCrudTest,CatalogControllerCanonicalProductIT,AccountingCatalogControllerSecurityIT test`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -B -ntp -Djacoco.skip=true -Dtest=OpenApiSnapshotIT,CatalogControllerCanonicalProductIT,AccountingCatalogControllerSecurityIT test`
 - **Rollback strategy:** if the packet must be reverted before merge, redeploy the previous backend build first, then execute `DROP INDEX IF EXISTS idx_production_products_company_variant_group; ALTER TABLE public.production_products DROP COLUMN IF EXISTS variant_group_id; ALTER TABLE public.production_products DROP COLUMN IF EXISTS product_family_name;` in the same maintenance window so reverted code does not inherit partially populated variant-group metadata.
 
 ## 2026-03-17 — `migration_v2/V162__password_reset_token_delivery_tracking.sql`

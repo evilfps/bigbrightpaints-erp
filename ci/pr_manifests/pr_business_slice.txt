@@ -5,11 +5,9 @@ com.bigbrightpaints.erp.codered.CR_CatalogImportConcurrencyIT
 com.bigbrightpaints.erp.codered.CR_CatalogImportDeterminismIT
 com.bigbrightpaints.erp.codered.CR_CatalogImportIdempotencyIT
 com.bigbrightpaints.erp.modules.production.controller.CatalogControllerCanonicalProductIT
-com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryRequestTest
+com.bigbrightpaints.erp.modules.production.service.CatalogServiceBrandCrudTest
 com.bigbrightpaints.erp.modules.production.service.CatalogServiceBulkUpsertTest
-com.bigbrightpaints.erp.modules.production.service.CatalogServiceCanonicalCoverageTest
-com.bigbrightpaints.erp.modules.production.service.CatalogServiceProductCrudTest
-com.bigbrightpaints.erp.modules.production.service.ProductionCatalogServiceCanonicalEntryTest
+com.bigbrightpaints.erp.modules.production.service.ProductionCatalogServiceBulkVariantRaceTest
 com.bigbrightpaints.erp.core.util.CompanyEntityLookupTest
 com.bigbrightpaints.erp.modules.factory.service.BulkPackingCostServiceTest
 com.bigbrightpaints.erp.modules.factory.controller.PackagingMappingControllerTest
@@ -17,10 +15,15 @@ com.bigbrightpaints.erp.modules.factory.controller.PackingControllerTest
 com.bigbrightpaints.erp.modules.factory.service.FactoryServiceTest
 com.bigbrightpaints.erp.modules.factory.service.PackingAllowedSizeServiceTest
 com.bigbrightpaints.erp.modules.factory.service.PackingIdempotencyServiceTest
+com.bigbrightpaints.erp.modules.factory.service.PackingInventoryServiceTest
+com.bigbrightpaints.erp.modules.factory.service.PackingBatchServiceTest
 com.bigbrightpaints.erp.modules.factory.service.PackingReadServiceTest
 com.bigbrightpaints.erp.modules.factory.service.PackingServiceTest
+com.bigbrightpaints.erp.modules.factory.service.ProductionLogServiceCostingFallbackTest
 com.bigbrightpaints.erp.modules.factory.service.PackagingMaterialServiceTest
 com.bigbrightpaints.erp.modules.factory.service.BulkPackingServiceTest
+com.bigbrightpaints.erp.modules.factory.service.BulkPackingReadServiceTest
+com.bigbrightpaints.erp.modules.factory.service.BulkPackingInventoryServiceTest
 com.bigbrightpaints.erp.modules.factory.service.BulkPackingServiceIdempotencyTest
 com.bigbrightpaints.erp.regression.ProductionLogPackingStatusRegressionIT
 com.bigbrightpaints.erp.regression.ProductionCatalogFinishedGoodInvariantIT
@@ -48,6 +51,7 @@ DeliveryChallanPdfServiceTest
 FinishedGoodsDispatchEngineCoverageTest
 FinishedGoodsReservationEngineTest
 FinishedGoodsServiceTest
+com.bigbrightpaints.erp.modules.inventory.service.InventoryBatchTraceabilityServiceTest
 InventoryValuationServiceTest
 com.bigbrightpaints.erp.modules.inventory.RawMaterialAndProductUpdateIT
 com.bigbrightpaints.erp.modules.inventory.controller.FinishedGoodControllerTest

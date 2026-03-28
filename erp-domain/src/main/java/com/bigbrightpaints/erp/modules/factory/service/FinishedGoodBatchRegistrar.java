@@ -68,13 +68,11 @@ public class FinishedGoodBatchRegistrar {
   private FinishedGoodBatch createBatch(ReceiptRegistrationRequest request) {
     FinishedGoodBatch batch = new FinishedGoodBatch();
     batch.setFinishedGood(request.finishedGood());
-    batch.setParentBatch(request.parentBatch());
     batch.setBatchCode(resolveBatchCode(request));
     batch.setQuantityTotal(request.quantity());
     batch.setQuantityAvailable(request.quantity());
     batch.setUnitCost(request.unitCost());
     batch.setManufacturedAt(request.manufacturedAt());
-    batch.setBulk(request.bulk());
     batch.setSource(Optional.ofNullable(request.source()).orElse(InventoryBatchSource.PRODUCTION));
     batch.setSizeLabel(request.sizeLabel());
     return batch;
@@ -90,13 +88,11 @@ public class FinishedGoodBatchRegistrar {
 
   public record ReceiptRegistrationRequest(
       FinishedGood finishedGood,
-      FinishedGoodBatch parentBatch,
       String batchCode,
       BigDecimal quantity,
       BigDecimal unitCost,
       Instant manufacturedAt,
       LocalDate batchDate,
-      boolean bulk,
       InventoryBatchSource source,
       String sizeLabel,
       String referenceType,

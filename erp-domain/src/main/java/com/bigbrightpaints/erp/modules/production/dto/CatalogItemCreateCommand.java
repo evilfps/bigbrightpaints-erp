@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.validation.constraints.NotBlank;
 
-public record ProductCreateRequest(
+public record CatalogItemCreateCommand(
     Long brandId,
     String brandName,
     String brandCode,
@@ -25,7 +25,7 @@ public record ProductCreateRequest(
     BigDecimal minSellingPrice,
     Map<String, Object> metadata,
     Boolean active) {
-  public ProductCreateRequest(
+  public CatalogItemCreateCommand(
       Long brandId,
       String brandName,
       String brandCode,

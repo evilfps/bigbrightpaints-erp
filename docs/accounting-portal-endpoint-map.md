@@ -167,18 +167,17 @@ Portal finance drill-ins stay on `/api/v1/portal/finance/*` for admin/accounting
 | `GET /api/v1/raw-materials/stock/inventory` | list-view; req: -; opt: -; states: loading, error, success, empty | path=-; query=-; body=none; ct=- | ok 200; err - |
 | `GET /api/v1/raw-materials/stock/low-stock` | list-view; req: -; opt: -; states: loading, error, success, empty | path=-; query=-; body=none; ct=- | ok 200; err - |
 
-### finished-good-controller (8)
+### finished-good-controller (7)
 
 | Endpoint | Frontend should put | Backend expects | Returns |
 |---|---|---|---|
 | `GET /api/v1/finished-goods` | list-view; req: -; opt: -; states: loading, error, success, empty | path=-; query=-; body=none; ct=- | ok 200; err - |
-| `POST /api/v1/finished-goods` | create-form; req: name (body), productCode (body); opt: cogsAccountId (body), costingMethod (body), discountAccountId (body), revenueAccountId (body), taxAccountId (body), unit (body), valuationAccountId (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err - |
 | `GET /api/v1/finished-goods/low-stock` | list-view; req: -; opt: threshold (query); states: loading, error, success, empty | path=-; query=threshold; body=none; ct=- | ok 200; err - |
 | `GET /api/v1/finished-goods/stock-summary` | list-view; req: -; opt: -; states: loading, error, success, empty | path=-; query=-; body=none; ct=- | ok 200; err - |
 | `GET /api/v1/finished-goods/{id}` | detail-view; req: id (path); opt: -; states: loading, error, success, empty | path=id; query=-; body=none; ct=- | ok 200; err - |
-| `PUT /api/v1/finished-goods/{id}` | edit-form; req: id (path), name (body), productCode (body); opt: cogsAccountId (body), costingMethod (body), discountAccountId (body), revenueAccountId (body), taxAccountId (body), unit (body), valuationAccountId (body); states: loading, error, success | path=id; query=-; body=required; ct=application/json | ok 200; err - |
 | `GET /api/v1/finished-goods/{id}/batches` | detail-view; req: id (path); opt: -; states: loading, error, success, empty | path=id; query=-; body=none; ct=- | ok 200; err - |
-| `POST /api/v1/finished-goods/{id}/batches` | create-form; req: finishedGoodId (body), id (path), quantity (body), unitCost (body); opt: batchCode (body), expiryDate (body), manufacturedAt (body); states: loading, error, success | path=id; query=-; body=required; ct=application/json | ok 200; err - |
+| `GET /api/v1/finished-goods/{id}/low-stock-threshold` | detail-view; req: id (path); opt: -; states: loading, error, success, empty | path=id; query=-; body=none; ct=- | ok 200; err - |
+| `PUT /api/v1/finished-goods/{id}/low-stock-threshold` | edit-form; req: id (path), threshold (body); opt: -; states: loading, error, success | path=id; query=-; body=required; ct=application/json | ok 200; err - |
 
 ### inventory-adjustment-controller (2)
 

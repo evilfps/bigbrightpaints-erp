@@ -81,7 +81,7 @@ class CR_SalesDispatchInvoiceAccounting extends AbstractIntegrationTest {
 
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-1",
@@ -155,7 +155,7 @@ class CR_SalesDispatchInvoiceAccounting extends AbstractIntegrationTest {
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(
             company, accounts, "FG-" + shortId(), new BigDecimal("18.00"));
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-BO",
@@ -288,7 +288,7 @@ class CR_SalesDispatchInvoiceAccounting extends AbstractIntegrationTest {
 
     FinishedGood fg =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg.getId(),
             "BATCH-CONC",
@@ -517,7 +517,7 @@ class CR_SalesDispatchInvoiceAccounting extends AbstractIntegrationTest {
             .findByCompanyAndProductCode(company, sku)
             .orElseGet(
                 () -> {
-                  var dto = finishedGoodsService.createFinishedGood(req);
+                  var dto = createFinishedGoodForTest(req);
                   return finishedGoodRepository.findById(dto.id()).orElseThrow();
                 });
     ensureCatalogProduct(company, fg, gstRate);

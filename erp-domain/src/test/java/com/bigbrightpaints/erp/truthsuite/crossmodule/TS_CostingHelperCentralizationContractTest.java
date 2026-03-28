@@ -21,8 +21,6 @@ class TS_CostingHelperCentralizationContractTest {
       "src/main/java/com/bigbrightpaints/erp/modules/factory/service/PackagingMaterialService.java";
   private static final String PRODUCTION_LOG_SERVICE =
       "src/main/java/com/bigbrightpaints/erp/modules/factory/service/ProductionLogService.java";
-  private static final String BULK_PACKING_SERVICE =
-      "src/main/java/com/bigbrightpaints/erp/modules/factory/service/BulkPackingService.java";
   private static final String INVENTORY_VALUATION_SERVICE =
       "src/main/java/com/bigbrightpaints/erp/modules/reports/service/InventoryValuationService.java";
 
@@ -49,8 +47,6 @@ class TS_CostingHelperCentralizationContractTest {
         PACKAGING_MATERIAL_SERVICE, "CostingMethodUtils.selectWeightedAverageValue(");
     TruthSuiteFileAssert.assertContains(
         PRODUCTION_LOG_SERVICE, "CostingMethodUtils.selectWeightedAverageValue(");
-    TruthSuiteFileAssert.assertContains(
-        BULK_PACKING_SERVICE, "CostingMethodUtils.selectWeightedAverageValue(");
   }
 
   @Test
@@ -61,7 +57,6 @@ class TS_CostingHelperCentralizationContractTest {
     assertNoLocalWeightedAverageHelper(INVENTORY_VALUATION_SERVICE);
     assertNoLocalWeightedAverageHelper(PACKAGING_MATERIAL_SERVICE);
     assertNoLocalWeightedAverageHelper(PRODUCTION_LOG_SERVICE);
-    assertNoLocalWeightedAverageHelper(BULK_PACKING_SERVICE);
   }
 
   private void assertNoLocalWeightedAverageHelper(String relativePath) {

@@ -3,7 +3,7 @@ package com.bigbrightpaints.erp.modules.production.dto;
 import java.math.BigDecimal;
 import java.util.Map;
 
-public record ProductUpdateRequest(
+public record CatalogItemUpdateCommand(
     String productName,
     String category,
     String itemClass,

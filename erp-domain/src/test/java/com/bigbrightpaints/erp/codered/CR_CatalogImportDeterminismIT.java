@@ -24,7 +24,7 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandReposito
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogImportResponse;
-import com.bigbrightpaints.erp.modules.production.dto.ProductCreateRequest;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemCreateCommand;
 import com.bigbrightpaints.erp.modules.production.service.ProductionCatalogService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 
@@ -81,8 +81,8 @@ class CR_CatalogImportDeterminismIT extends AbstractIntegrationTest {
     brand = brandRepository.save(brand);
 
     CompanyContextHolder.setCompanyCode(companyB.getCode());
-    ProductCreateRequest request =
-        new ProductCreateRequest(
+    CatalogItemCreateCommand request =
+        new CatalogItemCreateCommand(
             brand.getId(),
             null,
             null,
@@ -100,7 +100,7 @@ class CR_CatalogImportDeterminismIT extends AbstractIntegrationTest {
             null,
             null);
 
-    assertThatThrownBy(() -> productionCatalogService.createProduct(request))
+    assertThatThrownBy(() -> productionCatalogService.createCatalogItem(request))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Production brand not found");
     CompanyContextHolder.clear();

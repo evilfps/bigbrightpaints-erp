@@ -24,13 +24,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.core.env.Environment;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
-import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.accounting.service.CostingMethodService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -58,7 +56,6 @@ import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 class TS_InventoryDispatchStateRuntimeCoverageTest {
 
   @Mock private CompanyContextService companyContextService;
-  @Mock private CompanyEntityLookup companyEntityLookup;
   @Mock private FinishedGoodRepository finishedGoodRepository;
   @Mock private FinishedGoodBatchRepository finishedGoodBatchRepository;
   @Mock private PackagingSlipRepository packagingSlipRepository;
@@ -66,12 +63,10 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
   @Mock private InventoryReservationRepository inventoryReservationRepository;
   @Mock private BatchNumberService batchNumberService;
   @Mock private SalesOrderRepository salesOrderRepository;
-  @Mock private CompanyDefaultAccountsService companyDefaultAccountsService;
   @Mock private CostingMethodService costingMethodService;
   @Mock private GstService gstService;
   @Mock private ApplicationEventPublisher eventPublisher;
   @Mock private CompanyClock companyClock;
-  @Mock private Environment environment;
 
   private FinishedGoodsWorkflowEngineService service;
   private Company company;
@@ -82,7 +77,6 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
     service =
         new FinishedGoodsWorkflowEngineService(
             companyContextService,
-            companyEntityLookup,
             finishedGoodRepository,
             finishedGoodBatchRepository,
             packagingSlipRepository,
@@ -90,13 +84,10 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
             inventoryReservationRepository,
             batchNumberService,
             salesOrderRepository,
-            companyDefaultAccountsService,
             costingMethodService,
             gstService,
             eventPublisher,
-            companyClock,
-            environment,
-            false);
+            companyClock);
 
     company = new Company();
     setId(company, 1L);
@@ -131,30 +122,6 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
               }
               return slip;
             });
-  }
-
-  @Test
-  void lockFinishedGood_requiresActiveLinkedProduct() {
-    FinishedGood finishedGood = new FinishedGood();
-    ReflectionTestUtils.setField(finishedGood, "id", 901L);
-    finishedGood.setCompany(company);
-    finishedGood.setProductCode("FG-901");
-    when(companyEntityLookup.lockActiveFinishedGood(company, 901L)).thenReturn(finishedGood);
-
-    FinishedGood locked = ReflectionTestUtils.invokeMethod(service, "lockFinishedGood", 901L);
-
-    assertThat(locked).isSameAs(finishedGood);
-    verify(companyEntityLookup).lockActiveFinishedGood(company, 901L);
-  }
-
-  @Test
-  void lockFinishedGood_rejectsInactiveLinkedProduct() {
-    when(companyEntityLookup.lockActiveFinishedGood(company, 902L))
-        .thenThrow(new IllegalArgumentException("inactive"));
-
-    assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "lockFinishedGood", 902L))
-        .isInstanceOf(RuntimeException.class)
-        .hasMessageContaining("Finished good not found");
   }
 
   @Test
@@ -265,6 +232,95 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
     verify(packagingSlipRepository).saveAndFlush(any(PackagingSlip.class));
   }
 
+  @Test
+  void listFinishedGoods_includesAllFinishedGoodsFromRepository() {
+    FinishedGood sellable = finishedGood(901L, "FG-SELL-1L", "Sellable");
+    FinishedGood alternateSellable = finishedGood(902L, "FG-SELL-10L", "Sellable");
+
+    when(finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company))
+        .thenReturn(List.of(alternateSellable, sellable));
+
+    assertThat(service.listFinishedGoods()).hasSize(2);
+    assertThat(service.listFinishedGoods())
+        .extracting(item -> item.productCode())
+        .containsExactly("FG-SELL-10L", "FG-SELL-1L");
+  }
+
+  @Test
+  void getFinishedGood_returnsRecordForPersistedSku() {
+    FinishedGood finishedGood = finishedGood(903L, "FG-LOOKUP-4L", "Sellable");
+    when(finishedGoodRepository.findByCompanyAndId(company, 903L))
+        .thenReturn(Optional.of(finishedGood));
+
+    assertThat(service.getFinishedGood(903L).productCode()).isEqualTo("FG-LOOKUP-4L");
+  }
+
+  @Test
+  void lockFinishedGoodByProductCode_returnsPersistedSkuWhenRepositoryResolvesIt() {
+    FinishedGood finishedGood = finishedGood(908L, "FG-LOCK-4L", "Sellable");
+    when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-LOCK-4L"))
+        .thenReturn(Optional.of(finishedGood));
+
+    FinishedGood locked = service.lockFinishedGoodByProductCode("FG-LOCK-4L");
+
+    assertThat(locked).isSameAs(finishedGood);
+  }
+
+  @Test
+  void lockFinishedGoodByProductCode_returnsSellableSku() {
+    FinishedGood sellable = finishedGood(906L, "FG-LOCK-1L", "Sellable");
+    when(finishedGoodRepository.lockByCompanyAndProductCode(company, "FG-LOCK-1L"))
+        .thenReturn(Optional.of(sellable));
+
+    FinishedGood locked = service.lockFinishedGoodByProductCode("FG-LOCK-1L");
+
+    assertThat(locked).isSameAs(sellable);
+  }
+
+  @Test
+  void listBatchesForFinishedGood_returnsBatchesForSellableSku() {
+    FinishedGood sellable = finishedGood(907L, "FG-BATCH-1L", "Sellable");
+    FinishedGoodBatch batch = new FinishedGoodBatch();
+    setId(batch, 1907L);
+    batch.setFinishedGood(sellable);
+    batch.setBatchCode("FG-BATCH-907");
+    batch.setQuantityTotal(new BigDecimal("4"));
+    batch.setQuantityAvailable(new BigDecimal("4"));
+    batch.setUnitCost(new BigDecimal("8"));
+
+    when(finishedGoodRepository.findByCompanyAndId(company, 907L)).thenReturn(Optional.of(sellable));
+    when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(sellable))
+        .thenReturn(List.of(batch));
+
+    assertThat(service.listBatchesForFinishedGood(907L)).hasSize(1);
+    assertThat(service.listBatchesForFinishedGood(907L).getFirst().batchCode())
+        .isEqualTo("FG-BATCH-907");
+  }
+
+  @Test
+  void getLowStockThreshold_returnsValueForExistingFinishedGood() {
+    FinishedGood finishedGood = finishedGood(904L, "FG-LOW-4L", "Sellable");
+    finishedGood.setLowStockThreshold(new BigDecimal("7"));
+    when(finishedGoodRepository.findByCompanyAndId(company, 904L))
+        .thenReturn(Optional.of(finishedGood));
+
+    assertThat(service.getLowStockThreshold(904L).threshold())
+        .isEqualByComparingTo(new BigDecimal("7"));
+  }
+
+  @Test
+  void updateLowStockThreshold_updatesExistingFinishedGood() {
+    FinishedGood finishedGood = finishedGood(905L, "FG-LOW-UPDATE-4L", "Sellable");
+    when(finishedGoodRepository.lockByCompanyAndId(company, 905L))
+        .thenReturn(Optional.of(finishedGood));
+    when(finishedGoodRepository.save(any(FinishedGood.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    assertThat(service.updateLowStockThreshold(905L, BigDecimal.ONE).threshold())
+        .isEqualByComparingTo(BigDecimal.ONE);
+    verify(finishedGoodRepository).save(finishedGood);
+  }
+
   private Fixture fixture(BigDecimal currentStock, BigDecimal reservedStock, BigDecimal quantity) {
     SalesOrder order = new SalesOrder();
     setId(order, 101L);
@@ -342,6 +398,21 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
 
   private static void setId(Object target, Long id) {
     ReflectionTestUtils.setField(target, "id", id);
+  }
+
+  private FinishedGood finishedGood(Long id, String productCode, String name) {
+    FinishedGood fg = new FinishedGood();
+    setId(fg, id);
+    fg.setCompany(company);
+    fg.setProductCode(productCode);
+    fg.setName(name);
+    fg.setUnit("L");
+    fg.setCostingMethod("FIFO");
+    fg.setCurrentStock(new BigDecimal("10"));
+    fg.setReservedStock(BigDecimal.ZERO);
+    fg.setValuationAccountId(111L);
+    fg.setCogsAccountId(222L);
+    return fg;
   }
 
   private static <T> List<T> toList(Iterable<T> values) {

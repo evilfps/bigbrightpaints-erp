@@ -95,7 +95,7 @@ flowchart LR
 - retired execution hosts must stay retired:
   - `/api/v1/factory/production-batches`
   - `/api/v1/factory/pack`
-  - `/api/v1/dispatch/confirm`
+  - `/api/v1/sales/dispatch/confirm`
 - `/api/v1/dispatch/**` is operational lookup only and must not be described as a second write surface
 
 ## Review Hotspots

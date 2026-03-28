@@ -57,14 +57,6 @@ public class FinishedGoodBatch extends VersionedEntity {
   @Column(name = "source", nullable = false)
   private InventoryBatchSource source = InventoryBatchSource.PRODUCTION;
 
-  // Bulk-to-size packaging: links child batches to parent bulk batch
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "parent_batch_id")
-  private FinishedGoodBatch parentBatch;
-
-  @Column(name = "is_bulk")
-  private boolean bulk = false;
-
   @Column(name = "size_label")
   private String sizeLabel; // e.g., "1L", "4L", "20L"
 
@@ -174,22 +166,6 @@ public class FinishedGoodBatch extends VersionedEntity {
 
   public void setSource(InventoryBatchSource source) {
     this.source = source == null ? InventoryBatchSource.PRODUCTION : source;
-  }
-
-  public FinishedGoodBatch getParentBatch() {
-    return parentBatch;
-  }
-
-  public void setParentBatch(FinishedGoodBatch parentBatch) {
-    this.parentBatch = parentBatch;
-  }
-
-  public boolean isBulk() {
-    return bulk;
-  }
-
-  public void setBulk(boolean bulk) {
-    this.bulk = bulk;
   }
 
   public String getSizeLabel() {

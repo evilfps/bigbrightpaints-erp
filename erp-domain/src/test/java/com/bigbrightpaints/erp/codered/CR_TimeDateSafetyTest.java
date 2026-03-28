@@ -98,7 +98,7 @@ class CR_TimeDateSafetyTest extends AbstractIntegrationTest {
         ensureFinishedGood(
             company, bank.getId(), bank.getId(), expense.getId(), expense.getId(), expense.getId());
     var batchDto =
-        finishedGoodsService.registerBatch(
+        registerFinishedGoodBatchForTest(
             new FinishedGoodBatchRequest(
                 fg.getId(),
                 "BATCH-" + shortId(),
@@ -184,7 +184,7 @@ class CR_TimeDateSafetyTest extends AbstractIntegrationTest {
         .findByCompanyAndProductCode(company, sku)
         .orElseGet(
             () -> {
-              var dto = finishedGoodsService.createFinishedGood(req);
+              var dto = createFinishedGoodForTest(req);
               return finishedGoodRepository.findById(dto.id()).orElseThrow();
             });
   }

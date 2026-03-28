@@ -47,22 +47,6 @@ public class FinishedGoodController {
     return ResponseEntity.ok(ApiResponse.success("Finished good batches", batches));
   }
 
-  @PostMapping("/{id}/batches")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY')")
-  public ResponseEntity<ApiResponse<FinishedGoodBatchDto>> registerBatch(
-      @PathVariable Long id, @Valid @RequestBody FinishedGoodBatchRequest request) {
-    FinishedGoodBatchRequest effectiveRequest =
-        new FinishedGoodBatchRequest(
-            id,
-            request.batchCode(),
-            request.quantity(),
-            request.unitCost(),
-            request.manufacturedAt(),
-            request.expiryDate());
-    FinishedGoodBatchDto batch = finishedGoodsService.registerBatch(effectiveRequest);
-    return ResponseEntity.ok(ApiResponse.success("Finished good batch registered", batch));
-  }
-
   @GetMapping("/stock-summary")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<List<StockSummaryDto>>> getStockSummary() {

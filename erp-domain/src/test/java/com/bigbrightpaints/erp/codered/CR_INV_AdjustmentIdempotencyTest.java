@@ -565,7 +565,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
             .findByCompanyAndProductCode(company, sku)
             .orElseGet(
                 () -> {
-                  var dto = finishedGoodsService.createFinishedGood(request);
+                  var dto = createFinishedGoodForTest(request);
                   return finishedGoodRepository.findById(dto.id()).orElseThrow();
                 });
     CompanyContextHolder.clear();
@@ -575,7 +575,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
   private void seedBatch(
       Company company, FinishedGood finishedGood, BigDecimal quantity, BigDecimal unitCost) {
     CompanyContextHolder.setCompanyCode(company.getCode());
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             finishedGood.getId(), "BATCH-" + shortId(), quantity, unitCost, Instant.now(), null));
     CompanyContextHolder.clear();
@@ -591,7 +591,7 @@ class CR_INV_AdjustmentIdempotencyTest extends AbstractIntegrationTest {
       LocalDate expiryDate) {
     CompanyContextHolder.setCompanyCode(company.getCode());
     try {
-      finishedGoodsService.registerBatch(
+      registerFinishedGoodBatchForTest(
           new FinishedGoodBatchRequest(
               finishedGood.getId(), batchCode, quantity, unitCost, manufacturedAt, expiryDate));
       return finishedGoodBatchRepository

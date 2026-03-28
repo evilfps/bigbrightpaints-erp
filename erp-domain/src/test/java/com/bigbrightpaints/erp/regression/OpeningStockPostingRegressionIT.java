@@ -38,8 +38,7 @@ import com.bigbrightpaints.erp.modules.inventory.dto.OpeningStockImportResponse;
 import com.bigbrightpaints.erp.modules.inventory.service.OpeningStockImportService;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
-import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryRequest;
-import com.bigbrightpaints.erp.modules.production.dto.CatalogProductEntryResponse;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemCreateCommand;
 import com.bigbrightpaints.erp.modules.production.service.ProductionCatalogService;
 import com.bigbrightpaints.erp.modules.reports.dto.ReconciliationSummaryDto;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
@@ -187,43 +186,47 @@ class OpeningStockPostingRegressionIT extends AbstractIntegrationTest {
   }
 
   private String createCatalogRawMaterialSku() {
-    CatalogProductEntryRequest request = new CatalogProductEntryRequest();
-    request.setBrandId(saveBrand("LF021 Raw Material").getId());
-    request.setBaseProductName("Opening Resin");
-    request.setCategory("RAW_MATERIAL");
-    request.setItemClass("RAW_MATERIAL");
-    request.setUnitOfMeasure("KG");
-    request.setHsnCode("320611");
-    request.setGstRate(new BigDecimal("18.00"));
-    request.setBasePrice(new BigDecimal("500.00"));
-    request.setMinDiscountPercent(BigDecimal.ZERO);
-    request.setMinSellingPrice(new BigDecimal("500.00"));
-    request.setColors(List.of("NATURAL"));
-    request.setSizes(List.of("25KG"));
-    request.setMetadata(Map.of("inventoryAccountId", inventoryAccount.getId()));
-    CatalogProductEntryResponse response =
-        productionCatalogService.createOrPreviewCatalogProducts(request, false);
-    return response.members().getFirst().sku();
+    CatalogItemCreateCommand request =
+        new CatalogItemCreateCommand(
+            saveBrand("LF021 Raw Material").getId(),
+            null,
+            null,
+            "Opening Resin Natural 25KG",
+            "RAW_MATERIAL",
+            "RAW_MATERIAL",
+            "NATURAL",
+            "25KG",
+            "KG",
+            "320611",
+            null,
+            new BigDecimal("500.00"),
+            new BigDecimal("18.00"),
+            BigDecimal.ZERO,
+            new BigDecimal("500.00"),
+            Map.of("inventoryAccountId", inventoryAccount.getId()));
+    return productionCatalogService.createCatalogItem(request).skuCode();
   }
 
   private String createCatalogFinishedGoodSku() {
-    CatalogProductEntryRequest request = new CatalogProductEntryRequest();
-    request.setBrandId(saveBrand("LF021 Finished Good").getId());
-    request.setBaseProductName("Opening Paint");
-    request.setCategory("FINISHED_GOOD");
-    request.setItemClass("FINISHED_GOOD");
-    request.setUnitOfMeasure("LITER");
-    request.setHsnCode("320910");
-    request.setGstRate(new BigDecimal("18.00"));
-    request.setBasePrice(new BigDecimal("1200.00"));
-    request.setMinDiscountPercent(new BigDecimal("5.00"));
-    request.setMinSellingPrice(new BigDecimal("1140.00"));
-    request.setColors(List.of("WHITE"));
-    request.setSizes(List.of("1L"));
-    request.setMetadata(Map.of("wipAccountId", wipAccount.getId()));
-    CatalogProductEntryResponse response =
-        productionCatalogService.createOrPreviewCatalogProducts(request, false);
-    return response.members().getFirst().sku();
+    CatalogItemCreateCommand request =
+        new CatalogItemCreateCommand(
+            saveBrand("LF021 Finished Good").getId(),
+            null,
+            null,
+            "Opening Paint White 1L",
+            "FINISHED_GOOD",
+            "FINISHED_GOOD",
+            "WHITE",
+            "1L",
+            "LITER",
+            "320910",
+            null,
+            new BigDecimal("1200.00"),
+            new BigDecimal("18.00"),
+            new BigDecimal("5.00"),
+            new BigDecimal("1140.00"),
+            Map.of("wipAccountId", wipAccount.getId()));
+    return productionCatalogService.createCatalogItem(request).skuCode();
   }
 
   private ProductionBrand saveBrand(String name) {

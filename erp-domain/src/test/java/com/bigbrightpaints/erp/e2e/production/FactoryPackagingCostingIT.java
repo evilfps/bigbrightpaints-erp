@@ -294,35 +294,44 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
             company, InventoryReference.PRODUCTION_LOG, productionCode);
     assertThat(rmMovements).isNotEmpty();
     assertThat(rmMovements)
-        .allMatch(movement -> rmJournal.getId().equals(movement.getJournalEntryId()));
-
-    List<RawMaterialMovement> packagingMovements =
-        rawMaterialMovementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
-            company, InventoryReference.PACKING_RECORD, packagingReference);
-    assertThat(packagingMovements).isNotEmpty();
-    assertThat(packagingMovements)
-        .allMatch(movement -> packagingJournal.getId().equals(movement.getJournalEntryId()));
-
-    List<InventoryMovement> semiFinishedMovements =
-        inventoryMovementRepository.findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
-            InventoryReference.PRODUCTION_LOG, productionCode);
-    assertThat(semiFinishedMovements).isNotEmpty();
-    assertThat(semiFinishedMovements)
+        .anyMatch(
+            movement ->
+                "ISSUE".equals(movement.getMovementType())
+                    && rmJournal.getId().equals(movement.getJournalEntryId()));
+    assertThat(rmMovements)
         .anyMatch(
             movement ->
                 "RECEIPT".equals(movement.getMovementType())
                     && semiFinishedJournal.getId().equals(movement.getJournalEntryId())
                     && movement.getUnitCost().compareTo(log.unitCost()) == 0);
 
+    List<RawMaterialMovement> packagingMovements =
+        rawMaterialMovementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+            company, InventoryReference.PACKING_RECORD, packagingReference);
+    assertThat(packagingMovements).isNotEmpty();
+    RawMaterial semiFinishedMaterial =
+        rawMaterialRepository
+            .findByCompanyAndSkuIgnoreCase(company, product.getSkuCode() + "-BULK")
+            .orElseThrow();
+    assertThat(packagingMovements)
+        .anyMatch(
+            movement ->
+                "ISSUE".equals(movement.getMovementType())
+                    && movement.getRawMaterial() != null
+                    && bucket.getId().equals(movement.getRawMaterial().getId())
+                    && packagingJournal.getId().equals(movement.getJournalEntryId()));
+    assertThat(packagingMovements)
+        .anyMatch(
+            movement ->
+                "ISSUE".equals(movement.getMovementType())
+                    && movement.getRawMaterial() != null
+                    && semiFinishedMaterial.getId().equals(movement.getRawMaterial().getId())
+                    && packingSessionJournal.getId().equals(movement.getJournalEntryId()));
+
     List<InventoryMovement> packingMovements =
         inventoryMovementRepository.findByReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
             InventoryReference.PACKING_RECORD, packagingReference);
     assertThat(packingMovements).isNotEmpty();
-    assertThat(packingMovements)
-        .anyMatch(
-            movement ->
-                "ISSUE".equals(movement.getMovementType())
-                    && packingSessionJournal.getId().equals(movement.getJournalEntryId()));
     assertThat(packingMovements)
         .anyMatch(
             movement ->

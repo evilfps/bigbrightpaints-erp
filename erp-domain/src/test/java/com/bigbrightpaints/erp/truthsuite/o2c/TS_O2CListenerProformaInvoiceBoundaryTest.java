@@ -285,7 +285,7 @@ class TS_O2CListenerProformaInvoiceBoundaryTest extends AbstractIntegrationTest 
             .findByCompanyAndProductCode(company, sku)
             .orElseGet(
                 () -> {
-                  var dto = finishedGoodsService.createFinishedGood(request);
+                  var dto = createFinishedGoodForTest(request);
                   return finishedGoodRepository.findById(dto.id()).orElseThrow();
                 });
     ensureCatalogProduct(company, finishedGood);

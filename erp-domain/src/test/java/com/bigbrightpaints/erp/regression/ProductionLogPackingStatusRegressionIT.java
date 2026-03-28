@@ -240,9 +240,9 @@ class ProductionLogPackingStatusRegressionIT extends AbstractIntegrationTest {
                         packTarget.getId(), null, "1L", new BigDecimal("4"), 4, null, null))));
 
     assertThat(partial.status()).isEqualTo("PARTIAL_PACKED");
-    FinishedGood semiFinishedAfterPartial =
-        finishedGoodRepository
-            .findByCompanyAndProductCodeIgnoreCase(company, product.getSkuCode() + "-BULK")
+    RawMaterial semiFinishedAfterPartial =
+        rawMaterialRepository
+            .findByCompanyAndSkuIgnoreCase(company, product.getSkuCode() + "-BULK")
             .orElseThrow();
     assertThat(semiFinishedAfterPartial.getCurrentStock())
         .isEqualByComparingTo(new BigDecimal("6"));
@@ -261,9 +261,9 @@ class ProductionLogPackingStatusRegressionIT extends AbstractIntegrationTest {
     assertThat(stored.getWastageQuantity()).isEqualByComparingTo(new BigDecimal("6"));
     assertThat(stored.getWastageReasonCode()).isEqualTo("PROCESS_LOSS");
 
-    FinishedGood semiFinishedAfterClose =
-        finishedGoodRepository
-            .findByCompanyAndProductCodeIgnoreCase(company, product.getSkuCode() + "-BULK")
+    RawMaterial semiFinishedAfterClose =
+        rawMaterialRepository
+            .findByCompanyAndSkuIgnoreCase(company, product.getSkuCode() + "-BULK")
             .orElseThrow();
     assertThat(semiFinishedAfterClose.getCurrentStock()).isEqualByComparingTo(BigDecimal.ZERO);
 

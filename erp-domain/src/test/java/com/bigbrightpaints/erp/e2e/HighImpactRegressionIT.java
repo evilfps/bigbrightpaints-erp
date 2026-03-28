@@ -350,7 +350,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
             new BigDecimal("100.000000"),
             Instant.now(),
             null);
-    finishedGoodsService.registerBatch(batchRequest);
+    registerFinishedGoodBatchForTest(batchRequest);
 
     // Get initial inventory account balance + total quantity for valuation account
     Account inventoryAccount =
@@ -427,7 +427,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
     FinishedGood fg2 = createFinishedGood(companyA, productCode2, accountsA, brandA);
 
     // Seed batches with plenty of stock
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg1.getId(),
             "BATCH-C1",
@@ -435,7 +435,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
             new BigDecimal("10.00"),
             Instant.now(),
             null));
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fg2.getId(),
             "BATCH-C2",
@@ -847,7 +847,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
     CompanyContextHolder.setCompanyCode(COMPANY_CODE_A);
     String productCodeA = "FG-ISO-A-" + UUID.randomUUID().toString().substring(0, 8);
     FinishedGood fgA = createFinishedGood(companyA, productCodeA, accountsA, brandA);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fgA.getId(),
             "BATCH-ISO-A",
@@ -886,7 +886,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
     String productCodeB = "FG-ISO-B-" + UUID.randomUUID().toString().substring(0, 8);
     ProductionBrand brandB = ensureBrand(companyB, "BRAND-B");
     FinishedGood fgB = createFinishedGood(companyB, productCodeB, accountsB, brandB);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             fgB.getId(),
             "BATCH-ISO-B",
@@ -1145,7 +1145,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
                       accounts.get("REV").getId(),
                       accounts.get("DISC").getId(),
                       accounts.get("GST_OUT").getId());
-              finishedGoodsService.createFinishedGood(request);
+              createFinishedGoodForTest(request);
               FinishedGood fg =
                   finishedGoodRepository
                       .findByCompanyAndProductCode(company, productCode)

@@ -269,7 +269,7 @@ class TS_O2CDispatchReplaySafetyTest extends AbstractIntegrationTest {
     Dealer dealer = ensureDealer(company, accounts.get("AR"));
     FinishedGood finishedGood =
         ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
-    finishedGoodsService.registerBatch(
+    registerFinishedGoodBatchForTest(
         new FinishedGoodBatchRequest(
             finishedGood.getId(),
             "BATCH-" + shortId(),
@@ -475,7 +475,7 @@ class TS_O2CDispatchReplaySafetyTest extends AbstractIntegrationTest {
             .findByCompanyAndProductCode(company, sku)
             .orElseGet(
                 () -> {
-                  var dto = finishedGoodsService.createFinishedGood(request);
+                  var dto = createFinishedGoodForTest(request);
                   return finishedGoodRepository.findById(dto.id()).orElseThrow();
                 });
     ensureCatalogProduct(company, finishedGood, gstRate);

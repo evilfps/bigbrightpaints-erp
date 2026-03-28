@@ -15,9 +15,9 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `b93b51e99b85b0adb9ccd97be8d70df8f6b1cf6a20baaf57dd014d7143e82cbc`)
+- OpenAPI snapshot: `openapi.json` (sha256 `a37e423cf87722fb85e8116d3efbe5ec25f24a830a9dca4ccadecffe5b8d5ff0`)
 - OpenAPI total paths: `280`
-- OpenAPI total operations: `333`
+- OpenAPI total operations: `332`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
 
 ## Summary by module
@@ -243,6 +243,7 @@ Portal scope guardrail:
 - `GET` `/api/v1/factory/unpacked-batches`
 
 Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packaging Setup / Rules contract. Pack requests fail closed when a size is missing active, usable packaging setup, when `Idempotency-Key` is missing, or when legacy replay headers are sent.
+Bulk operator note: `/api/v1/factory/bulk-batches/{finishedGoodId}` is read-only and resolves semi-finished inventory through canonical catalog product-family mapping; `-BULK` stays internal raw-material truth and is not a finished-good contract.
 
 ## `finished-goods`
 
@@ -250,7 +251,7 @@ Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packagi
 - `GET` `/api/v1/finished-goods/low-stock`
 - `GET` `/api/v1/finished-goods/stock-summary`
 - `GET` `/api/v1/finished-goods/{id}`
-- `GET, POST` `/api/v1/finished-goods/{id}/batches`
+- `GET` `/api/v1/finished-goods/{id}/batches`
 - `GET, PUT` `/api/v1/finished-goods/{id}/low-stock-threshold`
 
 ## `hr`

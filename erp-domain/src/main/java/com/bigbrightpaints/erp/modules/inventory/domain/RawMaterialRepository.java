@@ -24,6 +24,16 @@ public interface RawMaterialRepository extends JpaRepository<RawMaterial, Long> 
 
   Optional<RawMaterial> findByCompanyAndSkuIgnoreCase(Company company, String sku);
 
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query(
+      """
+      select rm from RawMaterial rm
+      where rm.company = :company
+        and lower(rm.sku) = lower(:sku)
+      """)
+  Optional<RawMaterial> lockByCompanyAndSkuIgnoreCase(
+      @Param("company") Company company, @Param("sku") String sku);
+
   List<RawMaterial> findByCompanyAndSkuIn(Company company, Collection<String> skus);
 
   @Query("select rm from RawMaterial rm where rm.company = :company and lower(rm.sku) in :skus")

@@ -11,15 +11,12 @@ class TS_FactoryRawMaterialWacFallbackContractTest {
 
   private static final String PACKAGING_MATERIAL_SERVICE =
       "src/main/java/com/bigbrightpaints/erp/modules/factory/service/PackagingMaterialService.java";
-  private static final String BULK_PACKING_SERVICE =
-      "src/main/java/com/bigbrightpaints/erp/modules/factory/service/BulkPackingService.java";
   private static final String PRODUCTION_LOG_SERVICE =
       "src/main/java/com/bigbrightpaints/erp/modules/factory/service/ProductionLogService.java";
 
   @Test
-  void packagingBulkAndProductionUseSharedWacSelectorWithNullFallback() {
+  void packagingAndProductionUseSharedWacSelectorWithNullFallback() {
     assertWacNullFallbackPattern(PACKAGING_MATERIAL_SERVICE);
-    assertWacNullFallbackPattern(BULK_PACKING_SERVICE);
     assertWacNullFallbackPattern(PRODUCTION_LOG_SERVICE);
   }
 
@@ -33,10 +30,6 @@ class TS_FactoryRawMaterialWacFallbackContractTest {
         PRODUCTION_LOG_SERVICE,
         "BigDecimal unitCost = weightedAverageCost != null",
         ": Optional.ofNullable(batch.getCostPerUnit()).orElse(BigDecimal.ZERO);");
-    TruthSuiteFileAssert.assertContainsInOrder(
-        BULK_PACKING_SERVICE,
-        "BigDecimal unitCost = weightedAverageCost != null",
-        ": (batch.getCostPerUnit() != null ? batch.getCostPerUnit() : BigDecimal.ZERO);");
   }
 
   private void assertWacNullFallbackPattern(String relativePath) {

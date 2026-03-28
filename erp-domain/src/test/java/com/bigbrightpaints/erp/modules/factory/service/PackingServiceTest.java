@@ -51,7 +51,8 @@ import com.bigbrightpaints.erp.modules.factory.dto.PackingLineRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingRequest;
 import com.bigbrightpaints.erp.modules.factory.dto.ProductionLogDetailDto;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
-import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 
 @Tag("critical")
@@ -157,7 +158,7 @@ class PackingServiceTest {
 
     PackingInventoryService.SemiFinishedConsumption semiFinishedConsumption =
         new PackingInventoryService.SemiFinishedConsumption(
-            targetFinishedGood, null, new InventoryMovement(), new BigDecimal("5.00"));
+            new RawMaterial(), null, new RawMaterialMovement(), new BigDecimal("5.00"));
     when(packingInventoryService.consumeSemiFinishedInventory(log, new BigDecimal("1.0"), 88L))
         .thenReturn(semiFinishedConsumption);
 
@@ -304,7 +305,7 @@ class PackingServiceTest {
 
     PackingInventoryService.SemiFinishedConsumption semiFinishedConsumption =
         new PackingInventoryService.SemiFinishedConsumption(
-            targetFinishedGood, null, new InventoryMovement(), new BigDecimal("5.00"));
+            new RawMaterial(), null, new RawMaterialMovement(), new BigDecimal("5.00"));
     when(packingInventoryService.consumeSemiFinishedInventory(
             lockedLog, new BigDecimal("1.0"), 88L))
         .thenReturn(semiFinishedConsumption);
@@ -872,7 +873,7 @@ class PackingServiceTest {
 
     PackingInventoryService.SemiFinishedConsumption semiFinishedConsumption =
         new PackingInventoryService.SemiFinishedConsumption(
-            targetFinishedGood, null, new InventoryMovement(), new BigDecimal("5.00"));
+            new RawMaterial(), null, new RawMaterialMovement(), new BigDecimal("5.00"));
     when(packingInventoryService.consumeSemiFinishedInventory(eq(log), any(), anyLong()))
         .thenReturn(semiFinishedConsumption);
     when(packingBatchService.registerFinishedGoodBatch(

@@ -1415,7 +1415,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
 
     assertThatThrownBy(
             () ->
-                finishedGoodsService.registerBatch(
+                registerFinishedGoodBatchForTest(
                     new FinishedGoodBatchRequest(
                         fg.getId(),
                         "BATCH-NEG-QTY",
@@ -1435,7 +1435,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
 
     assertThatThrownBy(
             () ->
-                finishedGoodsService.registerBatch(
+                registerFinishedGoodBatchForTest(
                     new FinishedGoodBatchRequest(
                         fg.getId(),
                         "BATCH-NEG-COST",
@@ -1637,7 +1637,7 @@ class FinishedGoodsServiceTest extends AbstractIntegrationTest {
         createFinishedGood(company, "FG-STOCK-TRACE", BigDecimal.ZERO, BigDecimal.ZERO, "FIFO");
 
     var registeredBatch =
-        finishedGoodsService.registerBatch(
+        registerFinishedGoodBatchForTest(
             new FinishedGoodBatchRequest(
                 fg.getId(),
                 "BATCH-STOCK-TRACE",

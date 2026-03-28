@@ -53,7 +53,7 @@ flowchart LR
   - `ProductionLogService.createLog`
   - post material journal
   - post labor/overhead journal
-  - register semi-finished batch and journal
+  - register semi-finished raw-material batch and journal
 
 ### Cost Allocation
 

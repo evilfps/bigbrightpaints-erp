@@ -43,8 +43,8 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandReposito
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogImportResponse;
-import com.bigbrightpaints.erp.modules.production.dto.ProductCreateRequest;
-import com.bigbrightpaints.erp.modules.production.dto.ProductUpdateRequest;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemCreateCommand;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemUpdateCommand;
 import com.bigbrightpaints.erp.modules.production.dto.ProductionProductDto;
 import com.bigbrightpaints.erp.modules.production.service.ProductionCatalogService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
@@ -416,8 +416,8 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
     metadata.put("fgTaxAccountId", company.getDefaultTaxAccountId());
 
     ProductionProductDto created =
-        productionCatalogService.createProduct(
-            new ProductCreateRequest(
+        productionCatalogService.createCatalogItem(
+            new CatalogItemCreateCommand(
                 null,
                 "FG Sync Brand",
                 null,
@@ -442,9 +442,9 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
     afterCreate.setCostingMethod("weighted-average");
     finishedGoodRepository.save(afterCreate);
 
-    productionCatalogService.updateProduct(
+    productionCatalogService.updateCatalogItem(
         created.id(),
-        new ProductUpdateRequest(
+        new CatalogItemUpdateCommand(
             null, null, null, null, null, null, null, null, null, null, null, null, null));
 
     FinishedGood afterUpdate =
@@ -478,8 +478,8 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
     fgMetadata.put("fgTaxAccountId", company.getDefaultTaxAccountId());
 
     ProductionProductDto createdFinishedGood =
-        productionCatalogService.createProduct(
-            new ProductCreateRequest(
+        productionCatalogService.createCatalogItem(
+            new CatalogItemCreateCommand(
                 null,
                 "FG Unsupported Brand",
                 null,
@@ -501,9 +501,9 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         finishedGoodRepository.findByCompanyAndProductCode(company, fgSku).orElseThrow();
     assertThat(afterFgCreate.getCostingMethod()).isEqualTo("CUSTOM_METHOD");
 
-    productionCatalogService.updateProduct(
+    productionCatalogService.updateCatalogItem(
         createdFinishedGood.id(),
-        new ProductUpdateRequest(
+        new CatalogItemUpdateCommand(
             null, null, null, null, null, null, null, null, null, null, null, null, null));
 
     FinishedGood afterFgUpdate =
@@ -526,8 +526,8 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
     rmMetadata.put("inventoryAccountId", inventoryAccount.getId());
 
     ProductionProductDto createdRawMaterial =
-        productionCatalogService.createProduct(
-            new ProductCreateRequest(
+        productionCatalogService.createCatalogItem(
+            new CatalogItemCreateCommand(
                 null,
                 "RM Unsupported Brand",
                 null,
@@ -549,9 +549,9 @@ class ProductionCatalogRawMaterialInvariantIT extends AbstractIntegrationTest {
         rawMaterialRepository.findByCompanyAndSku(company, rmSku).orElseThrow();
     assertThat(afterRmCreate.getCostingMethod()).isEqualTo("CUSTOM_METHOD");
 
-    productionCatalogService.updateProduct(
+    productionCatalogService.updateCatalogItem(
         createdRawMaterial.id(),
-        new ProductUpdateRequest(
+        new CatalogItemUpdateCommand(
             null, null, null, null, null, null, null, null, null, null, null, null, null));
 
     RawMaterial afterRmUpdate =
