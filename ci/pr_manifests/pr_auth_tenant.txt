@@ -23,6 +23,7 @@ com.bigbrightpaints.erp.modules.company.service.CompanyServiceTest
 com.bigbrightpaints.erp.modules.company.service.SuperAdminTenantControlPlaneServiceTest
 com.bigbrightpaints.erp.modules.company.service.TenantOnboardingServiceTest
 com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementServiceTest
+com.bigbrightpaints.erp.modules.company.service.TenantRuntimeRequestAdmissionServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingServiceStandardJournalTest
 com.bigbrightpaints.erp.modules.auth.AuthControllerIT
 com.bigbrightpaints.erp.modules.auth.ProfileControllerIT
@@ -54,6 +55,7 @@ com.bigbrightpaints.erp.core.audittrail.EnterpriseAuditTrailServiceTest
 com.bigbrightpaints.erp.core.audit.JournalEntryPostedAuditListenerTest
 com.bigbrightpaints.erp.core.exception.CoreFallbackExceptionHandlerTest
 com.bigbrightpaints.erp.core.security.PortalRoleActionMatrixTest
+com.bigbrightpaints.erp.modules.rbac.controller.RoleControllerSecurityContractTest
 com.bigbrightpaints.erp.modules.rbac.config.RbacSynchronizationConfigTest
 com.bigbrightpaints.erp.modules.rbac.service.RoleServiceTest
 com.bigbrightpaints.erp.modules.rbac.domain.SystemRoleTest

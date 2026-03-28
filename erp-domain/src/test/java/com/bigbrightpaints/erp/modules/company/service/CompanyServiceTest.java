@@ -410,6 +410,19 @@ class CompanyServiceTest {
   }
 
   @Test
+  void assertBoundControlPlaneCompanyMatchesTarget_allowsMatchingContext() {
+    bindCompanyContext("TENANT-A");
+
+    assertThatCode(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService,
+                    "assertBoundControlPlaneCompanyMatchesTarget",
+                    "tenant-a"))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
   void create_rejectsCaseInsensitiveDuplicateCompanyCode() {
     authenticateAs("ROLE_SUPER_ADMIN");
     Company existing = company(11L, "SKE");
