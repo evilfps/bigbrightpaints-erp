@@ -67,21 +67,22 @@ class InventoryAdjustmentControllerTest {
   }
 
   @Test
-  void createAdjustment_appliesLegacyHeaderIdempotencyKeyWhenPrimaryMissing() {
+  void createAdjustment_rejectsLegacyHeaderWhenPrimaryMissing() {
     InventoryAdjustmentController controller = controller();
-    when(inventoryAdjustmentService.createAdjustment(any())).thenReturn(null);
+    assertThatThrownBy(() -> controller.createAdjustment(null, "legacy-key", validRequest(null)))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+              assertThat(ex.getMessage())
+                  .contains("X-Idempotency-Key is not supported for inventory adjustments");
+            });
 
-    InventoryAdjustmentRequest request = validRequest(null);
-    controller.createAdjustment(null, "legacy-key", request);
-
-    ArgumentCaptor<InventoryAdjustmentRequest> captor =
-        ArgumentCaptor.forClass(InventoryAdjustmentRequest.class);
-    verify(inventoryAdjustmentService).createAdjustment(captor.capture());
-    assertThat(captor.getValue().idempotencyKey()).isEqualTo("legacy-key");
+    verifyNoInteractions(inventoryAdjustmentService);
   }
 
   @Test
-  void createAdjustment_rejectsWhenPrimaryLegacyHeadersMismatch() {
+  void createAdjustment_rejectsLegacyHeaderWhenPrimaryAlsoPresent() {
     InventoryAdjustmentController controller = controller();
 
     InventoryAdjustmentRequest request = validRequest(null);
@@ -91,12 +92,7 @@ class InventoryAdjustmentControllerTest {
             ex -> {
               assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
               assertThat(ex.getMessage())
-                  .isEqualTo(
-                      "Idempotency key mismatch between Idempotency-Key and X-Idempotency-Key"
-                          + " headers");
-              assertThat(ex.getDetails())
-                  .containsEntry("idempotencyKeyHeader", "header-key")
-                  .containsEntry("legacyIdempotencyKeyHeader", "legacy-key");
+                  .contains("X-Idempotency-Key is not supported for inventory adjustments");
             });
 
     verifyNoInteractions(inventoryAdjustmentService);

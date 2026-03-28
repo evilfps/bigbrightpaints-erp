@@ -540,7 +540,9 @@ public class BenchmarkDataInitializer {
               product.setMinDiscountPercent(BigDecimal.ZERO);
               product.setMinSellingPrice(BigDecimal.ZERO);
               product.setActive(true);
-              product.setMetadata(defaultProductMetadata(accounts, accounts.get("SF_INV").getId(), accounts.get("WIP_MIX").getId()));
+              product.setMetadata(
+                  defaultProductMetadata(
+                      accounts, accounts.get("SF_INV").getId(), accounts.get("WIP_MIX").getId()));
               return productRepository.save(product);
             });
   }
@@ -595,7 +597,8 @@ public class BenchmarkDataInitializer {
               product.setMinDiscountPercent(BigDecimal.ZERO);
               product.setMinSellingPrice(BigDecimal.ZERO);
               product.setActive(true);
-              product.setMetadata(defaultProductMetadata(accounts, valuationAccountId, wipAccountId));
+              product.setMetadata(
+                  defaultProductMetadata(accounts, valuationAccountId, wipAccountId));
 
               return productRepository.save(product);
             });

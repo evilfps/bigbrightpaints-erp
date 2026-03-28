@@ -234,16 +234,6 @@ public class AccountingController {
         ApiResponse.success(accountingService.listJournals(fromDate, toDate, type, sourceModule)));
   }
 
-  @PostMapping("/journals/{entryId}/reverse")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-  public ResponseEntity<ApiResponse<JournalEntryDto>> reverseJournalEntryByJournalPath(
-      @PathVariable Long entryId,
-      @RequestBody(required = false) JournalEntryReversalRequest request) {
-    return ResponseEntity.ok(
-        ApiResponse.success(
-            "Journal entry corrected", accountingService.reverseJournalEntry(entryId, request)));
-  }
-
   @PostMapping("/journal-entries")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<JournalEntryDto>> createJournalEntry(
@@ -289,23 +279,12 @@ public class AccountingController {
             "Journal entry corrected", journalEntryService.reverseJournalEntry(entryId, request)));
   }
 
-  @PostMapping("/journal-entries/{entryId}/cascade-reverse")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-  public ResponseEntity<ApiResponse<java.util.List<JournalEntryDto>>> cascadeReverseJournalEntry(
-      @PathVariable Long entryId, @RequestBody JournalEntryReversalRequest request) {
-    return ResponseEntity.ok(
-        ApiResponse.success(
-            "Journal entries reversed with related entries",
-            journalEntryService.cascadeReverseRelatedEntries(entryId, request)));
-  }
-
   @PostMapping("/receipts/dealer")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<JournalEntryDto>> recordDealerReceipt(
       @Valid @RequestBody DealerReceiptRequest request,
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true)
-          @RequestHeader(value = "X-Idempotency-Key", required = false)
+      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
           String legacyIdempotencyKey) {
     DealerReceiptRequest resolved =
         applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
@@ -319,8 +298,7 @@ public class AccountingController {
   public ResponseEntity<ApiResponse<JournalEntryDto>> recordDealerHybridReceipt(
       @Valid @RequestBody DealerReceiptSplitRequest request,
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true)
-          @RequestHeader(value = "X-Idempotency-Key", required = false)
+      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
           String legacyIdempotencyKey) {
     DealerReceiptSplitRequest resolved =
         applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
@@ -334,8 +312,7 @@ public class AccountingController {
   public ResponseEntity<ApiResponse<PartnerSettlementResponse>> settleDealer(
       @Valid @RequestBody DealerSettlementRequest request,
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true)
-          @RequestHeader(value = "X-Idempotency-Key", required = false)
+      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
           String legacyIdempotencyKey) {
     DealerSettlementRequest resolved =
         applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
@@ -350,15 +327,10 @@ public class AccountingController {
       @PathVariable Long dealerId,
       @Valid @RequestBody AutoSettlementRequest request,
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true)
-          @RequestHeader(value = "X-Idempotency-Key", required = false)
+      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
           String legacyIdempotencyKey) {
     AutoSettlementRequest resolved =
-        applyIdempotencyKey(
-            request,
-            idempotencyKey,
-            legacyIdempotencyKey,
-            "/api/v1/accounting/dealers/{dealerId}/auto-settle");
+        applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
     return ResponseEntity.ok(
         ApiResponse.success(
             "Auto-settlement recorded", settlementService.autoSettleDealer(dealerId, resolved)));
@@ -378,8 +350,7 @@ public class AccountingController {
   public ResponseEntity<ApiResponse<PartnerSettlementResponse>> settleSupplier(
       @Valid @RequestBody SupplierSettlementRequest request,
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true)
-          @RequestHeader(value = "X-Idempotency-Key", required = false)
+      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
           String legacyIdempotencyKey) {
     SupplierSettlementRequest resolved =
         applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
@@ -394,15 +365,10 @@ public class AccountingController {
       @PathVariable Long supplierId,
       @Valid @RequestBody AutoSettlementRequest request,
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true)
-          @RequestHeader(value = "X-Idempotency-Key", required = false)
+      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
           String legacyIdempotencyKey) {
     AutoSettlementRequest resolved =
-        applyIdempotencyKey(
-            request,
-            idempotencyKey,
-            legacyIdempotencyKey,
-            "/api/v1/accounting/suppliers/{supplierId}/auto-settle");
+        applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
     return ResponseEntity.ok(
         ApiResponse.success(
             "Auto-settlement recorded",
@@ -441,7 +407,6 @@ public class AccountingController {
         request,
         idempotencyKeyHeader,
         legacyIdempotencyKeyHeader,
-        "/api/v1/accounting/receipts/dealer",
         DealerReceiptRequest::idempotencyKey,
         (resolvedRequest, resolvedKey) ->
             new DealerReceiptRequest(
@@ -462,7 +427,6 @@ public class AccountingController {
         request,
         idempotencyKeyHeader,
         legacyIdempotencyKeyHeader,
-        "/api/v1/accounting/receipts/dealer/hybrid",
         DealerReceiptSplitRequest::idempotencyKey,
         (resolvedRequest, resolvedKey) ->
             new DealerReceiptSplitRequest(
@@ -481,7 +445,6 @@ public class AccountingController {
         request,
         idempotencyKeyHeader,
         legacyIdempotencyKeyHeader,
-        "/api/v1/accounting/settlements/dealers",
         DealerSettlementRequest::idempotencyKey,
         (resolvedRequest, resolvedKey) ->
             new DealerSettlementRequest(
@@ -505,13 +468,11 @@ public class AccountingController {
   private AutoSettlementRequest applyIdempotencyKey(
       AutoSettlementRequest request,
       String idempotencyKeyHeader,
-      String legacyIdempotencyKeyHeader,
-      String canonicalPath) {
+      String legacyIdempotencyKeyHeader) {
     return applyHeaderOnlyIdempotencyKey(
         request,
         idempotencyKeyHeader,
         legacyIdempotencyKeyHeader,
-        canonicalPath,
         AutoSettlementRequest::idempotencyKey,
         (resolvedRequest, resolvedKey) ->
             new AutoSettlementRequest(
@@ -530,7 +491,6 @@ public class AccountingController {
         request,
         idempotencyKeyHeader,
         legacyIdempotencyKeyHeader,
-        "/api/v1/accounting/settlements/suppliers",
         SupplierSettlementRequest::idempotencyKey,
         (resolvedRequest, resolvedKey) ->
             new SupplierSettlementRequest(
@@ -554,7 +514,6 @@ public class AccountingController {
       T request,
       String idempotencyKeyHeader,
       String legacyIdempotencyKeyHeader,
-      String canonicalPath,
       Function<T, String> requestIdempotencyKeyExtractor,
       BiFunction<T, String, T> requestWithIdempotencyKey) {
     if (request == null) {
@@ -564,8 +523,7 @@ public class AccountingController {
         resolveHeaderOnlyIdempotencyKey(
             requestIdempotencyKeyExtractor.apply(request),
             idempotencyKeyHeader,
-            legacyIdempotencyKeyHeader,
-            canonicalPath);
+            legacyIdempotencyKeyHeader);
     if (!StringUtils.hasText(resolvedKey)) {
       return request;
     }
@@ -573,30 +531,21 @@ public class AccountingController {
   }
 
   private String resolveHeaderOnlyIdempotencyKey(
-      String bodyIdempotencyKey,
-      String idempotencyKeyHeader,
-      String legacyIdempotencyKeyHeader,
-      String canonicalPath) {
-    if (StringUtils.hasText(legacyIdempotencyKeyHeader)) {
-      throw unsupportedLegacyIdempotencyHeader(canonicalPath);
+      String bodyIdempotencyKey, String idempotencyKeyHeader, String legacyIdempotencyKeyHeader) {
+    String normalizedPrimaryHeader = trimToNull(idempotencyKeyHeader);
+    String normalizedLegacyHeader = trimToNull(legacyIdempotencyKeyHeader);
+    if (normalizedLegacyHeader != null) {
+      throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT, "X-Idempotency-Key is not supported")
+          .withDetail("legacyHeaderKey", normalizedLegacyHeader);
     }
     String resolvedKey =
         com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
-            bodyIdempotencyKey, idempotencyKeyHeader, null);
+            bodyIdempotencyKey, idempotencyKeyHeader, legacyIdempotencyKeyHeader);
     if (!StringUtils.hasText(resolvedKey) || StringUtils.hasText(bodyIdempotencyKey)) {
       return null;
     }
     return resolvedKey;
-  }
-
-  private ApplicationException unsupportedLegacyIdempotencyHeader(String canonicalPath) {
-    return new ApplicationException(
-            ErrorCode.VALIDATION_INVALID_INPUT,
-            "X-Idempotency-Key is not supported for accounting write actions; use"
-                + " Idempotency-Key")
-        .withDetail("legacyHeader", "X-Idempotency-Key")
-        .withDetail("canonicalHeader", "Idempotency-Key")
-        .withDetail("canonicalPath", canonicalPath);
   }
 
   private String trimToNull(String value) {
@@ -720,16 +669,6 @@ public class AccountingController {
     return entry.dealerId() != null || "SALES_RETURN".equalsIgnoreCase(entry.correctionReason());
   }
 
-  @PostMapping("/periods/{periodId}/close")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-  public ResponseEntity<ApiResponse<AccountingPeriodDto>> closePeriod(
-      @PathVariable Long periodId,
-      @RequestBody(required = false) AccountingPeriodCloseRequest request) {
-    return ResponseEntity.ok(
-        ApiResponse.success(
-            "Accounting period closed", accountingPeriodService.closePeriod(periodId, request)));
-  }
-
   @PostMapping("/periods/{periodId}/request-close")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<PeriodCloseRequestDto>> requestPeriodClose(
@@ -761,16 +700,6 @@ public class AccountingController {
         ApiResponse.success(
             "Accounting period close rejected",
             accountingPeriodService.rejectPeriodClose(periodId, request)));
-  }
-
-  @PostMapping("/periods/{periodId}/lock")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-  public ResponseEntity<ApiResponse<AccountingPeriodDto>> lockPeriod(
-      @PathVariable Long periodId,
-      @RequestBody(required = false) AccountingPeriodLockRequest request) {
-    return ResponseEntity.ok(
-        ApiResponse.success(
-            "Accounting period locked", accountingPeriodService.lockPeriod(periodId, request)));
   }
 
   @PostMapping("/periods/{periodId}/reopen")

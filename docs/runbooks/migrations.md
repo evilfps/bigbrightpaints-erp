@@ -1,5 +1,18 @@
 # Migration Runbook
 
+## 2026-03-28 — `migration_v2/V173__company_lifecycle_constraint_hard_cut.sql`
+
+- **Purpose:** finalize the tenant lifecycle hard-cut by rewriting any lingering `HOLD/BLOCKED` values to `SUSPENDED/DEACTIVATED`, dropping the legacy lifecycle constraints, and installing the canonical `chk_companies_lifecycle_state_v173` constraint on `companies.lifecycle_state`.
+- **Release-guard posture:** this packet also hardens the release harness itself. `scripts/verify_local.sh`, `scripts/gate_release.sh`, and `scripts/release_migration_matrix.sh` were fixed in the same cut so fresh-path and upgrade-path Flyway v2 proofs are real and hermetic instead of depending on local helper-path quirks.
+- **Forward plan:** apply `V173__company_lifecycle_constraint_hard_cut.sql`, deploy the ERP-48 hard-cut packet together with the canonical auth/accounting/control-plane runtime changes, and keep `ACTIVE/SUSPENDED/DEACTIVATED` as the only supported lifecycle vocabulary. Do not preserve or reintroduce the pre-hard-cut constraint names or state values.
+- **Dry-run commands:**
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_fast.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_core.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_reconciliation.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_release.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 PGHOST=127.0.0.1 PGPORT=55432 PGUSER=erp PGPASSWORD=erp PGDATABASE=postgres MIGRATION_SET=v2 bash scripts/release_migration_matrix.sh --artifact-dir artifacts/gate-release`
+- **Rollback strategy:** treat `V173` as a coordinated app-and-schema cut. If rollout must be abandoned after the migration is applied, keep the ERP-48-compatible backend live or restore the affected database from a pre-`V173` snapshot/PITR before reopening traffic with older code. Do not attempt an ad hoc reverse-SQL rollback that leaves mixed legacy and current lifecycle constraints in place.
+
 ## 2026-03-27 — `migration_v2/V171__drop_finished_good_batch_legacy_bulk_flag.sql`
 
 - **Purpose:** remove the retired `finished_good_batches.is_bulk` flag and its supporting index so FG batch storage no longer carries the legacy BULK/semi-finished marker in the canonical inventory model.

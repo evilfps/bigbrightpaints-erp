@@ -2086,8 +2086,9 @@ class AccountingFacadeCore {
     return supplierRepository
         .findByCompanyAndIdWithPayableAccount(company, supplierId)
         .orElseThrow(
-            () -> new ApplicationException(ErrorCode.BUSINESS_ENTITY_NOT_FOUND, "Supplier not found")
-                .withDetail("supplierId", supplierId));
+            () ->
+                new ApplicationException(ErrorCode.BUSINESS_ENTITY_NOT_FOUND, "Supplier not found")
+                    .withDetail("supplierId", supplierId));
   }
 
   private Account requireAccountById(Company company, Long accountId, String accountType) {

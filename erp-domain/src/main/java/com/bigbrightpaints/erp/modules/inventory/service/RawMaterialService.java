@@ -293,7 +293,7 @@ public class RawMaterialService {
                       company, rawMaterialId, request, normalizedKey, signature));
       if (response == null) {
         throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
-            "Manual raw material intake failed to return a batch");
+            "Manual raw material batch creation failed to return a batch");
       }
       return response;
     } catch (RuntimeException ex) {
@@ -351,32 +351,6 @@ public class RawMaterialService {
       movementRepository.save(receiptMovement);
     }
     return new ReceiptResult(savedBatch, receiptMovement, journalEntryId);
-  }
-
-  public RawMaterialBatchDto intake(RawMaterialIntakeRequest request, String idempotencyKey) {
-    if (!rawMaterialIntakeEnabled) {
-      throw new ApplicationException(
-              ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
-              "Raw material intake is disabled; use raw material purchases for supplier invoices.")
-          .withDetail("endpoint", "/api/v1/purchasing/raw-material-purchases")
-          .withDetail("canonicalPath", "/api/v1/purchasing/raw-material-purchases")
-          .withDetail("setting", "erp.raw-material.intake.enabled");
-    }
-    if (request == null) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Raw material intake request is required");
-    }
-    RawMaterialBatchRequest batchRequest =
-        new RawMaterialBatchRequest(
-            request.batchCode(),
-            request.quantity(),
-            request.unit(),
-            request.costPerUnit(),
-            request.supplierId(),
-            request.manufacturingDate(),
-            request.expiryDate(),
-            request.notes());
-    return createBatch(request.rawMaterialId(), batchRequest, idempotencyKey);
   }
 
   public RawMaterialAdjustmentDto adjustStock(RawMaterialAdjustmentRequest request) {

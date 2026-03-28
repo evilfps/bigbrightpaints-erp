@@ -112,7 +112,7 @@ The portal dashboard then composes:
 
 Important behaviors:
 
-1. **Order creation is explicitly idempotent.** The controller accepts `Idempotency-Key` and legacy `X-Idempotency-Key`; tests prove header parity and mismatch rejection. `SalesOrder` stores both `idempotencyKey` and `idempotencyHash`, and the engine replays prior orders only when the signature matches.
+1. **Order creation is explicitly idempotent.** The controller accepts only `Idempotency-Key`; legacy `X-Idempotency-Key` is fail-closed. `SalesOrder` stores both `idempotencyKey` and `idempotencyHash`, and the engine replays prior orders only when the signature matches.
 2. **Order credit exposure is checked on entry.** `SalesCoreEngine.enforceCreditLimit(...)` locks the dealer row, reads the current dealer-ledger balance, adds pending exposure, and raises a `CreditLimitExceededException` with structured details when the projected total breaches the limit.
 3. **Status history is first-class.** `transitionOrderStatus(...)` persists `SalesOrderStatusHistory`, and the public `/timeline` endpoint reads it back.
 4. **The status vocabulary is normalized rather than singular.** Canonical statuses include `DRAFT`, `CONFIRMED`, `PROCESSING`, `DISPATCHED`, `INVOICED`, `SETTLED`, `CLOSED`, `CANCELLED`, `ON_HOLD`, `REJECTED`, `PENDING_INVENTORY`, `RESERVED`, `PENDING_PRODUCTION`, and `READY_TO_SHIP`, but searches and timeline rendering also canonicalize legacy aliases such as `BOOKED`, `SHIPPED`, `FULFILLED`, and `COMPLETED`.
@@ -301,7 +301,7 @@ Recovery is strongest where explicit replay anchors exist. Orders and invoice se
 
 ## Evidence notes
 
-- `SalesControllerIdempotencyHeaderTest` proves order creation honors `Idempotency-Key`, supports legacy `X-Idempotency-Key`, and rejects mismatches.
+- `SalesControllerIdempotencyHeaderTest` proves order creation honors `Idempotency-Key` and rejects legacy `X-Idempotency-Key`.
 - `DealerPortalServiceTest` proves dealer-portal binding fails closed on ambiguous or missing mappings and computes pending exposure as part of the dashboard.
 - `DispatchControllerTest` and `TS_O2CDispatchCanonicalPostingTest` cover dispatch-controller delegation and canonical dispatch posting expectations.
 - `TS_truthsuite_o2c_Approval_RuntimeTest`, `TS_truthsuite_o2c_Override_RuntimeTest`, and `TS_O2CApprovalDecisionCoverageTest` cover approval/override workflow expectations and decision metadata rules.

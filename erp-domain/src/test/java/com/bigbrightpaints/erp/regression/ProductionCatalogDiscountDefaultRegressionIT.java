@@ -1,6 +1,5 @@
 package com.bigbrightpaints.erp.regression;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
@@ -20,11 +19,10 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogItemCreateCommand;
-import com.bigbrightpaints.erp.modules.production.dto.ProductionProductDto;
 import com.bigbrightpaints.erp.modules.production.service.ProductionCatalogService;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 
-@DisplayName("Regression: Catalog create handles null discount default")
+@DisplayName("Regression: Catalog create fails closed without discount default")
 class ProductionCatalogDiscountDefaultRegressionIT extends AbstractIntegrationTest {
 
   private static final String COMPANY_CODE = "LF-014";
@@ -63,7 +61,7 @@ class ProductionCatalogDiscountDefaultRegressionIT extends AbstractIntegrationTe
   }
 
   @Test
-  void createProductDoesNotFailWhenDiscountDefaultMissing() {
+  void createProductRejectsMissingDiscountDefault() {
     CatalogItemCreateCommand request =
         new CatalogItemCreateCommand(
             null,
@@ -83,14 +81,10 @@ class ProductionCatalogDiscountDefaultRegressionIT extends AbstractIntegrationTe
             null,
             null);
 
-    ProductionProductDto dto = productionCatalogService.createCatalogItem(request);
-    Map<String, Object> metadata = dto.metadata();
-
-    assertThat(asLong(metadata.get("fgValuationAccountId"))).isEqualTo(inventoryAccount.getId());
-    assertThat(asLong(metadata.get("fgCogsAccountId"))).isEqualTo(cogsAccount.getId());
-    assertThat(asLong(metadata.get("fgRevenueAccountId"))).isEqualTo(revenueAccount.getId());
-    assertThat(asLong(metadata.get("fgTaxAccountId"))).isEqualTo(taxAccount.getId());
-    assertThat(metadata).doesNotContainKey("fgDiscountAccountId");
+    assertThatThrownBy(() -> productionCatalogService.createCatalogItem(request))
+        .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
+        .hasMessageContaining("Default fgDiscountAccountId is not configured")
+        .hasMessageContaining(COMPANY_CODE);
   }
 
   @Test
@@ -145,15 +139,5 @@ class ProductionCatalogDiscountDefaultRegressionIT extends AbstractIntegrationTe
               account.setType(type);
               return accountRepository.save(account);
             });
-  }
-
-  private Long asLong(Object value) {
-    if (value instanceof Number number) {
-      return number.longValue();
-    }
-    if (value instanceof String text && !text.isBlank()) {
-      return Long.parseLong(text.trim());
-    }
-    return null;
   }
 }

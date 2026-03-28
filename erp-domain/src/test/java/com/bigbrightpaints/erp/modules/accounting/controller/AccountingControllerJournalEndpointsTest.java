@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.accounting.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -16,6 +17,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -61,6 +64,99 @@ import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 class AccountingControllerJournalEndpointsTest {
 
   @Test
+  void createJournalEntry_delegatesToAccountingServiceWithReferenceAsIdempotencyKey() {
+    AccountingService accountingService = mock(AccountingService.class);
+    AccountingController controller =
+        newController(accountingService, mock(JournalEntryService.class), null);
+    JournalEntryRequest request =
+        new JournalEntryRequest(
+            "manual-100",
+            LocalDate.of(2026, 2, 28),
+            "Manual adjustment",
+            null,
+            null,
+            false,
+            List.of(
+                new JournalEntryRequest.JournalLineRequest(
+                    11L, "Debit", new BigDecimal("50.00"), BigDecimal.ZERO),
+                new JournalEntryRequest.JournalLineRequest(
+                    22L, "Credit", BigDecimal.ZERO, new BigDecimal("50.00"))));
+    JournalEntryDto expected =
+        new JournalEntryDto(
+            100L,
+            null,
+            "JRN-100",
+            LocalDate.of(2026, 2, 28),
+            "Manual adjustment",
+            "POSTED",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            List.<JournalLineDto>of(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+    ArgumentCaptor<JournalEntryRequest> requestCaptor =
+        ArgumentCaptor.forClass(JournalEntryRequest.class);
+    when(accountingService.createManualJournalEntry(
+            any(JournalEntryRequest.class), eq("manual-100")))
+        .thenReturn(expected);
+
+    ApiResponse<JournalEntryDto> body = controller.createJournalEntry(request).getBody();
+
+    assertThat(body).isNotNull();
+    assertThat(body.success()).isTrue();
+    assertThat(body.data()).isEqualTo(expected);
+    verify(accountingService).createManualJournalEntry(requestCaptor.capture(), eq("manual-100"));
+    assertThat(requestCaptor.getValue().referenceNumber()).isNull();
+    assertThat(requestCaptor.getValue().entryDate()).isEqualTo(request.entryDate());
+    assertThat(requestCaptor.getValue().memo()).isEqualTo(request.memo());
+    assertThat(requestCaptor.getValue().lines()).isEqualTo(request.lines());
+  }
+
+  @Test
+  void createJournalEntry_rejectsReservedReferenceNamespace() {
+    AccountingController controller =
+        newController(mock(AccountingService.class), mock(JournalEntryService.class), null);
+    JournalEntryRequest request =
+        new JournalEntryRequest(
+            "INV-2026-0001",
+            LocalDate.of(2026, 2, 28),
+            "Manual adjustment",
+            null,
+            null,
+            false,
+            List.of(
+                new JournalEntryRequest.JournalLineRequest(
+                    11L, "Debit", new BigDecimal("50.00"), BigDecimal.ZERO),
+                new JournalEntryRequest.JournalLineRequest(
+                    22L, "Credit", BigDecimal.ZERO, new BigDecimal("50.00"))));
+
+    assertThatThrownBy(() -> controller.createJournalEntry(request))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            ex -> {
+              ApplicationException applicationException = (ApplicationException) ex;
+              assertThat(applicationException.getErrorCode())
+                  .isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+              assertThat(applicationException.getUserMessage())
+                  .contains("Reference number is reserved for system journals");
+            });
+  }
+
+  @Test
   void listJournals_appliesFilterArguments() {
     AccountingService accountingService = mock(AccountingService.class);
     AccountingController controller =
@@ -92,10 +188,10 @@ class AccountingControllerJournalEndpointsTest {
   }
 
   @Test
-  void reverseJournalEntryByJournalPath_delegatesToService() {
-    AccountingService accountingService = mock(AccountingService.class);
+  void reverseJournalEntry_delegatesToJournalEntryService() {
+    JournalEntryService journalEntryService = mock(JournalEntryService.class);
     AccountingController controller =
-        newController(accountingService, mock(JournalEntryService.class), null);
+        newController(mock(AccountingService.class), journalEntryService, null);
     JournalEntryReversalRequest request =
         new JournalEntryReversalRequest(
             LocalDate.of(2026, 2, 28), false, "Correction", "Reversal", false);
@@ -126,10 +222,9 @@ class AccountingControllerJournalEndpointsTest {
             null,
             null,
             null);
-    when(accountingService.reverseJournalEntry(200L, request)).thenReturn(expected);
+    when(journalEntryService.reverseJournalEntry(200L, request)).thenReturn(expected);
 
-    ApiResponse<JournalEntryDto> body =
-        controller.reverseJournalEntryByJournalPath(200L, request).getBody();
+    ApiResponse<JournalEntryDto> body = controller.reverseJournalEntry(200L, request).getBody();
 
     assertThat(body).isNotNull();
     assertThat(body.data()).isEqualTo(expected);

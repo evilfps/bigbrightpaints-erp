@@ -3,18 +3,18 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MIGRATION_SET="${MIGRATION_SET:-v2}"
-MIGRATIONS_DIR=""
-FLYWAY_LOCATIONS=""
-FLYWAY_HISTORY_TABLE=""
+MIGRATIONS_DIR="$ROOT_DIR/erp-domain/src/main/resources/db/migration_v2"
+FLYWAY_LOCATIONS="filesystem:src/main/resources/db/migration_v2"
+FLYWAY_HISTORY_TABLE="flyway_schema_history_v2"
 ARTIFACT_DIR="$ROOT_DIR/artifacts/gate-release"
 KEEP_RELEASE_DBS="${KEEP_RELEASE_DBS:-false}"
 
 usage() {
   cat <<USAGE
-Usage: bash scripts/release_migration_matrix.sh [--migration-set <v1|v2>] [--artifact-dir <dir>]
+Usage: bash scripts/release_migration_matrix.sh [--migration-set <v2>] [--artifact-dir <dir>]
 
 Environment:
-  MIGRATION_SET (default: v2)
+  MIGRATION_SET (must be unset or v2)
   PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE
   SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD (used as fallback when PGUSER/PGPASSWORD are unset)
   RELEASE_DB_PREFIX (default: codered_release)
@@ -44,22 +44,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-case "$MIGRATION_SET" in
-  v1)
-    MIGRATIONS_DIR="$ROOT_DIR/erp-domain/src/main/resources/db/migration"
-    FLYWAY_LOCATIONS="filesystem:src/main/resources/db/migration"
-    FLYWAY_HISTORY_TABLE="flyway_schema_history"
-    ;;
-  v2)
-    MIGRATIONS_DIR="$ROOT_DIR/erp-domain/src/main/resources/db/migration_v2"
-    FLYWAY_LOCATIONS="filesystem:src/main/resources/db/migration_v2"
-    FLYWAY_HISTORY_TABLE="flyway_schema_history_v2"
-    ;;
-  *)
-    echo "[release_migration_matrix] invalid migration set: $MIGRATION_SET (expected v1 or v2)" >&2
-    exit 2
-    ;;
-esac
+if [[ "$MIGRATION_SET" != "v2" ]]; then
+  echo "[release_migration_matrix] invalid migration set: $MIGRATION_SET (expected v2 only)" >&2
+  exit 2
+fi
 
 if [[ ! -d "$MIGRATIONS_DIR" ]]; then
   echo "[release_migration_matrix] migrations dir not found: $MIGRATIONS_DIR" >&2
@@ -166,24 +154,12 @@ scan_db() {
   local out_file="$2"
   local scan_expected_count="${3:-$expected_count}"
   local scan_expected_max="${4:-$expected_max}"
-  local scan_file="$ROOT_DIR/scripts/db_predeploy_scans.sql"
-  if [[ "$MIGRATION_SET" == "v2" ]]; then
-    psql "postgresql://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT}/${db_name}" -v ON_ERROR_STOP=1 -qAt <<'SQL'
-DO $block$
-BEGIN
-  IF to_regclass('public.flyway_schema_history') IS NULL
-     AND to_regclass('public.flyway_schema_history_v2') IS NOT NULL THEN
-    EXECUTE 'create view public.flyway_schema_history as select * from public.flyway_schema_history_v2';
-  END IF;
-END
-$block$;
-SQL
-
-    scan_file="$(mktemp)"
-    sed -E \
-      "s/select [0-9]+::int as expected_count, [0-9]+::int as expected_max_version/select ${scan_expected_count}::int as expected_count, ${scan_expected_max}::int as expected_max_version/" \
-      "$ROOT_DIR/scripts/db_predeploy_scans.sql" > "$scan_file"
-  fi
+  local scan_file
+  scan_file="$(mktemp)"
+  sed -E \
+    -e "s/select [0-9]+::int as expected_count, [0-9]+::int as expected_max_version/select ${scan_expected_count}::int as expected_count, ${scan_expected_max}::int as expected_max_version/" \
+    -e "s/from flyway_schema_history(_v2)?/from ${FLYWAY_HISTORY_TABLE}/" \
+    "$ROOT_DIR/scripts/db_predeploy_scans.sql" > "$scan_file"
   if bash "$ROOT_DIR/scripts/run_db_predeploy_scans.sh" \
     --db-url "postgresql://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT}/${db_name}" \
     --output "$out_file" \
@@ -191,14 +167,10 @@ SQL
     true
   else
     scan_status=$?
-    if [[ "$scan_file" != "$ROOT_DIR/scripts/db_predeploy_scans.sql" ]]; then
-      rm -f "$scan_file"
-    fi
+    rm -f "$scan_file"
     return "$scan_status"
   fi
-  if [[ "$scan_file" != "$ROOT_DIR/scripts/db_predeploy_scans.sql" ]]; then
-    rm -f "$scan_file"
-  fi
+  rm -f "$scan_file"
 }
 
 echo "[release_migration_matrix] fresh path"

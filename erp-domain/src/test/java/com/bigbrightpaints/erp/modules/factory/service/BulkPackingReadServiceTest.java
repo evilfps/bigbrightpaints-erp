@@ -238,7 +238,8 @@ class BulkPackingReadServiceTest {
         .thenReturn(List.of(receipt));
     when(rawMaterialMovementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
             company, InventoryReference.PACKING_RECORD, "PACK-14"))
-        .thenReturn(List.of(nullIdIssue, negativeIssue, matchingPositiveIssue, nonIssueMatchingBatch));
+        .thenReturn(
+            List.of(nullIdIssue, negativeIssue, matchingPositiveIssue, nonIssueMatchingBatch));
     when(journalEntryRepository.findByCompanyAndReferenceNumber(company, "PACK-14"))
         .thenReturn(Optional.of(journalEntry));
 
@@ -322,14 +323,16 @@ class BulkPackingReadServiceTest {
     when(packingProductSupport.isMatchingChildSku("FG-999-4L", "FG-OTHER")).thenReturn(false);
 
     assertThat(service.listBulkBatches(company, 999L)).isEmpty();
-    verify(rawMaterialRepository, never()).findByCompanyAndSkuIgnoreCase(eq(company), eq("FG-999-BULK"));
+    verify(rawMaterialRepository, never())
+        .findByCompanyAndSkuIgnoreCase(eq(company), eq("FG-999-BULK"));
   }
 
   @Test
   void listChildBatches_collectsUniqueReceiptChildrenAndSkipsInvalidRows() {
     RawMaterial parentMaterial = new RawMaterial();
     parentMaterial.setSku("FG-201-BULK");
-    RawMaterialBatch parentBatch = rawBatch(301L, "RB-301", "22", new BigDecimal("5"), parentMaterial);
+    RawMaterialBatch parentBatch =
+        rawBatch(301L, "RB-301", "22", new BigDecimal("5"), parentMaterial);
 
     RawMaterialMovement issueA = new RawMaterialMovement();
     issueA.setMovementType("ISSUE");
@@ -384,7 +387,8 @@ class BulkPackingReadServiceTest {
     when(inventoryMovementRepository
             .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
                 eq(company), eq(InventoryReference.PACKING_RECORD), eq("PACK-201-A")))
-        .thenReturn(List.of(receiptA, duplicateReceiptA, nonReceipt, nullBatchReceipt, nullIdBatchReceipt));
+        .thenReturn(
+            List.of(receiptA, duplicateReceiptA, nonReceipt, nullBatchReceipt, nullIdBatchReceipt));
 
     List<BulkPackResponse.ChildBatchDto> result = service.listChildBatches(company, 301L);
 
@@ -397,7 +401,8 @@ class BulkPackingReadServiceTest {
   void listChildBatches_returnsCurrentBatchStateInsteadOfReceiptSnapshot() {
     RawMaterial parentMaterial = new RawMaterial();
     parentMaterial.setSku("FG-202-BULK");
-    RawMaterialBatch parentBatch = rawBatch(302L, "RB-302", "19", new BigDecimal("5"), parentMaterial);
+    RawMaterialBatch parentBatch =
+        rawBatch(302L, "RB-302", "19", new BigDecimal("5"), parentMaterial);
 
     RawMaterialMovement issue = new RawMaterialMovement();
     issue.setMovementType("ISSUE");

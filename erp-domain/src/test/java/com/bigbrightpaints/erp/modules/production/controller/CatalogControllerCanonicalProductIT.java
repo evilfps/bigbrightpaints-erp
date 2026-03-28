@@ -11,14 +11,14 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -266,7 +266,8 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
     ResponseEntity<Map> response =
         importCatalog(
             "brand,product_name,sku,category,unit_of_measure,hsn_code,gst_rate,base_price,color,size\n"
-                + "Legacy Brand,Legacy Primer,LEGACY-PRIMER-001,FINISHED_GOOD,LITER,320910,18,1200,WHITE,1L\n",
+                + "Legacy Brand,Legacy"
+                + " Primer,LEGACY-PRIMER-001,FINISHED_GOOD,LITER,320910,18,1200,WHITE,1L\n",
             "catalog-import-legacy-header.csv",
             headers);
 

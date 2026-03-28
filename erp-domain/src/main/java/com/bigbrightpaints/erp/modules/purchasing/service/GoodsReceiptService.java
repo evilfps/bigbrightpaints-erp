@@ -421,8 +421,7 @@ public class GoodsReceiptService {
       return;
     }
     throw new ApplicationException(
-            ErrorCode.CONCURRENCY_CONFLICT,
-            "Idempotency key already used with different payload")
+            ErrorCode.CONCURRENCY_CONFLICT, "Idempotency key already used with different payload")
         .withDetail("idempotencyKey", idempotencyKey)
         .withDetail("receiptNumber", receipt.getReceiptNumber());
   }

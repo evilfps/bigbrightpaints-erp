@@ -26,6 +26,7 @@ class TS_RuntimeCompanyDefaultAccountsExecutableCoverageTest {
   @Test
   void update_defaults_accepts_valid_types_and_exposes_get_and_require_defaults() {
     Company company = company(100L, "DEF");
+    company.setDefaultGstRate(new java.math.BigDecimal("18.00"));
     CompanyContextService companyContextService = mock(CompanyContextService.class);
     CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
     CompanyRepository companyRepository = mock(CompanyRepository.class);
@@ -58,6 +59,7 @@ class TS_RuntimeCompanyDefaultAccountsExecutableCoverageTest {
     assertThat(updated.revenueAccountId()).isEqualTo(3L);
     assertThat(updated.discountAccountId()).isEqualTo(4L);
     assertThat(updated.taxAccountId()).isEqualTo(5L);
+    assertThat(company.getGstOutputTaxAccountId()).isEqualTo(5L);
 
     CompanyDefaultAccountsService.DefaultAccounts current = service.getDefaults();
     assertThat(current.inventoryAccountId()).isEqualTo(1L);
@@ -134,7 +136,8 @@ class TS_RuntimeCompanyDefaultAccountsExecutableCoverageTest {
 
     assertThatThrownBy(service::requireDefaults)
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("default accounts are not configured");
+        .hasMessageContaining("fgRevenueAccountId")
+        .hasMessageContaining("DEF3");
 
     Company inventoryMissing = company(301L, "DEF4");
     inventoryMissing.setDefaultInventoryAccountId(null);
@@ -144,7 +147,8 @@ class TS_RuntimeCompanyDefaultAccountsExecutableCoverageTest {
     when(companyContextService.requireCurrentCompany()).thenReturn(inventoryMissing);
     assertThatThrownBy(service::requireDefaults)
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("default accounts are not configured");
+        .hasMessageContaining("fgValuationAccountId")
+        .hasMessageContaining("DEF4");
   }
 
   private Company company(Long id, String code) {

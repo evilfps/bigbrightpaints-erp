@@ -204,6 +204,9 @@ public class CompanyService {
     }
     if (request.defaultGstRate() != null) {
       company.setDefaultGstRate(request.defaultGstRate());
+      if (request.defaultGstRate().compareTo(BigDecimal.ZERO) == 0) {
+        clearGstTaxAccounts(company);
+      }
     }
     company.setQuotaMaxActiveUsers(
         resolveQuotaForUpdate(request.quotaMaxActiveUsers(), company.getQuotaMaxActiveUsers()));
@@ -224,6 +227,12 @@ public class CompanyService {
       company.setEnabledModules(validateAndNormalizeEnabledModules(request.enabledModules()));
     }
     return toDto(company);
+  }
+
+  private void clearGstTaxAccounts(Company company) {
+    company.setGstInputTaxAccountId(null);
+    company.setGstOutputTaxAccountId(null);
+    company.setGstPayableAccountId(null);
   }
 
   @Transactional

@@ -20,8 +20,8 @@ Supporting runtime evidence was limited: `curl -i -s http://localhost:8081/actua
 
 | Surface | Entrypoints | Controller | Notes |
 | --- | --- | --- | --- |
-| Admin user governance | `GET/POST /api/v1/admin/users`, `PUT /api/v1/admin/users/{id}`, `PUT /api/v1/admin/users/{userId}/status`, `POST /api/v1/admin/users/{userId}/force-reset-password`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, `DELETE /api/v1/admin/users/{id}` | `AdminUserController` | Tenant-admin operational surface with superadmin inheritance via role hierarchy. |
-| Settings and governance inbox | `GET/PUT /api/v1/admin/settings`, `GET /api/v1/admin/approvals`, `POST /api/v1/admin/notify`, `PUT /api/v1/admin/exports/{requestId}/{approve|reject}` | `AdminSettingsController` | Reads remain admin-accessible; settings mutation is superadmin-only; approvals stay tenant-scoped. |
+| Admin user governance | `GET/POST /api/v1/admin/users`, `PUT /api/v1/admin/users/{id}`, `PUT /api/v1/admin/users/{userId}/status`, `POST /api/v1/admin/users/{userId}/force-reset-password`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, `DELETE /api/v1/admin/users/{id}` | `AdminUserController` | Tenant-admin operational surface only. Platform super admins are blocked from this workflow prefix and must stay on `/api/v1/superadmin/tenants/**`. |
+| Settings and governance inbox | `GET/PUT /api/v1/admin/settings`, `GET /api/v1/admin/approvals`, `POST /api/v1/admin/notify`, `PUT /api/v1/admin/exports/{requestId}/{approve|reject}` | `AdminSettingsController` | Reads remain admin-accessible; settings mutation is superadmin-only; approvals stay tenant-scoped and exclude platform super-admin callers. |
 | Support desk | Internal: `POST/GET /api/v1/portal/support/tickets`, `GET /api/v1/portal/support/tickets/{ticketId}`; dealer: `POST/GET /api/v1/dealer-portal/support/tickets`, `GET /api/v1/dealer-portal/support/tickets/{ticketId}` | `PortalSupportTicketController`, `DealerPortalSupportTicketController` | Shared `/api/v1/support/**` is retired; admin/accounting work only on the portal host and dealer users stay on the dealer-portal host with self-scoped reads. |
 | Changelog reads | `GET /api/v1/changelog`, `GET /api/v1/changelog/latest-highlighted` | `ChangelogController` | Reads require authentication and are no longer public. |
 | Changelog writes | `POST /api/v1/superadmin/changelog`, `PUT /api/v1/superadmin/changelog/{id}`, `DELETE /api/v1/superadmin/changelog/{id}` | `SuperAdminChangelogController` | Global write ownership moved to superadmin-only control. |
@@ -68,9 +68,9 @@ Update and recovery flows are similarly side-effect heavy:
 
 Control-boundary notes:
 
-- The controller allows both `ROLE_ADMIN` and `ROLE_SUPER_ADMIN`, and role hierarchy makes super admins inherit admin access (`SecurityConfig.roleHierarchy()` sets `ROLE_SUPER_ADMIN > ROLE_ADMIN`).
-- `updateUser(...)`, `updateUserStatus(...)`, and `forceResetPassword(...)` support foreign-tenant targeting for super admins through `resolveScopedUserForAdminAction(...)`.
-- `suspend(...)`, `unsuspend(...)`, `deleteUser(...)`, and `disableMfa(...)` use the same scoped-target resolution. Super admins can target foreign-tenant users, while tenant admins get masked-as-missing responses for out-of-scope users.
+- The live `/api/v1/admin/users/**` contract is tenant-admin only. `CompanyContextFilter` blocks platform super admins from this tenant workflow prefix, and controller guards now make that boundary explicit even under role hierarchy.
+- Service internals still contain broader scoped-target helpers, but those are not part of the canonical public route contract for this prefix.
+- Tenant admins get masked-as-missing responses for out-of-scope users across update, reset, suspend, unsuspend, delete, and MFA-disable flows.
 
 ### 2. Changelog publishing
 
@@ -213,7 +213,7 @@ The method is explicitly `@Transactional(readOnly = true)` and converts each pen
 
 ## Control boundaries
 
-- `ROLE_SUPER_ADMIN` inherits admin endpoint access through role hierarchy, but not every admin operation actually honors cross-tenant intent in the service layer.
+- The live `/api/v1/admin/users/**` and `/api/v1/admin/approvals` surfaces are tenant-scoped workflow prefixes. Platform `ROLE_SUPER_ADMIN` callers are blocked there and must stay on `/api/v1/superadmin/tenants/**`.
 - Changelog authoring is tenant-admin writable but globally readable and globally stored.
 - Support tickets are company-scoped for tenant admins, user-scoped for ordinary users, and globally readable for super admins.
 - `AdminSettingsController` mixes global flags and tenant-scoped runtime policies in one namespace even though only the runtime-policy part is actually tenant-keyed.
@@ -242,7 +242,7 @@ The method is explicitly `@Transactional(readOnly = true)` and converts each pen
 | high | resilience / workflow integrity | Support ticket creation returns success before GitHub sync completes, and failed issue creation has no retry loop for unsynced tickets. | `SupportTicketService.create(...)`, `SupportTicketGitHubSyncService.submitGitHubIssueAsync(...)`, `syncGitHubIssueStatuses()` | Operators and end users can believe a ticket is fully escalated even though only the local row exists; external escalation may silently stall forever. |
 | high | governance / audit | Export approval request/approve/reject/download flows mutate governance state but do not emit audit events from `ExportApprovalService`. | `ExportApprovalService`, `ReportController`, `AdminSettingsController` | Sensitive data-export decisions lack a first-class audit trail, weakening forensic review and compliance evidence. |
 | high | approval semantics | When `export.require-approval=false`, `resolveDownload(...)` allows downloads for any stored request state, including `REJECTED` rows. | `ExportApprovalService.resolveDownload(...)`, `ReportExportApprovalIT.exportDownload_bypassesApprovalWhenSettingDisabled()` | A later flag flip can nullify an explicit rejection, so export approval is not a durable governance decision. |
-| medium | control-boundary consistency | Super admins can update and force-reset foreign-tenant users, but suspend/unsuspend/delete/MFA-disable paths only lock within the active tenant and silently no-op on foreign users. | `AdminUserService.{updateUser,forceResetPassword,updateUserStatus,suspend,unsuspend,deleteUser,disableMfa}` | Incident-response authority is inconsistent across adjacent admin controls, which is dangerous during compromised-account handling. |
+| medium | internal-boundary drift | `AdminUserService` still contains broader super-admin scoped-target helpers even though the canonical `/api/v1/admin/users/**` surface is now tenant-admin only. | `AdminUserService.{updateUser,forceResetPassword,updateUserStatus,suspend,unsuspend,deleteUser,disableMfa}`, `AdminUserController`, `CompanyContextFilter` | A future caller could accidentally re-expose cross-tenant admin-user behavior if it bypasses the current controller/filter boundary. |
 | medium | cross-tenant lock amplification | Masked tenant-admin actions now globally lock foreign user rows before scope checks on suspend/unsuspend/delete/MFA-disable paths. The caller still receives the masked `User not found` contract, but the foreign row is pessimistically write-locked for the duration of the transaction. | PR review on `AdminUserService.resolveScopedUserForAdminAction(...)`, `userRepository.lockById(...)`, masked admin user-control endpoints | A tenant admin who guesses foreign user IDs can block legitimate admin work against those rows without ever seeing a different response, turning lookup masking into a cross-tenant contention vector. |
 | medium | hidden side effects / design | Creating a user with `ROLE_DEALER` auto-provisions or relinks dealer master data and receivable accounts from the admin-user surface. | `AdminUserService.createUser(...)`, `createDealerForUser(...)`, `AdminUserServiceTest.createUser_relinksExistingDealerByEmailAndReactivatesReceivableAccount()` | A user-management action crosses into sales/accounting state and can unexpectedly reactivate downstream financial objects. |
 | medium | API / OpenAPI drift | Support ticket endpoints are missing from `openapi.json`, and `AdminApprovalsResponse` in OpenAPI omits `periodCloseRequests`. | `SupportTicketController`, `openapi.json`, `AdminApprovalsResponse.java`, `AdminSettingsControllerApprovalsContractTest` | Client generation, review tooling, and operator docs understate the real governance surface and miss one approval lane entirely. |
@@ -272,7 +272,7 @@ The method is explicitly `@Transactional(readOnly = true)` and converts each pen
 
 ## Evidence notes
 
-- `AdminUserSecurityIT` proves cross-company protection for tenant admins, foreign-tenant force reset for super admins, quota enforcement on user creation, and super-admin-only runtime-policy updates.
+- `AdminUserSecurityIT` proves cross-company protection for tenant admins, platform-superadmin denial on the tenant-admin user surface, quota enforcement on user creation, and super-admin-only runtime-policy updates.
 - `AdminUserServiceTest` proves dealer/receivable-account side effects during dealer-user creation.
 - `ChangelogControllerSecurityIT` proves tenant-admin/super-admin authoring and unauthenticated public read access.
 - `SupportTicketControllerIT` proves portal-vs-dealer support host split, role-scoped visibility, and retired shared-route `404`s.

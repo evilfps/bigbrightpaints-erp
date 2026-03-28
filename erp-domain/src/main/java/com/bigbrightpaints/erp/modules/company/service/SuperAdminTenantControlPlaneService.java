@@ -261,7 +261,8 @@ public class SuperAdminTenantControlPlaneService {
         Map.of(
             "revokedUserCount",
             String.valueOf(users.size()),
-            "forceLogoutReason", normalizedReason));
+            "forceLogoutReason",
+            normalizedReason));
     return new SuperAdminTenantForceLogoutDto(
         company.getId(), company.getCode(), users.size(), normalizedReason, actor, occurredAt);
   }
@@ -293,7 +294,8 @@ public class SuperAdminTenantControlPlaneService {
           "newEmail must differ from the current admin email");
     }
     if (userAccountRepository
-        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizedRequestedEmail, company.getCode())
+        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            normalizedRequestedEmail, company.getCode())
         .isPresent()) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Email already exists: " + normalizedRequestedEmail);
@@ -654,7 +656,8 @@ public class SuperAdminTenantControlPlaneService {
     List<String> sharedUserEmails = new ArrayList<>();
     for (UserAccount user : users) {
       if (isSharedAcrossCompanies(user)) {
-        sharedUserEmails.add(StringUtils.hasText(user.getEmail()) ? user.getEmail().trim() : "UNKNOWN");
+        sharedUserEmails.add(
+            StringUtils.hasText(user.getEmail()) ? user.getEmail().trim() : "UNKNOWN");
       }
     }
     if (!sharedUserEmails.isEmpty()) {

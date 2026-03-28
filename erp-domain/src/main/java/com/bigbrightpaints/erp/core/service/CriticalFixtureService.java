@@ -117,6 +117,24 @@ public class CriticalFixtureService {
     if (company.getGstInputTaxAccountId() == null) {
       company.setGstInputTaxAccountId(map.get("GST_IN").getId());
     }
+    if (company.getGstPayableAccountId() == null) {
+      company.setGstPayableAccountId(map.get("GST_OUT").getId());
+    }
+    if (company.getDefaultInventoryAccountId() == null) {
+      company.setDefaultInventoryAccountId(map.get("INV").getId());
+    }
+    if (company.getDefaultCogsAccountId() == null) {
+      company.setDefaultCogsAccountId(map.get("COGS").getId());
+    }
+    if (company.getDefaultRevenueAccountId() == null) {
+      company.setDefaultRevenueAccountId(map.get("REV").getId());
+    }
+    if (company.getDefaultDiscountAccountId() == null) {
+      company.setDefaultDiscountAccountId(map.get("DISC").getId());
+    }
+    if (company.getDefaultTaxAccountId() == null) {
+      company.setDefaultTaxAccountId(map.get("GST_OUT").getId());
+    }
     companyRepository.save(company);
     return map;
   }

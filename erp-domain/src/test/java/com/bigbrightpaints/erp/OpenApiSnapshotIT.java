@@ -86,6 +86,11 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         "#/components/schemas/ResetPasswordRequest",
         "200",
         "#/components/schemas/ApiResponseString");
+    assertOperationMissing(root, "/api/v1/auth/profile", "get");
+    assertOperationMissing(root, "/api/v1/auth/profile", "put");
+    assertThat(root.path("components").path("schemas").has("ProfileResponse")).isFalse();
+    assertThat(root.path("components").path("schemas").has("UpdateProfileRequest")).isFalse();
+    assertThat(root.path("components").path("schemas").has("ApiResponseProfileResponse")).isFalse();
 
     assertOperationContract(
         root,
@@ -101,6 +106,28 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         "#/components/schemas/SystemSettingsUpdateRequest",
         "200",
         "#/components/schemas/ApiResponseSystemSettingsDto");
+    assertOperationContract(
+        root,
+        "/api/v1/admin/approvals",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseAdminApprovalsResponse");
+    assertOperationContract(
+        root,
+        "/api/v1/admin/exports/{requestId}/approve",
+        "put",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseExportRequestDto");
+    assertOperationContract(
+        root,
+        "/api/v1/admin/exports/{requestId}/reject",
+        "put",
+        "#/components/schemas/ExportRequestDecisionRequest",
+        "200",
+        "#/components/schemas/ApiResponseExportRequestDto");
+    assertOperationMissing(root, "/api/v1/admin/exports/pending", "get");
     assertOperationContract(
         root,
         "/api/v1/superadmin/tenants/onboard",
@@ -216,6 +243,48 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         null,
         "200",
         "#/components/schemas/ApiResponseChangelogEntryResponse");
+    assertOperationContract(
+        root,
+        "/api/v1/accounting/periods/{periodId}/request-close",
+        "post",
+        "#/components/schemas/PeriodCloseRequestActionRequest",
+        "200",
+        "#/components/schemas/ApiResponsePeriodCloseRequestDto");
+    assertOperationContract(
+        root,
+        "/api/v1/accounting/periods/{periodId}/approve-close",
+        "post",
+        "#/components/schemas/PeriodCloseRequestActionRequest",
+        "200",
+        "#/components/schemas/ApiResponseAccountingPeriodDto");
+    assertOperationContract(
+        root,
+        "/api/v1/accounting/periods/{periodId}/reject-close",
+        "post",
+        "#/components/schemas/PeriodCloseRequestActionRequest",
+        "200",
+        "#/components/schemas/ApiResponsePeriodCloseRequestDto");
+    assertOperationContract(
+        root,
+        "/api/v1/accounting/periods/{periodId}/reopen",
+        "post",
+        "#/components/schemas/AccountingPeriodReopenRequest",
+        "200",
+        "#/components/schemas/ApiResponseAccountingPeriodDto");
+    assertOperationContract(
+        root,
+        "/api/v1/exports/request",
+        "post",
+        "#/components/schemas/ExportRequestCreateRequest",
+        "200",
+        "#/components/schemas/ApiResponseExportRequestDto");
+    assertOperationContract(
+        root,
+        "/api/v1/exports/{requestId}/download",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseExportRequestDownloadResponse");
     assertOperationContract(
         root,
         "/api/v1/superadmin/changelog",
@@ -441,7 +510,11 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertThat(fulfillmentResponseSchema.path("type").asText()).isEqualTo("object");
     assertThat(fulfillmentResponseSchema.path("additionalProperties").path("type").asText())
         .isEqualTo("object");
-    assertThat(root.path("paths").path("/api/v1/orchestrator/traces/{traceId}").path("get").isMissingNode())
+    assertThat(
+            root.path("paths")
+                .path("/api/v1/orchestrator/traces/{traceId}")
+                .path("get")
+                .isMissingNode())
         .isFalse();
     assertThat(
             root.path("paths")
@@ -464,7 +537,10 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
                 .has("200"))
         .isTrue();
     assertThat(
-            root.path("paths").path("/api/v1/orchestrator/health/events").path("get").isMissingNode())
+            root.path("paths")
+                .path("/api/v1/orchestrator/health/events")
+                .path("get")
+                .isMissingNode())
         .isFalse();
     assertThat(
             root.path("paths")
@@ -574,8 +650,9 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void inventory_contract_requires_explicit_opening_stock_batch_key_and_removes_retired_bulk_pack_request()
-      throws IOException {
+  void
+      inventory_contract_requires_explicit_opening_stock_batch_key_and_removes_retired_bulk_pack_request()
+          throws IOException {
     JsonNode root = fetchCurrentSpecNode();
 
     assertMultipartBinaryRequest(root, "/api/v1/inventory/opening-stock", "post", "file");
@@ -702,6 +779,10 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         "200",
         "#/components/schemas/ApiResponseJournalEntryDto");
     assertOperationMissing(root, "/api/v1/accounting/journals/manual", "post");
+    assertOperationMissing(root, "/api/v1/accounting/journals/{entryId}/reverse", "post");
+    assertOperationMissing(
+        root, "/api/v1/accounting/journal-entries/{entryId}/cascade-reverse", "post");
+    assertOperationMissing(root, "/api/v1/accounting/periods/{periodId}/close", "post");
 
     assertHeaderParameters(root, "/api/v1/accounting/receipts/dealer", "post", "Idempotency-Key");
     assertHeaderParameters(

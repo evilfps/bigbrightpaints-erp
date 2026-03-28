@@ -21,9 +21,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
-import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
@@ -134,7 +134,13 @@ class BenchmarkDataInitializerTest {
         .thenAnswer(invocation -> invocation.getArgument(0, ProductionProduct.class));
 
     ReflectionTestUtils.invokeMethod(
-        initializer, "seedFinishedGoods", company, finishedGoodRepository, productRepository, accounts, brand);
+        initializer,
+        "seedFinishedGoods",
+        company,
+        finishedGoodRepository,
+        productRepository,
+        accounts,
+        brand);
 
     ArgumentCaptor<FinishedGood> fgCaptor = ArgumentCaptor.forClass(FinishedGood.class);
     verify(finishedGoodRepository, times(2)).save(fgCaptor.capture());
@@ -143,7 +149,8 @@ class BenchmarkDataInitializerTest {
         .containsExactlyInAnyOrder("FG-PEE-5L", "FG-PEE-10L")
         .allSatisfy(code -> assertThat(code).doesNotEndWith("-BULK"));
 
-    ArgumentCaptor<ProductionProduct> productCaptor = ArgumentCaptor.forClass(ProductionProduct.class);
+    ArgumentCaptor<ProductionProduct> productCaptor =
+        ArgumentCaptor.forClass(ProductionProduct.class);
     verify(productRepository, times(3)).save(productCaptor.capture());
 
     List<ProductionProduct> savedProducts = productCaptor.getAllValues();

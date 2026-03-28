@@ -298,19 +298,19 @@ Primary files:
 - Purchasing + HR/payroll tables in `V5__purchasing_hr.sql`.
 - Orchestrator outbox/audit/scheduler structures in `V6__orchestrator.sql`.
 
-### 3.2 Flyway dual-track strategy
+### 3.2 Flyway current-state strategy
 
-The repository contains both:
+The repository still contains the frozen historical `db/migration/*` tree, but
+the current operational contract is `db/migration_v2/*` only.
 
-- legacy `db/migration/*` (long historical chain), and
-- active production-focused `db/migration_v2/*` chain.
-
-Runtime profile grouping in `application.yml` binds production to `flyway-v2` (`spring.profiles.group.prod: [flyway-v2]`), making `migration_v2` the operational baseline for prod-like deployments.
+Runtime profile grouping in `application.yml` binds production to `flyway-v2`
+(`spring.profiles.group.prod: [flyway-v2]`), making `migration_v2` the only
+supported prod-like runtime path. Tooling and deployment docs should not point
+new work back at the legacy chain.
 
 Key references:
 
 - `erp-domain/src/main/resources/application.yml`
-- `erp-domain/src/main/resources/db/migration/*`
 - `erp-domain/src/main/resources/db/migration_v2/*`
 
 ### 3.3 Domain-specific v2 migrations (examples)

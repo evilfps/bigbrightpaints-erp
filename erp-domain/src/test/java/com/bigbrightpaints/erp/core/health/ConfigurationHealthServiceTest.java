@@ -60,6 +60,10 @@ class ConfigurationHealthServiceTest {
     assertThat(report.issues())
         .anySatisfy(issue -> assertThat(issue.domain()).isEqualTo("BASE_CURRENCY"));
     assertThat(report.issues())
-        .anySatisfy(issue -> assertThat(issue.domain()).isEqualTo("DEFAULT_ACCOUNTS"));
+        .anySatisfy(
+            issue -> {
+              assertThat(issue.domain()).isEqualTo("DEFAULT_ACCOUNTS");
+              assertThat(issue.message()).contains("defaultDiscountAccountId");
+            });
   }
 }

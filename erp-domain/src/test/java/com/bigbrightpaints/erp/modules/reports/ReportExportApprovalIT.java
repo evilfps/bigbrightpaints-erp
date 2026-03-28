@@ -166,9 +166,17 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
             Map.class);
     assertThat(downloadAfterApproval.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(downloadAfterApproval.getBody()).isNotNull();
-    Map<?, ?> downloadData = (Map<?, ?>) downloadAfterApproval.getBody().get("data");
+    @SuppressWarnings("unchecked")
+    Map<String, Object> downloadData =
+        (Map<String, Object>) downloadAfterApproval.getBody().get("data");
     assertThat(downloadData).isNotNull();
-    assertThat(String.valueOf(downloadData.get("status"))).isEqualTo("APPROVED");
+    assertThat(downloadData)
+        .containsEntry("requestId", requestId.intValue())
+        .containsEntry("status", "APPROVED")
+        .containsEntry("reportType", "TRIAL-BALANCE")
+        .containsEntry("parameters", "periodId=10")
+        .containsEntry("message", "Export request approved for download");
+    assertThat(downloadData).doesNotContainKeys("downloadUrl", "fileName");
   }
 
   @Test
@@ -187,6 +195,43 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
             Map.class);
 
     assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
+  @Test
+  void superAdmin_is_blocked_from_tenant_export_approval_surfaces() {
+    ExportRequest request = new ExportRequest();
+    request.setCompany(company);
+    request.setUserId(accountingUser.getId());
+    request.setReportType("TRIAL-BALANCE");
+    request.setParameters("periodId=6");
+    request.setStatus(ExportApprovalStatus.PENDING);
+    request = exportRequestRepository.save(request);
+
+    HttpHeaders superAdminHeaders = authHeaders(SUPER_ADMIN_EMAIL);
+
+    ResponseEntity<Map> approvalsResponse =
+        rest.exchange(
+            "/api/v1/admin/approvals",
+            HttpMethod.GET,
+            new HttpEntity<>(superAdminHeaders),
+            Map.class);
+    assertThat(approvalsResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+    ResponseEntity<Map> approveResponse =
+        rest.exchange(
+            "/api/v1/admin/exports/" + request.getId() + "/approve",
+            HttpMethod.PUT,
+            new HttpEntity<>(superAdminHeaders),
+            Map.class);
+    assertThat(approveResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+    ResponseEntity<Map> rejectResponse =
+        rest.exchange(
+            "/api/v1/admin/exports/" + request.getId() + "/reject",
+            HttpMethod.PUT,
+            new HttpEntity<>(Map.of("reason", "forbidden"), jsonHeaders(superAdminHeaders)),
+            Map.class);
+    assertThat(rejectResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
   }
 
   @Test
@@ -219,10 +264,16 @@ class ReportExportApprovalIT extends AbstractIntegrationTest {
 
     assertThat(download.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(download.getBody()).isNotNull();
-    Map<?, ?> data = (Map<?, ?>) download.getBody().get("data");
+    @SuppressWarnings("unchecked")
+    Map<String, Object> data = (Map<String, Object>) download.getBody().get("data");
     assertThat(data).isNotNull();
-    assertThat(String.valueOf(data.get("status"))).isEqualTo("REJECTED");
+    assertThat(data)
+        .containsEntry("requestId", request.getId().intValue())
+        .containsEntry("status", "REJECTED")
+        .containsEntry("reportType", "TRIAL-BALANCE")
+        .containsEntry("parameters", "periodId=2");
     assertThat(String.valueOf(data.get("message"))).contains("disabled");
+    assertThat(data).doesNotContainKeys("downloadUrl", "fileName");
   }
 
   @Test

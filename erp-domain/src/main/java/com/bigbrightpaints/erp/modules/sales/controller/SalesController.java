@@ -183,18 +183,17 @@ public class SalesController {
     if (request == null) {
       return null;
     }
-    String primaryHeader = normalizeIdempotencyHeader(idempotencyKeyHeader);
     String legacyHeader = normalizeIdempotencyHeader(legacyIdempotencyKeyHeader);
-    if (primaryHeader != null && legacyHeader != null && !primaryHeader.equals(legacyHeader)) {
+    if (legacyHeader != null) {
       throw new ApplicationException(
               ErrorCode.VALIDATION_INVALID_INPUT,
-              "Idempotency key mismatch between Idempotency-Key and X-Idempotency-Key headers")
-          .withDetail("idempotencyKey", primaryHeader)
+              "X-Idempotency-Key is not supported for sales orders; use Idempotency-Key")
+          .withDetail("legacyHeader", "X-Idempotency-Key")
           .withDetail("legacyIdempotencyKey", legacyHeader);
     }
     String resolvedKey =
         IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
-            request.idempotencyKey(), primaryHeader, legacyHeader);
+            request.idempotencyKey(), idempotencyKeyHeader, null);
     if (!StringUtils.hasText(resolvedKey) || StringUtils.hasText(request.idempotencyKey())) {
       return request;
     }

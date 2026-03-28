@@ -17,7 +17,7 @@ fi
 echo "Checking health..."
 curl -fsS "${MGMT_URL}/actuator/health" >/dev/null
 
-echo "Checking authenticated profile..."
+echo "Checking authenticated identity..."
 login_payload=$(printf '{"email":"%s","password":"%s","companyCode":"%s"}' \
   "${ERP_SMOKE_EMAIL}" "${ERP_SMOKE_PASSWORD}" "${ERP_SMOKE_COMPANY}")
 token=$(curl -fsS -X POST "${BASE_URL}/api/v1/auth/login" \
@@ -52,7 +52,7 @@ fi
 
 curl -fsS \
   -H "Authorization: Bearer ${token}" \
-  -H "X-Company-Id: ${ERP_SMOKE_COMPANY}" \
-  "${BASE_URL}/api/v1/auth/profile" >/dev/null
+  -H "X-Company-Code: ${ERP_SMOKE_COMPANY}" \
+  "${BASE_URL}/api/v1/auth/me" >/dev/null
 
 echo "Smoke checks OK."

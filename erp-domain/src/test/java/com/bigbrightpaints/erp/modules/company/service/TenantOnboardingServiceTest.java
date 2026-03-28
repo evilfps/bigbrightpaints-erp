@@ -2,6 +2,8 @@ package com.bigbrightpaints.erp.modules.company.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -124,6 +126,10 @@ class TenantOnboardingServiceTest {
     assertThat(response.companyId()).isEqualTo(99L);
     assertThat(response.companyCode()).isEqualTo("MOCK");
     assertThat(response.templateCode()).isEqualTo("GENERIC");
+    assertThat(response.seededChartOfAccounts()).isTrue();
+    assertThat(response.accountsCreated()).isGreaterThan(0);
+    assertThat(response.accountingPeriodId()).isEqualTo(77L);
+    assertThat(response.defaultAccountingPeriodCreated()).isTrue();
     assertThat(response.adminEmail()).isEqualTo("admin@mock.com");
     assertThat(response.tenantAdminProvisioned()).isTrue();
     assertThat(response.systemSettingsInitialized()).isTrue();
@@ -217,6 +223,76 @@ class TenantOnboardingServiceTest {
   }
 
   @Test
+  void onboardTenant_nonGstMode_doesNotRetainGstCompanyAccounts() {
+    TenantOnboardingService service = newService();
+    TenantOnboardingRequest request =
+        new TenantOnboardingRequest(
+            "Zero GST Company",
+            "zero",
+            "UTC",
+            BigDecimal.ZERO,
+            10L,
+            1000L,
+            1024L,
+            5L,
+            true,
+            true,
+            "admin@zero.com",
+            "Zero Admin",
+            "GENERIC");
+
+    CoATemplate template = new CoATemplate();
+    template.setCode("GENERIC");
+    template.setActive(true);
+    when(coATemplateService.requireActiveTemplate("GENERIC")).thenReturn(template);
+    when(companyRepository.findByCodeIgnoreCase("ZERO")).thenReturn(java.util.Optional.empty());
+    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "admin@zero.com", "ZERO"))
+        .thenReturn(false);
+    when(companyRepository.save(any(Company.class)))
+        .thenAnswer(
+            invocation -> {
+              Company company = invocation.getArgument(0);
+              if (company.getId() == null) {
+                ReflectionTestUtils.setField(company, "id", 109L);
+              }
+              return company;
+            });
+    AtomicLong accountIds = new AtomicLong(1L);
+    when(accountRepository.save(any(Account.class)))
+        .thenAnswer(
+            invocation -> {
+              Account account = invocation.getArgument(0);
+              if (account.getId() == null) {
+                ReflectionTestUtils.setField(account, "id", accountIds.getAndIncrement());
+              }
+              return account;
+            });
+    AccountingPeriod period = new AccountingPeriod();
+    ReflectionTestUtils.setField(period, "id", 78L);
+    when(accountingPeriodService.ensurePeriod(any(Company.class), any())).thenReturn(period);
+    when(systemSettingsRepository.existsById(anyString())).thenReturn(false);
+    UserAccount provisionedAdmin = new UserAccount("admin@zero.com", "ZERO", "hash", "Zero Admin");
+    ReflectionTestUtils.setField(provisionedAdmin, "id", 503L);
+    when(tenantAdminProvisioningService.provisionInitialAdmin(
+            any(Company.class), anyString(), anyString()))
+        .thenReturn(provisionedAdmin);
+
+    service.onboardTenant(request);
+
+    ArgumentCaptor<Company> savedCompanies = ArgumentCaptor.forClass(Company.class);
+    verify(companyRepository, times(3)).save(savedCompanies.capture());
+    assertThat(savedCompanies.getAllValues())
+        .anyMatch(
+            company ->
+                company != null
+                    && company.getDefaultGstRate().compareTo(BigDecimal.ZERO) == 0
+                    && company.getGstInputTaxAccountId() == null
+                    && company.getGstOutputTaxAccountId() == null
+                    && company.getGstPayableAccountId() == null);
+  }
+
+  @Test
   void helperMethods_rejectInvalidInputAndDuplicates() {
     TenantOnboardingService service = newService();
     when(companyRepository.findByCodeIgnoreCase("MOCK"))
@@ -275,6 +351,55 @@ class TenantOnboardingServiceTest {
     assertThat(company.getGstPayableAccountId()).isNull();
     assertThat(company.getPayrollCashAccount()).isNull();
     assertThat(company.getPayrollExpenseAccount()).isNull();
+  }
+
+  @Test
+  void helperMethods_deriveBootstrapFlagsFromActualOutcomes() {
+    TenantOnboardingService service = newService();
+
+    Boolean noAccountsSeeded =
+        ReflectionTestUtils.invokeMethod(
+            service, "seededChartOfAccounts", new HashMap<String, Account>(), 55);
+    Boolean zeroSeedCount =
+        ReflectionTestUtils.invokeMethod(
+            service, "seededChartOfAccounts", new HashMap<String, Account>(), 0);
+    assertFalse(Boolean.TRUE.equals(noAccountsSeeded));
+    assertFalse(Boolean.TRUE.equals(zeroSeedCount));
+
+    HashMap<String, Account> createdAccounts = new HashMap<>();
+    createdAccounts.put("INV", new Account());
+    Boolean singleAccountSeeded =
+        ReflectionTestUtils.invokeMethod(service, "seededChartOfAccounts", createdAccounts, 1);
+    Boolean overstatedSeedCount =
+        ReflectionTestUtils.invokeMethod(service, "seededChartOfAccounts", createdAccounts, 2);
+    assertTrue(Boolean.TRUE.equals(singleAccountSeeded));
+    assertFalse(Boolean.TRUE.equals(overstatedSeedCount));
+
+    Boolean noPeriodCreated =
+        ReflectionTestUtils.invokeMethod(service, "defaultAccountingPeriodCreated", (Object) null);
+    assertFalse(Boolean.TRUE.equals(noPeriodCreated));
+    AccountingPeriod periodWithoutId = new AccountingPeriod();
+    Boolean transientPeriod =
+        ReflectionTestUtils.invokeMethod(
+            service, "defaultAccountingPeriodCreated", periodWithoutId);
+    assertFalse(Boolean.TRUE.equals(transientPeriod));
+    AccountingPeriod createdPeriod = new AccountingPeriod();
+    ReflectionTestUtils.setField(createdPeriod, "id", 801L);
+    Boolean persistedPeriod =
+        ReflectionTestUtils.invokeMethod(service, "defaultAccountingPeriodCreated", createdPeriod);
+    assertTrue(Boolean.TRUE.equals(persistedPeriod));
+
+    Boolean missingTenantAdmin =
+        ReflectionTestUtils.invokeMethod(service, "tenantAdminProvisioned", null, "admin@mock.com");
+    Boolean mismatchedTenantAdmin =
+        ReflectionTestUtils.invokeMethod(
+            service, "tenantAdminProvisioned", "other@mock.com", "admin@mock.com");
+    Boolean normalizedTenantAdmin =
+        ReflectionTestUtils.invokeMethod(
+            service, "tenantAdminProvisioned", " Admin@Mock.com ", "admin@mock.com");
+    assertFalse(Boolean.TRUE.equals(missingTenantAdmin));
+    assertFalse(Boolean.TRUE.equals(mismatchedTenantAdmin));
+    assertTrue(Boolean.TRUE.equals(normalizedTenantAdmin));
   }
 
   @Test

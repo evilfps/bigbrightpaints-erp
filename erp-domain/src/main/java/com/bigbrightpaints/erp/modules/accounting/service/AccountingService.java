@@ -36,6 +36,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalListItemDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.LandedCostRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.ManualJournalRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
+import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.WipAdjustmentRequest;
@@ -194,6 +195,16 @@ public class AccountingService extends AccountingCoreService {
   }
 
   @Override
+  public JournalEntryDto postPayrollRun(
+      String runNumber,
+      Long runId,
+      LocalDate postingDate,
+      String memo,
+      List<JournalEntryRequest.JournalLineRequest> lines) {
+    return super.postPayrollRun(runNumber, runId, postingDate, memo, lines);
+  }
+
+  @Override
   public JournalEntryDto reverseJournalEntry(Long entryId, JournalEntryReversalRequest request) {
     return journalEntryService.reverseJournalEntry(entryId, request);
   }
@@ -229,6 +240,11 @@ public class AccountingService extends AccountingCoreService {
   @Override
   public JournalEntryDto recordSupplierPayment(SupplierPaymentRequest request) {
     return settlementService.recordSupplierPayment(request);
+  }
+
+  @Override
+  public JournalEntryDto recordPayrollPayment(PayrollPaymentRequest request) {
+    return super.recordPayrollPayment(request);
   }
 
   @Override

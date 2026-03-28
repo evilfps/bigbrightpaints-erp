@@ -699,7 +699,7 @@ class AdminSettingsControllerApprovalsContractTest {
   }
 
   @Test
-  void sensitiveApprovalRequesterDetails_allowSuperAdminView() {
+  void sensitiveApprovalRequesterDetails_allowAdminView() {
     AdminSettingsController controller =
         new AdminSettingsController(
             mock(SystemSettingsService.class),
@@ -714,7 +714,7 @@ class AdminSettingsControllerApprovalsContractTest {
             null,
             mock(ModuleGatingService.class));
 
-    authenticateAs("ROLE_SUPER_ADMIN");
+    authenticateAs("ROLE_ADMIN");
     try {
       Boolean includeSensitiveDetails =
           ReflectionTestUtils.invokeMethod(controller, "canViewSensitiveApprovalRequesterDetails");

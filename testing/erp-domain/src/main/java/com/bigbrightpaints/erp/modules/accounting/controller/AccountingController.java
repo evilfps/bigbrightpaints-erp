@@ -169,17 +169,13 @@ public class AccountingController {
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<JournalEntryDto>> reverseJournalEntry(@PathVariable Long entryId,
                                                                             @RequestBody(required = false) JournalEntryReversalRequest request) {
+        if (request != null && (request.cascadeRelatedEntries()
+                || (request.relatedEntryIds() != null && !request.relatedEntryIds().isEmpty()))) {
+            java.util.List<JournalEntryDto> reversedEntries = accountingService.cascadeReverseRelatedEntries(entryId, request);
+            JournalEntryDto primaryReversal = reversedEntries.isEmpty() ? null : reversedEntries.get(0);
+            return ResponseEntity.ok(ApiResponse.success("Journal entry corrected", primaryReversal));
+        }
         return ResponseEntity.ok(ApiResponse.success("Journal entry corrected", accountingService.reverseJournalEntry(entryId, request)));
-    }
-
-    @PostMapping("/journal-entries/{entryId}/cascade-reverse")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<java.util.List<JournalEntryDto>>> cascadeReverseJournalEntry(
-            @PathVariable Long entryId,
-            @RequestBody JournalEntryReversalRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Journal entries reversed with related entries",
-                accountingService.cascadeReverseRelatedEntries(entryId, request)));
     }
 
     @PostMapping("/receipts/dealer")
@@ -360,6 +356,13 @@ public class AccountingController {
         return ResponseEntity.ok(ApiResponse.success(taxService.generateGstReturn(target)));
     }
 
+    @GetMapping("/gst/reconciliation")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<GstReconciliationDto>> getGstReconciliation(@RequestParam(required = false) String period) {
+        YearMonth target = period != null && !period.isBlank() ? YearMonth.parse(period) : null;
+        return ResponseEntity.ok(ApiResponse.success(taxService.generateGstReconciliation(target)));
+    }
+
     @PostMapping("/bad-debts/write-off")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
     public ResponseEntity<ApiResponse<JournalEntryDto>> writeOffBadDebt(@Valid @RequestBody BadDebtWriteOffRequest request) {
@@ -386,22 +389,32 @@ public class AccountingController {
         return ResponseEntity.ok(ApiResponse.success(accountingPeriodService.listPeriods()));
     }
 
-    @PostMapping("/periods/{periodId}/close")
+    @PostMapping("/periods/{periodId}/request-close")
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<AccountingPeriodDto>> closePeriod(@PathVariable Long periodId,
-                                                                        @RequestBody(required = false) AccountingPeriodCloseRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Accounting period closed", accountingPeriodService.closePeriod(periodId, request)));
+    public ResponseEntity<ApiResponse<PeriodCloseRequestDto>> requestPeriodClose(@PathVariable Long periodId,
+                                                                                 @RequestBody(required = false) PeriodCloseRequestActionRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Period close request submitted",
+                accountingPeriodService.requestPeriodClose(periodId, request)));
     }
 
-    @PostMapping("/periods/{periodId}/lock")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-    public ResponseEntity<ApiResponse<AccountingPeriodDto>> lockPeriod(@PathVariable Long periodId,
-                                                                       @RequestBody(required = false) AccountingPeriodLockRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Accounting period locked", accountingPeriodService.lockPeriod(periodId, request)));
+    @PostMapping("/periods/{periodId}/approve-close")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<ApiResponse<AccountingPeriodDto>> approvePeriodClose(@PathVariable Long periodId,
+                                                                               @RequestBody(required = false) PeriodCloseRequestActionRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Accounting period close approved",
+                accountingPeriodService.approvePeriodClose(periodId, request)));
+    }
+
+    @PostMapping("/periods/{periodId}/reject-close")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    public ResponseEntity<ApiResponse<PeriodCloseRequestDto>> rejectPeriodClose(@PathVariable Long periodId,
+                                                                                @RequestBody(required = false) PeriodCloseRequestActionRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Accounting period close rejected",
+                accountingPeriodService.rejectPeriodClose(periodId, request)));
     }
 
     @PostMapping("/periods/{periodId}/reopen")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    @PreAuthorize("hasAuthority('ROLE_SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<AccountingPeriodDto>> reopenPeriod(@PathVariable Long periodId,
                                                                          @RequestBody(required = false) AccountingPeriodReopenRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Accounting period reopened", accountingPeriodService.reopenPeriod(periodId, request)));
@@ -418,6 +431,18 @@ public class AccountingController {
     public ResponseEntity<ApiResponse<MonthEndChecklistDto>> updateChecklist(@PathVariable Long periodId,
                                                                              @RequestBody MonthEndChecklistUpdateRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Checklist updated", accountingPeriodService.updateMonthEndChecklist(periodId, request)));
+    }
+
+    @PostMapping("/reconciliation/bank")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<BankReconciliationSummaryDto>> reconcileBank(@Valid @RequestBody BankReconciliationRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(reconciliationService.reconcileBankAccount(request)));
+    }
+
+    @GetMapping("/reconciliation/subledger")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+    public ResponseEntity<ApiResponse<ReconciliationService.SubledgerReconciliationReport>> reconcileSubledger() {
+        return ResponseEntity.ok(ApiResponse.success(reconciliationService.reconcileSubledgerBalances()));
     }
 
     /* Statements & Aging */

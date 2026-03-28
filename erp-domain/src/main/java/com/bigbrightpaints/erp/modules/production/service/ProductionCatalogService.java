@@ -74,7 +74,6 @@ import com.bigbrightpaints.erp.modules.production.dto.CatalogImportResponse;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogItemCreateCommand;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogItemUpdateCommand;
 import com.bigbrightpaints.erp.modules.production.dto.ProductionProductDto;
-import com.bigbrightpaints.erp.modules.production.dto.SkuReadinessDto;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
@@ -1971,6 +1970,19 @@ public class ProductionCatalogService {
       Map<Long, Long> validatedFinishedGoodAccounts,
       boolean requireConfiguredDefaults) {
     Map<String, Object> working = metadata == null ? new HashMap<>() : new HashMap<>(metadata);
+
+    for (String key : FINISHED_GOOD_ACCOUNT_KEYS) {
+      Long accountId = metadataLong(working, key);
+      if (accountId == null) {
+        continue;
+      }
+      Long validatedAccountId =
+          requireFinishedGoodAccount(company, accountId, sku, key, validatedFinishedGoodAccounts);
+      if (!Objects.equals(accountId, validatedAccountId)) {
+        working.put(key, validatedAccountId);
+      }
+    }
+
     var defaults =
         requireConfiguredDefaults
             ? companyDefaultAccountsService.requireDefaults()
@@ -1997,7 +2009,11 @@ public class ProductionCatalogService {
     if (requireConfiguredDefaults) {
       for (String key :
           List.of(
-              "fgValuationAccountId", "fgCogsAccountId", "fgRevenueAccountId", "fgTaxAccountId")) {
+              "fgValuationAccountId",
+              "fgCogsAccountId",
+              "fgRevenueAccountId",
+              "fgDiscountAccountId",
+              "fgTaxAccountId")) {
         if (!hasLongValue(working.get(key))) {
           throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
               "Default "

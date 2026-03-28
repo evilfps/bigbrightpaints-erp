@@ -71,7 +71,9 @@ class AccountingControllerIdempotencyHeaderParityTest {
   void recordDealerHybridReceipt_rejectsLegacyHeader() {
     AccountingController controller = controller();
     assertThatThrownBy(
-            () -> controller.recordDealerHybridReceipt(dealerReceiptSplitRequest(null), null, "legacy-001"))
+            () ->
+                controller.recordDealerHybridReceipt(
+                    dealerReceiptSplitRequest(null), null, "legacy-001"))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("X-Idempotency-Key is not supported");
   }
@@ -183,8 +185,7 @@ class AccountingControllerIdempotencyHeaderParityTest {
     AccountingController controller = controller();
     assertThatThrownBy(
             () ->
-                controller.autoSettleDealer(
-                    1001L, autoSettlementRequest(null), null, "legacy-001"))
+                controller.autoSettleDealer(1001L, autoSettlementRequest(null), null, "legacy-001"))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("X-Idempotency-Key is not supported");
   }
@@ -273,8 +274,8 @@ class AccountingControllerIdempotencyHeaderParityTest {
         allocations());
   }
 
-  private com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest autoSettlementRequest(
-      String idempotencyKey) {
+  private com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest
+      autoSettlementRequest(String idempotencyKey) {
     return new com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest(
         2001L, new BigDecimal("50.00"), "AUTO-SETTLE-001", "memo", idempotencyKey);
   }

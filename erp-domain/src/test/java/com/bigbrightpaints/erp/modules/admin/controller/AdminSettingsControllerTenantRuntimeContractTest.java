@@ -17,6 +17,7 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepository;
 import com.bigbrightpaints.erp.modules.admin.dto.AdminNotifyRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.SystemSettingsDto;
@@ -42,6 +43,36 @@ class AdminSettingsControllerTenantRuntimeContractTest {
 
     assertThat(annotation).isNotNull();
     assertThat(annotation.value()).isEqualTo("hasAuthority('ROLE_SUPER_ADMIN')");
+  }
+
+  @Test
+  void approvals_requiresTenantAdminOrAccountingAuthority() throws Exception {
+    Method method = AdminSettingsController.class.getMethod("approvals");
+
+    PreAuthorize annotation = method.getAnnotation(PreAuthorize.class);
+
+    assertThat(annotation).isNotNull();
+    assertThat(annotation.value())
+        .isEqualTo(PortalRoleActionMatrix.TENANT_ADMIN_OR_ACCOUNTING_ONLY);
+  }
+
+  @Test
+  void exportApprovalDecisionEndpoints_requireTenantAdminAuthority() throws Exception {
+    Method approveMethod =
+        AdminSettingsController.class.getMethod("approveExportRequest", Long.class);
+    Method rejectMethod =
+        AdminSettingsController.class.getMethod(
+            "rejectExportRequest",
+            Long.class,
+            com.bigbrightpaints.erp.modules.admin.dto.ExportRequestDecisionRequest.class);
+
+    PreAuthorize approveAnnotation = approveMethod.getAnnotation(PreAuthorize.class);
+    PreAuthorize rejectAnnotation = rejectMethod.getAnnotation(PreAuthorize.class);
+
+    assertThat(approveAnnotation).isNotNull();
+    assertThat(approveAnnotation.value()).isEqualTo(PortalRoleActionMatrix.TENANT_ADMIN_ONLY);
+    assertThat(rejectAnnotation).isNotNull();
+    assertThat(rejectAnnotation.value()).isEqualTo(PortalRoleActionMatrix.TENANT_ADMIN_ONLY);
   }
 
   @Test

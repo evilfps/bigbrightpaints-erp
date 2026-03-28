@@ -24,6 +24,8 @@ import jakarta.validation.Validator;
 @RequestMapping("/api/v1/inventory/adjustments")
 public class InventoryAdjustmentController {
 
+  private static final String CANONICAL_INVENTORY_ADJUSTMENT_PATH = "/api/v1/inventory/adjustments";
+
   private final InventoryAdjustmentService inventoryAdjustmentService;
   private final Validator validator;
 
@@ -61,9 +63,18 @@ public class InventoryAdjustmentController {
       throw new ApplicationException(
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Inventory adjustment request is required");
     }
+    if (StringUtils.hasText(legacyIdempotencyKeyHeader)) {
+      throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT,
+              "X-Idempotency-Key is not supported for inventory adjustments; use"
+                  + " Idempotency-Key")
+          .withDetail("legacyHeader", "X-Idempotency-Key")
+          .withDetail("canonicalHeader", "Idempotency-Key")
+          .withDetail("canonicalPath", CANONICAL_INVENTORY_ADJUSTMENT_PATH);
+    }
     String resolvedKey =
         IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
-            request.idempotencyKey(), idempotencyKeyHeader, legacyIdempotencyKeyHeader);
+            request.idempotencyKey(), idempotencyKeyHeader, null);
     if (StringUtils.hasText(request.idempotencyKey())) {
       return request;
     }

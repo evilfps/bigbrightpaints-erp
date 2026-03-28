@@ -361,5 +361,4 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
                 .referenceNumber())
         .isEqualTo(generatedReference);
   }
-
 }

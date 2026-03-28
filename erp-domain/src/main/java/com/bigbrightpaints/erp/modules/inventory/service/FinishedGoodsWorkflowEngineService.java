@@ -293,5 +293,4 @@ class FinishedGoodsWorkflowEngineService {
         batch.getManufacturedAt(),
         batch.getExpiryDate());
   }
-
 }

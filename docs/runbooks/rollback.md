@@ -1,5 +1,18 @@
 # Rollback Runbook
 
+## 2026-03-28 — `erp-48.lifecycle-constraint-and-release-hard-cut`
+
+- **Scope:** revert `migration_v2/V173__company_lifecycle_constraint_hard_cut.sql` together with the ERP-48 runtime packet that hard-cuts auth identity, tenant-admin approval ownership, manual journal/reversal public routes, GST/default-account fail-closed behavior, and the release-harness fixes used by `gate_release`.
+- **Application rollback:** do not redeploy a pre-ERP-48 backend against a database that has already applied `V173`. Keep the ERP-48-compatible backend live unless the database is first restored to a pre-`V173` state.
+- **Database rollback:** preferred path is snapshot/PITR restore to a point before `V173`. Ad hoc reverse SQL is intentionally unsupported because the packet normalizes lifecycle values and replaces the prior lifecycle constraint set with one canonical `chk_companies_lifecycle_state_v173` contract.
+- **Guard note:** the release proof for this packet depends on the corrected `verify_local` and `release_migration_matrix` harnesses. If a rollback abandons ERP-48 after merge, revert those scripts together with the runtime packet so the release gates and migration matrix stay internally consistent.
+- **Verification:** after restore or coordinated packet revert, rerun:
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_fast.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_core.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_reconciliation.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_release.sh`
+  and confirm the reverted packet re-establishes a coherent auth/accounting/control-plane contract before reopening traffic.
+
 ## 2026-03-27 — `erp-23.finished-good-bulk-flag-hard-cut`
 
 - **Scope:** revert `migration_v2/V171__drop_finished_good_batch_legacy_bulk_flag.sql` and the ERP-23 hard-cut runtime packet that removes legacy BULK flag dependencies from FG stock-truth flows and catalog item setup internals.

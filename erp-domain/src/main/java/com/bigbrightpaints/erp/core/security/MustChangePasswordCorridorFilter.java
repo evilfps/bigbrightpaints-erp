@@ -28,10 +28,10 @@ public class MustChangePasswordCorridorFilter extends OncePerRequestFilter {
 
   private static final String PASSWORD_CHANGE_REQUIRED_MESSAGE =
       "Password change required before accessing this resource";
-  private static final Set<String> READ_ONLY_CORRIDOR_PATHS =
-      Set.of("/api/v1/auth/me", "/api/v1/auth/profile");
+  private static final Set<String> READ_ONLY_CORRIDOR_PATHS = Set.of("/api/v1/auth/me");
   private static final Set<String> MUTATING_CORRIDOR_PATHS =
       Set.of("/api/v1/auth/password/change", "/api/v1/auth/logout", "/api/v1/auth/refresh-token");
+  private static final Set<String> RETIRED_AUTH_SURFACES = Set.of("/api/v1/auth/profile");
 
   private final ObjectMapper objectMapper;
 
@@ -84,6 +84,9 @@ public class MustChangePasswordCorridorFilter extends OncePerRequestFilter {
     String normalizedPath = normalizePath(resolveApplicationPath(request));
     if (!StringUtils.hasText(normalizedPath)) {
       return false;
+    }
+    if (RETIRED_AUTH_SURFACES.contains(normalizedPath)) {
+      return true;
     }
 
     String method = request.getMethod();

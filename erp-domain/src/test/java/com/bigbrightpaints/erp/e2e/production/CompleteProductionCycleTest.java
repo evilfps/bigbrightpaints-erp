@@ -24,6 +24,8 @@ import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
+import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
@@ -60,6 +62,7 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
   @Autowired private RawMaterialBatchRepository rawMaterialBatchRepository;
   @Autowired private AccountRepository accountRepository;
   @Autowired private PackagingSizeMappingRepository packagingSizeMappingRepository;
+  @Autowired private SizeVariantRepository sizeVariantRepository;
 
   private String authToken;
   private HttpHeaders headers;
@@ -107,6 +110,7 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
     ensureAccount(company, "REV-FG", "Finished Goods Revenue", AccountType.REVENUE);
     ensureAccount(company, "DISC", "Sales Discounts", AccountType.EXPENSE);
     ensureAccount(company, "TAX", "Tax Payable", AccountType.LIABILITY);
+    ensureAccount(company, "WASTE", "Manufacturing Wastage", AccountType.EXPENSE);
   }
 
   private Account ensureAccount(Company company, String code, String name, AccountType type) {
@@ -135,6 +139,7 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
 
     // Step 2: Create production product
     ProductionProduct product = createProduct(company, "FG-PAINT-001", "Premium Paint");
+    FinishedGood packTarget = ensureAllowedPackTarget(product, "10L Bucket", new BigDecimal("10"));
 
     // Step 3: Log production (mixing)
     Map<String, Object> material1 =
@@ -170,11 +175,18 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
     // Step 5: Pack the production batch
     Map<String, Object> packingLine =
         Map.of(
-            "packagingSize", "10L Bucket",
-            "quantityLiters", new BigDecimal("400.00"),
-            "piecesCount", 400,
-            "boxesCount", 40,
-            "piecesPerBox", 10);
+            "childFinishedGoodId",
+            packTarget.getId(),
+            "packagingSize",
+            "10L Bucket",
+            "quantityLiters",
+            new BigDecimal("400.00"),
+            "piecesCount",
+            400,
+            "boxesCount",
+            40,
+            "piecesPerBox",
+            10);
 
     Map<String, Object> packingRequest =
         Map.of(
@@ -266,6 +278,7 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
     RawMaterial rm =
         createRawMaterial(company, "RM-WASTAGE", "Wastage Material", new BigDecimal("500"));
     ProductionProduct product = createProduct(company, "FG-WASTAGE-001", "Wastage Product");
+    FinishedGood packTarget = ensureAllowedPackTarget(product, "5L Can", new BigDecimal("5"));
 
     Map<String, Object> logRequest =
         Map.of(
@@ -295,9 +308,13 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
             LocalDate.now(),
             "packedBy",
             "Supervisor",
+            "closeResidualWastage",
+            true,
             "lines",
             List.of(
                 Map.of(
+                    "childFinishedGoodId",
+                    packTarget.getId(),
                     "packagingSize",
                     "5L Can",
                     "quantityLiters",
@@ -319,11 +336,12 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
             new HttpEntity<>(packingRequest, packingHeaders),
             Map.class);
 
-    assertThat(packingResponse.getStatusCode()).isIn(HttpStatus.OK, HttpStatus.BAD_REQUEST);
+    assertThat(packingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-    // Verify packing quantity reflected on production log when accepted
     ProductionLog log = productionLogRepository.findById(logId).orElseThrow();
     assertThat(log.getTotalPackedQuantity()).isGreaterThan(BigDecimal.ZERO);
+    assertThat(log.getWastageQuantity()).isGreaterThan(BigDecimal.ZERO);
+    assertThat(log.getStatus()).hasToString("FULLY_PACKED");
   }
 
   @Test
@@ -335,6 +353,7 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
     RawMaterial rm =
         createRawMaterial(company, "RM-PARTIAL", "Partial Material", new BigDecimal("1000"));
     ProductionProduct product = createProduct(company, "FG-PARTIAL-001", "Partial Product");
+    FinishedGood packTarget = ensureAllowedPackTarget(product, "10L", new BigDecimal("10"));
 
     Map<String, Object> logRequest =
         Map.of(
@@ -367,6 +386,8 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
             "lines",
             List.of(
                 Map.of(
+                    "childFinishedGoodId",
+                    packTarget.getId(),
                     "packagingSize",
                     "10L",
                     "quantityLiters",
@@ -405,6 +426,8 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
             "lines",
             List.of(
                 Map.of(
+                    "childFinishedGoodId",
+                    packTarget.getId(),
                     "packagingSize",
                     "10L",
                     "quantityLiters",
@@ -473,6 +496,7 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
 
     RawMaterial rm = createRawMaterial(company, "RM-FIFO", "FIFO Material", new BigDecimal("500"));
     ProductionProduct product = createProduct(company, "FG-FIFO-001", "FIFO Product");
+    FinishedGood packTarget = ensureAllowedPackTarget(product, "5L", new BigDecimal("5"));
 
     // Create first production batch
     Map<String, Object> log1Request =
@@ -506,6 +530,8 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
             "lines",
             List.of(
                 Map.of(
+                    "childFinishedGoodId",
+                    packTarget.getId(),
                     "packagingSize",
                     "5L",
                     "quantityLiters",
@@ -558,6 +584,8 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
             "lines",
             List.of(
                 Map.of(
+                    "childFinishedGoodId",
+                    packTarget.getId(),
                     "packagingSize",
                     "5L",
                     "quantityLiters",
@@ -727,6 +755,8 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
                   accountRepository.findByCompanyAndCodeIgnoreCase(company, "DISC").orElseThrow();
               Account tax =
                   accountRepository.findByCompanyAndCodeIgnoreCase(company, "TAX").orElseThrow();
+              Account wastage =
+                  accountRepository.findByCompanyAndCodeIgnoreCase(company, "WASTE").orElseThrow();
               ProductionBrand brand =
                   brandRepository
                       .findByCompanyAndCodeIgnoreCase(company, "E2E-BRAND")
@@ -755,7 +785,56 @@ public class CompleteProductionCycleTest extends AbstractIntegrationTest {
               p.getMetadata().put("fgRevenueAccountId", revenue.getId());
               p.getMetadata().put("fgDiscountAccountId", discount.getId());
               p.getMetadata().put("fgTaxAccountId", tax.getId());
+              p.getMetadata().put("wastageAccountId", wastage.getId());
               return productRepository.save(p);
+            });
+  }
+
+  private FinishedGood ensureAllowedPackTarget(
+      ProductionProduct product, String sizeLabel, BigDecimal litersPerUnit) {
+    SizeVariant variant =
+        sizeVariantRepository
+            .findByCompanyAndProductAndSizeLabelIgnoreCase(company, product, sizeLabel)
+            .orElseGet(
+                () -> {
+                  SizeVariant created = new SizeVariant();
+                  created.setCompany(company);
+                  created.setProduct(product);
+                  created.setSizeLabel(sizeLabel);
+                  created.setCartonQuantity(1);
+                  created.setLitersPerUnit(litersPerUnit);
+                  created.setActive(true);
+                  return sizeVariantRepository.save(created);
+                });
+    variant.setActive(true);
+    sizeVariantRepository.save(variant);
+
+    return finishedGoodRepository
+        .findByCompanyAndProductCode(company, product.getSkuCode())
+        .orElseGet(
+            () -> {
+              Account fgValuation =
+                  accountRepository.findByCompanyAndCodeIgnoreCase(company, "INV-FG").orElseThrow();
+              Account cogs =
+                  accountRepository.findByCompanyAndCodeIgnoreCase(company, "COGS").orElseThrow();
+              Account revenue =
+                  accountRepository.findByCompanyAndCodeIgnoreCase(company, "REV-FG").orElseThrow();
+              Account discount =
+                  accountRepository.findByCompanyAndCodeIgnoreCase(company, "DISC").orElseThrow();
+              Account tax =
+                  accountRepository.findByCompanyAndCodeIgnoreCase(company, "TAX").orElseThrow();
+
+              FinishedGood finishedGood = new FinishedGood();
+              finishedGood.setCompany(company);
+              finishedGood.setProductCode(product.getSkuCode());
+              finishedGood.setName(product.getProductName());
+              finishedGood.setUnit("L");
+              finishedGood.setValuationAccountId(fgValuation.getId());
+              finishedGood.setCogsAccountId(cogs.getId());
+              finishedGood.setRevenueAccountId(revenue.getId());
+              finishedGood.setDiscountAccountId(discount.getId());
+              finishedGood.setTaxAccountId(tax.getId());
+              return finishedGoodRepository.save(finishedGood);
             });
   }
 }

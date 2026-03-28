@@ -25,6 +25,9 @@ import jakarta.validation.Validator;
 @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_FACTORY')")
 public class RawMaterialController {
 
+  private static final String CANONICAL_RAW_MATERIAL_ADJUSTMENT_PATH =
+      "/api/v1/inventory/raw-materials/adjustments";
+
   private final RawMaterialService rawMaterialService;
   private final InventoryBatchQueryService inventoryBatchQueryService;
   private final Validator validator;
@@ -85,9 +88,18 @@ public class RawMaterialController {
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
           "Raw material adjustment request is required");
     }
+    if (StringUtils.hasText(legacyIdempotencyKeyHeader)) {
+      throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT,
+              "X-Idempotency-Key is not supported for raw material adjustments; use"
+                  + " Idempotency-Key")
+          .withDetail("legacyHeader", "X-Idempotency-Key")
+          .withDetail("canonicalHeader", "Idempotency-Key")
+          .withDetail("canonicalPath", CANONICAL_RAW_MATERIAL_ADJUSTMENT_PATH);
+    }
     String resolvedKey =
         IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
-            request.idempotencyKey(), idempotencyKeyHeader, legacyIdempotencyKeyHeader);
+            request.idempotencyKey(), idempotencyKeyHeader, null);
     if (StringUtils.hasText(request.idempotencyKey())) {
       return request;
     }

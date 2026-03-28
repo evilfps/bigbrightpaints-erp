@@ -17,6 +17,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
@@ -30,6 +32,7 @@ class GstConfigurationRegressionIT extends AbstractIntegrationTest {
 
   @Autowired private TestRestTemplate rest;
   @Autowired private CompanyRepository companyRepository;
+  @Autowired private AccountRepository accountRepository;
 
   private HttpHeaders headers;
 
@@ -43,8 +46,16 @@ class GstConfigurationRegressionIT extends AbstractIntegrationTest {
         List.of("ROLE_ADMIN", "ROLE_ACCOUNTING"));
 
     Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    company.setDefaultGstRate(new java.math.BigDecimal("18.00"));
+    company.setDefaultInventoryAccountId(
+        requireAccountId(company, "INV", "RAW-MATERIAL-INVENTORY"));
+    company.setDefaultCogsAccountId(requireAccountId(company, "COGS", "FG-COGS", "RM-CONSUMPTION"));
+    company.setDefaultRevenueAccountId(requireAccountId(company, "REV", "SERVICE-REVENUE"));
+    company.setDefaultDiscountAccountId(requireAccountId(company, "DISC", "SALES-RETURNS"));
+    company.setDefaultTaxAccountId(requireAccountId(company, "GST-OUT", "TAX-PAYABLE"));
     company.setGstInputTaxAccountId(null);
     company.setGstOutputTaxAccountId(null);
+    company.setGstPayableAccountId(null);
     companyRepository.save(company);
 
     headers = createHeaders(login());
@@ -65,6 +76,8 @@ class GstConfigurationRegressionIT extends AbstractIntegrationTest {
     assertThat(data.get("healthy")).isEqualTo(false);
 
     List<Map<String, Object>> issues = (List<Map<String, Object>>) data.get("issues");
+    issues =
+        issues.stream().filter(issue -> COMPANY_CODE.equals(issue.get("companyCode"))).toList();
     assertThat(issues).isNotEmpty();
     assertThat(issues)
         .anyMatch(
@@ -76,6 +89,46 @@ class GstConfigurationRegressionIT extends AbstractIntegrationTest {
             issue ->
                 "TAX_ACCOUNT".equals(issue.get("domain"))
                     && "GST_OUTPUT".equals(issue.get("reference")));
+    assertThat(issues)
+        .anyMatch(
+            issue ->
+                "TAX_ACCOUNT".equals(issue.get("domain"))
+                    && "GST_PAYABLE".equals(issue.get("reference")));
+  }
+
+  @Test
+  void configHealthFlagsNonGstCompanyCarryingGstAccounts() {
+    Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    company.setDefaultGstRate(java.math.BigDecimal.ZERO);
+    company.setGstInputTaxAccountId(company.getDefaultInventoryAccountId());
+    company.setGstOutputTaxAccountId(company.getDefaultRevenueAccountId());
+    company.setGstPayableAccountId(company.getDefaultTaxAccountId());
+    companyRepository.save(company);
+
+    ResponseEntity<Map> response =
+        rest.exchange(
+            "/api/v1/accounting/configuration/health",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody()).isNotNull();
+    Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
+    assertThat(data.get("healthy")).isEqualTo(false);
+
+    List<Map<String, Object>> issues = (List<Map<String, Object>>) data.get("issues");
+    issues =
+        issues.stream().filter(issue -> COMPANY_CODE.equals(issue.get("companyCode"))).toList();
+    assertThat(issues)
+        .anyMatch(
+            issue ->
+                "TAX_ACCOUNT".equals(issue.get("domain"))
+                    && "NON_GST_MODE".equals(issue.get("reference"))
+                    && issue
+                        .get("message")
+                        .toString()
+                        .contains("Non-GST mode company cannot have GST tax accounts configured"));
   }
 
   @Test
@@ -108,5 +161,16 @@ class GstConfigurationRegressionIT extends AbstractIntegrationTest {
     httpHeaders.setContentType(MediaType.APPLICATION_JSON);
     httpHeaders.set("X-Company-Code", COMPANY_CODE);
     return httpHeaders;
+  }
+
+  private Long requireAccountId(Company company, String... codes) {
+    for (String code : codes) {
+      Account account =
+          accountRepository.findByCompanyAndCodeIgnoreCase(company, code).orElse(null);
+      if (account != null) {
+        return account.getId();
+      }
+    }
+    throw new IllegalStateException("Required account missing for company " + company.getCode());
   }
 }

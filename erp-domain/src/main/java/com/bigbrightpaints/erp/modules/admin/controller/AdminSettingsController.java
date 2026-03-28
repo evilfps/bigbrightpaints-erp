@@ -149,13 +149,13 @@ public class AdminSettingsController {
   }
 
   @PutMapping("/exports/{requestId}/approve")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+  @PreAuthorize(PortalRoleActionMatrix.TENANT_ADMIN_ONLY)
   public ApiResponse<ExportRequestDto> approveExportRequest(@PathVariable Long requestId) {
     return ApiResponse.success("Export request approved", exportApprovalService.approve(requestId));
   }
 
   @PutMapping("/exports/{requestId}/reject")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
+  @PreAuthorize(PortalRoleActionMatrix.TENANT_ADMIN_ONLY)
   public ApiResponse<ExportRequestDto> rejectExportRequest(
       @PathVariable Long requestId,
       @RequestBody(required = false) ExportRequestDecisionRequest request) {
@@ -172,7 +172,7 @@ public class AdminSettingsController {
   }
 
   @GetMapping("/approvals")
-  @PreAuthorize(PortalRoleActionMatrix.ADMIN_ACCOUNTING_SUPER_ADMIN)
+  @PreAuthorize(PortalRoleActionMatrix.TENANT_ADMIN_OR_ACCOUNTING_ONLY)
   @Transactional(readOnly = true)
   public ApiResponse<AdminApprovalsResponse> approvals() {
     Company company = companyContextService.requireCurrentCompany();
@@ -480,8 +480,7 @@ public class AdminSettingsController {
     }
     return authentication.getAuthorities().stream()
         .map(org.springframework.security.core.GrantedAuthority::getAuthority)
-        .anyMatch(
-            authority -> "ROLE_ADMIN".equals(authority) || "ROLE_SUPER_ADMIN".equals(authority));
+        .anyMatch("ROLE_ADMIN"::equals);
   }
 
   private String normalizeStatus(String status) {

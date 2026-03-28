@@ -53,15 +53,13 @@ class SalesControllerIdempotencyHeaderTest {
   }
 
   @Test
-  void createOrder_appliesLegacyHeaderIdempotencyKeyWhenPrimaryMissing() {
+  void createOrder_rejectsLegacyHeader() {
     SalesController controller = createController();
-    when(salesOrderCrudService.createOrder(any())).thenReturn(null);
-
-    controller.createOrder(null, "legacy-001", requestWithoutIdempotencyKey());
-
-    ArgumentCaptor<SalesOrderRequest> captor = ArgumentCaptor.forClass(SalesOrderRequest.class);
-    verify(salesOrderCrudService).createOrder(captor.capture());
-    assertThat(captor.getValue().idempotencyKey()).isEqualTo("legacy-001");
+    assertThatThrownBy(
+            () -> controller.createOrder(null, "legacy-001", requestWithoutIdempotencyKey()))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("X-Idempotency-Key is not supported for sales orders");
+    verifyNoInteractions(salesOrderCrudService);
   }
 
   @Test
@@ -75,14 +73,13 @@ class SalesControllerIdempotencyHeaderTest {
   }
 
   @Test
-  void createOrder_rejectsWhenPrimaryLegacyHeadersMismatch() {
+  void createOrder_rejectsWhenPrimaryAndLegacyHeadersAreBothSent() {
     SalesController controller = createController();
 
     assertThatThrownBy(
             () -> controller.createOrder("hdr-001", "legacy-001", requestWithoutIdempotencyKey()))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining(
-            "Idempotency key mismatch between Idempotency-Key and X-Idempotency-Key headers");
+        .hasMessageContaining("X-Idempotency-Key is not supported for sales orders");
     verifyNoInteractions(salesOrderCrudService);
   }
 
