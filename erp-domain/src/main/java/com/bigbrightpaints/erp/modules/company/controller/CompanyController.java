@@ -34,7 +34,8 @@ public class CompanyController {
     if (isSuperAdmin(principal)) {
       return ResponseEntity.ok(ApiResponse.success(companyService.findAll()));
     }
-    return ResponseEntity.ok(ApiResponse.success(companyService.findAll(requireCompanyContext(principal))));
+    return ResponseEntity.ok(
+        ApiResponse.success(companyService.findAll(requireCompanyContext(principal))));
   }
 
   @DeleteMapping("/{id}")

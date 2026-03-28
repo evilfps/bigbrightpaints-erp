@@ -742,7 +742,8 @@ public class ReportService {
   }
 
   @Transactional(readOnly = true)
-  public ReconciliationDashboardDto reconciliationDashboard(Long bankAccountId, BigDecimal statementBalance) {
+  public ReconciliationDashboardDto reconciliationDashboard(
+      Long bankAccountId, BigDecimal statementBalance) {
     Company company = companyContextService.requireCurrentCompany();
     Account bankAccount = companyEntityLookup.requireAccount(company, bankAccountId);
     InventoryValuationService.InventorySnapshot totals =
@@ -800,14 +801,16 @@ public class ReportService {
     ReportSource source;
     if (period != null && period.getStatus() == AccountingPeriodStatus.CLOSED) {
       snapshot =
-          snapshotRepository.findByCompanyAndPeriod(company, period).orElseThrow(
-              () ->
-                  new ApplicationException(
-                          ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
-                          "Closed period snapshot is required for reports")
-                      .withDetail("companyId", company.getId())
-                      .withDetail("periodId", period.getId())
-                      .withDetail("asOfDate", effectiveDate));
+          snapshotRepository
+              .findByCompanyAndPeriod(company, period)
+              .orElseThrow(
+                  () ->
+                      new ApplicationException(
+                              ErrorCode.BUSINESS_CONSTRAINT_VIOLATION,
+                              "Closed period snapshot is required for reports")
+                          .withDetail("companyId", company.getId())
+                          .withDetail("periodId", period.getId())
+                          .withDetail("asOfDate", effectiveDate));
       source = ReportSource.SNAPSHOT;
     } else if (asOfDate != null) {
       source = ReportSource.AS_OF;

@@ -1,6 +1,5 @@
 package com.bigbrightpaints.erp.modules.inventory.controller;
 
-import java.math.BigDecimal;
 import java.security.Principal;
 import java.util.List;
 
@@ -118,7 +117,8 @@ public class DispatchController {
       @Valid @RequestBody DispatchConfirmationRequest request, Principal principal) {
     String username = principal != null ? principal.getName() : "system";
     validateFactoryDispatchMetadata(request);
-    DispatchConfirmRequest accountingRequest = new DispatchConfirmRequest(
+    DispatchConfirmRequest accountingRequest =
+        new DispatchConfirmRequest(
             request.packagingSlipId(),
             null,
             request.lines().stream().map(this::toDispatchLine).toList(),

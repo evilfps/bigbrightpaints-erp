@@ -3,9 +3,9 @@ package com.bigbrightpaints.erp.modules.auth.domain;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
@@ -16,9 +16,13 @@ import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "app_users", uniqueConstraints = {
-  @UniqueConstraint(name = "uq_app_users_email_scope", columnNames = {"email", "auth_scope_code"})
-})
+@Table(
+    name = "app_users",
+    uniqueConstraints = {
+      @UniqueConstraint(
+          name = "uq_app_users_email_scope",
+          columnNames = {"email", "auth_scope_code"})
+    })
 public class UserAccount extends VersionedEntity {
 
   @Id
@@ -93,7 +97,8 @@ public class UserAccount extends VersionedEntity {
   public UserAccount() {}
 
   public UserAccount(String email, String passwordHash, String displayName) {
-    this(email, "LEGACY-" + UUID.randomUUID().toString().substring(0, 8), passwordHash, displayName);
+    this(
+        email, "LEGACY-" + UUID.randomUUID().toString().substring(0, 8), passwordHash, displayName);
   }
 
   public UserAccount(String email, String authScopeCode, String passwordHash, String displayName) {
@@ -245,7 +250,10 @@ public class UserAccount extends VersionedEntity {
   }
 
   public boolean belongsToCompanyCode(String companyCode) {
-    if (companyCode == null || companyCode.isBlank() || company == null || company.getCode() == null) {
+    if (companyCode == null
+        || companyCode.isBlank()
+        || company == null
+        || company.getCode() == null) {
       return false;
     }
     return company.getCode().equalsIgnoreCase(companyCode);

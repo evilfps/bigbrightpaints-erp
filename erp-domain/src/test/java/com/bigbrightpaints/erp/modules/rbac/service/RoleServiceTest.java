@@ -52,7 +52,8 @@ class RoleServiceTest {
 
   @Test
   void synchronizeSystemRolePermissions_backfillsMissingDispatchConfirmForExistingFactoryRole() {
-    Role factory = role("ROLE_FACTORY", permission("portal:factory"), permission("factory.dispatch"));
+    Role factory =
+        role("ROLE_FACTORY", permission("portal:factory"), permission("factory.dispatch"));
     when(roleRepository.findByNameIn(
             List.of(
                 "ROLE_SUPER_ADMIN",
@@ -79,7 +80,8 @@ class RoleServiceTest {
 
   @Test
   void ensureRoleExists_backfillsExistingAccountingRoleBeforeReturningIt() {
-    Role accounting = role("ROLE_ACCOUNTING", permission("portal:accounting"), permission("payroll.run"));
+    Role accounting =
+        role("ROLE_ACCOUNTING", permission("portal:accounting"), permission("payroll.run"));
     when(roleRepository.lockByName("ROLE_ACCOUNTING")).thenReturn(Optional.of(accounting));
     when(permissionRepository.findByCode("dispatch.confirm"))
         .thenReturn(Optional.of(permission("dispatch.confirm")));
@@ -89,7 +91,9 @@ class RoleServiceTest {
 
     Role ensured = service.ensureRoleExists("ROLE_ACCOUNTING");
 
-    assertThat(ensured.getPermissions()).extracting(Permission::getCode).contains("dispatch.confirm");
+    assertThat(ensured.getPermissions())
+        .extracting(Permission::getCode)
+        .contains("dispatch.confirm");
     verify(roleRepository).save(accounting);
   }
 
@@ -196,8 +200,7 @@ class RoleServiceTest {
 
   @Test
   void synchronizeSystemRoles_updatesWhenRetiredPermissionMustBePruned() {
-    Role sales =
-        role("ROLE_SALES", permission("portal:sales"), permission("dispatch.confirm"));
+    Role sales = role("ROLE_SALES", permission("portal:sales"), permission("dispatch.confirm"));
     when(roleRepository.lockByName("ROLE_SUPER_ADMIN"))
         .thenReturn(Optional.of(role("ROLE_SUPER_ADMIN", permission("portal:super-admin"))));
     when(roleRepository.lockByName("ROLE_ADMIN"))

@@ -185,8 +185,7 @@ public class TenantRuntimeEnforcementService {
                 () ->
                     com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                         "Company not found: " + normalizedCompany));
-    long activeUsers =
-        userAccountRepository.countByCompany_IdAndEnabledTrue(company.getId());
+    long activeUsers = userAccountRepository.countByCompany_IdAndEnabledTrue(company.getId());
     int maxActiveUsers = policy.effectiveMaxActiveUsers(defaultMaxActiveUsers);
     if (activeUsers > maxActiveUsers) {
       incrementRejectedCount(usageCounters);

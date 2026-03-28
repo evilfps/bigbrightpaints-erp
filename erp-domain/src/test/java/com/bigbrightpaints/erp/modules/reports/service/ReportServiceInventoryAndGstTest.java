@@ -26,8 +26,8 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
-import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodSnapshotRepository;
@@ -268,10 +268,10 @@ class ReportServiceInventoryAndGstTest {
   @Test
   void reconciliationDashboard_usesProvidedStatementBalanceAndInventoryFallbackLedgerBalance() {
     Account bankAccount = account(10L, "BANK", "Main Bank", AccountType.ASSET, "1000");
-    Account inventoryAccount =
-        account(11L, "INV", "Inventory Control", AccountType.ASSET, "400");
+    Account inventoryAccount = account(11L, "INV", "Inventory Control", AccountType.ASSET, "400");
     when(companyEntityLookup.requireAccount(company, 10L)).thenReturn(bankAccount);
-    when(accountRepository.findByCompanyOrderByCodeAsc(company)).thenReturn(List.of(inventoryAccount));
+    when(accountRepository.findByCompanyOrderByCodeAsc(company))
+        .thenReturn(List.of(inventoryAccount));
     when(inventoryValuationService.currentSnapshot(company))
         .thenReturn(
             new InventoryValuationService.InventorySnapshot(

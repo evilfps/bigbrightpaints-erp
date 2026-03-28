@@ -631,8 +631,7 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.GONE);
     assertThat(response.getBody()).containsKey("message");
-    assertThat(response.getBody())
-        .containsEntry("canonicalPath", "/api/v1/dispatch/confirm");
+    assertThat(response.getBody()).containsEntry("canonicalPath", "/api/v1/dispatch/confirm");
     assertThat(outboxEventRepository.count()).isEqualTo(outboxBefore);
   }
 

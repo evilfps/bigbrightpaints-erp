@@ -32,13 +32,12 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryReservationResult;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
-import com.bigbrightpaints.erp.modules.sales.controller.DealerController;
+import com.bigbrightpaints.erp.modules.portal.controller.PortalFinanceController;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.modules.sales.service.DealerPortalService;
 import com.bigbrightpaints.erp.modules.sales.service.DealerService;
-import com.bigbrightpaints.erp.modules.sales.service.DunningService;
 import com.bigbrightpaints.erp.orchestrator.config.OrchestratorFeatureFlags;
 import com.bigbrightpaints.erp.orchestrator.controller.OrchestratorController;
 import com.bigbrightpaints.erp.orchestrator.dto.ApproveOrderRequest;
@@ -262,7 +261,7 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
   }
 
   @Test
-  void dealer_portal_and_controller_ledger_path_use_scoped_lookup_consistently() {
+  void dealer_portal_and_portal_finance_ledger_path_use_scoped_lookup_consistently() {
     DealerRepository dealerRepository = mock(DealerRepository.class);
     CompanyContextService companyContextService = mock(CompanyContextService.class);
     DealerLedgerService dealerLedgerService = mock(DealerLedgerService.class);
@@ -311,10 +310,9 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
 
     DealerPortalService portalDelegate = mock(DealerPortalService.class);
     when(portalDelegate.getLedgerForDealer(77L)).thenReturn(ledgerPayload);
-    DealerController controller =
-        new DealerController(mock(DealerService.class), mock(DunningService.class), portalDelegate);
+    PortalFinanceController controller = new PortalFinanceController(portalDelegate);
 
-    var response = controller.dealerLedger(77L);
+    var response = controller.ledger(77L);
     assertThat(response.getBody()).isNotNull();
     assertThat(response.getBody().data()).isEqualTo(ledgerPayload);
     verify(portalDelegate).getLedgerForDealer(77L);

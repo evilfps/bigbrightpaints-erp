@@ -36,15 +36,23 @@ class ScopedAccountBootstrapServiceIT extends AbstractIntegrationTest {
   @Test
   void provisionTenantAccount_defersCredentialEmail_untilOuterTransactionCommits() {
     Company company = dataSeeder.ensureCompany("BOOT", "Bootstrap Ltd");
-    Role adminRole = roleRepository.findByName("ROLE_ADMIN").orElseGet(() -> dataSeeder.ensureUser(
-        "bootstrap-role-seed@bbp.com",
-        "Passw0rd!",
-        "Bootstrap Role Seed",
-        "BOOTROLE",
-        List.of("ROLE_ADMIN")).getRoles().stream()
-        .filter(role -> "ROLE_ADMIN".equalsIgnoreCase(role.getName()))
-        .findFirst()
-        .orElseThrow());
+    Role adminRole =
+        roleRepository
+            .findByName("ROLE_ADMIN")
+            .orElseGet(
+                () ->
+                    dataSeeder
+                        .ensureUser(
+                            "bootstrap-role-seed@bbp.com",
+                            "Passw0rd!",
+                            "Bootstrap Role Seed",
+                            "BOOTROLE",
+                            List.of("ROLE_ADMIN"))
+                        .getRoles()
+                        .stream()
+                        .filter(role -> "ROLE_ADMIN".equalsIgnoreCase(role.getName()))
+                        .findFirst()
+                        .orElseThrow());
     TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
 
     assertThatThrownBy(
@@ -76,15 +84,23 @@ class ScopedAccountBootstrapServiceIT extends AbstractIntegrationTest {
   @Test
   void provisionTenantAccount_sendsCredentialEmail_afterSuccessfulCommit() {
     Company company = dataSeeder.ensureCompany("BOOT2", "Bootstrap 2 Ltd");
-    Role adminRole = roleRepository.findByName("ROLE_ADMIN").orElseGet(() -> dataSeeder.ensureUser(
-        "bootstrap-role-seed-2@bbp.com",
-        "Passw0rd!",
-        "Bootstrap Role Seed 2",
-        "BOOTROLE2",
-        List.of("ROLE_ADMIN")).getRoles().stream()
-        .filter(role -> "ROLE_ADMIN".equalsIgnoreCase(role.getName()))
-        .findFirst()
-        .orElseThrow());
+    Role adminRole =
+        roleRepository
+            .findByName("ROLE_ADMIN")
+            .orElseGet(
+                () ->
+                    dataSeeder
+                        .ensureUser(
+                            "bootstrap-role-seed-2@bbp.com",
+                            "Passw0rd!",
+                            "Bootstrap Role Seed 2",
+                            "BOOTROLE2",
+                            List.of("ROLE_ADMIN"))
+                        .getRoles()
+                        .stream()
+                        .filter(role -> "ROLE_ADMIN".equalsIgnoreCase(role.getName()))
+                        .findFirst()
+                        .orElseThrow());
     TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
 
     transactionTemplate.executeWithoutResult(
@@ -98,24 +114,29 @@ class ScopedAccountBootstrapServiceIT extends AbstractIntegrationTest {
         .isPresent();
     verify(emailService)
         .sendUserCredentialsEmailRequired(
-            eq("committed-bootstrap@bbp.com"),
-            eq("Committed Bootstrap"),
-            anyString(),
-            eq("BOOT2"));
+            eq("committed-bootstrap@bbp.com"), eq("Committed Bootstrap"), anyString(), eq("BOOT2"));
   }
 
   @Test
   void provisionTenantAccount_keepsCommittedAccount_whenAfterCommitEmailFails() {
     Company company = dataSeeder.ensureCompany("BOOT3", "Bootstrap 3 Ltd");
-    Role adminRole = roleRepository.findByName("ROLE_ADMIN").orElseGet(() -> dataSeeder.ensureUser(
-        "bootstrap-role-seed-3@bbp.com",
-        "Passw0rd!",
-        "Bootstrap Role Seed 3",
-        "BOOTROLE3",
-        List.of("ROLE_ADMIN")).getRoles().stream()
-        .filter(role -> "ROLE_ADMIN".equalsIgnoreCase(role.getName()))
-        .findFirst()
-        .orElseThrow());
+    Role adminRole =
+        roleRepository
+            .findByName("ROLE_ADMIN")
+            .orElseGet(
+                () ->
+                    dataSeeder
+                        .ensureUser(
+                            "bootstrap-role-seed-3@bbp.com",
+                            "Passw0rd!",
+                            "Bootstrap Role Seed 3",
+                            "BOOTROLE3",
+                            List.of("ROLE_ADMIN"))
+                        .getRoles()
+                        .stream()
+                        .filter(role -> "ROLE_ADMIN".equalsIgnoreCase(role.getName()))
+                        .findFirst()
+                        .orElseThrow());
     TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
 
     doThrow(new MailSendException("smtp down"))

@@ -45,7 +45,8 @@ class MockDataInitializerTest {
   void seedRolesAndUsers_createsScopedMockAdminWhenMissing() {
     Company company = company("MOCK");
     when(passwordEncoder.encode("Temp123!")).thenReturn("encoded-password");
-    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("mock-admin@example.com", "MOCK"))
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "mock-admin@example.com", "MOCK"))
         .thenReturn(Optional.empty());
 
     ReflectionTestUtils.invokeMethod(
@@ -66,15 +67,18 @@ class MockDataInitializerTest {
     assertThat(saved.getAuthScopeCode()).isEqualTo("MOCK");
     assertThat(saved.getCompany()).isEqualTo(company);
     assertThat(saved.isMustChangePassword()).isTrue();
-    assertThat(saved.getRoles()).extracting(Role::getName)
+    assertThat(saved.getRoles())
+        .extracting(Role::getName)
         .containsExactlyInAnyOrder("ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_SALES");
   }
 
   @Test
   void seedRolesAndUsers_updatesExistingScopedMockAdminWhenPresent() {
     Company company = company("MOCK");
-    UserAccount existingAdmin = new UserAccount("legacy-mock@example.com", "OLD", "hash", "Legacy Mock");
-    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("legacy-mock@example.com", "MOCK"))
+    UserAccount existingAdmin =
+        new UserAccount("legacy-mock@example.com", "OLD", "hash", "Legacy Mock");
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "legacy-mock@example.com", "MOCK"))
         .thenReturn(Optional.of(existingAdmin));
 
     ReflectionTestUtils.invokeMethod(
@@ -90,7 +94,8 @@ class MockDataInitializerTest {
     verify(userRepository).save(existingAdmin);
     assertThat(existingAdmin.getAuthScopeCode()).isEqualTo("MOCK");
     assertThat(existingAdmin.getCompany()).isEqualTo(company);
-    assertThat(existingAdmin.getRoles()).extracting(Role::getName)
+    assertThat(existingAdmin.getRoles())
+        .extracting(Role::getName)
         .containsExactlyInAnyOrder("ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_SALES");
   }
 

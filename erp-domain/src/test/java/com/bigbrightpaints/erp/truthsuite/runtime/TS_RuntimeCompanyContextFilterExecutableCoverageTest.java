@@ -154,7 +154,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
   }
 
   @Test
-  void doFilter_rejectsAuthenticatedRequestWithoutCompanyClaim() throws ServletException, IOException {
+  void doFilter_rejectsAuthenticatedRequestWithoutCompanyClaim()
+      throws ServletException, IOException {
     authenticate("admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ACME"));
     Claims claims = mock(Claims.class);
     when(claims.get("companyCode", String.class)).thenReturn(null);
@@ -166,7 +167,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
     filter.doFilter(request, response, filterChain);
 
     assertThat(response.getStatus()).isEqualTo(403);
-    assertThat(response.getContentAsString()).contains("Authenticated token missing company context");
+    assertThat(response.getContentAsString())
+        .contains("Authenticated token missing company context");
     verify(filterChain, never()).doFilter(request, response);
   }
 
@@ -187,7 +189,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
   }
 
   @Test
-  void doFilter_rejectsTenantControlRequestWhenScopedClaimIsMissing() throws ServletException, IOException {
+  void doFilter_rejectsTenantControlRequestWhenScopedClaimIsMissing()
+      throws ServletException, IOException {
     authenticate("admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ACME"));
     when(companyService.resolveCompanyCodeById(42L)).thenReturn("ACME");
 
@@ -202,7 +205,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
   }
 
   @Test
-  void doFilter_rejectsWhenTenantRuntimeAdmissionUnavailable() throws ServletException, IOException {
+  void doFilter_rejectsWhenTenantRuntimeAdmissionUnavailable()
+      throws ServletException, IOException {
     authenticate("admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ACME"));
     when(companyService.resolveLifecycleStateByCode("ACME"))
         .thenReturn(CompanyLifecycleState.ACTIVE);
@@ -271,9 +275,13 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         .isTrue();
     assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/audit/business-events")).isTrue();
     assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/admin/settings")).isFalse();
-    assertThat(invokeHasTenantRuntimePolicyControlAuthority("/api/v1/superadmin/tenants/77/limits", "PUT"))
+    assertThat(
+            invokeHasTenantRuntimePolicyControlAuthority(
+                "/api/v1/superadmin/tenants/77/limits", "PUT"))
         .isFalse();
-    assertThat(invokeExtractCompanyIdFromControlPlanePath("/api/v1/superadmin/tenants/not-a-number/limits"))
+    assertThat(
+            invokeExtractCompanyIdFromControlPlanePath(
+                "/api/v1/superadmin/tenants/not-a-number/limits"))
         .isNull();
     assertThat(invokeSanitizeForLog("bad\nvalue\r")).isEqualTo("bad_value_");
     assertThat(invokeSanitizeForLog(null)).isNull();
@@ -314,7 +322,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
   }
 
   private Long invokeExtractCompanyIdFromControlPlanePath(String path) {
-    return (Long) ReflectionTestUtils.invokeMethod(filter, "extractCompanyIdFromControlPlanePath", path);
+    return (Long)
+        ReflectionTestUtils.invokeMethod(filter, "extractCompanyIdFromControlPlanePath", path);
   }
 
   private String invokeSanitizeForLog(String value) {

@@ -38,7 +38,8 @@ class TS_AuthV2ScopedAccountsMigrationContractTest {
         "FROM system_settings",
         "FROM companies",
         "UPPER(TRIM(code)) = platform_scope_code",
-        "Rename the platform auth code or the conflicting company code before rerunning migration.");
+        "Rename the platform auth code or the conflicting company code before rerunning"
+            + " migration.");
   }
 
   @Test

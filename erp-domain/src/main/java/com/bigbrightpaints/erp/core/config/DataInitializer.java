@@ -200,11 +200,11 @@ public class DataInitializer {
     }
     if (user.getCompany() == null
         || (user.getCompany().getId() != null
-                && company.getId() != null
-                && !user.getCompany().getId().equals(company.getId()))
+            && company.getId() != null
+            && !user.getCompany().getId().equals(company.getId()))
         || (StringUtils.hasText(user.getCompany().getCode())
-                && StringUtils.hasText(company.getCode())
-                && !user.getCompany().getCode().equalsIgnoreCase(company.getCode()))) {
+            && StringUtils.hasText(company.getCode())
+            && !user.getCompany().getCode().equalsIgnoreCase(company.getCode()))) {
       user.setCompany(company);
     }
   }

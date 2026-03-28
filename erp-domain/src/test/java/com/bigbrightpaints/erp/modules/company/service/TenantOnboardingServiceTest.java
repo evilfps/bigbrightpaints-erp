@@ -13,7 +13,6 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.Test;
@@ -25,8 +24,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
-import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
@@ -58,8 +57,10 @@ class TenantOnboardingServiceTest {
 
     assertThat(changed).isTrue();
     verify(systemSettingsRepository, times(2)).save(any());
-    verify(systemSettingsRepository, never()).save(org.mockito.ArgumentMatchers.argThat(
-        setting -> setting != null && "cors.allowed-origins".equals(setting.getKey())));
+    verify(systemSettingsRepository, never())
+        .save(
+            org.mockito.ArgumentMatchers.argThat(
+                setting -> setting != null && "cors.allowed-origins".equals(setting.getKey())));
   }
 
   @Test
@@ -86,7 +87,8 @@ class TenantOnboardingServiceTest {
     template.setActive(true);
     when(coATemplateService.requireActiveTemplate("GENERIC")).thenReturn(template);
     when(companyRepository.findByCodeIgnoreCase("MOCK")).thenReturn(java.util.Optional.empty());
-    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@mock.com", "MOCK"))
+    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "admin@mock.com", "MOCK"))
         .thenReturn(false);
     when(companyRepository.save(any(Company.class)))
         .thenAnswer(
@@ -111,10 +113,10 @@ class TenantOnboardingServiceTest {
     ReflectionTestUtils.setField(period, "id", 77L);
     when(accountingPeriodService.ensurePeriod(any(Company.class), any())).thenReturn(period);
     when(systemSettingsRepository.existsById(anyString())).thenReturn(false);
-    UserAccount provisionedAdmin =
-        new UserAccount("admin@mock.com", "MOCK", "hash", "Mock Admin");
+    UserAccount provisionedAdmin = new UserAccount("admin@mock.com", "MOCK", "hash", "Mock Admin");
     ReflectionTestUtils.setField(provisionedAdmin, "id", 501L);
-    when(tenantAdminProvisioningService.provisionInitialAdmin(any(Company.class), anyString(), anyString()))
+    when(tenantAdminProvisioningService.provisionInitialAdmin(
+            any(Company.class), anyString(), anyString()))
         .thenReturn(provisionedAdmin);
 
     TenantOnboardingResponse response = service.onboardTenant(request);
@@ -134,7 +136,10 @@ class TenantOnboardingServiceTest {
                     && "GENERIC".equals(company.getOnboardingCoaTemplateCode())
                     && company.getOnboardingCompletedAt() != null);
     verify(tenantAdminProvisioningService)
-        .provisionInitialAdmin(any(Company.class), org.mockito.ArgumentMatchers.eq("admin@mock.com"), org.mockito.ArgumentMatchers.eq("Mock Admin"));
+        .provisionInitialAdmin(
+            any(Company.class),
+            org.mockito.ArgumentMatchers.eq("admin@mock.com"),
+            org.mockito.ArgumentMatchers.eq("Mock Admin"));
   }
 
   @Test
@@ -161,7 +166,8 @@ class TenantOnboardingServiceTest {
     template.setActive(true);
     when(coATemplateService.requireActiveTemplate("GENERIC")).thenReturn(template);
     when(companyRepository.findByCodeIgnoreCase("MOCK")).thenReturn(java.util.Optional.empty());
-    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@mock.com", "MOCK"))
+    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "admin@mock.com", "MOCK"))
         .thenReturn(false);
     when(companyRepository.save(any(Company.class)))
         .thenAnswer(
@@ -188,16 +194,19 @@ class TenantOnboardingServiceTest {
     ReflectionTestUtils.setField(period, "id", 77L);
     when(accountingPeriodService.ensurePeriod(any(Company.class), any())).thenReturn(period);
     when(systemSettingsRepository.existsById(anyString())).thenReturn(false);
-    UserAccount provisionedAdmin =
-        new UserAccount("admin@mock.com", "MOCK", "hash", "Mock Admin");
+    UserAccount provisionedAdmin = new UserAccount("admin@mock.com", "MOCK", "hash", "Mock Admin");
     ReflectionTestUtils.setField(provisionedAdmin, "id", 502L);
-    when(tenantAdminProvisioningService.provisionInitialAdmin(any(Company.class), anyString(), anyString()))
+    when(tenantAdminProvisioningService.provisionInitialAdmin(
+            any(Company.class), anyString(), anyString()))
         .thenReturn(provisionedAdmin);
 
     service.onboardTenant(request);
 
     Account cogs =
-        createdAccounts.stream().filter(account -> "COGS".equals(account.getCode())).findFirst().orElseThrow();
+        createdAccounts.stream()
+            .filter(account -> "COGS".equals(account.getCode()))
+            .findFirst()
+            .orElseThrow();
     Account openingBalance =
         createdAccounts.stream()
             .filter(account -> "OPEN-BAL".equals(account.getCode()))
@@ -210,7 +219,8 @@ class TenantOnboardingServiceTest {
   @Test
   void helperMethods_rejectInvalidInputAndDuplicates() {
     TenantOnboardingService service = newService();
-    when(companyRepository.findByCodeIgnoreCase("MOCK")).thenReturn(java.util.Optional.of(new Company()));
+    when(companyRepository.findByCodeIgnoreCase("MOCK"))
+        .thenReturn(java.util.Optional.of(new Company()));
     when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
             "admin@mock.com", "MOCK"))
         .thenReturn(true);
@@ -220,14 +230,16 @@ class TenantOnboardingServiceTest {
         .hasMessageContaining("Company code is required");
     assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "normalizeEmail", " "))
         .hasMessageContaining("firstAdminEmail is required");
-    assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "ensureCompanyCodeAvailable", "MOCK"))
+    assertThatThrownBy(
+            () -> ReflectionTestUtils.invokeMethod(service, "ensureCompanyCodeAvailable", "MOCK"))
         .hasMessageContaining("Company code already exists");
     assertThatThrownBy(
             () ->
                 ReflectionTestUtils.invokeMethod(
                     service, "ensureAdminEmailAvailable", "admin@mock.com", "MOCK"))
         .hasMessageContaining("First admin email already exists in company scope");
-    assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "validateTemplateSize", "GENERIC", 49))
+    assertThatThrownBy(
+            () -> ReflectionTestUtils.invokeMethod(service, "validateTemplateSize", "GENERIC", 49))
         .hasMessageContaining("must generate 50-100 accounts");
     assertThatThrownBy(
             () -> ReflectionTestUtils.invokeMethod(service, "resolveTemplateBlueprints", "UNKNOWN"))
@@ -242,7 +254,8 @@ class TenantOnboardingServiceTest {
     @SuppressWarnings("unchecked")
     List<Object> indian =
         (List<Object>)
-            ReflectionTestUtils.invokeMethod(service, "resolveTemplateBlueprints", "indian_standard");
+            ReflectionTestUtils.invokeMethod(
+                service, "resolveTemplateBlueprints", "indian_standard");
     @SuppressWarnings("unchecked")
     List<Object> manufacturing =
         (List<Object>)

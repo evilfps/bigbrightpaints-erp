@@ -645,10 +645,7 @@ class CompanyServiceTest {
     assertThatCode(
             () ->
                 ReflectionTestUtils.invokeMethod(
-                    companyService,
-                    "synchronizeScopedAccountsToCompanyCode",
-                    null,
-                    "BBB"))
+                    companyService, "synchronizeScopedAccountsToCompanyCode", null, "BBB"))
         .doesNotThrowAnyException();
     assertThatCode(
             () ->
@@ -661,10 +658,7 @@ class CompanyServiceTest {
     assertThatCode(
             () ->
                 ReflectionTestUtils.invokeMethod(
-                    companyService,
-                    "synchronizeScopedAccountsToCompanyCode",
-                    persisted,
-                    "   "))
+                    companyService, "synchronizeScopedAccountsToCompanyCode", persisted, "   "))
         .doesNotThrowAnyException();
     assertThatCode(
             () ->
@@ -677,10 +671,7 @@ class CompanyServiceTest {
     assertThatCode(
             () ->
                 ReflectionTestUtils.invokeMethod(
-                    companyService,
-                    "synchronizeScopedAccountsToCompanyCode",
-                    persisted,
-                    "ACME"))
+                    companyService, "synchronizeScopedAccountsToCompanyCode", persisted, "ACME"))
         .doesNotThrowAnyException();
 
     verifyNoInteractions(userAccountRepository);
@@ -1214,7 +1205,8 @@ class CompanyServiceTest {
     when(tenantAdminProvisioningService.resetTenantAdminPassword(company, "tenant-admin@ske.com"))
         .thenThrow(
             new ApplicationException(
-                ErrorCode.AUTH_ACCOUNT_DISABLED, ErrorCode.AUTH_ACCOUNT_DISABLED.getDefaultMessage()));
+                ErrorCode.AUTH_ACCOUNT_DISABLED,
+                ErrorCode.AUTH_ACCOUNT_DISABLED.getDefaultMessage()));
 
     assertThatThrownBy(() -> companyService.resetTenantAdminPassword(5L, "tenant-admin@ske.com"))
         .isInstanceOf(ApplicationException.class)

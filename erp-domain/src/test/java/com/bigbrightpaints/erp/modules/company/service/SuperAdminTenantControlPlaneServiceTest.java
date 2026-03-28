@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -136,13 +135,7 @@ class SuperAdminTenantControlPlaneServiceTest {
     assertThat(response.quotaSoftLimitEnabled()).isFalse();
     verify(tenantRuntimeEnforcementService)
         .updatePolicy(
-            "ACME",
-            null,
-            "ERP37_LIMITS_UPDATE",
-            Integer.MAX_VALUE,
-            0,
-            0,
-            "super-admin@bbp.com");
+            "ACME", null, "ERP37_LIMITS_UPDATE", Integer.MAX_VALUE, 0, 0, "super-admin@bbp.com");
   }
 
   @Test
@@ -157,16 +150,19 @@ class SuperAdminTenantControlPlaneServiceTest {
     beta.setLifecycleState(CompanyLifecycleState.SUSPENDED);
     when(companyRepository.findAll()).thenReturn(java.util.List.of(beta, alpha));
     when(companyService.getTenantMetricsForSuperAdmin(1L)).thenReturn(metrics(alpha, "ACTIVE"));
-    when(companyService.getTenantMetricsForSuperAdmin(2L))
-        .thenReturn(metrics(beta, "SUSPENDED"));
+    when(companyService.getTenantMetricsForSuperAdmin(2L)).thenReturn(metrics(beta, "SUSPENDED"));
     when(auditLogRepository.findTop1ByCompanyIdOrderByTimestampDesc(any(Long.class)))
         .thenReturn(Optional.empty());
 
     java.util.List<SuperAdminTenantSummaryDto> filtered = service.listTenants("active");
     java.util.List<SuperAdminTenantSummaryDto> all = service.listTenants(null);
 
-    assertThat(filtered).extracting(SuperAdminTenantSummaryDto::companyCode).containsExactly("alpha");
-    assertThat(all).extracting(SuperAdminTenantSummaryDto::companyCode).containsExactly("alpha", "Beta");
+    assertThat(filtered)
+        .extracting(SuperAdminTenantSummaryDto::companyCode)
+        .containsExactly("alpha");
+    assertThat(all)
+        .extracting(SuperAdminTenantSummaryDto::companyCode)
+        .containsExactly("alpha", "Beta");
   }
 
   @Test
@@ -260,7 +256,8 @@ class SuperAdminTenantControlPlaneServiceTest {
     assertThat(detail.onboarding().adminEmail()).isEqualTo("admin@example.com");
     assertThat(detail.usage().lastActivityAt()).isEqualTo(Instant.parse("2026-03-26T12:00:00Z"));
     assertThat(detail.supportContext().supportNotes()).isEqualTo("needs follow-up");
-    assertThat(detail.supportContext().supportTags()).containsExactlyInAnyOrder("URGENT", "FINANCE");
+    assertThat(detail.supportContext().supportTags())
+        .containsExactlyInAnyOrder("URGENT", "FINANCE");
     assertThat(detail.supportTimeline()).hasSize(3);
     assertThat(detail.supportTimeline().get(0).category()).isEqualTo("AUDIT");
     assertThat(detail.supportTimeline().get(0).message()).isEqualTo("tenant-force-logout");
@@ -288,7 +285,8 @@ class SuperAdminTenantControlPlaneServiceTest {
     assertThat(response.message()).isEqualTo("Please respond");
     assertThat(response.issuedAt()).isNotNull();
     verify(auditService)
-        .logAuthSuccess(eq(AuditEvent.CONFIGURATION_CHANGED), eq("super-admin@bbp.com"), eq("ACME"), any());
+        .logAuthSuccess(
+            eq(AuditEvent.CONFIGURATION_CHANGED), eq("super-admin@bbp.com"), eq("ACME"), any());
   }
 
   @Test
@@ -344,8 +342,7 @@ class SuperAdminTenantControlPlaneServiceTest {
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
     UserAccount first = adminUser(11L, "admin1@acme.com", "ROLE_ADMIN", company);
     UserAccount second = adminUser(12L, "  ", "ROLE_ADMIN", company);
-    when(userAccountRepository.findByCompany_Id(7L))
-        .thenReturn(java.util.List.of(first, second));
+    when(userAccountRepository.findByCompany_Id(7L)).thenReturn(java.util.List.of(first, second));
 
     SuperAdminTenantForceLogoutDto response = service.forceLogoutAllUsers(7L, "   ");
 
@@ -408,7 +405,8 @@ class SuperAdminTenantControlPlaneServiceTest {
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
     UserAccount admin = adminUser(91L, "admin@acme.com", "ROLE_ADMIN", company);
     when(userAccountRepository.findByIdAndCompany_Id(91L, 7L)).thenReturn(Optional.of(admin));
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("new-admin@acme.com", "ACME"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "new-admin@acme.com", "ACME"))
         .thenReturn(Optional.empty());
     when(tenantAdminEmailChangeRequestRepository.save(any(TenantAdminEmailChangeRequest.class)))
         .thenAnswer(
@@ -443,7 +441,8 @@ class SuperAdminTenantControlPlaneServiceTest {
     assertThatThrownBy(() -> service.requestAdminEmailChange(7L, 91L, "admin@acme.com"))
         .hasMessageContaining("newEmail must differ from the current admin email");
 
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("taken@acme.com", "ACME"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "taken@acme.com", "ACME"))
         .thenReturn(Optional.of(new UserAccount()));
     assertThatThrownBy(() -> service.requestAdminEmailChange(7L, 91L, "taken@acme.com"))
         .hasMessageContaining("Email already exists: taken@acme.com");
@@ -504,7 +503,8 @@ class SuperAdminTenantControlPlaneServiceTest {
     TenantAdminEmailChangeRequest mismatched = new TenantAdminEmailChangeRequest();
     mismatched.setCompanyId(8L);
     mismatched.setAdminUserId(91L);
-    when(tenantAdminEmailChangeRequestRepository.findById(301L)).thenReturn(Optional.of(mismatched));
+    when(tenantAdminEmailChangeRequestRepository.findById(301L))
+        .thenReturn(Optional.of(mismatched));
     assertThatThrownBy(() -> service.confirmAdminEmailChange(7L, 91L, 301L, "x"))
         .isInstanceOf(AccessDeniedException.class);
 
@@ -552,7 +552,8 @@ class SuperAdminTenantControlPlaneServiceTest {
     when(companyRepository.findById(7L)).thenReturn(Optional.of(company));
 
     UserAccount exclusiveAdmin = adminUser(92L, "current@acme.com", "ROLE_ADMIN", company);
-    when(userAccountRepository.findByIdAndCompany_Id(92L, 7L)).thenReturn(Optional.of(exclusiveAdmin));
+    when(userAccountRepository.findByIdAndCompany_Id(92L, 7L))
+        .thenReturn(Optional.of(exclusiveAdmin));
 
     TenantAdminEmailChangeRequest staleRequest = new TenantAdminEmailChangeRequest();
     staleRequest.setCompanyId(7L);
@@ -561,7 +562,8 @@ class SuperAdminTenantControlPlaneServiceTest {
     staleRequest.setRequestedEmail("new@acme.com");
     staleRequest.setVerificationToken("verify-stale");
     staleRequest.setExpiresAt(Instant.now().plusSeconds(600));
-    when(tenantAdminEmailChangeRequestRepository.findById(306L)).thenReturn(Optional.of(staleRequest));
+    when(tenantAdminEmailChangeRequestRepository.findById(306L))
+        .thenReturn(Optional.of(staleRequest));
 
     assertThatThrownBy(() -> service.confirmAdminEmailChange(7L, 92L, 306L, "verify-stale"))
         .hasMessageContaining("Email change request is stale");
@@ -584,7 +586,8 @@ class SuperAdminTenantControlPlaneServiceTest {
     when(tenantAdminEmailChangeRequestRepository.findById(307L)).thenReturn(Optional.of(request));
 
     UserAccount competingUser = adminUser(123L, "new-admin@acme.com", "ROLE_ADMIN", company);
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("new-admin@acme.com", "ACME"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "new-admin@acme.com", "ACME"))
         .thenReturn(Optional.of(competingUser));
 
     assertThatThrownBy(() -> service.confirmAdminEmailChange(7L, 91L, 307L, "verify-123"))
@@ -613,7 +616,8 @@ class SuperAdminTenantControlPlaneServiceTest {
     when(tenantAdminEmailChangeRequestRepository.findById(308L)).thenReturn(Optional.of(request));
 
     UserAccount sameAdminRecord = adminUser(91L, "new-admin@acme.com", "ROLE_ADMIN", company);
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("new-admin@acme.com", "ACME"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "new-admin@acme.com", "ACME"))
         .thenReturn(Optional.of(sameAdminRecord));
     when(userAccountRepository.save(admin)).thenReturn(admin);
     when(tenantAdminEmailChangeRequestRepository.save(request)).thenReturn(request);

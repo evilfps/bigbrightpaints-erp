@@ -1,8 +1,8 @@
 package com.bigbrightpaints.erp.modules.auth.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 import java.time.Clock;
@@ -13,8 +13,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import com.bigbrightpaints.erp.core.security.CryptoService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.security.CryptoService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.exception.InvalidMfaException;
@@ -104,7 +104,8 @@ class MfaServiceTest {
   void verifyDuringLogin_rejectsInvalidVerifier() {
     UserAccount user = userWithSecret();
 
-    assertThrows(InvalidMfaException.class, () -> mfaService.verifyDuringLogin(user, "000000", null));
+    assertThrows(
+        InvalidMfaException.class, () -> mfaService.verifyDuringLogin(user, "000000", null));
   }
 
   @Test

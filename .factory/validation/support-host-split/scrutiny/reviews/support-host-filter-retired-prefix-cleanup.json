@@ -1,0 +1,21 @@
+{
+  "featureId": "support-host-filter-retired-prefix-cleanup",
+  "reviewedAt": "2026-03-27T03:45:01+00:00",
+  "commitId": "c315d341eabc6b4ec6bd9cbb4e08d1a402690bdb",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The rerun fix fully addresses the prior non-blocking scrutiny finding. Commit `c315d341eabc6b4ec6bd9cbb4e08d1a402690bdb` removes the stale `/api/v1/support` auth-filter prefix from `CompanyContextFilter.SUPER_ADMIN_TENANT_BUSINESS_PREFIXES`, leaving only the canonical portal and dealer-portal support hosts in that super-admin tenant-business blocklist (`erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java:45-67`). The added regression coverage proves the retired shared prefix is no longer classified as tenant-business knowledge (`erp-domain/src/test/java/com/bigbrightpaints/erp/modules/auth/CompanyContextFilterControlPlaneBindingTest.java:227-234`) and that even a root super-admin now gets unmapped `404` on `POST /api/v1/support/tickets` instead of the previous filter-generated `403` (`erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/SupportTicketControllerIT.java:318-340`). Reviewing the original hard-cut commit `b226cd563f1834bbd135953e174e3bda03499fe0` against the prior review confirms this was the only remaining stale shared-support auth-filter knowledge from the first pass, and the follow-up diff resolves it without changing the published support host model.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The `security-backend-worker` skill does not mention the touched-files Spotless fallback that this mission requires when repo-wide Spotless drift is already classified as unrelated baseline debt, so workers must learn that validation nuance from mission-specific guidance instead of the skill itself.",
+      "evidence": "/home/realnigga/.factory/missions/943eb925-e1d4-47fc-b154-6a8c40d6fb3d/AGENTS.md says to use a touched-files scoped Spotless check when repo-wide `spotless:check` is red on unrelated files, while /home/realnigga/Desktop/Mission-control/.factory/skills/security-backend-worker/SKILL.md Step 4 lists compile, targeted tests, gate-fast, and catching-lane verification but no Spotless guidance. The worker handoff at /home/realnigga/.factory/missions/943eb925-e1d4-47fc-b154-6a8c40d6fb3d/handoffs/2026-03-27T03-39-39-517Z__support-host-filter-retired-prefix-cleanup__57695413-6168-4ce7-9e19-57ef09ab9016.json records this as skill feedback."
+    }
+  ],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/support-host-split/scrutiny/reviews/support-host-split-hard-cut.json",
+  "summary": "Pass. The follow-up fix removes the stale `/api/v1/support` prefix from `CompanyContextFilter`, adds regression checks that the retired shared support host is no longer treated as tenant-business filter knowledge, and proves super-admin probes to the deleted shared route now return `404`, resolving the prior scrutiny finding."
+}

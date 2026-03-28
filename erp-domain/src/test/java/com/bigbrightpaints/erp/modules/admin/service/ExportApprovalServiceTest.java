@@ -68,7 +68,8 @@ class ExportApprovalServiceTest {
 
   @Test
   void createRequest_persistsPendingExportRequestForActor() {
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@bbp.com", "EXP"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "admin@bbp.com", "EXP"))
         .thenReturn(Optional.of(actor));
     when(exportRequestRepository.save(any(ExportRequest.class)))
         .thenAnswer(

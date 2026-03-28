@@ -15,25 +15,25 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `b975837a5cee358928adb8afd23d99aed28f9a5efa778c5d91cb734eaa24c9eb`)
-- OpenAPI total paths: `288`
-- OpenAPI total operations: `340`
+- OpenAPI snapshot: `openapi.json` (sha256 `c9559add0778823eedc7e170ca20d7e2c2caed2df32b5fb65d74af5494bc2380`)
+- OpenAPI total paths: `283`
+- OpenAPI total operations: `336`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
 
 ## Summary by module
 
 | Module | Path count | Examples |
 |---|---:|---|
-| `accounting` | 71 | /api/v1/accounting/accounts, /api/v1/accounting/accounts/tree, /api/v1/accounting/accounts/tree/{type} |
-| `admin` | 14 | /api/v1/admin/approvals, /api/v1/admin/settings, /api/v1/admin/users |
+| `accounting` | 65 | /api/v1/accounting/accounts, /api/v1/accounting/accounts/tree, /api/v1/accounting/accounts/tree/{type} |
+| `admin` | 14 | /api/v1/admin/approvals, /api/v1/admin/exports/{requestId}/approve, /api/v1/admin/exports/{requestId}/reject |
 | `audit` | 2 | /api/v1/audit/business-events, /api/v1/audit/ml-events |
-| `auth` | 11 | /api/v1/auth/login, /api/v1/auth/logout, /api/v1/auth/me |
+| `auth` | 12 | /api/v1/auth/login, /api/v1/auth/logout, /api/v1/auth/me |
 | `catalog` | 5 | /api/v1/catalog/brands, /api/v1/catalog/items, /api/v1/catalog/import |
 | `changelog` | 2 | /api/v1/changelog, /api/v1/changelog/latest-highlighted |
 | `companies` | 2 | /api/v1/companies, /api/v1/companies/{id} |
 | `credit` | 6 | /api/v1/credit/limit-requests, /api/v1/credit/limit-requests/{id}/approve, /api/v1/credit/override-requests |
 | `dealer-portal` | 7 | /api/v1/dealer-portal/aging, /api/v1/dealer-portal/credit-limit-requests, /api/v1/dealer-portal/dashboard |
-| `dealers` | 8 | /api/v1/dealers, /api/v1/dealers/search, /api/v1/dealers/{dealerId} |
+| `dealers` | 4 | /api/v1/dealers, /api/v1/dealers/search, /api/v1/dealers/{dealerId} |
 | `demo` | 1 | /api/v1/demo/ping |
 | `dispatch` | 8 | /api/v1/dispatch/confirm, /api/v1/dispatch/order/{orderId}, /api/v1/dispatch/slip/{slipId}/status |
 | `exports` | 2 | /api/v1/exports/request, /api/v1/exports/{requestId}/download |
@@ -42,18 +42,19 @@ Portal scope guardrail:
 | `hr` | 17 | /api/v1/hr/attendance/bulk-import, /api/v1/hr/attendance/bulk-mark, /api/v1/hr/attendance/date/{date} |
 | `integration` | 1 | /api/integration/health |
 | `inventory` | 5 | /api/v1/inventory/adjustments, /api/v1/inventory/batches/expiring-soon, /api/v1/inventory/batches/{id}/movements |
-| `invoices` | 5 | /api/v1/invoices, /api/v1/invoices/dealers/{dealerId}, /api/v1/invoices/{id} |
+| `invoices` | 4 | /api/v1/invoices, /api/v1/invoices/{id}, /api/v1/invoices/{id}/email |
 | `migration` | 1 | /api/v1/migration/tally-import |
+| `multi-company` | 1 | /api/v1/multi-company/companies/switch |
 | `orchestrator` | 9 | /api/v1/orchestrator/dashboard/admin, /api/v1/orchestrator/dashboard/factory, /api/v1/orchestrator/dashboard/finance |
 | `payroll` | 13 | /api/v1/payroll/runs, /api/v1/payroll/runs/monthly, /api/v1/payroll/runs/weekly |
-| `portal` | 3 | /api/v1/portal/dashboard, /api/v1/portal/operations, /api/v1/portal/workforce |
+| `portal` | 6 | /api/v1/portal/dashboard, /api/v1/portal/finance/aging, /api/v1/portal/finance/ledger |
 | `purchasing` | 12 | /api/v1/purchasing/goods-receipts, /api/v1/purchasing/goods-receipts/{id}, /api/v1/purchasing/purchase-orders |
 | `raw-materials` | 3 | /api/v1/raw-materials/stock, /api/v1/raw-materials/stock/inventory, /api/v1/raw-materials/stock/low-stock |
-| `reports` | 20 | /api/v1/reports/account-statement, /api/v1/reports/aged-debtors, /api/v1/reports/aging/dealer/{dealerId} |
-| `sales` | 15 | /api/v1/sales/dashboard, /api/v1/sales/dealers, /api/v1/sales/dealers/search |
-| `superadmin` | 17 | /api/v1/superadmin/changelog, /api/v1/superadmin/tenants, /api/v1/superadmin/tenants/{id} |
+| `reports` | 17 | /api/v1/reports/account-statement, /api/v1/reports/aged-debtors, /api/v1/reports/aging/receivables |
+| `sales` | 16 | /api/v1/sales/dashboard, /api/v1/sales/dealers, /api/v1/sales/dealers/search |
+| `superadmin` | 17 | /api/v1/superadmin/changelog, /api/v1/superadmin/changelog/{id}, /api/v1/superadmin/dashboard |
 | `suppliers` | 5 | /api/v1/suppliers, /api/v1/suppliers/{id}, /api/v1/suppliers/{id}/activate |
-| `support` | 2 | /api/v1/support/tickets, /api/v1/support/tickets/{ticketId} |
+| `support` | 4 | /api/v1/portal/support/tickets, /api/v1/dealer-portal/support/tickets, /api/v1/portal/support/tickets/{ticketId} |
 
 ## `accounting`
 
@@ -64,8 +65,6 @@ Portal scope guardrail:
 - `GET` `/api/v1/accounting/accounts/{accountId}/balance/as-of`
 - `GET` `/api/v1/accounting/accounts/{accountId}/balance/compare`
 - `POST` `/api/v1/accounting/accruals`
-- `GET` `/api/v1/accounting/aging/dealers/{dealerId}`
-- `GET` `/api/v1/accounting/aging/dealers/{dealerId}/pdf`
 - `GET` `/api/v1/accounting/aging/suppliers/{supplierId}`
 - `GET` `/api/v1/accounting/aging/suppliers/{supplierId}/pdf`
 - `GET` `/api/v1/accounting/audit-trail`
@@ -119,8 +118,6 @@ Portal scope guardrail:
 - `POST` `/api/v1/accounting/sales/returns/preview`
 - `POST` `/api/v1/accounting/settlements/dealers`
 - `POST` `/api/v1/accounting/settlements/suppliers`
-- `GET` `/api/v1/accounting/statements/dealers/{dealerId}`
-- `GET` `/api/v1/accounting/statements/dealers/{dealerId}/pdf`
 - `GET` `/api/v1/accounting/statements/suppliers/{supplierId}`
 - `GET` `/api/v1/accounting/statements/suppliers/{supplierId}/pdf`
 - `POST` `/api/v1/accounting/suppliers/payments`
@@ -159,6 +156,7 @@ Portal scope guardrail:
 - `POST` `/api/v1/auth/mfa/setup`
 - `POST` `/api/v1/auth/password/change`
 - `POST` `/api/v1/auth/password/forgot`
+- `POST` `/api/v1/auth/password/forgot/superadmin`
 - `POST` `/api/v1/auth/password/reset`
 - `GET, PUT` `/api/v1/auth/profile`
 - `POST` `/api/v1/auth/refresh-token`
@@ -205,11 +203,7 @@ Portal scope guardrail:
 - `GET, POST` `/api/v1/dealers`
 - `GET` `/api/v1/dealers/search`
 - `PUT` `/api/v1/dealers/{dealerId}`
-- `GET` `/api/v1/dealers/{dealerId}/aging`
-- `GET` `/api/v1/dealers/{dealerId}/credit-utilization`
 - `POST` `/api/v1/dealers/{dealerId}/dunning/hold`
-- `GET` `/api/v1/dealers/{dealerId}/invoices`
-- `GET` `/api/v1/dealers/{dealerId}/ledger`
 
 ## `demo`
 
@@ -297,7 +291,6 @@ Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packagi
 ## `invoices`
 
 - `GET` `/api/v1/invoices`
-- `GET` `/api/v1/invoices/dealers/{dealerId}`
 - `GET` `/api/v1/invoices/{id}`
 - `POST` `/api/v1/invoices/{id}/email`
 - `GET` `/api/v1/invoices/{id}/pdf`
@@ -305,6 +298,10 @@ Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packagi
 ## `migration`
 
 - `POST` `/api/v1/migration/tally-import`
+
+## `multi-company`
+
+- `POST` `/api/v1/multi-company/companies/switch`
 
 ## `orchestrator`
 
@@ -337,6 +334,9 @@ Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packagi
 ## `portal`
 
 - `GET` `/api/v1/portal/dashboard`
+- `GET` `/api/v1/portal/finance/aging`
+- `GET` `/api/v1/portal/finance/invoices`
+- `GET` `/api/v1/portal/finance/ledger`
 - `GET` `/api/v1/portal/operations`
 - `GET` `/api/v1/portal/workforce`
 
@@ -365,14 +365,11 @@ Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packagi
 
 - `GET` `/api/v1/reports/account-statement`
 - `GET` `/api/v1/reports/aged-debtors`
-- `GET` `/api/v1/reports/aging/dealer/{dealerId}`
-- `GET` `/api/v1/reports/aging/dealer/{dealerId}/detailed`
 - `GET` `/api/v1/reports/aging/receivables`
 - `GET` `/api/v1/reports/balance-sheet`
 - `GET` `/api/v1/reports/balance-sheet/hierarchy`
 - `GET` `/api/v1/reports/balance-warnings`
 - `GET` `/api/v1/reports/cash-flow`
-- `GET` `/api/v1/reports/dso/dealer/{dealerId}`
 - `GET` `/api/v1/reports/gst-return`
 - `GET` `/api/v1/reports/income-statement/hierarchy`
 - `GET` `/api/v1/reports/inventory-reconciliation`
@@ -432,5 +429,7 @@ Factory operator note: treat `/api/v1/factory/packaging-mappings` as the Packagi
 
 ## `support`
 
-- `GET, POST` `/api/v1/support/tickets`
-- `GET` `/api/v1/support/tickets/{ticketId}`
+- `GET, POST` `/api/v1/portal/support/tickets`
+- `GET` `/api/v1/portal/support/tickets/{ticketId}`
+- `GET, POST` `/api/v1/dealer-portal/support/tickets`
+- `GET` `/api/v1/dealer-portal/support/tickets/{ticketId}`

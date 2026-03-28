@@ -297,7 +297,11 @@ public class MockDataInitializer {
                 + " exist");
       }
       UserAccount user =
-          new UserAccount(normalizedEmail, company.getCode(), encoder.encode(adminPassword.trim()), "Mock Admin");
+          new UserAccount(
+              normalizedEmail,
+              company.getCode(),
+              encoder.encode(adminPassword.trim()),
+              "Mock Admin");
       user.setMustChangePassword(true);
       user.setCompany(company);
       user.addRole(admin);

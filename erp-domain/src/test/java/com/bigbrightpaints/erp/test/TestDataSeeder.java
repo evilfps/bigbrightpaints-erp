@@ -12,8 +12,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.bigbrightpaints.erp.core.service.CriticalFixtureService;
 import com.bigbrightpaints.erp.core.security.AuthScopeService;
+import com.bigbrightpaints.erp.core.service.CriticalFixtureService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -89,7 +89,9 @@ public class TestDataSeeder {
       List<String> roleNames) {
     String scopeCode = authScopeService.requireScopeCode(companyCode);
     Company company =
-        authScopeService.isPlatformScope(scopeCode) ? null : ensureCompany(scopeCode, scopeCode + " Ltd");
+        authScopeService.isPlatformScope(scopeCode)
+            ? null
+            : ensureCompany(scopeCode, scopeCode + " Ltd");
     UserAccount user =
         userRepository
             .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(email, scopeCode)

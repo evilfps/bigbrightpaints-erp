@@ -155,7 +155,9 @@ class RbacSynchronizationConfigTest {
     assertThat(synchronizedRoles).isGreaterThan(0);
     assertThat(permissionCodes(seededAdmin))
         .contains("dispatch.confirm", "factory.dispatch", "payroll.run");
-    assertThat(permissionCodes(seededSales)).contains("portal:sales").doesNotContain("dispatch.confirm");
+    assertThat(permissionCodes(seededSales))
+        .contains("portal:sales")
+        .doesNotContain("dispatch.confirm");
     assertThat(permissionCodes(seededAccounting))
         .contains("portal:accounting", "dispatch.confirm", "payroll.run", "reports.export");
     assertThat(permissionCodes(seededFactory))

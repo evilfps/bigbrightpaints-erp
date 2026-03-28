@@ -6,13 +6,11 @@ This review covers admin user management, changelog publishing, support tickets 
 
 Primary evidence:
 
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/controller/{AdminUserController,AdminSettingsController,ChangelogController,SupportTicketController}.java`
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/{AdminUserService,ChangelogService,SupportTicketService,SupportTicketGitHubSyncService,GitHubIssueClient,ExportApprovalService,TenantRuntimePolicyService}.java`
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/core/{audit/AuditService.java,config/SystemSettingsService.java,notification/EmailService.java,security/{SecurityConfig,CompanyContextFilter}.java}`
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/controller/ReportController.java`
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/service/RoleService.java`
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/domain/{ChangelogEntry,ChangelogEntryRepository,SupportTicket,SupportTicketRepository,ExportRequest,ExportRequestRepository}.java`
-- `erp-domain/src/main/resources/db/migration_v2/{V39__export_requests_approval_gate.sql,V40__changelog_entries.sql,V41__support_tickets_github_integration.sql}` and `db/migration_v2/V1__core_auth_rbac.sql`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/controller/{AdminUserController,AdminSettingsController,ChangelogController,SuperAdminChangelogController}.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/{portal/controller/PortalSupportTicketController.java,sales/controller/DealerPortalSupportTicketController.java}`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/{AdminUserService,ChangelogService,PortalSupportTicketService,DealerPortalSupportTicketService,SupportTicketAccessSupport,SupportTicketGitHubSyncService,ExportApprovalService,TenantRuntimePolicyService}.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/{SecurityConfig,CompanyContextFilter}.java`
+- `erp-domain/src/main/resources/db/migration_v2/{V39__export_requests_approval_gate.sql,V40__changelog_entries.sql,V41__support_tickets_github_integration.sql,V167__erp37_superadmin_control_plane_hard_cut.sql}`
 - `openapi.json`
 - Tests: `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/{AdminUserSecurityIT,ChangelogControllerSecurityIT,SupportTicketControllerIT}.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/controller/{AdminSettingsControllerApprovalsContractTest,AdminSettingsControllerTenantRuntimeContractTest}.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/admin/service/{AdminUserServiceTest,ChangelogServiceTest,ExportApprovalServiceTest,TenantRuntimePolicyServiceTest}.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/reports/ReportExportApprovalIT.java`, and `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeSupportTicketSyncExecutableCoverageTest.java`
 
@@ -22,12 +20,11 @@ Supporting runtime evidence was limited: `curl -i -s http://localhost:8081/actua
 
 | Surface | Entrypoints | Controller | Notes |
 | --- | --- | --- | --- |
-| Admin user governance | `GET/POST /api/v1/admin/users`, `PUT /api/v1/admin/users/{id}`, `POST /api/v1/admin/users/{userId}/force-reset-password`, `PUT /api/v1/admin/users/{userId}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, `DELETE /api/v1/admin/users/{id}` | `AdminUserController` | Admin and super-admin surface for account lifecycle, role/company scope, reset, and MFA override. |
-| Changelog publishing | `POST /api/v1/admin/changelog`, `PUT/DELETE /api/v1/admin/changelog/{id}`, public `GET /api/v1/changelog`, `GET /api/v1/changelog/latest-highlighted` | `ChangelogController` | Private writers, public readers. |
-| Support desk | `POST /api/v1/support/tickets`, `GET /api/v1/support/tickets`, `GET /api/v1/support/tickets/{ticketId}` | `SupportTicketController` | Authenticated users can create tickets; read visibility depends on role scope. |
-| System settings / runtime flags | `GET/PUT /api/v1/admin/settings`, `GET /api/v1/admin/tenant-runtime/metrics`, `PUT /api/v1/admin/tenant-runtime/policy` | `AdminSettingsController` | Combines global platform settings with tenant runtime quota controls. |
-| Export approvals | `POST /api/v1/exports/request`, `GET /api/v1/exports/{requestId}/download`, `PUT /api/v1/admin/exports/{requestId}/{approve|reject}` | `ReportController`, `AdminSettingsController` | Report export is requested in reports space and surfaced through the single admin approval inbox. |
-| Governance cockpit / operator comms | `GET /api/v1/admin/approvals`, `POST /api/v1/admin/notify` | `AdminSettingsController` | The single approval inbox aggregates pending work across modules and exposes typed `originType` / `ownerType` metadata alongside direct email dispatch. |
+| Admin user governance | `GET/POST /api/v1/admin/users`, `PUT /api/v1/admin/users/{id}`, `PUT /api/v1/admin/users/{userId}/status`, `POST /api/v1/admin/users/{userId}/force-reset-password`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, `DELETE /api/v1/admin/users/{id}` | `AdminUserController` | Tenant-admin operational surface with superadmin inheritance via role hierarchy. |
+| Settings and governance inbox | `GET/PUT /api/v1/admin/settings`, `GET /api/v1/admin/approvals`, `POST /api/v1/admin/notify`, `PUT /api/v1/admin/exports/{requestId}/{approve|reject}` | `AdminSettingsController` | Reads remain admin-accessible; settings mutation is superadmin-only; approvals stay tenant-scoped. |
+| Support desk | Internal: `POST/GET /api/v1/portal/support/tickets`, `GET /api/v1/portal/support/tickets/{ticketId}`; dealer: `POST/GET /api/v1/dealer-portal/support/tickets`, `GET /api/v1/dealer-portal/support/tickets/{ticketId}` | `PortalSupportTicketController`, `DealerPortalSupportTicketController` | Shared `/api/v1/support/**` is retired; admin/accounting work only on the portal host and dealer users stay on the dealer-portal host with self-scoped reads. |
+| Changelog reads | `GET /api/v1/changelog`, `GET /api/v1/changelog/latest-highlighted` | `ChangelogController` | Reads require authentication and are no longer public. |
+| Changelog writes | `POST /api/v1/superadmin/changelog`, `PUT /api/v1/superadmin/changelog/{id}`, `DELETE /api/v1/superadmin/changelog/{id}` | `SuperAdminChangelogController` | Global write ownership moved to superadmin-only control. |
 
 ## Data path and schema touchpoints
 
@@ -278,7 +275,7 @@ The method is explicitly `@Transactional(readOnly = true)` and converts each pen
 - `AdminUserSecurityIT` proves cross-company protection for tenant admins, foreign-tenant force reset for super admins, quota enforcement on user creation, and super-admin-only runtime-policy updates.
 - `AdminUserServiceTest` proves dealer/receivable-account side effects during dealer-user creation.
 - `ChangelogControllerSecurityIT` proves tenant-admin/super-admin authoring and unauthenticated public read access.
-- `SupportTicketControllerIT` proves role-scoped support-ticket visibility across requester/admin/super-admin actors.
+- `SupportTicketControllerIT` proves portal-vs-dealer support host split, role-scoped visibility, and retired shared-route `404`s.
 - `TS_RuntimeSupportTicketSyncExecutableCoverageTest` proves category-to-label mapping and resolution-email behavior on GitHub close.
 - `ReportExportApprovalIT` proves the end-to-end request -> approve -> download flow and also proves that disabling the global gate allows download of rejected requests.
 - `AdminSettingsControllerApprovalsContractTest` proves the approvals cockpit now contains period-close approvals even though `openapi.json` still omits that field from the schema.

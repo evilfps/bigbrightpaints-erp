@@ -43,17 +43,17 @@ Planning notes:
 | Surface | Entrypoints | Controller | Notes |
 | --- | --- | --- | --- |
 | Dealer master data | `POST/GET /api/v1/dealers`, `GET /api/v1/dealers/search`, `PUT /api/v1/dealers/{dealerId}` | `DealerController` | Admin/sales/accounting surface for dealer onboarding, lookup, and maintenance. |
-| Dealer financial views | `GET /api/v1/dealers/{dealerId}/{ledger|invoices|credit-utilization|aging}`, `POST /api/v1/dealers/{dealerId}/dunning/hold` | `DealerController` | Internal receivables, exposure, and hold-evaluation surface. |
+| Dealer financial views | `GET /api/v1/portal/finance/{ledger|invoices|aging}`, `POST /api/v1/dealers/{dealerId}/dunning/hold` | `PortalFinanceController`, `DealerController` | Internal admin/accounting receivables surface plus dunning hold evaluation. |
 | Dealer self-service | `GET /api/v1/dealer-portal/{dashboard|ledger|invoices|aging|orders}`, `POST /api/v1/dealer-portal/credit-limit-requests`, `GET /api/v1/dealer-portal/invoices/{invoiceId}/pdf` | `DealerPortalController` | Dealer-scoped read model, ledger-backed aging/balance truth, durable credit-limit request entrypoint, and PDF export. |
 | Sales order lifecycle | `GET/POST/PUT/DELETE /api/v1/sales/orders`, `GET /api/v1/sales/orders/search`, `POST /api/v1/sales/orders/{id}/{confirm|cancel}`, `PATCH /api/v1/sales/orders/{id}/status`, `GET /api/v1/sales/orders/{id}/timeline` | `SalesController` | Core quote/order CRUD, state transitions, and timeline history. |
 | Credit requests | `GET/POST /api/v1/credit/limit-requests`, `POST /api/v1/credit/limit-requests/{id}/{approve|reject}` | `CreditLimitRequestController` | Workflow for permanent credit-limit increase requests. |
 | Dispatch exceptions | `POST/GET /api/v1/credit/override-requests`, `POST /api/v1/credit/override-requests/{id}/{approve|reject}` | `CreditLimitOverrideController` | Maker-checker approvals for dispatch-time credit/price/discount/tax exceptions. |
 | Dispatch confirmation | `POST /api/v1/dispatch/confirm`, `POST /api/v1/sales/dispatch/reconcile-order-markers`, `GET /api/v1/dispatch/{pending,preview/{slipId},slip/{slipId},order/{orderId}}` | `SalesController`, `DispatchController` | Sales-owned dispatch posting plus factory/operator read-only prepared-slip surfaces. |
-| Invoice access | `GET /api/v1/invoices`, `GET /api/v1/invoices/{id}`, `GET /api/v1/invoices/{id}/pdf`, `GET /api/v1/invoices/dealers/{dealerId}`, `POST /api/v1/invoices/{id}/email` | `InvoiceController` | Internal invoice browse/export/email surface. |
+| Invoice access | `GET /api/v1/invoices`, `GET /api/v1/invoices/{id}`, `GET /api/v1/invoices/{id}/pdf`, `POST /api/v1/invoices/{id}/email`, `GET /api/v1/portal/finance/invoices?dealerId=` | `InvoiceController`, `PortalFinanceController` | Internal invoice browse/export/email surface plus canonical dealer invoice drill-ins. |
 | Cash receipt and settlement | `POST /api/v1/accounting/receipts/dealer`, `POST /api/v1/accounting/receipts/dealer/hybrid`, `POST /api/v1/accounting/settlements/dealers`, `POST /api/v1/accounting/dealers/{dealerId}/auto-settle` | `AccountingController` | Receivable clearing, settlement allocation, and auto-allocation. |
-| Statements and aging | `GET /api/v1/accounting/statements/dealers/{dealerId}`, `GET /api/v1/accounting/aging/dealers/{dealerId}`, and matching PDF exports | `AccountingController` | Dealer statement, aging, and PDF evidence surfaces. |
+| Statements and aging | `GET /api/v1/portal/finance/ledger?dealerId=`, `GET /api/v1/portal/finance/aging?dealerId=` | `PortalFinanceController` | Canonical internal dealer ledger and aging surfaces. |
 
-`openapi.json` includes the major order-to-cash routes above, including dealer portal, order lifecycle, dispatch, override, invoice, settlement, statement, and aging paths.
+`openapi.json` includes the major order-to-cash routes above, including dealer portal, order lifecycle, dispatch, override, invoice, settlement, and portal-finance ledger/aging paths.
 
 ## Data path and schema touchpoints
 

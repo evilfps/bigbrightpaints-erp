@@ -24,8 +24,10 @@ import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketRepository;
 import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketStatus;
 import com.bigbrightpaints.erp.modules.admin.dto.SupportTicketCreateRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.SupportTicketResponse;
+import com.bigbrightpaints.erp.modules.admin.service.DealerPortalSupportTicketService;
+import com.bigbrightpaints.erp.modules.admin.service.PortalSupportTicketService;
+import com.bigbrightpaints.erp.modules.admin.service.SupportTicketAccessSupport;
 import com.bigbrightpaints.erp.modules.admin.service.SupportTicketGitHubSyncService;
-import com.bigbrightpaints.erp.modules.admin.service.SupportTicketService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -38,7 +40,8 @@ class TS_RuntimeSupportTicketServiceExecutableCoverageTest {
   private SupportTicketRepository supportTicketRepository;
   private CompanyContextService companyContextService;
   private SupportTicketGitHubSyncService supportTicketGitHubSyncService;
-  private SupportTicketService supportTicketService;
+  private PortalSupportTicketService portalSupportTicketService;
+  private DealerPortalSupportTicketService dealerPortalSupportTicketService;
   private Company company;
 
   @BeforeEach
@@ -46,10 +49,14 @@ class TS_RuntimeSupportTicketServiceExecutableCoverageTest {
     supportTicketRepository = Mockito.mock(SupportTicketRepository.class);
     companyContextService = Mockito.mock(CompanyContextService.class);
     supportTicketGitHubSyncService = Mockito.mock(SupportTicketGitHubSyncService.class);
-
-    supportTicketService =
-        new SupportTicketService(
-            supportTicketRepository, companyContextService, supportTicketGitHubSyncService);
+    SupportTicketAccessSupport supportTicketAccessSupport =
+        new SupportTicketAccessSupport(supportTicketRepository, supportTicketGitHubSyncService);
+    portalSupportTicketService =
+        new PortalSupportTicketService(
+            supportTicketRepository, companyContextService, supportTicketAccessSupport);
+    dealerPortalSupportTicketService =
+        new DealerPortalSupportTicketService(
+            supportTicketRepository, companyContextService, supportTicketAccessSupport);
 
     company = new Company();
     ReflectionTestUtils.setField(company, "id", 501L);
@@ -64,7 +71,7 @@ class TS_RuntimeSupportTicketServiceExecutableCoverageTest {
 
   @Test
   void create_savesTicketAndTriggersGithubSubmission() {
-    UserAccount requester = user(71L, "requester@acme.com", "ROLE_SALES", company);
+    UserAccount requester = user(71L, "admin@acme.com", "ROLE_ADMIN", company);
     authenticate(requester);
 
     when(supportTicketRepository.save(any(SupportTicket.class)))
@@ -76,7 +83,7 @@ class TS_RuntimeSupportTicketServiceExecutableCoverageTest {
             });
 
     SupportTicketResponse response =
-        supportTicketService.create(
+        portalSupportTicketService.create(
             new SupportTicketCreateRequest(
                 "support", "Unable to export", "Export request fails with timeout"));
 
@@ -89,34 +96,7 @@ class TS_RuntimeSupportTicketServiceExecutableCoverageTest {
   }
 
   @Test
-  void list_usesGlobalScopeForSuperAdmin() {
-    UserAccount superAdmin = user(81L, "super@root.com", "ROLE_SUPER_ADMIN", company);
-    authenticate(superAdmin);
-
-    SupportTicket ticketA = ticket(9201L, company, 71L, "ACME ticket");
-    SupportTicket ticketB = ticket(9202L, company, 72L, "Another ACME ticket");
-    when(supportTicketRepository.findAllByOrderByCreatedAtDesc())
-        .thenReturn(List.of(ticketA, ticketB));
-    when(supportTicketRepository.findUsersByIdIn(
-            argThat(ids -> ids != null && ids.containsAll(List.of(71L, 72L)))))
-        .thenReturn(
-            List.of(
-                user(71L, "requester1@acme.com", "ROLE_SALES", company),
-                user(72L, "requester2@acme.com", "ROLE_SALES", company)));
-
-    List<SupportTicketResponse> responses = supportTicketService.list();
-
-    assertThat(responses).hasSize(2);
-    verify(supportTicketRepository).findAllByOrderByCreatedAtDesc();
-    verify(supportTicketRepository)
-        .findUsersByIdIn(argThat(ids -> ids != null && ids.containsAll(List.of(71L, 72L))));
-    verify(supportTicketRepository, never()).findByCompanyOrderByCreatedAtDesc(any());
-    verify(supportTicketRepository, never())
-        .findByCompanyAndUserIdOrderByCreatedAtDesc(any(), any());
-  }
-
-  @Test
-  void list_usesCompanyScopeForAdmin() {
+  void portalList_usesCompanyScopeForAdminVisibility() {
     UserAccount admin = user(82L, "admin@acme.com", "ROLE_ADMIN", company);
     authenticate(admin);
 
@@ -126,31 +106,54 @@ class TS_RuntimeSupportTicketServiceExecutableCoverageTest {
     when(supportTicketRepository.findUsersByIdIn(argThat(ids -> ids != null && ids.contains(71L))))
         .thenReturn(List.of(user(71L, "requester@acme.com", "ROLE_SALES", company)));
 
-    List<SupportTicketResponse> responses = supportTicketService.list();
+    List<SupportTicketResponse> responses = portalSupportTicketService.list();
 
     assertThat(responses).hasSize(1);
     assertThat(responses.getFirst().id()).isEqualTo(9301L);
     verify(supportTicketRepository).findByCompanyOrderByCreatedAtDesc(company);
-    verify(supportTicketRepository, never()).findAllByOrderByCreatedAtDesc();
     verify(supportTicketRepository, never())
         .findByCompanyAndUserIdOrderByCreatedAtDesc(any(), any());
   }
 
   @Test
-  void list_usesSelfScopeForNonAdminUsers() {
-    UserAccount sales = user(83L, "sales@acme.com", "ROLE_SALES", company);
-    authenticate(sales);
+  void dealerCreate_savesTicketAndTriggersGithubSubmission() {
+    UserAccount dealer = user(83L, "dealer@acme.com", "ROLE_DEALER", company);
+    authenticate(dealer);
+
+    when(supportTicketRepository.save(any(SupportTicket.class)))
+        .thenAnswer(
+            invocation -> {
+              SupportTicket ticket = invocation.getArgument(0);
+              ReflectionTestUtils.setField(ticket, "id", 8802L);
+              return ticket;
+            });
+
+    SupportTicketResponse response =
+        dealerPortalSupportTicketService.create(
+            new SupportTicketCreateRequest(
+                "support", "Invoice mismatch", "Dealer cannot reconcile a settled invoice"));
+
+    assertThat(response.id()).isEqualTo(8802L);
+    assertThat(response.userId()).isEqualTo(83L);
+    assertThat(response.companyCode()).isEqualTo("ACME");
+    verify(supportTicketRepository).save(any(SupportTicket.class));
+    verify(supportTicketGitHubSyncService).submitGitHubIssueAsync(8802L);
+  }
+
+  @Test
+  void dealerList_usesSelfScopeForDealerVisibility() {
+    UserAccount dealer = user(83L, "dealer@acme.com", "ROLE_DEALER", company);
+    authenticate(dealer);
 
     SupportTicket ownTicket = ticket(9401L, company, 83L, "Own ticket");
     when(supportTicketRepository.findByCompanyAndUserIdOrderByCreatedAtDesc(company, 83L))
         .thenReturn(List.of(ownTicket));
 
-    List<SupportTicketResponse> responses = supportTicketService.list();
+    List<SupportTicketResponse> responses = dealerPortalSupportTicketService.list();
 
     assertThat(responses).hasSize(1);
     assertThat(responses.getFirst().id()).isEqualTo(9401L);
     verify(supportTicketRepository).findByCompanyAndUserIdOrderByCreatedAtDesc(company, 83L);
-    verify(supportTicketRepository, never()).findAllByOrderByCreatedAtDesc();
     verify(supportTicketRepository, never()).findByCompanyOrderByCreatedAtDesc(any());
   }
 

@@ -55,5 +55,13 @@ Mission-specific route ownership, cleanup targets, and worker guardrails for the
 EOF
 fi
 
+if [ ! -f "$LIB_DIR/portal-split-hard-cut.md" ]; then
+  cat > "$LIB_DIR/portal-split-hard-cut.md" <<'EOF'
+# ERP-21 Portal Split Hard Cut
+
+Mission-specific host ownership, retirement targets, and proof expectations for the ERP-21 portal cleanup packet.
+EOF
+fi
+
 cd "$ERP_DIR"
 MIGRATION_SET=v2 mvn -q -DskipTests -Djacoco.skip=true -T8 compile >/dev/null 2>&1 || true

@@ -226,30 +226,6 @@ public class ReportController {
             "Aged receivables report", agingReportService.getAgedReceivablesReport()));
   }
 
-  @GetMapping("/reports/aging/dealer/{dealerId}")
-  public ResponseEntity<ApiResponse<AgingReportService.DealerAgingDetail>> dealerAging(
-      @PathVariable Long dealerId) {
-    return ResponseEntity.ok(
-        ApiResponse.success("Dealer aging summary", agingReportService.getDealerAging(dealerId)));
-  }
-
-  @GetMapping("/reports/aging/dealer/{dealerId}/detailed")
-  public ResponseEntity<ApiResponse<AgingReportService.DealerAgingDetailedReport>>
-      dealerAgingDetailed(@PathVariable Long dealerId) {
-    return ResponseEntity.ok(
-        ApiResponse.success(
-            "Dealer aging detail with invoices",
-            agingReportService.getDealerAgingDetailed(dealerId)));
-  }
-
-  @GetMapping("/reports/dso/dealer/{dealerId}")
-  public ResponseEntity<ApiResponse<AgingReportService.DSOReport>> dealerDso(
-      @PathVariable Long dealerId) {
-    return ResponseEntity.ok(
-        ApiResponse.success(
-            "Days Sales Outstanding report", agingReportService.getDealerDSO(dealerId)));
-  }
-
   @GetMapping("/reports/wastage")
   public ResponseEntity<ApiResponse<List<WastageReportDto>>> wastageReport() {
     return ResponseEntity.ok(ApiResponse.success(reportService.wastageReport()));

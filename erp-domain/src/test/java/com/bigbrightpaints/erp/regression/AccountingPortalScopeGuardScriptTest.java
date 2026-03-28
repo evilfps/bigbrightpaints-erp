@@ -114,6 +114,24 @@ class AccountingPortalScopeGuardScriptTest {
   }
 
   @Test
+  void guardFailsWhenEndpointMapOmitsCanonicalPortalFinanceSplitNote() throws Exception {
+    FixturePaths fixturePaths = writeFixture(13);
+    replaceInFile(
+        fixturePaths.endpointMapDoc(),
+        "Portal finance drill-ins stay on `/api/v1/portal/finance/*` for admin/accounting users;"
+            + " dealer self-service remains on `/api/v1/dealer-portal/{ledger,invoices,aging}`, and"
+            + " retired shared/legacy aliases stay out of the portal.\n",
+        "");
+
+    ProcessResult result = runGuard(fixturePaths);
+
+    assertThat(result.exitCode()).isNotEqualTo(0);
+    assertThat(result.stderr())
+        .contains(
+            "accounting endpoint map must document the canonical internal-vs-dealer finance split");
+  }
+
+  @Test
   void guardFailsWhenHandoffHrEndpointEvidenceIsMissing() throws Exception {
     FixturePaths fixturePaths = writeFixture(13);
     replaceInFile(
@@ -137,6 +155,40 @@ class AccountingPortalScopeGuardScriptTest {
     assertThat(result.exitCode()).isNotEqualTo(0);
     assertThat(result.stderr()).contains("required reports endpoint evidence missing");
     assertThat(result.stderr()).contains("/api/v1/reports/inventory-valuation");
+  }
+
+  @Test
+  void guardFailsWhenInvoiceSectionOmitsPortalVsDealerInvoiceSplitNote() throws Exception {
+    FixturePaths fixturePaths = writeFixture(13);
+    replaceInFile(
+        fixturePaths.handoffDoc(),
+        "- Accounting portal dealer invoice drill-ins use `portalFinanceInvoices` on"
+            + " `/api/v1/portal/finance/invoices`; dealer self-service invoice reads remain on"
+            + " `/api/v1/dealer-portal/invoices`.\n",
+        "");
+
+    ProcessResult result = runGuard(fixturePaths);
+
+    assertThat(result.exitCode()).isNotEqualTo(0);
+    assertThat(result.stderr())
+        .contains("invoice route must document the canonical internal-vs-dealer invoice split");
+  }
+
+  @Test
+  void guardFailsWhenCollectionsSectionOmitsPortalVsDealerFinanceSplitNote() throws Exception {
+    FixturePaths fixturePaths = writeFixture(13);
+    replaceInFile(
+        fixturePaths.handoffDoc(),
+        "- Internal dealer receivables drill-ins stay on"
+            + " `/api/v1/portal/finance/{ledger,invoices,aging}` while dealer self-service finance"
+            + " remains on `/api/v1/dealer-portal/{ledger,invoices,aging}`.\n",
+        "");
+
+    ProcessResult result = runGuard(fixturePaths);
+
+    assertThat(result.exitCode()).isNotEqualTo(0);
+    assertThat(result.stderr())
+        .contains("collections route must keep the internal-vs-dealer finance host split explicit");
   }
 
   @Test
@@ -236,6 +288,11 @@ Count lock for parity checks: **4**
 ## Reports & Reconciliation
 ### report-controller
 | `GET /api/v1/reports/inventory-valuation` |
+### portal-finance-controller
+| `GET /api/v1/portal/finance/ledger` |
+| `GET /api/v1/portal/finance/invoices` |
+| `GET /api/v1/portal/finance/aging` |
+Portal finance drill-ins stay on `/api/v1/portal/finance/*` for admin/accounting users; dealer self-service remains on `/api/v1/dealer-portal/{ledger,invoices,aging}`, and retired shared/legacy aliases stay out of the portal.
 
 Maker-checker period-close note:
 - `POST /api/v1/accounting/periods/{periodId}/request-close` is the supported maker action for frontend close submission.
@@ -259,6 +316,9 @@ Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snaps
 | `finishedGoodGetStockSummary` | GET | `/api/v1/finished-goods/stock-summary` |
 | `reportInventoryValuation` | GET | `/api/v1/reports/inventory-valuation` |
 | `hrEmployees` | GET | `/api/v1/hr/employees` |
+| `portalFinanceLedger` | GET | `/api/v1/portal/finance/ledger` |
+| `portalFinanceInvoices` | GET | `/api/v1/portal/finance/invoices` |
+| `portalFinanceAging` | GET | `/api/v1/portal/finance/aging` |
 | `authGetMe` | GET | `/api/v1/auth/me` |
 | `authProfileGet` | GET | `/api/v1/auth/profile` |
 | `authProfileUpdate` | PUT | `/api/v1/auth/profile` |
@@ -283,14 +343,16 @@ Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snaps
 - Role/permission gate: Mixed by endpoint.
 
 ### `/accounting/ar/invoices`
-- Required API calls (shared accountant/sales/admin views): `salesListDealersForAccounting`, `salesSearchDealersForAccounting`, `invoiceListInvoices`, `invoiceGetInvoice`, `invoiceSendInvoiceEmail`, `invoiceDealerInvoices`
+- Required API calls (shared accountant/sales/admin views): `salesListDealersForAccounting`, `salesSearchDealersForAccounting`, `invoiceListInvoices`, `invoiceGetInvoice`, `invoiceSendInvoiceEmail`, `portalFinanceInvoices`
 - Admin-only APIs (do not expose to accounting/sales roles): `invoiceDownloadInvoicePdf`
-- Role/permission gate: Mixed by endpoint: list/detail/email/dealer views inherit `ROLE_ADMIN|ROLE_ACCOUNTING|ROLE_SALES`; `invoiceDownloadInvoicePdf` is `ROLE_ADMIN` only.
+- Accounting portal dealer invoice drill-ins use `portalFinanceInvoices` on `/api/v1/portal/finance/invoices`; dealer self-service invoice reads remain on `/api/v1/dealer-portal/invoices`.
+- Role/permission gate: Mixed by endpoint: list/detail/email/dealer views inherit `ROLE_ADMIN|ROLE_ACCOUNTING|ROLE_SALES`; `portalFinanceInvoices` is `ROLE_ADMIN|ROLE_ACCOUNTING`, and `invoiceDownloadInvoicePdf` is `ROLE_ADMIN` only.
 
 ### `/accounting/ar/collections-settlements`
-- Required API calls (shared accountant-owned path): `acctRecordDealerReceipt`, `acctRecordDealerHybridReceipt`, `acctSettleDealer`, `acctGetDealerAging`, `acctGetDealerAgingDetailed`, `acctDealerStatement`, `acctListSalesReturns`, `acctRecordSalesReturn`, `acctPostCreditNote`, `acctWriteOffBadDebt`
-- Admin-only exports (keep off accounting/sales action menus): `acctDealerStatementPdf`
-- Role/permission gate: Mixed by endpoint: receipts/settlements/aging/statement reads use `ROLE_ADMIN|ROLE_ACCOUNTING`; `GET /api/v1/accounting/sales/returns` also permits `ROLE_SALES`; `acctDealerStatementPdf` is `ROLE_ADMIN` only.
+- Required API calls (shared accountant-owned path): `acctRecordDealerReceipt`, `acctRecordDealerHybridReceipt`, `acctSettleDealer`, `portalFinanceLedger`, `portalFinanceAging`, `acctListSalesReturns`, `acctRecordSalesReturn`, `acctPostCreditNote`, `acctWriteOffBadDebt`
+- Canonical dealer finance reads: `portalFinanceLedger`, `portalFinanceInvoices`, and `portalFinanceAging` all route through `/api/v1/portal/finance/*`; do not wire retired dealer/accounting/report aliases back into the portal.
+- Internal dealer receivables drill-ins stay on `/api/v1/portal/finance/{ledger,invoices,aging}` while dealer self-service finance remains on `/api/v1/dealer-portal/{ledger,invoices,aging}`.
+- Role/permission gate: Mixed by endpoint: receipts/settlements/portal-finance reads use `ROLE_ADMIN|ROLE_ACCOUNTING`; `GET /api/v1/accounting/sales/returns` also permits `ROLE_SALES`.
 
 ### `/accounting/reports/financial`
 - Required API calls: `reportTrialBalance`, `acctGetTrialBalanceAsOf`, `reportProfitLoss`, `reportBalanceSheet`, `reportCashFlow`, `reportInventoryValuation`, `reportInventoryReconciliation`, `reportAgedDebtors`, `reportWastageReport`, `reportReconciliationDashboard`, `acctGenerateGstReturn`
@@ -310,9 +372,13 @@ Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snaps
         | `hr` | 11 | /api/v1/hr/employees |
         | `purchasing` | 7 | /api/v1/purchasing/purchase-orders |
         | `inventory` | 5 | /api/v1/finished-goods/stock-summary |
+        | `portal` | 3 | /api/v1/portal/finance/ledger |
         | `reports` | %d | /api/v1/reports/inventory-valuation |
         - `GET` `/api/v1/purchasing/purchase-orders`
         - `GET` `/api/v1/finished-goods/stock-summary`
+        - `GET` `/api/v1/portal/finance/ledger`
+        - `GET` `/api/v1/portal/finance/invoices`
+        - `GET` `/api/v1/portal/finance/aging`
         - `GET` `/api/v1/reports/inventory-valuation`
         - `GET` `/api/v1/hr/employees`
         """

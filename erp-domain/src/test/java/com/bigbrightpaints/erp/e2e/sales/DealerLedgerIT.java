@@ -27,7 +27,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 
-@DisplayName("Dealer Ledger View")
+@DisplayName("Portal Finance Ledger View")
 public class DealerLedgerIT extends AbstractIntegrationTest {
 
   private static final String COMPANY_CODE = "LEDGER-E2E";
@@ -98,7 +98,7 @@ public class DealerLedgerIT extends AbstractIntegrationTest {
   }
 
   @Test
-  @DisplayName("Dealer ledger shows running balance and references")
+  @DisplayName("Portal finance ledger shows running balance and references")
   void dealerLedger_showsRunningBalance() {
     // Seed ledger entries: two invoices totalling 70k
     var ctx1 =
@@ -122,7 +122,7 @@ public class DealerLedgerIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> resp =
         rest.exchange(
-            "/api/v1/dealers/" + dealer.getId() + "/ledger",
+            "/api/v1/portal/finance/ledger?dealerId=" + dealer.getId(),
             HttpMethod.GET,
             new HttpEntity<>(headers),
             Map.class);

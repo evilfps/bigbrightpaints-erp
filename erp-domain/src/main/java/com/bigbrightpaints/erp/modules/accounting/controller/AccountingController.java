@@ -910,20 +910,6 @@ public class AccountingController {
   }
 
   /* Statements & Aging */
-  @GetMapping("/statements/dealers/{dealerId}")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-  public ResponseEntity<ApiResponse<PartnerStatementResponse>> dealerStatement(
-      @PathVariable Long dealerId,
-      @RequestParam(required = false) String from,
-      @RequestParam(required = false) String to) {
-    return ResponseEntity.ok(
-        ApiResponse.success(
-            statementService.dealerStatement(
-                dealerId,
-                from != null ? java.time.LocalDate.parse(from) : null,
-                to != null ? java.time.LocalDate.parse(to) : null)));
-  }
-
   @GetMapping("/statements/suppliers/{supplierId}")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<PartnerStatementResponse>> supplierStatement(
@@ -938,18 +924,6 @@ public class AccountingController {
                 to != null ? java.time.LocalDate.parse(to) : null)));
   }
 
-  @GetMapping("/aging/dealers/{dealerId}")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-  public ResponseEntity<ApiResponse<AgingSummaryResponse>> dealerAging(
-      @PathVariable Long dealerId,
-      @RequestParam(required = false) String asOf,
-      @RequestParam(required = false) String buckets) {
-    return ResponseEntity.ok(
-        ApiResponse.success(
-            statementService.dealerAging(
-                dealerId, asOf != null ? java.time.LocalDate.parse(asOf) : null, buckets)));
-  }
-
   @GetMapping("/aging/suppliers/{supplierId}")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<AgingSummaryResponse>> supplierAging(
@@ -960,31 +934,6 @@ public class AccountingController {
         ApiResponse.success(
             statementService.supplierAging(
                 supplierId, asOf != null ? java.time.LocalDate.parse(asOf) : null, buckets)));
-  }
-
-  @GetMapping(value = "/statements/dealers/{dealerId}/pdf", produces = "application/pdf")
-  @Operation(summary = "Download dealer statement PDF")
-  @io.swagger.v3.oas.annotations.responses.ApiResponse(
-      responseCode = "200",
-      description = "PDF document",
-      content =
-          @Content(
-              mediaType = "application/pdf",
-              schema = @Schema(type = "string", format = "binary")))
-  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-  public ResponseEntity<byte[]> dealerStatementPdf(
-      @PathVariable Long dealerId,
-      @RequestParam(required = false) String from,
-      @RequestParam(required = false) String to) {
-    byte[] pdf =
-        statementService.dealerStatementPdf(
-            dealerId,
-            from != null ? java.time.LocalDate.parse(from) : null,
-            to != null ? java.time.LocalDate.parse(to) : null);
-    logAccountingExport("ACCOUNTING_DEALER_STATEMENT", dealerId, "pdf");
-    return ResponseEntity.ok()
-        .header("Content-Disposition", "attachment; filename=dealer-statement.pdf")
-        .body(pdf);
   }
 
   @GetMapping(value = "/statements/suppliers/{supplierId}/pdf", produces = "application/pdf")
@@ -1009,29 +958,6 @@ public class AccountingController {
     logAccountingExport("ACCOUNTING_SUPPLIER_STATEMENT", supplierId, "pdf");
     return ResponseEntity.ok()
         .header("Content-Disposition", "attachment; filename=supplier-statement.pdf")
-        .body(pdf);
-  }
-
-  @GetMapping(value = "/aging/dealers/{dealerId}/pdf", produces = "application/pdf")
-  @Operation(summary = "Download dealer aging PDF")
-  @io.swagger.v3.oas.annotations.responses.ApiResponse(
-      responseCode = "200",
-      description = "PDF document",
-      content =
-          @Content(
-              mediaType = "application/pdf",
-              schema = @Schema(type = "string", format = "binary")))
-  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-  public ResponseEntity<byte[]> dealerAgingPdf(
-      @PathVariable Long dealerId,
-      @RequestParam(required = false) String asOf,
-      @RequestParam(required = false) String buckets) {
-    byte[] pdf =
-        statementService.dealerAgingPdf(
-            dealerId, asOf != null ? java.time.LocalDate.parse(asOf) : null, buckets);
-    logAccountingExport("ACCOUNTING_DEALER_AGING", dealerId, "pdf");
-    return ResponseEntity.ok()
-        .header("Content-Disposition", "attachment; filename=dealer-aging.pdf")
         .body(pdf);
   }
 

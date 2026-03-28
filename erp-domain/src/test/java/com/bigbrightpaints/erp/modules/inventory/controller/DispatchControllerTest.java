@@ -114,7 +114,8 @@ class DispatchControllerTest {
     assertThat(dispatchRequest.lines().getFirst().notes()).isEqualTo("Ship as-is");
 
     DispatchConfirmationResponse redacted =
-        (DispatchConfirmationResponse) ((com.bigbrightpaints.erp.shared.dto.ApiResponse<?>) response.getBody()).data();
+        (DispatchConfirmationResponse)
+            ((com.bigbrightpaints.erp.shared.dto.ApiResponse<?>) response.getBody()).data();
     assertThat(redacted.journalEntryId()).isNull();
     assertThat(redacted.cogsJournalEntryId()).isNull();
     assertThat(redacted.totalShippedAmount()).isNull();
@@ -148,16 +149,7 @@ class DispatchControllerTest {
     when(finishedGoodsService.getPackagingSlip(10L))
         .thenReturn(
             packagingSlip(
-                10L,
-                "PS-10",
-                "DISPATCHED",
-                111L,
-                222L,
-                List.of(),
-                null,
-                null,
-                null,
-                null));
+                10L, "PS-10", "DISPATCHED", 111L, 222L, List.of(), null, null, null, null));
     when(finishedGoodsService.getDispatchConfirmation(10L))
         .thenReturn(
             new DispatchConfirmationResponse(
@@ -259,17 +251,7 @@ class DispatchControllerTest {
             "LR-1111");
     when(finishedGoodsService.getPackagingSlip(11L))
         .thenReturn(
-            packagingSlip(
-                11L,
-                "PS-11",
-                "READY",
-                11L,
-                12L,
-                List.of(),
-                null,
-                null,
-                null,
-                null));
+            packagingSlip(11L, "PS-11", "READY", 11L, 12L, List.of(), null, null, null, null));
     when(finishedGoodsService.getDispatchConfirmation(11L))
         .thenReturn(
             new DispatchConfirmationResponse(
@@ -705,17 +687,7 @@ class DispatchControllerTest {
     SecurityContextHolder.getContext().setAuthentication(authentication);
 
     PackagingSlipDto slip =
-        packagingSlip(
-            31L,
-            "PS-31",
-            "READY",
-            311L,
-            322L,
-            List.of(),
-            null,
-            null,
-            null,
-            null);
+        packagingSlip(31L, "PS-31", "READY", 311L, 322L, List.of(), null, null, null, null);
     when(finishedGoodsService.getPackagingSlip(31L)).thenReturn(slip);
 
     PackagingSlipDto response = controller.getPackagingSlip(31L).getBody().data();
@@ -730,18 +702,9 @@ class DispatchControllerTest {
         new DispatchController(
             finishedGoodsService, salesDispatchReconciliationService, deliveryChallanPdfService);
     PackagingSlipDto slip =
-        packagingSlip(
-            55L,
-            "PS-55",
-            "CANCELED",
-            551L,
-            552L,
-            List.of(),
-            null,
-            null,
-            null,
-            null);
-    when(finishedGoodsService.cancelBackorderSlip(55L, "system", "Damaged labels")).thenReturn(slip);
+        packagingSlip(55L, "PS-55", "CANCELED", 551L, 552L, List.of(), null, null, null, null);
+    when(finishedGoodsService.cancelBackorderSlip(55L, "system", "Damaged labels"))
+        .thenReturn(slip);
 
     var response = controller.cancelBackorder(55L, "Damaged labels", null).getBody();
 

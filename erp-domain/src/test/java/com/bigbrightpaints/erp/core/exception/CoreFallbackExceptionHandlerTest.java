@@ -32,8 +32,7 @@ class CoreFallbackExceptionHandlerTest {
             new UsernamePasswordAuthenticationToken(
                 "accounting.user", "N/A", List.of(new SimpleGrantedAuthority("ROLE_ACCOUNTING"))));
     CoreFallbackExceptionHandler handler = new CoreFallbackExceptionHandler();
-    MockHttpServletRequest request =
-        new MockHttpServletRequest("POST", "/api/v1/dispatch/confirm");
+    MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/dispatch/confirm");
     request.setRequestURI("/api/v1/dispatch/confirm");
 
     ResponseEntity<ApiResponse<Map<String, Object>>> response =

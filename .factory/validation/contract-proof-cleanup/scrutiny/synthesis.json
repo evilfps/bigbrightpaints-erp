@@ -1,0 +1,40 @@
+{
+  "milestone": "contract-proof-cleanup",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control && bash scripts/gate_fast.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "portal-hardcut-worker skill",
+      "suggestion": "Document a narrow-scope follow-up path for ERP packet cleanup features that only need a focused file edit plus targeted validation, so workers do not have to deviate from the standard host-hard-cut procedure for tasks like secret-scanner cleanup.",
+      "evidence": "The review for `portal-split-final-release-gates` found the implementation correct, but the worker handoff explicitly reported deviating from `.factory/skills/portal-hardcut-worker/SKILL.md` because the feature only required a single test-file credential-literal cleanup and targeted verification rather than the usual controller/service/doc hard-cut workflow.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}

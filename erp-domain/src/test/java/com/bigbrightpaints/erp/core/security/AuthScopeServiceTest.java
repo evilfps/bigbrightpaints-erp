@@ -88,11 +88,11 @@ class AuthScopeServiceTest {
                     AuthScopeService.KEY_PLATFORM_AUTH_CODE,
                     AuthScopeService.DEFAULT_PLATFORM_AUTH_CODE)));
     when(companyRepository.findByCodeIgnoreCase("ROOTCTRL")).thenReturn(Optional.empty());
-    when(userAccountRepository.findAllByAuthScopeCodeIgnoreCase(AuthScopeService.DEFAULT_PLATFORM_AUTH_CODE))
+    when(userAccountRepository.findAllByAuthScopeCodeIgnoreCase(
+            AuthScopeService.DEFAULT_PLATFORM_AUTH_CODE))
         .thenReturn(List.of(platformUser));
-    when(
-            userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCaseAndIdNot(
-                eq("platform-root@bbp.com"), eq("ROOTCTRL"), eq(7L)))
+    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCaseAndIdNot(
+            eq("platform-root@bbp.com"), eq("ROOTCTRL"), eq(7L)))
         .thenReturn(true);
 
     assertThatThrownBy(() -> authScopeService.updatePlatformScopeCode("rootctrl"))

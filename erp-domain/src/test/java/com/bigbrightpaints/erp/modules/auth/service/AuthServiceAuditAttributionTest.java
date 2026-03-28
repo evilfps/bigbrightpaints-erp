@@ -3,8 +3,8 @@ package com.bigbrightpaints.erp.modules.auth.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -55,7 +55,10 @@ class AuthServiceAuditAttributionTest {
 
   @Mock private JwtTokenService tokenService;
   @Mock private RefreshTokenService refreshTokenService;
-  @Mock private com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository userAccountRepository;
+
+  @Mock
+  private com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository userAccountRepository;
+
   @Mock private CompanyRepository companyRepository;
   @Mock private JwtProperties properties;
   @Mock private MfaService mfaService;
@@ -92,7 +95,8 @@ class AuthServiceAuditAttributionTest {
     user.setEnabled(true);
 
     when(authScopeService.requireScopeCode("  COMP-01  ")).thenReturn("COMP-01");
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("user@example.com", "COMP-01"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "user@example.com", "COMP-01"))
         .thenReturn(Optional.of(user));
     when(passwordEncoder.matches("wrong-password", "hash")).thenReturn(false);
 
@@ -117,10 +121,13 @@ class AuthServiceAuditAttributionTest {
 
     when(authScopeService.requireScopeCode("ACME")).thenReturn("ACME");
     when(authScopeService.isPlatformScope("ACME")).thenReturn(false);
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("user@example.com", "ACME"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "user@example.com", "ACME"))
         .thenReturn(Optional.of(user));
     when(passwordEncoder.matches("Passw0rd!", "hash")).thenReturn(true);
-    doThrow(new InvalidMfaException("   ")).when(mfaService).verifyDuringLogin(eq(user), any(), any());
+    doThrow(new InvalidMfaException("   "))
+        .when(mfaService)
+        .verifyDuringLogin(eq(user), any(), any());
 
     assertThatThrownBy(() -> authService.login(request)).isInstanceOf(InvalidMfaException.class);
 
@@ -145,7 +152,8 @@ class AuthServiceAuditAttributionTest {
 
     when(authScopeService.requireScopeCode("ACME")).thenReturn("ACME");
     when(authScopeService.isPlatformScope("ACME")).thenReturn(false);
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("user@example.com", "ACME"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "user@example.com", "ACME"))
         .thenReturn(Optional.of(user));
     when(passwordEncoder.matches("Passw0rd!", "hash")).thenReturn(true);
     doThrow(
@@ -174,7 +182,8 @@ class AuthServiceAuditAttributionTest {
   void loginAllowsPlatformSuperAdminOnPlatformScope() {
     LoginRequest request =
         new LoginRequest("super-admin@example.com", "Passw0rd!", "PLATFORM", null, null);
-    UserAccount user = new UserAccount("super-admin@example.com", "PLATFORM", "hash", "Super Admin");
+    UserAccount user =
+        new UserAccount("super-admin@example.com", "PLATFORM", "hash", "Super Admin");
     user.setEnabled(true);
     user.addRole(role("ROLE_SUPER_ADMIN"));
 
@@ -187,7 +196,8 @@ class AuthServiceAuditAttributionTest {
     when(tokenService.generateAccessToken(
             eq(user.getPublicId().toString()), eq("PLATFORM"), any(Map.class), any(Instant.class)))
         .thenReturn("access-new");
-    when(refreshTokenService.issue(eq(user.getPublicId()), eq("PLATFORM"), any(Instant.class), any(Instant.class)))
+    when(refreshTokenService.issue(
+            eq(user.getPublicId()), eq("PLATFORM"), any(Instant.class), any(Instant.class)))
         .thenReturn("refresh-new");
     when(properties.getRefreshTokenTtlSeconds()).thenReturn(3600L);
     when(properties.getAccessTokenTtlSeconds()).thenReturn(900L);
@@ -233,7 +243,8 @@ class AuthServiceAuditAttributionTest {
     when(authScopeService.requireScopeCode("acme")).thenReturn("ACME");
     when(authScopeService.isPlatformScope("ACME")).thenReturn(false);
     when(refreshTokenService.consume("refresh-old")).thenReturn(Optional.of(record));
-    when(tokenBlacklistService.isUserTokenRevoked(user.getPublicId().toString(), issuedAt)).thenReturn(false);
+    when(tokenBlacklistService.isUserTokenRevoked(user.getPublicId().toString(), issuedAt))
+        .thenReturn(false);
     when(userAccountRepository.findByPublicId(user.getPublicId())).thenReturn(Optional.of(user));
     when(tokenService.generateAccessToken(
             eq(user.getPublicId().toString()),
@@ -243,7 +254,8 @@ class AuthServiceAuditAttributionTest {
                     claims != null && user.getDisplayName().equals(claims.get("name"))),
             any(Instant.class)))
         .thenReturn("access-new");
-    when(refreshTokenService.issue(eq(user.getPublicId()), eq("ACME"), any(Instant.class), any(Instant.class)))
+    when(refreshTokenService.issue(
+            eq(user.getPublicId()), eq("ACME"), any(Instant.class), any(Instant.class)))
         .thenReturn("refresh-new");
     when(properties.getRefreshTokenTtlSeconds()).thenReturn(3600L);
     when(properties.getAccessTokenTtlSeconds()).thenReturn(900L);
@@ -269,7 +281,8 @@ class AuthServiceAuditAttributionTest {
 
     when(authScopeService.requireScopeCode("ACME")).thenReturn("ACME");
     when(refreshTokenService.consume("refresh-old")).thenReturn(Optional.of(record));
-    when(tokenBlacklistService.isUserTokenRevoked(userPublicId.toString(), issuedAt)).thenReturn(true);
+    when(tokenBlacklistService.isUserTokenRevoked(userPublicId.toString(), issuedAt))
+        .thenReturn(true);
 
     assertThatThrownBy(() -> authService.refresh(new RefreshTokenRequest("refresh-old", "ACME")))
         .isInstanceOf(ApplicationException.class)
@@ -371,7 +384,8 @@ class AuthServiceAuditAttributionTest {
     user.setFailedLoginAttempts(4);
 
     when(authScopeService.requireScopeCode("ACME")).thenReturn("ACME");
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("user@example.com", "ACME"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "user@example.com", "ACME"))
         .thenReturn(Optional.of(user));
     when(passwordEncoder.matches("wrong-password", "hash")).thenReturn(false);
 
@@ -391,7 +405,8 @@ class AuthServiceAuditAttributionTest {
     Locale originalLocale = Locale.getDefault();
     Locale.setDefault(Locale.forLanguageTag("tr-TR"));
     try {
-      LoginRequest request = new LoginRequest(" IUSER@example.com ", "Passw0rd!", "ACME", null, null);
+      LoginRequest request =
+          new LoginRequest(" IUSER@example.com ", "Passw0rd!", "ACME", null, null);
       UserAccount user = userWithCompany("iuser@example.com", "ACME");
 
       when(authScopeService.requireScopeCode("ACME")).thenReturn("ACME");
@@ -403,7 +418,8 @@ class AuthServiceAuditAttributionTest {
       when(tokenService.generateAccessToken(
               eq(user.getPublicId().toString()), eq("ACME"), any(Map.class), any(Instant.class)))
           .thenReturn("access-new");
-      when(refreshTokenService.issue(eq(user.getPublicId()), eq("ACME"), any(Instant.class), any(Instant.class)))
+      when(refreshTokenService.issue(
+              eq(user.getPublicId()), eq("ACME"), any(Instant.class), any(Instant.class)))
           .thenReturn("refresh-new");
       when(properties.getRefreshTokenTtlSeconds()).thenReturn(3600L);
       when(properties.getAccessTokenTtlSeconds()).thenReturn(900L);
@@ -422,7 +438,8 @@ class AuthServiceAuditAttributionTest {
   void loginRejectsPlatformScopeForNonSuperAdmin() {
     LoginRequest request =
         new LoginRequest("tenant-user@example.com", "Passw0rd!", "PLATFORM", null, null);
-    UserAccount user = new UserAccount("tenant-user@example.com", "PLATFORM", "hash", "Tenant User");
+    UserAccount user =
+        new UserAccount("tenant-user@example.com", "PLATFORM", "hash", "Tenant User");
     user.setEnabled(true);
     user.addRole(role("ROLE_ADMIN"));
 
@@ -440,7 +457,8 @@ class AuthServiceAuditAttributionTest {
 
   @Test
   void normalizeEmail_returnsNullForNullInput() {
-    assertThat((String) ReflectionTestUtils.invokeMethod(authService, "normalizeEmail", (Object) null))
+    assertThat(
+            (String) ReflectionTestUtils.invokeMethod(authService, "normalizeEmail", (Object) null))
         .isNull();
   }
 

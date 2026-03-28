@@ -1,0 +1,41 @@
+{
+  "milestone": "dealer-finance-hard-cut",
+  "round": 1,
+  "status": "fail",
+  "assertionsSummary": {
+    "total": 7,
+    "passed": 4,
+    "failed": 2,
+    "blocked": 1
+  },
+  "passedAssertions": [
+    "VAL-DEALER-002",
+    "VAL-INTFIN-001",
+    "VAL-INTFIN-002",
+    "VAL-INTFIN-003"
+  ],
+  "failedAssertions": [
+    {
+      "id": "VAL-DEALER-001",
+      "reason": "Contract documentation drift: erp-domain/docs/endpoint_inventory.tsv omits POST /api/v1/dealer-portal/credit-limit-requests even though openapi.json and docs/endpoint-inventory.md publish it."
+    },
+    {
+      "id": "VAL-DEALER-004",
+      "reason": "Docs contract proof is incomplete because erp-domain/docs/endpoint_inventory.tsv omits the surviving canonical POST /api/v1/dealer-portal/credit-limit-requests."
+    }
+  ],
+  "blockedAssertions": [
+    {
+      "id": "VAL-DEALER-003",
+      "blockedBy": "Shared validation runtime had no seeded invoice rows for either seeded dealer, so a live cross-dealer invoice PDF probe could not use a real foreign invoice ID."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Documented that the ERP-21 validation seed currently has no dealer invoice rows, so live cross-dealer invoice-PDF probes require extra fixtures and otherwise must record the live-data gap.",
+      "source": "flow-report"
+    }
+  ],
+  "previousRound": null
+}

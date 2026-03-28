@@ -1,0 +1,54 @@
+{
+  "milestone": "support-host-split",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control && bash scripts/gate_fast.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "support-host-split-hard-cut",
+      "severity": "non_blocking",
+      "description": "`CompanyContextFilter.SUPER_ADMIN_TENANT_BUSINESS_PREFIXES` still contains `/api/v1/support`, leaving stale retired-host knowledge in the auth filter even though the shared support controller surface is gone.",
+      "evidence": "erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java:55"
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "When retiring an endpoint family, explicitly audit shared auth/filter path registries and prefix lists (for example `CompanyContextFilter.SUPER_ADMIN_TENANT_BUSINESS_PREFIXES`) so retired hosts are removed from global routing assumptions, not only from controllers/OpenAPI.",
+      "evidence": "The `support-host-split-hard-cut` review passed but found stale `/api/v1/support` knowledge left in `CompanyContextFilter` after the shared support surface was retired.",
+      "isSystemic": false
+    },
+    {
+      "target": "portal-hardcut-worker skill",
+      "suggestion": "Clarify whether `gate-release` and `gate-reconciliation` are required for every feature handoff or only for final PR/packet readiness, and document the expected proof when they are intentionally deferred.",
+      "evidence": "The `support-host-split-hard-cut` handoff explicitly skipped `gate-release` and `gate-reconciliation` because a follow-up feature was still pending, while the skill text can be read as requiring them before a feature handoff.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}

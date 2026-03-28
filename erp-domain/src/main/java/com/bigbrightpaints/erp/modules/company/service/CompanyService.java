@@ -11,7 +11,6 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
@@ -90,7 +89,16 @@ public class CompanyService {
       AuditService auditService,
       UserAccountRepository userAccountRepository,
       AuditLogRepository auditLogRepository) {
-    this(repository, auditService, userAccountRepository, auditLogRepository, null, null, null, null, null);
+    this(
+        repository,
+        auditService,
+        userAccountRepository,
+        auditLogRepository,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   public CompanyService(
@@ -854,7 +862,8 @@ public class CompanyService {
             });
   }
 
-  private void synchronizeScopedAccountsToCompanyCode(Company company, String normalizedCompanyCode) {
+  private void synchronizeScopedAccountsToCompanyCode(
+      Company company, String normalizedCompanyCode) {
     if (company == null
         || company.getId() == null
         || !StringUtils.hasText(normalizedCompanyCode)

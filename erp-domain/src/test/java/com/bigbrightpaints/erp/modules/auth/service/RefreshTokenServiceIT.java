@@ -52,7 +52,11 @@ class RefreshTokenServiceTest extends AbstractIntegrationTest {
     String rawToken = "expired-token";
     RefreshToken token =
         RefreshToken.digestOnly(
-            AuthTokenDigests.refreshTokenDigest(rawToken), userPublicId, "ACME", issuedAt, expiredAt);
+            AuthTokenDigests.refreshTokenDigest(rawToken),
+            userPublicId,
+            "ACME",
+            issuedAt,
+            expiredAt);
     refreshTokenRepository.save(token);
 
     assertThat(refreshTokenService.consume(rawToken)).isEmpty();

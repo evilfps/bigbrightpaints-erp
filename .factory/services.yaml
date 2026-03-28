@@ -17,8 +17,20 @@ commands:
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_fast.sh
   gate-core: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_core.sh
+  gate-release: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_release.sh
+  gate-reconciliation: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_reconciliation.sh
   verify-local: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && MIGRATION_SET=v2 bash scripts/verify_local.sh
+  erp21-runtime-reset: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/reset_final_validation_runtime.sh
+  erp21-targeted-finance: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='PortalFinanceControllerIT,DealerPortalControllerSecurityIT,DealerPortalReadOnlySecurityIT,DealerPortalControllerExportAuditTest,DealerControllerSecurityIT,InvoiceControllerSecurityContractTest,ReportControllerRouteContractIT,StatementAgingIT' test
+  erp21-targeted-support: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='SupportTicketControllerIT,SuperAdminTenantWorkflowIsolationIT,CompanyContextFilterControlPlaneBindingTest,TS_RuntimeSupportTicketServiceExecutableCoverageTest' test
+  erp21-contract-guards: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_accounting_portal_scope_contract.sh
   erp38-targeted-setup: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CatalogControllerCanonicalProductIT,CatalogServiceCanonicalCoverageTest,ProductionCatalogServiceCanonicalEntryTest,SkuReadinessServiceTest,PackagingMaterialServiceTest' test
   erp38-targeted-setup-packaging: >-

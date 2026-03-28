@@ -32,6 +32,7 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.service.PasswordPolicy;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
@@ -46,6 +47,7 @@ class ValidationSeedDataInitializerTest {
   @Mock private UserAccountRepository userAccountRepository;
   @Mock private DealerRepository dealerRepository;
   @Mock private AccountRepository accountRepository;
+  @Mock private InvoiceRepository invoiceRepository;
   @Mock private PasswordEncoder passwordEncoder;
   @Mock private AuthScopeService authScopeService;
 
@@ -86,6 +88,7 @@ class ValidationSeedDataInitializerTest {
             userAccountRepository,
             dealerRepository,
             accountRepository,
+            invoiceRepository,
             passwordEncoder,
             passwordPolicy,
             authScopeService,
@@ -101,6 +104,7 @@ class ValidationSeedDataInitializerTest {
         userAccountRepository,
         dealerRepository,
         accountRepository,
+        invoiceRepository,
         passwordEncoder,
         authScopeService);
   }
@@ -114,6 +118,7 @@ class ValidationSeedDataInitializerTest {
             userAccountRepository,
             dealerRepository,
             accountRepository,
+            invoiceRepository,
             passwordEncoder,
             passwordPolicy,
             authScopeService,
@@ -143,6 +148,7 @@ class ValidationSeedDataInitializerTest {
             userAccountRepository,
             dealerRepository,
             accountRepository,
+            invoiceRepository,
             passwordEncoder,
             passwordPolicy,
             authScopeService,
@@ -161,7 +167,8 @@ class ValidationSeedDataInitializerTest {
     when(roleRepository.findByName(anyString())).thenReturn(Optional.empty());
     when(accountRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString()))
         .thenReturn(Optional.empty());
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(anyString(), anyString()))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            anyString(), anyString()))
         .thenReturn(Optional.empty());
     when(dealerRepository.findByCompanyAndCodeIgnoreCase(any(Company.class), anyString()))
         .thenReturn(Optional.empty());
@@ -173,6 +180,7 @@ class ValidationSeedDataInitializerTest {
             userAccountRepository,
             dealerRepository,
             accountRepository,
+            invoiceRepository,
             passwordEncoder,
             passwordPolicy,
             authScopeService,
@@ -212,10 +220,14 @@ class ValidationSeedDataInitializerTest {
             .orElseThrow();
     assertThat(mockAdmin.getAuthScopeCode()).isEqualTo("MOCK");
     assertThat(mockAdmin.getCompany()).extracting(Company::getCode).isEqualTo("MOCK");
-    assertThat(mockAdmin.getRoles()).extracting(Role::getName).contains("ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_SALES");
+    assertThat(mockAdmin.getRoles())
+        .extracting(Role::getName)
+        .contains("ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_SALES");
 
     assertThat(users.getAllValues())
-        .allMatch(user -> user.getAuthScopeCode().equals(user.getAuthScopeCode().toUpperCase(Locale.ROOT)));
+        .allMatch(
+            user ->
+                user.getAuthScopeCode().equals(user.getAuthScopeCode().toUpperCase(Locale.ROOT)));
     verify(dealerRepository, times(2)).save(any(Dealer.class));
     verify(authScopeService).getPlatformScopeCode();
   }

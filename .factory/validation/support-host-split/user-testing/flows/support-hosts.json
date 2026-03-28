@@ -1,0 +1,297 @@
+{
+  "groupId": "support-hosts",
+  "testedAt": "2026-03-27T04:00:20.047959+00:00",
+  "credentials": {
+    "account": "validation.admin@example.com, validation.accounting@example.com, validation.dealer@example.com, validation.rival.dealer@example.com, validation.superadmin@example.com",
+    "namespace": "support-hosts-1774583705"
+  },
+  "toolsUsed": [
+    "python3",
+    "curl-style HTTP probes",
+    "maven"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-SUPPORT-001",
+      "title": "Shared support host is retired",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect `openapi.json` for canonical and retired support paths",
+          "expected": "Only `/api/v1/portal/support/tickets/**` and `/api/v1/dealer-portal/support/tickets/**` are published; `/api/v1/support/**` is absent",
+          "observed": "Canonical portal/dealer support paths were present and `/api/v1/support/tickets` plus `/api/v1/support/tickets/{ticketId}` were absent"
+        },
+        {
+          "action": "Inspect `docs/endpoint-inventory.md` and `erp-domain/docs/endpoint_inventory.tsv`",
+          "expected": "Endpoint inventories publish only canonical portal/dealer support hosts",
+          "observed": "Both inventory files contained the four canonical support routes and no shared `/api/v1/support/**` entries"
+        },
+        {
+          "action": "GET `/api/v1/support/tickets` as validation.admin@example.com on company MOCK",
+          "expected": "Unmapped/not found",
+          "observed": "HTTP 404 with empty error body"
+        },
+        {
+          "action": "GET `/api/v1/support/tickets` as validation.dealer@example.com on company MOCK",
+          "expected": "Unmapped/not found",
+          "observed": "HTTP 404 with empty error body"
+        },
+        {
+          "action": "GET `/api/v1/support/tickets/1` as validation.admin@example.com on company MOCK",
+          "expected": "Unmapped/not found",
+          "observed": "HTTP 404 with empty error body"
+        },
+        {
+          "action": "POST `/api/v1/support/tickets` as validation.admin@example.com and validation.superadmin@example.com",
+          "expected": "Unmapped/not found for both previously strong callers",
+          "observed": "Admin create returned HTTP 404; super-admin create returned HTTP 404"
+        }
+      ],
+      "evidence": {
+        "docs": {
+          "openapi": {
+            "canonicalPresent": {
+              "/api/v1/portal/support/tickets": true,
+              "/api/v1/portal/support/tickets/{ticketId}": true,
+              "/api/v1/dealer-portal/support/tickets": true,
+              "/api/v1/dealer-portal/support/tickets/{ticketId}": true
+            },
+            "retiredPresent": {
+              "/api/v1/support/tickets": false,
+              "/api/v1/support/tickets/{ticketId}": false
+            }
+          },
+          "endpointInventoryMd": {
+            "canonicalPresent": {
+              "/api/v1/portal/support/tickets": true,
+              "/api/v1/portal/support/tickets/{ticketId}": true,
+              "/api/v1/dealer-portal/support/tickets": true,
+              "/api/v1/dealer-portal/support/tickets/{ticketId}": true
+            },
+            "retiredPresent": {
+              "/api/v1/support/tickets": false,
+              "/api/v1/support/tickets/{ticketId}": false
+            }
+          },
+          "endpointInventoryTsv": {
+            "canonicalPresent": {
+              "/api/v1/portal/support/tickets": true,
+              "/api/v1/portal/support/tickets/{ticketId}": true,
+              "/api/v1/dealer-portal/support/tickets": true,
+              "/api/v1/dealer-portal/support/tickets/{ticketId}": true
+            },
+            "retiredPresent": {
+              "/api/v1/support/tickets": false,
+              "/api/v1/support/tickets/{ticketId}": false
+            }
+          }
+        },
+        "network": [
+          "GET /api/v1/support/tickets (admin MOCK) -> 404",
+          "GET /api/v1/support/tickets (dealer MOCK) -> 404",
+          "GET /api/v1/support/tickets/1 (admin MOCK) -> 404",
+          "POST /api/v1/support/tickets (admin MOCK) -> 404",
+          "POST /api/v1/support/tickets (superadmin SKE) -> 404"
+        ],
+        "maven": {
+          "command": "MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='SupportTicketControllerIT,SuperAdminTenantWorkflowIsolationIT,CompanyContextFilterControlPlaneBindingTest,TS_RuntimeSupportTicketServiceExecutableCoverageTest' test",
+          "result": "BUILD SUCCESS"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SUPPORT-002",
+      "title": "Admin/ops support is canonical under `/api/v1/portal/**`",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "POST `/api/v1/portal/support/tickets` as validation.admin@example.com on company MOCK",
+          "expected": "Portal support create succeeds for admin",
+          "observed": "HTTP 200 with ticket id 1, requesterEmail validation.admin@example.com, subject support-hosts-1774583705-portal-admin"
+        },
+        {
+          "action": "POST `/api/v1/portal/support/tickets` as validation.accounting@example.com on company MOCK",
+          "expected": "Portal support create succeeds for ops/accounting",
+          "observed": "HTTP 200 with ticket id 2, requesterEmail validation.accounting@example.com, subject support-hosts-1774583705-portal-accounting"
+        },
+        {
+          "action": "GET `/api/v1/portal/support/tickets` as validation.admin@example.com",
+          "expected": "Admin sees tenant support records on the canonical portal host",
+          "observed": "HTTP 200 with subjects ['support-hosts-1774583705-dealer', 'support-hosts-1774583705-portal-accounting', 'support-hosts-1774583705-portal-admin']"
+        },
+        {
+          "action": "GET `/api/v1/portal/support/tickets` and detail as validation.accounting@example.com",
+          "expected": "Ops/accounting can list and read portal support on the portal host",
+          "observed": "List returned HTTP 200 with subjects ['support-hosts-1774583705-dealer', 'support-hosts-1774583705-portal-accounting', 'support-hosts-1774583705-portal-admin']; detail `/api/v1/portal/support/tickets/2` returned HTTP 200"
+        },
+        {
+          "action": "GET/POST `/api/v1/portal/support/tickets` as validation.dealer@example.com",
+          "expected": "Dealer is denied from the portal support host",
+          "observed": "List returned HTTP 403 and create returned HTTP 403 with error code AUTH_004"
+        },
+        {
+          "action": "GET portal detail as dealer and probe a rival-company ticket as portal admin",
+          "expected": "Dealer cannot use portal detail routes; portal host stays tenant-bound",
+          "observed": "Dealer GET `/api/v1/portal/support/tickets/3` returned HTTP 403; admin GET `/api/v1/portal/support/tickets/4` returned HTTP 404"
+        }
+      ],
+      "evidence": {
+        "network": [
+          "POST /api/v1/portal/support/tickets (admin MOCK) -> 200 id=1",
+          "POST /api/v1/portal/support/tickets (accounting MOCK) -> 200 id=2",
+          "GET /api/v1/portal/support/tickets (admin MOCK) -> 200 subjects=['support-hosts-1774583705-dealer', 'support-hosts-1774583705-portal-accounting', 'support-hosts-1774583705-portal-admin']",
+          "GET /api/v1/portal/support/tickets (accounting MOCK) -> 200 subjects=['support-hosts-1774583705-dealer', 'support-hosts-1774583705-portal-accounting', 'support-hosts-1774583705-portal-admin']",
+          "GET /api/v1/portal/support/tickets/1 (admin MOCK) -> 200",
+          "GET /api/v1/portal/support/tickets/2 (accounting MOCK) -> 200",
+          "GET /api/v1/portal/support/tickets (dealer MOCK) -> 403 code=AUTH_004",
+          "POST /api/v1/portal/support/tickets (dealer MOCK) -> 403 code=AUTH_004",
+          "GET /api/v1/portal/support/tickets/4 (admin MOCK) -> 404"
+        ],
+        "maven": {
+          "command": "MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='SupportTicketControllerIT,SuperAdminTenantWorkflowIsolationIT,CompanyContextFilterControlPlaneBindingTest,TS_RuntimeSupportTicketServiceExecutableCoverageTest' test",
+          "highlights": [
+            "[\u001b[1;34mINFO\u001b[m] Running com.bigbrightpaints.erp.modules.auth.\u001b[1mCompanyContextFilterControlPlaneBindingTest\u001b[m",
+            "[\u001b[1;34mINFO\u001b[m] \u001b[1;32mTests run: \u001b[0;1;32m9\u001b[m, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.841 s -- in com.bigbrightpaints.erp.modules.auth.\u001b[1mCompanyContextFilterControlPlaneBindingTest\u001b[m",
+            "[\u001b[1;34mINFO\u001b[m] Running com.bigbrightpaints.erp.modules.auth.\u001b[1mSuperAdminTenantWorkflowIsolationIT\u001b[m",
+            "[\u001b[1;34mINFO\u001b[m] \u001b[1;32mTests run: \u001b[0;1;32m3\u001b[m, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 12.42 s -- in com.bigbrightpaints.erp.modules.auth.\u001b[1mSuperAdminTenantWorkflowIsolationIT\u001b[m",
+            "[\u001b[1;34mINFO\u001b[m] Running com.bigbrightpaints.erp.modules.admin.\u001b[1mSupportTicketControllerIT\u001b[m",
+            "[\u001b[1;34mINFO\u001b[m] \u001b[1;32mTests run: \u001b[0;1;32m5\u001b[m, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 4.543 s -- in com.bigbrightpaints.erp.modules.admin.\u001b[1mSupportTicketControllerIT\u001b[m",
+            "[\u001b[1;34mINFO\u001b[m] Running com.bigbrightpaints.erp.truthsuite.runtime.\u001b[1mTS_RuntimeSupportTicketServiceExecutableCoverageTest\u001b[m",
+            "[\u001b[1;34mINFO\u001b[m] \u001b[1;32mTests run: \u001b[0;1;32m4\u001b[m, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.025 s -- in com.bigbrightpaints.erp.truthsuite.runtime.\u001b[1mTS_RuntimeSupportTicketServiceExecutableCoverageTest\u001b[m",
+            "[\u001b[1;34mINFO\u001b[m] \u001b[1;32mTests run: 21, Failures: 0, Errors: 0, Skipped: 0\u001b[m",
+            "[\u001b[1;34mINFO\u001b[m] \u001b[1;32mBUILD SUCCESS\u001b[m"
+          ],
+          "result": "BUILD SUCCESS"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SUPPORT-003",
+      "title": "Dealer support is canonical under `/api/v1/dealer-portal/**`",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "POST `/api/v1/dealer-portal/support/tickets` as validation.dealer@example.com on company MOCK",
+          "expected": "Dealer support create succeeds on the dealer portal host",
+          "observed": "HTTP 200 with ticket id 3, requesterEmail validation.dealer@example.com, subject support-hosts-1774583705-dealer"
+        },
+        {
+          "action": "GET `/api/v1/dealer-portal/support/tickets` as validation.dealer@example.com",
+          "expected": "Dealer list is self-scoped",
+          "observed": "HTTP 200 with subjects ['support-hosts-1774583705-dealer']; admin/accounting portal tickets were absent"
+        },
+        {
+          "action": "GET `/api/v1/dealer-portal/support/tickets/{ticketId}` as validation.dealer@example.com",
+          "expected": "Dealer can read only its own dealer ticket",
+          "observed": "Own detail `/api/v1/dealer-portal/support/tickets/3` returned HTTP 200"
+        },
+        {
+          "action": "POST and GET dealer support as validation.rival.dealer@example.com on company RIVAL",
+          "expected": "Rival dealer gets its own isolated ticket only",
+          "observed": "Create returned HTTP 200 with id 4; own detail returned HTTP 200"
+        },
+        {
+          "action": "Cross-company dealer probes between MOCK and RIVAL ticket ids",
+          "expected": "Peer/cross-company dealer access fails closed",
+          "observed": "Dealer GET `/api/v1/dealer-portal/support/tickets/4` returned HTTP 404; rival dealer GET `/api/v1/dealer-portal/support/tickets/3` returned HTTP 404"
+        },
+        {
+          "action": "Use an admin actor on the dealer host",
+          "expected": "Admin/ops records do not leak into dealer support workflows",
+          "observed": "Admin GET `/api/v1/dealer-portal/support/tickets` returned HTTP 403 and GET `/api/v1/dealer-portal/support/tickets/3` returned HTTP 403"
+        }
+      ],
+      "evidence": {
+        "network": [
+          "POST /api/v1/dealer-portal/support/tickets (dealer MOCK) -> 200 id=3",
+          "GET /api/v1/dealer-portal/support/tickets (dealer MOCK) -> 200 subjects=['support-hosts-1774583705-dealer']",
+          "GET /api/v1/dealer-portal/support/tickets/3 (dealer MOCK) -> 200",
+          "POST /api/v1/dealer-portal/support/tickets (rival dealer RIVAL) -> 200 id=4",
+          "GET /api/v1/dealer-portal/support/tickets/4 (rival dealer RIVAL) -> 200",
+          "GET /api/v1/dealer-portal/support/tickets/4 (dealer MOCK) -> 404 reason=Support ticket not found: 4",
+          "GET /api/v1/dealer-portal/support/tickets/3 (rival dealer RIVAL) -> 404 reason=Support ticket not found: 3",
+          "GET /api/v1/dealer-portal/support/tickets (admin MOCK) -> 403 code=AUTH_004"
+        ],
+        "maven": {
+          "command": "MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='SupportTicketControllerIT,SuperAdminTenantWorkflowIsolationIT,CompanyContextFilterControlPlaneBindingTest,TS_RuntimeSupportTicketServiceExecutableCoverageTest' test",
+          "result": "BUILD SUCCESS"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-SUPPORT-004",
+      "title": "Support host separation is strict",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Use a dealer token on `/api/v1/portal/support/tickets` list/create/detail",
+          "expected": "Cross-host access is denied on the portal host",
+          "observed": "List returned HTTP 403; create returned HTTP 403; detail returned HTTP 403 with message Access denied"
+        },
+        {
+          "action": "Use an admin token on `/api/v1/dealer-portal/support/tickets` list/create/detail",
+          "expected": "Cross-host access is denied on the dealer host",
+          "observed": "List returned HTTP 403; create returned HTTP 403; detail returned HTTP 403 with message Access denied"
+        },
+        {
+          "action": "Probe admin ticket id from the dealer host as a dealer",
+          "expected": "Cross-host ID probing fails closed",
+          "observed": "GET `/api/v1/dealer-portal/support/tickets/1` returned HTTP 404 with business reason Support ticket not found: 1"
+        },
+        {
+          "action": "Send mismatched `X-Company-Code` headers on portal and dealer hosts",
+          "expected": "Tenant mismatch fails closed",
+          "observed": "Admin portal list with header RIVAL returned HTTP 403 reason COMPANY_CONTEXT_MISMATCH; dealer list/detail with header RIVAL returned HTTP 403/403 reason COMPANY_CONTEXT_MISMATCH"
+        },
+        {
+          "action": "Use validation.superadmin@example.com against portal and dealer tenant support flows",
+          "expected": "Platform/super-admin access does not leak into tenant support workflows",
+          "observed": "Portal create returned HTTP 403, portal list returned HTTP 403, dealer list returned HTTP 403 with reason SUPER_ADMIN_PLATFORM_ONLY"
+        },
+        {
+          "action": "Probe rival-company ticket from portal admin host",
+          "expected": "Portal admin host remains tenant-bound and does not leak cross-company support records",
+          "observed": "GET `/api/v1/portal/support/tickets/4` as admin returned HTTP 404 with reason Support ticket not found: 4"
+        }
+      ],
+      "evidence": {
+        "network": [
+          "GET /api/v1/portal/support/tickets (dealer MOCK) -> 403 message=Access denied",
+          "POST /api/v1/portal/support/tickets (dealer MOCK) -> 403 message=Access denied",
+          "GET /api/v1/dealer-portal/support/tickets (admin MOCK) -> 403 message=Access denied",
+          "POST /api/v1/dealer-portal/support/tickets (admin MOCK) -> 403 message=Access denied",
+          "GET /api/v1/dealer-portal/support/tickets/1 (dealer MOCK) -> 404 reason=Support ticket not found: 1",
+          "GET /api/v1/portal/support/tickets (admin token + X-Company-Code RIVAL) -> 403 reason=COMPANY_CONTEXT_MISMATCH",
+          "GET /api/v1/dealer-portal/support/tickets (dealer token + X-Company-Code RIVAL) -> 403 reason=COMPANY_CONTEXT_MISMATCH",
+          "GET /api/v1/dealer-portal/support/tickets/3 (dealer token + X-Company-Code RIVAL) -> 403 reason=COMPANY_CONTEXT_MISMATCH",
+          "POST /api/v1/portal/support/tickets (superadmin SKE) -> 403 reason=SUPER_ADMIN_PLATFORM_ONLY",
+          "GET /api/v1/portal/support/tickets (superadmin SKE) -> 403 reason=SUPER_ADMIN_PLATFORM_ONLY",
+          "GET /api/v1/dealer-portal/support/tickets (superadmin SKE) -> 403 reason=SUPER_ADMIN_PLATFORM_ONLY"
+        ],
+        "maven": {
+          "command": "MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='SupportTicketControllerIT,SuperAdminTenantWorkflowIsolationIT,CompanyContextFilterControlPlaneBindingTest,TS_RuntimeSupportTicketServiceExecutableCoverageTest' test",
+          "result": "BUILD SUCCESS"
+        }
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "`http://localhost:9090/actuator/health` returned DOWN/503 even though authenticated API probes on `http://localhost:8081` were healthy; mission guidance says actuator degradation is non-blocking when target endpoints succeed.",
+      "resolved": true,
+      "resolution": "Proceeded with authenticated support-host probes on port 8081 and recorded the actuator state as context only.",
+      "affectedAssertions": [
+        "VAL-SUPPORT-001",
+        "VAL-SUPPORT-002",
+        "VAL-SUPPORT-003",
+        "VAL-SUPPORT-004"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 4 assertions: 4 passed, 0 failed, 0 blocked. Canonical support hosts were present only on `/api/v1/portal/**` and `/api/v1/dealer-portal/**`, the shared `/api/v1/support/**` surface returned 404, portal support admitted admin/accounting only, dealer support stayed self-scoped, tenant mismatch probes failed with `COMPANY_CONTEXT_MISMATCH`, and super-admin tenant support probes failed with `SUPER_ADMIN_PLATFORM_ONLY`."
+}

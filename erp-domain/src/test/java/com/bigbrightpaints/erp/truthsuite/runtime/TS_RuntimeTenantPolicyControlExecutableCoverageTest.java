@@ -52,6 +52,7 @@ import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementS
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
+
 @Tag("critical")
 class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
 
@@ -259,8 +260,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     assertThat(retiredAdminPolicyControl.isAdmitted()).isFalse();
     // Privileged canonical superadmin limits path bypasses hold/rate checks.
     TenantRuntimeEnforcementService.TenantRequestAdmission policyControl =
-        service.beginRequest(
-            "ACME", "/api/v1/superadmin/tenants/21/limits", "PUT", "super", true);
+        service.beginRequest("ACME", "/api/v1/superadmin/tenants/21/limits", "PUT", "super", true);
     assertThat(policyControl.isAdmitted()).isTrue();
     service.completeRequest(policyControl, 500);
     TenantRuntimeEnforcementService.TenantRequestAdmission nonPutPolicyControl =
@@ -271,16 +271,14 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         service.beginRequest("ACME", null, "PUT", "super", true);
     assertThat(nullPathPolicyControl.isAdmitted()).isFalse();
     TenantRuntimeEnforcementService.TenantRequestAdmission blankMethodPolicyControl =
-        service.beginRequest(
-            "ACME", "/api/v1/superadmin/tenants/21/limits", "   ", "super", true);
+        service.beginRequest("ACME", "/api/v1/superadmin/tenants/21/limits", "   ", "super", true);
     assertThat(blankMethodPolicyControl.isAdmitted()).isFalse();
     TenantRuntimeEnforcementService.TenantRequestAdmission wrongSuffixPolicyControl =
         service.beginRequest(
             "ACME", "/api/v1/superadmin/tenants/21/not-limits", "PUT", "super", true);
     assertThat(wrongSuffixPolicyControl.isAdmitted()).isFalse();
     TenantRuntimeEnforcementService.TenantRequestAdmission emptyIdPolicyControl =
-        service.beginRequest(
-            "ACME", "/api/v1/superadmin/tenants//limits", "PUT", "super", true);
+        service.beginRequest("ACME", "/api/v1/superadmin/tenants//limits", "PUT", "super", true);
     assertThat(emptyIdPolicyControl.isAdmitted()).isFalse();
     TenantRuntimeEnforcementService.TenantRequestAdmission rootPathPolicyControl =
         service.beginRequest("ACME", "/", "PUT", "super", true);
@@ -288,8 +286,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
 
     // Canonical superadmin limits path with trailing slash also passes.
     TenantRuntimeEnforcementService.TenantRequestAdmission canonicalPolicyControl =
-        service.beginRequest(
-            "ACME", "/api/v1/superadmin/tenants/21/limits/", "PUT", "super", true);
+        service.beginRequest("ACME", "/api/v1/superadmin/tenants/21/limits/", "PUT", "super", true);
     assertThat(canonicalPolicyControl.isAdmitted()).isTrue();
     service.completeRequest(canonicalPolicyControl, 500);
 
@@ -391,26 +388,33 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     Company company = company(10L, "SKE");
     Role adminRole = new Role();
     adminRole.setName("ROLE_ADMIN");
-    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("new-admin@ske.com", "SKE"))
+    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "new-admin@ske.com", "SKE"))
         .thenReturn(false);
     when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(adminRole));
     UserAccount provisionedAdmin =
         new UserAccount("new-admin@ske.com", "SKE", "hash", "Company SKE Admin");
     ReflectionTestUtils.setField(provisionedAdmin, "id", 410L);
     when(scopedAccountBootstrapService.provisionTenantAccount(
-            eq(company), eq("new-admin@ske.com"), eq("Company SKE Admin"), eq(java.util.List.of(adminRole))))
+            eq(company),
+            eq("new-admin@ske.com"),
+            eq("Company SKE Admin"),
+            eq(java.util.List.of(adminRole))))
         .thenReturn(provisionedAdmin);
 
-    UserAccount normalizedAdmin = service.provisionInitialAdmin(company, " NEW-ADMIN@SKE.COM ", null);
+    UserAccount normalizedAdmin =
+        service.provisionInitialAdmin(company, " NEW-ADMIN@SKE.COM ", null);
 
     assertThat(normalizedAdmin.getEmail()).isEqualTo("new-admin@ske.com");
     assertThat(company.getMainAdminUserId()).isEqualTo(410L);
     assertThat(company.getOnboardingAdminEmail()).isEqualTo("new-admin@ske.com");
     assertThat(company.getOnboardingAdminUserId()).isEqualTo(410L);
     verify(scopedAccountBootstrapService)
-        .provisionTenantAccount(company, "new-admin@ske.com", "Company SKE Admin", java.util.List.of(adminRole));
+        .provisionTenantAccount(
+            company, "new-admin@ske.com", "Company SKE Admin", java.util.List.of(adminRole));
 
-    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("duplicate@ske.com", "SKE"))
+    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "duplicate@ske.com", "SKE"))
         .thenReturn(true);
     assertThatThrownBy(() -> service.provisionInitialAdmin(company, "duplicate@ske.com", "Dup"))
         .isInstanceOf(ApplicationException.class)
@@ -451,7 +455,8 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     Role outsiderRole = new Role();
     outsiderRole.setName("ROLE_ADMIN");
     outsider.addRole(outsiderRole);
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("outsider@ske.com", "SKE"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "outsider@ske.com", "SKE"))
         .thenReturn(Optional.of(outsider));
     assertThatThrownBy(() -> service.resetTenantAdminPassword(target, "outsider@ske.com"))
         .isInstanceOf(ApplicationException.class)
@@ -462,7 +467,8 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     Role userRole = new Role();
     userRole.setName("ROLE_USER");
     nonAdmin.addRole(userRole);
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("user@ske.com", "SKE"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "user@ske.com", "SKE"))
         .thenReturn(Optional.of(nonAdmin));
     assertThatThrownBy(() -> service.resetTenantAdminPassword(target, "user@ske.com"))
         .isInstanceOf(ApplicationException.class)
@@ -477,7 +483,8 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
     Role adminRole = new Role();
     adminRole.setName("ROLE_ADMIN");
     admin.addRole(adminRole);
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@ske.com", "SKE"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "admin@ske.com", "SKE"))
         .thenReturn(Optional.of(admin));
 
     String resetEmail = service.resetTenantAdminPassword(target, " ADMIN@SKE.COM ");

@@ -24,8 +24,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import com.bigbrightpaints.erp.core.config.EmailProperties;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.config.EmailProperties;
 import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.core.security.SecurityMonitoringService;
@@ -83,7 +83,12 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
 
     TransactionTemplate lifecycleTemplate = mock(TransactionTemplate.class);
     when(lifecycleTemplate.execute(any()))
-        .thenAnswer(invocation -> invocation.getArgument(0, org.springframework.transaction.support.TransactionCallback.class).doInTransaction(null));
+        .thenAnswer(
+            invocation ->
+                invocation
+                    .getArgument(
+                        0, org.springframework.transaction.support.TransactionCallback.class)
+                    .doInTransaction(null));
     ReflectionTestUtils.setField(service, "tokenLifecycleTransactionTemplate", lifecycleTemplate);
 
     invokeRequest(service, "corr-tx-missing-123", null, null);
@@ -127,8 +132,7 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
         .isEqualTo("corr__segment_value");
     assertThat(
             (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "sanitizeForPlainTextLog", (Object) null))
+                ReflectionTestUtils.invokeMethod(service, "sanitizeForPlainTextLog", (Object) null))
         .isEqualTo("<empty>");
     assertThat((String) ReflectionTestUtils.invokeMethod(service, "obfuscateEmail", (Object) null))
         .isEqualTo("<empty>");
@@ -211,8 +215,7 @@ class TS_RuntimePasswordResetServiceExecutableCoverageTest {
     SecurityMonitoringService securityMonitoringService = mock(SecurityMonitoringService.class);
     when(authScopeService.requireScopeCode(anyString()))
         .thenAnswer(
-            invocation ->
-                invocation.getArgument(0, String.class).trim().toUpperCase(Locale.ROOT));
+            invocation -> invocation.getArgument(0, String.class).trim().toUpperCase(Locale.ROOT));
     when(securityMonitoringService.checkRateLimit(anyString())).thenReturn(true);
     when(tokenRepository.saveAndFlush(any(PasswordResetToken.class)))
         .thenAnswer(

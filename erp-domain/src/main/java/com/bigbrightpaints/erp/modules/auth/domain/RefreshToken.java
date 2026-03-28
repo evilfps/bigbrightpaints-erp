@@ -40,7 +40,11 @@ public class RefreshToken {
   protected RefreshToken() {}
 
   public RefreshToken(
-      String token, String tokenDigest, UUID userPublicId, String authScopeCode, Instant issuedAt,
+      String token,
+      String tokenDigest,
+      UUID userPublicId,
+      String authScopeCode,
+      Instant issuedAt,
       Instant expiresAt) {
     this.token = token;
     this.tokenDigest = tokenDigest;

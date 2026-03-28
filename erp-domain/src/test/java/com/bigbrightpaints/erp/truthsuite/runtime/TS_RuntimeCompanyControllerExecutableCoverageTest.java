@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.truthsuite.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -27,8 +26,7 @@ class TS_RuntimeCompanyControllerExecutableCoverageTest {
     CompanyService companyService = mock(CompanyService.class);
     SuperAdminTenantControlPlaneService controlPlaneService =
         mock(SuperAdminTenantControlPlaneService.class);
-    SuperAdminController controller =
-        new SuperAdminController(companyService, controlPlaneService);
+    SuperAdminController controller = new SuperAdminController(companyService, controlPlaneService);
     CompanyLifecycleStateRequest request =
         new CompanyLifecycleStateRequest("SUSPENDED", "reconciliation");
     CompanyLifecycleStateDto responseDto =
@@ -50,8 +48,7 @@ class TS_RuntimeCompanyControllerExecutableCoverageTest {
     CompanyService companyService = mock(CompanyService.class);
     SuperAdminTenantControlPlaneService controlPlaneService =
         mock(SuperAdminTenantControlPlaneService.class);
-    SuperAdminController controller =
-        new SuperAdminController(companyService, controlPlaneService);
+    SuperAdminController controller = new SuperAdminController(companyService, controlPlaneService);
     SuperAdminController.TenantAdminPasswordResetRequest request =
         new SuperAdminController.TenantAdminPasswordResetRequest("admin@ske.com", null);
     CompanyAdminCredentialResetDto payload =

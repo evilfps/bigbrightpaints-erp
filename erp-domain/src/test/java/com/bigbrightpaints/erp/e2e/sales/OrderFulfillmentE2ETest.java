@@ -767,8 +767,7 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
     BigDecimal shippedQty = orderedQty.subtract(new BigDecimal("3"));
 
     Map<String, Object> dispatchReq =
-        dispatchRequestForSlip(
-            slip, "dispatch-partial", List.of(dispatchLine(line, shippedQty)));
+        dispatchRequestForSlip(slip, "dispatch-partial", List.of(dispatchLine(line, shippedQty)));
 
     ResponseEntity<Map> response =
         rest.exchange(
@@ -778,7 +777,8 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
             Map.class);
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     requireData(response, "partial dispatch");
-    PackagingSlip refreshedOriginalSlip = packagingSlipRepository.findById(slip.getId()).orElseThrow();
+    PackagingSlip refreshedOriginalSlip =
+        packagingSlipRepository.findById(slip.getId()).orElseThrow();
     Long invoiceId = refreshedOriginalSlip.getInvoiceId();
 
     var invoice = invoiceRepository.findByCompanyAndId(company, invoiceId).orElseThrow();
@@ -803,7 +803,9 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
         packagingSlipLineRepository.findByPackagingSlipId(backorderSlip.getId()).getFirst();
     Map<String, Object> backorderDispatchReq =
         dispatchRequestForSlip(
-            backorderSlip, "dispatch-backorder", List.of(dispatchLine(backorderLine, backorderQty)));
+            backorderSlip,
+            "dispatch-backorder",
+            List.of(dispatchLine(backorderLine, backorderQty)));
 
     ResponseEntity<Map> backorderDispatchResp =
         rest.exchange(
@@ -996,8 +998,7 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
             new HttpEntity<>(dispatchReq, headers),
             Map.class);
     requireData(dispatchResp, "dispatch mixed GST order");
-    Long invoiceId =
-        packagingSlipRepository.findById(slip.getId()).orElseThrow().getInvoiceId();
+    Long invoiceId = packagingSlipRepository.findById(slip.getId()).orElseThrow().getInvoiceId();
 
     BigDecimal afterOutput = gstOutputTax();
     assertThat(afterOutput.subtract(beforeOutput)).isEqualByComparingTo(expectedTax);
@@ -1316,7 +1317,9 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
             line ->
                 dispatchLine(
                     line,
-                    line.getOrderedQuantity() != null ? line.getOrderedQuantity() : line.getQuantity()))
+                    line.getOrderedQuantity() != null
+                        ? line.getOrderedQuantity()
+                        : line.getQuantity()))
         .toList();
   }
 

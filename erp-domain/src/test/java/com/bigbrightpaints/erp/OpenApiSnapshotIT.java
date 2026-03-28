@@ -11,6 +11,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -379,27 +380,6 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         null,
         "200",
         "#/components/schemas/ApiResponseAgedReceivablesReport");
-    assertOperationContract(
-        root,
-        "/api/v1/reports/aging/dealer/{dealerId}",
-        "get",
-        null,
-        "200",
-        "#/components/schemas/ApiResponseDealerAgingDetail");
-    assertOperationContract(
-        root,
-        "/api/v1/reports/aging/dealer/{dealerId}/detailed",
-        "get",
-        null,
-        "200",
-        "#/components/schemas/ApiResponseDealerAgingDetailedReport");
-    assertOperationContract(
-        root,
-        "/api/v1/reports/dso/dealer/{dealerId}",
-        "get",
-        null,
-        "200",
-        "#/components/schemas/ApiResponseDSOReport");
 
     assertOperationMissing(root, "/api/v1/accounting/reports/aged-debtors", "get");
     assertOperationMissing(root, "/api/v1/accounting/reports/balance-sheet/hierarchy", "get");
@@ -409,6 +389,102 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertOperationMissing(
         root, "/api/v1/accounting/reports/aging/dealer/{dealerId}/detailed", "get");
     assertOperationMissing(root, "/api/v1/accounting/reports/dso/dealer/{dealerId}", "get");
+    assertOperationMissing(root, "/api/v1/reports/aging/dealer/{dealerId}", "get");
+    assertOperationMissing(root, "/api/v1/reports/aging/dealer/{dealerId}/detailed", "get");
+    assertOperationMissing(root, "/api/v1/reports/dso/dealer/{dealerId}", "get");
+  }
+
+  @Test
+  void portal_finance_contract_paths_expose_only_canonical_namespace() throws IOException {
+    JsonNode root = fetchCurrentSpecNode();
+
+    assertOperationContract(
+        root,
+        "/api/v1/portal/finance/ledger",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseMapStringObject");
+    assertQueryParameter(root, "/api/v1/portal/finance/ledger", "get", "dealerId");
+    assertOperationContract(
+        root,
+        "/api/v1/portal/finance/invoices",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseMapStringObject");
+    assertQueryParameter(root, "/api/v1/portal/finance/invoices", "get", "dealerId");
+    assertOperationContract(
+        root,
+        "/api/v1/portal/finance/aging",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseMapStringObject");
+    assertQueryParameter(root, "/api/v1/portal/finance/aging", "get", "dealerId");
+
+    assertOperationMissing(root, "/api/v1/dealers/{dealerId}/ledger", "get");
+    assertOperationMissing(root, "/api/v1/dealers/{dealerId}/invoices", "get");
+    assertOperationMissing(root, "/api/v1/dealers/{dealerId}/aging", "get");
+    assertOperationMissing(root, "/api/v1/dealers/{dealerId}/credit-utilization", "get");
+    assertOperationMissing(root, "/api/v1/invoices/dealers/{dealerId}", "get");
+    assertOperationMissing(root, "/api/v1/accounting/aging/dealers/{dealerId}", "get");
+    assertOperationMissing(root, "/api/v1/accounting/aging/dealers/{dealerId}/pdf", "get");
+    assertOperationMissing(root, "/api/v1/accounting/statements/dealers/{dealerId}", "get");
+    assertOperationMissing(root, "/api/v1/accounting/statements/dealers/{dealerId}/pdf", "get");
+  }
+
+  @Test
+  void support_ticket_contract_paths_expose_only_split_hosts() throws IOException {
+    JsonNode root = fetchCurrentSpecNode();
+
+    assertOperationContract(
+        root,
+        "/api/v1/portal/support/tickets",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseSupportTicketListResponse");
+    assertOperationContract(
+        root,
+        "/api/v1/portal/support/tickets",
+        "post",
+        "#/components/schemas/SupportTicketCreateRequest",
+        "200",
+        "#/components/schemas/ApiResponseSupportTicketResponse");
+    assertOperationContract(
+        root,
+        "/api/v1/portal/support/tickets/{ticketId}",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseSupportTicketResponse");
+
+    assertOperationContract(
+        root,
+        "/api/v1/dealer-portal/support/tickets",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseSupportTicketListResponse");
+    assertOperationContract(
+        root,
+        "/api/v1/dealer-portal/support/tickets",
+        "post",
+        "#/components/schemas/SupportTicketCreateRequest",
+        "200",
+        "#/components/schemas/ApiResponseSupportTicketResponse");
+    assertOperationContract(
+        root,
+        "/api/v1/dealer-portal/support/tickets/{ticketId}",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseSupportTicketResponse");
+
+    assertOperationMissing(root, "/api/v1/support/tickets", "get");
+    assertOperationMissing(root, "/api/v1/support/tickets", "post");
+    assertOperationMissing(root, "/api/v1/support/tickets/{ticketId}", "get");
   }
 
   @Test
@@ -562,6 +638,10 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     String snapshotSpecHash = sha256Hex(snapshotSpec);
     List<String> currentOps = extractOperationSignatures(currentSpec);
     List<String> snapshotOps = extractOperationSignatures(snapshotSpec);
+    List<String> missingSnapshotOps = new ArrayList<>(snapshotOps);
+    missingSnapshotOps.removeAll(currentOps);
+    String missingSnapshotOpsPreview =
+        missingSnapshotOps.stream().limit(12).collect(Collectors.joining(", "));
 
     assertThat(snapshotOps)
         .withFailMessage(
@@ -578,7 +658,8 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         .withFailMessage(
             "OpenAPI breaking operation drift detected at %s. currentOps=%d snapshotOps=%d"
                 + " (delta=%d) currentHash=%s snapshotHash=%s. Snapshot operations must remain"
-                + " present in the runtime contract. For full parity (including additive drift),"
+                + " present in the runtime contract. missingSnapshotOpsCount=%d"
+                + " missingSnapshotOpsPreview=[%s]. For full parity (including additive drift),"
                 + " rerun with -D%s=true (or %s=true) and refresh using -D%s=true (or %s=true).",
             openApiSnapshotPath,
             currentOps.size(),
@@ -586,6 +667,8 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
             currentOps.size() - snapshotOps.size(),
             currentSpecHash,
             snapshotSpecHash,
+            missingSnapshotOps.size(),
+            missingSnapshotOpsPreview,
             SNAPSHOT_VERIFY_PROPERTY,
             SNAPSHOT_VERIFY_ENV,
             SNAPSHOT_REFRESH_PROPERTY,

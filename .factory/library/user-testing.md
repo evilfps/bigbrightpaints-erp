@@ -1,6 +1,6 @@
 # User Testing
 
-Testing surface: tools, URLs, setup steps, isolation notes, and known quirks for ERP-38.
+Testing surface: tools, URLs, setup steps, isolation notes, and known quirks for active ERP validation packets, including ERP-21 and ERP-38.
 
 **What belongs here:** how to validate the surviving `batch -> pack -> dispatch` flow, which commands to run, and which runtime surfaces to trust.
 
@@ -41,6 +41,8 @@ Rationale: the ERP-38 mission uses one shared checkout and one shared compose ru
 - `validation.sales@example.com` - sales on `MOCK`
 - `validation.factory@example.com` - factory on `MOCK`
 - `validation.accounting@example.com` - accounting on `MOCK`
+- `validation.dealer@example.com` - dealer portal user `VALID-DEALER` on `MOCK`
+- `validation.rival.dealer@example.com` - dealer portal user `RIVAL-DEALER` on `RIVAL`
 
 If you need a deterministic password, export `ERP_VALIDATION_SEED_PASSWORD` before running the reset harness.
 
@@ -103,9 +105,40 @@ If you need a deterministic password, export `ERP_VALIDATION_SEED_PASSWORD` befo
 - `ErpInvariantsSuiteIT`
 - `OrderFulfillmentE2ETest`
 
+## ERP-21 Validation Surface
+
+- **Type:** REST API + Maven regression/integration suites + contract/doc guards
+- **Base URL:** `http://localhost:8081`
+- **Canonical hosts to prove:**
+  - `/api/v1/dealer-portal/**`
+  - `/api/v1/portal/finance/**`
+  - `/api/v1/portal/support/tickets/**`
+  - `/api/v1/dealer-portal/support/tickets/**`
+- **Retired hosts to probe:** duplicate dealer-finance routes plus `/api/v1/support/**`
+
+## ERP-21 Key Commands
+
+- `commands.erp21-runtime-reset`
+- `commands.erp21-targeted-finance`
+- `commands.erp21-targeted-support`
+- `commands.erp21-contract-guards`
+- `commands.gate-fast`
+- `commands.gate-release`
+- `commands.gate-reconciliation`
+
+## ERP-21 Probe Guidance
+
+- Use the reset runtime on `8081` for authenticated probes.
+- Use `validation.dealer@example.com` for canonical dealer-portal finance/support probes and `validation.rival.dealer@example.com` for cross-dealer or cross-tenant denial probes.
+- Prove canonical host success first, then prove retired host absence.
+- Probe retired finance routes with the actor that used to be allowed on them (`admin`, `accounting`, or `sales` as applicable); a dealer-only `403` is not enough retirement proof.
+- Treat actuator degradation as non-blocking only if the target `8081` endpoints for ERP-21 still succeed.
+- Runtime validation may be skipped only for docs-only changes.
+
 ## Known Issues
 
 - Plain `prod,flyway-v2` compose boot can come up with an empty DB. Use the reset harness before authenticated runtime validation.
+- The ERP-21 validation seed now includes deterministic dealer invoices for both seeded dealer actors. Use `GET /api/v1/dealer-portal/invoices` to discover `VAL-MOCK-INV-001` and `VAL-RIVAL-INV-001` before proving own invoice PDF `200` and cross-dealer invoice PDF `404` behavior.
 - The current `validation-seed` runtime starts with raw materials `RM-RESIN`, `RM-PIG`, and `RM-CAN` only; `RM-CAN` is not typed as `PACKAGING`, and there are no seeded size variants. Positive `POST /api/v1/factory/packing-records` runtime proof therefore needs extra fixtures beyond the default seed. Use the targeted batch-pack Maven suites for positive pack completion/costing/status assertions unless you explicitly seed packaging-grade fixtures first.
 - Running Maven outside `erp-domain/` can break `.mvn/settings.xml` resolution.
 - Direct `docker compose up -d db rabbitmq mailhog` still needs `JWT_SECRET` and `ERP_SECURITY_ENCRYPTION_KEY` in the environment because the compose file parses the app service too.

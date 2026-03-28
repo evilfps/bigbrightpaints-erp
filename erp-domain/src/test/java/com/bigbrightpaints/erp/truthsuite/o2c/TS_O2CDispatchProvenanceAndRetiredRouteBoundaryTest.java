@@ -365,11 +365,7 @@ class TS_O2CDispatchProvenanceAndRetiredRouteBoundaryTest extends AbstractIntegr
         companyCode,
         List.of("ROLE_ADMIN", "dispatch.confirm"));
     dataSeeder.ensureUser(
-        salesEmail,
-        SALES_PASSWORD,
-        "Truthsuite Sales",
-        companyCode,
-        List.of("ROLE_SALES"));
+        salesEmail, SALES_PASSWORD, "Truthsuite Sales", companyCode, List.of("ROLE_SALES"));
     dataSeeder.ensureUser(
         factoryEmail,
         FACTORY_PASSWORD,

@@ -50,7 +50,8 @@ class DataInitializerTest {
     initializer = new DataInitializer();
     lenient()
         .when(authScopeService.updatePlatformScopeCode(anyString()))
-        .thenAnswer(invocation -> invocation.getArgument(0, String.class).trim().toUpperCase(Locale.ROOT));
+        .thenAnswer(
+            invocation -> invocation.getArgument(0, String.class).trim().toUpperCase(Locale.ROOT));
     lenient()
         .when(userRepository.save(any(UserAccount.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
@@ -71,7 +72,8 @@ class DataInitializerTest {
     when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(adminRole));
     when(roleRepository.findByName("ROLE_SUPER_ADMIN")).thenReturn(Optional.of(superAdminRole));
     when(companyRepository.findByCodeIgnoreCase("BBP")).thenReturn(Optional.of(bbp));
-    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("super@erp.com", "PLATFORM"))
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "super@erp.com", "PLATFORM"))
         .thenReturn(Optional.empty());
     when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@bbp.dev", "BBP"))
         .thenReturn(Optional.empty());
@@ -103,7 +105,9 @@ class DataInitializerTest {
     assertThat(superAdmin.getAuthScopeCode()).isEqualTo("PLATFORM");
     assertThat(superAdmin.getCompany()).isNull();
     assertThat(superAdmin.isMustChangePassword()).isTrue();
-    assertThat(superAdmin.getRoles()).extracting(Role::getName).contains("ROLE_ADMIN", "ROLE_SUPER_ADMIN");
+    assertThat(superAdmin.getRoles())
+        .extracting(Role::getName)
+        .contains("ROLE_ADMIN", "ROLE_SUPER_ADMIN");
 
     UserAccount devAdmin =
         users.getAllValues().stream()
@@ -158,7 +162,8 @@ class DataInitializerTest {
 
     when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(adminRole));
     when(roleRepository.findByName("ROLE_SUPER_ADMIN")).thenReturn(Optional.of(superAdminRole));
-    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("super@erp.com", "PLATFORM"))
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "super@erp.com", "PLATFORM"))
         .thenReturn(Optional.empty());
 
     CommandLineRunner runner =
@@ -232,7 +237,8 @@ class DataInitializerTest {
     Company sameId = company("DIFFERENT");
     ReflectionTestUtils.setField(sameId, "id", 7L);
     userWithIdMatch.setCompany(existing);
-    ReflectionTestUtils.invokeMethod(initializer, "ensureCompanyMembership", userWithIdMatch, sameId);
+    ReflectionTestUtils.invokeMethod(
+        initializer, "ensureCompanyMembership", userWithIdMatch, sameId);
     assertThat(userWithIdMatch.getCompany()).isNotNull();
   }
 

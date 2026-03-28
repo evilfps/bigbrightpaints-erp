@@ -19,7 +19,6 @@ import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.modules.sales.dto.CreateDealerRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerLookupResponse;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerResponse;
-import com.bigbrightpaints.erp.modules.sales.service.DealerPortalService;
 import com.bigbrightpaints.erp.modules.sales.service.DealerService;
 import com.bigbrightpaints.erp.modules.sales.service.DunningService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
@@ -32,15 +31,10 @@ public class DealerController {
 
   private final DealerService dealerService;
   private final DunningService dunningService;
-  private final DealerPortalService dealerPortalService;
 
-  public DealerController(
-      DealerService dealerService,
-      DunningService dunningService,
-      DealerPortalService dealerPortalService) {
+  public DealerController(DealerService dealerService, DunningService dunningService) {
     this.dealerService = dealerService;
     this.dunningService = dunningService;
-    this.dealerPortalService = dealerPortalService;
   }
 
   @PostMapping
@@ -74,37 +68,6 @@ public class DealerController {
       @PathVariable Long dealerId, @Valid @RequestBody CreateDealerRequest request) {
     return ResponseEntity.ok(
         ApiResponse.success("Dealer updated", dealerService.updateDealer(dealerId, request)));
-  }
-
-  @GetMapping("/{dealerId}/ledger")
-  @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
-  public ResponseEntity<ApiResponse<Map<String, Object>>> dealerLedger(
-      @PathVariable Long dealerId) {
-    Map<String, Object> payload = dealerPortalService.getLedgerForDealer(dealerId);
-    return ResponseEntity.ok(ApiResponse.success("Dealer ledger", payload));
-  }
-
-  @GetMapping("/{dealerId}/invoices")
-  @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
-  public ResponseEntity<ApiResponse<Map<String, Object>>> dealerInvoices(
-      @PathVariable Long dealerId) {
-    Map<String, Object> payload = dealerPortalService.getInvoicesForDealer(dealerId);
-    return ResponseEntity.ok(ApiResponse.success("Dealer invoices", payload));
-  }
-
-  @GetMapping("/{dealerId}/credit-utilization")
-  @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
-  public ResponseEntity<ApiResponse<Map<String, Object>>> dealerCreditUtilization(
-      @PathVariable Long dealerId) {
-    Map<String, Object> payload = dealerService.creditUtilization(dealerId);
-    return ResponseEntity.ok(ApiResponse.success("Dealer credit utilization", payload));
-  }
-
-  @GetMapping("/{dealerId}/aging")
-  @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
-  public ResponseEntity<ApiResponse<Map<String, Object>>> dealerAging(@PathVariable Long dealerId) {
-    Map<String, Object> payload = dealerPortalService.getAgingForDealer(dealerId);
-    return ResponseEntity.ok(ApiResponse.success("Dealer aging", payload));
   }
 
   @PostMapping("/{dealerId}/dunning/hold")

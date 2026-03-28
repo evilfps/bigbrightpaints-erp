@@ -98,8 +98,7 @@ class PortalRoleActionMatrixTest {
   void resolveAccessDeniedMessage_returnsNullWhenAuthoritiesOrMethodDoNotMatch() {
     assertThat(
             PortalRoleActionMatrix.resolveAccessDeniedMessage(
-                authenticationWithNullAuthorities(),
-                request("POST", "/api/v1/dispatch/confirm")))
+                authenticationWithNullAuthorities(), request("POST", "/api/v1/dispatch/confirm")))
         .isNull();
 
     assertThat(

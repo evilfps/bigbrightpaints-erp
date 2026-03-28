@@ -1619,7 +1619,8 @@ public class SalesCoreEngine {
     try {
       return GstTreatment.valueOf(normalized);
     } catch (IllegalArgumentException ex) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Unknown GST treatment " + value);
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+          "Unknown GST treatment " + value);
     }
   }
 
@@ -4101,7 +4102,8 @@ public class SalesCoreEngine {
     BigDecimal netRaw = lineGross.subtract(lineDiscount);
     BigDecimal taxRaw = BigDecimal.ZERO;
     if (taxInclusive && rate.compareTo(BigDecimal.ZERO) > 0) {
-      BigDecimal divisor = BigDecimal.ONE.add(rate.divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP));
+      BigDecimal divisor =
+          BigDecimal.ONE.add(rate.divide(new BigDecimal("100"), 6, RoundingMode.HALF_UP));
       if (divisor.signum() > 0) {
         BigDecimal preTax = netRaw.divide(divisor, 6, RoundingMode.HALF_UP);
         taxRaw = netRaw.subtract(preTax);

@@ -31,6 +31,7 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
   private static final String DEALER_A_EMAIL = "dealer-a@bbp.com";
   private static final String DEALER_B_EMAIL = "dealer-b@bbp.com";
   private static final String ADMIN_EMAIL = "dealer-admin@bbp.com";
+  private static final String SALES_EMAIL = "dealer-sales@bbp.com";
   private static final String PASSWORD = "changeme";
 
   @Autowired private TestRestTemplate rest;
@@ -52,6 +53,8 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
             DEALER_B_EMAIL, PASSWORD, "Dealer B User", COMPANY_CODE, List.of("ROLE_DEALER"));
     dataSeeder.ensureUser(
         ADMIN_EMAIL, PASSWORD, "Dealer Admin User", COMPANY_CODE, List.of("ROLE_ADMIN"));
+    dataSeeder.ensureUser(
+        SALES_EMAIL, PASSWORD, "Dealer Sales User", COMPANY_CODE, List.of("ROLE_SALES"));
 
     Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
     dealerA = upsertDealer(company, "D-SEC-A", "Dealer A", dealerAUser);
@@ -59,7 +62,7 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
   }
 
   @Test
-  @DisplayName("Dealer role is blocked from backoffice dealer ledger endpoint")
+  @DisplayName("Retired dealer ledger endpoint is absent for dealer callers")
   void dealerCannotReadAnotherDealerLedger() {
     HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
     ResponseEntity<Map> response =
@@ -69,11 +72,11 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
             new HttpEntity<>(headers),
             Map.class);
 
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
   }
 
   @Test
-  @DisplayName("Dealer role is blocked from backoffice own ledger endpoint")
+  @DisplayName("Retired dealer ledger endpoint is absent even for own-dealer probes")
   void dealerCannotReadOwnLedgerFromBackofficeEndpoint() {
     HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
     ResponseEntity<Map> response =
@@ -83,11 +86,11 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
             new HttpEntity<>(headers),
             Map.class);
 
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
   }
 
   @Test
-  @DisplayName("Dealer role is blocked from backoffice dealer invoices endpoint")
+  @DisplayName("Retired dealer invoices endpoint is absent for dealer callers")
   void dealerCannotReadAnotherDealerInvoices() {
     HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
     ResponseEntity<Map> response =
@@ -97,11 +100,11 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
             new HttpEntity<>(headers),
             Map.class);
 
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
   }
 
   @Test
-  @DisplayName("Dealer role is blocked from backoffice dealer aging endpoint")
+  @DisplayName("Retired dealer aging endpoint is absent for dealer callers")
   void dealerCannotReadAnotherDealerAging() {
     HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
     ResponseEntity<Map> response =
@@ -111,11 +114,11 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
             new HttpEntity<>(headers),
             Map.class);
 
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
   }
 
   @Test
-  @DisplayName("Dealer role is blocked from backoffice own invoices and aging endpoints")
+  @DisplayName("Retired dealer finance endpoints are absent for own-dealer probes too")
   void dealerCannotReadOwnInvoicesAndAgingFromBackofficeEndpoints() {
     HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
     ResponseEntity<Map> invoices =
@@ -131,13 +134,13 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
             new HttpEntity<>(headers),
             Map.class);
 
-    assertThat(invoices.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-    assertThat(aging.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(invoices.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(aging.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
   }
 
   @Test
-  @DisplayName("Admin can access dealer backoffice read endpoints")
-  void adminCanReadDealerBackofficeEndpoints() {
+  @DisplayName("Admin sees retired dealer finance endpoints as not found")
+  void adminSeesRetiredDealerBackofficeEndpointsAsNotFound() {
     HttpHeaders headers = authHeaders(ADMIN_EMAIL, PASSWORD);
     ResponseEntity<Map> ledger =
         rest.exchange(
@@ -157,14 +160,21 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
             HttpMethod.GET,
             new HttpEntity<>(headers),
             Map.class);
+    ResponseEntity<Map> creditUtilization =
+        rest.exchange(
+            "/api/v1/dealers/" + dealerA.getId() + "/credit-utilization",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
 
-    assertThat(ledger.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(invoices.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(aging.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(ledger.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(invoices.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(aging.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(creditUtilization.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
   }
 
   @Test
-  @DisplayName("Admin gets strict not-found for missing dealer read endpoints")
+  @DisplayName("Admin gets strict not-found for retired dealer finance endpoints regardless of id")
   void adminGetsNotFoundForMissingDealerReadEndpoints() {
     HttpHeaders headers = authHeaders(ADMIN_EMAIL, PASSWORD);
     long missingDealerId = 999_999_999L;
@@ -187,10 +197,35 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
             HttpMethod.GET,
             new HttpEntity<>(headers),
             Map.class);
+    ResponseEntity<Map> creditUtilization =
+        rest.exchange(
+            "/api/v1/dealers/" + missingDealerId + "/credit-utilization",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
 
     assertThat(ledger.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     assertThat(invoices.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     assertThat(aging.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(creditUtilization.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+  }
+
+  @Test
+  @DisplayName("Sales actor sees every retired dealer finance read as not found")
+  void salesSeesRetiredDealerFinanceReadsAsNotFound() {
+    HttpHeaders headers = authHeaders(SALES_EMAIL, PASSWORD);
+    List<String> retiredPaths =
+        List.of(
+            "/api/v1/dealers/" + dealerA.getId() + "/ledger",
+            "/api/v1/dealers/" + dealerA.getId() + "/invoices",
+            "/api/v1/dealers/" + dealerA.getId() + "/aging",
+            "/api/v1/dealers/" + dealerA.getId() + "/credit-utilization");
+
+    for (String path : retiredPaths) {
+      ResponseEntity<Map> response =
+          rest.exchange(path, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+      assertThat(response.getStatusCode()).as(path).isEqualTo(HttpStatus.NOT_FOUND);
+    }
   }
 
   private HttpHeaders authHeaders(String email, String password) {

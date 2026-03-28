@@ -1,0 +1,15 @@
+{
+  "featureId": "portal-split-contract-proof-cleanup",
+  "reviewedAt": "2026-03-27T10:00:26.027051Z",
+  "commitId": "bbe993cc65be04b3797cdfc9f5004e102e49cc6a",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Commit bbe993cc correctly adopts the recovered contract-proof diff and keeps the ERP-21 portal split contract explicit. The reviewed changes add OpenAPI snapshot coverage for the split support hosts (`erp-domain/src/test/java/com/bigbrightpaints/erp/OpenApiSnapshotIT.java:403`, `:443`), add dealer-vs-portal ledger/invoice/aging parity coverage against the shared dealer finance service (`erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/DealerPortalControllerSecurityIT.java:164`; `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/controller/PortalFinanceController.java:17-40`; `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/DealerPortalService.java:133-235`), and harden the accounting portal scope guard plus its regression tests so the canonical internal-vs-dealer split stays documented (`docs/accounting-portal-endpoint-map.md:94`, `docs/accounting-portal-frontend-engineer-handoff.md:490`, `:502`, `.factory/library/frontend-handoff.md:2201-2215`, `erp-domain/src/test/java/com/bigbrightpaints/erp/regression/AccountingPortalScopeGuardScriptTest.java:117-176`, `scripts/guard_accounting_portal_scope_contract.sh:178-209`). I also verified that `openapi.json`, `docs/endpoint-inventory.md`, and `erp-domain/docs/endpoint_inventory.tsv` currently publish only the surviving portal/dealer-portal finance and support hosts while the retired shared/legacy finance-support paths are absent.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "Pass. The feature stayed in scope, adopted the recovered diff cleanly, and provided sufficient contract-proof coverage for the canonical split finance/support hosts without introducing reviewable regressions. I found no blocking or non-blocking defects in the reviewed implementation."
+}

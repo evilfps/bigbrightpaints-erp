@@ -8,16 +8,16 @@ HR, PURCHASING, INVENTORY, and REPORTS come under the Accounting portal in front
 
 Reference guardrail: `docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md`
 
-Total scoped endpoints: **143**
-Count lock for parity checks: **143**
+Total scoped endpoints: **138**
+Count lock for parity checks: **138**
 
 ## M18-S9A Parity Closure (Endpoint Map vs Handoff)
 
 - M17-S1 canonical API contract source-of-truth is `openapi.json`; guard behavior is non-mutating (parity checks validate and fail on drift, but do not rewrite docs).
-- M17-S2 parity baseline for this slice is a curated lock of **143** unique `METHOD /api/v1/...` rows.
-- The `143` lock is a curated frontend parity baseline and does not claim full accounting-portal OpenAPI coverage.
-- The handoff inventory may only add **8** non-owned dependencies on top of these 143 rows:
-  - Shared foundation APIs (6): `GET /api/v1/auth/me`, `GET /api/v1/auth/profile`, `PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/auth/logout`
+- M17-S2 parity baseline for this slice is a curated lock of **138** unique `METHOD /api/v1/...` rows.
+- The `138` lock is a curated frontend parity baseline and does not claim full accounting-portal OpenAPI coverage.
+- The handoff inventory may only add **9** non-owned dependencies on top of these 138 rows:
+  - Shared foundation APIs (7): `GET /api/v1/auth/me`, `GET /api/v1/auth/profile`, `PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/multi-company/companies/switch`, `POST /api/v1/auth/logout`
   - Dealer support APIs (2): `GET /api/v1/sales/dealers`, `GET /api/v1/sales/dealers/search`
 - Explicit outside-lock ledger (present in `docs/endpoint-inventory.md` and `openapi.json`):
   - `GET /api/v1/accounting/audit/transactions`
@@ -27,7 +27,7 @@ Count lock for parity checks: **143**
 
 ## Accounting Core (GL, Periods, Journals, Controls)
 
-### accounting-controller (52)
+### accounting-controller (48)
 
 | Endpoint | Frontend should put | Backend expects | Returns |
 |---|---|---|---|
@@ -39,8 +39,6 @@ Count lock for parity checks: **143**
 | `GET /api/v1/accounting/accounts/{accountId}/balance/as-of` | detail-view; req: accountId (path), date (query); opt: -; states: loading, error, success, empty | path=accountId; query=date; body=none; ct=- | ok 200; err 400 |
 | `GET /api/v1/accounting/accounts/{accountId}/balance/compare` | detail-view; req: accountId (path), date1 (query), date2 (query); opt: -; states: loading, error, success, empty | path=accountId; query=date1, date2; body=none; ct=- | ok 200; err 400 |
 | `POST /api/v1/accounting/accruals` | create-form; req: amount (body), creditAccountId (body), debitAccountId (body); opt: adminOverride (body), autoReverseDate (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
-| `GET /api/v1/accounting/aging/dealers/{dealerId}` | detail-view; req: dealerId (path); opt: asOf (query), buckets (query); states: loading, error, success, empty | path=dealerId; query=asOf, buckets; body=none; ct=- | ok 200; err 400 |
-| `GET /api/v1/accounting/aging/dealers/{dealerId}/pdf` | detail-view; req: dealerId (path); opt: asOf (query), buckets (query); states: loading, error, success, empty | path=dealerId; query=asOf, buckets; body=none; ct=- | ok 200; err 400 |
 | `GET /api/v1/accounting/aging/suppliers/{supplierId}` | detail-view; req: supplierId (path); opt: asOf (query), buckets (query); states: loading, error, success, empty | path=supplierId; query=asOf, buckets; body=none; ct=- | ok 200; err 400 |
 | `GET /api/v1/accounting/aging/suppliers/{supplierId}/pdf` | detail-view; req: supplierId (path); opt: asOf (query), buckets (query); states: loading, error, success, empty | path=supplierId; query=asOf, buckets; body=none; ct=- | ok 200; err 400 |
 | `GET /api/v1/accounting/audit/digest` | list-view; req: -; opt: from (query), to (query); states: loading, error, success, empty | path=-; query=from, to; body=none; ct=- | ok 200; err 400 |
@@ -67,18 +65,13 @@ Count lock for parity checks: **143**
 | `POST /api/v1/accounting/periods/{periodId}/reopen` | create-form; req: periodId (path); opt: reason (body); states: loading, error, success | path=periodId; query=-; body=optional; ct=application/json | ok 200; err 400 |
 | `POST /api/v1/accounting/receipts/dealer` | create-form; req: allocations (body), allocations[].appliedAmount (body), amount (body), cashAccountId (body), dealerId (body); opt: Idempotency-Key (header), allocations[].discountAmount (body), allocations[].fxAdjustment (body), allocations[].invoiceId (body), allocations[].memo (body), allocations[].purchaseId (body), allocations[].writeOffAmount (body), idempotencyKey (body), memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
 | `POST /api/v1/accounting/receipts/dealer/hybrid` | create-form; req: dealerId (body), incomingLines (body), incomingLines[].accountId (body), incomingLines[].amount (body); opt: Idempotency-Key (header), idempotencyKey (body), memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
-| `GET /api/v1/reports/aging/dealer/{dealerId}` | detail-view; req: dealerId (path); opt: -; states: loading, error, success, empty | path=dealerId; query=-; body=none; ct=- | ok 200; err global (status depends on error code) |
-| `GET /api/v1/reports/aging/dealer/{dealerId}/detailed` | detail-view; req: dealerId (path); opt: -; states: loading, error, success, empty | path=dealerId; query=-; body=none; ct=- | ok 200; err global (status depends on error code) |
 | `GET /api/v1/reports/aging/receivables` | list-view; req: -; opt: asOfDate (query); states: loading, error, success, empty | path=-; query=asOfDate; body=none; ct=- | ok 200; err global (status depends on error code) |
 | `GET /api/v1/reports/balance-sheet/hierarchy` | list-view; req: -; opt: -; states: loading, error, success, empty | path=-; query=-; body=none; ct=- | ok 200; err global (status depends on error code) |
-| `GET /api/v1/reports/dso/dealer/{dealerId}` | detail-view; req: dealerId (path); opt: -; states: loading, error, success, empty | path=dealerId; query=-; body=none; ct=- | ok 200; err global (status depends on error code) |
 | `GET /api/v1/reports/income-statement/hierarchy` | list-view; req: -; opt: -; states: loading, error, success, empty | path=-; query=-; body=none; ct=- | ok 200; err global (status depends on error code) |
 | `GET /api/v1/accounting/sales/returns` | list-view; req: -; opt: -; states: loading, error, success, empty | path=-; query=-; body=none; ct=- | ok 200; err 400 |
 | `POST /api/v1/accounting/sales/returns` | create-form; req: invoiceId (body), lines (body), lines[].invoiceLineId (body), lines[].quantity (body), reason (body); opt: -; states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
 | `POST /api/v1/accounting/settlements/dealers` | create-form; req: allocations (body), allocations[].appliedAmount (body), dealerId (body), payments[].accountId (body), payments[].amount (body); opt: adminOverride (body), allocations[].discountAmount (body), allocations[].fxAdjustment (body), allocations[].invoiceId (body), allocations[].memo (body), allocations[].purchaseId (body), allocations[].writeOffAmount (body), cashAccountId (body), discountAccountId (body), fxGainAccountId (body), fxLossAccountId (body), idempotencyKey (body), memo (body), payments (body), payments[].method (body), referenceNumber (body), settlementDate (body), writeOffAccountId (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
 | `POST /api/v1/accounting/settlements/suppliers` | create-form; req: allocations (body), allocations[].appliedAmount (body), cashAccountId (body), supplierId (body); opt: Idempotency-Key (header), adminOverride (body), allocations[].discountAmount (body), allocations[].fxAdjustment (body), allocations[].invoiceId (body), allocations[].memo (body), allocations[].purchaseId (body), allocations[].writeOffAmount (body), discountAccountId (body), fxGainAccountId (body), fxLossAccountId (body), idempotencyKey (body), memo (body), referenceNumber (body), settlementDate (body), writeOffAccountId (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
-| `GET /api/v1/accounting/statements/dealers/{dealerId}` | detail-view; req: dealerId (path); opt: from (query), to (query); states: loading, error, success, empty | path=dealerId; query=from, to; body=none; ct=- | ok 200; err 400 |
-| `GET /api/v1/accounting/statements/dealers/{dealerId}/pdf` | detail-view; req: dealerId (path); opt: from (query), to (query); states: loading, error, success, empty | path=dealerId; query=from, to; body=none; ct=- | ok 200; err 400 |
 | `GET /api/v1/accounting/statements/suppliers/{supplierId}` | detail-view; req: supplierId (path); opt: from (query), to (query); states: loading, error, success, empty | path=supplierId; query=from, to; body=none; ct=- | ok 200; err 400 |
 | `GET /api/v1/accounting/statements/suppliers/{supplierId}/pdf` | detail-view; req: supplierId (path); opt: from (query), to (query); states: loading, error, success, empty | path=supplierId; query=from, to; body=none; ct=- | ok 200; err 400 |
 | `POST /api/v1/accounting/suppliers/payments` | create-form; req: allocations (body), allocations[].appliedAmount (body), amount (body), cashAccountId (body), supplierId (body); opt: Idempotency-Key (header), allocations[].discountAmount (body), allocations[].fxAdjustment (body), allocations[].invoiceId (body), allocations[].memo (body), allocations[].purchaseId (body), allocations[].writeOffAmount (body), idempotencyKey (body), memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
@@ -89,6 +82,16 @@ Maker-checker period-close note:
 - `POST /api/v1/accounting/periods/{periodId}/approve-close` and `POST /api/v1/accounting/periods/{periodId}/reject-close` are surfaced through `GET /api/v1/admin/approvals`.
 - `GET /api/v1/admin/approvals` is visible to `ROLE_ADMIN|ROLE_ACCOUNTING` in portal flows, and the backend also allows `ROLE_SUPER_ADMIN`.
 - `POST /api/v1/accounting/periods/{periodId}/close` still exists in OpenAPI, but `AccountingPeriodService.closePeriod(...)` rejects direct close for frontend flows.
+
+### portal-finance-controller (3)
+
+| Endpoint | Frontend should put | Backend expects | Returns |
+|---|---|---|---|
+| `GET /api/v1/portal/finance/ledger` | detail-view; req: dealerId (query); opt: -; states: loading, error, success, empty | path=-; query=dealerId; body=none; ct=- | ok 200; err 403, 404 |
+| `GET /api/v1/portal/finance/invoices` | detail-view; req: dealerId (query); opt: -; states: loading, error, success, empty | path=-; query=dealerId; body=none; ct=- | ok 200; err 403, 404 |
+| `GET /api/v1/portal/finance/aging` | detail-view; req: dealerId (query); opt: -; states: loading, error, success, empty | path=-; query=dealerId; body=none; ct=- | ok 200; err 403, 404 |
+
+Portal finance drill-ins stay on `/api/v1/portal/finance/*` for admin/accounting users; dealer self-service remains on `/api/v1/dealer-portal/{ledger,invoices,aging}`, and retired shared/legacy aliases stay out of the portal.
 
 ### catalog-controller (5)
 
@@ -108,12 +111,11 @@ Maker-checker period-close note:
 
 ## Invoice & Receivables
 
-### invoice-controller (5)
+### invoice-controller (4)
 
 | Endpoint | Frontend should put | Backend expects | Returns |
 |---|---|---|---|
 | `GET /api/v1/invoices` | list-view; req: -; opt: page (query), size (query); states: loading, error, success, empty | path=-; query=page, size; body=none; ct=- | ok 200; err - |
-| `GET /api/v1/invoices/dealers/{dealerId}` | detail-view; req: dealerId (path); opt: page (query), size (query); states: loading, error, success, empty | path=dealerId; query=page, size; body=none; ct=- | ok 200; err - |
 | `GET /api/v1/invoices/{id}` | detail-view; req: id (path); opt: -; states: loading, error, success, empty | path=id; query=-; body=none; ct=- | ok 200; err - |
 | `POST /api/v1/invoices/{id}/email` | create-form; req: id (path); opt: -; states: loading, error, success | path=id; query=-; body=none; ct=- | ok 200; err - |
 | `GET /api/v1/invoices/{id}/pdf` | detail-view; req: id (path); opt: -; states: loading, error, success, empty | path=id; query=-; body=none; ct=- | ok 200; err - |

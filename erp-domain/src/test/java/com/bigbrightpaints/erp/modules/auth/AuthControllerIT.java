@@ -366,7 +366,8 @@ public class AuthControllerIT extends AbstractIntegrationTest {
               return null;
             })
         .when(emailService)
-        .sendPasswordResetEmailRequired(eq(USER_EMAIL), eq("Reset Target"), anyString(), eq(COMPANY_CODE));
+        .sendPasswordResetEmailRequired(
+            eq(USER_EMAIL), eq("Reset Target"), anyString(), eq(COMPANY_CODE));
 
     ExecutorService executor = Executors.newFixedThreadPool(2);
     try {
@@ -377,8 +378,7 @@ public class AuthControllerIT extends AbstractIntegrationTest {
                       "/api/v1/auth/password/forgot",
                       HttpMethod.POST,
                       new HttpEntity<>(
-                          Map.of("email", USER_EMAIL, "companyCode", COMPANY_CODE),
-                          jsonHeaders()),
+                          Map.of("email", USER_EMAIL, "companyCode", COMPANY_CODE), jsonHeaders()),
                       Map.class));
       Future<ResponseEntity<Map>> adminForceReset =
           executor.submit(

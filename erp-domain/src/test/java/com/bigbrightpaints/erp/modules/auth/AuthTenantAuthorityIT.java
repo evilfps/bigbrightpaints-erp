@@ -181,7 +181,9 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     assertThat(companyRepository.findByCodeIgnoreCase(newCode)).isEmpty();
-    assertThat(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(firstAdminEmail, newCode))
+    assertThat(
+            userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+                firstAdminEmail, newCode))
         .isEmpty();
   }
 
@@ -457,8 +459,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
             log ->
                 SUPER_ADMIN_EMAIL.equalsIgnoreCase(log.getUsername())
                     && TENANT_A.equalsIgnoreCase(log.getMetadata().get("targetCompanyCode"))
-                    && "DEACTIVATED".equalsIgnoreCase(
-                        log.getMetadata().get("companyLifecycleState"))
+                    && "DEACTIVATED"
+                        .equalsIgnoreCase(log.getMetadata().get("companyLifecycleState"))
                     && blockReason.equals(log.getMetadata().get("companyLifecycleReason")));
     assertThat(blockEvidence.getMetadata().get("lifecycleEvidence"))
         .isEqualTo("immutable-audit-log");
@@ -744,15 +746,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     String superAdminToken = login(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
     ResponseEntity<Map> superAdminResponse =
         updateTenantLimits(
-            tenantAId,
-            superAdminToken,
-            PLATFORM_SCOPE,
-            120L,
-            3_000L,
-            2_097_152L,
-            7L,
-            false,
-            true);
+            tenantAId, superAdminToken, PLATFORM_SCOPE, 120L, 3_000L, 2_097_152L, 7L, false, true);
     assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
   }
 
@@ -786,15 +780,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> resetResponse =
         updateTenantLimits(
-            tenantAId,
-            superAdminToken,
-            PLATFORM_SCOPE,
-            120L,
-            3_000L,
-            2_097_152L,
-            7L,
-            false,
-            true);
+            tenantAId, superAdminToken, PLATFORM_SCOPE, 120L, 3_000L, 2_097_152L, 7L, false, true);
     assertThat(resetResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
   }
 
@@ -909,7 +895,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     assertThat(rolePermissionCodes("ROLE_FACTORY")).contains("dispatch.confirm");
     assertThat(rolePermissionCodes("ROLE_SALES")).doesNotContain("dispatch.confirm");
 
-    assertThat(mePermissionCodes(login(ADMIN_EMAIL, TENANT_A), TENANT_A)).contains("dispatch.confirm");
+    assertThat(mePermissionCodes(login(ADMIN_EMAIL, TENANT_A), TENANT_A))
+        .contains("dispatch.confirm");
     assertThat(mePermissionCodes(login(ACCOUNTING_SYNC_EMAIL, TENANT_A), TENANT_A))
         .contains("dispatch.confirm");
     assertThat(mePermissionCodes(login("factory-seed@bbp.com", TENANT_A), TENANT_A))
@@ -1326,7 +1313,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
     if (present) {
       role.getPermissions().add(permission);
     } else {
-      role.getPermissions().removeIf(existing -> permissionCode.equalsIgnoreCase(existing.getCode()));
+      role.getPermissions()
+          .removeIf(existing -> permissionCode.equalsIgnoreCase(existing.getCode()));
     }
     roleRepository.save(role);
   }

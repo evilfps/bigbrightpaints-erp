@@ -159,6 +159,25 @@ jobs:
     needs: [pr-risk-router]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:16-alpine
+        env:
+          POSTGRES_DB: erp_domain_test
+          POSTGRES_USER: erp_test
+          POSTGRES_PASSWORD: erp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U erp_test -d erp_domain_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      ERP_TEST_DB_URL: jdbc:postgresql://127.0.0.1:5432/erp_domain_test
+      ERP_TEST_DB_USERNAME: erp_test
+      ERP_TEST_DB_PASSWORD: erp_test
+      TESTCONTAINERS_RYUK_DISABLED: "true"
 
     steps:
       - name: Checkout
@@ -195,6 +214,25 @@ jobs:
     needs: [pr-risk-router]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:16-alpine
+        env:
+          POSTGRES_DB: erp_domain_test
+          POSTGRES_USER: erp_test
+          POSTGRES_PASSWORD: erp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U erp_test -d erp_domain_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      ERP_TEST_DB_URL: jdbc:postgresql://127.0.0.1:5432/erp_domain_test
+      ERP_TEST_DB_USERNAME: erp_test
+      ERP_TEST_DB_PASSWORD: erp_test
+      TESTCONTAINERS_RYUK_DISABLED: "true"
 
     steps:
       - name: Checkout
@@ -232,6 +270,25 @@ jobs:
     needs: [pr-risk-router]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:16-alpine
+        env:
+          POSTGRES_DB: erp_domain_test
+          POSTGRES_USER: erp_test
+          POSTGRES_PASSWORD: erp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U erp_test -d erp_domain_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      ERP_TEST_DB_URL: jdbc:postgresql://127.0.0.1:5432/erp_domain_test
+      ERP_TEST_DB_USERNAME: erp_test
+      ERP_TEST_DB_PASSWORD: erp_test
+      TESTCONTAINERS_RYUK_DISABLED: "true"
 
     steps:
       - name: Checkout
@@ -267,6 +324,25 @@ jobs:
     needs: [pr-risk-router]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:16-alpine
+        env:
+          POSTGRES_DB: erp_domain_test
+          POSTGRES_USER: erp_test
+          POSTGRES_PASSWORD: erp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U erp_test -d erp_domain_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      ERP_TEST_DB_URL: jdbc:postgresql://127.0.0.1:5432/erp_domain_test
+      ERP_TEST_DB_USERNAME: erp_test
+      ERP_TEST_DB_PASSWORD: erp_test
+      TESTCONTAINERS_RYUK_DISABLED: "true"
 
     steps:
       - name: Checkout
@@ -303,6 +379,25 @@ jobs:
     needs: [pr-risk-router]
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:16-alpine
+        env:
+          POSTGRES_DB: erp_domain_test
+          POSTGRES_USER: erp_test
+          POSTGRES_PASSWORD: erp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U erp_test -d erp_domain_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      ERP_TEST_DB_URL: jdbc:postgresql://127.0.0.1:5432/erp_domain_test
+      ERP_TEST_DB_USERNAME: erp_test
+      ERP_TEST_DB_PASSWORD: erp_test
+      TESTCONTAINERS_RYUK_DISABLED: "true"
 
     steps:
       - name: Checkout
@@ -339,6 +434,25 @@ jobs:
     needs: [pr-risk-router]
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:16-alpine
+        env:
+          POSTGRES_DB: erp_domain_test
+          POSTGRES_USER: erp_test
+          POSTGRES_PASSWORD: erp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U erp_test -d erp_domain_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      ERP_TEST_DB_URL: jdbc:postgresql://127.0.0.1:5432/erp_domain_test
+      ERP_TEST_DB_USERNAME: erp_test
+      ERP_TEST_DB_PASSWORD: erp_test
+      TESTCONTAINERS_RYUK_DISABLED: "true"
 
     steps:
       - name: Checkout
@@ -374,6 +488,25 @@ jobs:
     needs: [pr-risk-router]
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:16-alpine
+        env:
+          POSTGRES_DB: erp_domain_test
+          POSTGRES_USER: erp_test
+          POSTGRES_PASSWORD: erp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U erp_test -d erp_domain_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      ERP_TEST_DB_URL: jdbc:postgresql://127.0.0.1:5432/erp_domain_test
+      ERP_TEST_DB_USERNAME: erp_test
+      ERP_TEST_DB_PASSWORD: erp_test
+      TESTCONTAINERS_RYUK_DISABLED: "true"
 
     steps:
       - name: Checkout

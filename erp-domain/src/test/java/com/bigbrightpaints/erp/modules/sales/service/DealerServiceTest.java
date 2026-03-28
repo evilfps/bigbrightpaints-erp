@@ -123,10 +123,14 @@ class DealerServiceTest {
               return dealer;
             });
     lenient()
-        .when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(anyString(), anyString()))
+        .when(
+            userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+                anyString(), anyString()))
         .thenReturn(Optional.empty());
     lenient()
-        .when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(anyString(), anyString()))
+        .when(
+            userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+                anyString(), anyString()))
         .thenReturn(false);
     lenient()
         .when(userAccountRepository.save(any(UserAccount.class)))
@@ -169,9 +173,11 @@ class DealerServiceTest {
 
   @Test
   void createDealer_reusesExistingScopedPortalUserWithoutSendingNewCredentials() {
-    UserAccount existingPortalUser = new UserAccount("dealer@example.com", "TEST", "hash", "Test Dealer");
+    UserAccount existingPortalUser =
+        new UserAccount("dealer@example.com", "TEST", "hash", "Test Dealer");
     existingPortalUser.setCompany(company);
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("dealer@example.com", "TEST"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "dealer@example.com", "TEST"))
         .thenReturn(Optional.of(existingPortalUser));
 
     dealerService.createDealer(request());

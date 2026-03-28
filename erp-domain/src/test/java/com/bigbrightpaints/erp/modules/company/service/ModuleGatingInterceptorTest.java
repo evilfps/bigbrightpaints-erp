@@ -112,7 +112,7 @@ class ModuleGatingInterceptorTest {
 
   @Test
   void resolveTargetModule_routesCanonicalAccountingReportsThroughReportsAdvanced() {
-    assertThat(interceptor.resolveTargetModule("/api/v1/reports/aging/dealer/77"))
+    assertThat(interceptor.resolveTargetModule("/api/v1/reports/aging/receivables"))
         .isEqualTo(CompanyModule.REPORTS_ADVANCED);
     assertThat(interceptor.resolveTargetModule("/api/v1/reports/balance-sheet/hierarchy"))
         .isEqualTo(CompanyModule.REPORTS_ADVANCED);

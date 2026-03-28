@@ -24,6 +24,17 @@ Base package: `com.bigbrightpaints.erp`
 - Flyway v2 is the only migration track valid for ERP-38.
 - `SystemRole` default-permission changes do not remove retired grants from existing database roles by themselves; `RoleService` synchronization is additive-only, so role-ownership moves need explicit cleanup/backfill proof for upgraded tenants.
 
+## ERP-21 Portal Split Notes
+
+- The portal split is a host-ownership packet, not a compatibility packet.
+- Dealer-facing finance must live only on `/api/v1/dealer-portal/**`.
+- Internal/admin finance must live only on `/api/v1/portal/finance/**`.
+- Admin/ops support must live only on `/api/v1/portal/support/tickets/**`.
+- Dealer support must live only on `/api/v1/dealer-portal/support/tickets/**`.
+- Shared `/api/v1/support/**` must be removed, not merely forbidden.
+- Retired dealer-finance routes must be probed with actors that used to be authorized on them; a dealer-only `403` is not enough proof of retirement.
+- The packet must update `openapi.json`, endpoint inventories, accounting/portal handoff docs, and touched workflow docs together so the host split is published consistently.
+
 ## ERP-38 Canonical Factory Flow Notes
 
 - Setup truth remains outside factory execution:
@@ -49,6 +60,19 @@ Base package: `com.bigbrightpaints.erp`
 - ERP-38 may touch sales/inventory/orchestrator code only where needed to preserve the single canonical dispatch-confirm owner. It must not redesign unrelated sales-order lifecycle behavior.
 
 ## Public Contract Surfaces That Must Stay In Sync
+
+### ERP-21 portal split
+
+- `openapi.json`
+- `docs/endpoint-inventory.md`
+- `erp-domain/docs/endpoint_inventory.tsv`
+- `docs/accounting-portal-endpoint-map.md`
+- `docs/accounting-portal-frontend-engineer-handoff.md`
+- touched workflow/code-review docs for portal, support, finance, and tenant governance
+- `.factory/library/frontend-handoff.md`
+- `.factory/library/frontend-v2.md`
+
+### ERP-38 canonical factory flow
 
 - `openapi.json`
 - `docs/endpoint-inventory.md`

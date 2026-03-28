@@ -1,0 +1,21 @@
+{
+  "featureId": "portal-split-final-release-gates",
+  "reviewedAt": "2026-03-27T15:28:33+05:30",
+  "commitId": "192216ccb3d0ab311b5a21dc8324f998a4241789",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Pass. Commit `192216cc` stayed within the requested narrow release-gates cleanup scope: the diff only changes `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/portal/PortalFinanceControllerIT.java`, replacing the secret-looking password literal with the repo-standard placeholder `changeme`. Test semantics are preserved because the same `PASSWORD` constant is still used both when seeding users in `setup()` and when authenticating in `authHeaders(...)`, and the handoff recorded a green targeted `PortalFinanceControllerIT` run plus scoped Spotless check. Proof artifacts were left intact because the reviewed commit touched no files under `artifacts/gate-release/` or `artifacts/gate-reconciliation/`.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The `portal-hardcut-worker` skill is too broad for narrow ERP-21 follow-up fixes like this secret-scanner cleanup. The worker had to deviate from the skill's standard host-hard-cut procedure even though the deviation was justified by the feature scope.",
+      "evidence": "`.factory/skills/portal-hardcut-worker/SKILL.md` Work Procedure Steps 1-5 require controller/service/doc enumeration and the usual compile/gate-fast/final-gate flow, while `/home/realnigga/.factory/missions/943eb925-e1d4-47fc-b154-6a8c40d6fb3d/handoffs/2026-03-27T09-52-36-682Z__portal-split-final-release-gates__aea655d4-4327-42e6-8e1f-622323b42d1f.json` records `skillFeedback.followedProcedure=false` because this feature only needed a single test-file literal swap plus targeted validation."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Reviewed feature `portal-split-final-release-gates` and found it acceptable. The commit stayed narrowly scoped to the one portal-finance integration test, preserved behavior, and left previously captured release-gate proof artifacts untouched; no blocking or non-blocking code issues were found."
+}

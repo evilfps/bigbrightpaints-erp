@@ -20,6 +20,8 @@ public interface SupportTicketRepository extends JpaRepository<SupportTicket, Lo
 
   List<SupportTicket> findByCompanyAndUserIdOrderByCreatedAtDesc(Company company, Long userId);
 
+  Optional<SupportTicket> findByCompanyAndUserIdAndId(Company company, Long userId, Long id);
+
   Optional<SupportTicket> findByCompanyAndId(Company company, Long id);
 
   List<SupportTicket> findTop200ByGithubIssueNumberIsNotNullAndStatusInOrderByCreatedAtAsc(

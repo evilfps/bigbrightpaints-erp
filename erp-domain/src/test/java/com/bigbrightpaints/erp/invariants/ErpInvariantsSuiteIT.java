@@ -1917,8 +1917,9 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
     } finally {
       CompanyContextHolder.clear();
     }
-    return packagingSlipRepository.findByCompanyAndSalesOrderId(company, orderId).orElseThrow(
-        () -> new AssertionError("Packaging slip missing for order " + orderId));
+    return packagingSlipRepository
+        .findByCompanyAndSalesOrderId(company, orderId)
+        .orElseThrow(() -> new AssertionError("Packaging slip missing for order " + orderId));
   }
 
   private Map<?, ?> requireData(ResponseEntity<Map> response, String action) {

@@ -45,7 +45,8 @@ class BenchmarkDataInitializerTest {
   void seedRolesAndUsers_createsScopedBenchmarkAdminWhenMissing() {
     Company company = company("BBP");
     when(passwordEncoder.encode("Temp123!")).thenReturn("encoded-password");
-    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("benchmark@example.com", "BBP"))
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "benchmark@example.com", "BBP"))
         .thenReturn(Optional.empty());
 
     ReflectionTestUtils.invokeMethod(
@@ -66,15 +67,18 @@ class BenchmarkDataInitializerTest {
     assertThat(saved.getAuthScopeCode()).isEqualTo("BBP");
     assertThat(saved.getCompany()).isEqualTo(company);
     assertThat(saved.isMustChangePassword()).isTrue();
-    assertThat(saved.getRoles()).extracting(Role::getName)
+    assertThat(saved.getRoles())
+        .extracting(Role::getName)
         .containsExactlyInAnyOrder("ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_SALES", "ROLE_FACTORY");
   }
 
   @Test
   void seedRolesAndUsers_updatesExistingScopedBenchmarkAdminWhenPresent() {
     Company company = company("BBP");
-    UserAccount existingAdmin = new UserAccount("legacy@example.com", "OLD", "hash", "Legacy Admin");
-    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("legacy@example.com", "BBP"))
+    UserAccount existingAdmin =
+        new UserAccount("legacy@example.com", "OLD", "hash", "Legacy Admin");
+    when(userRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "legacy@example.com", "BBP"))
         .thenReturn(Optional.of(existingAdmin));
 
     ReflectionTestUtils.invokeMethod(
@@ -90,7 +94,8 @@ class BenchmarkDataInitializerTest {
     verify(userRepository).save(existingAdmin);
     assertThat(existingAdmin.getAuthScopeCode()).isEqualTo("BBP");
     assertThat(existingAdmin.getCompany()).isEqualTo(company);
-    assertThat(existingAdmin.getRoles()).extracting(Role::getName)
+    assertThat(existingAdmin.getRoles())
+        .extracting(Role::getName)
         .containsExactlyInAnyOrder("ROLE_ADMIN", "ROLE_ACCOUNTING", "ROLE_SALES", "ROLE_FACTORY");
   }
 

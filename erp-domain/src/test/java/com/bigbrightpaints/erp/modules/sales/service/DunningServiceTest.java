@@ -65,7 +65,6 @@ class DunningServiceTest {
     dealer.setCode("DLR-01");
     dealer.setName("Dealer One");
     dealer.setEmail("dealer@example.com");
-
   }
 
   @Test

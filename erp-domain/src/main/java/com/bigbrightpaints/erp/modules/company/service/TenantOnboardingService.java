@@ -296,7 +296,8 @@ public class TenantOnboardingService {
     blueprints.add(new AccountBlueprint("EXP", "Expenses", AccountType.EXPENSE, null));
     blueprints.add(new AccountBlueprint("INV", "Inventory", AccountType.ASSET, "AST"));
     blueprints.add(new AccountBlueprint("CASH", "Cash", AccountType.ASSET, "AST"));
-    blueprints.add(new AccountBlueprint("BANK-CURRENT", "Bank Current Account", AccountType.ASSET, "AST"));
+    blueprints.add(
+        new AccountBlueprint("BANK-CURRENT", "Bank Current Account", AccountType.ASSET, "AST"));
     blueprints.add(new AccountBlueprint("AR", "Accounts Receivable", AccountType.ASSET, "AST"));
     blueprints.add(new AccountBlueprint("AP", "Accounts Payable", AccountType.LIABILITY, "LIAB"));
     blueprints.add(new AccountBlueprint("GST-OUT", "GST Output", AccountType.LIABILITY, "LIAB"));
@@ -305,23 +306,38 @@ public class TenantOnboardingService {
     blueprints.add(new AccountBlueprint("OPEN-BAL", "Opening Balance", AccountType.EQUITY, "EQ"));
     blueprints.add(new AccountBlueprint("DISC", "Sales Discount", AccountType.EXPENSE, "EXP"));
     blueprints.add(new AccountBlueprint("COGS", "Cost of Goods Sold", AccountType.COGS, "EXP"));
-    blueprints.add(new AccountBlueprint("SALARY-EXPENSE", "Salary Expense", AccountType.EXPENSE, "EXP"));
-    blueprints.add(new AccountBlueprint("OFFICE-EXPENSE", "Office Expense", AccountType.EXPENSE, "EXP"));
-    blueprints.add(new AccountBlueprint("SERVICE-REVENUE", "Service Revenue", AccountType.REVENUE, "REV"));
-    blueprints.add(new AccountBlueprint("TAX-PAYABLE", "Tax Payable", AccountType.LIABILITY, "LIAB"));
-    blueprints.add(new AccountBlueprint("TDS-RECEIVABLE", "TDS Receivable", AccountType.ASSET, "AST"));
-    blueprints.add(new AccountBlueprint("TDS-PAYABLE", "TDS Payable", AccountType.LIABILITY, "LIAB"));
-    blueprints.add(new AccountBlueprint("RAW-MATERIAL-INVENTORY", "Raw Material Inventory", AccountType.ASSET, "AST"));
-    blueprints.add(new AccountBlueprint("FINISHED-GOODS-INVENTORY", "Finished Goods Inventory", AccountType.ASSET, "AST"));
+    blueprints.add(
+        new AccountBlueprint("SALARY-EXPENSE", "Salary Expense", AccountType.EXPENSE, "EXP"));
+    blueprints.add(
+        new AccountBlueprint("OFFICE-EXPENSE", "Office Expense", AccountType.EXPENSE, "EXP"));
+    blueprints.add(
+        new AccountBlueprint("SERVICE-REVENUE", "Service Revenue", AccountType.REVENUE, "REV"));
+    blueprints.add(
+        new AccountBlueprint("TAX-PAYABLE", "Tax Payable", AccountType.LIABILITY, "LIAB"));
+    blueprints.add(
+        new AccountBlueprint("TDS-RECEIVABLE", "TDS Receivable", AccountType.ASSET, "AST"));
+    blueprints.add(
+        new AccountBlueprint("TDS-PAYABLE", "TDS Payable", AccountType.LIABILITY, "LIAB"));
+    blueprints.add(
+        new AccountBlueprint(
+            "RAW-MATERIAL-INVENTORY", "Raw Material Inventory", AccountType.ASSET, "AST"));
+    blueprints.add(
+        new AccountBlueprint(
+            "FINISHED-GOODS-INVENTORY", "Finished Goods Inventory", AccountType.ASSET, "AST"));
     blueprints.add(new AccountBlueprint("FG-COGS", "Finished Goods COGS", AccountType.COGS, "EXP"));
-    blueprints.add(new AccountBlueprint("RM-CONSUMPTION", "Raw Material Consumption", AccountType.COGS, "EXP"));
-    blueprints.add(new AccountBlueprint("DIRECT-MATERIAL-CONSUMPTION", "Direct Material Consumption", AccountType.COGS, "EXP"));
+    blueprints.add(
+        new AccountBlueprint(
+            "RM-CONSUMPTION", "Raw Material Consumption", AccountType.COGS, "EXP"));
+    blueprints.add(
+        new AccountBlueprint(
+            "DIRECT-MATERIAL-CONSUMPTION", "Direct Material Consumption", AccountType.COGS, "EXP"));
     for (int index = 1; index <= 24; index++) {
-      blueprints.add(new AccountBlueprint(
-          "GEN-" + index,
-          "Generic Account " + index,
-          index % 2 == 0 ? AccountType.EXPENSE : AccountType.ASSET,
-          index % 2 == 0 ? "EXP" : "AST"));
+      blueprints.add(
+          new AccountBlueprint(
+              "GEN-" + index,
+              "Generic Account " + index,
+              index % 2 == 0 ? AccountType.EXPENSE : AccountType.ASSET,
+              index % 2 == 0 ? "EXP" : "AST"));
     }
     return blueprints;
   }
@@ -329,11 +345,12 @@ public class TenantOnboardingService {
   private List<AccountBlueprint> indianTemplateExtensions() {
     List<AccountBlueprint> blueprints = new ArrayList<>();
     for (int index = 1; index <= 12; index++) {
-      blueprints.add(new AccountBlueprint(
-          "IND-" + index,
-          "Indian Standard Account " + index,
-          index % 2 == 0 ? AccountType.LIABILITY : AccountType.EXPENSE,
-          index % 2 == 0 ? "LIAB" : "EXP"));
+      blueprints.add(
+          new AccountBlueprint(
+              "IND-" + index,
+              "Indian Standard Account " + index,
+              index % 2 == 0 ? AccountType.LIABILITY : AccountType.EXPENSE,
+              index % 2 == 0 ? "LIAB" : "EXP"));
     }
     return blueprints;
   }
@@ -341,16 +358,15 @@ public class TenantOnboardingService {
   private List<AccountBlueprint> manufacturingTemplateExtensions() {
     List<AccountBlueprint> blueprints = new ArrayList<>();
     for (int index = 1; index <= 16; index++) {
-      blueprints.add(new AccountBlueprint(
-          "MFG-" + index,
-          "Manufacturing Account " + index,
-          index % 2 == 0 ? AccountType.ASSET : AccountType.EXPENSE,
-          index % 2 == 0 ? "AST" : "EXP"));
+      blueprints.add(
+          new AccountBlueprint(
+              "MFG-" + index,
+              "Manufacturing Account " + index,
+              index % 2 == 0 ? AccountType.ASSET : AccountType.EXPENSE,
+              index % 2 == 0 ? "AST" : "EXP"));
     }
     return blueprints;
   }
 
-  private record AccountBlueprint(
-      String code, String name, AccountType type, String parentCode) {
-  }
+  private record AccountBlueprint(String code, String name, AccountType type, String parentCode) {}
 }

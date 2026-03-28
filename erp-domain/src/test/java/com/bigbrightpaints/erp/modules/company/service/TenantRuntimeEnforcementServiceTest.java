@@ -673,11 +673,7 @@ class TenantRuntimeEnforcementServiceTest {
             "ACME", "/api/v1/superadmin/tenants/1/limits///", "PUT", "ops@bbp.com", true);
     TenantRuntimeEnforcementService.TenantRequestAdmission retiredCompanyPolicyControl =
         service.beginRequest(
-            "ACME",
-            "/api/v1/companies/1/tenant-runtime/policy///",
-            "PUT",
-            "ops@bbp.com",
-            true);
+            "ACME", "/api/v1/companies/1/tenant-runtime/policy///", "PUT", "ops@bbp.com", true);
     TenantRuntimeEnforcementService.TenantRequestAdmission missingPathRejected =
         service.beginRequest("ACME", null, "PUT", "ops@bbp.com", true);
 

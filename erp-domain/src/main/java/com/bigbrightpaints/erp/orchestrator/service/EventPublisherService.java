@@ -233,7 +233,8 @@ public class EventPublisherService {
       return;
     }
     try {
-      rabbitTemplate.convertAndSend("bbp.orchestrator.events", claimed.eventType(), claimed.payload());
+      rabbitTemplate.convertAndSend(
+          "bbp.orchestrator.events", claimed.eventType(), claimed.payload());
     } catch (RuntimeException ex) {
       if (isDeterministicRetryableFailure(ex)) {
         log.warn(
@@ -272,7 +273,8 @@ public class EventPublisherService {
                 .filter(this::isPublishable)
                 .map(
                     event -> {
-                      event.markPublishingUntil(CompanyTime.now().plusSeconds(publishingLeaseSeconds));
+                      event.markPublishingUntil(
+                          CompanyTime.now().plusSeconds(publishingLeaseSeconds));
                       OutboxEvent claimedEvent = outboxEventRepository.saveAndFlush(event);
                       return new ClaimedOutboxEvent(
                           claimedEvent.getId(),
@@ -323,7 +325,8 @@ public class EventPublisherService {
                 .findByIdForUpdate(eventId)
                 .ifPresent(
                     event -> {
-                      if (event.getStatus() != OutboxEvent.Status.PUBLISHING || event.isDeadLetter()) {
+                      if (event.getStatus() != OutboxEvent.Status.PUBLISHING
+                          || event.isDeadLetter()) {
                         return;
                       }
                       if (!isLeaseDue(event, now)) {

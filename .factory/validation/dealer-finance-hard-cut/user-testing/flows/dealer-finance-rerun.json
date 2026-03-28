@@ -1,0 +1,117 @@
+{
+  "groupId": "dealer-finance-rerun",
+  "testedAt": "2026-03-27T02:41:04.514749+00:00",
+  "credentials": {
+    "account": "validation.dealer@example.com (+ validation.rival.dealer@example.com, validation.admin@example.com, validation.accounting@example.com, validation.sales@example.com probes)",
+    "namespace": "dealer_finance_hard_cut_rerun"
+  },
+  "toolsUsed": [
+    "python3",
+    "maven"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-DEALER-001",
+      "title": "Dealer finance host ownership",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect openapi.json for surviving dealer finance host ownership",
+          "expected": "Only canonical /api/v1/dealer-portal/** finance routes remain and retired duplicate finance routes are absent",
+          "observed": "openapi.json published exactly seven dealer finance paths: GET /api/v1/dealer-portal/{aging,dashboard,invoices,invoices/{invoiceId}/pdf,ledger,orders} and POST /api/v1/dealer-portal/credit-limit-requests; all 12 retired duplicate finance paths were absent."
+        },
+        {
+          "action": "Cross-check docs/endpoint-inventory.md and erp-domain/docs/endpoint_inventory.tsv",
+          "expected": "Both inventories match the canonical dealer-portal surface and omit retired duplicates",
+          "observed": "Both docs inventories listed the same seven canonical dealer-portal finance routes, including POST /api/v1/dealer-portal/credit-limit-requests, and neither inventory contained any retired duplicate finance path."
+        },
+        {
+          "action": "Probe retired duplicate finance routes with formerly authorized actors",
+          "expected": "Former finance aliases fail as unmapped/not-found paths",
+          "observed": "Admin/sales/accounting probes against /api/v1/dealers/2/{ledger,invoices,aging,credit-utilization}, /api/v1/invoices/dealers/2, /api/v1/accounting/{aging,statements}/dealers/2{,/pdf}, and /api/v1/reports/{aging/dealer/2,aging/dealer/2/detailed,dso/dealer/2} all returned 404 application/problem+json with No static resource details."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "n/a (API flow)",
+        "network": "openapi/docs parity confirmed locally; 12 retired route probes returned 404 with admin/sales/accounting tokens."
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-DEALER-003",
+      "title": "Dealer finance data is self-scoped",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Fetch dealer and rival dealer finance reads from /api/v1/dealer-portal/{dashboard,ledger,invoices,aging,orders}",
+          "expected": "Each dealer sees only its own dealer-scoped records and identifiers",
+          "observed": "Dealer responses carried dealerId=2 / Validation Dealer and rival responses carried dealerId=3 / Rival Validation Dealer across dashboard, ledger, invoices, aging, and orders; no response exposed the peer dealer name or ID."
+        },
+        {
+          "action": "Identify real invoice fixtures from each dealer invoice list",
+          "expected": "Each dealer can discover only its own seeded invoice IDs",
+          "observed": "validation.dealer@example.com received invoiceCount=1 with invoice id=1 number=VAL-MOCK-INV-001 totalOutstanding=1180.0; validation.rival.dealer@example.com received invoiceCount=1 with invoice id=2 number=VAL-RIVAL-INV-001 totalOutstanding=1180.0."
+        },
+        {
+          "action": "Fetch own invoice PDFs and probe cross-dealer invoice PDF access",
+          "expected": "Own invoice PDF succeeds; cross-dealer PDF lookup fails with not-found",
+          "observed": "Dealer GET /api/v1/dealer-portal/invoices/1/pdf returned 200 application/pdf (2076 bytes) while GET /api/v1/dealer-portal/invoices/2/pdf returned 404 Invoice not found; rival dealer GET /api/v1/dealer-portal/invoices/2/pdf returned 200 application/pdf (2071 bytes) while GET /api/v1/dealer-portal/invoices/1/pdf returned 404 Invoice not found."
+        },
+        {
+          "action": "Corroborate canonical portal finance visibility for the seeded dealer fixture",
+          "expected": "Backoffice view agrees the seeded dealer invoice exists without implying cross-dealer leakage to dealer callers",
+          "observed": "Admin GET /api/v1/portal/finance/invoices?dealerId=2 returned dealerId=2, invoiceCount=1, invoice id=1 / VAL-MOCK-INV-001, aligning with the dealer-owned invoice while dealer-side rival lookups still failed 404."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "n/a (API flow)",
+        "network": "Dealer and rival dealer finance reads -> 200 with self IDs only; own invoice PDFs -> 200 application/pdf; cross-dealer invoice PDFs -> 404 application/problem+json Invoice not found."
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-DEALER-004",
+      "title": "Dealer finance remains read-models plus one explicit light action",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect dealer-portal verbs in openapi.json and endpoint inventories",
+          "expected": "Dealer finance exposes GET-only reads plus POST /api/v1/dealer-portal/credit-limit-requests",
+          "observed": "openapi.json, docs/endpoint-inventory.md, and erp-domain/docs/endpoint_inventory.tsv all published GET on /api/v1/dealer-portal/{aging,dashboard,invoices,invoices/{invoiceId}/pdf,ledger,orders} and only POST on /api/v1/dealer-portal/credit-limit-requests."
+        },
+        {
+          "action": "Submit the canonical dealer credit-limit request",
+          "expected": "Approved light action succeeds for the dealer actor",
+          "observed": "POST /api/v1/dealer-portal/credit-limit-requests with amountRequested=25000.00 and reason=\"Dealer finance rerun validation request\" returned 200 with message=Credit limit request submitted, status=PENDING, dealerName=Validation Dealer."
+        },
+        {
+          "action": "Probe unapproved dealer-finance writes",
+          "expected": "Other write attempts are absent or method-blocked",
+          "observed": "POST /api/v1/dealer-portal/{dashboard,ledger,invoices,aging,orders} each returned 405 Method Not Allowed."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "n/a (API flow)",
+        "network": "Canonical credit-limit POST -> 200; unapproved POST writes on dealer finance read endpoints -> 405; docs/openapi verb surfaces matched."
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "Actuator reported DOWN (503) during the rerun even though authenticated finance endpoints on :8081 remained healthy.",
+      "resolved": true,
+      "resolution": "Per ERP-21 guidance, continued with direct API probes because /api/v1/auth/login and all targeted dealer-finance endpoints still returned expected responses.",
+      "affectedAssertions": [
+        "VAL-DEALER-001",
+        "VAL-DEALER-003",
+        "VAL-DEALER-004"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Retested 3 assertions and all 3 passed. Canonical dealer finance remained only under /api/v1/dealer-portal/**, dealer/rival invoice fixtures were self-scoped with own-PDF 200 and cross-dealer PDF 404, and the only surviving dealer-finance write remained POST /api/v1/dealer-portal/credit-limit-requests."
+}

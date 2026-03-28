@@ -186,6 +186,7 @@ class TenantRuntimePolicyServiceTest {
     result.setCode(code);
     return result;
   }
+
   private TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot(
       TenantRuntimeEnforcementService.TenantRuntimeState state,
       String reasonCode,

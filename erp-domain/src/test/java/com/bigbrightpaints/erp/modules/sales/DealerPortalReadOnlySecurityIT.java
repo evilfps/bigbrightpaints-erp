@@ -103,6 +103,28 @@ class DealerPortalReadOnlySecurityIT extends AbstractIntegrationTest {
   }
 
   @Test
+  void dealerPortalFinanceMutationAliases_areAbsentOutsideCreditLimitRequests() {
+    HttpHeaders headers = authHeaders();
+    headers.setContentType(MediaType.APPLICATION_JSON);
+
+    List<String> retiredMutationPaths =
+        List.of(
+            "/api/v1/dealer-portal/dashboard",
+            "/api/v1/dealer-portal/ledger",
+            "/api/v1/dealer-portal/invoices",
+            "/api/v1/dealer-portal/aging",
+            "/api/v1/dealer-portal/orders");
+
+    for (String path : retiredMutationPaths) {
+      ResponseEntity<Map> response =
+          rest.exchange(path, HttpMethod.POST, new HttpEntity<>(Map.of(), headers), Map.class);
+      assertThat(response.getStatusCode())
+          .as(path)
+          .isIn(HttpStatus.NOT_FOUND, HttpStatus.METHOD_NOT_ALLOWED);
+    }
+  }
+
+  @Test
   void dealerRole_cannotReadTenantSalesPromotions() {
     ResponseEntity<Map> response =
         rest.exchange(

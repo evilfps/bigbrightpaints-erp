@@ -242,8 +242,7 @@ public class MfaService {
 
   private String buildOtpAuthUri(UserAccount user, String secret) {
     String label =
-        UriUtils.encodePathSegment(
-            issuer + ":" + scopedAccountLabel(user), StandardCharsets.UTF_8);
+        UriUtils.encodePathSegment(issuer + ":" + scopedAccountLabel(user), StandardCharsets.UTF_8);
     String encodedIssuer = UriUtils.encode(issuer, StandardCharsets.UTF_8);
     return "otpauth://totp/" + label + "?secret=" + secret + "&issuer=" + encodedIssuer;
   }

@@ -240,14 +240,21 @@ Primary files:
 
 ```mermaid
 sequenceDiagram
-    participant STC as SupportTicketController
-    participant STS as SupportTicketService
+    participant PSTC as PortalSupportTicketController
+    participant DSTC as DealerPortalSupportTicketController
+    participant PTS as PortalSupportTicketService
+    participant DTS as DealerPortalSupportTicketService
     participant GHS as SupportTicketGitHubSyncService
     participant GHC as GitHubIssueClient
     participant Mail as EmailService
 
-    STC->>STS: create ticket
-    STS->>GHS: submitGitHubIssueAsync(afterCommit)
+    alt internal support host
+      PSTC->>PTS: create/list/get ticket
+      PTS->>GHS: submitGitHubIssueAsync(afterCommit)
+    else dealer support host
+      DSTC->>DTS: create/list/get ticket
+      DTS->>GHS: submitGitHubIssueAsync(afterCommit)
+    end
     GHS->>GHC: createIssue(title, body, labels)
     loop every 5 minutes
       GHS->>GHC: fetchIssueState()
@@ -257,15 +264,19 @@ sequenceDiagram
 
 Evidence and invariants:
 
-- Ticket create/list/get are authenticated and role-scoped by super-admin/admin/accounting/requester (`SupportTicketController`, `SupportTicketService.list`, `getById`).
-- GitHub issue submission executes asynchronously after transaction commit and degrades gracefully when integration is disabled (`SupportTicketService.create`, `SupportTicketGitHubSyncService.submitGitHubIssueAsync`).
+- Internal support lives only on `/api/v1/portal/support/tickets/**` for `ROLE_ADMIN`/`ROLE_ACCOUNTING`, dealer support lives only on `/api/v1/dealer-portal/support/tickets/**` for `ROLE_DEALER`, and the shared `/api/v1/support/**` surface is retired.
+- Portal support reads are tenant-scoped while dealer support reads are self-scoped, so peer-dealer and cross-host lookups fail closed (`PortalSupportTicketService`, `DealerPortalSupportTicketService`).
+- GitHub issue submission executes asynchronously after transaction commit and degrades gracefully when integration is disabled (`SupportTicketAccessSupport.createTicket`, `SupportTicketGitHubSyncService.submitGitHubIssueAsync`).
 - Category-to-label mapping is explicit (BUG/FEATURE_REQUEST/SUPPORT -> bug/enhancement/support) and passed in payload (`SupportTicketGitHubSyncService.labelsForCategory`, `GitHubIssueClient.createIssue`).
 - Scheduled status sync transitions local status and dispatches resolved email notification (`SupportTicketGitHubSyncService.syncGitHubIssueStatuses`, `notifyResolved`).
 
 Primary files:
 
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/controller/SupportTicketController.java`
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/SupportTicketService.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/controller/PortalSupportTicketController.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/controller/DealerPortalSupportTicketController.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/PortalSupportTicketService.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/DealerPortalSupportTicketService.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/SupportTicketAccessSupport.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/SupportTicketGitHubSyncService.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/GitHubIssueClient.java`
 

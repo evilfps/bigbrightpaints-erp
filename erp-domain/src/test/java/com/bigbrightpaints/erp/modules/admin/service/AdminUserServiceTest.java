@@ -110,7 +110,9 @@ class AdminUserServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0, String.class).trim().toUpperCase());
     lenient().when(passwordEncoder.encode(any())).thenReturn("encoded");
     lenient()
-        .when(userRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(anyString(), anyString()))
+        .when(
+            userRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+                anyString(), anyString()))
         .thenReturn(false);
     lenient()
         .when(userRepository.save(any(UserAccount.class)))
@@ -160,8 +162,7 @@ class AdminUserServiceTest {
         .thenReturn(Optional.of(existingDealer));
 
     service.createUser(
-        new CreateUserRequest(
-            "dealer@example.com", "Dealer User", 1L, List.of("ROLE_DEALER")));
+        new CreateUserRequest("dealer@example.com", "Dealer User", 1L, List.of("ROLE_DEALER")));
 
     ArgumentCaptor<Dealer> dealerCaptor = ArgumentCaptor.forClass(Dealer.class);
     verify(dealerRepository).save(dealerCaptor.capture());
@@ -190,8 +191,7 @@ class AdminUserServiceTest {
 
     try {
       service.createUser(
-          new CreateUserRequest(
-              "ops-user@example.com", "Ops User", 2L, List.of("ROLE_SALES")));
+          new CreateUserRequest("ops-user@example.com", "Ops User", 2L, List.of("ROLE_SALES")));
     } finally {
       SecurityContextHolder.clearContext();
     }
@@ -208,7 +208,7 @@ class AdminUserServiceTest {
     assertThatThrownBy(
             () ->
                 service.createUser(
-                  new CreateUserRequest(
+                    new CreateUserRequest(
                         "scope-user@example.com", "Scope User", 2L, List.of("ROLE_SALES"))))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("User must be assigned to the active company");
@@ -269,10 +269,7 @@ class AdminUserServiceTest {
             () ->
                 service.createUser(
                     new CreateUserRequest(
-                        "tenant-user@example.com",
-                        "Tenant User",
-                        1L,
-                        List.of("ROLE_SUPER_ADMIN"))))
+                        "tenant-user@example.com", "Tenant User", 1L, List.of("ROLE_SUPER_ADMIN"))))
         .isInstanceOf(AccessDeniedException.class)
         .hasMessageContaining("SUPER_ADMIN authority required");
   }
@@ -285,10 +282,7 @@ class AdminUserServiceTest {
             () ->
                 service.createUser(
                     new CreateUserRequest(
-                        "tenant-admin@example.com",
-                        "Tenant Admin",
-                        1L,
-                        List.of("admin"))))
+                        "tenant-admin@example.com", "Tenant Admin", 1L, List.of("admin"))))
         .isInstanceOf(AccessDeniedException.class)
         .hasMessageContaining("SUPER_ADMIN authority required for role: ROLE_ADMIN");
 
@@ -317,10 +311,7 @@ class AdminUserServiceTest {
     try {
       service.createUser(
           new CreateUserRequest(
-              "platform-owner@example.com",
-              "Platform Owner",
-              1L,
-              List.of("ROLE_SUPER_ADMIN")));
+              "platform-owner@example.com", "Platform Owner", 1L, List.of("ROLE_SUPER_ADMIN")));
       verify(userRepository).save(any(UserAccount.class));
     } finally {
       SecurityContextHolder.clearContext();
@@ -344,10 +335,7 @@ class AdminUserServiceTest {
     var response =
         service.createUser(
             new CreateUserRequest(
-                "fallback-user@example.com",
-                "Fallback User",
-                1L,
-                List.of("ROLE_SALES")));
+                "fallback-user@example.com", "Fallback User", 1L, List.of("ROLE_SALES")));
 
     assertThat(response.roles()).containsExactly("ROLE_SALES");
     assertThat(response.companyCode()).isEqualTo("TEST");
@@ -389,10 +377,7 @@ class AdminUserServiceTest {
 
     service.createUser(
         new CreateUserRequest(
-            "dealer-active@example.com",
-            "Dealer Active",
-            1L,
-            List.of("ROLE_DEALER")));
+            "dealer-active@example.com", "Dealer Active", 1L, List.of("ROLE_DEALER")));
 
     verify(dealerRepository, times(1)).save(any(Dealer.class));
     verify(accountRepository, never()).save(any(Account.class));
@@ -414,7 +399,9 @@ class AdminUserServiceTest {
 
     when(userRepository.findByCompany_Id(company.getId())).thenReturn(List.of(user));
     when(auditLogRepository.findLatestTimestampByEventTypeAndCompanyIdAndUsernameIn(
-            AuditEvent.LOGIN_SUCCESS, company.getId(), java.util.Set.of("audited-user@example.com")))
+            AuditEvent.LOGIN_SUCCESS,
+            company.getId(),
+            java.util.Set.of("audited-user@example.com")))
         .thenReturn(
             List.of(
                 new AuditLogRepository.UsernameLastLoginProjection() {
@@ -436,7 +423,9 @@ class AdminUserServiceTest {
         .isEqualTo(LocalDateTime.of(2026, 1, 5, 10, 15, 30).atZone(ZoneOffset.UTC).toInstant());
     verify(auditLogRepository)
         .findLatestTimestampByEventTypeAndCompanyIdAndUsernameIn(
-            AuditEvent.LOGIN_SUCCESS, company.getId(), java.util.Set.of("audited-user@example.com"));
+            AuditEvent.LOGIN_SUCCESS,
+            company.getId(),
+            java.util.Set.of("audited-user@example.com"));
   }
 
   @Test
@@ -455,7 +444,9 @@ class AdminUserServiceTest {
 
     when(userRepository.findByCompany_Id(company.getId())).thenReturn(List.of(user));
     when(auditLogRepository.findLatestTimestampByEventTypeAndCompanyIdAndUsernameIn(
-            AuditEvent.LOGIN_SUCCESS, company.getId(), java.util.Set.of("filtered-user@example.com")))
+            AuditEvent.LOGIN_SUCCESS,
+            company.getId(),
+            java.util.Set.of("filtered-user@example.com")))
         .thenReturn(List.of());
 
     var results = service.listUsers();
@@ -477,8 +468,9 @@ class AdminUserServiceTest {
     when(userRepository.findById(302L)).thenReturn(Optional.of(user));
     when(userRepository.save(any(UserAccount.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
-    when(auditLogRepository.findFirstByEventTypeAndCompanyIdAndUsernameIgnoreCaseOrderByTimestampDesc(
-            AuditEvent.LOGIN_SUCCESS, company.getId(), "status-user@example.com"))
+    when(auditLogRepository
+            .findFirstByEventTypeAndCompanyIdAndUsernameIgnoreCaseOrderByTimestampDesc(
+                AuditEvent.LOGIN_SUCCESS, company.getId(), "status-user@example.com"))
         .thenReturn(Optional.empty());
 
     var response = service.updateUserStatus(302L, false);
@@ -505,8 +497,9 @@ class AdminUserServiceTest {
     when(userRepository.findById(303L)).thenReturn(Optional.of(user));
     when(userRepository.save(any(UserAccount.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
-    when(auditLogRepository.findFirstByEventTypeAndCompanyIdAndUsernameIgnoreCaseOrderByTimestampDesc(
-            AuditEvent.LOGIN_SUCCESS, company.getId(), "reenable-user@example.com"))
+    when(auditLogRepository
+            .findFirstByEventTypeAndCompanyIdAndUsernameIgnoreCaseOrderByTimestampDesc(
+                AuditEvent.LOGIN_SUCCESS, company.getId(), "reenable-user@example.com"))
         .thenReturn(Optional.empty());
 
     var response = service.updateUserStatus(303L, true);
@@ -615,8 +608,9 @@ class AdminUserServiceTest {
     when(userRepository.findById(305L)).thenReturn(Optional.of(foreignUser));
     when(userRepository.save(any(UserAccount.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
-    when(auditLogRepository.findFirstByEventTypeAndCompanyIdAndUsernameIgnoreCaseOrderByTimestampDesc(
-            AuditEvent.LOGIN_SUCCESS, foreignCompany.getId(), "foreign-user@example.com"))
+    when(auditLogRepository
+            .findFirstByEventTypeAndCompanyIdAndUsernameIgnoreCaseOrderByTimestampDesc(
+                AuditEvent.LOGIN_SUCCESS, foreignCompany.getId(), "foreign-user@example.com"))
         .thenReturn(Optional.empty());
 
     try {
@@ -642,8 +636,9 @@ class AdminUserServiceTest {
     user.addRole(role);
 
     when(userRepository.findById(401L)).thenReturn(Optional.of(user));
-    when(auditLogRepository.findFirstByEventTypeAndCompanyIdAndUsernameIgnoreCaseOrderByTimestampDesc(
-            AuditEvent.LOGIN_SUCCESS, company.getId(), "same-enabled@example.com"))
+    when(auditLogRepository
+            .findFirstByEventTypeAndCompanyIdAndUsernameIgnoreCaseOrderByTimestampDesc(
+                AuditEvent.LOGIN_SUCCESS, company.getId(), "same-enabled@example.com"))
         .thenReturn(Optional.empty());
 
     var response =
@@ -666,8 +661,9 @@ class AdminUserServiceTest {
     user.addRole(existingRole);
 
     when(userRepository.findById(402L)).thenReturn(Optional.of(user));
-    when(auditLogRepository.findFirstByEventTypeAndCompanyIdAndUsernameIgnoreCaseOrderByTimestampDesc(
-            AuditEvent.LOGIN_SUCCESS, company.getId(), "update-user@example.com"))
+    when(auditLogRepository
+            .findFirstByEventTypeAndCompanyIdAndUsernameIgnoreCaseOrderByTimestampDesc(
+                AuditEvent.LOGIN_SUCCESS, company.getId(), "update-user@example.com"))
         .thenReturn(Optional.empty());
 
     var response =
@@ -687,14 +683,16 @@ class AdminUserServiceTest {
     ReflectionTestUtils.setField(foreignCompany, "id", 21L);
     foreignCompany.setCode("FOREIGN");
 
-    UserAccount user = new UserAccount("transfer-user@example.com", "TEST", "hash", "Transfer User");
+    UserAccount user =
+        new UserAccount("transfer-user@example.com", "TEST", "hash", "Transfer User");
     ReflectionTestUtils.setField(user, "id", 403L);
     user.setCompany(company);
 
     when(userRepository.findById(403L)).thenReturn(Optional.of(user));
     when(companyRepository.findById(21L)).thenReturn(Optional.of(foreignCompany));
-    when(auditLogRepository.findFirstByEventTypeAndCompanyIdAndUsernameIgnoreCaseOrderByTimestampDesc(
-            AuditEvent.LOGIN_SUCCESS, foreignCompany.getId(), "transfer-user@example.com"))
+    when(auditLogRepository
+            .findFirstByEventTypeAndCompanyIdAndUsernameIgnoreCaseOrderByTimestampDesc(
+                AuditEvent.LOGIN_SUCCESS, foreignCompany.getId(), "transfer-user@example.com"))
         .thenReturn(Optional.empty());
 
     SecurityContextHolder.getContext()
@@ -747,7 +745,9 @@ class AdminUserServiceTest {
 
     try {
       assertThatThrownBy(
-              () -> service.updateUser(404L, new UpdateUserRequest("Transferred User", 21L, null, null)))
+              () ->
+                  service.updateUser(
+                      404L, new UpdateUserRequest("Transferred User", 21L, null, null)))
           .isInstanceOf(ApplicationException.class)
           .hasMessageContaining("Email already exists in target company scope");
     } finally {
@@ -789,7 +789,9 @@ class AdminUserServiceTest {
 
     try {
       assertThatThrownBy(
-              () -> service.updateUser(405L, new UpdateUserRequest("Quota Transfer", 21L, null, null)))
+              () ->
+                  service.updateUser(
+                      405L, new UpdateUserRequest("Quota Transfer", 21L, null, null)))
           .isInstanceOf(ApplicationException.class)
           .hasMessageContaining("Quota exceeded");
     } finally {
@@ -798,8 +800,8 @@ class AdminUserServiceTest {
 
     assertThat(user.getCompany()).isEqualTo(company);
     assertThat(user.getAuthScopeCode()).isEqualTo("TEST");
-    verify(userRepository, never()).existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCaseAndIdNot(
-        anyString(), anyString(), any());
+    verify(userRepository, never())
+        .existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCaseAndIdNot(anyString(), anyString(), any());
     verify(tokenBlacklistService, never()).revokeAllUserTokens(anyString());
     verify(refreshTokenService, never()).revokeAllForUser(any());
   }
@@ -1008,7 +1010,9 @@ class AdminUserServiceTest {
 
     UserAccount blankEmailUser = new UserAccount("user@example.com", "TEST", "hash", "User");
     blankEmailUser.setEmail(" ");
-    assertThat((Object) ReflectionTestUtils.invokeMethod(service, "resolveLastLoginAt", blankEmailUser))
+    assertThat(
+            (Object)
+                ReflectionTestUtils.invokeMethod(service, "resolveLastLoginAt", blankEmailUser))
         .isNull();
   }
 }

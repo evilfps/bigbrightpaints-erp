@@ -23,7 +23,8 @@ class TenantAdminEmailChangeRequestTest {
     assertThat(request.getRequestedEmail()).isEqualTo("new.admin@example.com");
     assertThat(request.getVerificationToken()).isEqualTo("token-123");
     assertThat(request.getVerificationSentAt()).isNotNull();
-    assertThat(request.getExpiresAt()).isEqualTo(request.getVerificationSentAt().plusSeconds(86_400));
+    assertThat(request.getExpiresAt())
+        .isEqualTo(request.getVerificationSentAt().plusSeconds(86_400));
   }
 
   @Test

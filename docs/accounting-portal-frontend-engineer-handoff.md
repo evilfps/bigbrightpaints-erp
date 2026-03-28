@@ -64,9 +64,9 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 ## Task 1: Endpoint Expectations
 
 - Full endpoint expectation map: `docs/accounting-portal-endpoint-map.md`
-- Scoped endpoint count: **143**
-- Accounting Core (GL, Periods, Journals, Controls): **58** endpoints
-- Invoice & Receivables: **5** endpoints
+- Scoped endpoint count: **138**
+- Accounting Core (GL, Periods, Journals, Controls): **54** endpoints
+- Invoice & Receivables: **4** endpoints
 - Purchasing & Payables: **14** endpoints
 - Inventory & Costing: **21** endpoints
 - HR & Payroll: **32** endpoints
@@ -75,11 +75,11 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 ### M18-S9A Parity Closure (Do Not Drift)
 
 - M17-S1 canonical API contract source-of-truth is `openapi.json`; parity checks are non-mutating and fail on drift instead of rewriting docs.
-- M17-S2 handoff parity expectation is the curated **143**-row baseline from `docs/accounting-portal-endpoint-map.md`, with only the documented `+8` dependency rows and `+4` code-verified period-close workflow supplement rows allowed beyond that set.
-- Endpoint-map parity lock in this handoff is the same curated **143** baseline (it does not claim full accounting-portal OpenAPI coverage).
-- Current handoff inventory total is **155** unique `METHOD /api/v1/...` rows = `143` portal-owned parity rows + `8` intentional dependencies + `4` code-verified period-close workflow supplement rows.
-- Intentional dependency-only rows (`+8` vs endpoint map):
-  - Shared foundation APIs (6): `GET /api/v1/auth/me`, `GET /api/v1/auth/profile`, `PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/auth/logout`
+- M17-S2 handoff parity expectation is the curated **138**-row baseline from `docs/accounting-portal-endpoint-map.md`, with only the documented `+9` dependency rows and `+4` code-verified period-close workflow supplement rows allowed beyond that set.
+- Endpoint-map parity lock in this handoff is the same curated **138** baseline (it does not claim full accounting-portal OpenAPI coverage).
+- Current handoff inventory total is **151** unique `METHOD /api/v1/...` rows = `138` portal-owned parity rows + `9` intentional dependencies + `4` code-verified period-close workflow supplement rows.
+- Intentional dependency-only rows (`+9` vs endpoint map):
+  - Shared foundation APIs (7): `GET /api/v1/auth/me`, `GET /api/v1/auth/profile`, `PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/multi-company/companies/switch`, `POST /api/v1/auth/logout`
   - Dealer support APIs (2): `GET /api/v1/sales/dealers`, `GET /api/v1/sales/dealers/search`
 - Code-verified period-close workflow supplement rows (`+4` vs endpoint map parity lock):
   - `GET /api/v1/admin/approvals`
@@ -112,8 +112,9 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 | `acctGetBalanceAsOf` | GET | `/api/v1/accounting/accounts/{accountId}/balance/as-of` | accountId (path), date (query) | - | Yes | No | Yes |
 | `acctCompareBalances` | GET | `/api/v1/accounting/accounts/{accountId}/balance/compare` | accountId (path), date1 (query), date2 (query) | - | Yes | No | Yes |
 | `acctPostAccrual` | POST | `/api/v1/accounting/accruals` | amount (body), creditAccountId (body), debitAccountId (body) | adminOverride (body), autoReverseDate (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
-| `acctDealerAging` | GET | `/api/v1/accounting/aging/dealers/{dealerId}` | dealerId (path) | asOf (query), buckets (query) | Yes | No | Yes |
-| `acctDealerAgingPdf` | GET | `/api/v1/accounting/aging/dealers/{dealerId}/pdf` | dealerId (path) | asOf (query), buckets (query) | Yes | No | Yes |
+| `portalFinanceLedger` | GET | `/api/v1/portal/finance/ledger` | dealerId (query) | - | Yes | No | Yes |
+| `portalFinanceInvoices` | GET | `/api/v1/portal/finance/invoices` | dealerId (query) | - | Yes | No | Yes |
+| `portalFinanceAging` | GET | `/api/v1/portal/finance/aging` | dealerId (query) | - | Yes | No | Yes |
 | `acctSupplierAging` | GET | `/api/v1/accounting/aging/suppliers/{supplierId}` | supplierId (path) | asOf (query), buckets (query) | Yes | No | Yes |
 | `acctSupplierAgingPdf` | GET | `/api/v1/accounting/aging/suppliers/{supplierId}/pdf` | supplierId (path) | asOf (query), buckets (query) | Yes | No | Yes |
 | `acctAuditDigest` | GET | `/api/v1/accounting/audit/digest` | - | from (query), to (query) | Yes | No | Yes |
@@ -140,18 +141,13 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/profile
 | `acctReopenPeriod` | POST | `/api/v1/accounting/periods/{periodId}/reopen` | periodId (path) | reason (body) | No | No | Conditional |
 | `acctRecordDealerReceipt` | POST | `/api/v1/accounting/receipts/dealer` | allocations (body), allocations[].appliedAmount (body), amount (body), cashAccountId (body), dealerId (body) | Idempotency-Key (header), allocations[].discountAmount (body), allocations[].fxAdjustment (body), allocations[].invoiceId (body), allocations[].memo (body), allocations[].purchaseId (body), allocations[].writeOffAmount (body), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
 | `acctRecordDealerHybridReceipt` | POST | `/api/v1/accounting/receipts/dealer/hybrid` | dealerId (body), incomingLines (body), incomingLines[].accountId (body), incomingLines[].amount (body) | Idempotency-Key (header), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
-| `acctGetDealerAging` | GET | `/api/v1/reports/aging/dealer/{dealerId}` | dealerId (path) | - | Yes | No | Yes |
-| `acctGetDealerAgingDetailed` | GET | `/api/v1/reports/aging/dealer/{dealerId}/detailed` | dealerId (path) | - | Yes | No | Yes |
 | `acctGetAgedReceivables` | GET | `/api/v1/reports/aging/receivables` | - | asOfDate (query) | Yes | No | Yes |
 | `acctGetBalanceSheetHierarchy` | GET | `/api/v1/reports/balance-sheet/hierarchy` | - | - | Yes | No | Yes |
-| `acctGetDealerDSO` | GET | `/api/v1/reports/dso/dealer/{dealerId}` | dealerId (path) | - | Yes | No | Yes |
 | `acctGetIncomeStatementHierarchy` | GET | `/api/v1/reports/income-statement/hierarchy` | - | - | Yes | No | Yes |
 | `acctListSalesReturns` | GET | `/api/v1/accounting/sales/returns` | - | - | Yes | No | Yes |
 | `acctRecordSalesReturn` | POST | `/api/v1/accounting/sales/returns` | invoiceId (body), lines (body), lines[].invoiceLineId (body), lines[].quantity (body), reason (body) | - | No | No | No |
 | `acctSettleDealer` | POST | `/api/v1/accounting/settlements/dealers` | allocations (body), allocations[].appliedAmount (body), dealerId (body), payments[].accountId (body), payments[].amount (body) | adminOverride (body), allocations[].discountAmount (body), allocations[].fxAdjustment (body), allocations[].invoiceId (body), allocations[].memo (body), allocations[].purchaseId (body), allocations[].writeOffAmount (body), cashAccountId (body), discountAccountId (body), fxGainAccountId (body), fxLossAccountId (body), idempotencyKey (body), memo (body), payments (body), payments[].method (body), referenceNumber (body), settlementDate (body), writeOffAccountId (body) | No | No | No |
 | `acctSettleSupplier` | POST | `/api/v1/accounting/settlements/suppliers` | allocations (body), allocations[].appliedAmount (body), cashAccountId (body), supplierId (body) | Idempotency-Key (header), adminOverride (body), allocations[].discountAmount (body), allocations[].fxAdjustment (body), allocations[].invoiceId (body), allocations[].memo (body), allocations[].purchaseId (body), allocations[].writeOffAmount (body), discountAccountId (body), fxGainAccountId (body), fxLossAccountId (body), idempotencyKey (body), memo (body), referenceNumber (body), settlementDate (body), writeOffAccountId (body) | No | No | No |
-| `acctDealerStatement` | GET | `/api/v1/accounting/statements/dealers/{dealerId}` | dealerId (path) | from (query), to (query) | Yes | No | Yes |
-| `acctDealerStatementPdf` | GET | `/api/v1/accounting/statements/dealers/{dealerId}/pdf` | dealerId (path) | from (query), to (query) | Yes | No | Yes |
 | `acctSupplierStatement` | GET | `/api/v1/accounting/statements/suppliers/{supplierId}` | supplierId (path) | from (query), to (query) | Yes | No | Yes |
 | `acctSupplierStatementPdf` | GET | `/api/v1/accounting/statements/suppliers/{supplierId}/pdf` | supplierId (path) | from (query), to (query) | Yes | No | Yes |
 | `acctRecordSupplierPayment` | POST | `/api/v1/accounting/suppliers/payments` | allocations (body), allocations[].appliedAmount (body), amount (body), cashAccountId (body), supplierId (body) | Idempotency-Key (header), allocations[].discountAmount (body), allocations[].fxAdjustment (body), allocations[].invoiceId (body), allocations[].memo (body), allocations[].purchaseId (body), allocations[].writeOffAmount (body), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
@@ -177,7 +173,6 @@ These rows are required for the period-close maker-checker UX, but they live out
 | `salesListDealersForAccounting` | GET | `/api/v1/sales/dealers` | - | - | Yes | No | Yes |
 | `salesSearchDealersForAccounting` | GET | `/api/v1/sales/dealers/search` | - | query (query) | Yes | Yes | Yes |
 | `invoiceListInvoices` | GET | `/api/v1/invoices` | - | page (query), size (query) | Yes | No | Yes |
-| `invoiceDealerInvoices` | GET | `/api/v1/invoices/dealers/{dealerId}` | dealerId (path) | page (query), size (query) | Yes | No | Yes |
 | `invoiceGetInvoice` | GET | `/api/v1/invoices/{id}` | id (path) | - | Yes | No | Yes |
 | `invoiceSendInvoiceEmail` | POST | `/api/v1/invoices/{id}/email` | id (path) | - | No | No | No |
 | `invoiceDownloadInvoicePdf` | GET | `/api/v1/invoices/{id}/pdf` | id (path) | - | Yes | No | Yes |
@@ -400,7 +395,7 @@ These rows are required for the period-close maker-checker UX, but they live out
 - `GET /api/v1/invoices` documents no explicit error responses (only: 200).
 - `GET /api/v1/invoices/{id}` documents no explicit error responses (only: 200).
 - `GET /api/v1/invoices/{id}/pdf` documents no explicit error responses (only: 200).
-- `GET /api/v1/invoices/dealers/{dealerId}` documents no explicit error responses (only: 200).
+- `GET /api/v1/portal/finance/invoices` documents no explicit error responses (only: 200).
 - `GET /api/v1/hr/attendance/today` documents no explicit error responses (only: 200).
 - `GET /api/v1/hr/attendance/summary` documents no explicit error responses (only: 200).
 - `GET /api/v1/hr/attendance/employee/{employeeId}` documents no explicit error responses (only: 200).
@@ -409,7 +404,7 @@ These rows are required for the period-close maker-checker UX, but they live out
 - `GET /api/v1/finished-goods/low-stock` documents no explicit error responses (only: 200).
 - `GET /api/v1/reports/aged-debtors` documents no explicit error responses (only: 200).
 - `GET /api/v1/accounting/configuration/health` documents no explicit error responses (only: 200).
-- `GET /api/v1/accounting/aging/dealers/{dealerId}` has generated operationId `dealerAging_1` (unstable client naming).
+- Dealer finance drill-ins are canonical under `/api/v1/portal/finance/*`; remove any client routing that still targets retired dealer/accounting/report aliases.
 - Reporting APIs are canonical under `/api/v1/reports/*`; remove any client routing that still targets `/api/v1/accounting/reports/*`.
 - HR payroll appears in both `/api/v1/hr/payroll-runs` and `/api/v1/payroll/runs`; treat `/api/v1/payroll/runs` as canonical run-processing surface unless backend clarifies otherwise.
 - `POST /api/v1/inventory/opening-stock` defines only `200`; import-row failures and idempotency conflicts are business/runtime errors not strongly typed in OpenAPI.
@@ -432,8 +427,8 @@ These rows are required for the period-close maker-checker UX, but they live out
 | `/accounting/gl/chart-of-accounts` | COA browsing, account creation, default account mapping. | `ROLE_ADMIN or ROLE_ACCOUNTING` |
 | `/accounting/gl/journals` | Journal listing, posting, reversing, cascade reversing. | `ROLE_ADMIN or ROLE_ACCOUNTING` |
 | `/accounting/period-close` | Period lifecycle controls (checklist, close, lock, reopen). | Mixed: checklist/request-close/queue read use `ROLE_ADMIN or ROLE_ACCOUNTING`; `approvePeriodClose`/`rejectPeriodClose` are `ROLE_ADMIN` only; `acctReopenPeriod` is `ROLE_SUPER_ADMIN` only |
-| `/accounting/ar/invoices` | Invoice tracking, invoice PDF/email delivery, dealer invoice views. | `ROLE_ADMIN or ROLE_ACCOUNTING or ROLE_SALES` |
-| `/accounting/ar/collections-settlements` | Receipts, settlements, sales returns, aging/statements for receivables. | `ROLE_ADMIN or ROLE_ACCOUNTING` (plus `GET /accounting/sales/returns` also allows `ROLE_SALES`) |
+| `/accounting/ar/invoices` | Invoice tracking, invoice PDF/email delivery, and dealer invoice drill-ins via portal finance. | `ROLE_ADMIN or ROLE_ACCOUNTING or ROLE_SALES` |
+| `/accounting/ar/collections-settlements` | Receipts, settlements, sales returns, and canonical dealer finance ledger/aging reads. | `ROLE_ADMIN or ROLE_ACCOUNTING` (plus `GET /accounting/sales/returns` also allows `ROLE_SALES`) |
 | `/accounting/ap/suppliers-purchases` | Supplier master, PO/GRN, raw-material purchase lifecycle, AP settlement/payment. | `ROLE_ADMIN or ROLE_ACCOUNTING` (supplier list/get additionally allow `ROLE_FACTORY`) |
 | `/accounting/inventory/sku-catalog` | SKU/product catalog management for accounting-grade product governance. | `ROLE_ADMIN or ROLE_ACCOUNTING` |
 | `/accounting/inventory/raw-materials` | Raw material masters, intake, batches, stock and low-stock monitoring. | Base `ROLE_ADMIN or ROLE_ACCOUNTING or ROLE_FACTORY`; intake action requires `ROLE_ADMIN or ROLE_ACCOUNTING` |
@@ -487,27 +482,29 @@ These rows are required for the period-close maker-checker UX, but they live out
 - Role/permission gate: Mixed by endpoint. `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, `acctLockPeriod`, and `requestPeriodClose` allow `ROLE_ADMIN or ROLE_ACCOUNTING`; `approvePeriodClose` and `rejectPeriodClose` are `ROLE_ADMIN` only; `approvals` visibility is `ROLE_ADMIN or ROLE_ACCOUNTING`; `acctReopenPeriod` is `ROLE_SUPER_ADMIN` only. Do not surface checker actions to accounting-only users, and do not surface reopen outside superadmin UX.
 
 ### `/accounting/ar/invoices`
-- Purpose: Invoice tracking, invoice PDF/email delivery, dealer invoice views.
-- Required API calls (shared accountant/sales/admin views): `salesListDealersForAccounting`, `salesSearchDealersForAccounting`, `invoiceListInvoices`, `invoiceGetInvoice`, `invoiceSendInvoiceEmail`, `invoiceDealerInvoices`
+- Purpose: Invoice tracking, invoice PDF/email delivery, and dealer invoice drill-ins via portal finance.
+- Required API calls (shared accountant/sales/admin views): `salesListDealersForAccounting`, `salesSearchDealersForAccounting`, `invoiceListInvoices`, `invoiceGetInvoice`, `invoiceSendInvoiceEmail`, `portalFinanceInvoices`
 - Admin-only APIs (do not expose to accounting/sales roles): `invoiceDownloadInvoicePdf`
 - Backend expectation: invoice creation/issuance is not exposed in this controller; accounting portal handles invoice visibility/distribution while issuance is upstream in sales/dispatch workflows.
+- Accounting portal dealer invoice drill-ins use `portalFinanceInvoices` on `/api/v1/portal/finance/invoices`; dealer self-service invoice reads remain on `/api/v1/dealer-portal/invoices`.
 - Loading state: list/detail loading; empty no-invoices state; PDF download progress; email send toast.
 - Empty state: no rows / no open items / no period data for selected filters.
 - Error state: inline widget errors + page-level retry + action-level toast; preserve user filters and unsaved inputs.
 - Suggested table columns: From `InvoiceDto`: invoiceNo, invoiceDate, dealerName, grossAmount, taxAmount, netAmount, status, dueDate.
 - Suggested form fields: Email invoice form (recipient, subject/body template controls).
-- Role/permission gate: Mixed by endpoint: list/detail/email/dealer views inherit `ROLE_ADMIN|ROLE_ACCOUNTING|ROLE_SALES`; `invoiceDownloadInvoicePdf` is `ROLE_ADMIN` only.
+- Role/permission gate: Mixed by endpoint: list/detail/email views inherit `ROLE_ADMIN|ROLE_ACCOUNTING|ROLE_SALES`; `portalFinanceInvoices` is `ROLE_ADMIN|ROLE_ACCOUNTING`, and `invoiceDownloadInvoicePdf` is `ROLE_ADMIN` only.
 
 ### `/accounting/ar/collections-settlements`
-- Purpose: Receipts, settlements, sales returns, aging/statements for receivables.
-- Required API calls (shared accountant-owned path): `acctRecordDealerReceipt`, `acctRecordDealerHybridReceipt`, `acctSettleDealer`, `acctGetDealerAging`, `acctGetDealerAgingDetailed`, `acctDealerStatement`, `acctListSalesReturns`, `acctRecordSalesReturn`, `acctPostCreditNote`, `acctWriteOffBadDebt`
-- Admin-only exports (keep off accounting/sales action menus): `acctDealerStatementPdf`
+- Purpose: Receipts, settlements, sales returns, and canonical dealer finance ledger/aging reads.
+- Required API calls (shared accountant-owned path): `acctRecordDealerReceipt`, `acctRecordDealerHybridReceipt`, `acctSettleDealer`, `portalFinanceLedger`, `portalFinanceAging`, `acctListSalesReturns`, `acctRecordSalesReturn`, `acctPostCreditNote`, `acctWriteOffBadDebt`
+- Canonical dealer finance reads: `portalFinanceLedger`, `portalFinanceInvoices`, and `portalFinanceAging` all route through `/api/v1/portal/finance/*`; do not wire retired dealer/accounting/report aliases back into the portal.
+- Internal dealer receivables drill-ins stay on `/api/v1/portal/finance/{ledger,invoices,aging}` while dealer self-service finance remains on `/api/v1/dealer-portal/{ledger,invoices,aging}`.
 - Loading state: aging panel loaders; no-open-items empty states; settlement action queues; document generation progress.
 - Empty state: no rows / no open items / no period data for selected filters.
 - Error state: inline widget errors + page-level retry + action-level toast; preserve user filters and unsaved inputs.
 - Suggested table columns: Aging columns: bucket(0-30/31-60/61-90/90+), outstanding, overdueDays, latestReceiptDate.
 - Suggested form fields: Receipt/settlement forms from `DealerReceiptRequest`/`DealerSettlementRequest` (amount, mode, allocation lines, reference).
-- Role/permission gate: Mixed by endpoint: receipts/settlements/aging/statement reads use `ROLE_ADMIN|ROLE_ACCOUNTING`; `GET /api/v1/accounting/sales/returns` also permits `ROLE_SALES`; `acctDealerStatementPdf` is `ROLE_ADMIN` only.
+- Role/permission gate: Mixed by endpoint: receipts/settlements/portal-finance reads use `ROLE_ADMIN|ROLE_ACCOUNTING`; `GET /api/v1/accounting/sales/returns` also permits `ROLE_SALES`.
 
 ### `/accounting/ap/suppliers-purchases`
 - Purpose: Supplier master, PO/GRN, raw-material purchase lifecycle, AP settlement/payment.

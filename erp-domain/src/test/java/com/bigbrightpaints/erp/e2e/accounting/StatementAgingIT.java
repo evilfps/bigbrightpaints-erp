@@ -28,7 +28,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 
-@DisplayName("E2E: Statements, Aging, Dealer Hold")
+@DisplayName("E2E: Portal finance aging, ledger, dealer hold")
 class StatementAgingIT extends AbstractIntegrationTest {
 
   private static final String COMPANY_CODE = "STMT";
@@ -77,7 +77,7 @@ class StatementAgingIT extends AbstractIntegrationTest {
   }
 
   @Test
-  @DisplayName("Statement shows opening/running, aging returns buckets, hold blocks orders")
+  @DisplayName("Portal finance ledger and aging stay tenant-bound while dealer hold still blocks")
   void statementAndHoldFlow() {
     LocalDate today = LocalDate.now();
     // Seed AR + revenue 100 on first day; receipt of 30 on next day
@@ -95,32 +95,23 @@ class StatementAgingIT extends AbstractIntegrationTest {
             line(cash.getId(), new BigDecimal("30.00"), BigDecimal.ZERO),
             line(ar.getId(), BigDecimal.ZERO, new BigDecimal("30.00"))));
 
-    ResponseEntity<Map> stmtResp =
+    ResponseEntity<Map> ledgerResp =
         rest.exchange(
-            "/api/v1/accounting/statements/dealers/"
-                + dealer.getId()
-                + "?from="
-                + today.withDayOfMonth(1)
-                + "&to="
-                + today.withDayOfMonth(today.lengthOfMonth()),
+            "/api/v1/portal/finance/ledger?dealerId=" + dealer.getId(),
             HttpMethod.GET,
             new HttpEntity<>(headers),
             Map.class);
-    assertThat(stmtResp.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Map<String, Object> stmt = (Map<String, Object>) stmtResp.getBody().get("data");
-    assertThat(new BigDecimal(stmt.get("openingBalance").toString())).isEqualByComparingTo("0.00");
-    // Note: Journal entries to AR account don't automatically create dealer ledger entries
-    // The statement endpoint returns dealer ledger balance which is 100 (only the sale, not
-    // receipt)
-    // For proper 70.00 balance, would need to use dealer settlement/receipt API
-    BigDecimal closingBalance = new BigDecimal(stmt.get("closingBalance").toString());
-    assertThat(closingBalance)
-        .as("Closing balance should reflect posted amounts")
+    assertThat(ledgerResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<String, Object> ledger = (Map<String, Object>) ledgerResp.getBody().get("data");
+    assertThat(((Number) ledger.get("dealerId")).longValue()).isEqualTo(dealer.getId());
+    BigDecimal currentBalance = new BigDecimal(ledger.get("currentBalance").toString());
+    assertThat(currentBalance)
+        .as("Portal finance ledger should reflect posted dealer ledger amounts")
         .isGreaterThanOrEqualTo(BigDecimal.ZERO);
 
     ResponseEntity<Map> agingResp =
         rest.exchange(
-            "/api/v1/accounting/aging/dealers/" + dealer.getId(),
+            "/api/v1/portal/finance/aging?dealerId=" + dealer.getId(),
             HttpMethod.GET,
             new HttpEntity<>(headers),
             Map.class);
@@ -166,6 +157,24 @@ class StatementAgingIT extends AbstractIntegrationTest {
             new HttpEntity<>(orderReq, headers),
             Map.class);
     assertThat(blocked.getStatusCode().is4xxClientError()).isTrue();
+  }
+
+  @Test
+  @DisplayName(
+      "Retired accounting dealer finance aliases are not found for admin-accounting probes")
+  void retiredAccountingDealerFinanceAliasesAreNotFound() {
+    List<String> retiredPaths =
+        List.of(
+            "/api/v1/accounting/aging/dealers/" + dealer.getId(),
+            "/api/v1/accounting/aging/dealers/" + dealer.getId() + "/pdf",
+            "/api/v1/accounting/statements/dealers/" + dealer.getId(),
+            "/api/v1/accounting/statements/dealers/" + dealer.getId() + "/pdf");
+
+    for (String path : retiredPaths) {
+      ResponseEntity<byte[]> response =
+          rest.exchange(path, HttpMethod.GET, new HttpEntity<>(headers), byte[].class);
+      assertThat(response.getStatusCode()).as(path).isEqualTo(HttpStatus.NOT_FOUND);
+    }
   }
 
   private void postJournal(LocalDate date, String reference, List<Map<String, Object>> lines) {

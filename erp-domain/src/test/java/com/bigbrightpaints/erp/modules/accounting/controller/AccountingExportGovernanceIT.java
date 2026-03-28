@@ -54,9 +54,7 @@ class AccountingExportGovernanceIT extends AbstractIntegrationTest {
 
   @Test
   void exportEndpoints_areFailClosedToAdminRoleOnly() throws Exception {
-    assertMethodIsAdminOnly("dealerStatementPdf", Long.class, String.class, String.class);
     assertMethodIsAdminOnly("supplierStatementPdf", Long.class, String.class, String.class);
-    assertMethodIsAdminOnly("dealerAgingPdf", Long.class, String.class, String.class);
     assertMethodIsAdminOnly("supplierAgingPdf", Long.class, String.class, String.class);
     assertMethodIsAdminOnly("auditDigestCsv", String.class, String.class);
   }

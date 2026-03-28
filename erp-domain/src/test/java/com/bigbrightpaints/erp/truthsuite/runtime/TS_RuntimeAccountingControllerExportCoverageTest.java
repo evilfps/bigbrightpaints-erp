@@ -46,20 +46,14 @@ class TS_RuntimeAccountingControllerExportCoverageTest {
     AccountingController controller =
         newController(accountingAuditService, statementService, auditService);
 
-    when(statementService.dealerStatementPdf(eq(10L), any(), any()))
-        .thenReturn("dealer".getBytes());
     when(statementService.supplierStatementPdf(eq(20L), any(), any()))
         .thenReturn("supplier".getBytes());
-    when(statementService.dealerAgingPdf(eq(30L), any(), any()))
-        .thenReturn("dealer-aging".getBytes());
     when(statementService.supplierAgingPdf(eq(40L), any(), any()))
         .thenReturn("supplier-aging".getBytes());
     when(accountingAuditService.auditDigestCsv(any(), any()))
         .thenReturn("date,entry\n2026-01-01,1\n");
 
-    controller.dealerStatementPdf(10L, null, null);
     controller.supplierStatementPdf(20L, null, null);
-    controller.dealerAgingPdf(30L, null, null);
     controller.supplierAgingPdf(40L, null, null);
     var csvResponse = controller.auditDigestCsv(null, null);
 
@@ -68,30 +62,14 @@ class TS_RuntimeAccountingControllerExportCoverageTest {
     assertThat(csvResponse.getHeaders().getFirst("Content-Type")).contains("text/csv");
 
     ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
-    verify(auditService, times(5)).logSuccess(eq(AuditEvent.DATA_EXPORT), metadataCaptor.capture());
+    verify(auditService, times(3)).logSuccess(eq(AuditEvent.DATA_EXPORT), metadataCaptor.capture());
     List<Map<String, String>> calls = metadataCaptor.getAllValues();
-    assertThat(calls)
-        .anySatisfy(
-            metadata ->
-                assertThat(metadata)
-                    .containsEntry("resourceType", "ACCOUNTING_DEALER_STATEMENT")
-                    .containsEntry("resourceId", "10")
-                    .containsEntry("operation", "EXPORT")
-                    .containsEntry("format", "pdf"));
     assertThat(calls)
         .anySatisfy(
             metadata ->
                 assertThat(metadata)
                     .containsEntry("resourceType", "ACCOUNTING_SUPPLIER_STATEMENT")
                     .containsEntry("resourceId", "20")
-                    .containsEntry("operation", "EXPORT")
-                    .containsEntry("format", "pdf"));
-    assertThat(calls)
-        .anySatisfy(
-            metadata ->
-                assertThat(metadata)
-                    .containsEntry("resourceType", "ACCOUNTING_DEALER_AGING")
-                    .containsEntry("resourceId", "30")
                     .containsEntry("operation", "EXPORT")
                     .containsEntry("format", "pdf"));
     assertThat(calls)

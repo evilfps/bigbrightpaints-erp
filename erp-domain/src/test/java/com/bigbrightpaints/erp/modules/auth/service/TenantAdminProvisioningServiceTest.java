@@ -47,11 +47,15 @@ class TenantAdminProvisioningServiceTest {
     UserAccount provisioned = new UserAccount("new-admin@ske.com", "SKE", "hash", "New Admin");
     ReflectionTestUtils.setField(provisioned, "id", 44L);
 
-    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("new-admin@ske.com", "SKE"))
+    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "new-admin@ske.com", "SKE"))
         .thenReturn(false);
     when(roleRepository.findByName("ROLE_ADMIN")).thenReturn(Optional.of(adminRole));
     when(scopedAccountBootstrapService.provisionTenantAccount(
-            eq(company), eq("new-admin@ske.com"), eq("New Admin"), eq(java.util.List.of(adminRole))))
+            eq(company),
+            eq("new-admin@ske.com"),
+            eq("New Admin"),
+            eq(java.util.List.of(adminRole))))
         .thenReturn(provisioned);
 
     UserAccount provisionedAdmin =
@@ -63,14 +67,16 @@ class TenantAdminProvisioningServiceTest {
     assertThat(company.getOnboardingAdminUserId()).isEqualTo(provisioned.getId());
     verify(roleService).ensureRoleExists("ROLE_ADMIN");
     verify(scopedAccountBootstrapService)
-        .provisionTenantAccount(company, "new-admin@ske.com", "New Admin", java.util.List.of(adminRole));
+        .provisionTenantAccount(
+            company, "new-admin@ske.com", "New Admin", java.util.List.of(adminRole));
   }
 
   @Test
   void provisionInitialAdmin_rejectsScopedDuplicateEmail() {
     TenantAdminProvisioningService service = newService();
     Company company = company(10L, "SKE", "SKE");
-    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@ske.com", "SKE"))
+    when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "admin@ske.com", "SKE"))
         .thenReturn(true);
 
     assertThatThrownBy(() -> service.provisionInitialAdmin(company, "admin@ske.com", "Admin"))
@@ -82,7 +88,10 @@ class TenantAdminProvisioningServiceTest {
   void provisionInitialAdmin_requiresPersistedCompany() {
     TenantAdminProvisioningService service = newService();
 
-    assertThatThrownBy(() -> service.provisionInitialAdmin(company(null, "SKE", "SKE"), "admin@ske.com", "Admin"))
+    assertThatThrownBy(
+            () ->
+                service.provisionInitialAdmin(
+                    company(null, "SKE", "SKE"), "admin@ske.com", "Admin"))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Company must be persisted");
   }
@@ -95,7 +104,8 @@ class TenantAdminProvisioningServiceTest {
     admin.setCompany(company);
     admin.addRole(role("ROLE_ADMIN"));
 
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@ske.com", "SKE"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "admin@ske.com", "SKE"))
         .thenReturn(Optional.of(admin));
 
     String email = service.resetTenantAdminPassword(company, " admin@ske.com ");
@@ -111,7 +121,8 @@ class TenantAdminProvisioningServiceTest {
     UserAccount user = new UserAccount("user@ske.com", "SKE", "hash", "User");
     user.setCompany(company);
 
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("user@ske.com", "SKE"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "user@ske.com", "SKE"))
         .thenReturn(Optional.of(user));
 
     assertThatThrownBy(() -> service.resetTenantAdminPassword(company, "user@ske.com"))

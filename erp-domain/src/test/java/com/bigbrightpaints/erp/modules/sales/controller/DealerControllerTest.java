@@ -1,10 +1,9 @@
 package com.bigbrightpaints.erp.modules.sales.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 import org.junit.jupiter.api.Tag;
@@ -14,7 +13,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 
-import com.bigbrightpaints.erp.modules.sales.service.DealerPortalService;
 import com.bigbrightpaints.erp.modules.sales.service.DealerService;
 import com.bigbrightpaints.erp.modules.sales.service.DunningService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
@@ -25,20 +23,15 @@ class DealerControllerTest {
 
   @Mock private DealerService dealerService;
   @Mock private DunningService dunningService;
-  @Mock private DealerPortalService dealerPortalService;
 
   @Test
-  void dealerAging_routesThroughDealerPortalService() {
-    DealerController controller =
-        new DealerController(dealerService, dunningService, dealerPortalService);
-    Map<String, Object> payload = Map.of("dealerId", 42L, "status", "NEAR_LIMIT");
-    when(dealerPortalService.getAgingForDealer(42L)).thenReturn(payload);
-
-    ResponseEntity<ApiResponse<Map<String, Object>>> response = controller.dealerAging(42L);
+  void holdIfOverdue_routesThroughDunningService() {
+    DealerController controller = new DealerController(dealerService, dunningService);
+    ResponseEntity<ApiResponse<Map<String, Object>>> response =
+        controller.holdIfOverdue(42L, 30, new BigDecimal("5000.00"));
 
     assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
     assertThat(response.getBody()).isNotNull();
-    verify(dealerPortalService).getAgingForDealer(42L);
-    verify(dealerService, never()).agingSummary(42L);
+    verify(dunningService).evaluateDealerHold(42L, 30, new BigDecimal("5000.00"));
   }
 }

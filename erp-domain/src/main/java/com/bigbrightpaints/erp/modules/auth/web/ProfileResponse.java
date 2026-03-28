@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.modules.auth.web;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 public record ProfileResponse(

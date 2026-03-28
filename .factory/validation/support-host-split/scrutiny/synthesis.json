@@ -1,0 +1,40 @@
+{
+  "milestone": "support-host-split",
+  "round": 2,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control && bash scripts/gate_fast.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "cd /home/realnigga/Desktop/Mission-control && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "security-backend-worker skill",
+      "suggestion": "Document the touched-files Spotless fallback for missions that already classify repo-wide Spotless drift as unrelated baseline debt, so security/backend workers do not have to infer that validation pattern solely from mission-specific guidance.",
+      "evidence": "The rerun review for `support-host-filter-retired-prefix-cleanup` found the worker correctly used a touched-files `spotless:check`, but that required mission-specific AGENTS guidance because `.factory/skills/security-backend-worker/SKILL.md` does not mention the fallback while this mission's AGENTS explicitly requires it.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/support-host-split/scrutiny/synthesis.round1.json"
+}

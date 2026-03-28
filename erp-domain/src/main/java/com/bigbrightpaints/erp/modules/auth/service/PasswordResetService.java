@@ -179,7 +179,8 @@ public class PasswordResetService {
           "User account is disabled");
     }
     String scopeCode = authScopeService.requireScopeCode(user.getAuthScopeCode());
-    enforceResetRateLimit("reset_password", normalizeEmail(user.getEmail()), scopeCode, correlationId);
+    enforceResetRateLimit(
+        "reset_password", normalizeEmail(user.getEmail()), scopeCode, correlationId);
     passwordService.resetPassword(user, newPassword, confirmPassword);
     user.setFailedLoginAttempts(0);
     user.setLockedUntil(null);
@@ -389,7 +390,8 @@ public class PasswordResetService {
 
   private void enforceResetRateLimit(
       String operation, String normalizedEmail, String scopeCode, String correlationId) {
-    String rateLimitKey = RATE_LIMIT_PREFIX + ":" + operation + ":" + scopeCode + ":" + normalizedEmail;
+    String rateLimitKey =
+        RATE_LIMIT_PREFIX + ":" + operation + ":" + scopeCode + ":" + normalizedEmail;
     if (securityMonitoringService.checkRateLimit(rateLimitKey)) {
       return;
     }
@@ -417,11 +419,7 @@ public class PasswordResetService {
   }
 
   private void auditResetFailure(
-      String operation,
-      String correlationId,
-      String scopeCode,
-      String email,
-      String outcome) {
+      String operation, String correlationId, String scopeCode, String email, String outcome) {
     auditService.logAuthFailure(
         "reset_password".equals(operation)
             ? AuditEvent.PASSWORD_RESET_COMPLETED
@@ -458,8 +456,7 @@ public class PasswordResetService {
       return;
     }
     String safeCorrelationId = sanitizeForPlainTextLog(correlationId);
-    String safeTenantContext =
-        sanitizeForPlainTextLog(sanitizeTenantContextForLog(tenantContext));
+    String safeTenantContext = sanitizeForPlainTextLog(sanitizeTenantContextForLog(tenantContext));
     log.info(
         "event=password_reset.scope policy={} operation={} correlationId={} tenantContext={}"
             + " outcome=tenant_context_ignored",
@@ -483,8 +480,7 @@ public class PasswordResetService {
     if (request == null) {
       return null;
     }
-    return firstNonBlank(
-        request.getHeader(COMPANY_CODE_HEADER));
+    return firstNonBlank(request.getHeader(COMPANY_CODE_HEADER));
   }
 
   private String obfuscateEmail(String email) {

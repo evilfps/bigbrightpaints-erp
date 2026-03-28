@@ -1,8 +1,8 @@
 package com.bigbrightpaints.erp.core.security;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -53,9 +53,13 @@ public class CompanyContextFilter extends OncePerRequestFilter {
           controlRoute("POST", "^/api/v1/superadmin/tenants/([^/]+)/force-logout$", false),
           controlRoute("PUT", "^/api/v1/superadmin/tenants/([^/]+)/admins/main$", false),
           controlRoute(
-              "POST", "^/api/v1/superadmin/tenants/([^/]+)/admins/[^/]+/email-change/request$", false),
+              "POST",
+              "^/api/v1/superadmin/tenants/([^/]+)/admins/[^/]+/email-change/request$",
+              false),
           controlRoute(
-              "POST", "^/api/v1/superadmin/tenants/([^/]+)/admins/[^/]+/email-change/confirm$", false));
+              "POST",
+              "^/api/v1/superadmin/tenants/([^/]+)/admins/[^/]+/email-change/confirm$",
+              false));
   private static final String CONTROL_PLANE_AUTH_DENIED_MESSAGE =
       "Access denied to company control request";
   private static final String SUPER_ADMIN_PLATFORM_ONLY_MESSAGE =
@@ -71,7 +75,6 @@ public class CompanyContextFilter extends OncePerRequestFilter {
           "/api/v1/invoices",
           "/api/v1/reports",
           "/api/v1/exports",
-          "/api/v1/support",
           "/api/v1/factory",
           "/api/v1/production",
           "/api/v1/hr",
@@ -93,9 +96,9 @@ public class CompanyContextFilter extends OncePerRequestFilter {
           "/api/v1/admin/users");
   private static final Set<String> PUBLIC_PASSWORD_RESET_ENDPOINTS =
       Set.of("/api/v1/auth/password/forgot", "/api/v1/auth/password/reset");
+
   private record CompanyBoundControlRoute(
-      String method, Pattern pattern, boolean tenantRuntimePolicyControl) {
-  }
+      String method, Pattern pattern, boolean tenantRuntimePolicyControl) {}
 
   private record CompanyBoundControlBinding(Long companyId, boolean tenantRuntimePolicyControl) {}
 
@@ -185,7 +188,8 @@ public class CompanyContextFilter extends OncePerRequestFilter {
       String companyCode = normalizeCompanyCode(requestedCompany);
       if (hasSuperAdminAuthority() && authScopeService.isPlatformScope(companyCode)) {
         if (!lifecycleControlRequest && !isPlatformScopedRequestAllowed(runtimePath)) {
-          writeAccessDenied(response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);
+          writeAccessDenied(
+              response, "SUPER_ADMIN_PLATFORM_ONLY", SUPER_ADMIN_PLATFORM_ONLY_MESSAGE);
           return;
         }
         if (!lifecycleControlRequest) {

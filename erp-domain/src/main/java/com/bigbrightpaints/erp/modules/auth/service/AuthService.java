@@ -25,7 +25,6 @@ import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
 import com.bigbrightpaints.erp.core.security.TokenBlacklistService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
-import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.auth.exception.InvalidMfaException;
 import com.bigbrightpaints.erp.modules.auth.exception.MfaRequiredException;
 import com.bigbrightpaints.erp.modules.auth.web.AuthResponse;
@@ -104,10 +103,7 @@ public class AuthService {
       mfaService.verifyDuringLogin(user, request.mfaCode(), request.recoveryCode());
       resetLock(user);
       auditService.logAuthSuccess(
-          AuditEvent.LOGIN_SUCCESS,
-          user.getEmail(),
-          scopeCode,
-          Map.of("companyCode", scopeCode));
+          AuditEvent.LOGIN_SUCCESS, user.getEmail(), scopeCode, Map.of("companyCode", scopeCode));
       Map<String, Object> claims = new HashMap<>();
       claims.put("name", user.getDisplayName());
       claims.put("email", user.getEmail());
@@ -353,8 +349,9 @@ public class AuthService {
     return userAccountRepository
         .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizeEmail(email), scopeCode)
         .orElseThrow(
-            () -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                "Invalid credentials"));
+            () ->
+                com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                    "Invalid credentials"));
   }
 
   private boolean scopeMatches(UserAccount user, String scopeCode) {

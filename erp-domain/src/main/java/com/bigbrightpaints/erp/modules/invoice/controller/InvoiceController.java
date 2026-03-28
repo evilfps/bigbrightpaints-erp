@@ -77,16 +77,6 @@ public class InvoiceController {
         .body(pdf.content());
   }
 
-  @GetMapping("/dealers/{dealerId}")
-  @Timed(value = "erp.invoices.list.dealer", description = "List dealer invoices")
-  public ResponseEntity<ApiResponse<List<InvoiceDto>>> dealerInvoices(
-      @PathVariable Long dealerId,
-      @RequestParam(defaultValue = "0") int page,
-      @RequestParam(defaultValue = "100") int size) {
-    return ResponseEntity.ok(
-        ApiResponse.success(invoiceService.listDealerInvoices(dealerId, page, size)));
-  }
-
   @PostMapping("/{id}/email")
   public ResponseEntity<ApiResponse<String>> sendInvoiceEmail(@PathVariable Long id) {
     // Get invoice with dealer email from service

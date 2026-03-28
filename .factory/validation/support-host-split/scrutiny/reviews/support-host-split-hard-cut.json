@@ -1,0 +1,33 @@
+{
+  "featureId": "support-host-split-hard-cut",
+  "reviewedAt": "2026-03-27T03:26:50+00:00",
+  "commitId": "b226cd563f1834bbd135953e174e3bda03499fe0",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The commit cleanly split support tickets onto the portal and dealer-portal hosts, updated repository scoping and regression/runtime coverage, and removed the shared route from the published contract surfaces. I found one non-blocking cleanup gap: the global company-context filter still recognizes `/api/v1/support` as a tenant-business prefix, so the retired host is not fully scrubbed from auth-layer assumptions.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java",
+        "line": 55,
+        "severity": "non_blocking",
+        "description": "`SUPER_ADMIN_TENANT_BUSINESS_PREFIXES` still contains `/api/v1/support`, so the retired shared support host is still special-cased in the auth filter. Admin/dealer callers now 404 via the removed controllers, but a super-admin request will still be intercepted as a tenant-business workflow instead of the path being fully unmapped. This does not break the reviewed validation probes, but it leaves stale shared-support knowledge behind in runtime security code."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "ERP-21 route-retirement guidance says shared `/api/v1/support/**` must be removed, but it does not explicitly remind workers to audit global auth/filter path registries such as `CompanyContextFilter.SUPER_ADMIN_TENANT_BUSINESS_PREFIXES`. This feature left a stale `/api/v1/support` entry there.",
+      "evidence": ".factory/library/architecture.md:34 says shared `/api/v1/support/**` must be removed, not merely forbidden, yet erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java:55 still lists `/api/v1/support` in the blocked tenant-business prefixes."
+    },
+    {
+      "area": "skills",
+      "observation": "The `portal-hardcut-worker` skill is ambiguous about when `gate-release` and `gate-reconciliation` are mandatory. The worker treated Step 5's full-gate language as PR-final-only and explicitly deviated for this non-final feature handoff.",
+      "evidence": ".factory/skills/portal-hardcut-worker/SKILL.md:70 says to rerun full required gates before final handoff for merge/PR readiness, while /home/realnigga/.factory/missions/943eb925-e1d4-47fc-b154-6a8c40d6fb3d/handoffs/2026-03-27T03-20-18-176Z__support-host-split-hard-cut__813a17fb-44b1-4116-b38a-043dbd9e440a.json:72 records that the worker intentionally skipped `gate-release` and `gate-reconciliation` because the packet still had a pending follow-up feature."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass with one non-blocking cleanup gap. The feature split support endpoints onto the canonical portal and dealer-portal hosts, updated tests and contract surfaces, and removed `/api/v1/support/**` from the runtime/public contract; only a stale `/api/v1/support` auth-filter prefix remains to be cleaned up."
+}

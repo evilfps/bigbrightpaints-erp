@@ -20,8 +20,8 @@ This guide covers journaling, reconciliation, discrepancy handling, period contr
 ## Daily Accounting Operational APIs
 
 - Journal list/filter: `GET /api/v1/accounting/journals?fromDate=&toDate=&type=&sourceModule=`
-- Dealer/supplier statements: `GET /api/v1/accounting/statements/dealers/{dealerId}`, `GET /api/v1/accounting/statements/suppliers/{supplierId}`
-- Aging: `GET /api/v1/accounting/aging/dealers/{dealerId}`, `GET /api/v1/accounting/aging/suppliers/{supplierId}`
+- Dealer finance reads: `GET /api/v1/portal/finance/ledger?dealerId=`, `GET /api/v1/portal/finance/aging?dealerId=`
+- Supplier statements/aging: `GET /api/v1/accounting/statements/suppliers/{supplierId}`, `GET /api/v1/accounting/aging/suppliers/{supplierId}`
 - Audit trail query: `GET /api/v1/accounting/audit-trail`
 
 ## Troubleshooting Quick Notes

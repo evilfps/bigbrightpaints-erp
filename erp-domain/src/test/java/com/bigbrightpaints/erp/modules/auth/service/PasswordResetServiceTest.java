@@ -27,8 +27,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.bigbrightpaints.erp.core.config.EmailProperties;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.config.EmailProperties;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.notification.EmailService;
@@ -80,7 +80,8 @@ class PasswordResetServiceTest {
             new ResourcelessTransactionManager());
     lenient()
         .when(authScopeService.requireScopeCode(anyString()))
-        .thenAnswer(invocation -> invocation.getArgument(0, String.class).trim().toUpperCase(Locale.ROOT));
+        .thenAnswer(
+            invocation -> invocation.getArgument(0, String.class).trim().toUpperCase(Locale.ROOT));
     lenient()
         .when(tokenRepository.saveAndFlush(any(PasswordResetToken.class)))
         .thenAnswer(
@@ -123,7 +124,8 @@ class PasswordResetServiceTest {
             "missing@example.com", TENANT_SCOPE))
         .thenReturn(Optional.empty());
 
-    assertDoesNotThrow(() -> passwordResetService.requestReset("missing@example.com", TENANT_SCOPE));
+    assertDoesNotThrow(
+        () -> passwordResetService.requestReset("missing@example.com", TENANT_SCOPE));
 
     verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
     verify(emailService, never())
@@ -138,7 +140,8 @@ class PasswordResetServiceTest {
             "disabled@example.com", TENANT_SCOPE))
         .thenReturn(Optional.of(user));
 
-    assertDoesNotThrow(() -> passwordResetService.requestReset("disabled@example.com", TENANT_SCOPE));
+    assertDoesNotThrow(
+        () -> passwordResetService.requestReset("disabled@example.com", TENANT_SCOPE));
 
     verify(tokenRepository, never()).saveAndFlush(any(PasswordResetToken.class));
     verify(emailService, never())
@@ -190,7 +193,8 @@ class PasswordResetServiceTest {
     user.setEnabled(false);
 
     ApplicationException exception =
-        assertThrows(ApplicationException.class, () -> passwordResetService.requestResetByAdmin(user));
+        assertThrows(
+            ApplicationException.class, () -> passwordResetService.requestResetByAdmin(user));
 
     assertEquals(ErrorCode.AUTH_ACCOUNT_DISABLED, exception.getErrorCode());
     assertEquals("Account is disabled", exception.getMessage());
@@ -318,9 +322,7 @@ class PasswordResetServiceTest {
     String anonymousClass =
         (String)
             ReflectionTestUtils.invokeMethod(
-                passwordResetService,
-                "sanitizeExceptionClass",
-                new RuntimeException("boom") {});
+                passwordResetService, "sanitizeExceptionClass", new RuntimeException("boom") {});
     org.assertj.core.api.Assertions.assertThat(anonymousClass).contains("PasswordResetServiceTest");
   }
 

@@ -31,8 +31,8 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
-import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
+import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.SizeVariant;
 import com.bigbrightpaints.erp.modules.factory.domain.SizeVariantRepository;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingLineRequest;
@@ -192,7 +192,10 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> pendingResponse =
         rest.exchange(
-            "/api/v1/dispatch/pending", HttpMethod.GET, new HttpEntity<>(factoryHeaders), Map.class);
+            "/api/v1/dispatch/pending",
+            HttpMethod.GET,
+            new HttpEntity<>(factoryHeaders),
+            Map.class);
     assertThat(pendingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     List<Map<?, ?>> pendingSlips = requireListData(pendingResponse);
     assertThat(pendingSlips).hasSize(1);
@@ -372,7 +375,8 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
     Long orderId = salesService.createOrder(orderReq).id();
     SalesOrder order = salesOrderRepository.findById(orderId).orElseThrow();
 
-    FinishedGoodsService.InventoryReservationResult beforePack = finishedGoodsService.reserveForOrder(order);
+    FinishedGoodsService.InventoryReservationResult beforePack =
+        finishedGoodsService.reserveForOrder(order);
     assertThat(beforePack.packagingSlip()).isNotNull();
     assertThat(beforePack.packagingSlip().status()).isEqualTo("PENDING_PRODUCTION");
     assertThat(beforePack.packagingSlip().lines()).isEmpty();
@@ -416,7 +420,8 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
                     null,
                     null))));
 
-    FinishedGoodsService.InventoryReservationResult afterPack = finishedGoodsService.reserveForOrder(order);
+    FinishedGoodsService.InventoryReservationResult afterPack =
+        finishedGoodsService.reserveForOrder(order);
     assertThat(afterPack.packagingSlip()).isNotNull();
     assertThat(afterPack.packagingSlip().status()).isEqualTo("RESERVED");
     assertThat(afterPack.packagingSlip().lines()).hasSize(1);
@@ -626,9 +631,7 @@ class DispatchOperationalBoundaryIT extends AbstractIntegrationTest {
   }
 
   private FinishedGood ensureSellablePackTarget(ProductionProduct product, String sizeLabel) {
-    sizeVariantRepository
-        .findByCompanyAndProductOrderBySizeLabelAsc(company, product)
-        .stream()
+    sizeVariantRepository.findByCompanyAndProductOrderBySizeLabelAsc(company, product).stream()
         .filter(variant -> sizeLabel.equalsIgnoreCase(variant.getSizeLabel()))
         .findFirst()
         .orElseGet(
