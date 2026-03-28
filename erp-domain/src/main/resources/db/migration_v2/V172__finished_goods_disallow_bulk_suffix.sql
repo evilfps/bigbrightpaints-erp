@@ -7,7 +7,7 @@ BEGIN
         WHERE RIGHT(UPPER(product_code), 5) = '-BULK'
     ) THEN
         RAISE EXCEPTION
-            'ERP-23 migration blocked: found finished_goods.product_code values ending with -BULK. Move or rename those internal semi-finished rows before applying V170.';
+            'ERP-23 migration blocked: found finished_goods.product_code values ending with -BULK. Move or rename those internal semi-finished rows before applying V172.';
     END IF;
 
     IF NOT EXISTS (
