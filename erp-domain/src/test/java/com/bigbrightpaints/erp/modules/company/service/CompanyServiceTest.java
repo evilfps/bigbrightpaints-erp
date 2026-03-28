@@ -449,6 +449,19 @@ class CompanyServiceTest {
   }
 
   @Test
+  void update_rejectsUnknownCompany() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    when(repository.findById(99L)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(
+            () ->
+                companyService.update(
+                    99L, new CompanyRequest("New Name", "NEW", "UTC", null), Set.of()))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Company not found");
+  }
+
+  @Test
   void update_allowsDuplicateLookupWhenCodeBelongsToSameCompany() {
     authenticateAs("ROLE_SUPER_ADMIN");
     bindCompanyContext("ACME");
@@ -768,6 +781,16 @@ class CompanyServiceTest {
   }
 
   @Test
+  void updateEnabledModules_rejectsUnknownCompany() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    when(repository.findById(99L)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> companyService.updateEnabledModules(99L, Set.of("PORTAL")))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Company not found");
+  }
+
+  @Test
   void delete_deniesWhenNotMember() {
     Company allowed = company(1L, "ACME");
 
@@ -941,6 +964,19 @@ class CompanyServiceTest {
   }
 
   @Test
+  void updateLifecycleState_rejectsUnknownCompany() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    when(repository.lockById(99L)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(
+            () ->
+                companyService.updateLifecycleState(
+                    99L, new CompanyLifecycleStateRequest("SUSPENDED", "compliance-review")))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Company not found");
+  }
+
+  @Test
   void isRuntimeAccessAllowed_deniesWhenLifecycleStateIsNotActive() {
     Company company = company(1L, "ACME");
     company.setLifecycleState(CompanyLifecycleState.SUSPENDED);
@@ -1097,6 +1133,21 @@ class CompanyServiceTest {
   }
 
   @Test
+  void updateTenantRuntimePolicy_rejectsUnknownCompany() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    when(repository.findById(99L)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(
+            () ->
+                companyService.updateTenantRuntimePolicy(
+                    99L,
+                    new CompanyService.TenantRuntimePolicyMutationRequest(
+                        "HOLD", "policy", null, null, null)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Company not found");
+  }
+
+  @Test
   void updateTenantRuntimePolicy_rejectsUnsupportedHoldState() {
     authenticateAs("ROLE_SUPER_ADMIN");
     bindCompanyContext("ACME");
@@ -1199,6 +1250,16 @@ class CompanyServiceTest {
 
     verify(tenantAdminProvisioningService, never())
         .resetTenantAdminPassword(company, "tenant-admin@ske.com");
+  }
+
+  @Test
+  void resetTenantAdminPassword_rejectsUnknownCompany() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    when(repository.findById(99L)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> companyService.resetTenantAdminPassword(99L, "tenant-admin@ske.com"))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Company not found");
   }
 
   @Test
@@ -1317,6 +1378,36 @@ class CompanyServiceTest {
   }
 
   @Test
+  void issueTenantSupportWarning_rejectsBlankMessage() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    bindCompanyContext("SKE");
+    Company company = company(5L, "SKE");
+    when(repository.findById(5L)).thenReturn(Optional.of(company));
+
+    assertThatThrownBy(
+            () ->
+                companyService.issueTenantSupportWarning(
+                    5L, new CompanyService.TenantSupportWarningRequest("quota", "   ", "SUSPENDED", 48)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Support warning message is required");
+  }
+
+  @Test
+  void issueTenantSupportWarning_rejectsUnknownCompany() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    when(repository.findById(99L)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(
+            () ->
+                companyService.issueTenantSupportWarning(
+                    99L,
+                    new CompanyService.TenantSupportWarningRequest(
+                        "quota", "Approaching storage limit", "SUSPENDED", 48)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Company not found");
+  }
+
+  @Test
   void update_deniesWhenBoundContextIsMissingForTargetTenant() {
     authenticateAs("ROLE_SUPER_ADMIN");
     Company target = company(2L, "TENANT-A");
@@ -1410,6 +1501,17 @@ class CompanyServiceTest {
                     companyService,
                     "assertBoundControlPlaneMutationContextMatchesTarget",
                     "TENANT-A"))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  void mutationContextHelper_allowsBlankTargetCode() {
+    assertThatCode(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    companyService,
+                    "assertBoundControlPlaneMutationContextMatchesTarget",
+                    "   "))
         .doesNotThrowAnyException();
   }
 

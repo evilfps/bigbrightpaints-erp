@@ -44,16 +44,13 @@ public class RoleController {
       normalized = "ROLE_" + normalized;
     }
     String target = normalized;
-    RoleDto match =
+    java.util.Optional<RoleDto> match =
         roleService.listRolesForCurrentActor().stream()
             .filter(r -> r.name() != null && r.name().equalsIgnoreCase(target))
-            .findFirst()
-            .orElseThrow(
-                () ->
-                    com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                        "Unknown platform role: " + target));
-    return ResponseEntity.ok(ApiResponse.success("Role " + target, match));
-  }
+            .findFirst();
+    if (match.isEmpty()) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Unknown platform role: " + target); }
+    return ResponseEntity.ok(ApiResponse.success("Role " + target, match.get())); }
 
   @PostMapping
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
