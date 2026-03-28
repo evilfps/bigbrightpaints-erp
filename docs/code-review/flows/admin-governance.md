@@ -236,7 +236,6 @@ The method is explicitly `@Transactional(readOnly = true)` and converts each pen
 
 | Severity | Category | Finding | Evidence | Why it matters |
 | --- | --- | --- | --- | --- |
-<<<<<<< HEAD
 | critical | governance / security | `GET/PUT /api/v1/admin/settings` is tenant-admin accessible, but `SystemSettingsService` persists global `system_settings` keys with no tenant scope. Any tenant admin can rewrite platform-wide CORS, mail, auto-approval, and export-approval behavior. | `AdminSettingsController.updateSettings(...)`, `SystemSettingsService`, `V1__core_auth_rbac.sql` | A single tenant admin can change security perimeter and operational policy for every tenant, including reset-email delivery and trusted browser origins. |
 | high | governance / integrity | Changelog publishing is globally stored and publicly readable, yet any tenant admin can create, update, or soft-delete entries. Updates also rewrite `publishedAt`, effectively republishing old entries. | `ChangelogController`, `ChangelogService.applyRequest(...)`, `ChangelogEntry`, `SecurityConfig`, `V40__changelog_entries.sql` | Tenant-local admins can alter the product-wide public announcement feed without maker-checker review or immutable revision history. |
 | high | privacy / third-party integration | Support ticket GitHub sync exports raw ticket descriptions plus internal company code and requester user id to the configured GitHub repository. | `SupportTicketGitHubSyncService.buildIssueBody(...)`, `GitHubIssueClient`, `GitHubProperties` | Sensitive support data leaves the ERP boundary and lands in an external system with no redaction or per-category data minimization. |
@@ -276,19 +275,8 @@ The method is explicitly `@Transactional(readOnly = true)` and converts each pen
 - `AdminUserSecurityIT` proves cross-company protection for tenant admins, foreign-tenant force reset for super admins, quota enforcement on user creation, and super-admin-only runtime-policy updates.
 - `AdminUserServiceTest` proves dealer/receivable-account side effects during dealer-user creation.
 - `ChangelogControllerSecurityIT` proves tenant-admin/super-admin authoring and unauthenticated public read access.
-- `SupportTicketControllerIT` proves role-scoped support-ticket visibility across requester/admin/super-admin actors.
+- `SupportTicketControllerIT` proves portal-vs-dealer support host split, role-scoped visibility, and retired shared-route `404`s.
 - `TS_RuntimeSupportTicketSyncExecutableCoverageTest` proves category-to-label mapping and resolution-email behavior on GitHub close.
 - `ReportExportApprovalIT` proves the end-to-end request -> approve -> download flow and also proves that disabling the global gate allows download of rejected requests.
 - `AdminSettingsControllerApprovalsContractTest` proves the approvals cockpit now contains period-close approvals even though `openapi.json` still omits that field from the schema.
 - `python3` inspection of `openapi.json` during this session confirmed that `/api/v1/support/tickets` and `/api/v1/support/tickets/{ticketId}` are absent from the published API snapshot.
-=======
-| medium | observability | `POST /api/v1/admin/notify` still sends arbitrary SMTP mail without a dedicated audit event of its own. | `AdminSettingsController.notifyUser(...)` | This is still an operator-controlled outbound mail surface with weaker traceability than the rest of the governance controls. |
-| medium | workflow integrity | Support-ticket creation still returns success before GitHub sync completes. | `SupportTicketAccessSupport.createTicket(...)`, `SupportTicketGitHubSyncService.submitGitHubIssueAsync(...)` | Local persistence is authoritative, but operators still need to watch sync status rather than assume external escalation succeeded immediately. |
-
-## Evidence notes
-
-- `ChangelogControllerSecurityIT` proves superadmin-only writes and authenticated reads.
-- `SupportTicketControllerIT` proves the portal-vs-dealer support host split, retired shared-route `404`s, and fail-closed peer/cross-host lookups.
-- `AdminUserSecurityIT` proves user-governance authority boundaries.
-- `AdminSettingsControllerApprovalsContractTest` proves the approvals cockpit payload includes current approval lanes including period-close rows.
->>>>>>> b226cd56 (hardcut(erp-21): split support ticket hosts)
