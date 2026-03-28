@@ -16,6 +16,7 @@ import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentRequest;
 import com.bigbrightpaints.erp.modules.inventory.service.InventoryAdjustmentService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
@@ -45,7 +46,8 @@ public class InventoryAdjustmentController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<InventoryAdjustmentDto>> createAdjustment(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey,
+      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
+          String legacyIdempotencyKey,
       @RequestBody InventoryAdjustmentRequest request) {
     InventoryAdjustmentRequest resolved =
         applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);

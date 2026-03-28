@@ -1,5 +1,16 @@
 # Migration Runbook
 
+## 2026-03-29 — `migration_v2/V174__backfill_default_discount_accounts.sql`
+
+- **Purpose:** backfill `companies.default_discount_account_id` for pre-hard-cut tenants so the canonical finished-good/account-default contract can remain fail-closed without breaking upgraded companies that still have a null discount default.
+- **Release-guard posture:** this is a data canonicalization migration, not a compatibility bridge. It seeds one real `DISC` expense account per company only when needed, then binds `default_discount_account_id` to `DISC` or an existing `SALES-RETURNS` account. Runtime code remains single-path and still fails closed if a tenant is missing a discount default after the migration.
+- **Forward plan:** apply `V174__backfill_default_discount_accounts.sql` together with the ERP-48 packet. Do not deploy the stricter default-account validation without this backfill on upgrade paths.
+- **Dry-run commands:**
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true -Dtest=OpenApiSnapshotIT test`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Dtest=CompanyDefaultAccountsServiceTest,SalesControllerIdempotencyHeaderTest,InventoryAdjustmentControllerTest,RawMaterialControllerTest test`
+  - `bash ci/check-enterprise-policy.sh`
+- **Rollback strategy:** treat `V174` as forward-only data normalization inside ERP-48. If rollout must be abandoned after the migration is applied, keep the ERP-48-compatible backend live or restore the database from a pre-`V174` snapshot/PITR before reverting application code. Do not null out `default_discount_account_id` by hand after the packet is deployed.
+
 ## 2026-03-28 — `migration_v2/V173__company_lifecycle_constraint_hard_cut.sql`
 
 - **Purpose:** finalize the tenant lifecycle hard-cut by rewriting any lingering `HOLD/BLOCKED` values to `SUSPENDED/DEACTIVATED`, dropping the legacy lifecycle constraints, and installing the canonical `chk_companies_lifecycle_state_v173` constraint on `companies.lifecycle_state`.

@@ -22,6 +22,7 @@ import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 import io.micrometer.core.annotation.Timed;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 
 @RestController
@@ -115,7 +116,8 @@ public class SalesController {
   @PreAuthorize("hasAnyAuthority('ROLE_SALES','ROLE_ADMIN')")
   public ResponseEntity<ApiResponse<SalesOrderDto>> createOrder(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey,
+      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
+          String legacyIdempotencyKey,
       @Valid @RequestBody SalesOrderRequest request) {
     SalesOrderRequest resolved =
         applyOrderIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);

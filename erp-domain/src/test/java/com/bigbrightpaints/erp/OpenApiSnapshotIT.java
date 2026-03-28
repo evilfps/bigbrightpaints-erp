@@ -798,6 +798,17 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
   }
 
   @Test
+  void legacy_idempotency_headers_are_hidden_on_hard_cut_sales_and_inventory_writes()
+      throws IOException {
+    JsonNode root = fetchCurrentSpecNode();
+
+    assertHeaderParameters(root, "/api/v1/sales/orders", "post", "Idempotency-Key");
+    assertHeaderParameters(root, "/api/v1/inventory/adjustments", "post", "Idempotency-Key");
+    assertHeaderParameters(
+        root, "/api/v1/inventory/raw-materials/adjustments", "post", "Idempotency-Key");
+  }
+
+  @Test
   void openapi_snapshot_matches_repository_contract() throws IOException {
     Path openApiSnapshotPath = resolveRepoRoot().resolve("openapi.json");
     String currentSpec = canonicalizeJson(fetchCurrentSpecNode().toString());

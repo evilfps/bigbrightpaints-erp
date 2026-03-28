@@ -532,7 +532,6 @@ public class AccountingController {
 
   private String resolveHeaderOnlyIdempotencyKey(
       String bodyIdempotencyKey, String idempotencyKeyHeader, String legacyIdempotencyKeyHeader) {
-    String normalizedPrimaryHeader = trimToNull(idempotencyKeyHeader);
     String normalizedLegacyHeader = trimToNull(legacyIdempotencyKeyHeader);
     if (normalizedLegacyHeader != null) {
       throw new ApplicationException(

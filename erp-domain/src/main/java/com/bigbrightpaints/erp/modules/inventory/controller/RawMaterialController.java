@@ -16,6 +16,7 @@ import com.bigbrightpaints.erp.modules.inventory.service.InventoryBatchQueryServ
 import com.bigbrightpaints.erp.modules.inventory.service.RawMaterialService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
@@ -60,7 +61,8 @@ public class RawMaterialController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<RawMaterialAdjustmentDto>> adjustRawMaterials(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey,
+      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
+          String legacyIdempotencyKey,
       @RequestBody RawMaterialAdjustmentRequest request) {
     RawMaterialAdjustmentRequest resolvedRequest =
         applyAdjustmentIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);

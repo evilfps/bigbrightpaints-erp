@@ -1,5 +1,15 @@
 # Rollback Runbook
 
+## 2026-03-29 — `erp-48.discount-default-backfill-hard-cut`
+
+- **Scope:** revert `migration_v2/V174__backfill_default_discount_accounts.sql` together with the ERP-48 runtime packet that now requires `default_discount_account_id` for canonical finished-good/default-account posting.
+- **Application rollback:** do not redeploy a pre-backfill ERP-48 build against a database where `V174` has already normalized discount defaults unless the database is first restored to a pre-`V174` state.
+- **Database rollback:** preferred path is snapshot/PITR restore to a point before `V174`. Ad hoc reverse SQL is intentionally unsupported because the migration may create canonical `DISC` accounts and bind them into live tenant defaults.
+- **Guard note:** `V174` is the reviewed upgrade-path companion to the fail-closed discount-default hard-cut. If it has run, treat discount-default state as forward-only until snapshot restore is available.
+- **Verification:** after restore or coordinated packet revert, rerun:
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Derp.openapi.snapshot.verify=true -Dtest=OpenApiSnapshotIT test`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Dtest=CompanyDefaultAccountsServiceTest,SalesControllerIdempotencyHeaderTest,InventoryAdjustmentControllerTest,RawMaterialControllerTest test`
+
 ## 2026-03-28 — `erp-48.lifecycle-constraint-and-release-hard-cut`
 
 - **Scope:** revert `migration_v2/V173__company_lifecycle_constraint_hard_cut.sql` together with the ERP-48 runtime packet that hard-cuts auth identity, tenant-admin approval ownership, manual journal/reversal public routes, GST/default-account fail-closed behavior, and the release-harness fixes used by `gate_release`.
