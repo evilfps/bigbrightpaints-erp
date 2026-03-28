@@ -41,6 +41,7 @@ import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.notification.EmailService;
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.auth.service.PasswordResetService;
@@ -60,6 +61,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
   @AfterEach
   void clearSecurity() {
     SecurityContextHolder.clearContext();
+    CompanyContextHolder.clear();
   }
 
   @Test
@@ -142,6 +144,7 @@ class TS_RuntimeTenantPolicyControlExecutableCoverageTest {
         .thenReturn(snapshot("ACME"));
 
     authenticate("super@bbp.com", "ROLE_SUPER_ADMIN");
+    CompanyContextHolder.setCompanyCode("ACME");
     CompanyService.TenantRuntimePolicyMutationRequest validRequest =
         new CompanyService.TenantRuntimePolicyMutationRequest("BLOCKED", "incident", 4, 8, 16);
     TenantRuntimeEnforcementService.TenantRuntimeSnapshot updated =
