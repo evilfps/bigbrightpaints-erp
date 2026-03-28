@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Constructor;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -651,7 +652,8 @@ class ProductionCatalogServiceRetryPolicyTest {
   }
 
   private MockMultipartFile csvFile(String csv) {
-    return new MockMultipartFile("file", "catalog.csv", "text/csv", csv.getBytes());
+    return new MockMultipartFile(
+        "file", "catalog.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8));
   }
 
   private Company company(Long id, Long defaultInventoryAccountId) {

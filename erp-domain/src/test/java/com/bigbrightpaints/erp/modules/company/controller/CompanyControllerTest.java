@@ -4,13 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.ReflectionUtils;
 
 import com.bigbrightpaints.erp.modules.company.dto.CompanyDto;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
@@ -31,8 +30,7 @@ class CompanyControllerTest {
 
   @Test
   void delete_is_not_declared_on_company_controller() {
-    Method deleteMethod = ReflectionUtils.findMethod(CompanyController.class, "delete");
-
-    assertThat(deleteMethod).isNull();
+    assertThat(Arrays.stream(CompanyController.class.getDeclaredMethods()))
+        .noneMatch(method -> method.getName().equals("delete"));
   }
 }
