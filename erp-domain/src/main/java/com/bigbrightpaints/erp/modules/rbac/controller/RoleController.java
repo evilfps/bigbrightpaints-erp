@@ -2,15 +2,18 @@ package com.bigbrightpaints.erp.modules.rbac.controller;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.rbac.dto.CreateRoleRequest;
 import com.bigbrightpaints.erp.modules.rbac.dto.RoleDto;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
@@ -37,20 +40,21 @@ public class RoleController {
 
   @GetMapping("/{roleKey}")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")
-  public ResponseEntity<ApiResponse<RoleDto>> getRoleByKey(
-      @org.springframework.web.bind.annotation.PathVariable String roleKey) {
+  public ResponseEntity<ApiResponse<RoleDto>> getRoleByKey(@PathVariable String roleKey) {
     String normalized = roleKey == null ? "" : roleKey.trim().toUpperCase(Locale.ROOT);
     if (!normalized.startsWith("ROLE_")) {
       normalized = "ROLE_" + normalized;
     }
     String target = normalized;
-    java.util.Optional<RoleDto> match =
+    Optional<RoleDto> match =
         roleService.listRolesForCurrentActor().stream()
             .filter(r -> r.name() != null && r.name().equalsIgnoreCase(target))
             .findFirst();
     if (match.isEmpty()) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Unknown platform role: " + target); }
-    return ResponseEntity.ok(ApiResponse.success("Role " + target, match.get())); }
+      throw ValidationUtils.invalidInput("Unknown platform role: " + target);
+    }
+    return ResponseEntity.ok(ApiResponse.success("Role " + target, match.get()));
+  }
 
   @PostMapping
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SUPER_ADMIN')")

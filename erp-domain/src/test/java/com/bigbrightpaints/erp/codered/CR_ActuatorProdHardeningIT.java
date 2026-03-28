@@ -24,6 +24,7 @@ import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
     properties = {
       "jwt.secret=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
       "spring.mail.host=localhost",
+      "spring.mail.port=2525",
       "spring.mail.username=test-smtp-user",
       "spring.mail.password=test-smtp-password",
       "ERP_LICENSE_KEY=test-license-key",
