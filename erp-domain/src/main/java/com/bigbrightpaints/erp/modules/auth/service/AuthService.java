@@ -32,7 +32,7 @@ import com.bigbrightpaints.erp.modules.auth.web.LoginRequest;
 import com.bigbrightpaints.erp.modules.auth.web.RefreshTokenRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
-import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeRequestAdmissionService;
 
 import io.jsonwebtoken.Claims;
 
@@ -52,7 +52,7 @@ public class AuthService {
   private final MfaService mfaService;
   private final TokenBlacklistService tokenBlacklistService;
   private final AuditService auditService;
-  private final TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+  private final TenantRuntimeRequestAdmissionService tenantRuntimeRequestAdmissionService;
   private final PasswordEncoder passwordEncoder;
   private final AuthScopeService authScopeService;
 
@@ -65,7 +65,7 @@ public class AuthService {
       MfaService mfaService,
       TokenBlacklistService tokenBlacklistService,
       AuditService auditService,
-      TenantRuntimeEnforcementService tenantRuntimeEnforcementService,
+      TenantRuntimeRequestAdmissionService tenantRuntimeRequestAdmissionService,
       PasswordEncoder passwordEncoder,
       AuthScopeService authScopeService) {
     this.tokenService = tokenService;
@@ -76,7 +76,7 @@ public class AuthService {
     this.mfaService = mfaService;
     this.tokenBlacklistService = tokenBlacklistService;
     this.auditService = auditService;
-    this.tenantRuntimeEnforcementService = tenantRuntimeEnforcementService;
+    this.tenantRuntimeRequestAdmissionService = tenantRuntimeRequestAdmissionService;
     this.passwordEncoder = passwordEncoder;
     this.authScopeService = authScopeService;
   }
@@ -97,7 +97,7 @@ public class AuthService {
       }
       Company company = resolveCompanyForScope(user, scopeCode);
       if (company != null) {
-        tenantRuntimeEnforcementService.enforceAuthOperationAllowed(
+        tenantRuntimeRequestAdmissionService.enforceAuthOperationAllowed(
             company.getCode(), user.getEmail(), "LOGIN");
       }
       mfaService.verifyDuringLogin(user, request.mfaCode(), request.recoveryCode());
@@ -171,7 +171,7 @@ public class AuthService {
     enforceLock(user);
     Company company = resolveCompanyForScope(user, requestedScopeCode);
     if (company != null) {
-      tenantRuntimeEnforcementService.enforceAuthOperationAllowed(
+      tenantRuntimeRequestAdmissionService.enforceAuthOperationAllowed(
           company.getCode(), user.getEmail(), "REFRESH_TOKEN");
     }
     Map<String, Object> claims = Map.of("name", user.getDisplayName());

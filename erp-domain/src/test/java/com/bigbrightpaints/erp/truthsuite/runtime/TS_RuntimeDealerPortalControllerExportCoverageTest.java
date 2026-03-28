@@ -22,6 +22,7 @@ import com.bigbrightpaints.erp.modules.admin.service.TenantRuntimePolicyService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeRequestAdmissionService;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoicePdfService;
 import com.bigbrightpaints.erp.modules.portal.service.TenantRuntimeEnforcementInterceptor;
 import com.bigbrightpaints.erp.modules.sales.controller.DealerPortalController;
@@ -119,17 +120,18 @@ class TS_RuntimeDealerPortalControllerExportCoverageTest {
   @Test
   void tenantRuntimeInterceptor_skipsLegacyChecks_whenCanonicalAdmissionAlreadyApplied()
       throws Exception {
-    TenantRuntimeEnforcementService tenantRuntimeEnforcementService =
-        org.mockito.Mockito.mock(TenantRuntimeEnforcementService.class);
+    TenantRuntimeRequestAdmissionService tenantRuntimeRequestAdmissionService =
+        org.mockito.Mockito.mock(TenantRuntimeRequestAdmissionService.class);
     TenantRuntimeEnforcementInterceptor interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            org.mockito.Mockito.mock(CompanyContextService.class), tenantRuntimeEnforcementService);
+            org.mockito.Mockito.mock(CompanyContextService.class),
+            tenantRuntimeRequestAdmissionService);
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
     request.setAttribute(TenantRuntimeRequestAttributes.CANONICAL_ADMISSION_APPLIED, Boolean.TRUE);
 
     boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
 
     assertThat(allowed).isTrue();
-    verifyNoInteractions(tenantRuntimeEnforcementService);
+    verifyNoInteractions(tenantRuntimeRequestAdmissionService);
   }
 }

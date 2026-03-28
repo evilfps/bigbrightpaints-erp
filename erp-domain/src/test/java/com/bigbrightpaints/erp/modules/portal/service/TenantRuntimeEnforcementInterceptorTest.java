@@ -29,13 +29,14 @@ import com.bigbrightpaints.erp.core.security.TenantRuntimeRequestAttributes;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeRequestAdmissionService;
 
 @ExtendWith(MockitoExtension.class)
 class TenantRuntimeEnforcementInterceptorTest {
 
   @Mock private CompanyContextService companyContextService;
 
-  @Mock private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+  @Mock private TenantRuntimeRequestAdmissionService tenantRuntimeRequestAdmissionService;
 
   private TenantRuntimeEnforcementInterceptor interceptor;
 
@@ -43,20 +44,20 @@ class TenantRuntimeEnforcementInterceptorTest {
   void preHandle_bypassesWhenPathIsNotEnforced() throws Exception {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/admin/settings");
 
     boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
 
     assertThat(allowed).isTrue();
-    verifyNoInteractions(companyContextService, tenantRuntimeEnforcementService);
+    verifyNoInteractions(companyContextService, tenantRuntimeRequestAdmissionService);
   }
 
   @Test
   void preHandle_bypassesWhenPathIsBlank() throws Exception {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     MockHttpServletRequest request = new MockHttpServletRequest();
     request.setMethod("GET");
     request.setRequestURI("   ");
@@ -64,7 +65,7 @@ class TenantRuntimeEnforcementInterceptorTest {
     boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
 
     assertThat(allowed).isTrue();
-    verifyNoInteractions(companyContextService, tenantRuntimeEnforcementService);
+    verifyNoInteractions(companyContextService, tenantRuntimeRequestAdmissionService);
   }
 
   @Test
@@ -72,26 +73,26 @@ class TenantRuntimeEnforcementInterceptorTest {
       throws Exception {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
     request.setAttribute(TenantRuntimeRequestAttributes.CANONICAL_ADMISSION_APPLIED, Boolean.TRUE);
 
     boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
 
     assertThat(allowed).isTrue();
-    verifyNoInteractions(companyContextService, tenantRuntimeEnforcementService);
+    verifyNoInteractions(companyContextService, tenantRuntimeRequestAdmissionService);
   }
 
   @Test
   void preHandle_usesCanonicalRuntimeServiceWhenFilterDidNotTrackRequest() throws Exception {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     Company company = company(55L, "ACME");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     TenantRuntimeEnforcementService.TenantRequestAdmission admission =
         admission(true, "ACME", 200, null, null, null, null, null, null);
-    when(tenantRuntimeEnforcementService.beginRequest(
+    when(tenantRuntimeRequestAdmissionService.beginRequest(
             eq("ACME"), eq("/api/v1/portal/dashboard"), eq("GET"), eq(null), eq(false)))
         .thenReturn(admission);
 
@@ -104,21 +105,21 @@ class TenantRuntimeEnforcementInterceptorTest {
     assertThat(allowed).isTrue();
     assertThat(request.getAttribute(TenantRuntimeRequestAttributes.INTERCEPTOR_FALLBACK_ADMISSION))
         .isSameAs(admission);
-    verify(tenantRuntimeEnforcementService).completeRequest(admission, 200);
+    verify(tenantRuntimeRequestAdmissionService).completeRequest(admission, 200);
   }
 
   @Test
   void preHandle_passesTrimmedAuthenticatedActorToFallbackAdmission() throws Exception {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     Company company = company(55L, "ACME");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     TenantRuntimeEnforcementService.TenantRequestAdmission admission =
         admission(true, "ACME", 200, null, null, null, null, null, null);
     SecurityContextHolder.getContext()
         .setAuthentication(new UsernamePasswordAuthenticationToken("  actor@bbp.com  ", "ignored"));
-    when(tenantRuntimeEnforcementService.beginRequest(
+    when(tenantRuntimeRequestAdmissionService.beginRequest(
             eq("ACME"), eq("/api/v1/portal/dashboard"), eq("GET"), eq("actor@bbp.com"), eq(false)))
         .thenReturn(admission);
 
@@ -138,14 +139,14 @@ class TenantRuntimeEnforcementInterceptorTest {
   void preHandle_usesNullActorWhenAuthenticationNameIsBlank() throws Exception {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     Company company = company(55L, "ACME");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     TenantRuntimeEnforcementService.TenantRequestAdmission admission =
         admission(true, "ACME", 200, null, null, null, null, null, null);
     SecurityContextHolder.getContext()
         .setAuthentication(new UsernamePasswordAuthenticationToken("   ", "ignored"));
-    when(tenantRuntimeEnforcementService.beginRequest(
+    when(tenantRuntimeRequestAdmissionService.beginRequest(
             eq("ACME"), eq("/api/v1/portal/dashboard"), eq("GET"), eq(null), eq(false)))
         .thenReturn(admission);
 
@@ -165,10 +166,10 @@ class TenantRuntimeEnforcementInterceptorTest {
   void preHandle_translatesNullAdmissionIntoUnavailablePortalContract() {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     Company company = company(55L, "ACME");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(tenantRuntimeEnforcementService.beginRequest(any(), any(), any(), any(), eq(false)))
+    when(tenantRuntimeRequestAdmissionService.beginRequest(any(), any(), any(), any(), eq(false)))
         .thenReturn(null);
 
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
@@ -186,14 +187,14 @@ class TenantRuntimeEnforcementInterceptorTest {
                   .containsEntry("companyCode", "ACME")
                   .containsEntry("path", "/api/v1/portal/dashboard");
             });
-    verify(tenantRuntimeEnforcementService, never()).snapshot("ACME");
+    verify(tenantRuntimeRequestAdmissionService, never()).snapshot("ACME");
   }
 
   @Test
   void preHandle_translatesCanonicalStateRejectionIntoPortalContract() {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     Company company = company(55L, "ACME");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     TenantRuntimeEnforcementService.TenantRequestAdmission rejected =
@@ -208,9 +209,9 @@ class TenantRuntimeEnforcementInterceptorTest {
             null,
             null,
             "policy-blocked");
-    when(tenantRuntimeEnforcementService.beginRequest(any(), any(), any(), any(), eq(false)))
+    when(tenantRuntimeRequestAdmissionService.beginRequest(any(), any(), any(), any(), eq(false)))
         .thenReturn(rejected);
-    when(tenantRuntimeEnforcementService.snapshot("ACME"))
+    when(tenantRuntimeRequestAdmissionService.snapshot("ACME"))
         .thenReturn(
             snapshot(
                 TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED,
@@ -247,7 +248,7 @@ class TenantRuntimeEnforcementInterceptorTest {
   void preHandle_treatsTenantStateLimitTypeAsInvalidStateContract() {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     Company company = company(55L, "ACME");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     TenantRuntimeEnforcementService.TenantRequestAdmission rejected =
@@ -262,7 +263,7 @@ class TenantRuntimeEnforcementInterceptorTest {
             "HOLD",
             "ACTIVE",
             "policy-hold");
-    when(tenantRuntimeEnforcementService.beginRequest(any(), any(), any(), any(), eq(false)))
+    when(tenantRuntimeRequestAdmissionService.beginRequest(any(), any(), any(), any(), eq(false)))
         .thenReturn(rejected);
 
     MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/portal/orders");
@@ -281,14 +282,14 @@ class TenantRuntimeEnforcementInterceptorTest {
                   .containsEntry("policyReference", "policy-hold")
                   .containsEntry("path", "/api/v1/portal/orders");
             });
-    verify(tenantRuntimeEnforcementService, never()).snapshot("ACME");
+    verify(tenantRuntimeRequestAdmissionService, never()).snapshot("ACME");
   }
 
   @Test
   void preHandle_translatesQuotaRejectionIntoPortalContract_whenQuotaValuesAreBlankOrInvalid() {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     Company company = company(55L, "ACME");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     TenantRuntimeEnforcementService.TenantRequestAdmission rejected =
@@ -303,7 +304,7 @@ class TenantRuntimeEnforcementInterceptorTest {
             "   ",
             "not-a-number",
             "policy-rpm");
-    when(tenantRuntimeEnforcementService.beginRequest(any(), any(), any(), any(), eq(false)))
+    when(tenantRuntimeRequestAdmissionService.beginRequest(any(), any(), any(), any(), eq(false)))
         .thenReturn(rejected);
 
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/reports/inventory");
@@ -319,14 +320,14 @@ class TenantRuntimeEnforcementInterceptorTest {
                   .containsEntry("quotaValue", 0)
                   .containsEntry("observed", 0);
             });
-    verify(tenantRuntimeEnforcementService, never()).snapshot("ACME");
+    verify(tenantRuntimeRequestAdmissionService, never()).snapshot("ACME");
   }
 
   @Test
   void preHandle_translatesCanonicalQuotaRejectionIntoPortalContract() {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     Company company = company(55L, "ACME");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     TenantRuntimeEnforcementService.TenantRequestAdmission rejected =
@@ -341,7 +342,7 @@ class TenantRuntimeEnforcementInterceptorTest {
             "2",
             "1",
             "policy-rpm");
-    when(tenantRuntimeEnforcementService.beginRequest(any(), any(), any(), any(), eq(false)))
+    when(tenantRuntimeRequestAdmissionService.beginRequest(any(), any(), any(), any(), eq(false)))
         .thenReturn(rejected);
 
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/reports/inventory");
@@ -361,14 +362,14 @@ class TenantRuntimeEnforcementInterceptorTest {
                   .containsEntry("policyReference", "policy-rpm")
                   .containsEntry("path", "/api/v1/reports/inventory");
             });
-    verify(tenantRuntimeEnforcementService, never()).snapshot("ACME");
+    verify(tenantRuntimeRequestAdmissionService, never()).snapshot("ACME");
   }
 
   @Test
   void admissionException_treatsBlankCompanyAndPathAsNulls() {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
 
     RuntimeException exception =
         ReflectionTestUtils.invokeMethod(interceptor, "admissionException", "   ", "   ", null);
@@ -378,14 +379,14 @@ class TenantRuntimeEnforcementInterceptorTest {
     assertThat(applicationException.getDetails())
         .containsEntry("companyCode", null)
         .containsEntry("path", null);
-    verifyNoInteractions(tenantRuntimeEnforcementService);
+    verifyNoInteractions(tenantRuntimeRequestAdmissionService);
   }
 
   @Test
   void admissionException_usesAdmissionCompanyAndStateDetailsWithoutSnapshotLookup() {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     TenantRuntimeEnforcementService.TenantRequestAdmission rejected =
         admission(
             false,
@@ -411,14 +412,14 @@ class TenantRuntimeEnforcementInterceptorTest {
         .containsEntry("holdReason", "SECURITY_REVIEW")
         .containsEntry("policyReference", "chain-id")
         .containsEntry("path", "/api/v1/portal/orders");
-    verifyNoInteractions(tenantRuntimeEnforcementService);
+    verifyNoInteractions(tenantRuntimeRequestAdmissionService);
   }
 
   @Test
   void admissionException_leavesFallbackStateDetailsNullWhenAdmissionMetadataIsBlank() {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     TenantRuntimeEnforcementService.TenantRequestAdmission rejected =
         admission(
             false,
@@ -445,14 +446,14 @@ class TenantRuntimeEnforcementInterceptorTest {
         .containsEntry("holdReason", null)
         .containsEntry("policyReference", null)
         .containsEntry("path", "/api/v1/portal/orders");
-    verifyNoInteractions(tenantRuntimeEnforcementService);
+    verifyNoInteractions(tenantRuntimeRequestAdmissionService);
   }
 
   @Test
   void admissionException_usesSnapshotReasonWhenAdmissionReasonIsMissing() {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     TenantRuntimeEnforcementService.TenantRequestAdmission rejected =
         admission(
             false,
@@ -464,7 +465,7 @@ class TenantRuntimeEnforcementInterceptorTest {
             "TENANT_STATE",
             "HOLD",
             "ACTIVE");
-    when(tenantRuntimeEnforcementService.snapshot("ACME"))
+    when(tenantRuntimeRequestAdmissionService.snapshot("ACME"))
         .thenReturn(
             snapshot(
                 TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED,
@@ -492,14 +493,14 @@ class TenantRuntimeEnforcementInterceptorTest {
         .containsEntry("holdReason", "MAINTENANCE_WINDOW")
         .containsEntry("policyReference", "chain-id")
         .containsEntry("path", "/api/v1/portal/orders");
-    verify(tenantRuntimeEnforcementService).snapshot("ACME");
+    verify(tenantRuntimeRequestAdmissionService).snapshot("ACME");
   }
 
   @Test
   void admissionException_prefersAdmissionMetadataOverChangedSnapshot() {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     TenantRuntimeEnforcementService.TenantRequestAdmission rejected =
         admission(
             false,
@@ -526,14 +527,14 @@ class TenantRuntimeEnforcementInterceptorTest {
         .containsEntry("holdReason", "MAINTENANCE_WINDOW")
         .containsEntry("policyReference", "policy-denied")
         .containsEntry("path", "/api/v1/portal/orders");
-    verifyNoInteractions(tenantRuntimeEnforcementService);
+    verifyNoInteractions(tenantRuntimeRequestAdmissionService);
   }
 
   @Test
   void admissionException_degradesToNullFallbackStateDetailsWhenSnapshotLookupFails() {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     TenantRuntimeEnforcementService.TenantRequestAdmission rejected =
         admission(
             false,
@@ -546,7 +547,7 @@ class TenantRuntimeEnforcementInterceptorTest {
             "HOLD",
             "ACTIVE",
             "   ");
-    when(tenantRuntimeEnforcementService.snapshot("ACME"))
+    when(tenantRuntimeRequestAdmissionService.snapshot("ACME"))
         .thenThrow(new IllegalStateException("db offline"));
 
     RuntimeException exception =
@@ -562,19 +563,19 @@ class TenantRuntimeEnforcementInterceptorTest {
         .containsEntry("holdReason", null)
         .containsEntry("policyReference", null)
         .containsEntry("path", "/api/v1/portal/orders");
-    verify(tenantRuntimeEnforcementService).snapshot("ACME");
+    verify(tenantRuntimeRequestAdmissionService).snapshot("ACME");
   }
 
   @Test
   void afterCompletion_ignoresRequestsWithoutInterceptorFallbackAdmission() {
     interceptor =
         new TenantRuntimeEnforcementInterceptor(
-            companyContextService, tenantRuntimeEnforcementService);
+            companyContextService, tenantRuntimeRequestAdmissionService);
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
 
     interceptor.afterCompletion(request, new MockHttpServletResponse(), new Object(), null);
 
-    verify(tenantRuntimeEnforcementService, never()).completeRequest(any(), eq(200));
+    verify(tenantRuntimeRequestAdmissionService, never()).completeRequest(any(), eq(200));
   }
 
   private Company company(Long id, String code) {

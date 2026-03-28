@@ -38,10 +38,10 @@ import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-@Service("coreTenantRuntimeEnforcementService")
-public class TenantRuntimeEnforcementService {
+@Service("coreTenantRuntimeAccessService")
+public class TenantRuntimeAccessService {
 
-  private static final Logger log = LoggerFactory.getLogger(TenantRuntimeEnforcementService.class);
+  private static final Logger log = LoggerFactory.getLogger(TenantRuntimeAccessService.class);
   private static final int HTTP_STATUS_TENANT_LOCKED = 423;
   private static final int HTTP_STATUS_TOO_MANY_REQUESTS = 429;
   private static final String SETTINGS_PREFIX = "tenant.runtime.";
@@ -70,7 +70,7 @@ public class TenantRuntimeEnforcementService {
   private final ConcurrentMap<String, TenantRuntimeMetrics> runtimeMetrics =
       new ConcurrentHashMap<>();
 
-  public TenantRuntimeEnforcementService(
+  public TenantRuntimeAccessService(
       CompanyRepository companyRepository,
       SystemSettingsRepository settingsRepository,
       AuditService auditService,

@@ -27,6 +27,12 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 
+/**
+ * Canonical tenant runtime policy-mutation and snapshot owner.
+ *
+ * <p>Request admission now enters through {@link TenantRuntimeRequestAdmissionService} so runtime
+ * filters, interceptors, and auth flows do not bind directly to this policy service.
+ */
 @Service
 public class TenantRuntimeEnforcementService {
 
@@ -69,12 +75,12 @@ public class TenantRuntimeEnforcementService {
     this.persistedPolicyCacheTtlMillis = Math.max(1L, policyCacheSeconds) * 1000L;
   }
 
-  public TenantRequestAdmission beginRequest(
+  TenantRequestAdmission admitRequest(
       String companyCode, String requestPath, String requestMethod, String actor) {
-    return beginRequest(companyCode, requestPath, requestMethod, actor, false);
+    return admitRequest(companyCode, requestPath, requestMethod, actor, false);
   }
 
-  public TenantRequestAdmission beginRequest(
+  TenantRequestAdmission admitRequest(
       String companyCode,
       String requestPath,
       String requestMethod,
@@ -151,7 +157,7 @@ public class TenantRuntimeEnforcementService {
     return TenantRequestAdmission.admitted(normalizedCompany, policy.auditChainId, usageCounters);
   }
 
-  public void completeRequest(TenantRequestAdmission admission, int responseStatus) {
+  void completeRequestAdmission(TenantRequestAdmission admission, int responseStatus) {
     if (admission == null || !admission.isAdmitted()) {
       return;
     }
@@ -164,7 +170,7 @@ public class TenantRuntimeEnforcementService {
     }
   }
 
-  public void enforceAuthOperationAllowed(String companyCode, String actor, String operation) {
+  void enforceAuthOperation(String companyCode, String actor, String operation) {
     String normalizedCompany = requireCompanyCode(companyCode);
     String scope = "auth_" + normalizeUpperToken(operation, "UNKNOWN");
     TenantRuntimePolicy policy = policyFor(normalizedCompany);

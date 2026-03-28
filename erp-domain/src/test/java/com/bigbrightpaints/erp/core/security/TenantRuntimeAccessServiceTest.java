@@ -37,7 +37,7 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 @ExtendWith(MockitoExtension.class)
-class TenantRuntimeEnforcementServiceTest {
+class TenantRuntimeAccessServiceTest {
 
   private static final long ACME_ID = 1L;
 
@@ -49,12 +49,12 @@ class TenantRuntimeEnforcementServiceTest {
   private final Map<String, Company> companies = new HashMap<>();
   private final Map<String, String> settings = new HashMap<>();
 
-  private TenantRuntimeEnforcementService service;
+  private TenantRuntimeAccessService service;
 
   @BeforeEach
   void setUp() {
     service =
-        new TenantRuntimeEnforcementService(
+        new TenantRuntimeAccessService(
             companyRepository,
             settingsRepository,
             auditService,
@@ -104,7 +104,7 @@ class TenantRuntimeEnforcementServiceTest {
 
     MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/sales/orders");
 
-    TenantRuntimeEnforcementService.AccessHandle accessHandle = service.acquire("ACME", request);
+    TenantRuntimeAccessService.AccessHandle accessHandle = service.acquire("ACME", request);
 
     assertThat(accessHandle.allowed()).isFalse();
     assertThat(accessHandle.httpStatus()).isEqualTo(423);
@@ -120,12 +120,12 @@ class TenantRuntimeEnforcementServiceTest {
     MockHttpServletRequest request =
         new MockHttpServletRequest("GET", "/api/v1/reports/trial-balance");
 
-    TenantRuntimeEnforcementService.AccessHandle accessHandle = service.acquire("ACME", request);
+    TenantRuntimeAccessService.AccessHandle accessHandle = service.acquire("ACME", request);
 
     assertThat(accessHandle.allowed()).isTrue();
     accessHandle.close();
 
-    TenantRuntimeEnforcementService.TenantRuntimeMetricsSnapshot snapshot =
+    TenantRuntimeAccessService.TenantRuntimeMetricsSnapshot snapshot =
         service.snapshot("ACME").orElseThrow();
     assertThat(snapshot.allowedRequests()).isEqualTo(1L);
     assertThat(snapshot.deniedRequests()).isZero();
@@ -137,7 +137,7 @@ class TenantRuntimeEnforcementServiceTest {
     settings.put(keyHoldState(ACME_ID), "BLOCKED");
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
 
-    TenantRuntimeEnforcementService.AccessHandle accessHandle = service.acquire("ACME", request);
+    TenantRuntimeAccessService.AccessHandle accessHandle = service.acquire("ACME", request);
 
     assertThat(accessHandle.allowed()).isFalse();
     assertThat(accessHandle.httpStatus()).isEqualTo(403);
@@ -149,13 +149,13 @@ class TenantRuntimeEnforcementServiceTest {
     settings.put(keyHoldState(ACME_ID), "ACTIVE");
     settings.put(keyMaxRequestsPerMinute(ACME_ID), "0");
 
-    TenantRuntimeEnforcementService.AccessHandle accessHandle =
+    TenantRuntimeAccessService.AccessHandle accessHandle =
         service.acquire("ACME", new MockHttpServletRequest("POST", "/api/v1/sales/orders"));
 
     assertThat(accessHandle.allowed()).isTrue();
     accessHandle.close();
 
-    TenantRuntimeEnforcementService.TenantRuntimeMetricsSnapshot snapshot =
+    TenantRuntimeAccessService.TenantRuntimeMetricsSnapshot snapshot =
         service.snapshot("ACME").orElseThrow();
     assertThat(snapshot.totalRequests()).isEqualTo(1L);
     assertThat(snapshot.allowedRequests()).isEqualTo(1L);
@@ -170,11 +170,11 @@ class TenantRuntimeEnforcementServiceTest {
     MockHttpServletRequest request1 = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
     MockHttpServletRequest request2 = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
 
-    TenantRuntimeEnforcementService.AccessHandle first = service.acquire("ACME", request1);
+    TenantRuntimeAccessService.AccessHandle first = service.acquire("ACME", request1);
     assertThat(first.allowed()).isTrue();
     first.close();
 
-    TenantRuntimeEnforcementService.AccessHandle second = service.acquire("ACME", request2);
+    TenantRuntimeAccessService.AccessHandle second = service.acquire("ACME", request2);
     assertThat(second.allowed()).isFalse();
     assertThat(second.httpStatus()).isEqualTo(429);
     assertThat(second.reasonCode()).isEqualTo("TENANT_QUOTA_RATE_LIMIT");
@@ -187,23 +187,23 @@ class TenantRuntimeEnforcementServiceTest {
     MockHttpServletRequest request1 = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
     MockHttpServletRequest request2 = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
 
-    TenantRuntimeEnforcementService.AccessHandle first = service.acquire("ACME", request1);
+    TenantRuntimeAccessService.AccessHandle first = service.acquire("ACME", request1);
     assertThat(first.allowed()).isTrue();
 
-    TenantRuntimeEnforcementService.AccessHandle second = service.acquire("ACME", request2);
+    TenantRuntimeAccessService.AccessHandle second = service.acquire("ACME", request2);
     assertThat(second.allowed()).isFalse();
     assertThat(second.httpStatus()).isEqualTo(429);
     assertThat(second.reasonCode()).isEqualTo("TENANT_QUOTA_CONCURRENCY_LIMIT");
 
     first.close();
-    TenantRuntimeEnforcementService.TenantRuntimeMetricsSnapshot snapshot =
+    TenantRuntimeAccessService.TenantRuntimeMetricsSnapshot snapshot =
         service.snapshot("ACME").orElseThrow();
     assertThat(snapshot.activeRequests()).isZero();
   }
 
   @Test
   void acquire_failsClosed_whenCompanyContextMissing() {
-    TenantRuntimeEnforcementService.AccessHandle accessHandle =
+    TenantRuntimeAccessService.AccessHandle accessHandle =
         service.acquire("   ", new MockHttpServletRequest("GET", "/api/v1/auth/me"));
 
     assertThat(accessHandle.allowed()).isFalse();
@@ -215,7 +215,7 @@ class TenantRuntimeEnforcementServiceTest {
 
   @Test
   void acquire_failsClosed_whenCompanyDoesNotExist() {
-    TenantRuntimeEnforcementService.AccessHandle accessHandle =
+    TenantRuntimeAccessService.AccessHandle accessHandle =
         service.acquire("NO_SUCH_CO", new MockHttpServletRequest("GET", "/api/v1/auth/me"));
 
     assertThat(accessHandle.allowed()).isFalse();
@@ -231,7 +231,7 @@ class TenantRuntimeEnforcementServiceTest {
     unresolved.setCode("NOID");
     companies.put("NOID", unresolved);
 
-    TenantRuntimeEnforcementService.AccessHandle accessHandle =
+    TenantRuntimeAccessService.AccessHandle accessHandle =
         service.acquire("NOID", new MockHttpServletRequest("GET", "/api/v1/auth/me"));
 
     assertThat(accessHandle.allowed()).isFalse();
@@ -245,7 +245,7 @@ class TenantRuntimeEnforcementServiceTest {
     settings.put(keyHoldState(ACME_ID), "mystery");
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/portal/dashboard");
 
-    TenantRuntimeEnforcementService.AccessHandle accessHandle = service.acquire("ACME", request);
+    TenantRuntimeAccessService.AccessHandle accessHandle = service.acquire("ACME", request);
 
     assertThat(accessHandle.allowed()).isFalse();
     assertThat(accessHandle.httpStatus()).isEqualTo(403);
@@ -257,7 +257,7 @@ class TenantRuntimeEnforcementServiceTest {
     settings.put(legacyKey("acme", "state"), "mystery");
     settings.put(legacyKey("default", "state"), "ACTIVE");
 
-    TenantRuntimeEnforcementService.AccessHandle accessHandle =
+    TenantRuntimeAccessService.AccessHandle accessHandle =
         service.acquire("ACME", new MockHttpServletRequest("GET", "/api/v1/portal/dashboard"));
 
     assertThat(accessHandle.allowed()).isFalse();
@@ -269,7 +269,7 @@ class TenantRuntimeEnforcementServiceTest {
   void invalidLegacyDefaultState_failsClosedToBlocked_whenTenantStateIsMissing() {
     settings.put(legacyKey("default", "state"), "mystery");
 
-    TenantRuntimeEnforcementService.AccessHandle accessHandle =
+    TenantRuntimeAccessService.AccessHandle accessHandle =
         service.acquire("ACME", new MockHttpServletRequest("GET", "/api/v1/portal/dashboard"));
 
     assertThat(accessHandle.allowed()).isFalse();
@@ -282,7 +282,7 @@ class TenantRuntimeEnforcementServiceTest {
     settings.put(legacyKey("acme", "state"), "HOLD");
     settings.put(legacyKey("acme", "reason-code"), "LEGACY_HOLD");
 
-    TenantRuntimeEnforcementService.AccessHandle accessHandle =
+    TenantRuntimeAccessService.AccessHandle accessHandle =
         service.acquire("ACME", new MockHttpServletRequest("POST", "/api/v1/private"));
 
     assertThat(accessHandle.allowed()).isFalse();
@@ -296,7 +296,7 @@ class TenantRuntimeEnforcementServiceTest {
     settings.put(keyPolicyReference(ACME_ID), "policy-v2");
     settings.put(keyPolicyUpdatedAt(ACME_ID), "2026-02-23T10:56:00Z");
 
-    TenantRuntimeEnforcementService.AccessHandle accessHandle =
+    TenantRuntimeAccessService.AccessHandle accessHandle =
         service.acquire("ACME", new MockHttpServletRequest("GET", "/api/v1/private"));
 
     assertThat(accessHandle.allowed()).isFalse();
@@ -320,12 +320,12 @@ class TenantRuntimeEnforcementServiceTest {
     settings.put(keyHoldState(firstCompanyId), "BLOCKED");
     settings.put(keyHoldState(secondCompanyId), "ACTIVE");
 
-    TenantRuntimeEnforcementService.AccessHandle blocked =
+    TenantRuntimeAccessService.AccessHandle blocked =
         service.acquire("ACME INC", new MockHttpServletRequest("GET", "/api/v1/private"));
     assertThat(blocked.allowed()).isFalse();
     assertThat(blocked.reasonCode()).isEqualTo("TENANT_BLOCKED");
 
-    TenantRuntimeEnforcementService.AccessHandle allowed =
+    TenantRuntimeAccessService.AccessHandle allowed =
         service.acquire("ACME@INC", new MockHttpServletRequest("GET", "/api/v1/private"));
     assertThat(allowed.allowed()).isTrue();
     allowed.close();
@@ -347,29 +347,29 @@ class TenantRuntimeEnforcementServiceTest {
     settings.put(keyMaxRequestsPerMinute(firstCompanyId), "1");
     settings.put(keyMaxRequestsPerMinute(secondCompanyId), "1");
 
-    TenantRuntimeEnforcementService.AccessHandle firstAllowed =
+    TenantRuntimeAccessService.AccessHandle firstAllowed =
         service.acquire("ACME INC", new MockHttpServletRequest("GET", "/api/v1/private"));
     assertThat(firstAllowed.allowed()).isTrue();
     firstAllowed.close();
 
-    TenantRuntimeEnforcementService.AccessHandle secondAllowed =
+    TenantRuntimeAccessService.AccessHandle secondAllowed =
         service.acquire("ACME@INC", new MockHttpServletRequest("GET", "/api/v1/private"));
     assertThat(secondAllowed.allowed()).isTrue();
     secondAllowed.close();
 
-    TenantRuntimeEnforcementService.AccessHandle firstDenied =
+    TenantRuntimeAccessService.AccessHandle firstDenied =
         service.acquire("ACME INC", new MockHttpServletRequest("GET", "/api/v1/private"));
     assertThat(firstDenied.allowed()).isFalse();
     assertThat(firstDenied.reasonCode()).isEqualTo("TENANT_QUOTA_RATE_LIMIT");
 
-    TenantRuntimeEnforcementService.AccessHandle secondDenied =
+    TenantRuntimeAccessService.AccessHandle secondDenied =
         service.acquire("ACME@INC", new MockHttpServletRequest("GET", "/api/v1/private"));
     assertThat(secondDenied.allowed()).isFalse();
     assertThat(secondDenied.reasonCode()).isEqualTo("TENANT_QUOTA_RATE_LIMIT");
 
-    TenantRuntimeEnforcementService.TenantRuntimeMetricsSnapshot firstSnapshot =
+    TenantRuntimeAccessService.TenantRuntimeMetricsSnapshot firstSnapshot =
         service.snapshot("ACME INC").orElseThrow();
-    TenantRuntimeEnforcementService.TenantRuntimeMetricsSnapshot secondSnapshot =
+    TenantRuntimeAccessService.TenantRuntimeMetricsSnapshot secondSnapshot =
         service.snapshot("ACME@INC").orElseThrow();
     assertThat(firstSnapshot.totalRequests()).isEqualTo(2L);
     assertThat(firstSnapshot.allowedRequests()).isEqualTo(1L);
@@ -378,7 +378,7 @@ class TenantRuntimeEnforcementServiceTest {
     assertThat(secondSnapshot.allowedRequests()).isEqualTo(1L);
     assertThat(secondSnapshot.deniedRequests()).isEqualTo(1L);
 
-    Map<String, TenantRuntimeEnforcementService.TenantRuntimeMetricsSnapshot> allSnapshots =
+    Map<String, TenantRuntimeAccessService.TenantRuntimeMetricsSnapshot> allSnapshots =
         service.snapshotAll();
     assertThat(allSnapshots).containsKeys("21:acme_inc", "22:acme_inc");
   }
@@ -389,7 +389,7 @@ class TenantRuntimeEnforcementServiceTest {
     assertThat(service.snapshot("ACME")).isEmpty();
     assertThat(service.snapshotAll()).isEmpty();
 
-    TenantRuntimeEnforcementService.AccessHandle allowed =
+    TenantRuntimeAccessService.AccessHandle allowed =
         service.acquire("ACME", new MockHttpServletRequest("GET", "/api/v1/portal/dashboard"));
     assertThat(allowed.allowed()).isTrue();
     allowed.close();
@@ -402,19 +402,19 @@ class TenantRuntimeEnforcementServiceTest {
   void evictPolicyCache_forcesPolicyReloadOnNextRequest() {
     settings.put(keyHoldState(ACME_ID), "HOLD");
 
-    TenantRuntimeEnforcementService.AccessHandle deniedWhileCached =
+    TenantRuntimeAccessService.AccessHandle deniedWhileCached =
         service.acquire("ACME", new MockHttpServletRequest("POST", "/api/v1/sales/orders"));
     assertThat(deniedWhileCached.allowed()).isFalse();
     assertThat(deniedWhileCached.reasonCode()).isEqualTo("TENANT_ON_HOLD");
 
     settings.put(keyHoldState(ACME_ID), "ACTIVE");
-    TenantRuntimeEnforcementService.AccessHandle stillDeniedFromCache =
+    TenantRuntimeAccessService.AccessHandle stillDeniedFromCache =
         service.acquire("ACME", new MockHttpServletRequest("POST", "/api/v1/sales/orders"));
     assertThat(stillDeniedFromCache.allowed()).isFalse();
     assertThat(stillDeniedFromCache.reasonCode()).isEqualTo("TENANT_ON_HOLD");
 
     service.evictPolicyCache(" ACME ");
-    TenantRuntimeEnforcementService.AccessHandle allowedAfterEviction =
+    TenantRuntimeAccessService.AccessHandle allowedAfterEviction =
         service.acquire("ACME", new MockHttpServletRequest("POST", "/api/v1/sales/orders"));
     assertThat(allowedAfterEviction.allowed()).isTrue();
     allowedAfterEviction.close();
@@ -428,7 +428,7 @@ class TenantRuntimeEnforcementServiceTest {
         .when(auditService)
         .logFailure(eq(AuditEvent.ACCESS_DENIED), anyMap());
 
-    TenantRuntimeEnforcementService.AccessHandle denied =
+    TenantRuntimeAccessService.AccessHandle denied =
         service.acquire("ACME", new MockHttpServletRequest("GET", "/api/v1/private"));
 
     assertThat(denied.allowed()).isFalse();
@@ -461,8 +461,8 @@ class TenantRuntimeEnforcementServiceTest {
   @Test
   void acquire_registersMetrics_whenMeterRegistryPresent() {
     SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
-    TenantRuntimeEnforcementService meteredService =
-        new TenantRuntimeEnforcementService(
+    TenantRuntimeAccessService meteredService =
+        new TenantRuntimeAccessService(
             companyRepository,
             settingsRepository,
             auditService,
@@ -472,7 +472,7 @@ class TenantRuntimeEnforcementServiceTest {
             0,
             60);
 
-    TenantRuntimeEnforcementService.AccessHandle accessHandle =
+    TenantRuntimeAccessService.AccessHandle accessHandle =
         meteredService.acquire(
             "ACME", new MockHttpServletRequest("GET", "/api/v1/portal/dashboard"));
     assertThat(accessHandle.allowed()).isTrue();

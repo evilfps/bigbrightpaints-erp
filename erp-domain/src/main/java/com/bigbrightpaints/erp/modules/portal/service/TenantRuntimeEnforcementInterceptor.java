@@ -12,6 +12,7 @@ import com.bigbrightpaints.erp.core.security.TenantRuntimeRequestAttributes;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeRequestAdmissionService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -20,13 +21,13 @@ import jakarta.servlet.http.HttpServletResponse;
 public class TenantRuntimeEnforcementInterceptor implements HandlerInterceptor {
 
   private final CompanyContextService companyContextService;
-  private final TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+  private final TenantRuntimeRequestAdmissionService tenantRuntimeRequestAdmissionService;
 
   public TenantRuntimeEnforcementInterceptor(
       CompanyContextService companyContextService,
-      TenantRuntimeEnforcementService tenantRuntimeEnforcementService) {
+      TenantRuntimeRequestAdmissionService tenantRuntimeRequestAdmissionService) {
     this.companyContextService = companyContextService;
-    this.tenantRuntimeEnforcementService = tenantRuntimeEnforcementService;
+    this.tenantRuntimeRequestAdmissionService = tenantRuntimeRequestAdmissionService;
   }
 
   @Override
@@ -43,7 +44,7 @@ public class TenantRuntimeEnforcementInterceptor implements HandlerInterceptor {
 
     Company company = companyContextService.requireCurrentCompany();
     TenantRuntimeEnforcementService.TenantRequestAdmission admission =
-        tenantRuntimeEnforcementService.beginRequest(
+        tenantRuntimeRequestAdmissionService.beginRequest(
             company.getCode(), path, request.getMethod(), resolveCurrentActor(), false);
     if (admission == null || !admission.isAdmitted()) {
       throw admissionException(company.getCode(), path, admission);
@@ -59,7 +60,7 @@ public class TenantRuntimeEnforcementInterceptor implements HandlerInterceptor {
         request.getAttribute(TenantRuntimeRequestAttributes.INTERCEPTOR_FALLBACK_ADMISSION);
     if (admission
         instanceof TenantRuntimeEnforcementService.TenantRequestAdmission trackedAdmission) {
-      tenantRuntimeEnforcementService.completeRequest(trackedAdmission, response.getStatus());
+      tenantRuntimeRequestAdmissionService.completeRequest(trackedAdmission, response.getStatus());
     }
   }
 
@@ -132,7 +133,7 @@ public class TenantRuntimeEnforcementInterceptor implements HandlerInterceptor {
       return null;
     }
     try {
-      return tenantRuntimeEnforcementService.snapshot(companyCode);
+      return tenantRuntimeRequestAdmissionService.snapshot(companyCode);
     } catch (RuntimeException ex) {
       return null;
     }

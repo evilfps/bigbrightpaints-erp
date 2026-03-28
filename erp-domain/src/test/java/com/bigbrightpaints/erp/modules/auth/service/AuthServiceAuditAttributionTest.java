@@ -41,7 +41,7 @@ import com.bigbrightpaints.erp.modules.auth.web.LoginRequest;
 import com.bigbrightpaints.erp.modules.auth.web.RefreshTokenRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
-import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeRequestAdmissionService;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 
 import ch.qos.logback.classic.Level;
@@ -64,7 +64,7 @@ class AuthServiceAuditAttributionTest {
   @Mock private MfaService mfaService;
   @Mock private TokenBlacklistService tokenBlacklistService;
   @Mock private AuditService auditService;
-  @Mock private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+  @Mock private TenantRuntimeRequestAdmissionService tenantRuntimeRequestAdmissionService;
   @Mock private PasswordEncoder passwordEncoder;
   @Mock private AuthScopeService authScopeService;
 
@@ -82,7 +82,7 @@ class AuthServiceAuditAttributionTest {
             mfaService,
             tokenBlacklistService,
             auditService,
-            tenantRuntimeEnforcementService,
+            tenantRuntimeRequestAdmissionService,
             passwordEncoder,
             authScopeService);
   }
@@ -133,7 +133,7 @@ class AuthServiceAuditAttributionTest {
 
     assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
     verify(userAccountRepository).save(user);
-    verify(tenantRuntimeEnforcementService)
+    verify(tenantRuntimeRequestAdmissionService)
         .enforceAuthOperationAllowed("ACME", "user@example.com", "LOGIN");
     verify(auditService)
         .logAuthFailure(
@@ -159,7 +159,7 @@ class AuthServiceAuditAttributionTest {
     doThrow(
             com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
                 "Tenant runtime hold"))
-        .when(tenantRuntimeEnforcementService)
+        .when(tenantRuntimeRequestAdmissionService)
         .enforceAuthOperationAllowed("ACME", "user@example.com", "LOGIN");
 
     assertThatThrownBy(() -> authService.login(request))
@@ -208,7 +208,7 @@ class AuthServiceAuditAttributionTest {
     assertThat(response.accessToken()).isEqualTo("access-new");
     assertThat(response.refreshToken()).isEqualTo("refresh-new");
     verify(companyRepository, never()).findByCodeIgnoreCase(any());
-    verify(tenantRuntimeEnforcementService, never())
+    verify(tenantRuntimeRequestAdmissionService, never())
         .enforceAuthOperationAllowed(any(), any(), any());
   }
 
@@ -267,7 +267,7 @@ class AuthServiceAuditAttributionTest {
     assertThat(response.refreshToken()).isEqualTo("refresh-new");
     assertThat(response.companyCode()).isEqualTo("ACME");
     assertThat(response.displayName()).isEqualTo(user.getDisplayName());
-    verify(tenantRuntimeEnforcementService)
+    verify(tenantRuntimeRequestAdmissionService)
         .enforceAuthOperationAllowed("ACME", "user@example.com", "REFRESH_TOKEN");
   }
 

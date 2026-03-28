@@ -40,6 +40,7 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeRequestAdmissionService;
 
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -52,7 +53,7 @@ class CompanyContextFilterControlPlaneBindingTest {
   private static final String CONTROL_PLANE_AUTH_DENIED_MESSAGE =
       "Access denied to company control request";
 
-  @Mock private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+  @Mock private TenantRuntimeRequestAdmissionService tenantRuntimeRequestAdmissionService;
 
   @Mock private CompanyService companyService;
 
@@ -66,7 +67,7 @@ class CompanyContextFilterControlPlaneBindingTest {
   void setUp() {
     filter =
         new CompanyContextFilter(
-            tenantRuntimeEnforcementService,
+            tenantRuntimeRequestAdmissionService,
             companyService,
             authScopeService,
             new ObjectMapper().findAndRegisterModules());
@@ -99,7 +100,7 @@ class CompanyContextFilterControlPlaneBindingTest {
     assertThat(response.getStatus()).isEqualTo(200);
     verify(companyService).resolveCompanyCodeById(42L);
     verify(companyService).resolveLifecycleStateByCode("TENANT-A");
-    verify(tenantRuntimeEnforcementService, never())
+    verify(tenantRuntimeRequestAdmissionService, never())
         .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
   }
 
@@ -121,7 +122,7 @@ class CompanyContextFilterControlPlaneBindingTest {
     assertThat(response.getStatus()).isEqualTo(200);
     verify(companyService).resolveCompanyCodeById(42L);
     verify(companyService).resolveLifecycleStateByCode("TENANT-A");
-    verify(tenantRuntimeEnforcementService, never())
+    verify(tenantRuntimeRequestAdmissionService, never())
         .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
     verify(filterChain).doFilter(request, response);
   }
@@ -142,7 +143,7 @@ class CompanyContextFilterControlPlaneBindingTest {
     assertThat(response.getContentAsString()).contains(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
     verify(companyService).resolveCompanyCodeById(42L);
     verify(companyService, never()).resolveLifecycleStateByCode(anyString());
-    verify(tenantRuntimeEnforcementService, never())
+    verify(tenantRuntimeRequestAdmissionService, never())
         .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
     verify(filterChain, never()).doFilter(request, response);
   }
@@ -158,7 +159,7 @@ class CompanyContextFilterControlPlaneBindingTest {
     assertThat(response.getStatus()).isEqualTo(403);
     assertThat(response.getContentAsString()).contains(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
     verifyNoInteractions(companyService);
-    verify(tenantRuntimeEnforcementService, never())
+    verify(tenantRuntimeRequestAdmissionService, never())
         .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
   }
 
@@ -278,7 +279,7 @@ class CompanyContextFilterControlPlaneBindingTest {
     assertThat(response.getStatus()).isEqualTo(200);
     verify(companyService).resolveCompanyCodeById(42L);
     verify(companyService).resolveLifecycleStateByCode("TENANT-A");
-    verify(tenantRuntimeEnforcementService, never())
+    verify(tenantRuntimeRequestAdmissionService, never())
         .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
     verify(filterChain).doFilter(request, response);
   }

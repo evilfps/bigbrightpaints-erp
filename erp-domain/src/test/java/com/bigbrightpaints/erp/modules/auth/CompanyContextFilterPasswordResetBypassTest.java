@@ -25,6 +25,7 @@ import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.core.security.CompanyContextFilter;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeRequestAdmissionService;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -32,7 +33,7 @@ import jakarta.servlet.ServletException;
 @ExtendWith(MockitoExtension.class)
 class CompanyContextFilterPasswordResetBypassTest {
 
-  @Mock private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+  @Mock private TenantRuntimeRequestAdmissionService tenantRuntimeRequestAdmissionService;
 
   @Mock private CompanyService companyService;
 
@@ -46,7 +47,7 @@ class CompanyContextFilterPasswordResetBypassTest {
   void setUp() {
     filter =
         new CompanyContextFilter(
-            tenantRuntimeEnforcementService,
+            tenantRuntimeRequestAdmissionService,
             companyService,
             authScopeService,
             new ObjectMapper().findAndRegisterModules());
@@ -86,10 +87,10 @@ class CompanyContextFilterPasswordResetBypassTest {
     assertThat(response.getStatus()).isEqualTo(200);
     verify(filterChain).doFilter(request, response);
     verifyNoInteractions(companyService);
-    verify(tenantRuntimeEnforcementService)
+    verify(tenantRuntimeRequestAdmissionService)
         .completeRequest(
             any(TenantRuntimeEnforcementService.TenantRequestAdmission.class), eq(200));
-    verify(tenantRuntimeEnforcementService, never())
+    verify(tenantRuntimeRequestAdmissionService, never())
         .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
   }
 
@@ -106,10 +107,10 @@ class CompanyContextFilterPasswordResetBypassTest {
     assertThat(response.getStatus()).isEqualTo(403);
     verify(filterChain, never()).doFilter(request, response);
     verifyNoInteractions(companyService);
-    verify(tenantRuntimeEnforcementService)
+    verify(tenantRuntimeRequestAdmissionService)
         .completeRequest(
             any(TenantRuntimeEnforcementService.TenantRequestAdmission.class), eq(403));
-    verify(tenantRuntimeEnforcementService, never())
+    verify(tenantRuntimeRequestAdmissionService, never())
         .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
   }
 }

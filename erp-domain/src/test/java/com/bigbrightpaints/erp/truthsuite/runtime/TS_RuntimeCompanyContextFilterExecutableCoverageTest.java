@@ -40,6 +40,7 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeRequestAdmissionService;
 
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -52,7 +53,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
 
-  @Mock private TenantRuntimeEnforcementService tenantRuntimeEnforcementService;
+  @Mock private TenantRuntimeRequestAdmissionService tenantRuntimeRequestAdmissionService;
 
   @Mock private CompanyService companyService;
 
@@ -66,7 +67,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
   void setUp() {
     filter =
         new CompanyContextFilter(
-            tenantRuntimeEnforcementService, companyService, authScopeService, OBJECT_MAPPER);
+            tenantRuntimeRequestAdmissionService, companyService, authScopeService, OBJECT_MAPPER);
     lenient().when(authScopeService.isPlatformScope(anyString())).thenReturn(false);
   }
 
@@ -108,7 +109,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         (req, res) -> assertThat(CompanyContextHolder.getCompanyCode()).isEqualTo("ACME"));
 
     assertThat(response.getStatus()).isEqualTo(200);
-    verify(tenantRuntimeEnforcementService, never())
+    verify(tenantRuntimeRequestAdmissionService, never())
         .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
   }
 
@@ -118,7 +119,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
     authenticate("admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ACME"));
     when(companyService.resolveLifecycleStateByCode("ACME"))
         .thenReturn(CompanyLifecycleState.ACTIVE);
-    when(tenantRuntimeEnforcementService.beginRequest(
+    when(tenantRuntimeRequestAdmissionService.beginRequest(
             "ACME", "/api/v1/private", "GET", "admin@bbp.com", false))
         .thenReturn(admission(false, 429, "bad \"quote\" \\\\ slash"));
 
@@ -149,7 +150,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
 
     assertThat(response.getStatus()).isEqualTo(403);
     assertThat(response.getContentAsString()).contains("Tenant is deactivated");
-    verify(tenantRuntimeEnforcementService, never())
+    verify(tenantRuntimeRequestAdmissionService, never())
         .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
   }
 
@@ -210,7 +211,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
     authenticate("admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ACME"));
     when(companyService.resolveLifecycleStateByCode("ACME"))
         .thenReturn(CompanyLifecycleState.ACTIVE);
-    when(tenantRuntimeEnforcementService.beginRequest(
+    when(tenantRuntimeRequestAdmissionService.beginRequest(
             "ACME", "/api/v1/private", "GET", "admin@bbp.com", false))
         .thenReturn(null);
 
