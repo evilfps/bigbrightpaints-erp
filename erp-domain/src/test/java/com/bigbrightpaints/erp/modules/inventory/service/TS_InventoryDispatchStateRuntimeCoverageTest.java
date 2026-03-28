@@ -1,4 +1,4 @@
-package com.bigbrightpaints.erp.truthsuite.inventory;
+package com.bigbrightpaints.erp.modules.inventory.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -45,12 +45,6 @@ import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReservationRepo
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipLine;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
-import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsDispatchEngine;
-import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsReservationEngine;
-import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsWorkflowEngineService;
-import com.bigbrightpaints.erp.modules.inventory.service.InventoryMovementRecorder;
-import com.bigbrightpaints.erp.modules.inventory.service.InventoryValuationService;
-import com.bigbrightpaints.erp.modules.inventory.service.PackagingSlipService;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 
@@ -104,7 +98,6 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
             companyContextService,
             finishedGoodRepository,
             finishedGoodBatchRepository,
-            null,
             inventoryValuationService,
             reservationEngine,
             dispatchEngine,

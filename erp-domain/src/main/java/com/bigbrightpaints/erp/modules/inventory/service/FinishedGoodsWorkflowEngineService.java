@@ -27,11 +27,10 @@ import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import jakarta.transaction.Transactional;
 
 @Service
-public class FinishedGoodsWorkflowEngineService {
+class FinishedGoodsWorkflowEngineService {
   private final CompanyContextService companyContextService;
   private final FinishedGoodRepository finishedGoodRepository;
   private final FinishedGoodBatchRepository finishedGoodBatchRepository;
-  private final BatchNumberService batchNumberService;
   private final InventoryValuationService inventoryValuationService;
   private final FinishedGoodsReservationEngine reservationEngine;
   private final FinishedGoodsDispatchEngine dispatchEngine;
@@ -41,7 +40,6 @@ public class FinishedGoodsWorkflowEngineService {
       CompanyContextService companyContextService,
       FinishedGoodRepository finishedGoodRepository,
       FinishedGoodBatchRepository finishedGoodBatchRepository,
-      BatchNumberService batchNumberService,
       InventoryValuationService inventoryValuationService,
       FinishedGoodsReservationEngine reservationEngine,
       FinishedGoodsDispatchEngine dispatchEngine,
@@ -49,7 +47,6 @@ public class FinishedGoodsWorkflowEngineService {
     this.companyContextService = companyContextService;
     this.finishedGoodRepository = finishedGoodRepository;
     this.finishedGoodBatchRepository = finishedGoodBatchRepository;
-    this.batchNumberService = batchNumberService;
     this.inventoryValuationService = inventoryValuationService;
     this.reservationEngine = reservationEngine;
     this.dispatchEngine = dispatchEngine;

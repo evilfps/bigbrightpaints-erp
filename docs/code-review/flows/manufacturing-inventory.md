@@ -221,7 +221,7 @@ This entire chain fails closed when account metadata is incomplete. Missing `wip
 
 ### 9. Finished goods, reservations, dispatch, and COGS
 
-`FinishedGoodsWorkflowEngineService` is the operational façade over finished-good stock.
+`FinishedGoodsService` is the public operational façade over finished-good stock.
 
 - Finished-good stock views and threshold controls work directly on `FinishedGood` rows.
 - Stock ingress for finished goods is canonicalized through production, packing, opening-stock import, and inventory-adjustment workflows; there is no standalone manual FG batch registration route.

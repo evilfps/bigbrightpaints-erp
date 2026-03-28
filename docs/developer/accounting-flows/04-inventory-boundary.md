@@ -49,9 +49,9 @@ flowchart LR
   - `FinishedGoodController.getLowStockThreshold`
   - `FinishedGoodController.updateLowStockThreshold`
 - canonical path:
-  - `FinishedGoodsWorkflowEngineService.listBatchesForFinishedGood`
-  - `FinishedGoodsWorkflowEngineService.getLowStockThreshold`
-  - `FinishedGoodsWorkflowEngineService.updateLowStockThreshold`
+  - `FinishedGoodsService.listBatchesForFinishedGood`
+  - `FinishedGoodsService.getLowStockThreshold`
+  - `FinishedGoodsService.updateLowStockThreshold`
 
 ### Dispatch Confirmation
 
@@ -72,7 +72,7 @@ flowchart LR
 - `InventoryAdjustmentService` still duplicates some journal-shaping before handing off to accounting
 - `InventoryMovementRecorder` only publishes on some movement families, so event-driven accounting is partial
 - `InventoryValuationChangedEvent` has a listener but no obvious publisher in this slice
-- `FinishedGoodsWorkflowEngineService` manually builds collaborators and acts as a hidden composition root
+- `FinishedGoodsWorkflowEngineService` must stay an internal collaborator behind `FinishedGoodsService`; do not depend on it as a public inventory seam
 
 ## Review Hotspots
 
@@ -82,5 +82,5 @@ flowchart LR
 - `RawMaterialService.recordReceipt`
 - `RawMaterialService.adjustStock`
 - `InventoryAdjustmentService.createAdjustmentInternal`
-- `FinishedGoodsWorkflowEngineService.updateLowStockThreshold`
+- `FinishedGoodsService.updateLowStockThreshold`
 - `InventoryMovementRecorder.publishMovementEventIfSupported`

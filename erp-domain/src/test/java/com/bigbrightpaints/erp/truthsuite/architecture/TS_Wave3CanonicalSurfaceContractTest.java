@@ -29,7 +29,9 @@ class TS_Wave3CanonicalSurfaceContractTest {
   }
 
   @Test
-  void workflowEngineUsesInjectedInventoryServicesInsteadOfManualConstruction() {
+  void finishedGoodsWorkflowSeamStaysInternalAndUsesInjectedInventoryServices() throws Exception {
+    assertHidden("com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsWorkflowEngineService");
+
     String source = TruthSuiteFileAssert.read(WORKFLOW_ENGINE);
     assertThat(source).doesNotContain("new InventoryMovementRecorder(");
     assertThat(source).doesNotContain("new InventoryValuationService(");
@@ -43,6 +45,7 @@ class TS_Wave3CanonicalSurfaceContractTest {
         "FinishedGoodsReservationEngine reservationEngine",
         "FinishedGoodsDispatchEngine dispatchEngine",
         "PackagingSlipService packagingSlipService");
+    assertThat(source).doesNotContain("BatchNumberService batchNumberService");
   }
 
   @Test

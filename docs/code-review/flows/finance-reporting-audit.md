@@ -13,7 +13,7 @@ Primary evidence:
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/{CompanyDefaultAccountsService,CompanyAccountingSettingsService,OpeningBalanceImportService,TallyImportService,AccountingPeriodService,TaxService,AccountingAuditTrailService,AuditTrailQueryService}.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/{AccountingCoreEngineCore,AccountingFacadeCore,AccountingPeriodServiceCore,ReconciliationServiceCore}.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/{PayrollService,PayrollPostingService}.java`
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/service/{ReportService,ReportQuerySupport,BalanceSheetReportQueryService,ProfitLossReportQueryService,TrialBalanceReportQueryService,TemporalBalanceService,InventoryValuationService}.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/service/{ReportService,ReportQuerySupport,BalanceSheetReportQueryService,ProfitLossReportQueryService,TrialBalanceReportQueryService,TemporalBalanceService,InventoryValuationQueryService}.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/ExportApprovalService.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/audittrail/EnterpriseAuditTrailService.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/health/ConfigurationHealthService.java`
@@ -36,7 +36,7 @@ This review feeds:
 Planning notes:
 
 - Lane 03 Packet 0 is the prove-first boundary note in [`../executable-specs/03-lane-accounting-truth-boundary/00-lane03-boundary-decision-note.md`](../executable-specs/03-lane-accounting-truth-boundary/00-lane03-boundary-decision-note.md); it explicitly makes `AccountingPeriodServiceCore`, `ReconciliationServiceCore`, statements, and report services consumers of the chosen dispatch/purchase truth boundaries rather than alternate sources of accounting authority.
-- The downstream finance consumers that must inherit Packet 0 are `ReportService`, `TemporalBalanceService`, `InventoryValuationService`, statement/aging routes, reconciliation sessions/discrepancies, and the period-close checklist / snapshot flow.
+- The downstream finance consumers that must inherit Packet 0 are `ReportService`, `TemporalBalanceService`, `InventoryValuationQueryService`, statement/aging routes, reconciliation sessions/discrepancies, and the period-close checklist / snapshot flow.
 - `FIN-08` should be treated as an early runtime repair packet inside Lane 06, not as a reason to change the overall audit model prematurely.
 - Keep the inventory-accounting listener disabled until Lane 03 finishes the canonical posting-boundary decision.
 

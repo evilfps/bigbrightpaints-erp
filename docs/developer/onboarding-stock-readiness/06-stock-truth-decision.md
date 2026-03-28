@@ -63,8 +63,8 @@ The table below enumerates the important stock readers that Wave 4 must keep ali
 | `CatalogService.toItemStock(...)` | `RawMaterial.currentStock`, `FinishedGood.currentStock`, `FinishedGood.reservedStock` | catalog keeps reading derived aggregates for operator speed; Wave 4 must ensure those fields are synchronized from authoritative batch/reservation state |
 | `ProductionCatalogService.assertRawMaterialMirrorDeletionSafe(...)` | aggregate stock plus existence of batches/movements/reservations | deletion safety remains fail-closed, but aggregate fields are evidence only when consistent with batch truth |
 | `ProductionCatalogService.assertFinishedGoodMirrorDeletionSafe(...)` | aggregate stock, reservations, batch/movement existence | same rule as above |
-| `FinishedGoodsWorkflowEngineService.getStockSummary()` | `FinishedGood.currentStock`, `FinishedGood.reservedStock`, inventory costing helper | stock summary remains a derived read model |
-| `FinishedGoodsWorkflowEngineService.getLowStockItems(...)` | derived available stock from aggregate fields | low-stock checks remain derived reads |
+| `FinishedGoodsService.getStockSummary()` | `FinishedGood.currentStock`, `FinishedGood.reservedStock`, inventory costing helper | stock summary remains a derived read model |
+| `FinishedGoodsService.getLowStockItems(...)` | derived available stock from aggregate fields | low-stock checks remain derived reads |
 | `InventoryValuationQueryService.currentSnapshot(...)` | batch rows for valuation, aggregates for current quantity, movement rows for as-of adjustments | report valuation is a consumer of stock truth; it must not become a writer |
 | `ReportService.inventoryValuation(...)` | `InventoryValuationQueryService` snapshots | report surface is derived only |
 | `AccountingPeriodSnapshotService.createSnapshotForPeriod(...)` | `InventoryValuationQueryService.snapshotAsOf(...)` | accounting snapshots remain derived outputs, not operational truth |

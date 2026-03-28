@@ -41,7 +41,7 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionProductReposi
 
 @ExtendWith(MockitoExtension.class)
 @Tag("critical")
-class InventoryValuationServiceTest {
+class InventoryValuationQueryServiceTest {
 
   @Mock private RawMaterialRepository rawMaterialRepository;
   @Mock private RawMaterialBatchRepository rawMaterialBatchRepository;

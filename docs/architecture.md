@@ -55,7 +55,7 @@ Key facade entrypoint: `JournalCreationRequest` encapsulates debit/credit lines,
 sequenceDiagram
     participant C as SalesController
     participant S as SalesCoreEngine
-    participant I as FinishedGoodsWorkflowEngineService
+    participant I as FinishedGoodsService
     participant D as FinishedGoodsDispatchEngine
     participant A as AccountingFacade/Core
     participant V as InvoiceService
