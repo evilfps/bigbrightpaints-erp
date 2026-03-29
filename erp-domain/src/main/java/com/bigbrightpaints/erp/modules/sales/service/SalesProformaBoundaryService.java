@@ -86,7 +86,8 @@ final class SalesProformaBoundaryService {
   }
 
   boolean requiresCreditCheck(String paymentMode) {
-    return !CASH_PAYMENT_MODE.equals(normalizePaymentMode(paymentMode));
+    normalizePaymentMode(paymentMode);
+    return true;
   }
 
   Dealer resolveDealerForProforma(Company company, Long dealerId, String paymentMode) {

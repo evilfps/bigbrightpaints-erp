@@ -6053,6 +6053,14 @@ abstract class AccountingCoreEngineCore {
           "Invoice " + invoice.getInvoiceNumber() + " is void; cannot apply credit note");
     }
     BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
+    if (amount.subtract(currentOutstanding).compareTo(ALLOCATION_TOLERANCE) > 0) {
+      throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT,
+              "Credit note exceeds remaining invoice outstanding amount")
+          .withDetail("invoiceId", invoice.getId())
+          .withDetail("outstandingAmount", currentOutstanding)
+          .withDetail("requested", amount);
+    }
     BigDecimal newOutstanding = currentOutstanding.subtract(amount);
     invoice.setOutstandingAmount(newOutstanding);
     invoice.getPaymentReferences().add(reference);
@@ -6075,6 +6083,14 @@ abstract class AccountingCoreEngineCore {
       return;
     }
     BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(purchase.getOutstandingAmount());
+    if (amount.subtract(currentOutstanding).compareTo(ALLOCATION_TOLERANCE) > 0) {
+      throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT,
+              "Debit note exceeds remaining purchase outstanding amount")
+          .withDetail("purchaseId", purchase.getId())
+          .withDetail("outstandingAmount", currentOutstanding)
+          .withDetail("requested", amount);
+    }
     BigDecimal newOutstanding = currentOutstanding.subtract(amount);
     purchase.setOutstandingAmount(newOutstanding);
     BigDecimal totalAmount = MoneyUtils.zeroIfNull(purchase.getTotalAmount());
@@ -6520,6 +6536,30 @@ abstract class AccountingCoreEngineCore {
     return notes.stream().map(this::calculateEntryTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
+  private BigDecimal remainingCreditableAmount(
+      Invoice invoice, JournalEntry source, Company company) {
+    if (invoice == null || source == null || company == null) {
+      return BigDecimal.ZERO;
+    }
+    BigDecimal outstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
+    BigDecimal remainingByNotes =
+        MoneyUtils.zeroIfNull(invoice.getTotalAmount())
+            .subtract(totalCreditNoteAmount(company, source, invoice));
+    return outstanding.min(remainingByNotes).max(BigDecimal.ZERO);
+  }
+
+  private BigDecimal remainingDebitableAmount(
+      RawMaterialPurchase purchase, JournalEntry source, Company company) {
+    if (purchase == null || source == null || company == null) {
+      return BigDecimal.ZERO;
+    }
+    BigDecimal outstanding = MoneyUtils.zeroIfNull(purchase.getOutstandingAmount());
+    BigDecimal remainingByNotes =
+        MoneyUtils.zeroIfNull(purchase.getTotalAmount())
+            .subtract(totalNoteAmount(company, source, "DEBIT_NOTE"));
+    return outstanding.min(remainingByNotes).max(BigDecimal.ZERO);
+  }
+
   private List<JournalEntryRequest.JournalLineRequest> buildScaledReversalLines(
       JournalEntry source, BigDecimal ratio, String prefix) {
     BigDecimal factor = ratio != null ? ratio : BigDecimal.ONE;
@@ -6586,7 +6626,7 @@ abstract class AccountingCoreEngineCore {
           ErrorCode.VALIDATION_INVALID_INPUT, "Credit note amount must be positive");
     }
     BigDecimal creditedSoFar = totalCreditNoteAmount(company, source, invoice);
-    BigDecimal remaining = totalAmount.subtract(creditedSoFar);
+    BigDecimal remaining = remainingCreditableAmount(invoice, source, company);
     if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
       throw new ApplicationException(
           ErrorCode.BUSINESS_INVALID_STATE,
@@ -6682,8 +6722,7 @@ abstract class AccountingCoreEngineCore {
     if (existing.isPresent()) {
       BigDecimal existingAmount = calculateEntryTotal(existing.get());
       BigDecimal totalDebited = totalNoteAmount(company, source, "DEBIT_NOTE");
-      ensureCorrectionJournalProvenance(
-          existing.get(), source, "DEBIT_NOTE", "DEBIT_NOTE", purchase.getInvoiceNumber());
+      validateDebitNoteReplay(reference, purchase, source, existing.get(), request.amount());
       applyDebitNoteToPurchase(purchase, existingAmount, totalDebited);
       return toDto(existing.get());
     }
@@ -6700,7 +6739,7 @@ abstract class AccountingCoreEngineCore {
           ErrorCode.VALIDATION_INVALID_INPUT, "Debit note amount must be positive");
     }
     BigDecimal debitedSoFar = totalNoteAmount(company, source, "DEBIT_NOTE");
-    BigDecimal remaining = totalAmount.subtract(debitedSoFar);
+    BigDecimal remaining = remainingDebitableAmount(purchase, source, company);
     if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
       throw new ApplicationException(
           ErrorCode.BUSINESS_INVALID_STATE,
@@ -6747,6 +6786,89 @@ abstract class AccountingCoreEngineCore {
     BigDecimal totalDebited = debitedSoFar.add(postedAmount);
     applyDebitNoteToPurchase(purchase, postedAmount, totalDebited);
     return toDto(saved);
+  }
+
+  private void validateDebitNoteReplay(
+      String reference,
+      RawMaterialPurchase purchase,
+      JournalEntry source,
+      JournalEntry entry,
+      BigDecimal requestedAmount) {
+    if (entry == null) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Debit note reference already used but journal entry is missing")
+          .withDetail("reference", reference);
+    }
+    if (purchase != null
+        && purchase.getSupplier() != null
+        && entry.getSupplier() != null
+        && !Objects.equals(entry.getSupplier().getId(), purchase.getSupplier().getId())) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Debit note reference already used for another supplier")
+          .withDetail("reference", reference);
+    }
+    if (source != null
+        && entry.getReversalOf() != null
+        && !Objects.equals(entry.getReversalOf().getId(), source.getId())) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Debit note reference already used for another purchase reversal")
+          .withDetail("reference", reference);
+    }
+    if (StringUtils.hasText(entry.getCorrectionReason())
+        && !"DEBIT_NOTE".equalsIgnoreCase(entry.getCorrectionReason())) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Debit note reference already used for a different correction flow")
+          .withDetail("reference", reference);
+    }
+    if (StringUtils.hasText(entry.getSourceModule())
+        && !"DEBIT_NOTE".equalsIgnoreCase(entry.getSourceModule())) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Debit note reference already used for a different source module")
+          .withDetail("reference", reference);
+    }
+    if (StringUtils.hasText(entry.getSourceReference())
+        && purchase != null
+        && !Objects.equals(entry.getSourceReference(), purchase.getInvoiceNumber())) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Debit note reference already used for another purchase")
+          .withDetail("reference", reference)
+          .withDetail("existingSourceReference", entry.getSourceReference())
+          .withDetail("requestedSourceReference", purchase.getInvoiceNumber());
+    }
+    BigDecimal existingAmount = calculateEntryTotal(entry);
+    BigDecimal expectedAmount =
+        requestedAmount != null ? roundCurrency(requestedAmount) : existingAmount;
+    if (existingAmount.compareTo(expectedAmount) != 0) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Debit note reference already used with a different amount")
+          .withDetail("reference", reference)
+          .withDetail("existingAmount", existingAmount)
+          .withDetail("requestedAmount", expectedAmount);
+    }
+    if (source != null
+        && requestedAmount != null
+        && MoneyUtils.zeroIfNull(purchase != null ? purchase.getTotalAmount() : null)
+                .compareTo(BigDecimal.ZERO)
+            > 0) {
+      BigDecimal ratio =
+          expectedAmount.divide(
+              MoneyUtils.zeroIfNull(purchase.getTotalAmount()), 6, RoundingMode.HALF_UP);
+      List<JournalEntryRequest.JournalLineRequest> expectedLines =
+          buildScaledReversalLines(source, ratio, "Debit note reversal - ");
+      if (!lineSignatureCounts(entry.getLines()).equals(lineSignatureCountsFromRequests(expectedLines))) {
+        throw new ApplicationException(
+                ErrorCode.CONCURRENCY_CONFLICT,
+                "Debit note reference already used with a different payload")
+            .withDetail("reference", reference);
+      }
+    }
   }
 
   private void ensureCorrectionJournalProvenance(
@@ -6948,6 +7070,7 @@ abstract class AccountingCoreEngineCore {
     Account inventoryAccount = requireAccount(company, request.inventoryAccountId());
     Account offsetAccount = requireAccount(company, request.offsetAccountId());
     LocalDate entryDate = request.entryDate() != null ? request.entryDate() : currentDate(company);
+    accountingPeriodService.requireOpenPeriod(company, entryDate);
     String memo =
         StringUtils.hasText(request.memo())
             ? request.memo().trim()
@@ -6989,6 +7112,7 @@ abstract class AccountingCoreEngineCore {
     Account inventoryAccount = requireAccount(company, request.inventoryAccountId());
     Account revalAccount = requireAccount(company, request.revaluationAccountId());
     LocalDate entryDate = request.entryDate() != null ? request.entryDate() : currentDate(company);
+    accountingPeriodService.requireOpenPeriod(company, entryDate);
     String memo =
         StringUtils.hasText(request.memo()) ? request.memo().trim() : "Inventory revaluation";
     BigDecimal delta = request.deltaAmount();

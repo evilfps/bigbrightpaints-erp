@@ -1643,6 +1643,7 @@ class SalesServiceTest {
     order.setCompany(company);
     order.setDealer(dealer);
     order.setOrderNumber("SO-CASH-10");
+    order.setPaymentMode("CASH");
     order.setStatus("READY_TO_SHIP");
     order.setTraceId("TRACE-CASH-10");
     order.setIdempotencyHash(
@@ -1694,6 +1695,7 @@ class SalesServiceTest {
     when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
+    when(dealerLedgerService.currentBalance(dealer.getId())).thenReturn(BigDecimal.ZERO);
     when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-CASH-55");
     when(invoiceRepository.save(ArgumentMatchers.any(Invoice.class)))
         .thenAnswer(
@@ -1764,6 +1766,72 @@ class SalesServiceTest {
         .postCogsJournal(
             eq("PS-55"), eq(dealer.getId()), any(), anyString(), ArgumentMatchers.anyList());
     verifyNoInteractions(accountingService);
+  }
+
+  @Test
+  void confirmDispatchCashOrderStillEnforcesCreditLimit() {
+    Dealer dealer = dealerWithCreditLimit(42L, BigDecimal.valueOf(100));
+    Account receivable = new Account();
+    receivable.setName("AR");
+    setField(receivable, "id", 900L);
+    dealer.setReceivableAccount(receivable);
+
+    SalesOrder order = new SalesOrder();
+    setField(order, "id", 10L);
+    order.setCompany(company);
+    order.setDealer(dealer);
+    order.setOrderNumber("SO-CASH-LIMIT");
+    order.setPaymentMode("CASH");
+    order.setStatus("READY_TO_SHIP");
+    order.setTotalAmount(BigDecimal.valueOf(200));
+
+    SalesOrderItem item = new SalesOrderItem();
+    setField(item, "id", 2L);
+    item.setSalesOrder(order);
+    item.setProductCode("SKU-CASH-LIMIT");
+    item.setDescription("Cash limit");
+    item.setQuantity(BigDecimal.ONE);
+    item.setUnitPrice(BigDecimal.valueOf(200));
+    item.setGstRate(BigDecimal.ZERO);
+    order.getItems().add(item);
+
+    FinishedGoodBatch batch = new FinishedGoodBatch();
+    batch.setQuantityTotal(BigDecimal.ONE);
+    batch.setQuantityAvailable(BigDecimal.ONE);
+    batch.setUnitCost(new BigDecimal("120.00"));
+    FinishedGood finishedGood = buildFinishedGood("SKU-CASH-LIMIT");
+    finishedGood.setCurrentStock(BigDecimal.ONE);
+    batch.setFinishedGood(finishedGood);
+
+    PackagingSlip slip = new PackagingSlip();
+    setField(slip, "id", 56L);
+    slip.setCompany(company);
+    slip.setSalesOrder(order);
+    slip.setSlipNumber("PS-56");
+    slip.setStatus("PENDING");
+
+    PackagingSlipLine slipLine = new PackagingSlipLine();
+    setField(slipLine, "id", 100L);
+    slipLine.setPackagingSlip(slip);
+    slipLine.setFinishedGoodBatch(batch);
+    slipLine.setOrderedQuantity(BigDecimal.ONE);
+    slipLine.setQuantity(BigDecimal.ONE);
+    slipLine.setUnitCost(new BigDecimal("120.00"));
+    slip.getLines().add(slipLine);
+
+    when(packagingSlipRepository.findAndLockByIdAndCompany(56L, company))
+        .thenReturn(Optional.of(slip));
+    when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
+        .thenReturn(List.of(slip));
+    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
+        .thenReturn(Optional.of(dealer));
+    when(dealerLedgerService.currentBalance(dealer.getId())).thenReturn(BigDecimal.valueOf(50));
+
+    DispatchConfirmRequest request =
+        new DispatchConfirmRequest(56L, null, List.of(), null, "admin", Boolean.FALSE, null, null);
+
+    assertThrows(CreditLimitExceededException.class, () -> salesService.confirmDispatch(request));
   }
 
   @Test
@@ -3214,13 +3282,13 @@ class SalesServiceTest {
   }
 
   @Test
-  void createOrderCashPaymentModeSkipsDealerCreditLimit() {
+  void createOrderCashPaymentModeStillEnforcesDealerCreditLimit() {
     setupProduct("SKU3-CASH", BigDecimal.valueOf(200), BigDecimal.ZERO);
     FinishedGood finishedGood = buildFinishedGood("SKU3-CASH");
     finishedGood.setRevenueAccountId(5L);
     when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU3-CASH"))
         .thenReturn(Optional.of(finishedGood));
-    Dealer dealer = dealerWithCreditLimit(420L, BigDecimal.valueOf(1000));
+    Dealer dealer = dealerWithCreditLimit(420L, BigDecimal.valueOf(100));
     when(companyEntityLookup.requireDealer(company, 420L)).thenReturn(dealer);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
@@ -3251,23 +3319,19 @@ class SalesServiceTest {
             null,
             " cash ");
 
-    SalesOrderDto dto = salesService.createOrder(request);
-
-    assertEquals("RESERVED", dto.status());
-    assertEquals("CASH", dto.paymentMode());
-    verify(dealerLedgerService, never()).currentBalance(420L);
-    verify(finishedGoodsService, never()).reserveForOrder(any(SalesOrder.class));
+    assertThrows(CreditLimitExceededException.class, () -> salesService.createOrder(request));
+    verify(dealerLedgerService).currentBalance(420L);
   }
 
   @Test
-  void updateOrderCashPaymentModeSkipsDealerCreditLimit() {
+  void updateOrderCashPaymentModeStillEnforcesDealerCreditLimit() {
     setupProduct("SKU3-UPD-CASH", BigDecimal.valueOf(200), BigDecimal.ZERO);
     FinishedGood finishedGood = buildFinishedGood("SKU3-UPD-CASH");
     finishedGood.setRevenueAccountId(5L);
     when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU3-UPD-CASH"))
         .thenReturn(Optional.of(finishedGood));
 
-    Dealer dealer = dealerWithCreditLimit(430L, BigDecimal.valueOf(1000));
+    Dealer dealer = dealerWithCreditLimit(430L, BigDecimal.valueOf(100));
     SalesOrder existing = new SalesOrder();
     setField(existing, "id", 4300L);
     existing.setCompany(company);
@@ -3304,10 +3368,8 @@ class SalesServiceTest {
             null,
             "CASH");
 
-    SalesOrderDto dto = salesService.updateOrder(4300L, request);
-
-    assertEquals("CASH", dto.paymentMode());
-    verify(dealerLedgerService, never()).currentBalance(430L);
+    assertThrows(CreditLimitExceededException.class, () -> salesService.updateOrder(4300L, request));
+    verify(dealerLedgerService).currentBalance(430L);
   }
 
   @Test
@@ -3337,6 +3399,7 @@ class SalesServiceTest {
     when(companyEntityLookup.requireSalesOrder(company, 4303L)).thenReturn(existing);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
+    when(dealerLedgerService.currentBalance(431L)).thenReturn(BigDecimal.ZERO);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 4303L))
         .thenReturn(List.of());
 
@@ -3358,7 +3421,7 @@ class SalesServiceTest {
     SalesOrderDto dto = salesService.updateOrder(4303L, request);
 
     assertEquals("CASH", dto.paymentMode());
-    verify(dealerLedgerService, never()).currentBalance(431L);
+    verify(dealerLedgerService).currentBalance(431L);
   }
 
   @Test

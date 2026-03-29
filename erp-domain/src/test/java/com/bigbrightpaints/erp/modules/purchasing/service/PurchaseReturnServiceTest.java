@@ -527,6 +527,60 @@ class PurchaseReturnServiceTest {
   }
 
   @Test
+  void recordPurchaseReturn_rejectsReplayReferenceLinkedToDifferentPurchase() {
+    Account payable = new Account();
+    ReflectionTestUtils.setField(payable, "id", 40L);
+    supplier.setPayableAccount(payable);
+    purchase.setInvoiceNumber("PI-30");
+
+    JournalEntry otherSource = new JournalEntry();
+    ReflectionTestUtils.setField(otherSource, "id", 999L);
+    JournalEntry postedReturnEntry = new JournalEntry();
+    ReflectionTestUtils.setField(postedReturnEntry, "id", 905L);
+    postedReturnEntry.setReversalOf(otherSource);
+    postedReturnEntry.setCorrectionType(JournalCorrectionType.REVERSAL);
+    postedReturnEntry.setCorrectionReason("PURCHASE_RETURN");
+    postedReturnEntry.setSourceModule("PURCHASING_RETURN");
+    postedReturnEntry.setSourceReference("PI-OTHER");
+
+    RawMaterialMovement existingMovement = new RawMaterialMovement();
+    existingMovement.setRawMaterial(material);
+    existingMovement.setReferenceId("PR-30");
+    existingMovement.setReferenceType(InventoryReference.PURCHASE_RETURN);
+    existingMovement.setQuantity(BigDecimal.ONE);
+    existingMovement.setUnitCost(new BigDecimal("5.00"));
+    existingMovement.setJournalEntryId(905L);
+
+    when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+            company, InventoryReference.PURCHASE_RETURN, "PR-30"))
+        .thenReturn(List.of(existingMovement));
+    when(journalEntryRepository.findByCompanyAndId(company, 905L))
+        .thenReturn(Optional.of(postedReturnEntry));
+
+    assertThatThrownBy(
+            () ->
+                purchaseReturnService.recordPurchaseReturn(
+                    new PurchaseReturnRequest(
+                        10L,
+                        30L,
+                        20L,
+                        BigDecimal.ONE,
+                        new BigDecimal("5.00"),
+                        "PR-30",
+                        LocalDate.of(2026, 3, 9),
+                        "Damaged")))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONCURRENCY_CONFLICT);
+              assertThat(ex).hasMessageContaining("another purchase");
+            });
+
+    verifyNoInteractions(accountingFacade);
+    verify(movementRepository, never()).saveAll(any());
+  }
+
+  @Test
   void recordPurchaseReturn_replayWithAlignedJournalAndMovementSkipsPersistence() {
     Account payable = new Account();
     ReflectionTestUtils.setField(payable, "id", 40L);
@@ -763,6 +817,7 @@ class PurchaseReturnServiceTest {
         .thenReturn(
             journalEntryDto(
                 904L, "PR-30", LocalDate.of(2026, 3, 9), "Damaged - Resin to Supplier 10"));
+    when(journalEntryRepository.findByCompanyAndId(company, 777L)).thenReturn(Optional.empty());
     when(journalEntryRepository.findByCompanyAndId(company, 904L))
         .thenReturn(Optional.of(postedReturnEntry));
 

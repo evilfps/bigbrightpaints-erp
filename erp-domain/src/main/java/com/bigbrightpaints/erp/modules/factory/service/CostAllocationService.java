@@ -204,14 +204,8 @@ public class CostAllocationService {
           List.of(),
           "No allocatable liters found for cost variance allocation");
     }
-    BigDecimal laborVarianceToAllocate =
-        laborVariance
-            .multiply(allocatableLiters)
-            .divide(totalLitersProduced, 4, RoundingMode.HALF_UP);
-    BigDecimal overheadVarianceToAllocate =
-        overheadVariance
-            .multiply(allocatableLiters)
-            .divide(totalLitersProduced, 4, RoundingMode.HALF_UP);
+    BigDecimal laborVarianceToAllocate = laborVariance;
+    BigDecimal overheadVarianceToAllocate = overheadVariance;
     BigDecimal totalVarianceToAllocate = laborVarianceToAllocate.add(overheadVarianceToAllocate);
     BigDecimal variancePerLiter =
         totalVarianceToAllocate.divide(allocatableLiters, 4, RoundingMode.HALF_UP);

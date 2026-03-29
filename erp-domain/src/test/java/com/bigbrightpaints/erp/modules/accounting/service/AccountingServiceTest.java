@@ -76,11 +76,13 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptSplitRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerSettlementRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.CreditNoteRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DebitNoteRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.InventoryRevaluationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.LandedCostRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryReversalRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalListItemDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.ManualJournalRequest;
@@ -7678,6 +7680,81 @@ class AccountingServiceTest {
 
     assertThat(batch1.getUnitCost()).isEqualByComparingTo("101.000000");
     assertThat(batch2.getUnitCost()).isEqualByComparingTo("201.000000");
+    verify(accountingPeriodService).requireOpenPeriod(company, LocalDate.of(2024, 4, 9));
+  }
+
+  @Test
+  void revalueInventory_rejectsClosedPeriodBeforePostingOrMutating() {
+    Account inventory = account(9131L, "INV-9131", AccountType.ASSET);
+    Account reval = account(9132L, "REVAL-9132", AccountType.EXPENSE);
+    when(companyEntityLookup.requireAccount(eq(company), eq(9131L))).thenReturn(inventory);
+    when(companyEntityLookup.requireAccount(eq(company), eq(9132L))).thenReturn(reval);
+    when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), any()))
+        .thenReturn(Optional.empty());
+    doThrow(new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE, "locked/closed"))
+        .when(accountingPeriodService)
+        .requireOpenPeriod(company, LocalDate.of(2024, 4, 9));
+
+    assertThatThrownBy(
+            () ->
+                accountingService.revalueInventory(
+                    new InventoryRevaluationRequest(
+                        9131L,
+                        9132L,
+                        new BigDecimal("20.00"),
+                        "Reval",
+                        LocalDate.of(2024, 4, 9),
+                        "REVAL-CLOSED",
+                        null,
+                        Boolean.FALSE)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("locked/closed");
+
+    verify(inventoryAccountingService, never()).createJournalEntry(any(JournalEntryRequest.class));
+    verify(finishedGoodBatchRepository, never()).findByCompanyAndValuationAccountId(any(), any());
+  }
+
+  @Test
+  void recordLandedCost_rejectsClosedPeriodBeforePostingOrMutating() {
+    Account inventory = account(9141L, "INV-9141", AccountType.ASSET);
+    Account offset = account(9142L, "OFFSET-9142", AccountType.EXPENSE);
+    Supplier supplier = supplier(914L, "Supplier Landed", account(9143L, "AP-9143", AccountType.LIABILITY));
+    RawMaterialPurchase purchase =
+        purchase(
+            9140L,
+            "PUR-9140",
+            supplier,
+            new BigDecimal("100.00"),
+            new BigDecimal("100.00"),
+            "POSTED");
+    purchase.setJournalEntry(journalEntry(9144L, "PUR-9140-JE"));
+
+    when(companyEntityLookup.requireRawMaterialPurchase(eq(company), eq(9140L))).thenReturn(purchase);
+    when(companyEntityLookup.requireAccount(eq(company), eq(9141L))).thenReturn(inventory);
+    when(companyEntityLookup.requireAccount(eq(company), eq(9142L))).thenReturn(offset);
+    when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), any()))
+        .thenReturn(Optional.empty());
+    doThrow(new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE, "locked/closed"))
+        .when(accountingPeriodService)
+        .requireOpenPeriod(company, LocalDate.of(2024, 4, 9));
+
+    assertThatThrownBy(
+            () ->
+                accountingService.recordLandedCost(
+                    new LandedCostRequest(
+                        9140L,
+                        new BigDecimal("10.00"),
+                        9141L,
+                        9142L,
+                        LocalDate.of(2024, 4, 9),
+                        "Landed cost",
+                        "LC-CLOSED",
+                        null,
+                        Boolean.FALSE)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("locked/closed");
+
+    verify(inventoryAccountingService, never()).createJournalEntry(any(JournalEntryRequest.class));
   }
 
   @Test
@@ -12867,7 +12944,7 @@ class AccountingServiceTest {
   }
 
   @Test
-  void postDebitNote_returnsExistingEntryAndAlignsPurchaseProvenance() {
+  void postDebitNote_rejectsReferenceReuseAcrossDifferentPurchaseProvenance() {
     Account payable = account(8401L, "AP-8401", AccountType.LIABILITY);
     Account inventory = account(8402L, "RM-8402", AccountType.ASSET);
     Supplier supplier = supplier(840L, "Supplier Existing", payable);
@@ -12895,29 +12972,24 @@ class AccountingServiceTest {
     existing.setCorrectionReason("legacy");
     existing.setSourceModule("legacy");
     existing.setSourceReference("OLD");
+    existing.setReversalOf(journalEntry(9404L, "OTHER-PURCHASE-JE"));
 
     when(rawMaterialPurchaseRepository.lockByCompanyAndId(company, 9401L))
         .thenReturn(Optional.of(purchase));
     when(journalEntryRepository.findByCompanyAndReferenceNumber(company, "DN-EXIST"))
         .thenReturn(Optional.of(existing));
-    when(journalEntryRepository.findByCompanyAndReversalOfAndCorrectionReasonIgnoreCase(
-            company, source, "DEBIT_NOTE"))
-        .thenReturn(List.of(existing));
 
-    JournalEntryDto result =
-        accountingService.postDebitNote(
-            new DebitNoteRequest(
-                9401L, null, null, "DN-EXIST", "reuse existing", null, Boolean.TRUE));
+    assertThatThrownBy(
+            () ->
+                accountingService.postDebitNote(
+                    new DebitNoteRequest(
+                        9401L, null, null, "DN-EXIST", "reuse existing", null, Boolean.TRUE)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("another purchase reversal");
 
-    assertThat(result.referenceNumber()).isEqualTo("DN-EXIST");
-    assertThat(existing.getReversalOf()).isSameAs(source);
-    assertThat(existing.getCorrectionType()).isEqualTo(JournalCorrectionType.REVERSAL);
-    assertThat(existing.getCorrectionReason()).isEqualTo("DEBIT_NOTE");
-    assertThat(existing.getSourceModule()).isEqualTo("DEBIT_NOTE");
-    assertThat(existing.getSourceReference()).isEqualTo("PUR-9401");
-    assertThat(purchase.getOutstandingAmount()).isEqualByComparingTo("60.00");
-    assertThat(purchase.getStatus()).isEqualTo("PARTIAL");
-    verify(journalEntryRepository).save(existing);
+    assertThat(purchase.getOutstandingAmount()).isEqualByComparingTo("100.00");
+    assertThat(purchase.getStatus()).isEqualTo("POSTED");
+    verify(journalEntryRepository, never()).save(existing);
   }
 
   @Test
@@ -13058,6 +13130,94 @@ class AccountingServiceTest {
                         Boolean.FALSE)))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("exceeds remaining purchase amount");
+  }
+
+  @Test
+  void postCreditNote_rejectsAmountBeyondCurrentOutstanding() {
+    Account receivable = account(8451L, "AR-8451", AccountType.ASSET);
+    Account revenue = account(8452L, "REV-8452", AccountType.REVENUE);
+    Dealer dealer = dealer(845L, "Dealer Outstanding", receivable);
+
+    Invoice invoice = new Invoice();
+    ReflectionTestUtils.setField(invoice, "id", 8450L);
+    invoice.setCompany(company);
+    invoice.setDealer(dealer);
+    invoice.setInvoiceNumber("INV-8450");
+    invoice.setTotalAmount(new BigDecimal("100.00"));
+    invoice.setOutstandingAmount(new BigDecimal("20.00"));
+    invoice.setStatus("PARTIAL");
+
+    JournalEntry source = journalEntry(8453L, "INV-8450-JE");
+    addJournalLine(
+        source, receivable, "Invoice receivable", new BigDecimal("100.00"), BigDecimal.ZERO);
+    addJournalLine(source, revenue, "Invoice revenue", BigDecimal.ZERO, new BigDecimal("100.00"));
+    invoice.setJournalEntry(source);
+
+    when(invoiceRepository.lockByCompanyAndId(company, 8450L)).thenReturn(Optional.of(invoice));
+    when(journalEntryRepository.findByCompanyAndReferenceNumber(company, "CN-8450"))
+        .thenReturn(Optional.empty());
+    when(journalEntryRepository.findByCompanyAndReversalOfAndCorrectionReasonIgnoreCase(
+            company, source, "CREDIT_NOTE"))
+        .thenReturn(List.of());
+
+    assertThatThrownBy(
+            () ->
+                accountingService.postCreditNote(
+                    new CreditNoteRequest(
+                        8450L,
+                        new BigDecimal("30.00"),
+                        null,
+                        "CN-8450",
+                        "credit beyond outstanding",
+                        null,
+                        Boolean.FALSE)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("exceeds remaining invoice amount");
+
+    verify(creditDebitNoteService, never()).createJournalEntry(any(JournalEntryRequest.class));
+  }
+
+  @Test
+  void postDebitNote_rejectsAmountBeyondCurrentOutstanding() {
+    Account payable = account(8461L, "AP-8461", AccountType.LIABILITY);
+    Account inventory = account(8462L, "RM-8462", AccountType.ASSET);
+    Supplier supplier = supplier(846L, "Supplier Outstanding", payable);
+    RawMaterialPurchase purchase =
+        purchase(
+            8460L,
+            "PUR-8460",
+            supplier,
+            new BigDecimal("100.00"),
+            new BigDecimal("20.00"),
+            "PARTIAL");
+    JournalEntry source = journalEntry(8463L, "PUR-8460-JE");
+    addJournalLine(source, inventory, "Inventory", new BigDecimal("100.00"), BigDecimal.ZERO);
+    addJournalLine(source, payable, "Payable", BigDecimal.ZERO, new BigDecimal("100.00"));
+    purchase.setJournalEntry(source);
+
+    when(rawMaterialPurchaseRepository.lockByCompanyAndId(company, 8460L))
+        .thenReturn(Optional.of(purchase));
+    when(journalEntryRepository.findByCompanyAndReferenceNumber(company, "DN-8460"))
+        .thenReturn(Optional.empty());
+    when(journalEntryRepository.findByCompanyAndReversalOfAndCorrectionReasonIgnoreCase(
+            company, source, "DEBIT_NOTE"))
+        .thenReturn(List.of());
+
+    assertThatThrownBy(
+            () ->
+                accountingService.postDebitNote(
+                    new DebitNoteRequest(
+                        8460L,
+                        new BigDecimal("30.00"),
+                        null,
+                        "DN-8460",
+                        "debit beyond outstanding",
+                        null,
+                        Boolean.FALSE)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("exceeds remaining purchase amount");
+
+    verify(creditDebitNoteService, never()).createJournalEntry(any(JournalEntryRequest.class));
   }
 
   @Test
