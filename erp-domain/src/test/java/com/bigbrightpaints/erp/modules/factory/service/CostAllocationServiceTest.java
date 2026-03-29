@@ -107,6 +107,43 @@ class CostAllocationServiceTest {
     verify(productionLogRepository).save(allocatable);
   }
 
+  @Test
+  void allocateCosts_splitsRemainingVarianceAcrossMultipleAllocatableBatches() {
+    ProductionLog first = productionLog(3L, "PROD-3", "3", "3", "0", "0");
+    ProductionLog second = productionLog(4L, "PROD-4", "7", "7", "0", "0");
+
+    when(productionLogRepository.findFullyPackedBatchesByMonth(eq(company), any(), any()))
+        .thenReturn(List.of(first, second));
+    when(accountingFacade.findExistingCostVarianceReference("PROD-3", "202604"))
+        .thenReturn(Optional.empty());
+    when(accountingFacade.findExistingCostVarianceReference("PROD-4", "202604"))
+        .thenReturn(Optional.empty());
+    when(companyEntityLookup.requireAccount(company, 11L))
+        .thenReturn(account(11L, "FG", AccountType.ASSET));
+    when(companyEntityLookup.requireAccount(company, 12L))
+        .thenReturn(account(12L, "LAB", AccountType.EXPENSE));
+    when(companyEntityLookup.requireAccount(company, 13L))
+        .thenReturn(account(13L, "OVH", AccountType.EXPENSE));
+    when(accountingFacade.postCostVarianceAllocation(
+            any(), eq("202604"), any(), eq(11L), eq(12L), eq(13L), any(), any(), eq("Variance allocation")))
+        .thenReturn(null);
+
+    CostAllocationResponse response =
+        costAllocationService.allocateCosts(
+            new CostAllocationRequest(
+                2026, 4, new BigDecimal("100.00"), new BigDecimal("50.00"), 11L, 12L, 13L,
+                "Variance allocation"));
+
+    assertThat(response.totalLaborAllocated()).isEqualByComparingTo("100.00");
+    assertThat(response.totalOverheadAllocated()).isEqualByComparingTo("50.00");
+    assertThat(first.getLaborCostTotal()).isEqualByComparingTo("30.0000");
+    assertThat(first.getOverheadCostTotal()).isEqualByComparingTo("15.0000");
+    assertThat(second.getLaborCostTotal()).isEqualByComparingTo("70.0000");
+    assertThat(second.getOverheadCostTotal()).isEqualByComparingTo("35.0000");
+    verify(productionLogRepository).save(first);
+    verify(productionLogRepository).save(second);
+  }
+
   private ProductionLog productionLog(
       Long id,
       String productionCode,

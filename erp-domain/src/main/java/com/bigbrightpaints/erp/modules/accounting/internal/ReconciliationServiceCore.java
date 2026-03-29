@@ -455,21 +455,17 @@ public class ReconciliationServiceCore {
     Company companyA =
         Objects.equals(companyAId, activeCompanyId)
             ? activeCompany
-            : companyRepository
-                .findById(companyAId)
-                .orElseThrow(
-                    () ->
-                        com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                            "Company not found: " + companyAId));
+            : companyRepository.findById(companyAId).orElseThrow(
+                () ->
+                    com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                        "Company not found: " + companyAId));
     Company companyB =
         Objects.equals(companyBId, activeCompanyId)
             ? activeCompany
-            : companyRepository
-                .findById(companyBId)
-                .orElseThrow(
-                    () ->
-                        com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                            "Company not found: " + companyBId));
+            : companyRepository.findById(companyBId).orElseThrow(
+                () ->
+                    com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                        "Company not found: " + companyBId));
 
     InterCompanyReconciliationItem aReceivableVsBPayable =
         reconcileInterCompanyDirection(companyA, companyB);

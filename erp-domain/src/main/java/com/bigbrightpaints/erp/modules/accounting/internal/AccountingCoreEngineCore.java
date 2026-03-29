@@ -6900,8 +6900,7 @@ abstract class AccountingCoreEngineCore {
               "Debit note reference already used for a different source module")
           .withDetail("reference", reference);
     }
-    if (StringUtils.hasText(entry.getSourceReference())
-        && purchase != null
+    if (StringUtils.hasText(entry.getSourceReference()) && purchase != null
         && !Objects.equals(entry.getSourceReference(), purchase.getInvoiceNumber())) {
       throw new ApplicationException(
               ErrorCode.CONCURRENCY_CONFLICT,
@@ -6921,10 +6920,8 @@ abstract class AccountingCoreEngineCore {
           .withDetail("existingAmount", existingAmount)
           .withDetail("requestedAmount", expectedAmount);
     }
-    if (source != null
-        && requestedAmount != null
-        && MoneyUtils.zeroIfNull(purchase != null ? purchase.getTotalAmount() : null)
-                .compareTo(BigDecimal.ZERO)
+    if (source != null && requestedAmount != null
+        && MoneyUtils.zeroIfNull(purchase != null ? purchase.getTotalAmount() : null).compareTo(BigDecimal.ZERO)
             > 0) {
       BigDecimal ratio =
           expectedAmount.divide(

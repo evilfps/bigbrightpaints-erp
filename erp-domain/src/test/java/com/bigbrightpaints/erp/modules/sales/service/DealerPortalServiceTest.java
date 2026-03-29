@@ -27,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -119,6 +120,23 @@ class DealerPortalServiceTest {
   }
 
   @Test
+  void getCurrentRequesterIdentity_fallsBackToAuthenticationNameWhenUserEmailIsBlank() {
+    UserAccount user = userWithId(100L, "   ");
+    Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
+    UserPrincipal principal = new UserPrincipal(user);
+    when(authentication.getPrincipal()).thenReturn(principal);
+    when(authentication.isAuthenticated()).thenReturn(true);
+    when(authentication.getName()).thenReturn("dealer@tenant.com");
+    SecurityContextHolder.getContext().setAuthentication(authentication);
+
+    DealerPortalService.RequesterIdentity requesterIdentity =
+        dealerPortalService.getCurrentRequesterIdentity();
+
+    assertThat(requesterIdentity.userId()).isEqualTo(100L);
+    assertThat(requesterIdentity.email()).isEqualTo("dealer@tenant.com");
+  }
+
+  @Test
   void getCurrentDealer_failsClosedWhenUserMapsToMultipleDealers() {
     UserAccount user = userWithId(100L, "dealer@tenant.com");
     authenticate(user, "ROLE_DEALER");
@@ -148,7 +166,7 @@ class DealerPortalServiceTest {
   void getCurrentDealer_fallsBackToEmailWhenPrincipalUserIdMissing() {
     UserAccount user = new UserAccount("dealer@tenant.com", "hash", "Dealer");
     Dealer dealer = dealerWithId(33L);
-    dealer.setStatus("ACTIVE");
+    dealer.setStatus(" active ");
     authenticate(user, "ROLE_DEALER");
     when(dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(
             company, "dealer@tenant.com"))
@@ -174,6 +192,32 @@ class DealerPortalServiceTest {
     Dealer resolved = dealerPortalService.getCurrentDealer();
 
     assertThat(resolved).isSameAs(dealer);
+  }
+
+  @Test
+  void getCurrentDealer_deniesInactiveDealerOnEmailFallback() {
+    UserAccount user = userWithId(100L, "dealer@tenant.com");
+    Dealer dealer = dealerWithId(33L);
+    dealer.setStatus("INACTIVE");
+    authenticate(user, "ROLE_DEALER");
+    when(dealerRepository.findAllByCompanyAndPortalUserId(company, 100L)).thenReturn(List.of());
+    when(dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(
+            company, "dealer@tenant.com"))
+        .thenReturn(List.of(dealer));
+
+    assertThatThrownBy(() -> dealerPortalService.getCurrentDealer())
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessageContaining("inactive dealer mapping");
+  }
+
+  @Test
+  void requireActivePortalDealer_rejectsNullDealer() {
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    dealerPortalService, "requireActivePortalDealer", new Object[] {null}))
+        .isInstanceOf(AccessDeniedException.class)
+        .hasMessageContaining("mapping missing");
   }
 
   @Test

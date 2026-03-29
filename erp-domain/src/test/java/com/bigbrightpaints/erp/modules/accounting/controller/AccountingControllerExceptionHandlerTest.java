@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +22,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@Tag("critical")
 class AccountingControllerExceptionHandlerTest {
 
   private static final String REPLAY_REASON_SUPPLIER =
@@ -233,6 +235,87 @@ class AccountingControllerExceptionHandlerTest {
         .andExpect(jsonPath("$.message").value("Invalid to date format; expected ISO date yyyy-MM-dd"))
         .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
         .andExpect(jsonPath("$.data.details.to").value("2026-13-01"));
+  }
+
+  @Test
+  void transactionAudit_invalidDateReturnsValidationEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(get("/api/v1/accounting/audit/transactions").param("from", "2026-02-30"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(
+            jsonPath("$.message").value("Invalid from date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
+        .andExpect(jsonPath("$.data.details.from").value("2026-02-30"));
+  }
+
+  @Test
+  void balanceAsOf_invalidDateReturnsValidationEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(get("/api/v1/accounting/accounts/42/balance/as-of").param("date", "bad-date"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(
+            jsonPath("$.message").value("Invalid date date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
+        .andExpect(jsonPath("$.data.details.date").value("bad-date"));
+  }
+
+  @Test
+  void trialBalanceAsOf_invalidDateReturnsValidationEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(get("/api/v1/accounting/trial-balance/as-of").param("date", "2026-99-01"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(
+            jsonPath("$.message").value("Invalid date date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
+        .andExpect(jsonPath("$.data.details.date").value("2026-99-01"));
+  }
+
+  @Test
+  void accountActivity_invalidDateReturnsCanonicalEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(
+            get("/api/v1/accounting/accounts/42/activity")
+                .param("startDate", "2026-03-40")
+                .param("endDate", "2026-03-31"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(
+            jsonPath("$.message")
+                .value("Invalid account activity date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
+        .andExpect(jsonPath("$.data.details.startDate").value("2026-03-40"))
+        .andExpect(jsonPath("$.data.details.endDate").value("2026-03-31"));
+  }
+
+  @Test
+  void accountActivity_missingDateRangeReturnsValidationEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(get("/api/v1/accounting/accounts/42/activity"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(
+            jsonPath("$.message")
+                .value("Account activity requires startDate/endDate (or from/to) query parameters"))
+        .andExpect(
+            jsonPath("$.data.code").value(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD.getCode()));
+  }
+
+  @Test
+  void compareBalances_invalidDateReturnsValidationEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(
+            get("/api/v1/accounting/accounts/42/balance/compare")
+                .param("date1", "2026-03-01")
+                .param("date2", "invalid"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(
+            jsonPath("$.message").value("Invalid date2 date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
+        .andExpect(jsonPath("$.data.details.date2").value("invalid"));
   }
 
   private ApiResponse<Map<String, Object>> assertReplayErrorEnvelope(

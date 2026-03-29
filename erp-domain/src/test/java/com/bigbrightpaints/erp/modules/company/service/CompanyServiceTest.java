@@ -22,6 +22,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -58,6 +59,7 @@ import com.bigbrightpaints.erp.modules.company.dto.CompanySupportWarningDto;
 import com.bigbrightpaints.erp.modules.company.dto.CompanyTenantMetricsDto;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class CompanyServiceTest {
 
   @Mock private CompanyRepository repository;
@@ -183,6 +185,62 @@ class CompanyServiceTest {
     assertThat(target.getGstInputTaxAccountId()).isNull();
     assertThat(target.getGstOutputTaxAccountId()).isNull();
     assertThat(target.getGstPayableAccountId()).isNull();
+  }
+
+  @Test
+  void synchronizeRuntimePolicyEnvelope_noopsForBlankCompanyCode() {
+    Company target = company(4L, "ACME");
+    target.setCode("   ");
+
+    ReflectionTestUtils.invokeMethod(
+        companyService, "synchronizeRuntimePolicyEnvelope", target, null, "test-sync");
+
+    verifyNoInteractions(tenantRuntimeEnforcementService);
+  }
+
+  @Test
+  void failClosedRuntimeLimit_defaultsZeroAndCapsOverflow() {
+    assertThat(
+            (Integer)
+                ReflectionTestUtils.invokeMethod(companyService, "failClosedRuntimeLimit", 0L))
+        .isEqualTo(1);
+    assertThat(
+            (Integer)
+                ReflectionTestUtils.invokeMethod(companyService, "failClosedRuntimeLimit", 7L))
+        .isEqualTo(7);
+    assertThat(
+            (Integer)
+                ReflectionTestUtils.invokeMethod(
+                    companyService, "failClosedRuntimeLimit", (long) Integer.MAX_VALUE + 10L))
+        .isEqualTo(Integer.MAX_VALUE);
+  }
+
+  @Test
+  void synchronizeRuntimePolicyEnvelope_usesFallbackReasonAndActiveStateWhenLifecycleFieldsAreBlank() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    Company target = company(4L, "ACME");
+    target.setLifecycleState(null);
+    target.setLifecycleReason("   ");
+    target.setQuotaMaxConcurrentRequests(0L);
+    target.setQuotaMaxApiRequests(77L);
+    target.setQuotaMaxActiveUsers((long) Integer.MAX_VALUE + 1L);
+
+    ReflectionTestUtils.invokeMethod(
+        companyService,
+        "synchronizeRuntimePolicyEnvelope",
+        target,
+        SecurityContextHolder.getContext().getAuthentication(),
+        "fallback-sync");
+
+    verify(tenantRuntimeEnforcementService)
+        .updatePolicy(
+            "ACME",
+            TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE,
+            "fallback-sync",
+            1,
+            77,
+            Integer.MAX_VALUE,
+            "tester@bbp.com");
   }
 
   @Test

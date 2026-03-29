@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.modules.production.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -20,6 +22,10 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
@@ -191,6 +197,45 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
     assertThat(salesContent).hasSize(1);
     assertThat(salesContent.getFirst().get("stock")).isNull();
     assertThat(salesContent.getFirst()).containsKey("readiness");
+  }
+
+  @Test
+  void getItem_includesStockForFactoryRoleWhenRequested() {
+    ProductionBrand brand = saveBrand("Factory Stock Brand", true);
+    Map<String, Object> created =
+        data(postCatalogItem(finishedGoodPayload(brand.getId(), "Factory Stock Paint"), adminHeaders));
+    Long itemId = ((Number) created.get("id")).longValue();
+
+    ResponseEntity<Map> factoryDetail = getCatalogItem(itemId, true, true, factoryHeaders);
+
+    assertThat(factoryDetail.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(((Number) stock(data(factoryDetail)).get("onHandQuantity")).doubleValue()).isZero();
+    assertThat(((Number) stock(data(factoryDetail)).get("availableQuantity")).doubleValue()).isZero();
+  }
+
+  @Test
+  void canViewStock_handlesMissingAuthorities_andAllowsAdminAccountingAndFactoryOnly() {
+    CatalogController controller = new CatalogController(null, null);
+    Authentication authoritiesMissing = mock(Authentication.class);
+    Authentication admin =
+        new UsernamePasswordAuthenticationToken(
+            "admin", "n/a", List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+    Authentication accounting =
+        new UsernamePasswordAuthenticationToken(
+            "accounting", "n/a", List.of(new SimpleGrantedAuthority("ROLE_ACCOUNTING")));
+    Authentication sales =
+        new UsernamePasswordAuthenticationToken(
+            "sales", "n/a", List.of(new SimpleGrantedAuthority("ROLE_SALES")));
+    when(authoritiesMissing.getAuthorities()).thenReturn(null);
+
+    assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "canViewStock", new Object[] {null}))
+        .isFalse();
+    assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "canViewStock", authoritiesMissing))
+        .isFalse();
+    assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "canViewStock", admin)).isTrue();
+    assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "canViewStock", accounting))
+        .isTrue();
+    assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "canViewStock", sales)).isFalse();
   }
 
   @Test

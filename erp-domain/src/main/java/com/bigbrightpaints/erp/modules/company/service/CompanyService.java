@@ -844,9 +844,7 @@ public class CompanyService {
 
   private void synchronizeRuntimePolicyEnvelope(
       Company company, Authentication authentication, String reasonCode) {
-    if (company == null
-        || tenantRuntimeEnforcementService == null
-        || !StringUtils.hasText(company.getCode())) {
+    if (company == null || tenantRuntimeEnforcementService == null || !StringUtils.hasText(company.getCode())) {
       return;
     }
     TenantRuntimeEnforcementService.TenantRuntimeState runtimeState =

@@ -24,6 +24,7 @@ com.bigbrightpaints.erp.modules.company.service.SuperAdminTenantControlPlaneServ
 com.bigbrightpaints.erp.modules.company.service.TenantOnboardingServiceTest
 com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementServiceTest
 com.bigbrightpaints.erp.modules.company.service.TenantRuntimeRequestAdmissionServiceTest
+com.bigbrightpaints.erp.core.config.SystemSettingsServiceCorsTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingServiceStandardJournalTest
 com.bigbrightpaints.erp.modules.auth.AuthControllerIT
 com.bigbrightpaints.erp.modules.auth.AuthPlatformScopeCodeIT
@@ -60,3 +61,4 @@ com.bigbrightpaints.erp.modules.rbac.domain.SystemRoleTest
 com.bigbrightpaints.erp.modules.auth.SuperAdminTenantWorkflowIsolationIT
 com.bigbrightpaints.erp.orchestrator.OrchestratorControllerIT
 com.bigbrightpaints.erp.modules.company.controller.CompanyControllerTest
+com.bigbrightpaints.erp.core.config.SystemSettingsServiceCorsTest

@@ -293,9 +293,7 @@ public class TenantOnboardingService {
   }
 
   private void initializeTenantRuntimePolicy(Company company) {
-    if (company == null
-        || tenantRuntimeEnforcementService == null
-        || !StringUtils.hasText(company.getCode())) {
+    if (company == null || tenantRuntimeEnforcementService == null || !StringUtils.hasText(company.getCode())) {
       return;
     }
     tenantRuntimeEnforcementService.updatePolicy(

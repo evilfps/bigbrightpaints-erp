@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -18,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -42,6 +44,7 @@ import com.bigbrightpaints.erp.modules.company.dto.TenantOnboardingRequest;
 import com.bigbrightpaints.erp.modules.company.dto.TenantOnboardingResponse;
 
 @ExtendWith(MockitoExtension.class)
+@Tag("critical")
 class TenantOnboardingServiceTest {
 
   @Mock private CompanyRepository companyRepository;
@@ -263,6 +266,51 @@ class TenantOnboardingServiceTest {
             eq(1),
             eq(1),
             eq(1),
+            eq("UNKNOWN_AUTH_ACTOR"));
+  }
+
+  @Test
+  void resolveDefaultGstRate_defaultsToBootstrapRate() {
+    TenantOnboardingService service = newService();
+
+    assertThat(
+            (BigDecimal)
+                ReflectionTestUtils.invokeMethod(
+                    service, "resolveDefaultGstRate", new Object[] {null}))
+        .isEqualByComparingTo("18");
+    assertThat(
+            (BigDecimal)
+                ReflectionTestUtils.invokeMethod(
+                    service, "resolveDefaultGstRate", BigDecimal.TEN))
+        .isEqualByComparingTo("10");
+  }
+
+  @Test
+  void initializeTenantRuntimePolicy_skipsBlankCodeAndCapsOverflowingLimits() {
+    TenantOnboardingService service = newService();
+    Company blankCode = new Company();
+    blankCode.setCode("   ");
+
+    ReflectionTestUtils.invokeMethod(service, "initializeTenantRuntimePolicy", blankCode);
+
+    verifyNoInteractions(tenantRuntimeEnforcementService);
+
+    Company company = new Company();
+    company.setCode("BOOT");
+    company.setQuotaMaxConcurrentRequests(0L);
+    company.setQuotaMaxApiRequests((long) Integer.MAX_VALUE + 10L);
+    company.setQuotaMaxActiveUsers(5L);
+
+    ReflectionTestUtils.invokeMethod(service, "initializeTenantRuntimePolicy", company);
+
+    verify(tenantRuntimeEnforcementService)
+        .updatePolicy(
+            eq("BOOT"),
+            eq(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE),
+            eq("TENANT_ONBOARDING_BOOTSTRAP"),
+            eq(1),
+            eq(Integer.MAX_VALUE),
+            eq(5),
             eq("UNKNOWN_AUTH_ACTOR"));
   }
 

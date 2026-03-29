@@ -171,9 +171,7 @@ where o.company = :company
 
   @Query(
       """
-select new com.bigbrightpaints.erp.modules.sales.dto.DealerCreditExposureView(
-         o.dealer.id,
-         coalesce(sum(o.totalAmount), 0))
+select new com.bigbrightpaints.erp.modules.sales.dto.DealerCreditExposureView(o.dealer.id, coalesce(sum(o.totalAmount), 0))
 from SalesOrder o
 where o.company = :company
   and o.dealer.id in :dealerIds
@@ -185,8 +183,7 @@ where o.company = :company
         from Invoice i
         where i.company = :company
           and i.salesOrder = o
-          and (i.status is null or upper(trim(i.status)) not in ('DRAFT', 'VOID', 'REVERSED'))
-  )
+          and (i.status is null or upper(trim(i.status)) not in ('DRAFT', 'VOID', 'REVERSED')))
 group by o.dealer.id
 """)
   List<DealerCreditExposureView> sumPendingCreditExposureByCompanyAndDealerIds(

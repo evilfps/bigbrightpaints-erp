@@ -9,6 +9,7 @@ com.bigbrightpaints.erp.modules.production.service.CatalogServiceBrandCrudTest
 com.bigbrightpaints.erp.modules.production.service.CatalogServiceBulkUpsertTest
 com.bigbrightpaints.erp.modules.production.service.ProductionCatalogServiceBulkVariantRaceTest
 com.bigbrightpaints.erp.core.util.CompanyEntityLookupTest
+com.bigbrightpaints.erp.modules.factory.service.CostAllocationServiceTest
 com.bigbrightpaints.erp.modules.factory.service.BulkPackingCostServiceTest
 com.bigbrightpaints.erp.modules.factory.controller.PackagingMappingControllerTest
 com.bigbrightpaints.erp.modules.factory.controller.PackingControllerTest
@@ -66,6 +67,8 @@ PurchaseOrderServiceTest
 PurchaseResponseMapperTest
 PurchaseReturnIdempotencyRegressionIT
 PurchaseReturnServiceTest
+com.bigbrightpaints.erp.modules.purchasing.controller.SupplierControllerRoleVisibilityTest
+com.bigbrightpaints.erp.modules.purchasing.service.SupplierServiceTest
 PurchasingServiceGoodsReceiptTest
 PurchasingServiceTest
 RawMaterialPurchaseControllerTest

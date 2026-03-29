@@ -267,11 +267,7 @@ public class DealerService {
 
     dealer = dealerRepository.save(dealer);
     BigDecimal balance = dealerLedgerService.currentBalance(dealer.getId());
-    return toResponse(
-        dealer,
-        dealer.getPortalUser() != null ? dealer.getPortalUser().getEmail() : null,
-        balance,
-        resolvePendingOrderExposure(dealer));
+    return toResponse(dealer, dealer.getPortalUser() != null ? dealer.getPortalUser().getEmail() : null, balance, resolvePendingOrderExposure(dealer));
   }
 
   @Transactional
@@ -478,8 +474,8 @@ public class DealerService {
       return Map.of();
     }
     Map<Long, BigDecimal> exposures = new LinkedHashMap<>();
-    for (DealerCreditExposureView row :
-        salesOrderRepository.sumPendingCreditExposureByCompanyAndDealerIds(
+    for (DealerCreditExposureView row : salesOrderRepository
+        .sumPendingCreditExposureByCompanyAndDealerIds(
             company, dealerIds, SalesOrderCreditExposurePolicy.pendingCreditExposureStatuses())) {
       if (row == null || row.dealerId() == null) {
         continue;

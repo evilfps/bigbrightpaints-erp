@@ -20,6 +20,7 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -47,6 +48,13 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionTemplate;
+
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
@@ -620,6 +628,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void listJournals_rejectsInvalidDateRange() {
     LocalDate fromDate = LocalDate.of(2026, 3, 5);
     LocalDate toDate = LocalDate.of(2026, 3, 4);
@@ -637,6 +646,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void listJournals_filtersByDateTypeAndSourceModule() {
     JournalEntry matching = new JournalEntry();
     ReflectionTestUtils.setField(matching, "id", 902L);
@@ -6892,6 +6902,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void settleDealerInvoices_nonLeaderReplayMissingAllocationsIncludesPartnerDetails() {
     Dealer dealer = new Dealer();
     dealer.setName("Dealer");
@@ -6981,6 +6992,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void settleDealerInvoices_replayPartnerMismatchIncludesPartnerDetails() {
     Dealer dealer = new Dealer();
     dealer.setName("Dealer");
@@ -7493,6 +7505,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void settleDealerInvoices_idempotentReplayReturnsSameCashAmount() {
     AccountingService service = spy(accountingService);
 
@@ -7627,6 +7640,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void revalueInventory_distributesAcrossFinishedGoodBatches() {
     Account inventory = new Account();
     inventory.setCompany(company);
@@ -7686,6 +7700,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void revalueInventory_preservesNegativeDeltaIntoWriteDownPostingPath() {
     Account inventory = account(9131L, "INV-9131", AccountType.ASSET);
     Account reval = account(9132L, "REVAL-9132", AccountType.EXPENSE);
@@ -7726,6 +7741,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void revalueInventory_rejectsClosedPeriodBeforePostingOrMutating() {
     Account inventory = account(9131L, "INV-9131", AccountType.ASSET);
     Account reval = account(9132L, "REVAL-9132", AccountType.EXPENSE);
@@ -7757,6 +7773,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void recordLandedCost_rejectsClosedPeriodBeforePostingOrMutating() {
     Account inventory = account(9141L, "INV-9141", AccountType.ASSET);
     Account offset = account(9142L, "OFFSET-9142", AccountType.EXPENSE);
@@ -9814,6 +9831,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void settleDealerInvoices_nonLeaderReplayAllowsInactiveCashAccountAndRepairsReferenceMapping() {
     Dealer dealer = new Dealer();
     dealer.setName("Replay Dealer");
@@ -9932,6 +9950,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void settleDealerInvoices_nonLeaderReplayAllowsLegacyInvoiceDiscountAdjustments() {
     Dealer dealer = new Dealer();
     dealer.setName("Replay Dealer");
@@ -10062,6 +10081,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void settleDealerInvoices_replayRejectsDifferentSettlementDate() {
     Dealer dealer = new Dealer();
     dealer.setName("Replay Dealer");
@@ -11225,6 +11245,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void settleSupplierInvoices_nonLeaderReplayAllowsInactiveCashAccountAndRepairsReferenceMapping() {
     Supplier supplier = new Supplier();
     supplier.setName("Replay Supplier");
@@ -11341,6 +11362,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void settleSupplierInvoices_nonLeaderReplayAllowsLegacyOnAccountAdjustments() {
     Supplier supplier = new Supplier();
     supplier.setName("Replay Supplier");
@@ -11469,6 +11491,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void settleSupplierInvoices_replayRejectsDifferentSettlementDate() {
     Supplier supplier = new Supplier();
     supplier.setName("Replay Supplier");
@@ -11761,6 +11784,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void settleSupplierInvoices_nonLeaderReplayMissingAllocationsIncludesPartnerDetails() {
     Supplier supplier = new Supplier();
     supplier.setName("Supplier");
@@ -11843,6 +11867,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void settleSupplierInvoices_replayPartnerMismatchIncludesPartnerDetails() {
     Supplier supplier = new Supplier();
     supplier.setName("Supplier");
@@ -13437,6 +13462,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void postDebitNote_rejectsReferenceReuseAcrossDifferentPurchaseProvenance() {
     Account payable = account(8401L, "AP-8401", AccountType.LIABILITY);
     Account inventory = account(8402L, "RM-8402", AccountType.ASSET);
@@ -13486,6 +13512,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void postDebitNote_rejectsInvalidPurchaseStatesAndAmounts() {
     Account payable = account(8501L, "AP-8501", AccountType.LIABILITY);
     Supplier supplier = supplier(850L, "Supplier Invalid", payable);
@@ -13626,6 +13653,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void postCreditNote_rejectsAmountBeyondCurrentOutstanding() {
     Account receivable = account(8451L, "AR-8451", AccountType.ASSET);
     Account revenue = account(8452L, "REV-8452", AccountType.REVENUE);
@@ -13671,6 +13699,7 @@ class AccountingServiceTest {
   }
 
   @Test
+  @Tag("critical")
   void postDebitNote_rejectsAmountBeyondCurrentOutstanding() {
     Account payable = account(8461L, "AP-8461", AccountType.LIABILITY);
     Account inventory = account(8462L, "RM-8462", AccountType.ASSET);
@@ -14902,6 +14931,447 @@ class AccountingServiceTest {
                 ReflectionTestUtils.invokeMethod(
                     accountingService, "requestedAdjustmentAccountIds", new Object[] {null}))
         .isEmpty();
+  }
+
+  @Test
+  @Tag("critical")
+  void helperMethods_coverRemainingAmountsAndSettlementAuditMetadata() {
+    Account receivable = account(9921L, "AR-9921", AccountType.ASSET);
+    Account revenue = account(9922L, "REV-9922", AccountType.REVENUE);
+    Dealer dealer = dealer(992L, "Dealer Remaining", receivable);
+    Invoice invoice = invoice(9923L, dealer, "INV-9923", new BigDecimal("20.00"));
+    invoice.setTotalAmount(new BigDecimal("100.00"));
+    JournalEntry invoiceSource = journalEntry(9924L, "INV-9923-JE");
+    JournalEntry priorCredit =
+        creditNoteEntry(9925L, "CN-9925", dealer, invoiceSource, receivable, revenue, "90.00");
+
+    Account payable = account(9931L, "AP-9931", AccountType.LIABILITY);
+    Account inventory = account(9932L, "RM-9932", AccountType.ASSET);
+    Supplier supplier = supplier(993L, "Supplier Remaining", payable);
+    RawMaterialPurchase purchase =
+        purchase(
+            9933L,
+            "PUR-9933",
+            supplier,
+            new BigDecimal("100.00"),
+            new BigDecimal("50.00"),
+            "POSTED");
+    JournalEntry purchaseSource = journalEntry(9934L, "PUR-9933-JE");
+    JournalEntry priorDebit = journalEntry(9935L, "DN-9935");
+    addJournalLine(
+        priorDebit, payable, "Debit note reversal - Supplier payable", BigDecimal.ZERO, new BigDecimal("70.00"));
+    addJournalLine(
+        priorDebit,
+        inventory,
+        "Debit note reversal - Inventory received",
+        new BigDecimal("70.00"),
+        BigDecimal.ZERO);
+
+    when(journalEntryRepository.findByCompanyAndReversalOfAndCorrectionReasonIgnoreCase(
+            company, invoiceSource, "CREDIT_NOTE"))
+        .thenReturn(List.of(priorCredit));
+    when(journalEntryRepository.findByCompanyAndReversalOfAndCorrectionReasonIgnoreCase(
+            company, purchaseSource, "DEBIT_NOTE"))
+        .thenReturn(List.of(priorDebit));
+
+    assertThat(
+            (BigDecimal)
+                ReflectionTestUtils.invokeMethod(
+                    accountingService, "remainingCreditableAmount", invoice, invoiceSource, company))
+        .isEqualByComparingTo("10.00");
+    assertThat(
+            (BigDecimal)
+                ReflectionTestUtils.invokeMethod(
+                    accountingService, "remainingCreditableAmount", null, invoiceSource, company))
+        .isEqualByComparingTo("0.00");
+    assertThat(
+            (BigDecimal)
+                ReflectionTestUtils.invokeMethod(
+                    accountingService, "remainingDebitableAmount", purchase, purchaseSource, company))
+        .isEqualByComparingTo("30.00");
+    assertThat(
+            (BigDecimal)
+                ReflectionTestUtils.invokeMethod(
+                    accountingService, "remainingDebitableAmount", purchase, null, company))
+        .isEqualByComparingTo("0.00");
+
+    @SuppressWarnings("unchecked")
+    Map<String, String> auditMetadata =
+        (Map<String, String>)
+            ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "buildSettlementAuditSuccessMetadata",
+                com.bigbrightpaints.erp.modules.accounting.domain.PartnerType.SUPPLIER,
+                993L,
+                stubEntry(9936L),
+                LocalDate.of(2024, 7, 4),
+                "  Secret-Key  ",
+                2,
+                new BigDecimal("50.00"),
+                new BigDecimal("45.00"),
+                new BigDecimal("3.00"),
+                new BigDecimal("2.00"),
+                BigDecimal.ZERO,
+                new BigDecimal("1.00"),
+                true,
+                "  override reason  ",
+                "  approver  ");
+
+    assertThat(auditMetadata)
+        .containsEntry(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE, "SUPPLIER")
+        .containsEntry(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, "993")
+        .containsEntry(IntegrationFailureMetadataSchema.KEY_SETTLEMENT_DATE, "2024-07-04")
+        .containsEntry("settlementOverrideRequested", "true")
+        .containsEntry("settlementOverrideReason", "override reason")
+        .containsEntry("settlementOverrideActor", "approver");
+    assertThat(auditMetadata.get(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY))
+        .isEqualTo(com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.sha256Hex("Secret-Key", 12));
+
+    @SuppressWarnings("unchecked")
+    Map<String, String> blankMetadata =
+        (Map<String, String>)
+            ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "buildSettlementAuditSuccessMetadata",
+                com.bigbrightpaints.erp.modules.accounting.domain.PartnerType.DEALER,
+                null,
+                null,
+                null,
+                "   ",
+                0,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                false,
+                "   ",
+                "   ");
+    assertThat(blankMetadata)
+        .doesNotContainKeys(
+            IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY,
+            "settlementOverrideReason",
+            "settlementOverrideActor");
+  }
+
+  @Test
+  @Tag("critical")
+  void helperMethods_coverJournalListSpecifications() {
+    @SuppressWarnings("unchecked")
+    Specification<JournalEntry> noRangeSpec =
+        (Specification<JournalEntry>)
+            ReflectionTestUtils.invokeMethod(
+                accountingService, "byJournalEntryDateRange", null, null);
+    @SuppressWarnings("unchecked")
+    Specification<JournalEntry> betweenSpec =
+        (Specification<JournalEntry>)
+            ReflectionTestUtils.invokeMethod(
+                accountingService,
+                "byJournalEntryDateRange",
+                LocalDate.of(2024, 7, 1),
+                LocalDate.of(2024, 7, 31));
+    @SuppressWarnings("unchecked")
+    Specification<JournalEntry> fromOnlySpec =
+        (Specification<JournalEntry>)
+            ReflectionTestUtils.invokeMethod(
+                accountingService, "byJournalEntryDateRange", LocalDate.of(2024, 7, 1), null);
+    @SuppressWarnings("unchecked")
+    Specification<JournalEntry> toOnlySpec =
+        (Specification<JournalEntry>)
+            ReflectionTestUtils.invokeMethod(
+                accountingService, "byJournalEntryDateRange", null, LocalDate.of(2024, 7, 31));
+    @SuppressWarnings("unchecked")
+    Specification<JournalEntry> journalTypeSpec =
+        (Specification<JournalEntry>)
+            ReflectionTestUtils.invokeMethod(
+                accountingService, "byJournalType", JournalEntryType.MANUAL);
+    @SuppressWarnings("unchecked")
+    Specification<JournalEntry> noJournalTypeSpec =
+        (Specification<JournalEntry>)
+            ReflectionTestUtils.invokeMethod(accountingService, "byJournalType", new Object[] {null});
+    @SuppressWarnings("unchecked")
+    Specification<JournalEntry> sourceModuleSpec =
+        (Specification<JournalEntry>)
+            ReflectionTestUtils.invokeMethod(accountingService, "byJournalSourceModule", "sales");
+    @SuppressWarnings("unchecked")
+    Specification<JournalEntry> noSourceModuleSpec =
+        (Specification<JournalEntry>)
+            ReflectionTestUtils.invokeMethod(
+                accountingService, "byJournalSourceModule", new Object[] {null});
+
+    Root<JournalEntry> root = mock(Root.class);
+    CriteriaQuery<?> query = mock(CriteriaQuery.class);
+    CriteriaBuilder cb = mock(CriteriaBuilder.class);
+    @SuppressWarnings("unchecked")
+    Path<LocalDate> entryDatePath = mock(Path.class);
+    @SuppressWarnings("unchecked")
+    Path<JournalEntryType> journalTypePath = mock(Path.class);
+    @SuppressWarnings("unchecked")
+    Path<String> sourceModulePath = mock(Path.class);
+    @SuppressWarnings("unchecked")
+    Expression<String> loweredSourceModule = mock(Expression.class);
+    Predicate conjunction = mock(Predicate.class);
+    Predicate betweenPredicate = mock(Predicate.class);
+    Predicate fromPredicate = mock(Predicate.class);
+    Predicate toPredicate = mock(Predicate.class);
+    Predicate journalTypePredicate = mock(Predicate.class);
+    Predicate sourceModulePredicate = mock(Predicate.class);
+
+    when(root.get("entryDate")).thenReturn((Path) entryDatePath);
+    when(root.get("journalType")).thenReturn((Path) journalTypePath);
+    when(root.get("sourceModule")).thenReturn((Path) sourceModulePath);
+    when(cb.conjunction()).thenReturn(conjunction);
+    when(cb.between(entryDatePath, LocalDate.of(2024, 7, 1), LocalDate.of(2024, 7, 31)))
+        .thenReturn(betweenPredicate);
+    when(cb.greaterThanOrEqualTo(entryDatePath, LocalDate.of(2024, 7, 1))).thenReturn(fromPredicate);
+    when(cb.lessThanOrEqualTo(entryDatePath, LocalDate.of(2024, 7, 31))).thenReturn(toPredicate);
+    when(cb.equal(journalTypePath, JournalEntryType.MANUAL)).thenReturn(journalTypePredicate);
+    when(cb.lower(sourceModulePath)).thenReturn(loweredSourceModule);
+    when(cb.equal(loweredSourceModule, "sales")).thenReturn(sourceModulePredicate);
+
+    assertThat(noRangeSpec.toPredicate(root, query, cb)).isSameAs(conjunction);
+    assertThat(betweenSpec.toPredicate(root, query, cb)).isSameAs(betweenPredicate);
+    assertThat(fromOnlySpec.toPredicate(root, query, cb)).isSameAs(fromPredicate);
+    assertThat(toOnlySpec.toPredicate(root, query, cb)).isSameAs(toPredicate);
+    assertThat(journalTypeSpec.toPredicate(root, query, cb)).isSameAs(journalTypePredicate);
+    assertThat(noJournalTypeSpec.toPredicate(root, query, cb)).isSameAs(conjunction);
+    assertThat(sourceModuleSpec.toPredicate(root, query, cb)).isSameAs(sourceModulePredicate);
+    assertThat(noSourceModuleSpec.toPredicate(root, query, cb)).isSameAs(conjunction);
+  }
+
+  @Test
+  @Tag("critical")
+  void helperMethods_rejectApplyingNotesBeyondOutstandingBalances() {
+    Account receivable = account(9951L, "AR-9951", AccountType.ASSET);
+    Dealer dealer = dealer(995L, "Dealer Overflow", receivable);
+    Invoice invoice = invoice(9952L, dealer, "INV-9952", new BigDecimal("20.00"));
+    invoice.setTotalAmount(new BigDecimal("100.00"));
+    LocalDate entryDate = LocalDate.of(2024, 8, 1);
+
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    accountingService,
+                    "applyCreditNoteToInvoice",
+                    invoice,
+                    new BigDecimal("25.00"),
+                    BigDecimal.ZERO,
+                    "CN-9952",
+                    entryDate))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("exceeds remaining invoice outstanding amount");
+
+    ReflectionTestUtils.invokeMethod(
+        accountingService,
+        "applyCreditNoteToInvoice",
+        invoice,
+        new BigDecimal("5.00"),
+        new BigDecimal("5.00"),
+        "CN-9952-OK",
+        entryDate);
+
+    assertThat(invoice.getOutstandingAmount()).isEqualByComparingTo("15.00");
+    assertThat(invoice.getPaymentReferences()).contains("CN-9952-OK");
+    verify(invoiceSettlementPolicy)
+        .updateStatusFromOutstanding(invoice, new BigDecimal("15.00"));
+    verify(dealerLedgerService).syncInvoiceLedger(invoice, entryDate);
+
+    Account payable = account(9953L, "AP-9953", AccountType.LIABILITY);
+    Supplier supplier = supplier(996L, "Supplier Overflow", payable);
+    RawMaterialPurchase purchase =
+        purchase(
+            9954L,
+            "PUR-9954",
+            supplier,
+            new BigDecimal("100.00"),
+            new BigDecimal("20.00"),
+            "PARTIAL");
+
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    accountingService,
+                    "applyDebitNoteToPurchase",
+                    purchase,
+                    new BigDecimal("25.00"),
+                    BigDecimal.ZERO))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("exceeds remaining purchase outstanding amount");
+  }
+
+  @Test
+  @Tag("critical")
+  void validateDebitNoteReplay_coversConflictBranchesAndMatchingPayload() {
+    Account payable = account(9941L, "AP-9941", AccountType.LIABILITY);
+    Account inventory = account(9942L, "RM-9942", AccountType.ASSET);
+    Supplier supplier = supplier(994L, "Supplier Validate", payable);
+    Supplier otherSupplier = supplier(995L, "Supplier Other", payable);
+    RawMaterialPurchase purchase =
+        purchase(
+            9943L,
+            "PUR-9943",
+            supplier,
+            new BigDecimal("100.00"),
+            new BigDecimal("100.00"),
+            "POSTED");
+    JournalEntry source = journalEntry(9944L, "PUR-9943-JE");
+    addJournalLine(source, inventory, "Inventory received", new BigDecimal("100.00"), BigDecimal.ZERO);
+    addJournalLine(source, payable, "Supplier payable", BigDecimal.ZERO, new BigDecimal("100.00"));
+
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    accountingService,
+                    "validateDebitNoteReplay",
+                    "DN-9944",
+                    purchase,
+                    source,
+                    null,
+                    new BigDecimal("40.00")))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("journal entry is missing");
+
+    JournalEntry wrongSupplier = journalEntry(9945L, "DN-9945");
+    wrongSupplier.setSupplier(otherSupplier);
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    accountingService,
+                    "validateDebitNoteReplay",
+                    "DN-9945",
+                    purchase,
+                    source,
+                    wrongSupplier,
+                    new BigDecimal("40.00")))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("another supplier");
+
+    JournalEntry wrongCorrectionFlow = journalEntry(99455L, "DN-99455");
+    wrongCorrectionFlow.setSupplier(supplier);
+    wrongCorrectionFlow.setCorrectionReason("REVERSAL");
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    accountingService,
+                    "validateDebitNoteReplay",
+                    "DN-99455",
+                    purchase,
+                    source,
+                    wrongCorrectionFlow,
+                    new BigDecimal("40.00")))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("different correction flow");
+
+    JournalEntry wrongSourceModule = journalEntry(9946L, "DN-9946");
+    wrongSourceModule.setSupplier(supplier);
+    wrongSourceModule.setCorrectionReason("DEBIT_NOTE");
+    wrongSourceModule.setSourceModule("CREDIT_NOTE");
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    accountingService,
+                    "validateDebitNoteReplay",
+                    "DN-9946",
+                    purchase,
+                    source,
+                    wrongSourceModule,
+                    new BigDecimal("40.00")))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("different source module");
+
+    JournalEntry wrongSourceReference = journalEntry(9947L, "DN-9947");
+    wrongSourceReference.setSupplier(supplier);
+    wrongSourceReference.setCorrectionReason("DEBIT_NOTE");
+    wrongSourceReference.setSourceModule("DEBIT_NOTE");
+    wrongSourceReference.setSourceReference("OTHER-PURCHASE");
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    accountingService,
+                    "validateDebitNoteReplay",
+                    "DN-9947",
+                    purchase,
+                    source,
+                    wrongSourceReference,
+                    new BigDecimal("40.00")))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("another purchase");
+
+    JournalEntry wrongAmount = journalEntry(9948L, "DN-9948");
+    wrongAmount.setSupplier(supplier);
+    wrongAmount.setCorrectionReason("DEBIT_NOTE");
+    wrongAmount.setSourceModule("DEBIT_NOTE");
+    wrongAmount.setSourceReference("PUR-9943");
+    addJournalLine(
+        wrongAmount, payable, "Debit note reversal - Supplier payable", BigDecimal.ZERO, new BigDecimal("50.00"));
+    addJournalLine(
+        wrongAmount,
+        inventory,
+        "Debit note reversal - Inventory received",
+        new BigDecimal("50.00"),
+        BigDecimal.ZERO);
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    accountingService,
+                    "validateDebitNoteReplay",
+                    "DN-9948",
+                    purchase,
+                    source,
+                    wrongAmount,
+                    new BigDecimal("40.00")))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("different amount");
+
+    JournalEntry wrongPayload = journalEntry(9949L, "DN-9949");
+    wrongPayload.setSupplier(supplier);
+    wrongPayload.setCorrectionReason("DEBIT_NOTE");
+    wrongPayload.setSourceModule("DEBIT_NOTE");
+    wrongPayload.setSourceReference("PUR-9943");
+    addJournalLine(
+        wrongPayload, payable, "Debit note reversal - Supplier payable", BigDecimal.ZERO, new BigDecimal("40.00"));
+    addJournalLine(
+        wrongPayload,
+        account(9950L, "MISC-9950", AccountType.EXPENSE),
+        "Debit note reversal - Different",
+        new BigDecimal("40.00"),
+        BigDecimal.ZERO);
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    accountingService,
+                    "validateDebitNoteReplay",
+                    "DN-9949",
+                    purchase,
+                    source,
+                    wrongPayload,
+                    new BigDecimal("40.00")))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("different payload");
+
+    JournalEntry matching = journalEntry(9951L, "DN-9951");
+    matching.setSupplier(supplier);
+    matching.setCorrectionReason("DEBIT_NOTE");
+    matching.setSourceModule("DEBIT_NOTE");
+    matching.setSourceReference("PUR-9943");
+    addJournalLine(
+        matching, payable, "Debit note reversal - Supplier payable", new BigDecimal("40.00"), BigDecimal.ZERO);
+    addJournalLine(
+        matching,
+        inventory,
+        "Debit note reversal - Inventory received",
+        BigDecimal.ZERO,
+        new BigDecimal("40.00"));
+
+    ReflectionTestUtils.invokeMethod(
+        accountingService,
+        "validateDebitNoteReplay",
+        "DN-9951",
+        purchase,
+        source,
+        matching,
+        new BigDecimal("40.00"));
   }
 
   @Test

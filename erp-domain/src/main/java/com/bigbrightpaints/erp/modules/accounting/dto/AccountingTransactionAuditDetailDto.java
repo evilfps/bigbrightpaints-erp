@@ -66,7 +66,8 @@ public record AccountingTransactionAuditDetailDto(
       BigDecimal fxDifferenceAmount,
       String applicationType,
       String memo,
-      LocalDate settlementDate) {}
+      LocalDate settlementDate
+) {}
 
   public record EventTrailItem(
       Long eventId,
