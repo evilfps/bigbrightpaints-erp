@@ -372,6 +372,148 @@ class JournalEntryServiceTest {
         .findByCompanyAndReferenceNumberStartingWith(company, "INV-700-");
   }
 
+  @Test
+  void reverseJournalEntry_nullRequestUsesDirectReversePath() {
+    journalEntryService = org.mockito.Mockito.spy(journalEntryService);
+    LocalDate today = LocalDate.of(2026, 3, 6);
+    AccountingPeriod postingPeriod = new AccountingPeriod();
+    postingPeriod.setYear(today.getYear());
+    postingPeriod.setMonth(today.getMonthValue());
+    Account cashAccount = account(11L, "CASH", AccountType.ASSET);
+    Account revenueAccount = account(22L, "REV", AccountType.REVENUE);
+    JournalEntry primaryEntry =
+        reversalSourceEntry(702L, "INV-702", today, cashAccount, revenueAccount);
+    JournalEntry directReversal = reversalResult(902L, "REV-INV-702");
+
+    when(companyClock.today(company)).thenReturn(today);
+    when(systemSettingsService.isPeriodLockEnforced()).thenReturn(true);
+    when(accountingPeriodService.requirePostablePeriod(
+            eq(company), eq(today), anyString(), anyString(), any(), eq(false)))
+        .thenReturn(postingPeriod);
+    when(referenceNumberService.reversalReference("INV-702")).thenReturn("REV-INV-702");
+    when(companyEntityLookup.requireJournalEntry(company, 702L)).thenReturn(primaryEntry);
+    when(companyEntityLookup.requireJournalEntry(company, 902L)).thenReturn(directReversal);
+    when(journalEntryRepository.save(any(JournalEntry.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    doReturn(stubEntry(902L))
+        .when(journalEntryService)
+        .createJournalEntry(any(JournalEntryRequest.class));
+
+    JournalEntryDto result = journalEntryService.reverseJournalEntry(702L, null);
+
+    assertThat(result.id()).isEqualTo(902L);
+    assertThat(primaryEntry.getStatus()).isEqualTo("REVERSED");
+    verify(journalEntryRepository, times(0))
+        .findByCompanyAndReferenceNumberStartingWith(company, "INV-702-");
+  }
+
+  @Test
+  void reverseJournalEntry_relatedEntryIdsTriggerCascadeWithoutCascadeFlag() {
+    journalEntryService = org.mockito.Mockito.spy(journalEntryService);
+    LocalDate today = LocalDate.of(2026, 3, 6);
+    AccountingPeriod postingPeriod = new AccountingPeriod();
+    postingPeriod.setYear(today.getYear());
+    postingPeriod.setMonth(today.getMonthValue());
+    Account cashAccount = account(11L, "CASH", AccountType.ASSET);
+    Account revenueAccount = account(22L, "REV", AccountType.REVENUE);
+    Account expenseAccount = account(33L, "EXP", AccountType.EXPENSE);
+    JournalEntry primaryEntry =
+        reversalSourceEntry(710L, "INV-710", today, cashAccount, revenueAccount);
+    JournalEntry relatedEntry =
+        reversalSourceEntry(711L, "INV-710-COGS", today, expenseAccount, cashAccount);
+    JournalEntry primaryReversal = reversalResult(910L, "REV-INV-710");
+    JournalEntry relatedReversal = reversalResult(911L, "REV-INV-710-COGS");
+
+    when(companyClock.today(company)).thenReturn(today);
+    when(systemSettingsService.isPeriodLockEnforced()).thenReturn(true);
+    when(accountingPeriodService.requirePostablePeriod(
+            eq(company), eq(today), anyString(), anyString(), any(), eq(false)))
+        .thenReturn(postingPeriod);
+    when(referenceNumberService.reversalReference("INV-710")).thenReturn("REV-INV-710");
+    when(referenceNumberService.reversalReference("INV-710-COGS")).thenReturn("REV-INV-710-COGS");
+    when(companyEntityLookup.requireJournalEntry(company, 710L)).thenReturn(primaryEntry);
+    when(companyEntityLookup.requireJournalEntry(company, 910L)).thenReturn(primaryReversal);
+    when(companyEntityLookup.requireJournalEntry(company, 911L)).thenReturn(relatedReversal);
+    when(journalEntryRepository.findByCompanyAndReferenceNumberStartingWith(company, "INV-710-"))
+        .thenReturn(List.of(relatedEntry));
+    when(journalEntryRepository.save(any(JournalEntry.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    doReturn(stubEntry(910L), stubEntry(911L))
+        .when(journalEntryService)
+        .createJournalEntry(any(JournalEntryRequest.class));
+
+    JournalEntryReversalRequest request =
+        new JournalEntryReversalRequest(
+            today,
+            false,
+            "Cascade via related ids",
+            "Primary cascade memo",
+            Boolean.FALSE,
+            null,
+            false,
+            List.of(711L),
+            JournalEntryReversalRequest.ReversalReasonCode.WRONG_ACCOUNT,
+            "checker.user",
+            "DOC-910");
+
+    JournalEntryDto result = journalEntryService.reverseJournalEntry(710L, request);
+
+    assertThat(result.id()).isEqualTo(910L);
+    assertThat(primaryEntry.getStatus()).isEqualTo("REVERSED");
+    assertThat(relatedEntry.getStatus()).isEqualTo("REVERSED");
+    verify(journalEntryRepository, times(1))
+        .findByCompanyAndReferenceNumberStartingWith(company, "INV-710-");
+  }
+
+  @Test
+  void reverseJournalEntry_emptyRelatedIdsUsesDirectReversePath() {
+    journalEntryService = org.mockito.Mockito.spy(journalEntryService);
+    LocalDate today = LocalDate.of(2026, 3, 6);
+    AccountingPeriod postingPeriod = new AccountingPeriod();
+    postingPeriod.setYear(today.getYear());
+    postingPeriod.setMonth(today.getMonthValue());
+    Account cashAccount = account(11L, "CASH", AccountType.ASSET);
+    Account revenueAccount = account(22L, "REV", AccountType.REVENUE);
+    JournalEntry primaryEntry =
+        reversalSourceEntry(720L, "INV-720", today, cashAccount, revenueAccount);
+    JournalEntry directReversal = reversalResult(920L, "REV-INV-720");
+
+    when(companyClock.today(company)).thenReturn(today);
+    when(systemSettingsService.isPeriodLockEnforced()).thenReturn(true);
+    when(accountingPeriodService.requirePostablePeriod(
+            eq(company), eq(today), anyString(), anyString(), any(), eq(false)))
+        .thenReturn(postingPeriod);
+    when(referenceNumberService.reversalReference("INV-720")).thenReturn("REV-INV-720");
+    when(companyEntityLookup.requireJournalEntry(company, 720L)).thenReturn(primaryEntry);
+    when(companyEntityLookup.requireJournalEntry(company, 920L)).thenReturn(directReversal);
+    when(journalEntryRepository.save(any(JournalEntry.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    doReturn(stubEntry(920L))
+        .when(journalEntryService)
+        .createJournalEntry(any(JournalEntryRequest.class));
+
+    JournalEntryReversalRequest request =
+        new JournalEntryReversalRequest(
+            today,
+            false,
+            "Direct reverse",
+            "Direct memo",
+            Boolean.FALSE,
+            null,
+            false,
+            List.of(),
+            null,
+            null,
+            null);
+
+    JournalEntryDto result = journalEntryService.reverseJournalEntry(720L, request);
+
+    assertThat(result.id()).isEqualTo(920L);
+    assertThat(primaryEntry.getStatus()).isEqualTo("REVERSED");
+    verify(journalEntryRepository, times(0))
+        .findByCompanyAndReferenceNumberStartingWith(company, "INV-720-");
+  }
+
   private Account account(Long id, String code, AccountType type) {
     Account account = new Account();
     ReflectionTestUtils.setField(account, "id", id);

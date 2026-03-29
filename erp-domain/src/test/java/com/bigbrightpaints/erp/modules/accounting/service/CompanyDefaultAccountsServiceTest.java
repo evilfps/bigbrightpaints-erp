@@ -230,6 +230,23 @@ class CompanyDefaultAccountsServiceTest {
   }
 
   @Test
+  void updateDefaults_setsGstOutputAndPayableWhenGstRateIsUnset() {
+    company.setDefaultGstRate(null);
+    company.setGstInputTaxAccountId(88L);
+    Account tax = account(54L, AccountType.LIABILITY, "GST-OUT");
+    when(companyEntityLookup.requireAccount(company, 54L)).thenReturn(tax);
+
+    CompanyDefaultAccountsService.DefaultAccounts defaults =
+        service.updateDefaults(null, null, null, null, 54L);
+
+    assertThat(defaults.taxAccountId()).isEqualTo(54L);
+    assertThat(company.getGstInputTaxAccountId()).isEqualTo(88L);
+    assertThat(company.getGstOutputTaxAccountId()).isEqualTo(54L);
+    assertThat(company.getGstPayableAccountId()).isEqualTo(54L);
+    verify(companyRepository).save(company);
+  }
+
+  @Test
   void updateDefaults_clearsGstAccountsForNonGstCompany() {
     company.setDefaultGstRate(java.math.BigDecimal.ZERO);
     company.setGstInputTaxAccountId(98L);

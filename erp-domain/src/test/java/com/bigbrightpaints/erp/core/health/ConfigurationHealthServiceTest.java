@@ -103,6 +103,23 @@ class ConfigurationHealthServiceTest {
   }
 
   @Test
+  void evaluateCompany_allowsNonGstModeWithoutConfiguredTaxAccounts() {
+    Company company = configuredCompany("CFG-NON-GST-CLEAN");
+    company.setDefaultGstRate(BigDecimal.ZERO);
+    company.setGstInputTaxAccountId(null);
+    company.setGstOutputTaxAccountId(null);
+    company.setGstPayableAccountId(null);
+    stubEmptyCatalog(company);
+
+    ConfigurationHealthService.ConfigurationHealthReport report =
+        configurationHealthService.evaluateCompany(company);
+
+    assertThat(report.healthy()).isTrue();
+    assertThat(report.issues())
+        .noneSatisfy(issue -> assertThat(issue.domain()).isEqualTo("TAX_ACCOUNT"));
+  }
+
+  @Test
   void evaluateCompany_reportsMissingGstPayableInGstMode() {
     Company company = configuredCompany("CFG-GST");
     company.setDefaultGstRate(new BigDecimal("18.00"));
@@ -121,6 +138,33 @@ class ConfigurationHealthServiceTest {
               assertThat(issue.domain()).isEqualTo("TAX_ACCOUNT");
               assertThat(issue.reference()).isEqualTo("GST_PAYABLE");
               assertThat(issue.message()).contains("GST payable account");
+            });
+  }
+
+  @Test
+  void evaluateCompany_reportsMissingGstInputAndOutputInGstMode() {
+    Company company = configuredCompany("CFG-GST-MISSING");
+    company.setDefaultGstRate(new BigDecimal("18.00"));
+    company.setGstInputTaxAccountId(null);
+    company.setGstOutputTaxAccountId(null);
+    company.setGstPayableAccountId(23L);
+    stubEmptyCatalog(company);
+
+    ConfigurationHealthService.ConfigurationHealthReport report =
+        configurationHealthService.evaluateCompany(company);
+
+    assertThat(report.healthy()).isFalse();
+    assertThat(report.issues())
+        .anySatisfy(
+            issue -> {
+              assertThat(issue.domain()).isEqualTo("TAX_ACCOUNT");
+              assertThat(issue.reference()).isEqualTo("GST_INPUT");
+            });
+    assertThat(report.issues())
+        .anySatisfy(
+            issue -> {
+              assertThat(issue.domain()).isEqualTo("TAX_ACCOUNT");
+              assertThat(issue.reference()).isEqualTo("GST_OUTPUT");
             });
   }
 
