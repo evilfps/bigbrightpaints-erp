@@ -489,8 +489,6 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   @Test
   void admin_cannot_create_tenant_admin_user() throws InterruptedException {
     String token = login(ADMIN_EMAIL, TENANT_A);
-    Long tenantAId =
-        companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
     String candidateEmail = "candidate-" + System.nanoTime() + "@bbp.com";
 
     ResponseEntity<Map> response =
@@ -503,8 +501,6 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                     candidateEmail,
                     "displayName",
                     "Tenant Admin Candidate",
-                    "companyId",
-                    tenantAId,
                     "roles",
                     List.of("ROLE_ADMIN")),
                 jsonHeaders(token, TENANT_A)),
@@ -527,8 +523,6 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   @Test
   void super_admin_tenant_context_cannot_create_tenant_admin_user_via_admin_workflow_surface() {
     String token = login(SUPER_ADMIN_EMAIL, TENANT_A);
-    Long tenantAId =
-        companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
     String candidateEmail = "super-candidate-" + System.nanoTime() + "@bbp.com";
 
     ResponseEntity<Map> response =
@@ -541,8 +535,6 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                     candidateEmail,
                     "displayName",
                     "Created By Super Admin",
-                    "companyId",
-                    tenantAId,
                     "roles",
                     List.of("ROLE_ADMIN")),
                 jsonHeaders(token, TENANT_A)),
@@ -567,8 +559,6 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
         PLATFORM_SCOPE,
         List.of("ROLE_SUPER_ADMIN"));
     String token = login(rootOnlySuperAdminEmail, PLATFORM_SCOPE);
-    Long tenantAId =
-        companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
     String candidateEmail = "root-super-candidate-" + System.nanoTime() + "@bbp.com";
 
     ResponseEntity<Map> response =
@@ -581,8 +571,6 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                     candidateEmail,
                     "displayName",
                     "Created By Root Super Admin",
-                    "companyId",
-                    tenantAId,
                     "roles",
                     List.of("ROLE_ADMIN")),
                 jsonHeaders(token, PLATFORM_SCOPE)),
@@ -908,8 +896,6 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   @Test
   void tenant_admin_can_still_create_non_privileged_user() {
     String token = login(NON_PRIVILEGED_ADMIN_EMAIL, TENANT_A);
-    Long tenantAId =
-        companyRepository.findByCodeIgnoreCase(TENANT_A).map(Company::getId).orElseThrow();
     String candidateEmail = "sales-operator-" + System.nanoTime() + "@bbp.com";
 
     ResponseEntity<Map> response =
@@ -922,8 +908,6 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
                     candidateEmail,
                     "displayName",
                     "Sales Operator",
-                    "companyId",
-                    tenantAId,
                     "roles",
                     List.of("ROLE_SALES")),
                 jsonHeaders(token, TENANT_A)),

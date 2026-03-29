@@ -241,7 +241,7 @@ class CR_PeriodCloseDriftScansTest extends AbstractIntegrationTest {
       Account revenue = ensureAccount(company, "REV-DRIFT", "Revenue", AccountType.REVENUE);
 
       postJournal(
-          period.getEndDate().minusDays(2),
+          period.getEndDate().minusDays(1),
           List.of(
               line(cash.getId(), new BigDecimal("50.00"), BigDecimal.ZERO),
               line(revenue.getId(), BigDecimal.ZERO, new BigDecimal("50.00"))));
