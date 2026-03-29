@@ -1,5 +1,16 @@
 # Migration Runbook
 
+## 2026-03-29 — `migration_v2/V176__opening_stock_content_fingerprint.sql`
+
+- **Purpose:** add a canonical `content_fingerprint` to `opening_stock_imports` so the ERP-39 opening-stock replay guard can detect the same imported content even when callers change `opening_stock_batch_key` or `idempotency_key`.
+- **Release-guard posture:** this is a forward-only normalization companion to the ERP-39 hard-cut replay protection. Runtime code remains single-path and relies on the persisted fingerprint instead of compatibility fallbacks.
+- **Forward plan:** apply `V176__opening_stock_content_fingerprint.sql` together with the ERP-39 packet, backfill existing rows from the current canonical import keys, enforce `NOT NULL`, and keep the company-plus-fingerprint index live before promoting the stricter replay protection to production.
+- **Dry-run commands:**
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=OpeningStockImportServiceTest test`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AccountingServiceTest,AccountingAuditTrailServiceTest,SettlementServiceTest,TruthRailsSharedDtoContractTest,LandedCostRevaluationIT,AccountingControllerJournalEndpointsTest,AccountingControllerExceptionHandlerTest test`
+  - `ENTERPRISE_DIFF_BASE=53873362b0f9e10ab9e7b587ee6aa79163023e7a bash ci/check-enterprise-policy.sh`
+- **Rollback strategy:** treat `V176` as a coordinated app-and-schema cut. If rollout must be abandoned after the migration is applied, keep the ERP-39-compatible backend live or restore the database from a pre-`V176` snapshot/PITR before reverting application code. Do not drop or null out `content_fingerprint` under mixed runtime behavior.
+
 ## 2026-03-29 — `migration_v2/V175__canonicalize_company_gst_accounts.sql`
 
 - **Purpose:** normalize company GST account bindings on upgrade paths so GST-mode tenants do not retain a null `gst_payable_account_id`, and non-GST tenants do not keep stale GST input/output/payable account IDs after the strict health checks ship.

@@ -1,5 +1,16 @@
 # Rollback Runbook
 
+## 2026-03-29 — `erp-39.opening-stock-fingerprint-and-replay-hard-cut`
+
+- **Scope:** revert `migration_v2/V176__opening_stock_content_fingerprint.sql` together with the ERP-39 runtime packet that now uses persisted opening-stock content fingerprints plus stricter settlement replay and audit hardening.
+- **Application rollback:** do not redeploy a pre-ERP-39 backend against a database where `V176` has already been applied unless the database is first restored to a pre-`V176` state.
+- **Database rollback:** preferred path is snapshot/PITR restore to a point before `V176`. Ad hoc reverse SQL is intentionally unsupported because the migration backfills `content_fingerprint` from canonical import keys and the reviewed runtime contract assumes those fingerprints remain durable once the hard-cut replay guard is live.
+- **Guard note:** this packet intentionally removes legacy replay ambiguity. If rollback abandons ERP-39 after merge, revert the runtime packet together with the migration/runbook contract instead of keeping mixed old/new replay behavior.
+- **Verification:** after restore or coordinated packet revert, rerun:
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=OpeningStockImportServiceTest test`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AccountingServiceTest,AccountingAuditTrailServiceTest,SettlementServiceTest,TruthRailsSharedDtoContractTest,LandedCostRevaluationIT,AccountingControllerJournalEndpointsTest,AccountingControllerExceptionHandlerTest test`
+  - `ENTERPRISE_DIFF_BASE=53873362b0f9e10ab9e7b587ee6aa79163023e7a bash ci/check-enterprise-policy.sh`
+
 ## 2026-03-29 — `erp-48.gst-account-canonicalization-hard-cut`
 
 - **Scope:** revert `migration_v2/V175__canonicalize_company_gst_accounts.sql` together with the ERP-48 GST health/runtime packet that now treats missing payable accounts and stale non-GST GST bindings as configuration defects.

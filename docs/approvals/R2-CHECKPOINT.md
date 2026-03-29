@@ -1,85 +1,74 @@
 # R2 Checkpoint
 
 ## Scope
-- Feature: `ERP-48 canonical hard-cut deployability packet`
-- Branch: `packet/erp-48-canonical-hardcut-d2df29ee`
-- Baseline head: `d2df29eeb58c6d74b932a7be2d76b90eb310b419`
+- Feature: `ERP-39 integrated security remediation wave`
+- Branch: `packet/erp-39-hardcut-integration`
+- Baseline head: `53873362b0f9e10ab9e7b587ee6aa79163023e7a`
 - Review candidate:
-  - hard-cut auth identity onto `GET /api/v1/auth/me` and retire `/api/v1/auth/profile`
-  - hard-cut accounting journal and reversal surfaces onto one canonical public route each
-  - hard-cut tenant-admin approval/export ownership away from superadmin
-  - hard-cut product/account default validation, GST health, and inventory-accounting default-off behavior
-  - retire MCP sidecar and dead task scripts from CI/runtime surface
-  - add `V173__company_lifecycle_constraint_hard_cut.sql`, `V174__backfill_default_discount_accounts.sql`, `V175__canonicalize_company_gst_accounts.sql`, and release-matrix/guard fixes needed for deployable Flyway v2 proof
-  - publish the six-portal frontend contract plus the API handoff pack
-- Why this is R2: the packet changes live auth, tenant control-plane, accounting, inventory/manufacturing, release-guard, and migration surfaces. A wrong cut here can break tenant isolation, accounting posting, or rollout safety even when local tests are green.
+  - hard-fail suspended tenant runtime access and tighten tenant/accounting scope checks
+  - remove raw settlement idempotency keys from public audit and linked-reference surfaces
+  - preserve signed inventory revaluation deltas and reject settlement-date replay drift
+  - defer implicit auto-settlement replay keys to resolved allocation state
+  - harden export ownership, dealer credit exposure, supplier read visibility, runtime error redaction, and CI/release guard paths
+  - add `migration_v2/V176__opening_stock_content_fingerprint.sql` so opening-stock replay protection survives caller-supplied batch or idempotency-key churn
+- Why this is R2: the packet changes live accounting, tenant access, company onboarding, and schema enforcement paths. A wrong cut can break settlement replay guarantees, expose sensitive audit data, reject valid tenant traffic, or let duplicate opening-stock imports through during rollout.
 
 ## Risk Trigger
 - Triggered by:
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/**`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/**`
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/**`
-  - `erp-domain/src/main/resources/db/migration_v2/V173__company_lifecycle_constraint_hard_cut.sql`
-  - `erp-domain/src/main/resources/db/migration_v2/V174__backfill_default_discount_accounts.sql`
-  - `erp-domain/src/main/resources/db/migration_v2/V175__canonicalize_company_gst_accounts.sql`
-  - `scripts/gate_release.sh`
-  - `scripts/verify_local.sh`
-  - `scripts/release_migration_matrix.sh`
+  - `erp-domain/src/main/resources/db/migration_v2/V176__opening_stock_content_fingerprint.sql`
 - Contract surfaces affected:
-  - tenant-scoped identity and must-change-password corridor
-  - superadmin isolation from tenant-admin approval/export flows
-  - manual journal and reversal public API contract
-  - finished-good/default-account/GST fail-closed behavior
-  - release-grade Flyway v2 migration proof and rollback rehearsal
+  - settlement replay/idempotency semantics
+  - accounting audit detail and linked-reference payloads
+  - inventory revaluation posting polarity
+  - tenant lifecycle enforcement and onboarding policy sync
+  - opening-stock replay protection across repeated file imports
 - Failure mode if wrong:
-  - tenant users could authenticate with the wrong company identity surface
-  - superadmin could regain tenant-admin approval/export authority
-  - accounting could double-post or reverse through the wrong public surface
-  - deploy-time migration matrix could pass local gates but fail on fresh or upgrade paths
-  - frontend could keep implementing against retired routes or ambiguous portal ownership
+  - valid revaluation write-downs could post with the wrong sign
+  - settlement replays could silently accept different effective dates or different resolved allocation sets
+  - audit surfaces could continue leaking raw client idempotency keys
+  - suspended tenants could keep runtime access or onboarding policy could drift from current controls
+  - opening-stock imports could be replayed under new batch keys after the migration lands
 
 ## Approval Authority
 - Mode: human
-- Approver: `ERP-48 owner`
-- Canary owner: `ERP-48 owner`
-- Approval status: `pending human deploy approval; local release proof green`
-- Basis: this packet is a destructive hard-cut across auth, control-plane, accounting, and migration surfaces and therefore stays inside the R2 approval lane.
+- Approver: `ERP-39 owner`
+- Canary owner: `ERP-39 owner`
+- Approval status: `pending human review; draft PR #173 is the current candidate`
+- Basis: this is a destructive hard-cut across accounting, tenant policy, and migration surfaces, so technical green alone is not sufficient for deployment approval.
 
 ## Escalation Decision
 - Human escalation required: yes
-- Reason: the packet combines runtime hard-cuts and a new `migration_v2` file; automatic approval is not sufficient for a safe deploy decision.
+- Reason: the packet changes accounting replay controls plus a `migration_v2` contract, so deployment should not rely on automated gate success alone.
 
 ## Rollback Owner
-- Owner: `ERP-48 owner`
+- Owner: `ERP-39 owner`
 - Rollback method:
-  - before merge: abandon the packet branch/worktree and do not promote the artifact
-  - after merge but before deploy: revert the packet commits together; do not partially keep the API/doc changes while reverting the runtime or migration changes
-  - after deploy: keep the ERP-48-compatible backend live unless the database is first restored to a pre-`V175` snapshot/PITR state
-  - do not hand-edit the database back toward mixed legacy/current lifecycle/default-account/tax-account state; treat `V173`, `V174`, and `V175` as coordinated app-and-schema cuts
+  - before merge: abandon `packet/erp-39-hardcut-integration` and do not promote the artifact
+  - after merge but before deploy: revert the ERP-39 packet commits together; do not keep the migration/docs changes while dropping the runtime fixes
+  - after deploy: keep the ERP-39-compatible backend live unless the database is first restored to a pre-`V176` snapshot/PITR state
+  - do not hand-edit settlement replay rows, tenant policy state, or opening-stock fingerprints toward mixed legacy/current behavior
 - Rollback trigger:
-  - auth identity or tenant isolation deviates from `companyCode`-scoped `/api/v1/auth/me`
-  - approval/export actions become visible to superadmin again
-  - manual journal/reversal paths fail canonical route expectations
-  - fresh-path or upgrade-path Flyway v2 rollout diverges from the verified release matrix
-  - canary smoke shows O2C, P2P, or accounting/export regression after deploy
+  - accounting audit consumers require the removed raw idempotency key surface
+  - settlement replay rejects valid same-date replays or still accepts drifted effective dates/open-item sets
+  - opening-stock import replay behavior diverges from the verified fingerprint-based contract
+  - tenant runtime access or onboarding policy enforcement regresses after deploy
 
 ## Expiry
-- Valid until: `2026-04-04`
-- Re-evaluate if: scope widens beyond this packet, another `migration_v2` change is added, or canary ownership/rollback ownership changes.
+- Valid until: `2026-04-05`
+- Re-evaluate if: scope widens beyond ERP-39, another `migration_v2` change lands, or the approver/canary/rollback owners change.
 
 ## Verification Evidence
 - Commands run:
-  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_fast.sh`
-  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_core.sh`
-  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_reconciliation.sh`
-  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_release.sh`
+  - `MIGRATION_SET=v2 mvn -q -Dtest=AccountingServiceTest#settleDealerInvoices_replayPartnerMismatchIncludesPartnerDetails+settleDealerInvoices_idempotentReplayReturnsSameCashAmount+settleSupplierInvoices_replayPartnerMismatchIncludesPartnerDetails test`
+  - `MIGRATION_SET=v2 mvn -q -Dtest=AccountingServiceTest,AccountingAuditTrailServiceTest,SettlementServiceTest,TruthRailsSharedDtoContractTest,LandedCostRevaluationIT,AccountingControllerJournalEndpointsTest,AccountingControllerExceptionHandlerTest test`
+  - `ENTERPRISE_DIFF_BASE=53873362b0f9e10ab9e7b587ee6aa79163023e7a bash ci/check-enterprise-policy.sh`
 - Result summary:
-  - `gate_fast` passed
-  - `gate_core` passed
-  - `gate_reconciliation` passed with `Tests run: 267, Failures: 0, Errors: 0, Skipped: 0`
-  - `gate_release` passed with canonical base verification against `origin/main` at `d2df29eeb58c6d74b932a7be2d76b90eb310b419`
-  - release migration matrix passed on fresh path, upgrade seed path, and upgrade-to-head path
+  - integrated replay/date guard regressions are covered and green on the branch head
+  - the integrated accounting, audit, settlement, controller, and revaluation suite passed on `28d43192345ffd0981677c966f174facb7acb597`
+  - enterprise-policy is expected to pass once this checkpoint and the matching migration/rollback runbook updates are included in the PR diff
 - Artifacts/links:
-  - repo checkout: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-48-canonical-hardcut-d2df29ee`
-  - release artifact pack: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-48-canonical-hardcut-d2df29ee/artifacts/gate-release`
-  - worker execution log: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-48-canonical-hardcut-d2df29ee/docs/erp-48-parallel-worker-worklog.md`
+  - repo checkout: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-39-hardcut-integration`
+  - PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/173`
+  - Linear issue: `https://linear.app/orchestratorerp/issue/ERP-39/security-findings-verification-and-grouped-remediation-triage-from`
