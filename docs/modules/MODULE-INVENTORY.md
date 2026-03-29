@@ -1,6 +1,6 @@
 # Backend Module Inventory
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-03-30
 
 This document is the canonical inventory of every live backend module in `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/`. Each entry names the module, summarises its ownership, and links to its canonical documentation packet.
 
@@ -30,10 +30,18 @@ A reader can discover module ownership from this inventory without grepping the 
 
 ---
 
+## Cross-Cutting Infrastructure Packets
+
+The following packets document cross-cutting platform infrastructure that lives outside the `modules/` tree:
+
+| Packet | Ownership Summary | Canonical Packet |
+| --- | --- | --- |
+| **core security/error** | Security filter chain (JWT authentication, company-context resolution, must-change-password corridor), exception/error contract (ApplicationException, ErrorCode, global exception handlers), fail-open vs fail-closed boundaries | [core-security-error.md](core-security-error.md) |
+
 ## Coverage Notes
 
 - The source-of-truth directory listing is `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/`. This inventory covers all 15 live module directories: `accounting`, `admin`, `auth`, `company`, `demo`, `factory`, `hr`, `inventory`, `invoice`, `portal`, `production`, `purchasing`, `rbac`, `reports`, `sales`.
-- Four modules (`accounting`, `hr`, `inventory`, `sales`) have full AGENTS.md packets today. Three modules (`admin`, `portal`, `rbac`) share a combined packet at [admin-portal-rbac.md](admin-portal-rbac.md). The remaining 8 modules have source-directory links; per-module documentation packets for those modules will be added in later milestones.
+- Four modules (`accounting`, `hr`, `inventory`, `sales`) have full AGENTS.md packets today. Three modules (`admin`, `portal`, `rbac`) share a combined packet at [admin-portal-rbac.md](admin-portal-rbac.md). Two cross-cutting infrastructure packets are documented: `auth` (login/MFA/password corridor) and `core security/error` (filter chain and exception contract). The remaining 8 modules have source-directory links; per-module documentation packets for those modules will be added in later milestones.
 - When a per-module packet is created for a module currently pointing to its source directory, the corresponding inventory row should be updated to link to the new packet and the *(per-module packet pending)* marker removed.
 
 ## Cross-references

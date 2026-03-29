@@ -1,6 +1,6 @@
 # BigBright ERP — Backend Documentation Index
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-03-30
 
 This is the canonical entrypoint for backend documentation. Every major docs section is linked from here. If a packet is not reachable through this index, it is not part of the canonical docs tree.
 
@@ -21,7 +21,7 @@ This is the canonical entrypoint for backend documentation. Every major docs sec
 | --- | --- |
 | [docs/modules/MODULE-INVENTORY.md](modules/MODULE-INVENTORY.md) | Canonical inventory of every live backend module with ownership summary and links to per-module documentation packets |
 
-Module packets explain what each module owns: controllers, services, DTOs, entities, helpers, events, and cross-module boundaries. Seven modules have canonical documentation packets today:
+Module packets explain what each module owns: controllers, services, DTOs, entities, helpers, events, and cross-module boundaries. Eight modules have canonical documentation packets today:
 
 | Module | Description |
 | --- | --- |
@@ -29,6 +29,7 @@ Module packets explain what each module owns: controllers, services, DTOs, entit
 | [admin/portal/rbac](modules/admin-portal-rbac.md) | Admin user management, system settings, changelog, export approvals, support tickets, portal insights/finance, dealer self-service host ownership, role-action matrices, and RBAC enforcement |
 | [auth](modules/auth.md) | Login, refresh, logout, MFA, password reset, must-change-password corridor, token/session revocation, JWT-based tenant scoping, and security filter chain |
 | [company](modules/company.md) | Tenant lifecycle, runtime admission, module gating, licensing checks, tenant onboarding, super-admin control plane, and company-scoping assumptions |
+| [core security/error](modules/core-security-error.md) | Security filter chain (JWT, company context, must-change-password corridor), exception/error contract (ApplicationException, ErrorCode, global handlers), fail-open vs fail-closed boundaries |
 | [hr](../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md) | Employees, leave, attendance, payroll runs, and payroll posting/payment |
 | [inventory](../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/AGENTS.md) | Stock, reservations, adjustments, batch traceability, opening stock, and valuation |
 | [sales](../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/AGENTS.md) | Dealer/customer flows, order lifecycle, credit controls, and dispatch ownership |
