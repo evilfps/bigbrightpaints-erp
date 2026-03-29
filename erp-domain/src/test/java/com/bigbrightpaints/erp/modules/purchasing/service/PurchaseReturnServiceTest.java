@@ -472,6 +472,8 @@ class PurchaseReturnServiceTest {
 
     JournalEntry postedReturnEntry = new JournalEntry();
     ReflectionTestUtils.setField(postedReturnEntry, "id", 901L);
+    postedReturnEntry.setSourceModule("PURCHASING_RETURN");
+    postedReturnEntry.setSourceReference("PR-30");
 
     com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement existingMovement =
         new com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement();

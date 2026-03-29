@@ -152,6 +152,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
 
   @Test
   void purchaseReturnReplayDoesNotDuplicateMovements() {
+    String replayReference = uniqueReturnReference("001");
     PurchaseReturnRequest request =
         new PurchaseReturnRequest(
             supplier.getId(),
@@ -159,7 +160,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
             material.getId(),
             new BigDecimal("4.00"),
             new BigDecimal("5.00"),
-            "PR-LF022-001",
+            replayReference,
             firstReturnDate,
             "Damaged");
 
@@ -170,7 +171,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
         purchaseRepository.findById(purchase.getId()).orElseThrow();
     List<RawMaterialMovement> movements =
         movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
-            company, InventoryReference.PURCHASE_RETURN, "PR-LF022-001");
+            company, InventoryReference.PURCHASE_RETURN, replayReference);
     assertThat(movements).hasSize(1);
     assertThat(movements).allMatch(movement -> movement.getJournalEntryId() != null);
     assertThat(purchaseAfterFirst.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
@@ -192,7 +193,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
         purchaseRepository.findById(purchase.getId()).orElseThrow();
     List<RawMaterialMovement> movementsAfter =
         movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
-            company, InventoryReference.PURCHASE_RETURN, "PR-LF022-001");
+            company, InventoryReference.PURCHASE_RETURN, replayReference);
 
     assertThat(second.id()).isEqualTo(first.id());
     assertThat(stockAfterSecond).isEqualByComparingTo(stockAfterFirst);
@@ -205,6 +206,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
 
   @Test
   void purchaseReturnReplaySucceedsAfterSupplierBecomesReferenceOnly() {
+    String replayReference = uniqueReturnReference("002");
     PurchaseReturnRequest request =
         new PurchaseReturnRequest(
             supplier.getId(),
@@ -212,7 +214,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
             material.getId(),
             new BigDecimal("4.00"),
             new BigDecimal("5.00"),
-            "PR-LF022-002",
+            replayReference,
             firstReturnDate,
             "Damaged");
 
@@ -225,7 +227,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
     JournalEntryDto replay = purchasingService.recordPurchaseReturn(request);
     List<RawMaterialMovement> movementsAfterReplay =
         movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
-            company, InventoryReference.PURCHASE_RETURN, "PR-LF022-002");
+            company, InventoryReference.PURCHASE_RETURN, replayReference);
 
     assertThat(replay.id()).isEqualTo(first.id());
     assertThat(movementsAfterReplay).hasSize(1);
@@ -237,6 +239,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
 
   @Test
   void partialThenFinalReturn_marksPurchaseVoidOnlyWhenFullyReturned() {
+    String firstReference = uniqueReturnReference("010");
     PurchaseReturnRequest firstReturn =
         new PurchaseReturnRequest(
             supplier.getId(),
@@ -244,7 +247,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
             material.getId(),
             new BigDecimal("2.00"),
             new BigDecimal("5.00"),
-            "PR-LF022-010",
+            firstReference,
             firstReturnDate,
             "Damaged");
     purchasingService.recordPurchaseReturn(firstReturn);
@@ -253,6 +256,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
     assertThat(afterFirst.getOutstandingAmount()).isEqualByComparingTo(new BigDecimal("10.00"));
     assertThat(afterFirst.getStatus()).isEqualTo("PARTIAL");
 
+    String secondReference = uniqueReturnReference("011");
     PurchaseReturnRequest secondReturn =
         new PurchaseReturnRequest(
             supplier.getId(),
@@ -260,7 +264,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
             material.getId(),
             new BigDecimal("2.00"),
             new BigDecimal("5.00"),
-            "PR-LF022-011",
+            secondReference,
             secondReturnDate,
             "Damaged");
     purchasingService.recordPurchaseReturn(secondReturn);
@@ -272,6 +276,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
 
   @Test
   void purchaseReturnRejectsQuantityAboveRemainingReturnable() {
+    String firstReference = uniqueReturnReference("020");
     PurchaseReturnRequest firstReturn =
         new PurchaseReturnRequest(
             supplier.getId(),
@@ -279,11 +284,12 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
             material.getId(),
             new BigDecimal("3.00"),
             new BigDecimal("5.00"),
-            "PR-LF022-020",
+            firstReference,
             firstReturnDate,
             "Damaged");
     purchasingService.recordPurchaseReturn(firstReturn);
 
+    String secondReference = uniqueReturnReference("021");
     PurchaseReturnRequest overReturn =
         new PurchaseReturnRequest(
             supplier.getId(),
@@ -291,7 +297,7 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
             material.getId(),
             new BigDecimal("2.00"),
             new BigDecimal("5.00"),
-            "PR-LF022-021",
+            secondReference,
             secondReturnDate,
             "Damaged");
 
@@ -316,5 +322,9 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
               account.setType(type);
               return accountRepository.save(account);
             });
+  }
+
+  private String uniqueReturnReference(String suffix) {
+    return "PR-LF022-" + purchase.getId() + "-" + suffix;
   }
 }
