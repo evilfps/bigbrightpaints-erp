@@ -133,10 +133,11 @@ public class InventoryAccountingService extends AccountingCoreEngine {
     ValidationUtils.requireNotNull(request.inventoryAccountId(), "inventoryAccountId");
     ValidationUtils.requireNotNull(request.revaluationAccountId(), "revaluationAccountId");
     ValidationUtils.requireNotNull(request.deltaAmount(), "deltaAmount");
+    ValidationUtils.requirePositive(request.deltaAmount().abs(), "deltaAmount");
     return new InventoryRevaluationRequest(
         request.inventoryAccountId(),
         request.revaluationAccountId(),
-        ValidationUtils.requirePositive(request.deltaAmount().abs(), "deltaAmount"),
+        request.deltaAmount(),
         normalizeText(request.memo()),
         request.entryDate(),
         normalizeText(request.referenceNumber()),

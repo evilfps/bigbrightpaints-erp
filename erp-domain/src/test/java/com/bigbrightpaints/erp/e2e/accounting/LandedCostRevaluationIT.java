@@ -20,6 +20,9 @@ import org.springframework.http.ResponseEntity;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
@@ -38,6 +41,7 @@ public class LandedCostRevaluationIT extends AbstractIntegrationTest {
   @Autowired private TestRestTemplate rest;
   @Autowired private CompanyRepository companyRepository;
   @Autowired private AccountRepository accountRepository;
+  @Autowired private JournalEntryRepository journalEntryRepository;
   @Autowired private SupplierRepository supplierRepository;
   @Autowired private RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
 
@@ -67,6 +71,7 @@ public class LandedCostRevaluationIT extends AbstractIntegrationTest {
   @Test
   void landedCost_and_revaluation_and_digest() {
     RawMaterialPurchase purchase = ensurePurchase();
+    String revaluationReference = "REVAL-" + UUID.randomUUID();
 
     Map<String, Object> landedReq =
         Map.of(
@@ -94,6 +99,8 @@ public class LandedCostRevaluationIT extends AbstractIntegrationTest {
             reval.getId(),
             "deltaAmount",
             new BigDecimal("-50.00"),
+            "referenceNumber",
+            revaluationReference,
             "memo",
             "Manual reval");
     ResponseEntity<Map> revalResp =
@@ -102,6 +109,25 @@ public class LandedCostRevaluationIT extends AbstractIntegrationTest {
             new org.springframework.http.HttpEntity<>(revalReq, headers),
             Map.class);
     assertThat(revalResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    JournalEntry revaluationEntry =
+        journalEntryRepository
+            .findByCompanyAndReferenceNumber(company, revaluationReference)
+            .orElseThrow();
+    assertThat(revaluationEntry.getLines()).hasSize(2);
+    JournalLine inventoryLine =
+        revaluationEntry.getLines().stream()
+            .filter(line -> line.getAccount().getId().equals(inventory.getId()))
+            .findFirst()
+            .orElseThrow();
+    JournalLine revaluationLine =
+        revaluationEntry.getLines().stream()
+            .filter(line -> line.getAccount().getId().equals(reval.getId()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(inventoryLine.getDebit()).isEqualByComparingTo("0.00");
+    assertThat(inventoryLine.getCredit()).isEqualByComparingTo("50.00");
+    assertThat(revaluationLine.getDebit()).isEqualByComparingTo("50.00");
+    assertThat(revaluationLine.getCredit()).isEqualByComparingTo("0.00");
 
     ResponseEntity<Map> digest =
         rest.exchange(

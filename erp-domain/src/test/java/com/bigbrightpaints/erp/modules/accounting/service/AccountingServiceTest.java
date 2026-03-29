@@ -7684,6 +7684,46 @@ class AccountingServiceTest {
   }
 
   @Test
+  void revalueInventory_preservesNegativeDeltaIntoWriteDownPostingPath() {
+    Account inventory = account(9131L, "INV-9131", AccountType.ASSET);
+    Account reval = account(9132L, "REVAL-9132", AccountType.EXPENSE);
+    when(companyEntityLookup.requireAccount(eq(company), eq(9131L))).thenReturn(inventory);
+    when(companyEntityLookup.requireAccount(eq(company), eq(9132L))).thenReturn(reval);
+    when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), any()))
+        .thenReturn(Optional.empty());
+    when(finishedGoodBatchRepository.findByCompanyAndValuationAccountId(eq(company), eq(9131L)))
+        .thenReturn(List.of());
+
+    ArgumentCaptor<JournalEntryRequest> requestCaptor =
+        ArgumentCaptor.forClass(JournalEntryRequest.class);
+    doReturn(stubEntry(9130L))
+        .when(inventoryAccountingService)
+        .createJournalEntry(requestCaptor.capture());
+
+    accountingService.revalueInventory(
+        new InventoryRevaluationRequest(
+            9131L,
+            9132L,
+            new BigDecimal("-50.00"),
+            "Write-down",
+            LocalDate.of(2024, 4, 10),
+            "REVAL-WRITEDOWN",
+            null,
+            Boolean.FALSE));
+
+    JournalEntryRequest journalRequest = requestCaptor.getValue();
+    assertThat(journalRequest.referenceNumber()).isEqualTo("REVAL-WRITEDOWN");
+    assertThat(journalRequest.lines()).hasSize(2);
+    assertThat(journalRequest.lines().get(0).accountId()).isEqualTo(9131L);
+    assertThat(journalRequest.lines().get(0).debit()).isEqualByComparingTo("0");
+    assertThat(journalRequest.lines().get(0).credit()).isEqualByComparingTo("50.00");
+    assertThat(journalRequest.lines().get(1).accountId()).isEqualTo(9132L);
+    assertThat(journalRequest.lines().get(1).debit()).isEqualByComparingTo("50.00");
+    assertThat(journalRequest.lines().get(1).credit()).isEqualByComparingTo("0");
+    verify(accountingPeriodService).requireOpenPeriod(company, LocalDate.of(2024, 4, 10));
+  }
+
+  @Test
   void revalueInventory_rejectsClosedPeriodBeforePostingOrMutating() {
     Account inventory = account(9131L, "INV-9131", AccountType.ASSET);
     Account reval = account(9132L, "REVAL-9132", AccountType.EXPENSE);
