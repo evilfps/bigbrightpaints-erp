@@ -71,12 +71,10 @@ flowchart LR
 - one real period engine exists
 - one real reconciliation engine exists
 - snapshot-backed temporal truth is explicit and fail-closed
-- supplier payable-account reads are expected to be eager in reconciliation and period-close paths
-- purchase-journal replay is keyed by the exact canonical/base reference mapping, not prefix scans
 
 ## Duplicates and Bad Paths
 
-- `/periods/{periodId}/close` is a dead route in practice
+- direct `/periods/{periodId}/close` is retired from the public contract; use maker-checker request/approve/reject instead
 - `/reconciliation/bank` duplicates the session workflow
 - controller/service auth can drift on close approval roles
 - checklist flows default to latest open period when `periodId` is omitted

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.util.AopTestUtils;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +48,8 @@ import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
 class FinishedGoodsReservationEngineTest extends AbstractIntegrationTest {
 
   @Autowired private FinishedGoodsService finishedGoodsService;
+
+  @Autowired private FinishedGoodsReservationEngine finishedGoodsReservationEngine;
 
   @Autowired private FinishedGoodRepository finishedGoodRepository;
 
@@ -1892,8 +1895,10 @@ class FinishedGoodsReservationEngineTest extends AbstractIntegrationTest {
   }
 
   private FinishedGoodsReservationEngine reservationEngine() {
-    Object workflowEngine = ReflectionTestUtils.getField(finishedGoodsService, "workflowEngine");
-    return (FinishedGoodsReservationEngine)
-        ReflectionTestUtils.getField(workflowEngine, "reservationEngine");
+    try {
+      return AopTestUtils.getTargetObject(finishedGoodsReservationEngine);
+    } catch (Exception ex) {
+      throw new IllegalStateException("Failed to resolve FinishedGoodsReservationEngine target", ex);
+    }
   }
 }

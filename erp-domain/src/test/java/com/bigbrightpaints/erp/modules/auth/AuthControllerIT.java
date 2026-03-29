@@ -271,6 +271,14 @@ public class AuthControllerIT extends AbstractIntegrationTest {
     assertThat(meData).isNotNull();
     assertThat(meData.get("mustChangePassword")).isEqualTo(true);
 
+    ResponseEntity<Map> retiredProfileResponse =
+        rest.exchange(
+            "/api/v1/auth/profile",
+            HttpMethod.GET,
+            new HttpEntity<>(bearer(accessToken)),
+            Map.class);
+    assertThat(retiredProfileResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
     ResponseEntity<Map> blockedAdminResponse =
         rest.exchange(
             "/api/v1/admin/users",

@@ -44,9 +44,11 @@ class CompanyDefaultAccountsServiceTest {
   void requireDefaults_missingInventory_throws() {
     company.setDefaultCogsAccountId(2L);
     company.setDefaultRevenueAccountId(3L);
+    company.setDefaultDiscountAccountId(5L);
     company.setDefaultTaxAccountId(4L);
     assertThatThrownBy(() -> service.requireDefaults())
         .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("fgValuationAccountId")
         .hasMessageContaining("BBP");
   }
 
@@ -54,9 +56,11 @@ class CompanyDefaultAccountsServiceTest {
   void requireDefaults_missingCogs_throws() {
     company.setDefaultInventoryAccountId(1L);
     company.setDefaultRevenueAccountId(3L);
+    company.setDefaultDiscountAccountId(5L);
     company.setDefaultTaxAccountId(4L);
     assertThatThrownBy(() -> service.requireDefaults())
         .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("fgCogsAccountId")
         .hasMessageContaining("BBP");
   }
 
@@ -64,9 +68,23 @@ class CompanyDefaultAccountsServiceTest {
   void requireDefaults_missingRevenue_throws() {
     company.setDefaultInventoryAccountId(1L);
     company.setDefaultCogsAccountId(2L);
+    company.setDefaultDiscountAccountId(5L);
     company.setDefaultTaxAccountId(4L);
     assertThatThrownBy(() -> service.requireDefaults())
         .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("fgRevenueAccountId")
+        .hasMessageContaining("BBP");
+  }
+
+  @Test
+  void requireDefaults_missingDiscount_throws() {
+    company.setDefaultInventoryAccountId(1L);
+    company.setDefaultCogsAccountId(2L);
+    company.setDefaultRevenueAccountId(3L);
+    company.setDefaultTaxAccountId(4L);
+    assertThatThrownBy(() -> service.requireDefaults())
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("fgDiscountAccountId")
         .hasMessageContaining("BBP");
   }
 
@@ -75,8 +93,10 @@ class CompanyDefaultAccountsServiceTest {
     company.setDefaultInventoryAccountId(1L);
     company.setDefaultCogsAccountId(2L);
     company.setDefaultRevenueAccountId(3L);
+    company.setDefaultDiscountAccountId(5L);
     assertThatThrownBy(() -> service.requireDefaults())
         .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("fgTaxAccountId")
         .hasMessageContaining("BBP");
   }
 
@@ -198,19 +218,58 @@ class CompanyDefaultAccountsServiceTest {
 
   @Test
   void updateDefaults_setsTaxAccount() {
+    company.setDefaultGstRate(new java.math.BigDecimal("18.00"));
     Account tax = account(51L, AccountType.LIABILITY, "GST-OUT");
     when(companyEntityLookup.requireAccount(company, 51L)).thenReturn(tax);
     CompanyDefaultAccountsService.DefaultAccounts defaults =
         service.updateDefaults(null, null, null, null, 51L);
     assertThat(defaults.taxAccountId()).isEqualTo(51L);
+    assertThat(company.getGstOutputTaxAccountId()).isEqualTo(51L);
+    assertThat(company.getGstPayableAccountId()).isEqualTo(51L);
+    verify(companyRepository).save(company);
+  }
+
+  @Test
+  void updateDefaults_setsGstOutputAndPayableWhenGstRateIsUnset() {
+    company.setDefaultGstRate(null);
+    company.setGstInputTaxAccountId(88L);
+    Account tax = account(54L, AccountType.LIABILITY, "GST-OUT");
+    when(companyEntityLookup.requireAccount(company, 54L)).thenReturn(tax);
+
+    CompanyDefaultAccountsService.DefaultAccounts defaults =
+        service.updateDefaults(null, null, null, null, 54L);
+
+    assertThat(defaults.taxAccountId()).isEqualTo(54L);
+    assertThat(company.getGstInputTaxAccountId()).isEqualTo(88L);
+    assertThat(company.getGstOutputTaxAccountId()).isEqualTo(54L);
+    assertThat(company.getGstPayableAccountId()).isEqualTo(54L);
+    verify(companyRepository).save(company);
+  }
+
+  @Test
+  void updateDefaults_clearsGstAccountsForNonGstCompany() {
+    company.setDefaultGstRate(java.math.BigDecimal.ZERO);
+    company.setGstInputTaxAccountId(98L);
+    company.setGstOutputTaxAccountId(99L);
+    company.setGstPayableAccountId(100L);
+    Account tax = account(52L, AccountType.LIABILITY, "TAX-PAYABLE");
+    when(companyEntityLookup.requireAccount(company, 52L)).thenReturn(tax);
+
+    CompanyDefaultAccountsService.DefaultAccounts defaults =
+        service.updateDefaults(null, null, null, null, 52L);
+
+    assertThat(defaults.taxAccountId()).isEqualTo(52L);
+    assertThat(company.getGstInputTaxAccountId()).isNull();
+    assertThat(company.getGstOutputTaxAccountId()).isNull();
+    assertThat(company.getGstPayableAccountId()).isNull();
     verify(companyRepository).save(company);
   }
 
   @Test
   void updateDefaults_rejectsTaxWrongType() {
-    Account tax = account(52L, AccountType.ASSET, "INV");
-    when(companyEntityLookup.requireAccount(company, 52L)).thenReturn(tax);
-    assertThatThrownBy(() -> service.updateDefaults(null, null, null, null, 52L))
+    Account tax = account(53L, AccountType.ASSET, "INV");
+    when(companyEntityLookup.requireAccount(company, 53L)).thenReturn(tax);
+    assertThatThrownBy(() -> service.updateDefaults(null, null, null, null, 53L))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("tax");
   }

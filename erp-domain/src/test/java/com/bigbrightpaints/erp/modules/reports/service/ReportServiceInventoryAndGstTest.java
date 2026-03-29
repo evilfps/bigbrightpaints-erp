@@ -219,7 +219,8 @@ class ReportServiceInventoryAndGstTest {
         .thenReturn(Optional.of(period));
     when(inventoryValuationService.currentSnapshot(company))
         .thenReturn(
-            new InventoryValuationQueryService.InventorySnapshot(BigDecimal.ZERO, 0L, null, List.of()));
+            new InventoryValuationQueryService.InventorySnapshot(
+                BigDecimal.ZERO, 0L, null, List.of()));
 
     InventoryValuationDto response = reportService.inventoryValuation();
 

@@ -32,8 +32,8 @@ import com.bigbrightpaints.erp.modules.production.service.ProductionCatalogServi
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
-import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/catalog")
@@ -89,7 +89,8 @@ public class CatalogController {
     rejectLegacyIdempotencyHeader(request.getHeader("X-Idempotency-Key"));
     return ResponseEntity.ok(
         ApiResponse.success(
-            "Catalog import processed", productionCatalogService.importCatalog(file, idempotencyKey)));
+            "Catalog import processed",
+            productionCatalogService.importCatalog(file, idempotencyKey)));
   }
 
   @PostMapping("/items")

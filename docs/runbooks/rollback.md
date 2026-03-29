@@ -1,5 +1,38 @@
 # Rollback Runbook
 
+## 2026-03-29 — `erp-48.gst-account-canonicalization-hard-cut`
+
+- **Scope:** revert `migration_v2/V175__canonicalize_company_gst_accounts.sql` together with the ERP-48 GST health/runtime packet that now treats missing payable accounts and stale non-GST GST bindings as configuration defects.
+- **Application rollback:** do not redeploy a pre-canonicalization ERP-48 build against a database where `V175` has already normalized GST account columns unless the database is first restored to a pre-`V175` state.
+- **Database rollback:** preferred path is snapshot/PITR restore to a point before `V175`. Ad hoc reverse SQL is intentionally unsupported because the migration deliberately clears stale non-GST columns and may bind GST-mode tenants onto canonical GST/TDS/default-tax accounts.
+- **Guard note:** `V175` exists so strict GST health does not depend on manual tenant repair during deployment. If it has run, treat GST account state as forward-only until snapshot restore is available.
+- **Verification:** after restore or coordinated packet revert, rerun:
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Dtest=GstConfigurationRegressionIT,ConfigurationHealthServiceTest test`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Derp.openapi.snapshot.verify=true -Dtest=OpenApiSnapshotIT test`
+
+## 2026-03-29 — `erp-48.discount-default-backfill-hard-cut`
+
+- **Scope:** revert `migration_v2/V174__backfill_default_discount_accounts.sql` together with the ERP-48 runtime packet that now requires `default_discount_account_id` for canonical finished-good/default-account posting.
+- **Application rollback:** do not redeploy a pre-backfill ERP-48 build against a database where `V174` has already normalized discount defaults unless the database is first restored to a pre-`V174` state.
+- **Database rollback:** preferred path is snapshot/PITR restore to a point before `V174`. Ad hoc reverse SQL is intentionally unsupported because the migration may create canonical `DISC` accounts and bind them into live tenant defaults.
+- **Guard note:** `V174` is the reviewed upgrade-path companion to the fail-closed discount-default hard-cut. If it has run, treat discount-default state as forward-only until snapshot restore is available.
+- **Verification:** after restore or coordinated packet revert, rerun:
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Derp.openapi.snapshot.verify=true -Dtest=OpenApiSnapshotIT test`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Dtest=CompanyDefaultAccountsServiceTest,SalesControllerIdempotencyHeaderTest,InventoryAdjustmentControllerTest,RawMaterialControllerTest test`
+
+## 2026-03-28 — `erp-48.lifecycle-constraint-and-release-hard-cut`
+
+- **Scope:** revert `migration_v2/V173__company_lifecycle_constraint_hard_cut.sql` together with the ERP-48 runtime packet that hard-cuts auth identity, tenant-admin approval ownership, manual journal/reversal public routes, GST/default-account fail-closed behavior, and the release-harness fixes used by `gate_release`.
+- **Application rollback:** do not redeploy a pre-ERP-48 backend against a database that has already applied `V173`. Keep the ERP-48-compatible backend live unless the database is first restored to a pre-`V173` state.
+- **Database rollback:** preferred path is snapshot/PITR restore to a point before `V173`. Ad hoc reverse SQL is intentionally unsupported because the packet normalizes lifecycle values and replaces the prior lifecycle constraint set with one canonical `chk_companies_lifecycle_state_v173` contract.
+- **Guard note:** the release proof for this packet depends on the corrected `verify_local` and `release_migration_matrix` harnesses. If a rollback abandons ERP-48 after merge, revert those scripts together with the runtime packet so the release gates and migration matrix stay internally consistent.
+- **Verification:** after restore or coordinated packet revert, rerun:
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_fast.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_core.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_reconciliation.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_release.sh`
+  and confirm the reverted packet re-establishes a coherent auth/accounting/control-plane contract before reopening traffic.
+
 ## 2026-03-27 — `erp-23.finished-good-bulk-flag-hard-cut`
 
 - **Scope:** revert `migration_v2/V171__drop_finished_good_batch_legacy_bulk_flag.sql` and the ERP-23 hard-cut runtime packet that removes legacy BULK flag dependencies from FG stock-truth flows and catalog item setup internals.

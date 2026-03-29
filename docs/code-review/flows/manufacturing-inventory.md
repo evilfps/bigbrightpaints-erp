@@ -60,7 +60,7 @@ The local `openapi.json` snapshot publishes the major catalog, raw-material, fin
 | Store / contract | Evidence | Used by |
 | --- | --- | --- |
 | `production_brands`, `production_products`, `size_variants` | `CatalogService`, `ProductionCatalogService`, `V4__inventory_production.sql`, `V38__size_variants_and_packing_traceability.sql` | Commercial catalog, manufacturing product identity, size/carton metadata, and catalog-import replay targets. |
-| `raw_materials`, `raw_material_batches`, `raw_material_movements` | `RawMaterialService`, `GoodsReceiptService`, `ProductionLogService`, `PackagingMaterialService`, `V4__inventory_production.sql`, `V35__performance_hotspot_indexes.sql` | Supplier receipts, manual intake, opening stock, production consumption, packaging consumption, and raw-material traceability. |
+| `raw_materials`, `raw_material_batches`, `raw_material_movements` | `RawMaterialService`, `GoodsReceiptService`, `ProductionLogService`, `PackagingMaterialService`, `V4__inventory_production.sql`, `V35__performance_hotspot_indexes.sql` | Supplier receipts, manual batch creation escape hatch, opening stock, production consumption, packaging consumption, and raw-material traceability. |
 | `finished_goods`, `finished_good_batches`, `inventory_movements` | `ProductionCatalogService.ensureCatalogFinishedGood(...)`, `FinishedGoodsWorkflowEngineService`, `PackingBatchService`, `FinishedGoodsDispatchEngine`, `V4__inventory_production.sql` | Sellable finished-good identity, packing receipts, dispatch relief, and COGS linkage. |
 | `inventory_adjustments`, `inventory_adjustment_lines`, raw-material adjustment rows | `InventoryAdjustmentService`, `RawMaterialService.adjustStock(...)`, `V4__inventory_production.sql` | Replay-safe stock corrections and linked journal anchors. |
 | `opening_stock_imports` | `OpeningStockImportService`, `V4__inventory_production.sql` | CSV hash/idempotency-key replay anchor, import status, counts, and import-level journal linkage. |
@@ -133,13 +133,16 @@ The healthy model is therefore bidirectional convergence, but only if callers st
 
 That means the AP truth boundary is purchase invoicing, even though the raw-material movement already exists at receipt time.
 
-#### Escape hatches: manual batch creation / intake
+#### Escape hatch: manual batch creation
 
-- `createBatch(...)` and `intake(...)` are guarded by `erp.raw-material.intake.enabled`.
+- `createBatch(...)` is guarded by `erp.raw-material.intake.enabled`.
 - `application.yml` defaults this flag to `false`.
-- Both manual paths require an idempotency key and persist a `RawMaterialIntakeRecord` with movement/journal references.
+- The remaining manual helper requires an idempotency key and persists a
+  `RawMaterialIntakeRecord` with movement/journal references.
 
-The code is intentionally telling operators that these are noncanonical paths: error messages point users back to `/api/v1/purchasing/raw-material-purchases` or supplier receipts.
+The code is intentionally telling operators that this is a noncanonical path:
+error messages point users back to `/api/v1/purchasing/raw-material-purchases`
+or supplier receipts.
 
 ### 5. Opening stock import
 
@@ -300,7 +303,8 @@ This asymmetry is workable, but fragile: raw-material receipts are listener-capa
 
 - **Accounting-aware catalog import:** explicit caller-visible idempotency via key-or-file-hash replay.
 - **Bulk variants:** conflict-aware create with deterministic candidate generation, but not a separate replay table.
-- **Raw-material manual intake / manual batch creation:** explicit idempotency key + persisted intake record.
+- **Raw-material manual batch creation escape hatch:** explicit idempotency key
+  plus persisted intake record.
 - **Opening stock import:** explicit idempotency key + file-hash signature + unique company/key row.
 - **Raw-material and finished-good adjustments:** explicit idempotency key + payload signature + durable adjustment row.
 - **Packing:** optional caller-supplied idempotency key with reserve-first semantics.
@@ -322,7 +326,12 @@ The overall model is uneven: adjustments/imports/packing are strongly replay-saf
 - Cost allocation mutates production-log totals, recalculates finished-good batch unit costs, and posts cost-variance journals.
 - Inventory reporting depends on both movement integrity and product/master-data linkage because report valuation enriches inventory rows through `ProductionProduct` lookups.
 
-Recovery is strongest where explicit replay anchors exist: catalog import, opening stock import, adjustments, manual intake, and canonical packing can all deterministically reject or reuse prior work. Recovery is weaker on generic catalog CRUD, production-log create, and dispatch confirm because those flows rely more on uniqueness/state markers than on a dedicated public idempotency contract.
+Recovery is strongest where explicit replay anchors exist: catalog import,
+opening stock import, adjustments, manual batch creation, and canonical packing
+can all deterministically reject or reuse prior work. Recovery is weaker on
+generic catalog CRUD, production-log create, and dispatch confirm because those
+flows rely more on uniqueness/state markers than on a dedicated public
+idempotency contract.
 
 ## Risk hotspots
 
@@ -343,7 +352,8 @@ Recovery is strongest where explicit replay anchors exist: catalog import, openi
 ### Strengths
 
 - Stock-bearing mutations use pessimistic locks on raw materials, finished goods, batches, production logs, or company rows where double-consumption would corrupt truth.
-- Imports, adjustments, manual intake, and canonical packing all have explicit replay or conflict semantics.
+- Imports, adjustments, manual batch creation, and canonical packing all have
+  explicit replay or conflict semantics.
 - Batch traceability includes `journalEntryId` and `packingSlipId`, which makes physical-to-financial investigation possible.
 - Schema constraints backstop important invariants: SKU uniqueness, batch-code uniqueness, opening-stock idempotency, packaging-slip uniqueness, and packaging-mapping uniqueness.
 - Production explicitly disables the risky inventory->GL auto-listener for the purchasing path.

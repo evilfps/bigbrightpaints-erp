@@ -1104,6 +1104,69 @@ class AccountingServiceTest {
   }
 
   @Test
+  void recordPayrollPayment_rejectsRunsThatAreNotPostedOrPaid() {
+    PayrollRun run = new PayrollRun();
+    ReflectionTestUtils.setField(run, "id", 44L);
+    run.setStatus(PayrollRun.PayrollStatus.DRAFT);
+    when(companyEntityLookup.lockPayrollRun(company, 44L)).thenReturn(run);
+
+    PayrollPaymentRequest request =
+        new PayrollPaymentRequest(
+            44L, 10L, 20L, new BigDecimal("100.00"), "PAY-44", "payment");
+
+    assertThatThrownBy(() -> accountingService.recordPayrollPayment(request))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Payroll must be posted to accounting before recording payment");
+  }
+
+  @Test
+  void recordPayrollPayment_createsPaymentJournalForPostedRun() {
+    AccountingService service = spy(accountingService);
+
+    PayrollRun run = new PayrollRun();
+    ReflectionTestUtils.setField(run, "id", 44L);
+    run.setStatus(PayrollRun.PayrollStatus.POSTED);
+    run.setJournalEntryId(501L);
+    run.setRunNumber("RUN-44");
+    run.setRunDate(LocalDate.of(2026, 2, 12));
+
+    Account cashAccount = account(10L, "BANK", AccountType.ASSET);
+    Account salaryPayableAccount = account(20L, "SALARY-PAYABLE", AccountType.LIABILITY);
+    JournalEntry postingJournal = new JournalEntry();
+    ReflectionTestUtils.setField(postingJournal, "id", 501L);
+    ReflectionTestUtils.setField(
+        postingJournal,
+        "lines",
+        List.of(
+            journalLine(
+                postingJournal,
+                salaryPayableAccount,
+                "Payroll payable",
+                BigDecimal.ZERO,
+                new BigDecimal("100.00"))));
+
+    JournalEntry paymentJournal = new JournalEntry();
+    ReflectionTestUtils.setField(paymentJournal, "id", 701L);
+
+    when(companyEntityLookup.lockPayrollRun(company, 44L)).thenReturn(run);
+    when(companyEntityLookup.requireAccount(company, 10L)).thenReturn(cashAccount);
+    when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "SALARY-PAYABLE"))
+        .thenReturn(Optional.of(salaryPayableAccount));
+    when(companyEntityLookup.requireJournalEntry(company, 501L)).thenReturn(postingJournal);
+    when(companyEntityLookup.requireJournalEntry(company, 701L)).thenReturn(paymentJournal);
+    doReturn(stubEntry(701L)).when(service).createJournalEntry(any());
+
+    PayrollPaymentRequest request =
+        new PayrollPaymentRequest(44L, 10L, 20L, new BigDecimal("100.00"), null, "payment");
+
+    JournalEntryDto result = service.recordPayrollPayment(request);
+
+    assertThat(result.id()).isEqualTo(701L);
+    assertThat(run.getPaymentJournalEntryId()).isEqualTo(701L);
+    verify(payrollRunRepository).save(run);
+  }
+
+  @Test
   @Tag("critical")
   void resolvePayrollRunToken_appendsRunIdWhenRunNumberDoesNotContainSuffix() {
     String token =

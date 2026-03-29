@@ -22,6 +22,8 @@ import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
       "spring.mail.host=localhost",
       "spring.mail.username=test-smtp-user",
       "spring.mail.password=test-smtp-password",
+      "ERP_SECURITY_AUDIT_PRIVATE_KEY=test-audit-private-key",
+      "ERP_SECURITY_ENCRYPTION_KEY=12345678901234567890123456789012",
       "ERP_LICENSE_KEY=test-license-key",
       "ERP_DISPATCH_DEBIT_ACCOUNT_ID=1",
       "ERP_DISPATCH_CREDIT_ACCOUNT_ID=2",
@@ -42,7 +44,7 @@ class CR_InventoryGlAutomationProdOffIT extends AbstractIntegrationTest {
   @DisplayName("Prod disables inventory->GL auto-posting unless outbox-backed")
   void inventoryGlAutomationDisabledInProd() {
     Boolean enabled =
-        environment.getProperty("erp.inventory.accounting.events.enabled", Boolean.class, true);
+        environment.getProperty("erp.inventory.accounting.events.enabled", Boolean.class);
     assertThat(enabled).isFalse();
     assertThat(applicationContext.getBeansOfType(InventoryAccountingEventListener.class)).isEmpty();
   }

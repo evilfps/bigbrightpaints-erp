@@ -40,7 +40,10 @@ class SupplierLedgerServiceTest {
   void setUp() {
     supplierLedgerService =
         new SupplierLedgerService(
-            supplierLedgerRepository, supplierRepository, companyContextService, companyEntityLookup);
+            supplierLedgerRepository,
+            supplierRepository,
+            companyContextService,
+            companyEntityLookup);
   }
 
   @Test
@@ -63,7 +66,8 @@ class SupplierLedgerServiceTest {
 
     supplierLedgerService.recordLedgerEntry(supplier, context);
 
-    ArgumentCaptor<SupplierLedgerEntry> entryCaptor = ArgumentCaptor.forClass(SupplierLedgerEntry.class);
+    ArgumentCaptor<SupplierLedgerEntry> entryCaptor =
+        ArgumentCaptor.forClass(SupplierLedgerEntry.class);
     verify(supplierLedgerRepository).save(entryCaptor.capture());
     SupplierLedgerEntry savedEntry = entryCaptor.getValue();
     assertThat(savedEntry.getCompany()).isSameAs(company);
@@ -84,12 +88,7 @@ class SupplierLedgerServiceTest {
     Supplier supplier = new Supplier();
     AbstractPartnerLedgerService.LedgerContext context =
         new AbstractPartnerLedgerService.LedgerContext(
-            LocalDate.of(2026, 3, 28),
-            "SUP-SET-002",
-            "zero-entry",
-            BigDecimal.ZERO,
-            null,
-            null);
+            LocalDate.of(2026, 3, 28), "SUP-SET-002", "zero-entry", BigDecimal.ZERO, null, null);
 
     supplierLedgerService.recordLedgerEntry(supplier, context);
 

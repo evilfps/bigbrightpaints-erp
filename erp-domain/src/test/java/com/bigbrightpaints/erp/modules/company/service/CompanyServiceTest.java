@@ -165,6 +165,27 @@ class CompanyServiceTest {
   }
 
   @Test
+  void update_zeroDefaultGstRate_clearsRetainedGstTaxAccounts() {
+    authenticateAs("ROLE_SUPER_ADMIN");
+    bindCompanyContext("ACME");
+    Company target = company(2L, "ACME");
+    target.setDefaultGstRate(new BigDecimal("18.00"));
+    target.setGstInputTaxAccountId(101L);
+    target.setGstOutputTaxAccountId(102L);
+    target.setGstPayableAccountId(103L);
+    CompanyRequest request = new CompanyRequest("New Name", "ACME", "UTC", BigDecimal.ZERO);
+    when(repository.findById(2L)).thenReturn(Optional.of(target));
+    when(repository.findByCodeIgnoreCase("ACME")).thenReturn(Optional.of(target));
+
+    CompanyDto dto = companyService.update(2L, request, Set.of(target));
+
+    assertThat(dto.defaultGstRate()).isEqualByComparingTo("0");
+    assertThat(target.getGstInputTaxAccountId()).isNull();
+    assertThat(target.getGstOutputTaxAccountId()).isNull();
+    assertThat(target.getGstPayableAccountId()).isNull();
+  }
+
+  @Test
   void update_appliesEnabledModulesWhenPayloadIncludesGatableModules() {
     authenticateAs("ROLE_SUPER_ADMIN");
     bindCompanyContext("ACME");
@@ -416,9 +437,7 @@ class CompanyServiceTest {
     assertThatCode(
             () ->
                 ReflectionTestUtils.invokeMethod(
-                    companyService,
-                    "assertBoundControlPlaneCompanyMatchesTarget",
-                    "tenant-a"))
+                    companyService, "assertBoundControlPlaneCompanyMatchesTarget", "tenant-a"))
         .doesNotThrowAnyException();
   }
 
@@ -1400,7 +1419,9 @@ class CompanyServiceTest {
     assertThatThrownBy(
             () ->
                 companyService.issueTenantSupportWarning(
-                    5L, new CompanyService.TenantSupportWarningRequest("quota", "   ", "SUSPENDED", 48)))
+                    5L,
+                    new CompanyService.TenantSupportWarningRequest(
+                        "quota", "   ", "SUSPENDED", 48)))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Support warning message is required");
   }
@@ -1522,9 +1543,7 @@ class CompanyServiceTest {
     assertThatCode(
             () ->
                 ReflectionTestUtils.invokeMethod(
-                    companyService,
-                    "assertBoundControlPlaneMutationContextMatchesTarget",
-                    "   "))
+                    companyService, "assertBoundControlPlaneMutationContextMatchesTarget", "   "))
         .doesNotThrowAnyException();
   }
 

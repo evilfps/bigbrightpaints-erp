@@ -100,6 +100,7 @@ Stop and reassess if any proposal does any of the following:
 
 - restores retired `legacy product routes` or `legacy accounting-prefixed product setup routes` setup hosts
 - lets opening stock bootstrap missing truth
-- restores a second pack mutation or a factory-owned dispatch-confirm write
+- restores a second pack mutation or any dispatch-confirm write outside
+  `POST /api/v1/dispatch/confirm`
 - preserves stale tests only because they encode retired behavior
 - updates docs without deleting stale route or fallback references

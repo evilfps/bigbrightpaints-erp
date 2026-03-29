@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import com.bigbrightpaints.erp.core.security.PortalRoleActionMatrix;
 import com.bigbrightpaints.erp.modules.admin.dto.CreateUserRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.UpdateUserRequest;
 import com.bigbrightpaints.erp.modules.admin.dto.UserDto;
@@ -17,7 +18,7 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/admin/users")
-@PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ROLE_SUPER_ADMIN')")
+@PreAuthorize(PortalRoleActionMatrix.TENANT_ADMIN_ONLY)
 public class AdminUserController {
 
   private final AdminUserService adminUserService;
@@ -46,14 +47,14 @@ public class AdminUserController {
   }
 
   @PostMapping("/{userId}/force-reset-password")
-  @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ROLE_SUPER_ADMIN')")
+  @PreAuthorize(PortalRoleActionMatrix.TENANT_ADMIN_ONLY)
   public ResponseEntity<ApiResponse<String>> forceResetPassword(@PathVariable Long userId) {
     adminUserService.forceResetPassword(userId);
     return ResponseEntity.ok(ApiResponse.success("Password reset link sent", "OK"));
   }
 
   @PutMapping("/{userId}/status")
-  @PreAuthorize("hasAuthority('ROLE_ADMIN') or hasAuthority('ROLE_SUPER_ADMIN')")
+  @PreAuthorize(PortalRoleActionMatrix.TENANT_ADMIN_ONLY)
   public ResponseEntity<ApiResponse<UserDto>> updateStatus(
       @PathVariable Long userId, @Valid @RequestBody UpdateUserStatusRequest request) {
     return ResponseEntity.ok(

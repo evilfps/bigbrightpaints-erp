@@ -5537,9 +5537,11 @@ abstract class AccountingCoreEngineCore {
     JournalEntry primaryEntry = companyEntityLookup.requireJournalEntry(company, primaryEntryId);
     List<JournalEntryDto> reversedEntries = new java.util.ArrayList<>();
     java.util.Set<Long> processedIds = new java.util.HashSet<>();
+    JournalEntryReversalRequest primaryRequest = request.withoutCascadeReplay();
 
     // First reverse the primary entry
-    JournalEntryDto primaryReversal = reverseJournalEntry(primaryEntryId, request);
+    JournalEntryDto primaryReversal =
+        reverseJournalEntryInternal(company, primaryEntry, primaryRequest, false);
     reversedEntries.add(primaryReversal);
     processedIds.add(primaryEntryId);
     if (primaryReversal != null && primaryReversal.id() != null) {
@@ -5569,21 +5571,10 @@ abstract class AccountingCoreEngineCore {
       if (!"REVERSED".equalsIgnoreCase(related.getStatus())
           && !"VOIDED".equalsIgnoreCase(related.getStatus())) {
         try {
+          JournalEntryReversalRequest relatedRequest =
+              request.forCascadeChild(cascadeReason, "Cascade from " + baseRef);
           JournalEntryDto relatedReversal =
-              reverseJournalEntry(
-                  related.getId(),
-                  new JournalEntryReversalRequest(
-                      request.reversalDate(),
-                      request.voidOnly(),
-                      cascadeReason,
-                      "Cascade from " + baseRef,
-                      request.adminOverride(),
-                      request.reversalPercentage(),
-                      false,
-                      null,
-                      request.reasonCode(),
-                      request.approvedBy(),
-                      request.supportingDocumentRef()));
+              reverseJournalEntryInternal(company, related, relatedRequest, false);
           reversedEntries.add(relatedReversal);
           processedIds.add(related.getId());
         } catch (ApplicationException e) {
@@ -5610,7 +5601,9 @@ abstract class AccountingCoreEngineCore {
             processedIds.add(relatedId);
             continue;
           }
-          JournalEntryDto relatedReversal = reverseJournalEntry(relatedId, request);
+          JournalEntryDto relatedReversal =
+              reverseJournalEntryInternal(
+                  company, relatedEntry, request.withoutCascadeReplay(), false);
           reversedEntries.add(relatedReversal);
           processedIds.add(relatedId);
         } catch (ApplicationException e) {

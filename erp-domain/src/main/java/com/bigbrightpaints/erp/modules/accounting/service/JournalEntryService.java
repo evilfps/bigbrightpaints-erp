@@ -244,6 +244,14 @@ public class JournalEntryService extends AccountingCoreEngine {
   }
 
   public JournalEntryDto reverseJournalEntry(Long entryId, JournalEntryReversalRequest request) {
+    if (request != null
+        && (request.cascadeRelatedEntries()
+            || (request.relatedEntryIds() != null && !request.relatedEntryIds().isEmpty()))) {
+      List<JournalEntryDto> reversedEntries = super.cascadeReverseRelatedEntries(entryId, request);
+      if (!reversedEntries.isEmpty()) {
+        return reversedEntries.getFirst();
+      }
+    }
     return super.reverseJournalEntry(entryId, request);
   }
 

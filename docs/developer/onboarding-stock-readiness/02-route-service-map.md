@@ -28,7 +28,7 @@ This file inventories the controllers and services that own the current setup jo
 - retained routes in this packet:
   - `GET /api/v1/companies`
 - depublished routes in this packet:
-  - `DELETE /api/v1/companies/{id}`
+  - `/api/v1/companies/{id}` no longer exposes a live delete operation
 - retired bootstrap aliases:
   - `POST /api/v1/companies`
   - `POST /api/v1/companies/superadmin/tenants`

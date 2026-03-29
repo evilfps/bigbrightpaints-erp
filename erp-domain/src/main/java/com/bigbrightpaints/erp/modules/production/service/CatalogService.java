@@ -9,7 +9,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -39,15 +38,13 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogBrandDto;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogBrandRequest;
+import com.bigbrightpaints.erp.modules.production.dto.CatalogItemCreateCommand;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogItemDto;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogItemRequest;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogItemStockDto;
-import com.bigbrightpaints.erp.modules.production.dto.CatalogItemCreateCommand;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogItemUpdateCommand;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
-import jakarta.persistence.criteria.Join;
-import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 
 @Service
@@ -321,6 +318,7 @@ public class CatalogService {
         request.metadata(),
         request.active());
   }
+
   private String normalizeItemClass(String itemClass) {
     if (!StringUtils.hasText(itemClass)) {
       throw ValidationUtils.invalidInput(
@@ -612,5 +610,4 @@ public class CatalogService {
         });
     return snapshot.isEmpty() ? Map.of() : Collections.unmodifiableMap(snapshot);
   }
-
 }

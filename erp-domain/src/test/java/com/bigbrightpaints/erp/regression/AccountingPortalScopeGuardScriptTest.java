@@ -297,7 +297,7 @@ Portal finance drill-ins stay on `/api/v1/portal/finance/*` for admin/accounting
 Maker-checker period-close note:
 - `POST /api/v1/accounting/periods/{periodId}/request-close` is the supported maker action for frontend close submission.
 - `POST /api/v1/accounting/periods/{periodId}/approve-close` and `POST /api/v1/accounting/periods/{periodId}/reject-close` are surfaced through `GET /api/v1/admin/approvals`.
-- `GET /api/v1/admin/approvals` is visible to `ROLE_ADMIN|ROLE_ACCOUNTING` in portal flows, and the backend also allows `ROLE_SUPER_ADMIN`.
+- `GET /api/v1/admin/approvals` is visible to `ROLE_ADMIN|ROLE_ACCOUNTING` in portal flows; platform `ROLE_SUPER_ADMIN` is blocked from this tenant-admin workflow prefix.
 """);
 
     Files.writeString(
@@ -306,7 +306,7 @@ Maker-checker period-close note:
 # Accounting Portal Frontend Handoff
 HR, PURCHASING, INVENTORY, and REPORTS come under the Accounting portal in frontend scope.
 Scoped endpoint count: **4**
-Current handoff inventory total is **12**
+Current handoff inventory total is **10**
 Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snapshot as admin-only deprecated exports and must not be treated as required APIs for new accountant-owned UI flows.
 ## Purchasing & Payables
 ## Inventory & Costing
@@ -320,8 +320,6 @@ Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snaps
 | `portalFinanceInvoices` | GET | `/api/v1/portal/finance/invoices` |
 | `portalFinanceAging` | GET | `/api/v1/portal/finance/aging` |
 | `authGetMe` | GET | `/api/v1/auth/me` |
-| `authProfileGet` | GET | `/api/v1/auth/profile` |
-| `authProfileUpdate` | PUT | `/api/v1/auth/profile` |
 | `authChangePassword` | POST | `/api/v1/auth/password/change` |
 | `companiesList` | GET | `/api/v1/companies` |
 | `authLogout` | POST | `/api/v1/auth/logout` |
@@ -335,7 +333,7 @@ Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snaps
 | `rejectPeriodClose` | POST | `/api/v1/accounting/periods/{periodId}/reject-close` |
 
 ### `/accounting/period-close`
-- Required API calls: `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, `acctLockPeriod`, `requestPeriodClose`, `approvePeriodClose`, `rejectPeriodClose`, `acctReopenPeriod`
+- Required API calls: `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, `requestPeriodClose`, `approvePeriodClose`, `rejectPeriodClose`, `acctReopenPeriod`
 - Period grid from `AccountingPeriodDto`
 - Pending review state: derive it by joining `PeriodCloseRequestDto` / `approvals` data
 - Direct close protection: do not wire `acctClosePeriod` as a frontend action

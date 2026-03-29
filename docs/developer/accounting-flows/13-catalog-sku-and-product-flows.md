@@ -20,8 +20,8 @@ Current-state cleanup brief:
   Purpose for this slice: finished-good and raw-material mirrors kept in sync with item truth.
 - `modules/factory/controller`
   Purpose for this slice: canonical batch and pack execution after setup is complete.
-- `modules/sales/controller`
-  Purpose for this slice: canonical factory-owned dispatch confirm after packing.
+- `modules/inventory/controller`
+  Purpose for this slice: canonical `/api/v1/dispatch/confirm` write host after packing.
 
 ## Canonical Workflow Graph
 
@@ -84,8 +84,9 @@ flowchart LR
 
 - one public setup host owns stock-bearing item truth and readiness
 - finished-good and raw-material mirrors are aligned off the same canonical item surface
-- factory execution and factory dispatch now read like one coherent downstream path from setup
-- dispatch posting is explicitly sales-owned rather than split across factory and sales surfaces
+- production, packing, and canonical dispatch now read like one coherent downstream path from setup
+- dispatch posting is explicitly anchored to `POST /api/v1/dispatch/confirm`, with sales-side
+  accounting consequences staying downstream of that one public write
 
 ## Duplicates and Bad Paths
 
@@ -95,8 +96,9 @@ flowchart LR
 - retired execution hosts must stay retired:
   - `/api/v1/factory/production-batches`
   - `/api/v1/factory/pack`
-  - `/api/v1/sales/dispatch/confirm`
-- `/api/v1/dispatch/**` is operational lookup only and must not be described as a second write surface
+  - `/api/v1/sales/dispatch/confirm` in favor of canonical `POST /api/v1/dispatch/confirm`
+- `/api/v1/dispatch/**` must be described as one namespace with exactly one public write
+  (`POST /api/v1/dispatch/confirm`) plus read/update support endpoints for slip lookup and status
 
 ## Review Hotspots
 
@@ -106,7 +108,6 @@ flowchart LR
 - `ProductionLogController`
 - `PackingController`
 - `DispatchController`
-- `SalesController`
 - `CatalogControllerCanonicalProductIT`
 - `ProductionCatalogServiceCanonicalEntryTest`
 - `DispatchOperationalBoundaryIT`

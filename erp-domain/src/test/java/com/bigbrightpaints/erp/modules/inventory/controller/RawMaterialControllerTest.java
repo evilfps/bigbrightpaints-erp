@@ -112,27 +112,29 @@ class RawMaterialControllerTest {
   }
 
   @Test
-  void adjustRawMaterials_fallsBackToLegacyIdempotencyHeader() {
+  void adjustRawMaterials_rejectsLegacyHeaderWhenPrimaryMissing() {
     RawMaterialController controller = controller();
-    RawMaterialAdjustmentRequest request = adjustmentRequest(null);
 
-    controller.adjustRawMaterials(null, "legacy-key", request);
+    assertThatThrownBy(
+            () -> controller.adjustRawMaterials(null, "legacy-key", adjustmentRequest(null)))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+              assertThat(ex.getMessage())
+                  .contains("X-Idempotency-Key is not supported for raw material adjustments");
+              assertThat(ex.getDetails())
+                  .containsEntry("legacyHeader", "X-Idempotency-Key")
+                  .containsEntry("legacyHeaderValue", "legacy-key")
+                  .containsEntry("canonicalHeader", "Idempotency-Key")
+                  .containsEntry("canonicalPath", "/api/v1/inventory/raw-materials/adjustments");
+            });
 
-    verify(rawMaterialService)
-        .adjustStock(
-            eq(
-                new RawMaterialAdjustmentRequest(
-                    request.adjustmentDate(),
-                    request.direction(),
-                    request.adjustmentAccountId(),
-                    request.reason(),
-                    request.adminOverride(),
-                    "legacy-key",
-                    request.lines())));
+    verifyNoInteractions(rawMaterialService);
   }
 
   @Test
-  void adjustRawMaterials_rejectsMismatchedIdempotencyHeaders() {
+  void adjustRawMaterials_rejectsLegacyHeaderWhenPrimaryAlsoPresent() {
     RawMaterialController controller = controller();
 
     assertThatThrownBy(
@@ -143,9 +145,12 @@ class RawMaterialControllerTest {
             ex -> {
               assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
               assertThat(ex.getMessage())
-                  .isEqualTo(
-                      "Idempotency key mismatch between Idempotency-Key and X-Idempotency-Key"
-                          + " headers");
+                  .contains("X-Idempotency-Key is not supported for raw material adjustments");
+              assertThat(ex.getDetails())
+                  .containsEntry("legacyHeader", "X-Idempotency-Key")
+                  .containsEntry("legacyHeaderValue", "legacy-key")
+                  .containsEntry("canonicalHeader", "Idempotency-Key")
+                  .containsEntry("canonicalPath", "/api/v1/inventory/raw-materials/adjustments");
             });
 
     verifyNoInteractions(rawMaterialService);

@@ -15,9 +15,13 @@ public final class PortalRoleActionMatrix {
 
   public static final String DEALER_ONLY = "hasAuthority('ROLE_DEALER')";
   public static final String ADMIN_ONLY = "hasAuthority('ROLE_ADMIN')";
+  public static final String TENANT_ADMIN_ONLY =
+      "hasAuthority('ROLE_ADMIN') and !hasAuthority('ROLE_SUPER_ADMIN')";
   public static final String SUPER_ADMIN_ONLY = "hasAuthority('ROLE_SUPER_ADMIN')";
   public static final String ADMIN_OR_ACCOUNTING =
       "hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')";
+  public static final String TENANT_ADMIN_OR_ACCOUNTING_ONLY =
+      "hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING') and !hasAuthority('ROLE_SUPER_ADMIN')";
   public static final String ADMIN_SALES_ACCOUNTING =
       "hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_ACCOUNTING')";
   public static final String ADMIN_SALES_FACTORY_ACCOUNTING =
@@ -25,8 +29,6 @@ public final class PortalRoleActionMatrix {
   public static final String ADMIN_FACTORY = "hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY')";
   public static final String ADMIN_FACTORY_SALES =
       "hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES')";
-  public static final String ADMIN_ACCOUNTING_SUPER_ADMIN =
-      "hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_SUPER_ADMIN')";
   public static final String FINANCIAL_DISPATCH =
       "hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING') and hasAuthority('dispatch.confirm')";
   public static final String OPERATIONAL_DISPATCH =

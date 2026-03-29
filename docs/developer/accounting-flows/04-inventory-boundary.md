@@ -3,7 +3,8 @@
 ## Folder Map
 
 - `modules/inventory/controller`
-  Purpose: opening stock, raw material intake/adjustment, finished-good batch registration, dispatch confirmation.
+  Purpose: opening stock, raw material adjustment, finished-good batch
+  registration, dispatch confirmation.
 - `modules/inventory/service`
   Purpose: direct-post inventory flows plus movement publication for event-driven accounting.
 - `modules/inventory/event`
@@ -33,11 +34,11 @@ flowchart LR
   - `postOpeningStockJournal`
   - `AccountingFacade.postInventoryAdjustment("OPENING_STOCK", ...)`
 
-### Raw Material Intake and Adjustment
+### Raw Material Receipt and Adjustment
 
 - entry:
-  - `RawMaterialController.intake`
   - `RawMaterialController.adjustRawMaterials`
+  - `GoodsReceiptService.recordGoodsReceipt`
 - canonical path:
   - `RawMaterialService.recordReceipt` / `adjustStock`
   - direct accounting facade post
@@ -67,7 +68,8 @@ flowchart LR
 
 ## Duplicates and Bad Paths
 
-- `RawMaterialService` has two receipt-style orchestration paths: `createBatch` and `recordReceipt`
+- `RawMaterialService.createBatch` remains a disabled-by-default escape hatch;
+  `recordReceipt` is the canonical supplier-receipt path
 - `OpeningStockImportService` is a bootstrap path, not a steady-state workflow
 - `InventoryAdjustmentService` still duplicates some journal-shaping before handing off to accounting
 - `InventoryMovementRecorder` only publishes on some movement families, so event-driven accounting is partial

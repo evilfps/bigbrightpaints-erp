@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.core.health;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -57,6 +58,14 @@ public class ConfigurationHealthService {
   public ConfigurationHealthReport evaluate() {
     List<ConfigurationIssue> issues = new ArrayList<>();
     companyRepository.findAll().forEach(company -> validateCompany(company, issues));
+    return new ConfigurationHealthReport(issues.isEmpty(), List.copyOf(issues));
+  }
+
+  public ConfigurationHealthReport evaluateCompany(Company company) {
+    List<ConfigurationIssue> issues = new ArrayList<>();
+    if (company != null) {
+      validateCompany(company, issues);
+    }
     return new ConfigurationHealthReport(issues.isEmpty(), List.copyOf(issues));
   }
 
@@ -141,6 +150,29 @@ public class ConfigurationHealthService {
   }
 
   private void checkTaxAccounts(Company company, List<ConfigurationIssue> issues) {
+    if (isNonGstMode(company)) {
+      List<String> configured = new ArrayList<>();
+      if (company.getGstInputTaxAccountId() != null) {
+        configured.add("gstInputTaxAccountId");
+      }
+      if (company.getGstOutputTaxAccountId() != null) {
+        configured.add("gstOutputTaxAccountId");
+      }
+      if (company.getGstPayableAccountId() != null) {
+        configured.add("gstPayableAccountId");
+      }
+      if (!configured.isEmpty()) {
+        issues.add(
+            issue(
+                company,
+                "TAX_ACCOUNT",
+                "NON_GST_MODE",
+                "Non-GST mode company cannot have GST tax accounts configured: "
+                    + String.join(", ", configured)));
+      }
+      return;
+    }
+
     if (company.getGstInputTaxAccountId() == null) {
       issues.add(
           issue(company, "TAX_ACCOUNT", "GST_INPUT", "GST input tax account is not configured"));
@@ -148,6 +180,10 @@ public class ConfigurationHealthService {
     if (company.getGstOutputTaxAccountId() == null) {
       issues.add(
           issue(company, "TAX_ACCOUNT", "GST_OUTPUT", "GST output tax account is not configured"));
+    }
+    if (company.getGstPayableAccountId() == null) {
+      issues.add(
+          issue(company, "TAX_ACCOUNT", "GST_PAYABLE", "GST payable account is not configured"));
     }
   }
 
@@ -167,6 +203,9 @@ public class ConfigurationHealthService {
     }
     if (company.getDefaultRevenueAccountId() == null) {
       missing.add("defaultRevenueAccountId");
+    }
+    if (company.getDefaultDiscountAccountId() == null) {
+      missing.add("defaultDiscountAccountId");
     }
     if (company.getDefaultTaxAccountId() == null) {
       missing.add("defaultTaxAccountId");
@@ -235,6 +274,11 @@ public class ConfigurationHealthService {
     }
     String trimmed = value.trim();
     return trimmed.isEmpty() ? null : trimmed;
+  }
+
+  private boolean isNonGstMode(Company company) {
+    BigDecimal defaultGstRate = company.getDefaultGstRate();
+    return defaultGstRate != null && defaultGstRate.compareTo(BigDecimal.ZERO) == 0;
   }
 
   private Long metadataLong(ProductionProduct product, String key) {

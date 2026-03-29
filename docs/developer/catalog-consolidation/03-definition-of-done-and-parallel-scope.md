@@ -79,4 +79,4 @@ Title:
 
 Summary:
 
-Keep `/api/v1/catalog/items` as the only stock-bearing setup host, remove stale `legacy product routes` and `legacy accounting-prefixed product setup routes` guidance, keep readiness visible on canonical item reads, and ensure the developer story flows cleanly from item setup into `POST /api/v1/factory/production/logs`, `POST /api/v1/factory/packing-records`, and sales-owned `POST /api/v1/dispatch/confirm`.
+Keep `/api/v1/catalog/items` as the only stock-bearing setup host, remove stale `legacy product routes` and `legacy accounting-prefixed product setup routes` guidance, keep readiness visible on canonical item reads, and ensure the developer story flows cleanly from item setup into `POST /api/v1/factory/production/logs`, `POST /api/v1/factory/packing-records`, and the canonical public dispatch write `POST /api/v1/dispatch/confirm`.

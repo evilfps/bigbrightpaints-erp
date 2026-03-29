@@ -5,6 +5,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACT_DIR="$ROOT_DIR/artifacts/gate-reconciliation"
 TRUTH_TEST_ROOT="$ROOT_DIR/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite"
 COMPAT_BASH_ENV_BOOTSTRAP="$ROOT_DIR/scripts/bash_env_bootstrap.sh"
+MAVEN_MEMORY_DEFAULTS="$ROOT_DIR/scripts/maven_memory_defaults.sh"
+if [[ -f "$MAVEN_MEMORY_DEFAULTS" ]]; then
+  source "$MAVEN_MEMORY_DEFAULTS"
+  bbp_ensure_maven_memory_defaults
+elif [[ -z "${MAVEN_OPTS:-}" ]]; then
+  export MAVEN_OPTS="-Xmx${BBP_MAVEN_XMX:-1536m} -XX:MaxMetaspaceSize=${BBP_MAVEN_MAX_METASPACE:-512m} -XX:+UseG1GC"
+fi
 if [[ "${BASH_ENV:-}" != "$COMPAT_BASH_ENV_BOOTSTRAP" && -n "${BASH_ENV:-}" ]]; then
   export BBP_CHAINED_BASH_ENV="${BASH_ENV:-}"
   export BBP_CHAINED_BASH_ENV_PARENT_PID="$$"

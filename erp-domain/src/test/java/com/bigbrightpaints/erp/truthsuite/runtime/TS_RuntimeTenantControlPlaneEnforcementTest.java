@@ -212,17 +212,15 @@ class TS_RuntimeTenantControlPlaneEnforcementTest {
     persistedSettingsByKey.put(keyMaxRequestsPerMinute(201L), "1");
     persistedSettingsByKey.put(keyMaxRequestsPerMinute(202L), "1");
 
-    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle
-        firstAllowed =
-            coreRuntimeService.acquire(
-                "ACME INC", new MockHttpServletRequest("GET", "/api/v1/private"));
+    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle firstAllowed =
+        coreRuntimeService.acquire(
+            "ACME INC", new MockHttpServletRequest("GET", "/api/v1/private"));
     assertThat(firstAllowed.allowed()).isTrue();
     firstAllowed.close();
 
-    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle
-        secondAllowed =
-            coreRuntimeService.acquire(
-                "ACME@INC", new MockHttpServletRequest("GET", "/api/v1/private"));
+    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle secondAllowed =
+        coreRuntimeService.acquire(
+            "ACME@INC", new MockHttpServletRequest("GET", "/api/v1/private"));
     assertThat(secondAllowed.allowed()).isTrue();
     secondAllowed.close();
 
@@ -232,18 +230,15 @@ class TS_RuntimeTenantControlPlaneEnforcementTest {
     assertThat(firstDenied.allowed()).isFalse();
     assertThat(firstDenied.reasonCode()).isEqualTo("TENANT_QUOTA_RATE_LIMIT");
 
-    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle
-        secondDenied =
-            coreRuntimeService.acquire(
-                "ACME@INC", new MockHttpServletRequest("GET", "/api/v1/private"));
+    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle secondDenied =
+        coreRuntimeService.acquire(
+            "ACME@INC", new MockHttpServletRequest("GET", "/api/v1/private"));
     assertThat(secondDenied.allowed()).isFalse();
     assertThat(secondDenied.reasonCode()).isEqualTo("TENANT_QUOTA_RATE_LIMIT");
 
-    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService
-            .TenantRuntimeMetricsSnapshot
+    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.TenantRuntimeMetricsSnapshot
         firstSnapshot = coreRuntimeService.snapshot("ACME INC").orElseThrow();
-    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService
-            .TenantRuntimeMetricsSnapshot
+    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.TenantRuntimeMetricsSnapshot
         secondSnapshot = coreRuntimeService.snapshot("ACME@INC").orElseThrow();
     assertThat(firstSnapshot.totalRequests()).isEqualTo(2L);
     assertThat(firstSnapshot.deniedRequests()).isEqualTo(1L);
@@ -273,8 +268,8 @@ class TS_RuntimeTenantControlPlaneEnforcementTest {
 
     MockHttpServletRequest withoutComma = new MockHttpServletRequest("GET", "/api/v1/private");
     withoutComma.addHeader("X-Forwarded-For", "10.0.0.3");
-    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle
-        secondDenied = coreRuntimeService.acquire("ACME", withoutComma);
+    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle secondDenied =
+        coreRuntimeService.acquire("ACME", withoutComma);
     assertThat(secondDenied.allowed()).isFalse();
     assertThat(secondDenied.reasonCode()).isEqualTo("TENANT_BLOCKED");
   }
@@ -365,9 +360,8 @@ class TS_RuntimeTenantControlPlaneEnforcementTest {
   void coreRuntimeAdmission_failsClosed_whenCompanyContextMissingOrUnresolvedId() {
     com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService coreRuntimeService =
         coreRuntimeService();
-    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle
-        missingContext =
-            coreRuntimeService.acquire("   ", new MockHttpServletRequest("GET", "/api/v1/private"));
+    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle missingContext =
+        coreRuntimeService.acquire("   ", new MockHttpServletRequest("GET", "/api/v1/private"));
     assertThat(missingContext.allowed()).isFalse();
     assertThat(missingContext.reasonCode()).isEqualTo("TENANT_CONTEXT_MISSING");
 
@@ -422,17 +416,13 @@ class TS_RuntimeTenantControlPlaneEnforcementTest {
     persistedSettingsByKey.put(keyHoldState(1L), "ACTIVE");
     persistedSettingsByKey.put(keyMaxRequestsPerMinute(1L), "1");
 
-    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle
-        firstAllowed =
-            coreRuntimeService.acquire(
-                "ACME", new MockHttpServletRequest("GET", "/api/v1/private"));
+    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle firstAllowed =
+        coreRuntimeService.acquire("ACME", new MockHttpServletRequest("GET", "/api/v1/private"));
     assertThat(firstAllowed.allowed()).isTrue();
     firstAllowed.close();
 
-    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle
-        secondDenied =
-            coreRuntimeService.acquire(
-                "ACME", new MockHttpServletRequest("GET", "/api/v1/private"));
+    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle secondDenied =
+        coreRuntimeService.acquire("ACME", new MockHttpServletRequest("GET", "/api/v1/private"));
     assertThat(secondDenied.allowed()).isFalse();
     assertThat(secondDenied.httpStatus()).isEqualTo(429);
     assertThat(secondDenied.reasonCode()).isEqualTo("TENANT_QUOTA_RATE_LIMIT");
@@ -611,8 +601,7 @@ class TS_RuntimeTenantControlPlaneEnforcementTest {
         .isNotNull();
   }
 
-  private com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService
-      coreRuntimeService() {
+  private com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService coreRuntimeService() {
     return new com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService(
         companyRepository,
         systemSettingsRepository,

@@ -40,8 +40,9 @@ class AccountingControllerIdempotencyHeaderParityTest {
     AccountingController controller = controller();
     assertThatThrownBy(
             () -> controller.recordDealerReceipt(dealerReceiptRequest(null), null, "legacy-001"))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("X-Idempotency-Key is not supported");
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> assertLegacyHeaderContract(ex, "legacy-001", "/api/v1/accounting/receipts/dealer"));
   }
 
   @Test
@@ -71,9 +72,14 @@ class AccountingControllerIdempotencyHeaderParityTest {
   void recordDealerHybridReceipt_rejectsLegacyHeader() {
     AccountingController controller = controller();
     assertThatThrownBy(
-            () -> controller.recordDealerHybridReceipt(dealerReceiptSplitRequest(null), null, "legacy-001"))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("X-Idempotency-Key is not supported");
+            () ->
+                controller.recordDealerHybridReceipt(
+                    dealerReceiptSplitRequest(null), null, "legacy-001"))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex ->
+                assertLegacyHeaderContract(
+                    ex, "legacy-001", "/api/v1/accounting/receipts/dealer/hybrid"));
   }
 
   @Test
@@ -142,8 +148,11 @@ class AccountingControllerIdempotencyHeaderParityTest {
     AccountingController controller = controller();
     assertThatThrownBy(
             () -> controller.settleSupplier(supplierSettlementRequest(null), null, "legacy-001"))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("X-Idempotency-Key is not supported");
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex ->
+                assertLegacyHeaderContract(
+                    ex, "legacy-001", "/api/v1/accounting/settlements/suppliers"));
   }
 
   @Test
@@ -151,8 +160,11 @@ class AccountingControllerIdempotencyHeaderParityTest {
     AccountingController controller = controller();
     assertThatThrownBy(
             () -> controller.settleDealer(dealerSettlementRequest(null), null, "legacy-001"))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("X-Idempotency-Key is not supported");
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex ->
+                assertLegacyHeaderContract(
+                    ex, "legacy-001", "/api/v1/accounting/settlements/dealers"));
   }
 
   @Test
@@ -183,10 +195,26 @@ class AccountingControllerIdempotencyHeaderParityTest {
     AccountingController controller = controller();
     assertThatThrownBy(
             () ->
-                controller.autoSettleDealer(
-                    1001L, autoSettlementRequest(null), null, "legacy-001"))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("X-Idempotency-Key is not supported");
+                controller.autoSettleDealer(1001L, autoSettlementRequest(null), null, "legacy-001"))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex ->
+                assertLegacyHeaderContract(
+                    ex, "legacy-001", "/api/v1/accounting/dealers/{dealerId}/auto-settle"));
+  }
+
+  @Test
+  void autoSettleDealer_appliesPrimaryHeaderWhenBodyMissing() {
+    AccountingController controller = controller();
+    when(settlementService.autoSettleDealer(any(), any())).thenReturn(null);
+
+    controller.autoSettleDealer(1001L, autoSettlementRequest(null), "hdr-auto-001", null);
+
+    ArgumentCaptor<com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest> captor =
+        ArgumentCaptor.forClass(
+            com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest.class);
+    verify(settlementService).autoSettleDealer(any(), captor.capture());
+    assertThat(captor.getValue().idempotencyKey()).isEqualTo("hdr-auto-001");
   }
 
   @Test
@@ -196,8 +224,11 @@ class AccountingControllerIdempotencyHeaderParityTest {
             () ->
                 controller.autoSettleSupplier(
                     3001L, autoSettlementRequest(null), null, "legacy-001"))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("X-Idempotency-Key is not supported");
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex ->
+                assertLegacyHeaderContract(
+                    ex, "legacy-001", "/api/v1/accounting/suppliers/{supplierId}/auto-settle"));
   }
 
   private AccountingController controller() {
@@ -273,8 +304,8 @@ class AccountingControllerIdempotencyHeaderParityTest {
         allocations());
   }
 
-  private com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest autoSettlementRequest(
-      String idempotencyKey) {
+  private com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest
+      autoSettlementRequest(String idempotencyKey) {
     return new com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest(
         2001L, new BigDecimal("50.00"), "AUTO-SETTLE-001", "memo", idempotencyKey);
   }
@@ -289,5 +320,15 @@ class AccountingControllerIdempotencyHeaderParityTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             "allocation"));
+  }
+
+  private void assertLegacyHeaderContract(
+      ApplicationException exception, String legacyHeaderValue, String canonicalPath) {
+    assertThat(exception.getMessage()).contains("X-Idempotency-Key is not supported");
+    assertThat(exception.getDetails())
+        .containsEntry("legacyHeader", "X-Idempotency-Key")
+        .containsEntry("legacyHeaderValue", legacyHeaderValue)
+        .containsEntry("canonicalHeader", "Idempotency-Key")
+        .containsEntry("canonicalPath", canonicalPath);
   }
 }

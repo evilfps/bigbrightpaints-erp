@@ -26,7 +26,6 @@ com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementServiceT
 com.bigbrightpaints.erp.modules.company.service.TenantRuntimeRequestAdmissionServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingServiceStandardJournalTest
 com.bigbrightpaints.erp.modules.auth.AuthControllerIT
-com.bigbrightpaints.erp.modules.auth.ProfileControllerIT
 com.bigbrightpaints.erp.modules.auth.AuthPlatformScopeCodeIT
 com.bigbrightpaints.erp.modules.auth.AuthTenantAuthorityIT
 com.bigbrightpaints.erp.modules.auth.TenantRuntimeEnforcementAuthIT
@@ -41,7 +40,6 @@ com.bigbrightpaints.erp.modules.auth.service.ScopedAccountBootstrapServiceIT
 com.bigbrightpaints.erp.modules.auth.service.ScopedAccountBootstrapServiceTest
 com.bigbrightpaints.erp.modules.auth.service.TenantAdminProvisioningServiceTest
 com.bigbrightpaints.erp.modules.auth.service.UserAccountDetailsServiceTest
-com.bigbrightpaints.erp.modules.auth.service.UserProfileServiceTest
 com.bigbrightpaints.erp.OpenApiSnapshotIT
 com.bigbrightpaints.erp.modules.admin.ChangelogControllerSecurityIT
 com.bigbrightpaints.erp.modules.admin.controller.AdminSettingsControllerTenantRuntimeContractTest

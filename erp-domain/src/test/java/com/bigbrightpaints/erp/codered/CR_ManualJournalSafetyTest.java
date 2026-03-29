@@ -59,7 +59,8 @@ class CR_ManualJournalSafetyTest extends AbstractIntegrationTest {
             .map(java.lang.reflect.Method::getName)
             .filter(
                 methodName ->
-                    methodName.equals("createManualJournal") || methodName.equals("createJournalEntry"))
+                    methodName.equals("createManualJournal")
+                        || methodName.equals("createJournalEntry"))
             .sorted()
             .toList();
 

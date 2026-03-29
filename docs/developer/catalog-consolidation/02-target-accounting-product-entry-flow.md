@@ -92,7 +92,8 @@ Once readiness is clear, the operator path continues on:
 ### Explicit operator handoff
 
 - setup truth ends on `/api/v1/catalog/items`
-- execution truth starts on production logs, then packing records, then factory-owned dispatch confirm
+- execution truth starts on production logs, then packing records, then the canonical public
+  dispatch confirm route
 - no packet should present `legacy product routes` or `legacy accounting-prefixed product setup routes` as current setup truth
 
 ## Downstream Guarantees
@@ -152,4 +153,4 @@ This flow does not reintroduce:
 - alternate public catalog setup hosts
 - preview/commit product-create flows under `legacy product routes`
 - accounting-prefixed stock-bearing setup hosts
-- factory-owned dispatch confirmation
+- canonical public dispatch confirmation

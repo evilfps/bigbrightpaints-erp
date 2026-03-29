@@ -14,7 +14,9 @@ com.bigbrightpaints.erp.codered.CR_DealerReceiptSettlementAuditTrailTest
 com.bigbrightpaints.erp.codered.CR_PeriodCloseAtomicityTest
 com.bigbrightpaints.erp.codered.CR_PeriodCloseDriftScansTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingFacadeTest
+com.bigbrightpaints.erp.modules.accounting.controller.AccountingConfigurationControllerTest
 com.bigbrightpaints.erp.modules.accounting.service.JournalEntryServiceTest
+com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.ReconciliationServiceTest
 com.bigbrightpaints.erp.modules.accounting.controller.AccountingControllerIdempotencyHeaderParityTest
 com.bigbrightpaints.erp.modules.accounting.controller.AccountingControllerJournalEndpointsTest
@@ -41,7 +43,9 @@ com.bigbrightpaints.erp.core.config.DataInitializerTest
 com.bigbrightpaints.erp.core.config.ValidationSeedDataInitializerTest
 com.bigbrightpaints.erp.core.config.BenchmarkDataInitializerTest
 com.bigbrightpaints.erp.core.config.MockDataInitializerTest
+com.bigbrightpaints.erp.core.health.ConfigurationHealthServiceTest
 com.bigbrightpaints.erp.modules.admin.service.ExportApprovalServiceTest
+com.bigbrightpaints.erp.modules.inventory.controller.InventoryAdjustmentControllerTest
 com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsReservationEngineTest
 com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsServiceTest
 com.bigbrightpaints.erp.modules.inventory.controller.OpeningStockImportControllerTest

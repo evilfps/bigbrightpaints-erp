@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.bigbrightpaints.erp.core.health.ConfigurationHealthService;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
 @RestController
@@ -15,15 +16,22 @@ import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 public class AccountingConfigurationController {
 
   private final ConfigurationHealthService configurationHealthService;
+  private final CompanyContextService companyContextService;
 
-  public AccountingConfigurationController(ConfigurationHealthService configurationHealthService) {
+  public AccountingConfigurationController(
+      ConfigurationHealthService configurationHealthService,
+      CompanyContextService companyContextService) {
     this.configurationHealthService = configurationHealthService;
+    this.companyContextService = companyContextService;
   }
 
   @GetMapping("/health")
   public ResponseEntity<ApiResponse<ConfigurationHealthService.ConfigurationHealthReport>>
       health() {
     return ResponseEntity.ok(
-        ApiResponse.success("Configuration health report", configurationHealthService.evaluate()));
+        ApiResponse.success(
+            "Configuration health report",
+            configurationHealthService.evaluateCompany(
+                companyContextService.requireCurrentCompany())));
   }
 }

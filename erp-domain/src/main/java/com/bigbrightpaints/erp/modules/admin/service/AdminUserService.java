@@ -33,7 +33,6 @@ import com.bigbrightpaints.erp.modules.auth.service.PasswordResetService;
 import com.bigbrightpaints.erp.modules.auth.service.RefreshTokenService;
 import com.bigbrightpaints.erp.modules.auth.service.ScopedAccountBootstrapService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
-import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
@@ -50,7 +49,6 @@ public class AdminUserService {
 
   private final UserAccountRepository userRepository;
   private final CompanyContextService companyContextService;
-  private final CompanyRepository companyRepository;
   private final RoleService roleService;
   private final EmailService emailService;
   private final TokenBlacklistService tokenBlacklistService;
@@ -66,7 +64,6 @@ public class AdminUserService {
   public AdminUserService(
       UserAccountRepository userRepository,
       CompanyContextService companyContextService,
-      CompanyRepository companyRepository,
       RoleService roleService,
       EmailService emailService,
       TokenBlacklistService tokenBlacklistService,
@@ -80,7 +77,6 @@ public class AdminUserService {
       TenantRuntimePolicyService tenantRuntimePolicyService) {
     this.userRepository = userRepository;
     this.companyContextService = companyContextService;
-    this.companyRepository = companyRepository;
     this.roleService = roleService;
     this.emailService = emailService;
     this.tokenBlacklistService = tokenBlacklistService;
@@ -106,21 +102,20 @@ public class AdminUserService {
   @Transactional
   public UserDto createUser(CreateUserRequest request) {
     Company company = companyContextService.requireCurrentCompany();
-    Company targetCompany = resolveTargetCompanyForCreate(company, request.companyId());
     assertActorCanAssignRoles(request.roles(), company);
-    tenantRuntimePolicyService.assertCanAddEnabledUser(targetCompany, "ADMIN_USER_CREATE");
+    tenantRuntimePolicyService.assertCanAddEnabledUser(company, "ADMIN_USER_CREATE");
     UserAccount user = new UserAccount();
     attachRoles(user, request.roles());
     UserAccount saved =
         scopedAccountBootstrapService.provisionTenantAccount(
-            targetCompany, request.email(), request.displayName(), user.getRoles());
+            company, request.email(), request.displayName(), user.getRoles());
 
     // Auto-create Dealer entity if user has ROLE_DEALER
     boolean isDealerUser =
         request.roles().stream()
             .anyMatch(r -> r.equalsIgnoreCase("ROLE_DEALER") || r.equalsIgnoreCase("DEALER"));
     if (isDealerUser) {
-      createDealerForUser(saved, targetCompany);
+      createDealerForUser(saved, company);
     }
 
     auditUserAccountAction(
@@ -191,18 +186,6 @@ public class AdminUserService {
       boolean enabledChanged = user.isEnabled() != request.enabled();
       updateUserStatusInternal(user, request.enabled(), company, "ADMIN_USER_UPDATE");
       requiresReauth = enabledChanged;
-    }
-    if (request.companyId() != null) {
-      Company targetCompany = resolveTargetCompanyForCreate(company, request.companyId());
-      if (isCompanyTransfer(user, targetCompany)) {
-        if (user.isEnabled()) {
-          tenantRuntimePolicyService.assertCanAddEnabledUser(targetCompany, "ADMIN_USER_TRANSFER");
-        }
-        assertScopedEmailAvailableForTransfer(user, targetCompany);
-        user.setCompany(targetCompany);
-        user.setAuthScopeCode(targetCompany.getCode());
-        requiresReauth = true; // Company access changed
-      }
     }
     if (request.roles() != null && !request.roles().isEmpty()) {
       user.getRoles().clear();
@@ -422,56 +405,6 @@ public class AdminUserService {
             "previousEnabled", Boolean.toString(previousEnabled),
             "enabled", Boolean.toString(enabled)));
     return toDto(user, resolveLastLoginAt(user));
-  }
-
-  private void validateCompanyScope(Company company, Long companyId) {
-    if (companyId == null) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "User must belong to an active company");
-    }
-    if (company == null || company.getId() == null || !company.getId().equals(companyId)) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "User must be assigned to the active company");
-    }
-  }
-
-  private Company resolveTargetCompanyForCreate(Company activeCompany, Long companyId) {
-    if (companyId == null) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "User must belong to an active company");
-    }
-    if (!hasSuperAdminAuthority()) {
-      validateCompanyScope(activeCompany, companyId);
-      return activeCompany;
-    }
-    return companyRepository
-        .findById(companyId)
-        .orElseThrow(
-            () -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                "Company not found: " + companyId));
-  }
-
-  private void assertScopedEmailAvailableForTransfer(UserAccount user, Company targetCompany) {
-    if (user == null || targetCompany == null || !StringUtils.hasText(user.getEmail())) {
-      return;
-    }
-    Long userId = user.getId();
-    if (userId == null
-        || userRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCaseAndIdNot(
-            user.getEmail(), targetCompany.getCode(), userId)) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Email already exists in target company scope");
-    }
-  }
-
-  private boolean isCompanyTransfer(UserAccount user, Company targetCompany) {
-    if (user == null || targetCompany == null || targetCompany.getId() == null) {
-      return false;
-    }
-    if (user.getCompany() == null || user.getCompany().getId() == null) {
-      return true;
-    }
-    return !targetCompany.getId().equals(user.getCompany().getId());
   }
 
   private boolean hasSuperAdminAuthority() {

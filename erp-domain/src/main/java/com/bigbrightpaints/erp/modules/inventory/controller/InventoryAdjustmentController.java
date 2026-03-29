@@ -16,6 +16,7 @@ import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentRequest;
 import com.bigbrightpaints.erp.modules.inventory.service.InventoryAdjustmentService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
@@ -23,6 +24,8 @@ import jakarta.validation.Validator;
 @RestController
 @RequestMapping("/api/v1/inventory/adjustments")
 public class InventoryAdjustmentController {
+
+  private static final String CANONICAL_INVENTORY_ADJUSTMENT_PATH = "/api/v1/inventory/adjustments";
 
   private final InventoryAdjustmentService inventoryAdjustmentService;
   private final Validator validator;
@@ -43,7 +46,8 @@ public class InventoryAdjustmentController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<InventoryAdjustmentDto>> createAdjustment(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey,
+      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
+          String legacyIdempotencyKey,
       @RequestBody InventoryAdjustmentRequest request) {
     InventoryAdjustmentRequest resolved =
         applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
@@ -61,9 +65,13 @@ public class InventoryAdjustmentController {
       throw new ApplicationException(
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Inventory adjustment request is required");
     }
+    IdempotencyHeaderUtils.rejectLegacyHeader(
+        legacyIdempotencyKeyHeader,
+        "inventory adjustments",
+        CANONICAL_INVENTORY_ADJUSTMENT_PATH);
     String resolvedKey =
         IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
-            request.idempotencyKey(), idempotencyKeyHeader, legacyIdempotencyKeyHeader);
+            request.idempotencyKey(), idempotencyKeyHeader, null);
     if (StringUtils.hasText(request.idempotencyKey())) {
       return request;
     }

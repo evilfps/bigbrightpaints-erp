@@ -30,7 +30,8 @@ class TS_Wave3CanonicalSurfaceContractTest {
 
   @Test
   void finishedGoodsWorkflowSeamStaysInternalAndUsesInjectedInventoryServices() throws Exception {
-    assertHidden("com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsWorkflowEngineService");
+    assertHidden(
+        "com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsWorkflowEngineService");
 
     String source = TruthSuiteFileAssert.read(WORKFLOW_ENGINE);
     assertThat(source).doesNotContain("new InventoryMovementRecorder(");

@@ -53,15 +53,22 @@ class SalesControllerIdempotencyHeaderTest {
   }
 
   @Test
-  void createOrder_appliesLegacyHeaderIdempotencyKeyWhenPrimaryMissing() {
+  void createOrder_rejectsLegacyHeader() {
     SalesController controller = createController();
-    when(salesOrderCrudService.createOrder(any())).thenReturn(null);
-
-    controller.createOrder(null, "legacy-001", requestWithoutIdempotencyKey());
-
-    ArgumentCaptor<SalesOrderRequest> captor = ArgumentCaptor.forClass(SalesOrderRequest.class);
-    verify(salesOrderCrudService).createOrder(captor.capture());
-    assertThat(captor.getValue().idempotencyKey()).isEqualTo("legacy-001");
+    assertThatThrownBy(
+            () -> controller.createOrder(null, "legacy-001", requestWithoutIdempotencyKey()))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getMessage())
+                  .contains("X-Idempotency-Key is not supported for sales orders");
+              assertThat(ex.getDetails())
+                  .containsEntry("legacyHeader", "X-Idempotency-Key")
+                  .containsEntry("legacyHeaderValue", "legacy-001")
+                  .containsEntry("canonicalHeader", "Idempotency-Key")
+                  .containsEntry("canonicalPath", "/api/v1/sales/orders");
+            });
+    verifyNoInteractions(salesOrderCrudService);
   }
 
   @Test
@@ -75,14 +82,22 @@ class SalesControllerIdempotencyHeaderTest {
   }
 
   @Test
-  void createOrder_rejectsWhenPrimaryLegacyHeadersMismatch() {
+  void createOrder_rejectsWhenPrimaryAndLegacyHeadersAreBothSent() {
     SalesController controller = createController();
 
     assertThatThrownBy(
             () -> controller.createOrder("hdr-001", "legacy-001", requestWithoutIdempotencyKey()))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining(
-            "Idempotency key mismatch between Idempotency-Key and X-Idempotency-Key headers");
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getMessage())
+                  .contains("X-Idempotency-Key is not supported for sales orders");
+              assertThat(ex.getDetails())
+                  .containsEntry("legacyHeader", "X-Idempotency-Key")
+                  .containsEntry("legacyHeaderValue", "legacy-001")
+                  .containsEntry("canonicalHeader", "Idempotency-Key")
+                  .containsEntry("canonicalPath", "/api/v1/sales/orders");
+            });
     verifyNoInteractions(salesOrderCrudService);
   }
 

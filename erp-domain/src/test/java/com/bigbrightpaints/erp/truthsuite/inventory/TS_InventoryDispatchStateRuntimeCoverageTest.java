@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.modules.inventory.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -26,7 +25,6 @@ import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
 import com.bigbrightpaints.erp.modules.accounting.service.CostingMethodService;
@@ -301,7 +299,8 @@ class TS_InventoryDispatchStateRuntimeCoverageTest {
     batch.setQuantityAvailable(new BigDecimal("4"));
     batch.setUnitCost(new BigDecimal("8"));
 
-    when(finishedGoodRepository.findByCompanyAndId(company, 907L)).thenReturn(Optional.of(sellable));
+    when(finishedGoodRepository.findByCompanyAndId(company, 907L))
+        .thenReturn(Optional.of(sellable));
     when(finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(sellable))
         .thenReturn(List.of(batch));
 

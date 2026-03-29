@@ -298,7 +298,8 @@ class AccountingFacadeTest {
         .thenReturn(Optional.empty());
     when(referenceNumberService.purchaseReference(eq(company), eq(supplier), eq("INV-100")))
         .thenReturn(canonicalReference);
-    when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq(canonicalReference)))
+    when(journalEntryRepository.findByCompanyAndReferenceNumber(
+            eq(company), eq(canonicalReference)))
         .thenReturn(Optional.empty());
     when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(
             eq(company), eq(baseReference)))

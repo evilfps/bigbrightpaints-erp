@@ -38,9 +38,8 @@ class TenantRuntimeRequestAdmissionServiceTest {
   void beginRequest_delegatesPrivilegedPolicyControlFlow() {
     TenantRuntimeEnforcementService.TenantRequestAdmission admission =
         TenantRuntimeEnforcementService.TenantRequestAdmission.notTracked();
-    when(
-            tenantRuntimeEnforcementService.admitRequest(
-                "ACME", "/api/v1/superadmin/tenants/1/limits", "PUT", "actor", true))
+    when(tenantRuntimeEnforcementService.admitRequest(
+            "ACME", "/api/v1/superadmin/tenants/1/limits", "PUT", "actor", true))
         .thenReturn(admission);
 
     assertThat(

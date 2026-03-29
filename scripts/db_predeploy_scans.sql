@@ -343,7 +343,7 @@ actual as (
   select
     count(*)::int as actual_count,
     coalesce(max(case when version ~ '^[0-9]+$' then version::int end), 0) as actual_max_version
-  from flyway_schema_history
+  from flyway_schema_history_v2
   where success = true
 )
 select

@@ -11,7 +11,8 @@ A new tenant operator should be able to say:
 3. brands and stock-bearing items were created from one canonical setup host
 4. readiness was reviewed before execution
 5. opening stock was loaded only for prepared SKUs
-6. production batches, packing records, and factory-owned dispatch confirm follow one operator story
+6. production batches, packing records, and the canonical public dispatch confirm route follow one
+   operator story
 
 ## Screen Ownership
 
@@ -95,7 +96,7 @@ A new tenant operator should be able to say:
   - `GET /api/v1/dispatch/slip/{slipId}`
   - `GET /api/v1/dispatch/order/{orderId}`
 - UI rules:
-  - factory owns the final dispatch-confirm write
+  - `POST /api/v1/dispatch/confirm` is the final public dispatch-confirm write
   - `/api/v1/dispatch/confirm` is the only public dispatch write; the remaining `/api/v1/dispatch/**` routes are operational lookup
   - only packed sellable output should reach dispatch confirm
 

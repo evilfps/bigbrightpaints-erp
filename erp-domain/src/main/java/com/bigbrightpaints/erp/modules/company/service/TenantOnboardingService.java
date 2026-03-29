@@ -95,17 +95,24 @@ public class TenantOnboardingService {
     savedCompany.setOnboardingCompletedAt(CompanyTime.now(savedCompany));
     companyRepository.save(savedCompany);
 
+    boolean seededChartOfAccounts = seededChartOfAccounts(createdAccounts, templateAccounts.size());
+    Long accountingPeriodId = defaultPeriod != null ? defaultPeriod.getId() : null;
+    boolean defaultAccountingPeriodCreated = defaultAccountingPeriodCreated(defaultPeriod);
+    String provisionedAdminEmail = provisionedAdmin != null ? provisionedAdmin.getEmail() : null;
+    boolean tenantAdminProvisioned =
+        tenantAdminProvisioned(provisionedAdminEmail, normalizedAdminEmail);
+
     return new TenantOnboardingResponse(
         savedCompany.getId(),
         savedCompany.getCode(),
         template.getCode(),
         BOOTSTRAP_MODE_SEEDED,
-        true,
+        seededChartOfAccounts,
         createdAccounts.size(),
-        defaultPeriod.getId(),
-        true,
-        provisionedAdmin.getEmail(),
-        true,
+        accountingPeriodId,
+        defaultAccountingPeriodCreated,
+        provisionedAdminEmail,
+        tenantAdminProvisioned,
         systemSettingsInitialized);
   }
 
@@ -149,6 +156,7 @@ public class TenantOnboardingService {
   }
 
   private void applyCompanyDefaultAccounts(Company company, Map<String, Account> accountsByCode) {
+    boolean nonGstMode = isNonGstMode(company);
     Account inventory =
         firstPresent(accountsByCode, "FINISHED-GOODS-INVENTORY", "INV", "RAW-MATERIAL-INVENTORY");
     Account cogs = firstPresent(accountsByCode, "COGS", "FG-COGS", "RM-CONSUMPTION");
@@ -176,13 +184,13 @@ public class TenantOnboardingService {
     }
     if (taxOutput != null) {
       company.setDefaultTaxAccountId(taxOutput.getId());
-      company.setGstOutputTaxAccountId(taxOutput.getId());
+      company.setGstOutputTaxAccountId(nonGstMode ? null : taxOutput.getId());
     }
     if (taxInput != null) {
-      company.setGstInputTaxAccountId(taxInput.getId());
+      company.setGstInputTaxAccountId(nonGstMode ? null : taxInput.getId());
     }
     if (taxPayable != null) {
-      company.setGstPayableAccountId(taxPayable.getId());
+      company.setGstPayableAccountId(nonGstMode ? null : taxPayable.getId());
     }
     if (cash != null) {
       company.setPayrollCashAccount(cash);
@@ -205,6 +213,25 @@ public class TenantOnboardingService {
     }
     systemSettingsRepository.save(new SystemSetting(key, value));
     return true;
+  }
+
+  private boolean seededChartOfAccounts(
+      Map<String, Account> createdAccounts, int expectedTemplateAccountCount) {
+    if (createdAccounts == null || createdAccounts.isEmpty()) {
+      return false;
+    }
+    return expectedTemplateAccountCount > 0
+        && createdAccounts.size() == expectedTemplateAccountCount;
+  }
+
+  private boolean defaultAccountingPeriodCreated(AccountingPeriod defaultPeriod) {
+    return defaultPeriod != null && defaultPeriod.getId() != null;
+  }
+
+  private boolean tenantAdminProvisioned(
+      String provisionedAdminEmail, String normalizedAdminEmail) {
+    return StringUtils.hasText(provisionedAdminEmail)
+        && provisionedAdminEmail.trim().equalsIgnoreCase(normalizedAdminEmail);
   }
 
   private String normalizeCompanyCode(String companyCode) {
@@ -244,6 +271,11 @@ public class TenantOnboardingService {
 
   private boolean defaultBoolean(Boolean value, boolean defaultValue) {
     return value == null ? defaultValue : value;
+  }
+
+  private boolean isNonGstMode(Company company) {
+    BigDecimal defaultGstRate = company.getDefaultGstRate();
+    return defaultGstRate != null && defaultGstRate.compareTo(BigDecimal.ZERO) == 0;
   }
 
   private Account firstPresent(Map<String, Account> accountsByCode, String... preferredCodes) {

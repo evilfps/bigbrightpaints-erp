@@ -307,7 +307,8 @@ class TenantRuntimeEnforcementServiceTest {
     service.holdTenant("ACME", "compliance_pause", "ops@bbp.com");
     clearInvocations(userAccountRepository);
 
-    assertThatThrownBy(() -> admissionService.enforceAuthOperationAllowed("ACME", "actor@bbp.com", "login"))
+    assertThatThrownBy(
+            () -> admissionService.enforceAuthOperationAllowed("ACME", "actor@bbp.com", "login"))
         .isInstanceOf(AuthSecurityContractException.class)
         .satisfies(
             error -> {
