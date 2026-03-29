@@ -31,6 +31,7 @@ Module packets explain what each module owns: controllers, services, DTOs, entit
 | [company](modules/company.md) | Tenant lifecycle, runtime admission, module gating, licensing checks, tenant onboarding, super-admin control plane, and company-scoping assumptions |
 | [core security/error](modules/core-security-error.md) | Security filter chain (JWT, company context, must-change-password corridor), exception/error contract (ApplicationException, ErrorCode, global handlers), fail-open vs fail-closed boundaries |
 | [core audit/runtime/settings](modules/core-audit-runtime-settings.md) | Audit-surface ownership (platform audit, enterprise audit trail, accounting event store), runtime-gating split, global-versus-tenant settings risk, audit routing for exception paths |
+| [core idempotency](modules/core-idempotency.md) | Shared idempotency infrastructure (key normalization, reservation, signature building), module-local idempotency implementations, contract inconsistencies, and reconciled core platform contract reference |
 | [hr](../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md) | Employees, leave, attendance, payroll runs, and payroll posting/payment |
 | [inventory](../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/AGENTS.md) | Stock, reservations, adjustments, batch traceability, opening stock, and valuation |
 | [sales](../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/AGENTS.md) | Dealer/customer flows, order lifecycle, credit controls, and dispatch ownership |
