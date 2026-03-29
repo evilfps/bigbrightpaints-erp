@@ -1,5 +1,6 @@
 # Allowed module import edges (source->target)
 # Regenerate intentionally if architecture evolves, with ADR/rationale.
+# Last reviewed: 2026-03-29
 accounting->company
 accounting->hr
 accounting->inventory
@@ -19,6 +20,7 @@ auth->company
 auth->rbac
 company->accounting
 company->auth
+company->rbac
 factory->accounting
 factory->company
 factory->inventory
@@ -37,6 +39,7 @@ invoice->company
 invoice->inventory
 invoice->sales
 portal->accounting
+portal->admin
 portal->company
 portal->factory
 portal->hr
@@ -46,17 +49,24 @@ portal->reports
 portal->sales
 production->accounting
 production->company
+production->factory
 production->inventory
+production->purchasing
+production->sales
 purchasing->accounting
 purchasing->company
 purchasing->inventory
 reports->accounting
+reports->admin
 reports->company
 reports->factory
 reports->inventory
 reports->invoice
+reports->production
+reports->purchasing
 reports->sales
 sales->accounting
+sales->admin
 sales->auth
 sales->company
 sales->factory

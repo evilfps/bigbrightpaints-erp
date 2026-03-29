@@ -73,3 +73,7 @@ Last reviewed: 2026-03-29
   - Repo checkout: (local filesystem)
   - PR: https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/166
   - Linear issue: ERP-45
+
+## Test Waiver (Only if no tests changed)
+
+This R2 checkpoint also covers the docs-foundation-full-contract-lint-pass feature in the docs-only mission. The untracked module AGENTS.md files under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md` and `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md` are documentation-only governance files (not runtime code), created as part of the canonical docs scaffold. No production logic is changed; no tests are required for docs-only AGENTS.md governance files.

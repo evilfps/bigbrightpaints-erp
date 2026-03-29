@@ -47,6 +47,22 @@ Capture backend contract impact for frontend consumers.
 EOF
 fi
 
+if [ ! -f "$LIB_DIR/documentation-ia.md" ]; then
+  cat > "$LIB_DIR/documentation-ia.md" <<'EOF'
+# Documentation Information Architecture
+
+Canonical docs tree layout, packet ownership rules, and cross-link expectations for the backend truth library.
+EOF
+fi
+
+if [ ! -f "$LIB_DIR/docs-validation.md" ]; then
+  cat > "$LIB_DIR/docs-validation.md" <<'EOF'
+# Docs Validation
+
+Docs-only validation commands, evidence expectations, and full-contract lint guidance for documentation missions.
+EOF
+fi
+
 if [ ! -f "$LIB_DIR/factory-canonical-flow.md" ]; then
   cat > "$LIB_DIR/factory-canonical-flow.md" <<'EOF'
 # ERP-38 Canonical Factory Flow

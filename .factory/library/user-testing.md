@@ -6,6 +6,25 @@ Testing surface: tools, URLs, setup steps, isolation notes, and known quirks for
 
 ---
 
+## Docs-Only Validation Surface
+
+- **Type:** repository docs tree / docs-governance surface
+- **Base location:** repo root `docs/`, root governance files, `.factory/library/`, `openapi.json`
+- **Tools:** `Read`, `Grep`, `bash ci/lint-knowledgebase.sh`, `bash ci/check-enterprise-policy.sh`, `bash ci/check-architecture.sh`, `bash ci/check-orchestrator-layer.sh`, `bash scripts/guard_openapi_contract_drift.sh`
+
+### Docs Validation Concurrency
+
+- **docs-tree:** max concurrent validators **2**
+
+Rationale: docs validation is lightweight and service-free, but whole-tree lint/link scans touch the same checkout and canonical files. Keep one full-tree lint at a time and use at most one additional read-only validator in parallel.
+
+### Docs Validation Guidance
+
+- Do not start services for docs-only validation.
+- Validate navigation, cross-links, inventories, ADR presence, frontend-handoff discoverability, and deprecated-registry behavior from the repository files themselves.
+- Use `openapi.json` plus controller/DTO code as the contract truth when checking host/path/payload claims.
+- Prefer canonical docs over historical review artifacts; if a historical doc remains, validate that it is redirected or explicitly marked non-canonical.
+
 ## Validation Surface
 
 - **Type:** REST API + Maven regression/integration suites
