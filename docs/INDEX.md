@@ -17,7 +17,11 @@ This is the canonical entrypoint for backend documentation. Every major docs sec
 
 ## Modules
 
-Module packets explain what each module owns: controllers, services, DTOs, entities, helpers, events, and cross-module boundaries.
+| Document | Purpose |
+| --- | --- |
+| [docs/modules/MODULE-INVENTORY.md](modules/MODULE-INVENTORY.md) | Canonical inventory of every live backend module with ownership summary and links to per-module documentation packets |
+
+Module packets explain what each module owns: controllers, services, DTOs, entities, helpers, events, and cross-module boundaries. Four modules have full AGENTS.md packets today:
 
 | Module | Description |
 | --- | --- |
@@ -25,8 +29,6 @@ Module packets explain what each module owns: controllers, services, DTOs, entit
 | [inventory](../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/AGENTS.md) | Stock, reservations, adjustments, batch traceability, opening stock, and valuation |
 | [sales](../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/AGENTS.md) | Dealer/customer flows, order lifecycle, credit controls, and dispatch ownership |
 | [hr](../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md) | Employees, leave, attendance, payroll runs, and payroll posting/payment |
-
-> **Status:** The four lint-required module packets exist above. A full module inventory covering every live backend module (accounting, admin, auth, company, demo, factory, hr, inventory, invoice, portal, production, purchasing, rbac, reports, sales) and linking to per-module documentation packets will be added in the `docs-foundation-module-inventory-and-adr-seed` feature.
 
 ## Flows
 

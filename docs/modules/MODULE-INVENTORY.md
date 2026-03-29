@@ -1,0 +1,43 @@
+# Backend Module Inventory
+
+Last reviewed: 2026-03-29
+
+This document is the canonical inventory of every live backend module in `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/`. Each entry names the module, summarises its ownership, and links to its canonical documentation packet.
+
+A reader can discover module ownership from this inventory without grepping the source tree.
+
+---
+
+## Inventory
+
+| Module | Ownership Summary | Canonical Packet |
+| --- | --- | --- |
+| **accounting** | Financial truth boundary: journals, ledgers, chart of accounts, period controls, settlements, corrections, reconciliation, opening balance import, Tally XML import, payroll posting seam | [AGENTS.md](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md) |
+| **admin** | Admin/management surfaces: admin settings, tenant administration, support ticket access, and enterprise admin operations | [source](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/) *(per-module packet pending)* |
+| **auth** | Authentication corridor: login, refresh, logout, MFA, password reset, must-change-password, token/session revocation, JWT-based tenant scoping, security filter chain | [source](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/) *(per-module packet pending)* |
+| **company** | Tenant/company lifecycle: company CRUD, runtime admission, module gating, licensing checks, company-scoping assumptions | [source](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/) *(per-module packet pending)* |
+| **demo** | Demo/sample data seeding: demo data controller for setting up sample data in non-production environments | [source](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/demo/) *(per-module packet pending)* |
+| **factory** | Manufacturing execution: production logs, packing, packaging mappings, batch registration, cost allocation (WIP/consumption), and dispatch handoff boundary | [source](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/) *(per-module packet pending)* |
+| **hr** | HR and payroll truth: employee management, leave, attendance, payroll run lifecycle, payroll calculation, payroll posting, and payroll payment on the accounting host | [AGENTS.md](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md) |
+| **inventory** | Stock truth boundary: stock summaries, batch traceability, reservations, adjustments, opening stock, valuation, and dispatch execution | [AGENTS.md](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/AGENTS.md) |
+| **invoice** | Invoice lifecycle: invoice issuance, settlement behavior, ledger/aging/statement surfaces, and invoice-related DTO families | [source](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/) *(per-module packet pending)* |
+| **portal** | Dealer self-service portal: dealer-facing endpoints, portal finance views, portal-specific DTOs and isolation boundaries | [source](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/portal/) *(per-module packet pending)* |
+| **production** | Catalog and product surfaces: brands, items, readiness, SKU setup, packaging material definitions, and product/variant management | [source](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/production/) *(per-module packet pending)* |
+| **purchasing** | Procure-to-pay truth: supplier lifecycle, purchase orders, GRN, purchase invoices, purchase returns, settlements, and AP boundaries | [source](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/) *(per-module packet pending)* |
+| **rbac** | Role-based access control: role definitions, permission matrices, role assignment restrictions, and RBAC config | [source](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/) *(per-module packet pending)* |
+| **reports** | Reporting surfaces: trial balance, P&L, balance sheet, cash flow, GST, aging, dashboards, and export/report generation | [source](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/) *(per-module packet pending)* |
+| **sales** | Commercial lifecycle truth: dealer/customer management, order lifecycle, credit controls, dispatch coordination, dealer portal | [AGENTS.md](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/AGENTS.md) |
+
+---
+
+## Coverage Notes
+
+- The source-of-truth directory listing is `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/`. This inventory covers all 15 live module directories: `accounting`, `admin`, `auth`, `company`, `demo`, `factory`, `hr`, `inventory`, `invoice`, `portal`, `production`, `purchasing`, `rbac`, `reports`, `sales`.
+- Four modules (`accounting`, `hr`, `inventory`, `sales`) have full AGENTS.md packets today. The remaining 11 modules have source-directory links; per-module documentation packets for those modules will be added in later milestones.
+- When a per-module packet is created for a module currently pointing to its source directory, the corresponding inventory row should be updated to link to the new packet and the *(per-module packet pending)* marker removed.
+
+## Cross-references
+
+- [docs/INDEX.md](../INDEX.md) — canonical documentation index
+- [docs/ARCHITECTURE.md](../ARCHITECTURE.md) — architecture reference
+- [docs/CONVENTIONS.md](../CONVENTIONS.md) — documentation conventions
