@@ -7014,6 +7014,7 @@ class AccountingServiceTest {
     JournalEntry existingEntry = new JournalEntry();
     ReflectionTestUtils.setField(existingEntry, "id", 993L);
     existingEntry.setDealer(otherDealer);
+    existingEntry.setEntryDate(LocalDate.of(2024, 4, 9));
     existingEntry.setReferenceNumber("DR-SETTLE-RACE-PARTNER-1");
 
     com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation existingRow =
@@ -7527,6 +7528,7 @@ class AccountingServiceTest {
     var journalEntry = new JournalEntry();
     ReflectionTestUtils.setField(journalEntry, "id", 44L);
     journalEntry.setDealer(dealer);
+    journalEntry.setEntryDate(LocalDate.of(2024, 4, 9));
     journalEntry.setReferenceNumber("DR-TEST-1");
     journalEntry.setMemo("Dealer settlement");
     journalEntry
@@ -11868,6 +11870,7 @@ class AccountingServiceTest {
     JournalEntry existingEntry = new JournalEntry();
     ReflectionTestUtils.setField(existingEntry, "id", 994L);
     existingEntry.setSupplier(otherSupplier);
+    existingEntry.setEntryDate(LocalDate.of(2024, 4, 9));
     existingEntry.setReferenceNumber("SUP-SETTLE-RACE-PARTNER-1");
 
     com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation existingRow =
