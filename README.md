@@ -44,7 +44,7 @@ Install these before running locally:
    Set at least:
    - `SPRING_DATASOURCE_URL`
    - `SPRING_DATASOURCE_USERNAME`
-   - `SPRING_DATASOURCE_PASSWORD`
+   - `SPRING_DATASOURCE_PASSWORD` (used canonically for both the app datasource and the compose Postgres service)
    - `JWT_SECRET` (32+ byte secret)
    - `ERP_SECURITY_ENCRYPTION_KEY` (32+ byte key)
    - `ERP_SECURITY_AUDIT_PRIVATE_KEY`
@@ -98,7 +98,7 @@ Install these before running locally:
    SPRING_PROFILES_ACTIVE='prod,flyway-v2' \
    SPRING_DATASOURCE_URL='jdbc:postgresql://db:5432/erp_domain' \
    SPRING_DATASOURCE_USERNAME='erp' \
-   SPRING_DATASOURCE_PASSWORD='erp' \
+   SPRING_DATASOURCE_PASSWORD='replace-with-local-db-password' \
    ERP_CORS_ALLOWED_ORIGINS='https://app.bigbrightpaints.com' \
    ERP_CORS_ALLOW_TAILSCALE_HTTP_ORIGINS='true' \
    DB_PORT=5433 \

@@ -20,4 +20,4 @@ Prefer concise, decision-ready artifacts over long narrative.
 sandbox_mode = "workspace-write"
 
 [sandbox_workspace_write]
-network_access = true
+network_access = false
