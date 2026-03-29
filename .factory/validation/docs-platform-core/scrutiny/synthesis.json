@@ -1,0 +1,49 @@
+{
+  "milestone": "docs-platform-core",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": { "passed": true, "command": "bash ci/lint-knowledgebase.sh", "exitCode": 0 },
+    "enterprise-policy": { "passed": true, "command": "bash ci/check-enterprise-policy.sh", "exitCode": 0 },
+    "architecture": { "passed": true, "command": "bash ci/check-architecture.sh", "exitCode": 0 },
+    "orchestrator-layer": { "passed": true, "command": "bash ci/check-orchestrator-layer.sh", "exitCode": 0 }
+  },
+  "reviewsSummary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-platform-core-idempotency-integration",
+      "severity": "non_blocking",
+      "description": "Comma splice/typo in docs/modules/core-idempotency.md §4.9 line 350: 'protection, This' should be 'protection. This'"
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add guidance for docs workers to check for duplicate rows in tabular docs (INDEX.md, MODULE-INVENTORY.md) before adding new entries. Two separate workers in this milestone added rows to INDEX.md for the same packet, creating a duplicate that required cleanup.",
+      "evidence": "Feature docs-platform-core-audit-runtime-contracts had to remove a duplicate INDEX.md row left by a previous worker session. The feature description itself flagged this: 'finish and validate that draft state, including removing the duplicate index row'.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "architecture.md library file does not document the dual runtime enforcement service pattern (TenantRuntimeEnforcementService vs TenantRuntimeAccessService)",
+      "reason": "This knowledge is now captured in the canonical docs tree at docs/modules/core-audit-runtime-settings.md. Adding it to .factory/library/architecture.md would create a second truth source. The canonical docs are the right place for this."
+    },
+    {
+      "observation": "Idempotency contract inconsistencies should be captured in .factory/library/ for future workers",
+      "reason": "This knowledge is already thoroughly documented in docs/modules/core-idempotency.md §4 (nine contract inconsistencies). The canonical docs tree is the appropriate location, not the library."
+    },
+    {
+      "observation": "core-idempotency.md §5.2 is the canonical integration point and future workers should update it",
+      "reason": "This is already discoverable from the canonical docs structure. No action needed outside the docs tree."
+    }
+  ],
+  "previousRound": null
+}

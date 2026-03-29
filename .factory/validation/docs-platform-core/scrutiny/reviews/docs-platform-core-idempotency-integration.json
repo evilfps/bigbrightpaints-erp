@@ -1,0 +1,28 @@
+{
+  "featureId": "docs-platform-core-idempotency-integration",
+  "reviewedAt": "2026-03-30T00:30:00Z",
+  "commitId": "a1b0266a",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The core-idempotency contract packet is thorough, well-structured, and accurately reflects the codebase. All referenced classes exist at their documented paths, all cross-referenced files exist, and the knowledgebase lint passes cleanly. The document covers shared infrastructure (4 classes), 8 module-local implementations, 9 known pre-existing contract inconsistencies, a reconciled cross-slice contract table, and forward-looking recommendations. One minor typo was found (comma splice in §4.9) but it is non-blocking.",
+    "issues": [
+      {
+        "file": "docs/modules/core-idempotency.md",
+        "line": 350,
+        "severity": "non_blocking",
+        "description": "Comma splice/typo in §4.9: '...without idempotency protection, This is the same...' — the comma should be a period (or the sentence should be restructured). 'This' is capitalized, indicating a new sentence was intended."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The idempotency contract reveals significant pattern inconsistencies across modules (legacy header support, key requirement enforcement, signature storage timing, delegation patterns). This knowledge is now documented in the canonical docs tree but is not captured in .factory/library/. Future workers touching idempotency-adjacent code would benefit from a concise library file summarizing the key design tensions.",
+      "evidence": "docs/modules/core-idempotency.md §4 documents nine contract inconsistencies. No corresponding .factory/library/ file exists to guide workers implementing new idempotency-protected endpoints."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS with one non-blocking typo. The core-idempotency contract packet is comprehensive and accurate. The worker verified all claims against source code (8 module-local implementations, 4 shared infrastructure classes), added the INDEX.md row, and ran the knowledgebase lint successfully. Cross-references to core-security-error.md, core-audit-runtime-settings.md, RELIABILITY.md, ADR-003, ARCHITECTURE.md, and INDEX.md all resolve correctly. The nine documented contract inconsistencies (§4.1–4.9) are well-organized and explicitly surfaced rather than normalized away, meeting the feature's requirement to 'call out known pre-existing replay/idempotency inconsistencies explicitly as caveats.' The reconciled contract table (§5) and cross-reference matrix (§5.2) effectively tie the three core-platform slices together. No blocking issues found."
+}

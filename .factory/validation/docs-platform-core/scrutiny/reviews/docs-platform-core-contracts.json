@@ -1,0 +1,44 @@
+{
+  "featureId": "docs-platform-core-contracts",
+  "reviewedAt": "2026-03-30T12:00:00Z",
+  "commitId": "ad4d48374100cf6aeb7fc641949c15b28cbfa397",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The documentation packet (docs/modules/core-security-error.md, 429 lines) is thorough, accurate, and well-structured. It correctly documents the security filter chain ordering (JwtAuthenticationFilter → CompanyContextFilter → MustChangePasswordCorridorFilter), the exception/error contract (ApplicationException/ErrorCode, GlobalExceptionHandler at HIGHEST_PRECEDENCE, CoreFallbackExceptionHandler at LOWEST_PRECEDENCE), the ApiResponse envelope, and the production vs non-production error detail exposure rules. The fail-open vs fail-closed boundary tables are comprehensive and match the actual code behavior verified line by line. The INDEX.md and MODULE-INVENTORY.md updates are consistent. All eight cross-referenced documents exist in the repository.",
+    "issues": [
+      {
+        "file": "docs/modules/core-security-error.md",
+        "line": 95,
+        "severity": "non_blocking",
+        "description": "The docs state `POST /api/v1/auth/password/forgot` as a public endpoint, but the endpoint path should be verified against SecurityConfig — the code shows `requestMatchers(\"/api/v1/auth/password/forgot\")` which matches. Confirmed correct. No issue found on closer inspection."
+      },
+      {
+        "file": "docs/modules/core-security-error.md",
+        "line": 285,
+        "severity": "non_blocking",
+        "description": "Section 2.3 says the `determineHttpStatus` method uses prefix-to-status mapping: AUTH→401, VAL→400, BUS/CONC/DATA→409, SYS→503, INT→502, FILE→422. This was verified against the actual code and is accurate. The special cases for BUSINESS_ENTITY_NOT_FOUND→404, FILE_NOT_FOUND→404, AUTH_MFA_REQUIRED→428, MODULE_DISABLED→403, SYSTEM_RATE_LIMIT_EXCEEDED→429 are also documented and correct."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The docs worker had to discover filter ordering, fail-open/fail-closed behavior, and the two-tier exception handler architecture by reading source code. The architecture.md library file describes core/ as 'shared infrastructure: security, config, exception handling, audit, idempotency, health, utilities' but doesn't provide any detail about the filter chain ordering or exception handler precedence. This discovery cost is now amortized by the new docs packet itself.",
+      "evidence": "architecture.md lists core/ ownership at a high level only; the worker had to read SecurityConfig.java, JwtAuthenticationFilter.java, CompanyContextFilter.java, MustChangePasswordCorridorFilter.java, GlobalExceptionHandler.java, and CoreFallbackExceptionHandler.java to build the packet"
+    },
+    {
+      "area": "conventions",
+      "observation": "The packet correctly follows the established docs convention: last-reviewed date, scope note, ownership summary table, numbered sections, cross-reference table, and known-gaps section. This matches the pattern established by auth.md, company.md, and admin-portal-rbac.md. No convention gaps observed.",
+      "evidence": "core-security-error.md structure mirrors auth.md and company.md packet structure"
+    },
+    {
+      "area": "skills",
+      "observation": "The worker followed the docs-worker skill procedure faithfully: locked scope, gathered evidence from source code, wrote the packet, verified accuracy, ran lint validators, and produced a precise handoff. skillFeedback.followedProcedure = true with no deviations.",
+      "evidence": "Transcript shows the worker reading architecture.md, documentation-ia.md, docs-validation.md, then reading all relevant source files, creating the packet, updating INDEX.md and MODULE-INVENTORY.md, running lint-knowledgebase.sh + check-enterprise-policy.sh + check-architecture.sh"
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS — The core platform contracts packet (security filter chain + exception/error contract) is accurate, comprehensive, and well-cross-referenced. The fail-open vs fail-closed boundary tables are the key deliverable and they correctly map every code path in JwtAuthenticationFilter (fail-open with Spring Safety net), CompanyContextFilter (fail-closed with explicit 403 codes), and MustChangePasswordCorridorFilter (fail-closed with PASSWORD_CHANGE_REQUIRED). The ErrorCode prefix-to-HTTP mapping table matches the actual determineHttpStatus() implementation including all special-case overrides. The two-tier exception handler architecture (GlobalExceptionHandler at HIGHEST_PRECEDENCE, CoreFallbackExceptionHandler at LOWEST_PRECEDENCE) is correctly documented including the CreditLimitExceededException inheritance nuance. Production vs non-production error detail exposure is accurately documented. INDEX.md and MODULE-INVENTORY.md are updated consistently. All cross-references resolve. No blocking issues."
+}
