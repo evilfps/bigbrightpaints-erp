@@ -103,6 +103,8 @@ if [[ "$ready" -ne 1 ]]; then
   exit 1
 fi
 
+compose_status=0
+set +e
 DB_PORT="$DB_PORT" \
 SPRING_PROFILES_ACTIVE='prod,flyway-v2,mock,validation-seed' \
 JWT_SECRET="$JWT_SECRET" \
@@ -127,6 +129,17 @@ SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED='false' \
 RABBIT_PORT="$RABBIT_PORT" \
 APP_PORT="$APP_PORT" \
 docker compose -f "$COMPOSE_FILE" up -d --build app
+compose_status=$?
+set -e
+
+if [[ "$compose_status" -ne 0 ]]; then
+  app_container_state="$(docker inspect -f '{{.State.Status}}' erp_domain_app 2>/dev/null || true)"
+  if [[ "$app_container_state" != "running" ]]; then
+    echo "[final-validation-reset] ERROR: docker compose up failed before app became runnable" >&2
+    exit "$compose_status"
+  fi
+  echo "[final-validation-reset] docker compose returned non-zero, but erp_domain_app is running; continuing to health probe"
+fi
 
 for _ in $(seq 1 90); do
   status=$(curl -s -o /tmp/final-validation-auth.out -w '%{http_code}' "http://localhost:${APP_PORT}/api/v1/auth/me" || true)

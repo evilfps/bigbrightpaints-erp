@@ -139,7 +139,7 @@ public class MockDataInitializer {
               mockAdminEmail,
               mockAdminPassword);
       attachMainAdmin(companyRepository, company, seededAdmin);
-      Dealer dealer = seedDealer(company, dealerRepository, userRepository, accounts.get("AR"));
+      Dealer dealer = seedDealer(company, dealerRepository, accounts.get("AR"));
       Supplier supplier = seedSupplier(company, supplierRepository, accounts.get("AP"));
       ProductionBrand brand = seedBrand(company, brandRepository);
       // Use WIP_PACK (1180) for finished goods that go through packing stage
@@ -185,6 +185,7 @@ public class MockDataInitializer {
             company,
             seededAdmin,
             dealer,
+            dealerRepository,
             exportRequestRepository,
             supportTicketRepository,
             creditRequestRepository);
@@ -429,7 +430,7 @@ public class MockDataInitializer {
                         new BigDecimal("10"),
                         new BigDecimal("20.00"),
                         new BigDecimal("18.00"))),
-                "GST",
+                "ORDER_TOTAL",
                 new BigDecimal("18.00"),
                 Boolean.FALSE,
                 READY_CONFIRM_ORDER_IDEMPOTENCY_KEY,
@@ -447,15 +448,20 @@ public class MockDataInitializer {
       Company company,
       UserAccount seededAdmin,
       Dealer dealer,
+      DealerRepository dealerRepository,
       ExportRequestRepository exportRequestRepository,
       SupportTicketRepository supportTicketRepository,
       CreditRequestRepository creditRequestRepository) {
     if (company == null || company.getId() == null) {
       return;
     }
+    Dealer approvalDealer =
+        dealerRepository
+            .findByCompanyAndCodeIgnoreCase(company, "VALID-DEALER")
+            .orElse(dealer);
     seedPendingExportRequest(company, seededAdmin, exportRequestRepository);
-    seedPendingSupportTicket(company, dealer, supportTicketRepository);
-    seedPendingCreditRequest(company, dealer, creditRequestRepository);
+    seedPendingSupportTicket(company, approvalDealer, supportTicketRepository);
+    seedPendingCreditRequest(company, approvalDealer, creditRequestRepository);
   }
 
   private void seedPendingExportRequest(
@@ -649,7 +655,6 @@ public class MockDataInitializer {
   private Dealer seedDealer(
       Company company,
       DealerRepository dealerRepository,
-      UserAccountRepository userRepository,
       Account ar) {
     Dealer dealer =
         dealerRepository
@@ -669,10 +674,6 @@ public class MockDataInitializer {
     dealer.setStatus("ACTIVE");
     dealer.setStateCode(company.getStateCode());
     dealer.setGstRegistrationType(GstRegistrationType.REGULAR);
-    userRepository
-        .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
-            "validation.dealer@example.com", company.getCode())
-        .ifPresent(dealer::setPortalUser);
     return dealerRepository.save(dealer);
   }
 
