@@ -1,0 +1,38 @@
+{
+  "featureId": "docs-platform-auth-company-runtime",
+  "milestone": "docs-platform-auth",
+  "status": "pass",
+  "issues": [
+    {
+      "severity": "non_blocking",
+      "description": "The auth.md cross-reference links to `docs/adrs/ADR-002-multi-tenant-auth-scoping.md` but the actual file on disk is `docs/adrs/ADR-002-multi-tenant-auth-scoping.md` — however company.md links to `docs/adrs/ADR-006-portal-host-boundaries.md` while the actual file is `docs/adrs/ADR-006-portal-and-host-boundary-separation.md`. This link will 404.",
+      "file": "docs/modules/company.md",
+      "suggestedFix": "Update the ADR-006 cross-reference from `../adrs/ADR-006-portal-host-boundaries.md` to `../adrs/ADR-006-portal-and-host-boundary-separation.md` to match the actual filename."
+    },
+    {
+      "severity": "non_blocking",
+      "description": "The company.md tenant lifecycle state diagram shows `SUSPENDED → DEACTIVATED` but does not show `ACTIVE → DEACTIVATED`. The actual TenantLifecycleService code does allow `ACTIVE → DEACTIVATED` directly. The diagram is slightly incomplete but the text description below it does list the transition.",
+      "file": "docs/modules/company.md",
+      "suggestedFix": "Add an arrow `ACTIVE → DEACTIVATED` to the ASCII state diagram, or note that the diagram is simplified and defer to the text list of allowed transitions."
+    },
+    {
+      "severity": "suggestion",
+      "description": "The auth.md mentions that the scheduling cleanup for expired refresh tokens runs hourly via @Scheduled, but does not mention the same for blacklisted token cleanup. The SecurityMonitoringService also has a cleanupTracking scheduled task at 60-second intervals. A reader looking for token cleanup specifics would benefit from this being stated explicitly.",
+      "file": "docs/modules/auth.md",
+      "suggestedFix": "Consider adding a brief note about blacklisted token cleanup frequency in the Token and Session Revocation section."
+    }
+  ],
+  "sharedStateObservations": [
+    {
+      "observation": "The TenantRuntimeEnforcementService has a graceful-degradation behavior during policy persistence outages (keeps last-known in-memory policy). This is a significant operational behavior that is already documented in the company.md caveats section. No gap found.",
+      "suggestedTarget": "library",
+      "suggestedChange": "No change needed — already well documented."
+    },
+    {
+      "observation": "The worker discovered that ADR-006's filename is `ADR-006-portal-and-host-boundary-separation.md` but linked to it as `ADR-006-portal-host-boundaries.md`. This suggests a minor filename-to-reference mismatch that could trip up other workers or contributors.",
+      "suggestedTarget": "library",
+      "suggestedChange": "Consider adding an entry in the library noting the exact ADR filenames to prevent future link mismatches."
+    }
+  ],
+  "summary": "The feature creates two well-structured, comprehensive documentation packets (auth.md at 314 lines and company.md at 229 lines) that thoroughly cover all VAL-PLAT-001 required surfaces: login, refresh, logout, MFA, password reset, must-change-password corridor, token/session revocation, JWT tenant scoping, company lifecycle, runtime admission, and licensing gates. The documentation is truth-first — caveats are prominently labeled (in-memory monitoring state, startup-only licensing, non-persistent runtime counters, mail-dependent password reset). All referenced backend classes, services, controllers, and routes were verified against the actual source code and match accurately. The diff stays within the docs-only mission boundary (4 files changed: 2 new docs, 2 existing docs updated for navigation). Cross-links to ADR-002, ARCHITECTURE.md, SECURITY.md, and RELIABILITY.md are valid. One broken cross-reference to ADR-006 (wrong filename) and a minor state diagram omission are the only issues found — both non-blocking."
+}
