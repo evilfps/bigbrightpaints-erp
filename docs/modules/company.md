@@ -59,8 +59,9 @@ Manages company lifecycle state transitions with a constrained state machine:
 
 ```
 ACTIVE  ←→  SUSPENDED  →  DEACTIVATED
-  ↓                               ↑
-  └───────────────────────────────┘
+  │               │             ↑
+  │               └─────────────┘
+  └─────────────────────────────┘
 ```
 
 - `ACTIVE → SUSPENDED`, `ACTIVE → DEACTIVATED`
@@ -225,5 +226,5 @@ Onboarding is accessible only to `ROLE_SUPER_ADMIN` via `POST /api/v1/superadmin
 - [docs/ARCHITECTURE.md](../ARCHITECTURE.md) — overall architecture reference
 - [docs/SECURITY.md](../SECURITY.md) — security review policy
 - [docs/RELIABILITY.md](../RELIABILITY.md) — reliability posture
-- [docs/adrs/ADR-006-portal-host-boundaries.md](../adrs/ADR-006-portal-host-boundaries.md) — portal/host boundary ADR
+- [docs/adrs/ADR-006-portal-and-host-boundary-separation.md](../adrs/ADR-006-portal-and-host-boundary-separation.md) — portal/host boundary ADR
 - [docs/flows/FLOW-INVENTORY.md](../flows/FLOW-INVENTORY.md) — flow inventory including auth/identity and tenant/admin management flows
