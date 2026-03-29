@@ -38,6 +38,15 @@ Last reviewed: 2026-03-07
 - Use orchestrator approval for compatibility-preserving high-risk remediation packets; escalate to human approval if the packet widens privileges, changes tenant boundaries, or introduces destructive migration risk.
 - Do not treat degraded runtime evidence as a waiver for product-correctness proof.
 
+## Cloud Runner / Agent Testing (IMPORTANT)
+
+- The Maven project lives in `erp-domain/`, NOT at repo root. **Always `cd erp-domain` before running any Maven command.**
+- Correct: `cd erp-domain && MIGRATION_SET=v2 mvn -q -DskipTests compile`
+- Wrong: `mvn -q -Dtest=SomeTest test` (no pom.xml at repo root)
+- The repo root has a `.mvn/settings.xml` mirror fallback, but all `mvn` commands must target `erp-domain/`.
+- If running in Codex cloud, use environment settings to add a setup script: `cd erp-domain && MIGRATION_SET=v2 mvn -q -ntp dependency:go-offline`
+- Enable "Common dependencies" internet access in your Codex environment for Maven Central resolution.
+
 ## Governance References
 
 - Security posture: `docs/SECURITY.md`
