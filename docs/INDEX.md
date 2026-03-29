@@ -21,11 +21,12 @@ This is the canonical entrypoint for backend documentation. Every major docs sec
 | --- | --- |
 | [docs/modules/MODULE-INVENTORY.md](modules/MODULE-INVENTORY.md) | Canonical inventory of every live backend module with ownership summary and links to per-module documentation packets |
 
-Module packets explain what each module owns: controllers, services, DTOs, entities, helpers, events, and cross-module boundaries. Six modules have canonical documentation packets today:
+Module packets explain what each module owns: controllers, services, DTOs, entities, helpers, events, and cross-module boundaries. Seven modules have canonical documentation packets today:
 
 | Module | Description |
 | --- | --- |
 | [accounting](../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md) | Journals, ledgers, settlements, period controls, reconciliation, and imports |
+| [admin/portal/rbac](modules/admin-portal-rbac.md) | Admin user management, system settings, changelog, export approvals, support tickets, portal insights/finance, dealer self-service host ownership, role-action matrices, and RBAC enforcement |
 | [auth](modules/auth.md) | Login, refresh, logout, MFA, password reset, must-change-password corridor, token/session revocation, JWT-based tenant scoping, and security filter chain |
 | [company](modules/company.md) | Tenant lifecycle, runtime admission, module gating, licensing checks, tenant onboarding, super-admin control plane, and company-scoping assumptions |
 | [hr](../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md) | Employees, leave, attendance, payroll runs, and payroll posting/payment |
