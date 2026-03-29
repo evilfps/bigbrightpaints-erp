@@ -5296,6 +5296,42 @@ abstract class AccountingCoreEngineCore {
       boolean settlementOverrideRequested,
       String settlementOverrideReason,
       String settlementOverrideActor) {
+    Map<String, String> auditMetadata =
+        buildSettlementAuditSuccessMetadata(
+            partnerType,
+            partnerId,
+            journalEntryDto,
+            settlementDate,
+            idempotencyKey,
+            allocationCount,
+            totalApplied,
+            cashAmount,
+            totalDiscount,
+            totalWriteOff,
+            totalFxGain,
+            totalFxLoss,
+            settlementOverrideRequested,
+            settlementOverrideReason,
+            settlementOverrideActor);
+    logAuditSuccessAfterCommit(AuditEvent.SETTLEMENT_RECORDED, auditMetadata);
+  }
+
+  private Map<String, String> buildSettlementAuditSuccessMetadata(
+      PartnerType partnerType,
+      Long partnerId,
+      JournalEntryDto journalEntryDto,
+      LocalDate settlementDate,
+      String idempotencyKey,
+      int allocationCount,
+      BigDecimal totalApplied,
+      BigDecimal cashAmount,
+      BigDecimal totalDiscount,
+      BigDecimal totalWriteOff,
+      BigDecimal totalFxGain,
+      BigDecimal totalFxLoss,
+      boolean settlementOverrideRequested,
+      String settlementOverrideReason,
+      String settlementOverrideActor) {
     Map<String, String> auditMetadata = new HashMap<>();
     auditMetadata.put(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE, partnerType.name());
     if (partnerId != null) {
@@ -5309,8 +5345,10 @@ abstract class AccountingCoreEngineCore {
       auditMetadata.put(
           IntegrationFailureMetadataSchema.KEY_SETTLEMENT_DATE, settlementDate.toString());
     }
-    if (idempotencyKey != null) {
-      auditMetadata.put(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
+    if (StringUtils.hasText(idempotencyKey)) {
+      auditMetadata.put(
+          IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY,
+          sanitizeIdempotencyLogValue(idempotencyKey.trim()));
     }
     auditMetadata.put(
         IntegrationFailureMetadataSchema.KEY_ALLOCATION_COUNT, Integer.toString(allocationCount));
@@ -5327,7 +5365,7 @@ abstract class AccountingCoreEngineCore {
     if (StringUtils.hasText(settlementOverrideActor)) {
       auditMetadata.put("settlementOverrideActor", settlementOverrideActor.trim());
     }
-    logAuditSuccessAfterCommit(AuditEvent.SETTLEMENT_RECORDED, auditMetadata);
+    return auditMetadata;
   }
 
   private Map<JournalLineSignature, Integer> lineSignatureCountsFromRequests(

@@ -208,8 +208,7 @@ class TruthRailsSharedDtoContractTest {
                     BigDecimal.ZERO,
                     "PAYMENT",
                     "memo",
-                    LocalDate.of(2026, 2, 24),
-                    "idem-101")),
+                    LocalDate.of(2026, 2, 24))),
             List.of(
                 new AccountingTransactionAuditDetailDto.EventTrailItem(
                     111L,

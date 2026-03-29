@@ -310,8 +310,7 @@ public class AccountingAuditTrailServiceCore {
                       allocation.getFxDifferenceAmount(),
                       memoParts.applicationType().name(),
                       memoParts.memo(),
-                      allocation.getSettlementDate(),
-                      allocation.getIdempotencyKey());
+                      allocation.getSettlementDate());
                 })
             .toList();
 
@@ -529,14 +528,7 @@ public class AccountingAuditTrailServiceCore {
       appendSettlementReferences(chain, purchase.getCompany(), null, purchase);
     }
     for (PartnerSettlementAllocation allocation : allocations) {
-      chain.add(
-          BusinessDocumentTruths.reference(
-              "SETTLEMENT",
-              "SETTLEMENT_ALLOCATION",
-              allocation.getId(),
-              allocation.getIdempotencyKey(),
-              BusinessDocumentTruths.settlementLifecycle(allocation.getJournalEntry()),
-              allocation.getJournalEntry() != null ? allocation.getJournalEntry().getId() : null));
+      chain.add(settlementReference(allocation));
     }
     chain.add(
         BusinessDocumentTruths.reference(
@@ -567,15 +559,19 @@ public class AccountingAuditTrailServiceCore {
       return;
     }
     for (PartnerSettlementAllocation allocation : allocations) {
-      chain.add(
-          BusinessDocumentTruths.reference(
-              "SETTLEMENT",
-              "SETTLEMENT_ALLOCATION",
-              allocation.getId(),
-              allocation.getIdempotencyKey(),
-              BusinessDocumentTruths.settlementLifecycle(allocation.getJournalEntry()),
-              allocation.getJournalEntry() != null ? allocation.getJournalEntry().getId() : null));
+      chain.add(settlementReference(allocation));
     }
+  }
+
+  private LinkedBusinessReferenceDto settlementReference(PartnerSettlementAllocation allocation) {
+    JournalEntry settlementEntry = allocation != null ? allocation.getJournalEntry() : null;
+    return BusinessDocumentTruths.reference(
+        "SETTLEMENT",
+        "SETTLEMENT_ALLOCATION",
+        allocation != null ? allocation.getId() : null,
+        settlementEntry != null ? settlementEntry.getReferenceNumber() : null,
+        BusinessDocumentTruths.settlementLifecycle(settlementEntry),
+        settlementEntry != null ? settlementEntry.getId() : null);
   }
 
   private boolean isSlipLinkedToInvoice(

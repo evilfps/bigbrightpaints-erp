@@ -14452,6 +14452,73 @@ class AccountingServiceTest {
   }
 
   @Test
+  void settlementSuccessAuditMetadata_hashesIdempotencyKeyBeforeStorage() {
+    JournalEntryDto settlementJournal =
+        new JournalEntryDto(
+            915L,
+            null,
+            "SET-915",
+            LocalDate.of(2024, 7, 4),
+            null,
+            "POSTED",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+
+    @SuppressWarnings("unchecked")
+    Map<String, String> metadata =
+        ReflectionTestUtils.invokeMethod(
+            accountingService,
+            "buildSettlementAuditSuccessMetadata",
+            com.bigbrightpaints.erp.modules.accounting.domain.PartnerType.DEALER,
+            81L,
+            settlementJournal,
+            LocalDate.of(2024, 7, 4),
+            "  settle-secret-key  ",
+            2,
+            new BigDecimal("120.00"),
+            new BigDecimal("115.00"),
+            new BigDecimal("3.00"),
+            new BigDecimal("2.00"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            true,
+            "  approved override  ",
+            "  policy.admin  ");
+
+    assertThat(metadata)
+        .containsEntry(
+            IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE,
+            com.bigbrightpaints.erp.modules.accounting.domain.PartnerType.DEALER.name())
+        .containsEntry(IntegrationFailureMetadataSchema.KEY_PARTNER_ID, "81")
+        .containsEntry(IntegrationFailureMetadataSchema.KEY_JOURNAL_ENTRY_ID, "915")
+        .containsEntry(IntegrationFailureMetadataSchema.KEY_SETTLEMENT_DATE, "2024-07-04")
+        .containsEntry(
+            IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY,
+            com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.sha256Hex(
+                "settle-secret-key", 12))
+        .containsEntry("settlementOverrideReason", "approved override")
+        .containsEntry("settlementOverrideActor", "policy.admin");
+    assertThat(metadata.values()).doesNotContain("  settle-secret-key  ", "settle-secret-key");
+  }
+
+  @Test
   void helperMethods_coverReserveReferenceMappingDecisionBranches() {
     assertThatThrownBy(
             () ->
