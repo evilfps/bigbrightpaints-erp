@@ -34,7 +34,11 @@ Module packets explain what each module owns: controllers, services, DTOs, entit
 
 Flow packets explain cross-module behavior: actors, entrypoints, preconditions, lifecycle, completion boundary, and current limitations.
 
-> **Status:** Flow inventory and flow packets will be added in the synthesis milestones (`docs-flows-platform-operations`, `docs-flows-commercial-finance`, `docs-flows-library-integration`). The planned flow coverage includes auth/identity, tenant/admin management, catalog/setup readiness, manufacturing/packing, inventory management, order-to-cash, procure-to-pay, invoice/dealer-finance, accounting/period close, HR/payroll, and reporting/export flows.
+| Document | Purpose |
+| --- | --- |
+| [docs/flows/FLOW-INVENTORY.md](flows/FLOW-INVENTORY.md) | Canonical inventory of the eleven major backend flow families with ownership summary, cross-module participants, and links to flow packets |
+
+The flow inventory covers auth/identity, tenant/admin management, catalog/setup readiness, manufacturing/packing, inventory management, order-to-cash, procure-to-pay, invoice/dealer-finance, accounting/period close, HR/payroll, and reporting/export. Individual flow packets for each family will be added in later milestones.
 
 ## Architecture Decision Records (ADRs)
 
