@@ -1,8 +1,10 @@
 # R2 Checkpoint
 
+Last reviewed: 2026-03-29
+
 ## Scope
 - Feature: `ERP-45 Wave 1 fail-closed platform hardening`
-- Branch: `mdanas7869292/erp-45-wave-1-fail-closed-blockers-and-platformapi-surface-cleanup`
+- Branch: mdanas7869292/erp-45-wave-1-fail-closed-blockers-and-platformapi-surface-cleanup
 - PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/166`
 - Review candidate:
   - fail closed all targeted tenant control-plane mutations when the bound company context is blank or mismatched
@@ -21,7 +23,7 @@
   - `erp-domain/src/main/resources/application-prod.yml`
 - Contract surfaces affected:
   - superadmin tenant mutation flows under `/api/v1/superadmin/tenants/**`
-  - admin role lookup under `/api/v1/admin/roles/{roleKey}`
+  - admin role lookup under /api/v1/admin/roles/*roleKey*
   - prod actuator, health, and swagger exposure rules
   - retired orchestrator and catalog endpoints removed from the canonical API surface
 - Failure mode if wrong:
@@ -68,6 +70,6 @@
   - changed-file coverage follow-up is included in the same PR so the high-risk diff is fully mapped to packet-local tests
   - final command outcomes are refreshed on the PR branch before merge
 - Artifacts/links:
-  - Repo checkout: `/Users/anas/Documents/Factory/bigbrightpaints-erp`
-  - PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/166`
-  - Linear issue: `ERP-45`
+  - Repo checkout: (local filesystem)
+  - PR: https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/166
+  - Linear issue: ERP-45

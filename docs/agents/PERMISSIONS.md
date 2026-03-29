@@ -1,6 +1,6 @@
 # Agent Permissions
 
-Last reviewed: 2026-03-07
+Last reviewed: 2026-03-29
 
 ## Role Boundaries
 
