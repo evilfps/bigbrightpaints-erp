@@ -4,10 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +29,10 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.domain.RoleRepository;
+import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
+import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderDto;
+import com.bigbrightpaints.erp.modules.sales.service.SalesFulfillmentService;
+import com.bigbrightpaints.erp.modules.sales.service.SalesOrderCrudService;
 
 @ExtendWith(MockitoExtension.class)
 class MockDataInitializerTest {
@@ -32,6 +41,8 @@ class MockDataInitializerTest {
   @Mock private UserAccountRepository userRepository;
   @Mock private PasswordEncoder passwordEncoder;
   @Mock private CompanyRepository companyRepository;
+  @Mock private SalesOrderCrudService salesOrderCrudService;
+  @Mock private SalesFulfillmentService salesFulfillmentService;
 
   private MockDataInitializer initializer;
 
@@ -146,6 +157,42 @@ class MockDataInitializerTest {
     Company company = ReflectionTestUtils.invokeMethod(initializer, "createCompany", companyRepository);
 
     assertThat(company.getStateCode()).isEqualTo("MH");
+  }
+
+  @Test
+  void seedReadyToConfirmOrder_skipsReservationForProgressedReplayStatus() {
+    Dealer dealer = new Dealer();
+    ReflectionTestUtils.setField(dealer, "id", 7L);
+    when(salesOrderCrudService.createOrder(any()))
+        .thenReturn(
+            new SalesOrderDto(
+                91L,
+                UUID.randomUUID(),
+                "SO-REPLAY-001",
+                "DISPATCHED",
+                new BigDecimal("236.00"),
+                new BigDecimal("200.00"),
+                new BigDecimal("36.00"),
+                new BigDecimal("18.00"),
+                "ORDER_TOTAL",
+                false,
+                BigDecimal.ZERO,
+                "INR",
+                "Mock Dealer",
+                "CREDIT",
+                "trace-1",
+                Instant.now(),
+                List.of(),
+                List.of()));
+
+    ReflectionTestUtils.invokeMethod(
+        initializer,
+        "seedReadyToConfirmOrder",
+        salesOrderCrudService,
+        salesFulfillmentService,
+        dealer);
+
+    verify(salesFulfillmentService, never()).reserveForOrder(91L);
   }
 
   private Company company(String code) {

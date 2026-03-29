@@ -456,15 +456,7 @@ public class ValidationSeedDataInitializer {
 
   private void attachMainAdmin(
       CompanyRepository companyRepository, Company company, UserAccount adminUser) {
-    if (company == null || adminUser == null) {
-      return;
-    }
-    company.setOnboardingAdminEmail(adminUser.getEmail());
-    if (adminUser.getId() != null) {
-      company.setMainAdminUserId(adminUser.getId());
-      company.setOnboardingAdminUserId(adminUser.getId());
-    }
-    companyRepository.save(company);
+    SeedCompanyAdminSupport.attachMainAdmin(companyRepository, company, adminUser);
   }
 
   private UserAccount ensureUser(

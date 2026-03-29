@@ -399,19 +399,7 @@ public class MockDataInitializer {
 
   private void attachMainAdmin(
       CompanyRepository companyRepository, Company company, UserAccount adminUser) {
-    if (company == null || adminUser == null) {
-      return;
-    }
-    Company targetCompany =
-        company.getId() == null
-            ? company
-            : companyRepository.findById(company.getId()).orElse(company);
-    targetCompany.setOnboardingAdminEmail(adminUser.getEmail());
-    if (adminUser.getId() != null) {
-      targetCompany.setMainAdminUserId(adminUser.getId());
-      targetCompany.setOnboardingAdminUserId(adminUser.getId());
-    }
-    companyRepository.save(targetCompany);
+    SeedCompanyAdminSupport.attachMainAdmin(companyRepository, company, adminUser);
   }
 
   private void seedReadyToConfirmOrder(
@@ -440,13 +428,23 @@ public class MockDataInitializer {
                 Boolean.FALSE,
                 READY_CONFIRM_ORDER_IDEMPOTENCY_KEY,
                 "CREDIT"));
-    if (order != null && order.id() != null) {
+    if (order != null && order.id() != null && shouldSeedReservation(order.status())) {
       salesFulfillmentService.reserveForOrder(order.id());
       log.info(
           "Mock ready-to-confirm sales order seeded for UAT: orderId={} orderNumber={}",
           order.id(),
           order.orderNumber());
     }
+  }
+
+  private boolean shouldSeedReservation(String orderStatus) {
+    if (!StringUtils.hasText(orderStatus)) {
+      return true;
+    }
+    return switch (orderStatus.trim().toUpperCase(Locale.ROOT)) {
+      case "PENDING", "PENDING_STOCK", "PENDING_PRODUCTION" -> true;
+      default -> false;
+    };
   }
 
   private void seedPendingApprovalFixtures(

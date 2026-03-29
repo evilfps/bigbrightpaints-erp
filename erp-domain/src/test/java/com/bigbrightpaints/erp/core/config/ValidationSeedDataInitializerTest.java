@@ -25,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.core.security.CryptoService;
@@ -330,6 +331,48 @@ class ValidationSeedDataInitializerTest {
     verify(supportTicketRepository).save(any(SupportTicket.class));
     verify(creditRequestRepository).save(any(CreditRequest.class));
     verify(authScopeService).getPlatformScopeCode();
+  }
+
+  @Test
+  void ensureRuntimePolicyWritesExpectedKeysAndDeletesNullEntries() {
+    Company company = new Company();
+    company.setCode("HOLD");
+    ReflectionTestUtils.setField(company, "id", 41L);
+
+    ReflectionTestUtils.invokeMethod(
+        initializer,
+        "ensureRuntimePolicy",
+        systemSettingsRepository,
+        company,
+        "HOLD",
+        "Manual hold for validation",
+        12,
+        null,
+        5);
+
+    ArgumentCaptor<SystemSetting> settings = ArgumentCaptor.forClass(SystemSetting.class);
+    verify(systemSettingsRepository, times(6)).save(settings.capture());
+    assertThat(settings.getAllValues())
+        .extracting(SystemSetting::getKey)
+        .containsExactlyInAnyOrder(
+            "tenant.runtime.hold-state.41",
+            "tenant.runtime.hold-reason.41",
+            "tenant.runtime.max-active-users.41",
+            "tenant.runtime.max-concurrent-requests.41",
+            "tenant.runtime.policy-reference.41",
+            "tenant.runtime.policy-updated-at.41");
+    assertThat(settings.getAllValues())
+        .filteredOn(setting -> "tenant.runtime.policy-reference.41".equals(setting.getKey()))
+        .singleElement()
+        .extracting(SystemSetting::getValue)
+        .isEqualTo("validation-seed-hold");
+    assertThat(settings.getAllValues())
+        .filteredOn(setting -> "tenant.runtime.policy-updated-at.41".equals(setting.getKey()))
+        .singleElement()
+        .extracting(SystemSetting::getValue)
+        .isInstanceOf(String.class)
+        .satisfies(value -> assertThat((String) value).isNotBlank());
+    verify(systemSettingsRepository).deleteById("tenant.runtime.max-requests-per-minute.41");
   }
 
   private MockEnvironment activeProfiles(String... profiles) {
