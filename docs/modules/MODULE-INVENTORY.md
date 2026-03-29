@@ -37,6 +37,7 @@ The following packets document cross-cutting platform infrastructure that lives 
 | Packet | Ownership Summary | Canonical Packet |
 | --- | --- | --- |
 | **core security/error** | Security filter chain (JWT authentication, company-context resolution, must-change-password corridor), exception/error contract (ApplicationException, ErrorCode, global exception handlers), fail-open vs fail-closed boundaries | [core-security-error.md](core-security-error.md) |
+| **core audit/runtime/settings** | Audit-surface ownership (platform audit, enterprise audit trail, accounting event store), runtime-gating split (filter chain, enforcement services, portal interceptor), global-versus-tenant settings risk, audit routing for exception paths | [core-audit-runtime-settings.md](core-audit-runtime-settings.md) |
 
 ## Coverage Notes
 

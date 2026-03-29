@@ -4,7 +4,7 @@ Last reviewed: 2026-03-30
 
 This packet documents the **core security filter chain** and the **exception/error contract** that together govern request admission and failure behavior across the BigBright ERP backend. It covers what the platform enforces before any module code runs, how errors are surfaced to callers, and where the platform fails closed versus fails open.
 
-> **Scope note:** This is the first slice of the core platform contracts packet. It covers security filters and exception/error boundaries only. Audit-surface ownership, runtime-gating details, settings risk, and idempotency behavior are documented in later slices and linked from [docs/INDEX.md](../INDEX.md).
+> **Scope note:** This is the first slice of the core platform contracts packet. It covers security filters and exception/error boundaries only. Audit-surface ownership, runtime-gating details, and settings risk are documented in [core-audit-runtime-settings.md](core-audit-runtime-settings.md). Shared-versus-module-local idempotency behavior is deferred to a later integrating slice.
 
 ---
 
