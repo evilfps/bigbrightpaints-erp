@@ -1971,18 +1971,6 @@ public class ProductionCatalogService {
       boolean requireConfiguredDefaults) {
     Map<String, Object> working = metadata == null ? new HashMap<>() : new HashMap<>(metadata);
 
-    for (String key : FINISHED_GOOD_ACCOUNT_KEYS) {
-      Long accountId = metadataLong(working, key);
-      if (accountId == null) {
-        continue;
-      }
-      Long validatedAccountId =
-          requireFinishedGoodAccount(company, accountId, sku, key, validatedFinishedGoodAccounts);
-      if (!Objects.equals(accountId, validatedAccountId)) {
-        working.put(key, validatedAccountId);
-      }
-    }
-
     var defaults =
         requireConfiguredDefaults
             ? companyDefaultAccountsService.requireDefaults()
