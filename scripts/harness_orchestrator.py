@@ -63,6 +63,7 @@ def run(cmd: list[str], cwd: Path | None = None, check: bool = True) -> subproce
 
 
 DISALLOWED_CHECK_TOKENS = {"|", "||", "&", "&&", ";", "<", ">", ">>", "1>", "1>>", "2>", "2>>"}
+DISALLOWED_SHELL_CHARS = {"|", "&", ";", "<", ">"}
 DISALLOWED_CHECK_EXECUTABLES = {"bash", "sh", "zsh"}
 DISALLOWED_SHELL_FLAGS = {"-c", "-lc", "--command"}
 
@@ -82,6 +83,8 @@ def parse_required_check_command(command: str) -> list[str]:
     if not argv:
         raise ValueError("required check command cannot be blank")
     if any(token in DISALLOWED_CHECK_TOKENS for token in argv):
+        raise ValueError(f"required check command uses unsupported shell syntax: {raw!r}")
+    if any(any(char in token for char in DISALLOWED_SHELL_CHARS) for token in argv):
         raise ValueError(f"required check command uses unsupported shell syntax: {raw!r}")
     if any("$(" in token or "`" in token for token in argv):
         raise ValueError(f"required check command uses unsupported shell expansion: {raw!r}")

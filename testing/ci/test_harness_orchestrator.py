@@ -19,6 +19,13 @@ class HarnessRequiredCheckCommandTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsupported shell syntax"):
             parse_required_check_command("python3 scripts/check.py && rm -rf /tmp/nope")
 
+    def test_parse_required_check_command_rejects_redirect_tokens_embedded_in_args(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported shell syntax"):
+            parse_required_check_command("python3 scripts/check.py >/tmp/check.log")
+
+        with self.assertRaisesRegex(ValueError, "unsupported shell syntax"):
+            parse_required_check_command("python3 scripts/check.py 2>&1")
+
     def test_parse_required_check_command_rejects_shell_c_invocation(self) -> None:
         with self.assertRaisesRegex(ValueError, "may not invoke an interactive shell"):
             parse_required_check_command("bash -lc 'python3 scripts/check.py'")
