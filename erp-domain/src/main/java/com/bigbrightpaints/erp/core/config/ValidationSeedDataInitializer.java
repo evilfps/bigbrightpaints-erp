@@ -511,20 +511,18 @@ public class ValidationSeedDataInitializer {
       List<String> recoveryCodes) {
     String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
     String normalizedScopeCode = authScopeCode.trim().toUpperCase(Locale.ROOT);
+    String encodedPassword = passwordEncoder.encode(password);
     UserAccount user =
         userAccountRepository
             .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(normalizedEmail, normalizedScopeCode)
             .orElseGet(
                 () ->
                     new UserAccount(
-                        normalizedEmail,
-                        normalizedScopeCode,
-                        passwordEncoder.encode(password),
-                        displayName));
+                        normalizedEmail, normalizedScopeCode, encodedPassword, displayName));
     user.setEmail(normalizedEmail);
     user.setAuthScopeCode(normalizedScopeCode);
     user.setDisplayName(displayName);
-    user.setPasswordHash(passwordEncoder.encode(password));
+    user.setPasswordHash(encodedPassword);
     user.setEnabled(true);
     user.setMustChangePassword(mustChangePassword);
     user.setFailedLoginAttempts(lockedUntil == null ? 0 : 5);

@@ -83,6 +83,7 @@ import com.bigbrightpaints.erp.modules.sales.service.SalesOrderCrudService;
 public class MockDataInitializer {
 
   private static final Logger log = LoggerFactory.getLogger(MockDataInitializer.class);
+  private static final String DEFAULT_STATE_CODE = "MH";
   private static final String READY_CONFIRM_ORDER_IDEMPOTENCY_KEY = "mock-ready-confirm-order";
   private static final String APPROVAL_EXPORT_REPORT_TYPE = "SALES_REGISTER";
   private static final String APPROVAL_EXPORT_PARAMETERS = "{\"seed\":\"mock-validation-export\"}";
@@ -232,6 +233,9 @@ public class MockDataInitializer {
               if (existing.getBaseCurrency() == null) {
                 existing.setBaseCurrency("INR");
               }
+              if (!StringUtils.hasText(existing.getStateCode())) {
+                existing.setStateCode(DEFAULT_STATE_CODE);
+              }
               return companyRepository.save(existing);
             })
         .orElseGet(
@@ -242,6 +246,7 @@ public class MockDataInitializer {
               c.setTimezone("UTC");
               c.setDefaultGstRate(new BigDecimal("18"));
               c.setBaseCurrency("INR");
+              c.setStateCode(DEFAULT_STATE_CODE);
               return companyRepository.save(c);
             });
   }
@@ -672,7 +677,7 @@ public class MockDataInitializer {
     dealer.setOutstandingBalance(BigDecimal.ZERO);
     dealer.setEmail("dealer@mock.com");
     dealer.setStatus("ACTIVE");
-    dealer.setStateCode(company.getStateCode());
+    dealer.setStateCode(resolveStateCode(company.getStateCode(), dealer.getStateCode()));
     dealer.setGstRegistrationType(GstRegistrationType.REGULAR);
     return dealerRepository.save(dealer);
   }
@@ -694,9 +699,19 @@ public class MockDataInitializer {
     supplier.setCreditLimit(new BigDecimal("500000"));
     supplier.setEmail("supplier@mock.com");
     supplier.setStatus("ACTIVE");
-    supplier.setStateCode(company.getStateCode());
+    supplier.setStateCode(resolveStateCode(company.getStateCode(), supplier.getStateCode()));
     supplier.setGstRegistrationType(GstRegistrationType.REGULAR);
     return supplierRepository.save(supplier);
+  }
+
+  private String resolveStateCode(String primaryStateCode, String existingStateCode) {
+    if (StringUtils.hasText(primaryStateCode)) {
+      return primaryStateCode.trim().toUpperCase(Locale.ROOT);
+    }
+    if (StringUtils.hasText(existingStateCode)) {
+      return existingStateCode.trim().toUpperCase(Locale.ROOT);
+    }
+    return DEFAULT_STATE_CODE;
   }
 
   private ProductionBrand seedBrand(Company company, ProductionBrandRepository brandRepository) {

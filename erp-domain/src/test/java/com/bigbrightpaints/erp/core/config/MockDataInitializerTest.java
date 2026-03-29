@@ -124,6 +124,30 @@ class MockDataInitializerTest {
     assertThat(staleCompany.getOnboardingAdminEmail()).isNull();
   }
 
+  @Test
+  void createCompany_defaultsStateCodeForNewCompany() {
+    when(companyRepository.findByCodeIgnoreCase("MOCK")).thenReturn(Optional.empty());
+    when(companyRepository.save(any(Company.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0, Company.class));
+
+    Company company = ReflectionTestUtils.invokeMethod(initializer, "createCompany", companyRepository);
+
+    assertThat(company.getCode()).isEqualTo("MOCK");
+    assertThat(company.getStateCode()).isEqualTo("MH");
+  }
+
+  @Test
+  void createCompany_backfillsMissingStateCodeForExistingCompany() {
+    Company existingCompany = company("MOCK");
+    when(companyRepository.findByCodeIgnoreCase("MOCK")).thenReturn(Optional.of(existingCompany));
+    when(companyRepository.save(any(Company.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0, Company.class));
+
+    Company company = ReflectionTestUtils.invokeMethod(initializer, "createCompany", companyRepository);
+
+    assertThat(company.getStateCode()).isEqualTo("MH");
+  }
+
   private Company company(String code) {
     Company company = new Company();
     company.setCode(code);

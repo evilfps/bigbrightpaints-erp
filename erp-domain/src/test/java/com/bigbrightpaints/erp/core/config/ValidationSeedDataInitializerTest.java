@@ -148,6 +148,10 @@ class ValidationSeedDataInitializerTest {
         dealerRepository,
         accountRepository,
         invoiceRepository,
+        exportRequestRepository,
+        supportTicketRepository,
+        creditRequestRepository,
+        systemSettingsRepository,
         passwordEncoder,
         authScopeService);
   }
@@ -184,6 +188,10 @@ class ValidationSeedDataInitializerTest {
         userAccountRepository,
         dealerRepository,
         accountRepository,
+        exportRequestRepository,
+        supportTicketRepository,
+        creditRequestRepository,
+        systemSettingsRepository,
         passwordEncoder);
   }
 
