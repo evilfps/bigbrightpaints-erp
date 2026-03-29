@@ -12227,6 +12227,223 @@ class AccountingServiceTest {
   }
 
   @Test
+  void autoSettleDealer_rebuildsImplicitReplayKeyWhenOpenInvoicesChange() {
+    Dealer dealer =
+        dealer(91L, "Dealer Drift", account(1091L, "AR-1091", AccountType.ASSET));
+    Account cash = account(2091L, "CASH-2091", AccountType.ASSET);
+
+    Invoice firstOldest = invoice(9101L, dealer, "INV-9101", new BigDecimal("100.00"));
+    firstOldest.setIssueDate(LocalDate.of(2026, 1, 1));
+    Invoice firstNewer = invoice(9102L, dealer, "INV-9102", new BigDecimal("90.00"));
+    firstNewer.setIssueDate(LocalDate.of(2026, 1, 5));
+    Invoice secondOldest = invoice(9102L, dealer, "INV-9102", new BigDecimal("90.00"));
+    secondOldest.setIssueDate(LocalDate.of(2026, 1, 5));
+    Invoice secondNewer = invoice(9103L, dealer, "INV-9103", new BigDecimal("120.00"));
+    secondNewer.setIssueDate(LocalDate.of(2026, 1, 8));
+
+    when(dealerRepository.lockByCompanyAndId(company, 91L)).thenReturn(Optional.of(dealer));
+    when(companyEntityLookup.requireAccount(company, 2091L)).thenReturn(cash);
+    when(invoiceRepository.lockOpenInvoicesForSettlement(company, dealer))
+        .thenReturn(List.of(firstOldest, firstNewer))
+        .thenReturn(List.of(secondOldest, secondNewer));
+    when(invoiceRepository.lockByCompanyAndId(company, 9101L)).thenReturn(Optional.of(firstOldest));
+    when(invoiceRepository.lockByCompanyAndId(company, 9102L))
+        .thenReturn(Optional.of(firstNewer), Optional.of(secondOldest));
+    when(invoiceRepository.lockByCompanyAndId(company, 9103L)).thenReturn(Optional.of(secondNewer));
+
+    Map<String, List<PartnerSettlementAllocation>> allocationsByIdempotency = new java.util.HashMap<>();
+    Map<Long, List<PartnerSettlementAllocation>> allocationsByJournalEntryId = new java.util.HashMap<>();
+    Map<Long, JournalEntry> persistedEntries = new java.util.HashMap<>();
+    AtomicInteger nextEntryId = new AtomicInteger(9500);
+
+    doAnswer(
+            invocation -> {
+              JournalEntryRequest payload = invocation.getArgument(0);
+              long entryId = nextEntryId.incrementAndGet();
+              JournalEntry entry = journalEntry(entryId, payload.referenceNumber());
+              entry.setDealer(dealer);
+              entry.setEntryDate(payload.entryDate());
+              entry.setMemo(payload.memo());
+              for (JournalEntryRequest.JournalLineRequest line : payload.lines()) {
+                addJournalLine(
+                    entry,
+                    account(line.accountId(), "ACC-" + line.accountId(), AccountType.ASSET),
+                    line.description(),
+                    line.debit(),
+                    line.credit());
+              }
+              persistedEntries.put(entryId, entry);
+              return journalEntryDto(entryId, payload.referenceNumber());
+            })
+        .when(settlementIdempotencyService)
+        .createJournalEntry(any(JournalEntryRequest.class));
+    when(companyEntityLookup.requireJournalEntry(eq(company), any(Long.class)))
+        .thenAnswer(invocation -> persistedEntries.get(invocation.getArgument(1)));
+    when(settlementAllocationRepository
+            .findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(eq(company), any()))
+        .thenAnswer(
+            invocation ->
+                allocationsByIdempotency.getOrDefault(
+                    ((String) invocation.getArgument(1)).trim().toUpperCase(), List.of()));
+    when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(
+            eq(company), any(JournalEntry.class)))
+        .thenAnswer(
+            invocation -> {
+              JournalEntry entry = invocation.getArgument(1);
+              if (entry == null || entry.getId() == null) {
+                return List.of();
+              }
+              return allocationsByJournalEntryId.getOrDefault(entry.getId(), List.of());
+            });
+    when(settlementAllocationRepository.saveAll(any()))
+        .thenAnswer(
+            invocation -> {
+              @SuppressWarnings("unchecked")
+              List<PartnerSettlementAllocation> rows = invocation.getArgument(0);
+              List<PartnerSettlementAllocation> stored = new ArrayList<>(rows);
+              for (PartnerSettlementAllocation row : stored) {
+                String key = row.getIdempotencyKey().trim().toUpperCase();
+                allocationsByIdempotency.computeIfAbsent(key, ignored -> new ArrayList<>()).add(row);
+                Long entryId = row.getJournalEntry().getId();
+                allocationsByJournalEntryId
+                    .computeIfAbsent(entryId, ignored -> new ArrayList<>())
+                    .add(row);
+              }
+              return stored;
+            });
+
+    AutoSettlementRequest request =
+        new AutoSettlementRequest(
+            2091L, new BigDecimal("180.00"), null, "dealer drift auto-settle", null);
+
+    PartnerSettlementResponse first = accountingService.autoSettleDealer(91L, request);
+    PartnerSettlementResponse second = accountingService.autoSettleDealer(91L, request);
+
+    assertThat(first.allocations()).hasSize(2);
+    assertThat(first.allocations().get(0).invoiceId()).isEqualTo(9101L);
+    assertThat(first.allocations().get(1).invoiceId()).isEqualTo(9102L);
+
+    assertThat(second.allocations()).hasSize(2);
+    assertThat(second.allocations().get(0).invoiceId()).isEqualTo(9102L);
+    assertThat(second.allocations().get(0).appliedAmount()).isEqualByComparingTo("90.00");
+    assertThat(second.allocations().get(1).invoiceId()).isEqualTo(9103L);
+    assertThat(second.allocations().get(1).appliedAmount()).isEqualByComparingTo("90.00");
+    assertThat(second.journalEntry().id()).isNotEqualTo(first.journalEntry().id());
+  }
+
+  @Test
+  void autoSettleSupplier_rebuildsImplicitReplayKeyWhenOpenPurchasesChange() {
+    Supplier supplier =
+        supplier(92L, "Supplier Drift", account(3092L, "AP-3092", AccountType.LIABILITY));
+    supplier.setStatus(SupplierStatus.ACTIVE);
+    Account cash = account(4092L, "CASH-4092", AccountType.ASSET);
+
+    RawMaterialPurchase firstOldest =
+        purchase(9201L, "PUR-9201", supplier, new BigDecimal("60.00"), new BigDecimal("60.00"), "POSTED");
+    firstOldest.setInvoiceDate(LocalDate.of(2026, 1, 2));
+    RawMaterialPurchase firstNewer =
+        purchase(9202L, "PUR-9202", supplier, new BigDecimal("75.00"), new BigDecimal("75.00"), "POSTED");
+    firstNewer.setInvoiceDate(LocalDate.of(2026, 1, 7));
+    RawMaterialPurchase secondOldest =
+        purchase(9202L, "PUR-9202", supplier, new BigDecimal("75.00"), new BigDecimal("75.00"), "POSTED");
+    secondOldest.setInvoiceDate(LocalDate.of(2026, 1, 7));
+    RawMaterialPurchase secondNewer =
+        purchase(9203L, "PUR-9203", supplier, new BigDecimal("40.00"), new BigDecimal("40.00"), "POSTED");
+    secondNewer.setInvoiceDate(LocalDate.of(2026, 1, 10));
+
+    when(supplierRepository.lockByCompanyAndId(company, 92L)).thenReturn(Optional.of(supplier));
+    when(companyEntityLookup.requireAccount(company, 4092L)).thenReturn(cash);
+    when(rawMaterialPurchaseRepository.lockOpenPurchasesForSettlement(company, supplier))
+        .thenReturn(List.of(firstOldest, firstNewer))
+        .thenReturn(List.of(secondOldest, secondNewer));
+    when(rawMaterialPurchaseRepository.lockByCompanyAndId(company, 9201L))
+        .thenReturn(Optional.of(firstOldest));
+    when(rawMaterialPurchaseRepository.lockByCompanyAndId(company, 9202L))
+        .thenReturn(Optional.of(firstNewer), Optional.of(secondOldest));
+    when(rawMaterialPurchaseRepository.lockByCompanyAndId(company, 9203L))
+        .thenReturn(Optional.of(secondNewer));
+
+    Map<String, List<PartnerSettlementAllocation>> allocationsByIdempotency = new java.util.HashMap<>();
+    Map<Long, List<PartnerSettlementAllocation>> allocationsByJournalEntryId = new java.util.HashMap<>();
+    Map<Long, JournalEntry> persistedEntries = new java.util.HashMap<>();
+    AtomicInteger nextEntryId = new AtomicInteger(9600);
+
+    doAnswer(
+            invocation -> {
+              JournalEntryRequest payload = invocation.getArgument(0);
+              long entryId = nextEntryId.incrementAndGet();
+              JournalEntry entry = journalEntry(entryId, payload.referenceNumber());
+              entry.setSupplier(supplier);
+              entry.setEntryDate(payload.entryDate());
+              entry.setMemo(payload.memo());
+              for (JournalEntryRequest.JournalLineRequest line : payload.lines()) {
+                addJournalLine(
+                    entry,
+                    account(line.accountId(), "ACC-" + line.accountId(), AccountType.ASSET),
+                    line.description(),
+                    line.debit(),
+                    line.credit());
+              }
+              persistedEntries.put(entryId, entry);
+              return journalEntryDto(entryId, payload.referenceNumber());
+            })
+        .when(settlementIdempotencyService)
+        .createJournalEntry(any(JournalEntryRequest.class));
+    when(companyEntityLookup.requireJournalEntry(eq(company), any(Long.class)))
+        .thenAnswer(invocation -> persistedEntries.get(invocation.getArgument(1)));
+    when(settlementAllocationRepository
+            .findByCompanyAndIdempotencyKeyIgnoreCaseOrderByCreatedAtAscIdAsc(eq(company), any()))
+        .thenAnswer(
+            invocation ->
+                allocationsByIdempotency.getOrDefault(
+                    ((String) invocation.getArgument(1)).trim().toUpperCase(), List.of()));
+    when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(
+            eq(company), any(JournalEntry.class)))
+        .thenAnswer(
+            invocation -> {
+              JournalEntry entry = invocation.getArgument(1);
+              if (entry == null || entry.getId() == null) {
+                return List.of();
+              }
+              return allocationsByJournalEntryId.getOrDefault(entry.getId(), List.of());
+            });
+    when(settlementAllocationRepository.saveAll(any()))
+        .thenAnswer(
+            invocation -> {
+              @SuppressWarnings("unchecked")
+              List<PartnerSettlementAllocation> rows = invocation.getArgument(0);
+              List<PartnerSettlementAllocation> stored = new ArrayList<>(rows);
+              for (PartnerSettlementAllocation row : stored) {
+                String key = row.getIdempotencyKey().trim().toUpperCase();
+                allocationsByIdempotency.computeIfAbsent(key, ignored -> new ArrayList<>()).add(row);
+                Long entryId = row.getJournalEntry().getId();
+                allocationsByJournalEntryId
+                    .computeIfAbsent(entryId, ignored -> new ArrayList<>())
+                    .add(row);
+              }
+              return stored;
+            });
+
+    AutoSettlementRequest request =
+        new AutoSettlementRequest(
+            4092L, new BigDecimal("100.00"), null, "supplier drift auto-settle", null);
+
+    PartnerSettlementResponse first = accountingService.autoSettleSupplier(92L, request);
+    PartnerSettlementResponse second = accountingService.autoSettleSupplier(92L, request);
+
+    assertThat(first.allocations()).hasSize(2);
+    assertThat(first.allocations().get(0).purchaseId()).isEqualTo(9201L);
+    assertThat(first.allocations().get(1).purchaseId()).isEqualTo(9202L);
+
+    assertThat(second.allocations()).hasSize(2);
+    assertThat(second.allocations().get(0).purchaseId()).isEqualTo(9202L);
+    assertThat(second.allocations().get(0).appliedAmount()).isEqualByComparingTo("75.00");
+    assertThat(second.allocations().get(1).purchaseId()).isEqualTo(9203L);
+    assertThat(second.allocations().get(1).appliedAmount()).isEqualByComparingTo("25.00");
+    assertThat(second.journalEntry().id()).isNotEqualTo(first.journalEntry().id());
+  }
+
+  @Test
   void partnerMismatchMessage_fallbackUsesPartnerTypeWording() {
     String dealerMessage =
         ReflectionTestUtils.invokeMethod(

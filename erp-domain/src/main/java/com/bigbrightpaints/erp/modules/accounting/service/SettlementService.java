@@ -1,8 +1,6 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
 import java.math.BigDecimal;
-import java.util.Locale;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -195,31 +193,12 @@ public class SettlementService extends AccountingCoreEngine {
     ValidationUtils.requireNotNull(partnerId, "partnerId");
     ValidationUtils.requireNotNull(request, "request");
     ValidationUtils.requirePositive(request.amount(), "amount");
-    BigDecimal normalizedAmount = request.amount().abs();
-    String idempotencyKey = normalizeText(request.idempotencyKey());
-    String reference = normalizeText(request.referenceNumber());
-    if (reference == null) {
-      String seed =
-          partnerType
-              + "|"
-              + partnerId
-              + "|"
-              + (request.cashAccountId() != null ? request.cashAccountId() : "null")
-              + "|"
-              + normalizedAmount.stripTrailingZeros().toPlainString();
-      String deterministicSuffix = IdempotencyUtils.sha256Hex(seed, 24).toUpperCase(Locale.ROOT);
-      String prefix = "DEALER".equals(partnerType) ? "SET" : "SUP-SET";
-      reference = prefix + "-" + deterministicSuffix.substring(0, 12);
-    }
-    if (idempotencyKey == null) {
-      idempotencyKey = reference;
-    }
     return new AutoSettlementRequest(
         request.cashAccountId(),
-        normalizedAmount,
-        reference,
+        request.amount().abs(),
+        normalizeText(request.referenceNumber()),
         normalizeText(request.memo()),
-        idempotencyKey);
+        normalizeText(request.idempotencyKey()));
   }
 
   private String normalizeText(String value) {
