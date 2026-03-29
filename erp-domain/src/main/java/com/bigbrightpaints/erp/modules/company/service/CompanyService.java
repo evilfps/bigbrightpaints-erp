@@ -542,10 +542,8 @@ public class CompanyService {
   @Transactional
   public TenantRuntimeEnforcementService.TenantRuntimeSnapshot updateTenantRuntimePolicy(
       Long companyId, TenantRuntimePolicyMutationRequest request) {
-    if (tenantRuntimeEnforcementService == null) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
-          "Tenant runtime enforcement service unavailable");
-    }
+    TenantRuntimeEnforcementService runtimeEnforcementService =
+        requireTenantRuntimeEnforcementService();
     if (!hasRuntimePolicyMutation(request)) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Runtime policy mutation payload is required");
@@ -560,7 +558,7 @@ public class CompanyService {
                         "Company not found"));
     assertBoundControlPlaneMutationContextMatchesTarget(company.getCode());
     TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot =
-        tenantRuntimeEnforcementService.updatePolicy(
+        runtimeEnforcementService.updatePolicy(
             company.getCode(),
             parseRuntimeState(request.holdState()),
             request.reasonCode(),
@@ -793,7 +791,7 @@ public class CompanyService {
     if (!StringUtils.hasText(boundCompanyCode)) {
       return;
     }
-    if (authScopeService != null && authScopeService.isPlatformScope(boundCompanyCode)) {
+    if (requireAuthScopeService().isPlatformScope(boundCompanyCode)) {
       return;
     }
     if (!boundCompanyCode.trim().equalsIgnoreCase(targetCompanyCode.trim())) {
@@ -811,7 +809,7 @@ public class CompanyService {
           "Bound company context is required for targeted tenant mutation");
     }
     String normalizedBoundCompanyCode = boundCompanyCode.trim();
-    if (authScopeService != null && authScopeService.isPlatformScope(normalizedBoundCompanyCode)) {
+    if (requireAuthScopeService().isPlatformScope(normalizedBoundCompanyCode)) {
       return;
     }
     if (!normalizedBoundCompanyCode.equalsIgnoreCase(targetCompanyCode.trim())) {
@@ -825,12 +823,11 @@ public class CompanyService {
       String lifecycleReason,
       Authentication authentication) {
     if (company == null
-        || tenantRuntimeEnforcementService == null
         || requestedState == null
         || !StringUtils.hasText(company.getCode())) {
       return;
     }
-    tenantRuntimeEnforcementService.updatePolicy(
+    requireTenantRuntimeEnforcementService().updatePolicy(
         company.getCode(),
         mapLifecycleToRuntimeState(requestedState),
         lifecycleReason,
@@ -842,7 +839,7 @@ public class CompanyService {
 
   private void synchronizeRuntimePolicyEnvelope(
       Company company, Authentication authentication, String reasonCode) {
-    if (company == null || tenantRuntimeEnforcementService == null || !StringUtils.hasText(company.getCode())) {
+    if (company == null || !StringUtils.hasText(company.getCode())) {
       return;
     }
     TenantRuntimeEnforcementService.TenantRuntimeState runtimeState =
@@ -852,7 +849,7 @@ public class CompanyService {
         StringUtils.hasText(company.getLifecycleReason())
             ? company.getLifecycleReason()
             : reasonCode;
-    tenantRuntimeEnforcementService.updatePolicy(
+    requireTenantRuntimeEnforcementService().updatePolicy(
         company.getCode(),
         runtimeState,
         effectiveReason,
@@ -887,7 +884,7 @@ public class CompanyService {
   }
 
   private void ensureCompanyCodeAvailableForCreate(String companyCode) {
-    if (authScopeService != null && authScopeService.isPlatformScope(companyCode)) {
+    if (requireAuthScopeService().isPlatformScope(companyCode)) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Company code conflicts with platform auth code: " + companyCode);
     }
@@ -901,7 +898,7 @@ public class CompanyService {
   }
 
   private void ensureCompanyCodeAvailableForUpdate(Long companyId, String companyCode) {
-    if (authScopeService != null && authScopeService.isPlatformScope(companyCode)) {
+    if (requireAuthScopeService().isPlatformScope(companyCode)) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Company code conflicts with platform auth code: " + companyCode);
     }
@@ -977,6 +974,22 @@ public class CompanyService {
           "Password reset email delivery is disabled; enable erp.mail.enabled=true and"
               + " erp.mail.send-password-reset=true");
     }
+  }
+
+  private AuthScopeService requireAuthScopeService() {
+    if (authScopeService == null) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+          "Auth scope service unavailable");
+    }
+    return authScopeService;
+  }
+
+  private TenantRuntimeEnforcementService requireTenantRuntimeEnforcementService() {
+    if (tenantRuntimeEnforcementService == null) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+          "Tenant runtime enforcement service unavailable");
+    }
+    return tenantRuntimeEnforcementService;
   }
 
   private TenantRuntimeEnforcementService.TenantRuntimeState parseRuntimeState(String holdState) {

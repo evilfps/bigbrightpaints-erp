@@ -260,7 +260,7 @@ public class TenantOnboardingService {
   }
 
   private void ensureCompanyCodeAvailable(String companyCode) {
-    if (authScopeService != null && authScopeService.isPlatformScope(companyCode)) {
+    if (requireAuthScopeService().isPlatformScope(companyCode)) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Company code conflicts with platform auth code: " + companyCode);
     }
@@ -287,10 +287,10 @@ public class TenantOnboardingService {
   }
 
   private void initializeTenantRuntimePolicy(Company company) {
-    if (company == null || tenantRuntimeEnforcementService == null || !StringUtils.hasText(company.getCode())) {
+    if (company == null || !StringUtils.hasText(company.getCode())) {
       return;
     }
-    tenantRuntimeEnforcementService.updatePolicy(
+    requireTenantRuntimeEnforcementService().updatePolicy(
         company.getCode(),
         TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE,
         "TENANT_ONBOARDING_BOOTSTRAP",
@@ -298,6 +298,22 @@ public class TenantOnboardingService {
         TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxApiRequests()),
         TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxActiveUsers()),
         SecurityActorResolver.resolveActorWithSystemProcessFallback());
+  }
+
+  private AuthScopeService requireAuthScopeService() {
+    if (authScopeService == null) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+          "Auth scope service unavailable");
+    }
+    return authScopeService;
+  }
+
+  private TenantRuntimeEnforcementService requireTenantRuntimeEnforcementService() {
+    if (tenantRuntimeEnforcementService == null) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+          "Tenant runtime enforcement service unavailable");
+    }
+    return tenantRuntimeEnforcementService;
   }
 
   private boolean isNonGstMode(Company company) {

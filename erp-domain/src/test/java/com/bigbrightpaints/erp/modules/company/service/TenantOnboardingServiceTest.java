@@ -102,6 +102,39 @@ class TenantOnboardingServiceTest {
   }
 
   @Test
+  void onboardTenant_requiresAuthScopeService() {
+    TenantOnboardingService service =
+        new TenantOnboardingService(
+            companyRepository,
+            userAccountRepository,
+            accountRepository,
+            accountingPeriodService,
+            coATemplateService,
+            systemSettingsRepository,
+            tenantAdminProvisioningService,
+            null,
+            tenantRuntimeEnforcementService);
+    TenantOnboardingRequest request =
+        new TenantOnboardingRequest(
+            "Missing Auth Scope Service",
+            "missing-auth",
+            "UTC",
+            null,
+            10L,
+            1000L,
+            1024L,
+            5L,
+            true,
+            true,
+            "admin@missing-auth.com",
+            "Auth Admin",
+            "GENERIC");
+
+    assertThatThrownBy(() -> service.onboardTenant(request))
+        .hasMessageContaining("Auth scope service unavailable");
+  }
+
+  @Test
   void onboardTenant_returnsCanonicalResponseWithoutTemporaryPasswordFields() {
     TenantOnboardingService service = newService();
     TenantOnboardingRequest request =
@@ -274,6 +307,27 @@ class TenantOnboardingServiceTest {
     assertThat(TenantBootstrapDefaults.resolveDefaultGstRate(null)).isEqualByComparingTo("18");
     assertThat(TenantBootstrapDefaults.resolveDefaultGstRate(BigDecimal.TEN))
         .isEqualByComparingTo("10");
+  }
+
+  @Test
+  void initializeTenantRuntimePolicy_requiresRuntimeEnforcementService() {
+    TenantOnboardingService service =
+        new TenantOnboardingService(
+            companyRepository,
+            userAccountRepository,
+            accountRepository,
+            accountingPeriodService,
+            coATemplateService,
+            systemSettingsRepository,
+            tenantAdminProvisioningService,
+            authScopeService,
+            null);
+    Company company = new Company();
+    company.setCode("ACME");
+
+    assertThatThrownBy(
+            () -> ReflectionTestUtils.invokeMethod(service, "initializeTenantRuntimePolicy", company))
+        .hasMessageContaining("Tenant runtime enforcement service unavailable");
   }
 
   @Test

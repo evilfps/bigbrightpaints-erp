@@ -235,6 +235,33 @@ class CompanyServiceTest {
   }
 
   @Test
+  void synchronizeRuntimePolicyEnvelope_requiresRuntimeEnforcementService() {
+    CompanyService withoutRuntimeEnforcementService =
+        new CompanyService(
+            repository,
+            auditService,
+            userAccountRepository,
+            auditLogRepository,
+            null,
+            tenantAdminProvisioningService,
+            tenantLifecycleService,
+            passwordResetService,
+            authScopeService);
+    Company target = company(4L, "ACME");
+
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    withoutRuntimeEnforcementService,
+                    "synchronizeRuntimePolicyEnvelope",
+                    target,
+                    null,
+                    "test-sync"))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Tenant runtime enforcement service unavailable");
+  }
+
+  @Test
   void update_appliesEnabledModulesWhenPayloadIncludesGatableModules() {
     authenticateAs("ROLE_SUPER_ADMIN");
     bindCompanyContext("ACME");
@@ -611,7 +638,7 @@ class CompanyServiceTest {
   }
 
   @Test
-  void update_allowsBoundMatchingContextWhenAuthScopeServiceIsUnavailable() {
+  void update_requiresAuthScopeServiceWhenValidatingBoundContext() {
     authenticateAs("ROLE_SUPER_ADMIN");
     bindCompanyContext("ACME");
     Company target = company(2L, "ACME");
@@ -628,11 +655,10 @@ class CompanyServiceTest {
             passwordResetService,
             null);
     when(repository.findById(2L)).thenReturn(Optional.of(target));
-    when(repository.findByCodeIgnoreCase("BBB")).thenReturn(Optional.empty());
-    when(userAccountRepository.findByCompany_Id(2L)).thenReturn(List.of());
-    CompanyDto dto = withoutAuthScopeService.update(2L, request, Set.of(target));
 
-    assertThat(dto.code()).isEqualTo("BBB");
+    assertThatThrownBy(() -> withoutAuthScopeService.update(2L, request, Set.of(target)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Auth scope service unavailable");
   }
 
   @Test
@@ -854,8 +880,18 @@ class CompanyServiceTest {
   void create_requiresCredentialProvisioningDependenciesWhenFirstAdminIsRequested() {
     authenticateAs("ROLE_SUPER_ADMIN");
     CompanyService serviceWithoutProvisioning =
-        new CompanyService(repository, auditService, userAccountRepository, auditLogRepository);
+        new CompanyService(
+            repository,
+            auditService,
+            userAccountRepository,
+            auditLogRepository,
+            tenantRuntimeEnforcementService,
+            null,
+            tenantLifecycleService,
+            passwordResetService,
+            authScopeService);
     Company incoming = company(7L, "SKE");
+    when(authScopeService.isPlatformScope("SKE")).thenReturn(false);
     when(repository.findByCodeIgnoreCase("SKE")).thenReturn(Optional.empty());
     when(repository.save(org.mockito.ArgumentMatchers.any(Company.class))).thenReturn(incoming);
 
