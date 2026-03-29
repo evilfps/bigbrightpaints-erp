@@ -123,9 +123,7 @@ assert_endpoint_contract() {
 
 for path in "$GUARDRAIL_DOC" "$ENDPOINT_MAP_DOC" "$HANDOFF_DOC" "$ENDPOINT_INVENTORY_DOC"; do
   if [[ ! -f "$path" ]]; then
-    echo "[guard_accounting_portal_scope_contract] WARN: missing optional scope contract file: $path"
-    echo "[guard_accounting_portal_scope_contract] WARN: continuing with fail-open compatibility mode"
-    exit 0
+    fail "missing required scope contract file: $path"
   fi
 done
 

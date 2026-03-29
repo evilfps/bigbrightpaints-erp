@@ -113,6 +113,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
     ResponseEntity<Map> salesDetail =
         getCatalogItem(((Number) item.get("id")).longValue(), true, true, salesHeaders);
     assertThat(salesDetail.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(data(salesDetail).get("stock")).isNull();
     assertThat(metadata(data(salesDetail)))
         .doesNotContainKeys(
             "wipAccountId",
@@ -165,6 +166,12 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         rest.exchange(
             "/api/v1/catalog/items?q=titanium&itemClass=RAW_MATERIAL&includeStock=true&includeReadiness=true",
             HttpMethod.GET,
+            new HttpEntity<>(factoryHeaders),
+            Map.class);
+    ResponseEntity<Map> salesSearchResponse =
+        rest.exchange(
+            "/api/v1/catalog/items?q=titanium&itemClass=RAW_MATERIAL&includeStock=true&includeReadiness=true",
+            HttpMethod.GET,
             new HttpEntity<>(salesHeaders),
             Map.class);
 
@@ -178,6 +185,12 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
     assertThat(item.get("code")).isEqualTo("RM-" + brand.getCode() + "-TITANIUMDIOXIDE-RUTILE-KG");
     assertThat(item).containsKey("stock");
     assertThat(item).containsKey("readiness");
+
+    assertThat(salesSearchResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    List<Map<String, Object>> salesContent = pageContent(salesSearchResponse);
+    assertThat(salesContent).hasSize(1);
+    assertThat(salesContent.getFirst().get("stock")).isNull();
+    assertThat(salesContent.getFirst()).containsKey("readiness");
   }
 
   @Test

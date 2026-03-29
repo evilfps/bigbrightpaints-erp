@@ -6,8 +6,9 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Stream;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -49,42 +50,22 @@ public class AuditTrailQueryService {
     Company company = companyContextService.requireCurrentCompany();
     int safePage = Math.max(page, 0);
     int safeSize = Math.max(1, Math.min(size, 200));
-
-    List<AuditActionEvent> events =
-        auditActionEventRepository.findAll(
-            Specification.where(byCompany(company.getId())).and(byOccurredRange(from, to)),
-            Sort.by(Sort.Direction.DESC, "occurredAt", "id"));
-
-    Stream<AuditActionEvent> stream = events.stream().filter(this::isAccountingModule);
-
-    if (StringUtils.hasText(user)) {
-      String normalizedUser = user.trim().toLowerCase(Locale.ROOT);
-      stream =
-          stream.filter(
-              event ->
-                  matchesIgnoreCase(event.getActorIdentifier(), normalizedUser)
-                      || (event.getActorUserId() != null
-                          && String.valueOf(event.getActorUserId()).equals(normalizedUser)));
-    }
-    if (StringUtils.hasText(actionType)) {
-      String normalizedAction = actionType.trim().toLowerCase(Locale.ROOT);
-      stream = stream.filter(event -> matchesIgnoreCase(event.getAction(), normalizedAction));
-    }
-    if (StringUtils.hasText(entityType)) {
-      String normalizedEntityType = entityType.trim().toLowerCase(Locale.ROOT);
-      stream =
-          stream.filter(event -> matchesIgnoreCase(event.getEntityType(), normalizedEntityType));
-    }
-
-    List<AuditActionEvent> filtered = stream.toList();
-    int fromIndex = Math.min(safePage * safeSize, filtered.size());
-    int toIndex = Math.min(fromIndex + safeSize, filtered.size());
+    Specification<AuditActionEvent> spec =
+        Specification.where(byCompany(company.getId()))
+            .and(byOccurredRange(from, to))
+            .and(byExactIgnoreCase("module", ACCOUNTING_MODULE))
+            .and(byActor(user))
+            .and(byExactIgnoreCase("action", actionType))
+            .and(byExactIgnoreCase("entityType", entityType));
+    PageRequest pageRequest =
+        PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "occurredAt", "id"));
+    Page<AuditActionEvent> resultPage = auditActionEventRepository.findAll(spec, pageRequest);
     List<AccountingAuditTrailEntryDto> content =
-        filtered.subList(fromIndex, toIndex).stream()
+        resultPage.getContent().stream()
             .map(event -> toDto(event, company.getCode()))
             .toList();
 
-    return PageResponse.of(content, filtered.size(), safePage, safeSize);
+    return PageResponse.of(content, resultPage.getTotalElements(), safePage, safeSize);
   }
 
   private AccountingAuditTrailEntryDto toDto(AuditActionEvent event, String companyCode) {
@@ -109,14 +90,37 @@ public class AuditTrailQueryService {
         metadata);
   }
 
-  private boolean isAccountingModule(AuditActionEvent event) {
-    return event != null && matchesIgnoreCase(event.getModule(), ACCOUNTING_MODULE);
+  private Specification<AuditActionEvent> byExactIgnoreCase(String fieldName, String value) {
+    if (!StringUtils.hasText(value)) {
+      return null;
+    }
+    String normalizedValue = value.trim().toLowerCase(Locale.ROOT);
+    return (root, query, cb) ->
+        cb.equal(cb.lower(root.get(fieldName).as(String.class)), normalizedValue);
   }
 
-  private boolean matchesIgnoreCase(String value, String normalizedFilter) {
-    return StringUtils.hasText(value)
-        && StringUtils.hasText(normalizedFilter)
-        && value.trim().equalsIgnoreCase(normalizedFilter.trim());
+  private Specification<AuditActionEvent> byActor(String user) {
+    if (!StringUtils.hasText(user)) {
+      return null;
+    }
+    String normalizedUser = user.trim().toLowerCase(Locale.ROOT);
+    Long actorUserId = parseLongFilter(normalizedUser);
+    return (root, query, cb) -> {
+      if (actorUserId == null) {
+        return cb.equal(cb.lower(root.get("actorIdentifier").as(String.class)), normalizedUser);
+      }
+      return cb.or(
+          cb.equal(cb.lower(root.get("actorIdentifier").as(String.class)), normalizedUser),
+          cb.equal(root.get("actorUserId"), actorUserId));
+    };
+  }
+
+  private Long parseLongFilter(String value) {
+    try {
+      return Long.valueOf(value);
+    } catch (NumberFormatException ex) {
+      return null;
+    }
   }
 
   private Specification<AuditActionEvent> byCompany(Long companyId) {

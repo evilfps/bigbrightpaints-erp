@@ -12,6 +12,9 @@ public interface OpeningStockImportRepository extends JpaRepository<OpeningStock
   Optional<OpeningStockImport> findByCompanyAndIdempotencyKey(
       Company company, String idempotencyKey);
 
+  Optional<OpeningStockImport> findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
+      Company company, String contentFingerprint);
+
   Optional<OpeningStockImport> findByCompanyAndOpeningStockBatchKey(
       Company company, String openingStockBatchKey);
 

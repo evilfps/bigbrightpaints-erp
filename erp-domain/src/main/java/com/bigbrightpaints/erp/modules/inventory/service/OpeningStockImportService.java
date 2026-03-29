@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.inventory.service;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -79,6 +80,7 @@ import com.bigbrightpaints.erp.shared.dto.PageResponse;
 public class OpeningStockImportService {
 
   private static final String DEFAULT_BATCH_REF = "OPENING";
+  private static final int MAX_HISTORY_PAGE_SIZE = 100;
 
   private final CompanyContextService companyContextService;
   private final RawMaterialRepository rawMaterialRepository;
@@ -149,6 +151,7 @@ public class OpeningStockImportService {
     }
     String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
     String normalizedBatchKey = normalizeOpeningStockBatchKey(openingStockBatchKey);
+    String contentFingerprint = fingerprintFile(file);
     String importReference = resolveImportReference(company, normalizedBatchKey);
 
     OpeningStockImport existing =
@@ -158,6 +161,16 @@ public class OpeningStockImportService {
     if (existing != null) {
       assertReplayMatch(existing, normalizedKey, normalizedBatchKey);
       return toResponse(existing);
+    }
+
+    OpeningStockImport contentReplay =
+        openingStockImportRepository
+            .findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
+                company, contentFingerprint)
+            .orElse(null);
+    if (contentReplay != null
+        && !normalizedBatchKey.equals(contentReplay.getOpeningStockBatchKey())) {
+      throw openingStockContentReplayConflict(contentReplay, normalizedKey, normalizedBatchKey);
     }
 
     OpeningStockImport batchKeyConflict =
@@ -190,7 +203,12 @@ public class OpeningStockImportService {
           transactionTemplate.execute(
               status ->
                   importOpeningStockInternal(
-                      company, file, normalizedKey, normalizedBatchKey, importReference));
+                      company,
+                      file,
+                      normalizedKey,
+                      normalizedBatchKey,
+                      contentFingerprint,
+                      importReference));
       if (response == null) {
         throw ValidationUtils.invalidState("Opening stock import failed to return a response");
       }
@@ -221,7 +239,7 @@ public class OpeningStockImportService {
   public PageResponse<OpeningStockImportHistoryItem> listImportHistory(int page, int size) {
     Company company = companyContextService.requireCurrentCompany();
     int safePage = Math.max(page, 0);
-    int safeSize = Math.max(size, 1);
+    int safeSize = Math.min(Math.max(size, 1), MAX_HISTORY_PAGE_SIZE);
     PageRequest pageable =
         PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
     Page<OpeningStockImport> historyPage =
@@ -236,6 +254,7 @@ public class OpeningStockImportService {
       MultipartFile file,
       String idempotencyKey,
       String openingStockBatchKey,
+      String contentFingerprint,
       String importReference) {
     OpeningStockImport record = new OpeningStockImport();
     record.setCompany(company);
@@ -243,6 +262,7 @@ public class OpeningStockImportService {
     record.setReferenceNumber(importReference);
     record.setOpeningStockBatchKey(openingStockBatchKey);
     record.setFileName(file.getOriginalFilename());
+    record.setContentFingerprint(contentFingerprint);
     record = openingStockImportRepository.saveAndFlush(record);
 
     ImportResult result = processImport(company, file, importReference, openingStockBatchKey);
@@ -441,6 +461,26 @@ public class OpeningStockImportService {
     return StringUtils.hasText(sku) ? sku.trim().toUpperCase(Locale.ROOT) : null;
   }
 
+  private String fingerprintFile(MultipartFile file) {
+    try (InputStream inputStream = file.getInputStream()) {
+      String normalizedPayload = normalizeFilePayload(inputStream.readAllBytes());
+      if (!StringUtils.hasText(normalizedPayload)) {
+        throw ValidationUtils.invalidInput("CSV file is required");
+      }
+      return IdempotencyUtils.sha256Hex(normalizedPayload);
+    } catch (IOException ex) {
+      throw ValidationUtils.invalidState("Failed to read CSV file", ex);
+    }
+  }
+
+  private String normalizeFilePayload(byte[] bytes) {
+    String payload = new String(bytes, StandardCharsets.UTF_8);
+    if (!payload.isEmpty() && payload.charAt(0) == '\uFEFF') {
+      payload = payload.substring(1);
+    }
+    return payload.replace("\r\n", "\n").replace('\r', '\n');
+  }
+
   private void assertReplayMatch(
       OpeningStockImport record, String idempotencyKey, String openingStockBatchKey) {
     String storedBatchKey =
@@ -563,6 +603,20 @@ public class OpeningStockImportService {
             "operatorAction",
             "Reuse the original Idempotency-Key for a retry, or reverse the prior opening stock"
                 + " before importing a distinct batch.");
+  }
+
+  private ApplicationException openingStockContentReplayConflict(
+      OpeningStockImport existing, String attemptedIdempotencyKey, String attemptedBatchKey) {
+    return new ApplicationException(
+            ErrorCode.BUSINESS_DUPLICATE_ENTRY,
+            "Opening stock file already imported. Reuse the original Idempotency-Key and"
+                + " openingStockBatchKey to retry, or reverse the prior opening stock before"
+                + " importing materially distinct content.")
+        .withDetail("existingIdempotencyKey", existing.getIdempotencyKey())
+        .withDetail("existingOpeningStockBatchKey", existing.getOpeningStockBatchKey())
+        .withDetail("referenceNumber", existing.getReferenceNumber())
+        .withDetail("attemptedIdempotencyKey", attemptedIdempotencyKey)
+        .withDetail("attemptedOpeningStockBatchKey", attemptedBatchKey);
   }
 
   private String sanitizeCompanyCode(String code) {

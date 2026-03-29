@@ -96,4 +96,48 @@ class CoreFallbackExceptionHandlerTest {
         .containsEntry("message", ErrorCode.AUTH_ACCOUNT_LOCKED.getDefaultMessage())
         .containsKey("traceId");
   }
+
+  @Test
+  void handleIllegalState_redactsInternalMessageFromFallbackResponse() {
+    CoreFallbackExceptionHandler handler = new CoreFallbackExceptionHandler();
+    MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/accounting/post");
+    request.setRequestURI("/api/v1/accounting/post");
+
+    ResponseEntity<ApiResponse<Map<String, Object>>> response =
+        handler.handleIllegalState(
+            new IllegalStateException("raw sql state 23505 duplicate ledger mutation"), request);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().message())
+        .isEqualTo(ErrorCode.BUSINESS_INVALID_STATE.getDefaultMessage());
+    assertThat(response.getBody().data())
+        .containsEntry("code", ErrorCode.BUSINESS_INVALID_STATE.getCode())
+        .containsEntry("message", ErrorCode.BUSINESS_INVALID_STATE.getDefaultMessage())
+        .containsKey("traceId");
+    assertThat(response.getBody().data().values())
+        .allSatisfy(value -> assertThat(String.valueOf(value)).doesNotContain("23505"));
+  }
+
+  @Test
+  void handleRuntime_redactsInternalMessageFromFallbackResponse() {
+    CoreFallbackExceptionHandler handler = new CoreFallbackExceptionHandler();
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/reports/export");
+    request.setRequestURI("/api/v1/reports/export");
+
+    ResponseEntity<ApiResponse<Map<String, Object>>> response =
+        handler.handleRuntime(
+            new RuntimeException("jdbc password=secret host=db-internal"), request);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().message()).isEqualTo("Internal error");
+    assertThat(response.getBody().data())
+        .containsEntry("code", ErrorCode.SYSTEM_INTERNAL_ERROR.getCode())
+        .containsEntry("message", "An internal error occurred. Please try again later.")
+        .containsKey("traceId")
+        .containsKey("timestamp");
+    assertThat(response.getBody().data().values())
+        .allSatisfy(value -> assertThat(String.valueOf(value)).doesNotContain("secret"));
+  }
 }

@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.inventory.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
@@ -45,6 +46,7 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -133,6 +135,11 @@ class OpeningStockImportServiceTest {
     lenient()
         .when(skuReadinessService.forSku(eq(company), any(String.class), any()))
         .thenAnswer(invocation -> readyReadiness(invocation.getArgument(1, String.class)));
+    lenient()
+        .when(
+            openingStockImportRepository.findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
+                eq(company), anyString()))
+        .thenReturn(Optional.empty());
   }
 
   @Test
@@ -1236,6 +1243,22 @@ class OpeningStockImportServiceTest {
   }
 
   @Test
+  void listImportHistory_clampsRequestedSizeToSaneMax() {
+    Page<OpeningStockImport> pageResult = new PageImpl<>(List.of(), PageRequest.of(2, 100), 0);
+    when(openingStockImportRepository.findByCompany(eq(company), any(PageRequest.class)))
+        .thenReturn(pageResult);
+
+    PageResponse<OpeningStockImportHistoryItem> history = service.listImportHistory(2, 500);
+
+    assertThat(history.page()).isEqualTo(2);
+    assertThat(history.size()).isEqualTo(100);
+
+    ArgumentCaptor<PageRequest> pageRequestCaptor = ArgumentCaptor.forClass(PageRequest.class);
+    verify(openingStockImportRepository).findByCompany(eq(company), pageRequestCaptor.capture());
+    assertThat(pageRequestCaptor.getValue().getPageSize()).isEqualTo(100);
+  }
+
+  @Test
   void importOpeningStock_replaysPersistedImportForSameIdempotencyKey() {
     MockMultipartFile file =
         csvFile(
@@ -1364,14 +1387,56 @@ class OpeningStockImportServiceTest {
   }
 
   @Test
+  void importOpeningStock_rejectsSameFileReplayUnderFreshBatchKey() {
+    String csv =
+        String.join(
+            "\n",
+            "type,sku,name,unit,unit_type,batch_code,quantity,unit_cost,material_type",
+            "RAW_MATERIAL,RM-1,Resin,KG,KG,RM-B1,10,5.00,PRODUCTION");
+    MockMultipartFile file = csvFile(csv);
+
+    OpeningStockImport existing = new OpeningStockImport();
+    existing.setCompany(company);
+    existing.setIdempotencyKey("original-key");
+    existing.setOpeningStockBatchKey("OPEN-STOCK-BATCH-ORIGINAL");
+    existing.setReferenceNumber("OPEN-STOCK-ACME-ORIGINAL");
+    existing.setContentFingerprint(fingerprint(csv));
+
+    when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "fresh-key"))
+        .thenReturn(Optional.empty());
+    when(
+            openingStockImportRepository.findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
+                company, fingerprint(csv)))
+        .thenReturn(Optional.of(existing));
+
+    assertThatThrownBy(
+            () -> importOpeningStock(file, "fresh-key", "OPEN-STOCK-BATCH-FRESH"))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_DUPLICATE_ENTRY);
+              assertThat(ex.getMessage()).contains("Opening stock file already imported");
+              assertThat(ex.getDetails())
+                  .containsEntry("existingIdempotencyKey", "original-key")
+                  .containsEntry("existingOpeningStockBatchKey", "OPEN-STOCK-BATCH-ORIGINAL")
+                  .containsEntry("referenceNumber", "OPEN-STOCK-ACME-ORIGINAL")
+                  .containsEntry("attemptedIdempotencyKey", "fresh-key")
+                  .containsEntry(
+                      "attemptedOpeningStockBatchKey", "OPEN-STOCK-BATCH-FRESH");
+            });
+  }
+
+  @Test
   void openingStockImport_entityExposesBatchKeyAndImportMetadata() {
     OpeningStockImport entity = new OpeningStockImport();
     entity.setOpeningStockBatchKey("batch-key");
     entity.setFileName("opening.csv");
+    entity.setContentFingerprint("abc123");
     entity.setResultsJson("{\"ok\":true}");
 
     assertThat(entity.getOpeningStockBatchKey()).isEqualTo("batch-key");
     assertThat(entity.getFileName()).isEqualTo("opening.csv");
+    assertThat(entity.getContentFingerprint()).isEqualTo("abc123");
     assertThat(entity.getResultsJson()).isEqualTo("{\"ok\":true}");
   }
 
@@ -1717,10 +1782,14 @@ class OpeningStockImportServiceTest {
 
   private String sha256(MockMultipartFile file) {
     try {
-      return com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils.sha256Hex(file.getBytes());
+      return IdempotencyUtils.sha256Hex(file.getBytes());
     } catch (IOException ex) {
       throw new RuntimeException(ex);
     }
+  }
+
+  private String fingerprint(String payload) {
+    return IdempotencyUtils.sha256Hex(payload.replace("\r\n", "\n").replace('\r', '\n'));
   }
 
   private SkuReadinessDto readyReadiness(String sku) {

@@ -115,7 +115,7 @@ public class CatalogController {
             catalogService.searchItems(
                 q,
                 itemClass,
-                includeStock,
+                includeStock && canViewStock(authentication),
                 includeReadiness,
                 page,
                 pageSize,
@@ -132,7 +132,7 @@ public class CatalogController {
         ApiResponse.success(
             catalogService.getItem(
                 itemId,
-                includeStock,
+                includeStock && canViewStock(authentication),
                 includeReadiness,
                 canViewAccountingMetadata(authentication))));
   }
@@ -149,6 +149,19 @@ public class CatalogController {
   public ResponseEntity<ApiResponse<CatalogItemDto>> deactivateItem(@PathVariable Long itemId) {
     return ResponseEntity.ok(
         ApiResponse.success("Item deactivated", catalogService.deactivateItem(itemId)));
+  }
+
+  private boolean canViewStock(Authentication authentication) {
+    if (authentication == null || authentication.getAuthorities() == null) {
+      return false;
+    }
+    return authentication.getAuthorities().stream()
+        .map(grantedAuthority -> grantedAuthority.getAuthority())
+        .anyMatch(
+            authority ->
+                "ROLE_ADMIN".equals(authority)
+                    || "ROLE_ACCOUNTING".equals(authority)
+                    || "ROLE_FACTORY".equals(authority));
   }
 
   private boolean canViewAccountingMetadata(Authentication authentication) {

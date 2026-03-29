@@ -192,6 +192,17 @@ class AccountingPortalScopeGuardScriptTest {
   }
 
   @Test
+  void guardFailsClosedWhenRequiredContractFileIsMissing() throws Exception {
+    FixturePaths fixturePaths = writeFixture(13);
+    Files.delete(fixturePaths.guardrailDoc());
+
+    ProcessResult result = runGuard(fixturePaths);
+
+    assertThat(result.exitCode()).isNotEqualTo(0);
+    assertThat(result.stderr()).contains("missing required scope contract file");
+  }
+
+  @Test
   void guardFailsWhenEndpointMapMethodTokenIsMalformed() throws Exception {
     FixturePaths fixturePaths = writeFixture(13);
     replaceInFile(

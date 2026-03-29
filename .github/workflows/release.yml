@@ -81,43 +81,6 @@ jobs:
           echo "notes_file=${NOTES_FILE}" >> "$GITHUB_OUTPUT"
           cat "$NOTES_FILE"
 
-      - name: Update CHANGELOG
-        run: |
-          CHANGELOG_FILE="CHANGELOG.md"
-          NOTES_FILE="${{ steps.notes.outputs.notes_file }}"
-
-          # Create changelog header if file doesn't exist
-          if [[ ! -f "$CHANGELOG_FILE" ]]; then
-            {
-              echo "# Changelog"
-              echo ""
-              echo "All notable changes to this project will be documented in this file."
-              echo ""
-            } > "$CHANGELOG_FILE"
-          fi
-
-          # Prepend new release notes to changelog
-          TEMP_FILE=$(mktemp)
-          {
-            head -n 4 "$CHANGELOG_FILE"
-            echo ""
-            cat "$NOTES_FILE"
-            echo ""
-            tail -n +5 "$CHANGELOG_FILE"
-          } > "$TEMP_FILE"
-          mv "$TEMP_FILE" "$CHANGELOG_FILE"
-
-          # Clean up
-          rm -f "$NOTES_FILE"
-
-      - name: Commit changelog
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md
-          git diff --cached --quiet || git commit -m "docs: update CHANGELOG for release ${{ steps.version.outputs.version }}"
-          git push origin HEAD:main || echo "Changelog push skipped (may be protected branch)"
-
       - name: Create or update GitHub Release
         if: github.event_name != 'release'
         env:
@@ -177,4 +140,4 @@ jobs:
           echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Tag:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Changelog has been updated in CHANGELOG.md" >> $GITHUB_STEP_SUMMARY
+          echo "Release notes were generated without mutating the protected main branch." >> $GITHUB_STEP_SUMMARY

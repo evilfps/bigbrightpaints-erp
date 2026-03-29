@@ -403,7 +403,7 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
 
   @Test
   void
-      super_admin_can_hold_and_block_tenant_and_hold_lifecycle_allows_authenticated_reads_until_blocked()
+      super_admin_can_hold_and_block_tenant_and_hold_lifecycle_denies_authenticated_runtime_reads()
           throws InterruptedException {
     String adminToken = login(ADMIN_EMAIL, TENANT_A);
     String superToken = login(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
@@ -446,7 +446,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
             HttpMethod.GET,
             new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
             Map.class);
-    assertThat(meDuringHold.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertControlledAccessDenied(
+        meDuringHold, "TENANT_LIFECYCLE_RESTRICTED", "Tenant is suspended");
 
     String blockReason = "Critical security incident";
     ResponseEntity<Map> blockResponse =

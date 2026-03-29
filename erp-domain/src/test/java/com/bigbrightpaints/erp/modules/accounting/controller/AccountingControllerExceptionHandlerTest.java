@@ -8,11 +8,18 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.bigbrightpaints.erp.core.audit.IntegrationFailureMetadataSchema;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.exception.GlobalExceptionHandler;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class AccountingControllerExceptionHandlerTest {
 
@@ -195,6 +202,39 @@ class AccountingControllerExceptionHandlerTest {
         .containsEntry("message", "Invalid reconciliation discrepancy type: BANK");
   }
 
+  @Test
+  void supplierStatement_invalidDateReturnsValidationEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(get("/api/v1/accounting/statements/suppliers/42").param("from", "2026-02-30"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.message").value("Invalid from date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
+        .andExpect(jsonPath("$.data.details.from").value("2026-02-30"));
+  }
+
+  @Test
+  void supplierAging_invalidDateReturnsValidationEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(get("/api/v1/accounting/aging/suppliers/42").param("asOf", "not-a-date"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.message").value("Invalid asOf date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
+        .andExpect(jsonPath("$.data.details.asOf").value("not-a-date"));
+  }
+
+  @Test
+  void auditDigest_invalidDateReturnsValidationEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(get("/api/v1/accounting/audit/digest").param("to", "2026-13-01"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.message").value("Invalid to date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
+        .andExpect(jsonPath("$.data.details.to").value("2026-13-01"));
+  }
+
   private ApiResponse<Map<String, Object>> assertReplayErrorEnvelope(
       ResponseEntity<ApiResponse<Map<String, Object>>> response,
       HttpStatus status,
@@ -231,5 +271,11 @@ class AccountingControllerExceptionHandlerTest {
     return new AccountingController(
         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null);
+  }
+
+  private MockMvc accountingControllerMvc() {
+    return MockMvcBuilders.standaloneSetup(controller())
+        .setControllerAdvice(new GlobalExceptionHandler())
+        .build();
   }
 }

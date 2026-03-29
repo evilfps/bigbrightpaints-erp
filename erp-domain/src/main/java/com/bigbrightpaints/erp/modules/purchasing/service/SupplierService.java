@@ -57,7 +57,7 @@ public class SupplierService {
   }
 
   @Transactional
-  public List<SupplierResponse> listSuppliers() {
+  public List<SupplierResponse> listSuppliers(boolean includeSensitiveBankDetails) {
     Company company = companyContextService.requireCurrentCompany();
     List<Supplier> suppliers =
         supplierRepository.findByCompanyWithPayableAccountOrderByNameAsc(company);
@@ -66,16 +66,19 @@ public class SupplierService {
     return suppliers.stream()
         .map(
             supplier ->
-                toResponse(supplier, balances.getOrDefault(supplier.getId(), BigDecimal.ZERO)))
+                toResponse(
+                    supplier,
+                    balances.getOrDefault(supplier.getId(), BigDecimal.ZERO),
+                    includeSensitiveBankDetails))
         .toList();
   }
 
   @Transactional
-  public SupplierResponse getSupplier(Long id) {
+  public SupplierResponse getSupplier(Long id, boolean includeSensitiveBankDetails) {
     Company company = companyContextService.requireCurrentCompany();
     Supplier supplier = requireSupplier(company, id);
     BigDecimal ledgerBalance = supplierLedgerService.currentBalance(id);
-    return toResponse(supplier, ledgerBalance);
+    return toResponse(supplier, ledgerBalance, includeSensitiveBankDetails);
   }
 
   @Transactional
@@ -99,7 +102,7 @@ public class SupplierService {
     Account payableAccount = createPayableAccount(company, supplier);
     supplier.setPayableAccount(payableAccount);
     supplier = supplierRepository.save(supplier);
-    return toResponse(supplier, supplierLedgerService.currentBalance(supplier.getId()));
+    return toResponse(supplier, supplierLedgerService.currentBalance(supplier.getId()), true);
   }
 
   @Transactional
@@ -121,7 +124,7 @@ public class SupplierService {
     supplier.setCreditLimit(
         request.creditLimit() != null ? request.creditLimit() : BigDecimal.ZERO);
     applyBankDetails(supplier, request);
-    return toResponse(supplier, supplierLedgerService.currentBalance(supplier.getId()));
+    return toResponse(supplier, supplierLedgerService.currentBalance(supplier.getId()), true);
   }
 
   @Transactional
@@ -133,7 +136,7 @@ public class SupplierService {
           "Supplier can only be approved from PENDING state");
     }
     supplier.setStatus(SupplierStatus.APPROVED);
-    return toResponse(supplier, supplierLedgerService.currentBalance(supplier.getId()));
+    return toResponse(supplier, supplierLedgerService.currentBalance(supplier.getId()), true);
   }
 
   @Transactional
@@ -146,7 +149,7 @@ public class SupplierService {
           "Supplier can only be activated from APPROVED or SUSPENDED state");
     }
     supplier.setStatus(SupplierStatus.ACTIVE);
-    return toResponse(supplier, supplierLedgerService.currentBalance(supplier.getId()));
+    return toResponse(supplier, supplierLedgerService.currentBalance(supplier.getId()), true);
   }
 
   @Transactional
@@ -158,7 +161,7 @@ public class SupplierService {
           "Supplier can only be suspended from ACTIVE state");
     }
     supplier.setStatus(SupplierStatus.SUSPENDED);
-    return toResponse(supplier, supplierLedgerService.currentBalance(supplier.getId()));
+    return toResponse(supplier, supplierLedgerService.currentBalance(supplier.getId()), true);
   }
 
   private Supplier requireSupplier(Company company, Long id) {
@@ -188,10 +191,23 @@ public class SupplierService {
         .filter(account -> account.getType() == expectedType);
   }
 
-  private SupplierResponse toResponse(Supplier supplier, BigDecimal balance) {
+  private SupplierResponse toResponse(
+      Supplier supplier, BigDecimal balance, boolean includeSensitiveBankDetails) {
     Account payableAccount = supplier.getPayableAccount();
     Long accountId = payableAccount != null ? payableAccount.getId() : null;
     String accountCode = payableAccount != null ? payableAccount.getCode() : null;
+    String bankAccountName =
+        includeSensitiveBankDetails
+            ? decryptIfPresent(supplier.getBankAccountNameEncrypted())
+            : null;
+    String bankAccountNumber =
+        includeSensitiveBankDetails
+            ? decryptIfPresent(supplier.getBankAccountNumberEncrypted())
+            : null;
+    String bankIfsc =
+        includeSensitiveBankDetails ? decryptIfPresent(supplier.getBankIfscEncrypted()) : null;
+    String bankBranch =
+        includeSensitiveBankDetails ? decryptIfPresent(supplier.getBankBranchEncrypted()) : null;
     return new SupplierResponse(
         supplier.getId(),
         supplier.getPublicId(),
@@ -209,10 +225,10 @@ public class SupplierService {
         supplier.getStateCode(),
         supplier.getGstRegistrationType(),
         supplier.getPaymentTerms(),
-        decryptIfPresent(supplier.getBankAccountNameEncrypted()),
-        decryptIfPresent(supplier.getBankAccountNumberEncrypted()),
-        decryptIfPresent(supplier.getBankIfscEncrypted()),
-        decryptIfPresent(supplier.getBankBranchEncrypted()));
+        bankAccountName,
+        bankAccountNumber,
+        bankIfsc,
+        bankBranch);
   }
 
   private void applyBankDetails(Supplier supplier, SupplierRequest request) {

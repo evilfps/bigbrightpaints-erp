@@ -51,6 +51,9 @@ public class OpeningStockImport extends VersionedEntity {
   @Column(name = "file_name", length = 256)
   private String fileName;
 
+  @Column(name = "content_fingerprint", nullable = false, length = 64)
+  private String contentFingerprint;
+
   @Column(name = "journal_entry_id")
   private Long journalEntryId;
 
@@ -127,6 +130,14 @@ public class OpeningStockImport extends VersionedEntity {
 
   public void setFileName(String fileName) {
     this.fileName = fileName;
+  }
+
+  public String getContentFingerprint() {
+    return contentFingerprint;
+  }
+
+  public void setContentFingerprint(String contentFingerprint) {
+    this.contentFingerprint = contentFingerprint;
   }
 
   public Long getJournalEntryId() {

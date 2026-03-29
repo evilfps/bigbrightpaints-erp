@@ -35,9 +35,9 @@ import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
       "management.endpoint.health.validate-group-membership=false",
       "management.server.port=0",
       "erp.environment.validation.enabled=false",
-      "management.endpoints.web.exposure.include=health,info,metrics,prometheus",
-      "management.endpoint.metrics.access=read-only",
-      "management.endpoint.prometheus.access=read-only"
+      "management.endpoints.web.exposure.include=health,info",
+      "management.endpoint.metrics.access=none",
+      "management.endpoint.prometheus.access=none"
     })
 class CR_ActuatorProdHardeningIT extends AbstractIntegrationTest {
 
@@ -57,23 +57,15 @@ class CR_ActuatorProdHardeningIT extends AbstractIntegrationTest {
   }
 
   @Test
-  @DisplayName("Prod exposes metrics and prometheus endpoints")
-  void prodActuatorMetricsAndPrometheusAreExposed() {
+  @DisplayName("Prod does not expose metrics and prometheus endpoints")
+  void prodActuatorMetricsAndPrometheusAreNotExposed() {
     ResponseEntity<String> metricsResponse =
         rest.getForEntity(managementUrl("/actuator/metrics"), String.class);
-    assertThat(metricsResponse.getStatusCode())
-        .isIn(HttpStatus.OK, HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
-    if (metricsResponse.getStatusCode() == HttpStatus.OK) {
-      assertThat(metricsResponse.getBody()).contains("names");
-    }
+    assertThat(metricsResponse.getStatusCode()).isIn(HttpStatus.NOT_FOUND, HttpStatus.FORBIDDEN);
 
     ResponseEntity<String> prometheusResponse =
         rest.getForEntity(managementUrl("/actuator/prometheus"), String.class);
-    assertThat(prometheusResponse.getStatusCode())
-        .isIn(HttpStatus.OK, HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
-    if (prometheusResponse.getStatusCode() == HttpStatus.OK) {
-      assertThat(prometheusResponse.getBody()).contains("# HELP");
-    }
+    assertThat(prometheusResponse.getStatusCode()).isIn(HttpStatus.NOT_FOUND, HttpStatus.FORBIDDEN);
   }
 
   @Test

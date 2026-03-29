@@ -395,6 +395,54 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
             "WIP_ACCOUNT_MISSING");
   }
 
+  @Test
+  void catalogStock_isHiddenFromSalesButVisibleToAdminAccountingAndFactory() {
+    ProductionBrand brand = saveBrand("Stock Visibility " + shortId(), true);
+
+    ResponseEntity<Map> createResponse =
+        rest.exchange(
+            "/api/v1/catalog/items",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                canonicalFinishedGoodPayload(brand.getId(), "Stock Visibility Product " + shortId()),
+                headers),
+            Map.class);
+    assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    Map<String, Object> createdItem = data(createResponse);
+    String sku = String.valueOf(createdItem.get("code"));
+    Long productId = ((Number) createdItem.get("id")).longValue();
+
+    Map<String, Object> adminBrowse = browseProduct(searchItemsWithStock(authHeaders(), sku), sku);
+    Map<String, Object> accountingBrowse =
+        browseProduct(
+            searchItemsWithStock(authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE), sku), sku);
+    Map<String, Object> factoryBrowse =
+        browseProduct(
+            searchItemsWithStock(authHeaders(FACTORY_EMAIL, PASSWORD, COMPANY_CODE), sku), sku);
+    Map<String, Object> salesBrowse =
+        browseProduct(
+            searchItemsWithStock(authHeaders(SALES_EMAIL, PASSWORD, COMPANY_CODE), sku), sku);
+
+    ResponseEntity<Map> adminReadResponse = getItemWithStock(authHeaders(), productId);
+    ResponseEntity<Map> accountingReadResponse =
+        getItemWithStock(authHeaders(ACCOUNTING_EMAIL, PASSWORD, COMPANY_CODE), productId);
+    ResponseEntity<Map> factoryReadResponse =
+        getItemWithStock(authHeaders(FACTORY_EMAIL, PASSWORD, COMPANY_CODE), productId);
+    ResponseEntity<Map> salesReadResponse =
+        getItemWithStock(authHeaders(SALES_EMAIL, PASSWORD, COMPANY_CODE), productId);
+
+    assertThat(adminBrowse.get("stock")).isInstanceOf(Map.class);
+    assertThat(accountingBrowse.get("stock")).isInstanceOf(Map.class);
+    assertThat(factoryBrowse.get("stock")).isInstanceOf(Map.class);
+    assertThat(salesBrowse.get("stock")).isNull();
+
+    assertThat(data(adminReadResponse).get("stock")).isInstanceOf(Map.class);
+    assertThat(data(accountingReadResponse).get("stock")).isInstanceOf(Map.class);
+    assertThat(data(factoryReadResponse).get("stock")).isInstanceOf(Map.class);
+    assertThat(data(salesReadResponse).get("stock")).isNull();
+  }
+
   private DownstreamFlowResult runDownstreamReadyFlow(Long brandId, String baseProductName) {
     ResponseEntity<Map> createResponse =
         rest.exchange(
@@ -672,6 +720,22 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
     batch.setReceivedAt(Instant.now());
     rawMaterialBatchRepository.save(batch);
     return saved;
+  }
+
+  private ResponseEntity<Map> searchItemsWithStock(HttpHeaders requestHeaders, String sku) {
+    return rest.exchange(
+        "/api/v1/catalog/items?q=" + sku + "&includeStock=true",
+        HttpMethod.GET,
+        new HttpEntity<>(requestHeaders),
+        Map.class);
+  }
+
+  private ResponseEntity<Map> getItemWithStock(HttpHeaders requestHeaders, Long productId) {
+    return rest.exchange(
+        "/api/v1/catalog/items/" + productId + "?includeStock=true",
+        HttpMethod.GET,
+        new HttpEntity<>(requestHeaders),
+        Map.class);
   }
 
   private Map<String, Object> browseProduct(HttpHeaders requestHeaders, Long brandId, String sku) {

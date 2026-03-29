@@ -7,7 +7,6 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -35,22 +34,6 @@ import jakarta.servlet.http.HttpServletRequest;
 public class CoreFallbackExceptionHandler {
 
   private static final Logger logger = LoggerFactory.getLogger(CoreFallbackExceptionHandler.class);
-
-  @Value("${spring.profiles.active:prod}")
-  private String activeProfile;
-
-  private boolean isProductionMode() {
-    if (!StringUtils.hasText(activeProfile)) {
-      return true;
-    }
-    for (String profile : activeProfile.split(",")) {
-      String normalized = profile.trim();
-      if ("prod".equalsIgnoreCase(normalized) || "production".equalsIgnoreCase(normalized)) {
-        return true;
-      }
-    }
-    return false;
-  }
 
   @ExceptionHandler(CreditLimitExceededException.class)
   public ResponseEntity<ApiResponse<Map<String, Object>>> handleCreditLimitExceeded(
@@ -200,14 +183,13 @@ public class CoreFallbackExceptionHandler {
         traceId,
         request.getRequestURI(),
         ex.getMessage());
-    String message =
-        isProductionMode() ? ErrorCode.BUSINESS_INVALID_STATE.getDefaultMessage() : ex.getMessage();
+    String userMessage = ErrorCode.BUSINESS_INVALID_STATE.getDefaultMessage();
     Map<String, Object> data = new HashMap<>();
     data.put("code", ErrorCode.BUSINESS_INVALID_STATE.getCode());
-    data.put("message", message);
+    data.put("message", userMessage);
     data.put("traceId", traceId);
     return ResponseEntity.status(HttpStatus.CONFLICT)
-        .body(ApiResponse.failure(isProductionMode() ? "Invalid state" : ex.getMessage(), data));
+        .body(ApiResponse.failure(userMessage, data));
   }
 
   @ExceptionHandler(RuntimeException.class)
@@ -222,11 +204,7 @@ public class CoreFallbackExceptionHandler {
         ex);
     Map<String, Object> data = new HashMap<>();
     data.put("code", ErrorCode.SYSTEM_INTERNAL_ERROR.getCode());
-    data.put(
-        "message",
-        isProductionMode()
-            ? "An internal error occurred. Please try again later."
-            : ex.getMessage());
+    data.put("message", "An internal error occurred. Please try again later.");
     data.put("traceId", traceId);
     data.put("timestamp", LocalDateTime.now());
     return ResponseEntity.internalServerError().body(ApiResponse.failure("Internal error", data));
@@ -247,9 +225,6 @@ public class CoreFallbackExceptionHandler {
     data.put("message", "An unexpected error occurred");
     data.put("traceId", traceId);
     data.put("timestamp", LocalDateTime.now());
-    if (!isProductionMode()) {
-      data.put("type", ex.getClass().getSimpleName());
-    }
     return ResponseEntity.internalServerError().body(ApiResponse.failure("Unexpected error", data));
   }
 }
