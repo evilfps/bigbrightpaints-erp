@@ -8,6 +8,7 @@ from pathlib import Path
 JAVA_SOURCE_ROOT = "erp-domain/src/main/java/"
 LOCAL_SEED_RUNTIME_EXCLUSIONS = (
     "erp-domain/src/main/java/com/bigbrightpaints/erp/core/config/MockDataInitializer.java",
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/core/config/SeedCompanyAdminSupport.java",
     "erp-domain/src/main/java/com/bigbrightpaints/erp/core/config/ValidationSeedDataInitializer.java",
 )
 
