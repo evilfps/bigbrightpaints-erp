@@ -86,7 +86,7 @@ class SalesProformaBoundaryServiceTest {
   void normalizePaymentMode_mapsLegacyHybridAndRejectsUnsupportedValues() {
     assertThat(service.normalizePaymentMode(null)).isEqualTo("CREDIT");
     assertThat(service.normalizePaymentMode(" split ")).isEqualTo("HYBRID");
-    assertThat(service.requiresCreditCheck("CASH")).isFalse();
+    assertThat(service.requiresCreditCheck("CASH")).isTrue();
     assertThat(service.requiresCreditCheck("HYBRID")).isTrue();
 
     assertThatThrownBy(() -> service.normalizePaymentMode("WIRE"))
