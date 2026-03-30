@@ -2073,10 +2073,6 @@ class OpeningStockImportServiceTest {
                 "PACKAGING_RAW_MATERIAL,PK-1,KG,KG,PK-B1,10.00,2.500,2026-02-01,2026-07-01",
                 "FINISHED_GOOD,FG-1,UNIT,UNIT,FG-B1,5.0,12.00,,2026-08-15"));
 
-    when(
-            openingStockImportRepository.findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
-                company, expectedFingerprint))
-        .thenReturn(Optional.empty());
     when(openingStockImportRepository.findByCompanyOrderByCreatedAtAscIdAsc(company))
         .thenReturn(List.of(legacy));
     when(
@@ -2141,10 +2137,13 @@ class OpeningStockImportServiceTest {
     validMovement.setQuantity(new BigDecimal("3.00"));
     validMovement.setUnitCost(new BigDecimal("4.00"));
 
-    when(
-            openingStockImportRepository.findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
-                company, "missing-target"))
-        .thenReturn(Optional.empty());
+    String rebuiltFingerprint =
+        fingerprint(
+            String.join(
+                "\n",
+                "type,sku,unit,unit_type,batch_code,quantity,unit_cost,manufactured_at,expiry_date",
+                "RAW_MATERIAL,RM-2,KG,KG,RM-B2,3.00,4.00,,"));
+
     when(openingStockImportRepository.findByCompanyOrderByCreatedAtAscIdAsc(company))
         .thenReturn(List.of(nonLegacy, missingJournal, differentLegacy));
     when(
@@ -2167,13 +2166,11 @@ class OpeningStockImportServiceTest {
             org.mockito.ArgumentMatchers.argThat(
                 record ->
                     record == differentLegacy
-                        && !legacyFingerprint(
-                                "OPEN-STOCK-BATCH-DIFFERENT", "legacy-different")
-                            .equals(record.getContentFingerprint())));
+                        && rebuiltFingerprint.equals(record.getContentFingerprint())));
   }
 
   @Test
-  void fingerprintHelpers_skipInvalidRowsAndNormalizeLegacyValues() {
+  void parseFingerprintRows_skipsInvalidRowsAndNormalizesValues() {
     String normalizedPayload =
         String.join(
             "\n",
@@ -2203,7 +2200,10 @@ class OpeningStockImportServiceTest {
         .isEqualTo("1000");
     assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeDate", (Object) null))
         .isEmpty();
+  }
 
+  @Test
+  void resolveLegacyManufacturedDate_omitsNearCreatedAtValuesAndPreservesOlderOnes() {
     OpeningStockImport record = new OpeningStockImport();
     ReflectionTestUtils.setField(record, "createdAt", Instant.parse("2026-02-03T12:00:00Z"));
 
