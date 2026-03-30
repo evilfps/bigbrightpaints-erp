@@ -246,6 +246,7 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
 | Method | Path | Auth | Request | Response `data` |
 |---|---|---|---|---|
 | GET | `/api/v1/superadmin/dashboard` | `ROLE_SUPER_ADMIN` | None | `SuperAdminDashboardDto` |
+| GET | `/api/v1/superadmin/audit/platform-events` | `ROLE_SUPER_ADMIN` | Query: `from?`, `to?`, `action?`, `status?`, `actor?`, `entityType?`, `reference?`, `page?`, `size?` | `PageResponse<AuditFeedItemDto>` |
 | GET | `/api/v1/superadmin/tenants` | `ROLE_SUPER_ADMIN` | Optional query: `status` | `List<SuperAdminTenantSummaryDto>` |
 | GET | `/api/v1/superadmin/tenants/coa-templates` | `ROLE_SUPER_ADMIN` | None | `List<CoATemplateDto>` |
 | POST | `/api/v1/superadmin/tenants/onboard` | `ROLE_SUPER_ADMIN` | `TenantOnboardingRequest` | `TenantOnboardingResponse` |
@@ -274,6 +275,7 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
 | PATCH | `/api/v1/admin/users/{id}/unsuspend` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `204 No Content` |
 | PATCH | `/api/v1/admin/users/{id}/mfa/disable` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `204 No Content` |
 | DELETE | `/api/v1/admin/users/{id}` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `204 No Content` |
+| GET | `/api/v1/admin/audit/events` | `ROLE_ADMIN` (tenant-scoped only) | Query: `from?`, `to?`, `module?`, `action?`, `status?`, `actor?`, `entityType?`, `reference?`, `page?`, `size?` | `PageResponse<AuditFeedItemDto>` |
 | GET | `/api/v1/admin/roles` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `List<RoleDto>` |
 | GET | `/api/v1/admin/roles/{roleKey}` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `RoleDto` |
 | POST | `/api/v1/admin/roles` | `ROLE_SUPER_ADMIN` | `CreateRoleRequest` | `RoleDto` |
@@ -665,9 +667,7 @@ Catalog note (2026-03-21): accounting-facing stock-bearing setup now uses the ca
 | `GET` | `/api/v1/portal/finance/aging` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | Query: `dealerId` | `ApiResponse<Map<String,Object>>` |
 | `GET` | `/api/v1/accounting/aging/suppliers/{supplierId}` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `AgingSummaryResponse` |
 | `GET` | `/api/v1/accounting/aging/suppliers/{supplierId}/pdf` | `hasAuthority('ROLE_ADMIN')` | `—` | `byte[]` |
-| `GET` | `/api/v1/accounting/audit-trail` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `PageResponse<AccountingAuditTrailEntryDto>` |
-| `GET` | `/api/v1/accounting/audit/digest` | `hasAuthority('ROLE_ADMIN')` | `—` | `AuditDigestResponse` |
-| `GET` | `/api/v1/accounting/audit/digest.csv` | `hasAuthority('ROLE_ADMIN')` | `—` | `String` |
+| `GET` | `/api/v1/accounting/audit/events` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `PageResponse<AuditFeedItemDto>` |
 | `GET` | `/api/v1/accounting/audit/transactions` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `PageResponse<AccountingTransactionAuditListItemDto>` |
 | `GET` | `/api/v1/accounting/audit/transactions/{journalEntryId}` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `AccountingTransactionAuditDetailDto` |
 | `POST` | `/api/v1/accounting/bad-debts/write-off` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `BadDebtWriteOffRequest` | `JournalEntryDto` |
@@ -779,7 +779,7 @@ _Total documented accounting endpoints: **82**._
 7. **GST return preparation**
    1. Run tax return: `GET /api/v1/accounting/gst/return?period=YYYY-MM`
    2. Run component reconciliation: `GET /api/v1/accounting/gst/reconciliation?period=YYYY-MM`
-   3. Optional diagnostics for audit period: `GET /api/v1/accounting/audit-trail`
+   3. Optional diagnostics for audit period: `GET /api/v1/accounting/audit/events`
 
 7. **Opening balance CSV bootstrap (migration/import flow)**
    1. Collect opening-trial data in CSV with exact header order: `account_code,account_name,account_type,debit_amount,credit_amount,narration`
@@ -1162,31 +1162,32 @@ _Total documented accounting endpoints: **82**._
   - `buckets`: `List<AgingBucketDto>`
 - **`byte[]`**
   - Primitive/raw payload type (no DTO field list).
-- **`PageResponse<AccountingAuditTrailEntryDto>`**
-  - `content`: `List<AccountingAuditTrailEntryDto>`
-    - `id`: `Long`
-    - `timestamp`: `Instant`
+- **`PageResponse<AuditFeedItemDto>`**
+  - `content`: `List<AuditFeedItemDto>`
+    - `sourceId`: `Long`
+    - `sourceKind`: `String`
+    - `category`: `String`
+    - `occurredAt`: `Instant`
     - `companyId`: `Long`
     - `companyCode`: `String`
+    - `module`: `String`
+    - `action`: `String`
+    - `status`: `String`
     - `actorUserId`: `Long`
     - `actorIdentifier`: `String`
-    - `actionType`: `String`
+    - `subjectUserId`: `Long`
+    - `subjectIdentifier`: `String`
     - `entityType`: `String`
     - `entityId`: `String`
     - `referenceNumber`: `String`
+    - `requestMethod`: `String`
+    - `requestPath`: `String`
     - `traceId`: `String`
-    - `ipAddress`: `String`
-    - `beforeState`: `String`
-    - `afterState`: `String`
-    - `sensitiveOperation`: `boolean`
     - `metadata`: `Map<String, String>`
   - `totalElements`: `long`
   - `totalPages`: `int`
   - `page`: `int` (0-based)
   - `size`: `int`
-- **`AuditDigestResponse`**
-  - `periodLabel`: `String`
-  - `entries`: `List<String>`
 - **`String`**
   - Primitive/raw payload type (no DTO field list).
 - **`PageResponse<AccountingTransactionAuditListItemDto>`**

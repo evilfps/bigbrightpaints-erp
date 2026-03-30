@@ -21,7 +21,7 @@ This guide covers journaling, reconciliation, discrepancy handling, period contr
 - Journal list/filter: `GET /api/v1/accounting/journals?fromDate=&toDate=&type=&sourceModule=`
 - Dealer finance reads: `GET /api/v1/portal/finance/ledger?dealerId=`, `GET /api/v1/portal/finance/aging?dealerId=`
 - Supplier statements/aging: `GET /api/v1/accounting/statements/suppliers/{supplierId}`, `GET /api/v1/accounting/aging/suppliers/{supplierId}`
-- Audit trail query: `GET /api/v1/accounting/audit-trail`
+- Accounting audit feeds: `GET /api/v1/accounting/audit/events`, `GET /api/v1/accounting/audit/transactions`, `GET /api/v1/accounting/audit/transactions/{journalEntryId}`; tenant-admin review feed: `GET /api/v1/admin/audit/events`
 
 ## Troubleshooting Quick Notes
 

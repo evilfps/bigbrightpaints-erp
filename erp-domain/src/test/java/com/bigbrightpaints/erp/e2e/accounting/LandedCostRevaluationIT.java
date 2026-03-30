@@ -129,14 +129,14 @@ public class LandedCostRevaluationIT extends AbstractIntegrationTest {
     assertThat(revaluationLine.getDebit()).isEqualByComparingTo("50.00");
     assertThat(revaluationLine.getCredit()).isEqualByComparingTo("0.00");
 
-    ResponseEntity<Map> digest =
+    ResponseEntity<Map> auditFeed =
         rest.exchange(
-            "/api/v1/accounting/audit/digest",
+            "/api/v1/accounting/audit/events?page=0&size=20",
             org.springframework.http.HttpMethod.GET,
             new org.springframework.http.HttpEntity<>(headers),
             Map.class);
-    assertThat(digest.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Map<String, ?> body = digest.getBody();
+    assertThat(auditFeed.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<String, ?> body = auditFeed.getBody();
     assertThat(body).isNotNull();
   }
 

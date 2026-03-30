@@ -44,24 +44,6 @@ public class EnterpriseAuditTrailController {
     return ResponseEntity.ok(ApiResponse.success("ML events recorded", response));
   }
 
-  @GetMapping("/business-events")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-  public ResponseEntity<ApiResponse<PageResponse<BusinessAuditEventResponse>>> businessEvents(
-      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-      @RequestParam(required = false) String module,
-      @RequestParam(required = false) String action,
-      @RequestParam(required = false) AuditActionEventStatus status,
-      @RequestParam(required = false) Long actorUserId,
-      @RequestParam(required = false) String referenceNumber,
-      @RequestParam(defaultValue = "0") int page,
-      @RequestParam(defaultValue = "50") int size) {
-    PageResponse<BusinessAuditEventResponse> result =
-        enterpriseAuditTrailService.queryBusinessEvents(
-            from, to, module, action, status, actorUserId, referenceNumber, page, size);
-    return ResponseEntity.ok(ApiResponse.success(result));
-  }
-
   @GetMapping("/ml-events")
   @PreAuthorize("hasAuthority('ROLE_ADMIN')")
   public ResponseEntity<ApiResponse<PageResponse<MlInteractionEventResponse>>> mlEvents(

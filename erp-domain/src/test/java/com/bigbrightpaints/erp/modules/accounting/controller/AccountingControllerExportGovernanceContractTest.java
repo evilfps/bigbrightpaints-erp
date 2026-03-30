@@ -19,35 +19,40 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 
 class AccountingControllerExportGovernanceContractTest {
 
   @Test
-  void auditDigestEndpoints_requireAdminAuthorityAnnotation() throws NoSuchMethodException {
-    Method digest = AccountingController.class.getMethod("auditDigest", String.class, String.class);
-    Method digestCsv =
-        AccountingController.class.getMethod("auditDigestCsv", String.class, String.class);
+  void supplierPdfExports_requireAdminAuthorityAnnotation() throws NoSuchMethodException {
+    Method supplierStatementPdf =
+        AccountingController.class.getMethod(
+            "supplierStatementPdf", Long.class, String.class, String.class);
+    Method supplierAgingPdf =
+        AccountingController.class.getMethod(
+            "supplierAgingPdf", Long.class, String.class, String.class);
 
-    assertThat(digest.getAnnotation(PreAuthorize.class)).isNotNull();
-    assertThat(digest.getAnnotation(PreAuthorize.class).value())
+    assertThat(supplierStatementPdf.getAnnotation(PreAuthorize.class)).isNotNull();
+    assertThat(supplierStatementPdf.getAnnotation(PreAuthorize.class).value())
         .isEqualTo("hasAuthority('ROLE_ADMIN')");
-    assertThat(digestCsv.getAnnotation(PreAuthorize.class)).isNotNull();
-    assertThat(digestCsv.getAnnotation(PreAuthorize.class).value())
+    assertThat(supplierAgingPdf.getAnnotation(PreAuthorize.class)).isNotNull();
+    assertThat(supplierAgingPdf.getAnnotation(PreAuthorize.class).value())
         .isEqualTo("hasAuthority('ROLE_ADMIN')");
   }
 
   @Test
-  void auditDigestCsv_logsDeterministicDataExportEvidence() {
+  void supplierStatementPdf_logsDeterministicDataExportEvidence() {
     AccountingService accountingService = mock(AccountingService.class);
-    AccountingAuditService accountingAuditService = mock(AccountingAuditService.class);
+    StatementService statementService = mock(StatementService.class);
     AuditService auditService = mock(AuditService.class);
     CompanyContextService companyContextService = mock(CompanyContextService.class);
     CompanyClock companyClock = mock(CompanyClock.class);
-    when(accountingAuditService.auditDigestCsv(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31)))
-        .thenReturn("h1,h2\nv1,v2");
+    byte[] pdf = "pdf".getBytes();
+    when(statementService.supplierStatementPdf(
+            17L, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31)))
+        .thenReturn(pdf);
 
     AccountingController controller =
         new AccountingController(
@@ -56,13 +61,13 @@ class AccountingControllerExportGovernanceContractTest {
             null,
             null,
             null,
-            accountingAuditService,
             null,
             null,
             null,
             null,
             null,
             null,
+            statementService,
             null,
             null,
             null,
@@ -74,19 +79,20 @@ class AccountingControllerExportGovernanceContractTest {
             null,
             auditService);
 
-    ResponseEntity<String> response = controller.auditDigestCsv("2026-01-01", "2026-01-31");
+    ResponseEntity<byte[]> response =
+        controller.supplierStatementPdf(17L, "2026-01-01", "2026-01-31");
 
     assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
-        .isEqualTo("attachment; filename=audit-digest.csv");
-    assertThat(response.getBody()).isEqualTo("h1,h2\nv1,v2");
+        .isEqualTo("attachment; filename=supplier-statement.pdf");
+    assertThat(response.getBody()).isEqualTo(pdf);
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
     verify(auditService).logSuccess(eq(AuditEvent.DATA_EXPORT), metadataCaptor.capture());
     assertThat(metadataCaptor.getValue())
-        .containsEntry("resourceType", "ACCOUNTING_AUDIT_DIGEST")
-        .containsEntry("resourceId", "")
+        .containsEntry("resourceType", "ACCOUNTING_SUPPLIER_STATEMENT")
+        .containsEntry("resourceId", "17")
         .containsEntry("operation", "EXPORT")
-        .containsEntry("format", "csv");
+        .containsEntry("format", "pdf");
   }
 }

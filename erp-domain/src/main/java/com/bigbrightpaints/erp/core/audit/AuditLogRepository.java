@@ -4,8 +4,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -14,7 +17,13 @@ import org.springframework.stereotype.Repository;
  * Repository for audit log operations.
  */
 @Repository
-public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
+public interface AuditLogRepository
+    extends JpaRepository<AuditLog, Long>, JpaSpecificationExecutor<AuditLog> {
+
+  @Override
+  @EntityGraph(attributePaths = "metadata")
+  Page<AuditLog> findAll(
+      org.springframework.data.jpa.domain.Specification<AuditLog> spec, Pageable pageable);
 
   /**
    * Find audit logs by user ID.

@@ -10,7 +10,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -27,9 +26,7 @@ import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
-import com.bigbrightpaints.erp.modules.accounting.dto.AccountingTransactionAuditListItemDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
-import com.bigbrightpaints.erp.modules.accounting.dto.AuditDigestResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
@@ -46,8 +43,6 @@ import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationApplication;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountHierarchyService;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditService;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditTrailService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
@@ -199,64 +194,6 @@ class AccountingControllerJournalEndpointsTest {
   }
 
   @Test
-  void transactionAudit_parsesDateFiltersAndPagination() {
-    AccountingAuditTrailService accountingAuditTrailService = mock(AccountingAuditTrailService.class);
-    AccountingController controller = controllerWithAuditTrailService(accountingAuditTrailService);
-    PageResponse<AccountingTransactionAuditListItemDto> expectedPage =
-        PageResponse.of(
-            List.of(
-                new AccountingTransactionAuditListItemDto(
-                    88L,
-                    "SET-88",
-                    LocalDate.of(2026, 3, 10),
-                    "POSTED",
-                    "SETTLEMENT",
-                    "SETTLEMENT_DEALER",
-                    "Dealer settlement",
-                    null,
-                    null,
-                    null,
-                    null,
-                    new BigDecimal("100.00"),
-                    new BigDecimal("100.00"),
-                    null,
-                    null,
-                    null,
-                    "OK",
-                    Instant.parse("2026-03-10T09:15:00Z"))),
-            1,
-            1,
-            25);
-    when(accountingAuditTrailService.listTransactions(
-            LocalDate.of(2026, 3, 1),
-            LocalDate.of(2026, 3, 31),
-            "SETTLEMENT",
-            "POSTED",
-            "SET-",
-            1,
-            25))
-        .thenReturn(expectedPage);
-
-    ApiResponse<PageResponse<AccountingTransactionAuditListItemDto>> body =
-        controller
-            .transactionAudit(
-                " 2026-03-01 ", "2026-03-31 ", "SETTLEMENT", "POSTED", "SET-", 1, 25)
-            .getBody();
-
-    assertThat(body).isNotNull();
-    assertThat(body.data()).isEqualTo(expectedPage);
-    verify(accountingAuditTrailService)
-        .listTransactions(
-            LocalDate.of(2026, 3, 1),
-            LocalDate.of(2026, 3, 31),
-            "SETTLEMENT",
-            "POSTED",
-            "SET-",
-            1,
-            25);
-  }
-
-  @Test
   void parseOptionalDate_returnsNullForBlankInput() {
     AccountingController controller =
         newController(mock(AccountingService.class), mock(JournalEntryService.class), null);
@@ -374,36 +311,6 @@ class AccountingControllerJournalEndpointsTest {
 
     assertThat(body).isEqualTo(pdf);
     verify(statementService).supplierAgingPdf(7L, LocalDate.of(2026, 3, 31), "30,60,90");
-  }
-
-  @Test
-  void auditDigest_parsesOptionalDates() {
-    AuditDigestResponse expected = new AuditDigestResponse("Mar 2026", List.of("entry-1"));
-    AccountingAuditService auditService = mock(AccountingAuditService.class);
-    when(auditService.auditDigest(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31)))
-        .thenReturn(expected);
-
-    ApiResponse<AuditDigestResponse> body =
-        controllerWithAuditDigestService(auditService).auditDigest(" 2026-03-01 ", "2026-03-31 ").getBody();
-
-    assertThat(body).isNotNull();
-    assertThat(body.data()).isSameAs(expected);
-    verify(auditService).auditDigest(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31));
-  }
-
-  @Test
-  void auditDigestCsv_parsesOptionalDates() {
-    AccountingAuditService auditService = mock(AccountingAuditService.class);
-    when(auditService.auditDigestCsv(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31)))
-        .thenReturn("col\nvalue");
-
-    String body =
-        controllerWithAuditDigestService(auditService)
-            .auditDigestCsv(" 2026-03-01 ", "2026-03-31 ")
-            .getBody();
-
-    assertThat(body).isEqualTo("col\nvalue");
-    verify(auditService).auditDigestCsv(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31));
   }
 
   @Test
@@ -1084,34 +991,7 @@ class AccountingControllerJournalEndpointsTest {
         mock(AccountHierarchyService.class),
         mock(AgingReportService.class),
         mock(CompanyDefaultAccountsService.class),
-        mock(AccountingAuditTrailService.class),
         null,
-        null,
-        null,
-        null);
-  }
-
-  private AccountingController controllerWithAuditTrailService(
-      AccountingAuditTrailService accountingAuditTrailService) {
-    return new AccountingController(
-        mock(AccountingService.class),
-        mock(JournalEntryService.class),
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        mock(SalesReturnService.class),
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        accountingAuditTrailService,
         null,
         null,
         null,
@@ -1137,7 +1017,7 @@ class AccountingControllerJournalEndpointsTest {
         null,
         null,
         null,
-        mock(AccountingAuditTrailService.class),
+        null,
         null,
         null,
         null,
@@ -1164,33 +1044,7 @@ class AccountingControllerJournalEndpointsTest {
         null,
         null,
         null,
-        mock(AccountingAuditTrailService.class),
         null,
-        null,
-        null,
-        null);
-  }
-
-  private AccountingController controllerWithAuditDigestService(AccountingAuditService accountingAuditService) {
-    return new AccountingController(
-        mock(AccountingService.class),
-        mock(JournalEntryService.class),
-        null,
-        null,
-        null,
-        accountingAuditService,
-        null,
-        null,
-        mock(SalesReturnService.class),
-        null,
-        null,
-        mock(StatementService.class),
-        null,
-        null,
-        null,
-        null,
-        null,
-        mock(AccountingAuditTrailService.class),
         null,
         null,
         null,

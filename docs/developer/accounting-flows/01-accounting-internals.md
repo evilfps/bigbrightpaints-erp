@@ -82,8 +82,9 @@ AccountingController
 ### Audit and Event Trail
 
 ```text
-AccountingAuditTrailController
-  -> AuditTrailQueryService
+AccountingAuditController / AdminAuditController / SuperAdminAuditController
+  -> AuditAccessService
+  -> AuditLogReadAdapter + BusinessAuditReadAdapter
   -> AccountingAuditTrailServiceCore
 
 AccountingCoreEngineCore

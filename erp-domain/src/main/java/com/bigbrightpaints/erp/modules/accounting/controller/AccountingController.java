@@ -942,63 +942,6 @@ public class AccountingController {
             "WIP adjustment posted", inventoryAccountingService.adjustWip(request)));
   }
 
-  /* Audit digest */
-  @GetMapping("/audit/digest")
-  @Deprecated(forRemoval = false, since = "2026-02-11")
-  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-  public ResponseEntity<ApiResponse<AuditDigestResponse>> auditDigest(
-      @RequestParam(required = false) String from, @RequestParam(required = false) String to) {
-    return ResponseEntity.ok(
-        ApiResponse.success(
-            accountingAuditService.auditDigest(
-                parseOptionalDate(from, "from"), parseOptionalDate(to, "to"))));
-  }
-
-  @GetMapping(value = "/audit/digest.csv", produces = "text/csv")
-  @Deprecated(forRemoval = false, since = "2026-02-11")
-  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-  public ResponseEntity<String> auditDigestCsv(
-      @RequestParam(required = false) String from, @RequestParam(required = false) String to) {
-    String csv =
-        accountingAuditService.auditDigestCsv(
-            parseOptionalDate(from, "from"), parseOptionalDate(to, "to"));
-    logAccountingExport("ACCOUNTING_AUDIT_DIGEST", null, "csv");
-    return ResponseEntity.ok()
-        .contentType(MediaType.parseMediaType("text/csv"))
-        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=audit-digest.csv")
-        .body(csv);
-  }
-
-  @GetMapping("/audit/transactions")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-  public ResponseEntity<
-          ApiResponse<
-              com.bigbrightpaints.erp.shared.dto.PageResponse<
-                  AccountingTransactionAuditListItemDto>>>
-      transactionAudit(
-          @RequestParam(required = false) String from,
-          @RequestParam(required = false) String to,
-          @RequestParam(required = false) String module,
-          @RequestParam(required = false) String status,
-          @RequestParam(required = false) String reference,
-          @RequestParam(defaultValue = "0") int page,
-          @RequestParam(defaultValue = "50") int size) {
-    LocalDate fromDate = parseOptionalDate(from, "from");
-    LocalDate toDate = parseOptionalDate(to, "to");
-    return ResponseEntity.ok(
-        ApiResponse.success(
-            accountingAuditTrailService.listTransactions(
-                fromDate, toDate, module, status, reference, page, size)));
-  }
-
-  @GetMapping("/audit/transactions/{journalEntryId}")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-  public ResponseEntity<ApiResponse<AccountingTransactionAuditDetailDto>> transactionAuditDetail(
-      @PathVariable Long journalEntryId) {
-    return ResponseEntity.ok(
-        ApiResponse.success(accountingAuditTrailService.transactionDetail(journalEntryId)));
-  }
-
   // ==================== TEMPORAL QUERIES (Snapshots + Journal Lines) ====================
 
   @GetMapping("/accounts/{accountId}/balance/as-of")

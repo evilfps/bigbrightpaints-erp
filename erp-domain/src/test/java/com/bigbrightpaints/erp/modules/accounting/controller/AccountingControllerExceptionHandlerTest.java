@@ -227,17 +227,6 @@ class AccountingControllerExceptionHandlerTest {
   }
 
   @Test
-  void auditDigest_invalidDateReturnsValidationEnvelope() throws Exception {
-    accountingControllerMvc()
-        .perform(get("/api/v1/accounting/audit/digest").param("to", "2026-13-01"))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.success").value(false))
-        .andExpect(jsonPath("$.message").value("Invalid to date format; expected ISO date yyyy-MM-dd"))
-        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
-        .andExpect(jsonPath("$.data.details.to").value("2026-13-01"));
-  }
-
-  @Test
   void transactionAudit_invalidDateReturnsValidationEnvelope() throws Exception {
     accountingControllerMvc()
         .perform(get("/api/v1/accounting/audit/transactions").param("from", "2026-02-30"))
@@ -356,8 +345,12 @@ class AccountingControllerExceptionHandlerTest {
         null, null, null, null, null, null, null);
   }
 
+  private AccountingAuditController auditController() {
+    return new AccountingAuditController(null);
+  }
+
   private MockMvc accountingControllerMvc() {
-    return MockMvcBuilders.standaloneSetup(controller())
+    return MockMvcBuilders.standaloneSetup(controller(), auditController())
         .setControllerAdvice(new GlobalExceptionHandler())
         .build();
   }

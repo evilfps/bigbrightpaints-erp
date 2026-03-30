@@ -21,7 +21,6 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.controller.AccountingController;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountHierarchyService;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditTrailService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
@@ -41,62 +40,63 @@ class TS_AccountingControllerExportAuditRuntimeCoverageTest {
 
   @SuppressWarnings("unchecked")
   @Test
-  void auditDigestCsv_logsDeterministicExportAuditEvidence() {
-    AccountingAuditService accountingAuditService = mock(AccountingAuditService.class);
-    when(accountingAuditService.auditDigestCsv(any(), any())).thenReturn("id,ref\n1,ABC");
-    AccountingController controller = newController(accountingAuditService);
+  void supplierStatementPdf_logsDeterministicExportAuditEvidence() {
+    StatementService statementService = mock(StatementService.class);
+    when(statementService.supplierStatementPdf(eq(17L), any(), any())).thenReturn("pdf".getBytes());
+    AccountingController controller = newController(statementService);
     AuditService auditService = mock(AuditService.class);
     ReflectionTestUtils.setField(controller, "auditService", auditService);
 
-    ResponseEntity<String> response = controller.auditDigestCsv("2026-02-01", "2026-02-28");
+    ResponseEntity<byte[]> response =
+        controller.supplierStatementPdf(17L, "2026-02-01", "2026-02-28");
 
-    assertThat(response.getBody()).isEqualTo("id,ref\n1,ABC");
-    verify(accountingAuditService)
-        .auditDigestCsv(LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28));
+    assertThat(response.getBody()).isEqualTo("pdf".getBytes());
+    verify(statementService)
+        .supplierStatementPdf(17L, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28));
     ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
     verify(auditService).logSuccess(eq(AuditEvent.DATA_EXPORT), metadataCaptor.capture());
     assertThat(metadataCaptor.getValue())
-        .containsEntry("resourceType", "ACCOUNTING_AUDIT_DIGEST")
-        .containsEntry("resourceId", "")
+        .containsEntry("resourceType", "ACCOUNTING_SUPPLIER_STATEMENT")
+        .containsEntry("resourceId", "17")
         .containsEntry("operation", "EXPORT")
-        .containsEntry("format", "csv");
+        .containsEntry("format", "pdf");
   }
 
   @SuppressWarnings("unchecked")
   @Test
   void logAccountingExport_handlesMissingAuditService_andResourceIdBranch() {
-    AccountingController controller = newController(mock(AccountingAuditService.class));
+    AccountingController controller = newController(mock(StatementService.class));
     ReflectionTestUtils.invokeMethod(
-        controller, "logAccountingExport", "ACCOUNTING_AUDIT_DIGEST", 42L, "csv");
+        controller, "logAccountingExport", "ACCOUNTING_SUPPLIER_STATEMENT", 42L, "pdf");
 
     AuditService auditService = mock(AuditService.class);
     ReflectionTestUtils.setField(controller, "auditService", auditService);
     ReflectionTestUtils.invokeMethod(
-        controller, "logAccountingExport", "ACCOUNTING_AUDIT_DIGEST", 42L, "csv");
+        controller, "logAccountingExport", "ACCOUNTING_SUPPLIER_STATEMENT", 42L, "pdf");
 
     ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
     verify(auditService).logSuccess(eq(AuditEvent.DATA_EXPORT), metadataCaptor.capture());
     assertThat(metadataCaptor.getValue())
-        .containsEntry("resourceType", "ACCOUNTING_AUDIT_DIGEST")
+        .containsEntry("resourceType", "ACCOUNTING_SUPPLIER_STATEMENT")
         .containsEntry("resourceId", "42")
         .containsEntry("operation", "EXPORT")
-        .containsEntry("format", "csv");
+        .containsEntry("format", "pdf");
   }
 
-  private static AccountingController newController(AccountingAuditService accountingAuditService) {
+  private static AccountingController newController(StatementService statementService) {
     return new AccountingController(
         mock(AccountingService.class),
         null,
         null,
         null,
         null,
-        accountingAuditService,
+        null,
         null,
         mock(AccountingFacade.class),
         mock(SalesReturnService.class),
         mock(AccountingPeriodService.class),
         mock(ReconciliationService.class),
-        mock(StatementService.class),
+        statementService,
         mock(TaxService.class),
         mock(TemporalBalanceService.class),
         mock(AccountHierarchyService.class),
