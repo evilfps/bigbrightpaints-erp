@@ -1,0 +1,83 @@
+{
+  "milestone": "docs-finance-reporting",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": { "passed": true, "command": "bash ci/lint-knowledgebase.sh", "exitCode": 0 },
+    "enterprisePolicy": { "passed": true, "command": "bash ci/check-enterprise-policy.sh", "exitCode": 0 },
+    "architecture": { "passed": true, "command": "bash ci/check-architecture.sh", "exitCode": 0 },
+    "orchestratorLayer": { "passed": true, "command": "bash ci/check-orchestrator-layer.sh", "exitCode": 0 }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "fixedDuringScrutiny": [
+    {
+      "featureId": "docs-finance-reporting-deprecated-seams",
+      "severity": "blocking",
+      "description": "accounting/AGENTS.md documented TallyImportController path as /api/v1/migration/tally/import but actual path is /api/v1/migration/tally-import (hyphen, not slash)",
+      "fix": "Corrected path to /api/v1/migration/tally-import"
+    },
+    {
+      "featureId": "docs-finance-reporting-deprecated-seams",
+      "severity": "blocking",
+      "description": "accounting/AGENTS.md documented OpeningBalanceImportController path as /api/v1/migration/opening-balance/import but actual path is /api/v1/accounting/opening-balances",
+      "fix": "Corrected path to /api/v1/accounting/opening-balances"
+    },
+    {
+      "featureId": "docs-finance-reporting-deprecated-seams",
+      "severity": "blocking",
+      "description": "reports.md referenced non-existent /api/v1/portal/finance/statements and /api/v1/portal/finance/supplier-statements as canonical replacements for account statements",
+      "fix": "Removed false replacement paths; marked as no internal replacement exists (account-statement endpoint returns dealer-only rollup)"
+    },
+    {
+      "featureId": "docs-finance-reporting-truth",
+      "severity": "non_blocking",
+      "description": "reports.md cross-reference to docs/workflows/accounting-and-period-close.md pointed to non-existent file",
+      "fix": "Updated link to docs/workflows/FLOW-INVENTORY.md"
+    },
+    {
+      "featureId": "docs-finance-reporting-truth",
+      "severity": "non_blocking",
+      "description": "Known Gaps section claimed 'No hierarchical P&L variant' but GET /api/v1/reports/income-statement/hierarchy exists",
+      "fix": "Updated to acknowledge the endpoint exists but is not yet documented in the P&L section"
+    }
+  ],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-finance-reporting-truth",
+      "description": "Undocumented endpoint: GET /api/v1/reports/inventory-reconciliation exists in ReportController.java but is not mentioned in reports.md",
+      "suggestion": "Add inventory-reconciliation endpoint to the reports.md documentation in a future pass"
+    },
+    {
+      "featureId": "docs-finance-reporting-deprecated-seams",
+      "description": "HR AGENTS.md references AccountingCoreEngineCore.postPayrollRun() directly when the actual call chain goes through AccountingFacade",
+      "suggestion": "Update to reference AccountingFacade as the visible interface in PayrollPostingService"
+    },
+    {
+      "featureId": "docs-finance-reporting-deprecated-seams",
+      "description": "HR AGENTS.md uses speculative language about legacy HR endpoints that may not exist",
+      "suggestion": "Either identify specific legacy endpoints or note none were found in the current codebase"
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "docs-worker skill",
+      "suggestion": "Add a step requiring workers to verify all endpoint paths against openapi.json or actual controller @RequestMapping annotations before documenting. Three of the endpoint paths in the deprecated-seams feature were inaccurate.",
+      "evidence": "docs-finance-reporting-deprecated-seams feature had three incorrect endpoint paths: tally/import vs tally-import, opening-balance/import vs accounting/opening-balances, and portal/finance/statements which does not exist.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "reports.md is not listed in INDEX.md module table (only in MODULE-INVENTORY.md)",
+      "reason": "This is a pre-existing discoverability gap not introduced by this milestone's features. The INDEX.md module table coverage is a separate cleanup task for a later milestone."
+    }
+  ],
+  "previousRound": null
+}

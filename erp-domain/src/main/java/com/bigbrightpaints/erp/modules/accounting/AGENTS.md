@@ -80,11 +80,11 @@ Accounting enforces strict immutability for posted journal entries:
 
 ### Tally XML Import - Limited Support
 
-The `TallyImportController` at `/api/v1/migration/tally/import` provides Tally XML compatibility for data migration. However:
+The `TallyImportController` at `/api/v1/migration/tally-import` provides Tally XML compatibility for data migration. However:
 
 - **Limited error recovery**: Failed imports may leave partial data without clear rollback paths
 - **No idempotency**: Re-submitting the same XML file may create duplicate entries
-- **Canonical replacement**: For new data imports, use the CSV opening balance import (`OpeningBalanceImportController` at `/api/v1/migration/opening-balance/import`) which has better validation and error handling
+- **Canonical replacement**: For new data imports, use the CSV opening balance import (`OpeningBalanceImportController` at `/api/v1/accounting/opening-balances`) which has better validation and error handling
 
 **Recommendation**: Use CSV opening balance import for new migrations. Tally XML import is retained for legacy compatibility only.
 

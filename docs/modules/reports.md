@@ -265,7 +265,7 @@ The account statement endpoint (`GET /api/v1/reports/account-statement`) has **n
 
 - **Current behavior**: Only returns dealer-only balance rollup
 - **Name suggests**: Fuller statement capability (like the full `StatementService` engine)
-- **Replacement**: For dealer statements, use `/api/v1/portal/finance/statements`. For supplier statements, use `/api/v1/portal/finance/supplier-statements`
+- **No dedicated replacement endpoint**: Portal finance exposes `/api/v1/portal/finance/ledger` (dealer ledger entries) and `/api/v1/portal/finance/invoices` (invoice list) but does not have a dedicated statement endpoint
 - **No internal replacement**: The account-statement endpoint itself is not being enhanced to full statement capability
 
 ### Non-Canonical: Aging Report Split
@@ -286,7 +286,7 @@ Aging reports split across **two different ownership paths**:
 ## Related Documentation
 
 - [docs/developer/accounting-flows/07-reports-truth-sources.md](../developer/accounting-flows/07-reports-truth-sources.md) — detailed truth-source mapping
-- [docs/workflows/accounting-and-period-close.md](../workflows/accounting-and-period-close.md) — period close workflow (produces snapshots)
+- [docs/workflows/FLOW-INVENTORY.md](../workflows/FLOW-INVENTORY.md) — flow inventory (period close workflow reference)
 - [erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md) — accounting module (source of journal truth)
 - [docs/modules/inventory.md](./inventory.md) — inventory module (stock data source)
 - [docs/modules/factory.md](./factory.md) — factory module (production data source)
@@ -299,5 +299,5 @@ Aging reports split across **two different ownership paths**:
 - No dedicated flow packet for Reporting/Export (tracked in flow inventory as packet pending)
 - P&L lacks snapshot branch — data can change for closed periods
 - Cash flow has no date filtering — returns all-time data
-- No hierarchical P&L variant (only hierarchical balance sheet exists)
+- Hierarchical P&L exists (`GET /api/v1/reports/income-statement/hierarchy`) but is not documented in the P&L section above — coverage to be expanded
 - Reconciliation dashboard tied to active sessions only — no historical view
