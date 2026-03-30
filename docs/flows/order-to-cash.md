@@ -293,6 +293,9 @@ The O2C flow publishes domain events that can trigger downstream processing:
 - [docs/modules/inventory.md](../modules/inventory.md) — Inventory for stock and dispatch truth
 - [docs/modules/admin-portal-rbac.md](../modules/admin-portal-rbac.md) — Host ownership and role matrices
 - [docs/flows/FLOW-INVENTORY.md](FLOW-INVENTORY.md) — Flow inventory
+- [docs/frontend-handoff-commercial.md](../frontend-handoff-commercial.md) — Commercial frontend handoff (sales, O2C, payloads, RBAC)
+- [docs/adrs/ADR-006-portal-and-host-boundary-separation.md](../adrs/ADR-006-portal-and-host-boundary-separation.md) — Portal/host boundary separation (enforces `/api/v1/dealer-portal/**` vs `/api/v1/portal/**` isolation)
+- [docs/deprecated/INDEX.md](../deprecated/INDEX.md) — Deprecated surfaces registry (legacy paths, replacement notes)
 
 ---
 

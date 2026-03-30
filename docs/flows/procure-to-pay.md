@@ -291,6 +291,8 @@ The P2P flow intersects with the inventory→accounting event bridge at the GRN 
 - [docs/modules/inventory.md](../modules/inventory.md) — Inventory for stock truth (RawMaterialBatch)
 - [docs/modules/core-idempotency.md](../modules/core-idempotency.md) — Idempotency helpers
 - [docs/flows/FLOW-INVENTORY.md](FLOW-INVENTORY.md) — Flow inventory
+- [docs/frontend-handoff-commercial.md](../frontend-handoff-commercial.md) — Commercial frontend handoff (P2P payloads, supplier management)
+- [docs/deprecated/INDEX.md](../deprecated/INDEX.md) — Deprecated surfaces registry (PO idempotency, GRN headers)
 
 ### Relevant ADRs
 - [ADR-003-outbox-pattern-for-cross-module-events.md](../adrs/ADR-003-outbox-pattern-for-cross-module-events.md) — Cross-module event bridges (P2P uses inventory→accounting event bridges for GRN→journal entry)

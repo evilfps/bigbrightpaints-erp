@@ -223,6 +223,8 @@ The flow is complete when:
 - [docs/modules/inventory.md](../modules/inventory.md) — Inventory module for stock truth
 - [docs/modules/factory.md](../modules/factory.md) — Factory module for manufacturing truth
 - [docs/flows/FLOW-INVENTORY.md](FLOW-INVENTORY.md) — Flow inventory
+- [docs/frontend-handoff-operations.md](../frontend-handoff-operations.md) — Operations frontend handoff (catalog/setup payloads, RBAC)
+- [docs/deprecated/INDEX.md](../deprecated/INDEX.md) — Deprecated surfaces registry (legacy product endpoints)
 
 ---
 

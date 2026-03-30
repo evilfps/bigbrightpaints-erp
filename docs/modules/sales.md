@@ -517,3 +517,6 @@ The statuses `BOOKED`, `SHIPPED`, `FULFILLED`, and `COMPLETED` are accepted by s
 - [docs/modules/core-security-error.md](core-security-error.md) — security filter chain and error contract
 - [docs/ARCHITECTURE.md](../ARCHITECTURE.md) — architecture reference
 - [docs/flows/order-to-cash.md](../flows/order-to-cash.md) — canonical order-to-cash flow (behavioral entrypoint)
+- [docs/frontend-handoff-commercial.md](../frontend-handoff-commercial.md) — Commercial frontend handoff (O2C payloads, hosts, RBAC, dealer self-service boundaries)
+- [docs/adrs/ADR-006-portal-and-host-boundary-separation.md](../adrs/ADR-006-portal-and-host-boundary-separation.md) — Portal and host boundary separation (admin vs dealer self-service ownership)
+- [docs/deprecated/INDEX.md](../deprecated/INDEX.md) — Deprecated surfaces registry (legacy order statuses, dealer alias routes)
