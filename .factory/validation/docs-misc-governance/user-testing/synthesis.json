@@ -1,0 +1,41 @@
+{
+  "milestone": "docs-misc-governance",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "notes": "This is a docs-only governance cleanup milestone. The two completed implementation features (docs-misc-governance-contract-audit and docs-misc-ticket-parity-guard) have empty fulfills arrays and do not directly map to validation-contract assertions. All 56 assertions in validation-state.json are already 'passed' from earlier milestones. Validation focuses on confirming the governance cleanup work is correct and all repo validators still pass.",
+  "verificationEvidence": {
+    "lintKnowledgebase": {
+      "command": "bash ci/lint-knowledgebase.sh",
+      "exitCode": 0,
+      "output": "[ticket-parity] OK: no ticket.yaml present; skipping parity check\n[knowledgebase-lint] OK"
+    },
+    "enterprisePolicy": {
+      "command": "bash ci/check-enterprise-policy.sh",
+      "exitCode": 0,
+      "output": "[enterprise-policy] OK"
+    },
+    "ticketParityGuard": {
+      "command": "python3 scripts/check_ticket_status_parity.py",
+      "exitCode": 0,
+      "output": "[ticket-parity] OK: no ticket.yaml present; skipping parity check",
+      "note": "Guard truthfully reports no ticket tracking files present instead of pretending parity enforcement exists"
+    },
+    "removedArtifacts": {
+      "dod-bible-approach.md": "Removed (was 132 lines of garbled/untrustworthy content)",
+      "dod-flow-documenter-droid": "Removed (.factory/droids/dod-flow-documenter.md deleted)",
+      "dod-flow-documenter-skill": "Removed (.factory/skills/dod-flow-documenter/SKILL.md deleted, empty dir remains)",
+      "note": "All three artifacts confirmed absent from filesystem"
+    }
+  },
+  "appliedUpdates": [],
+  "previousRound": null
+}
