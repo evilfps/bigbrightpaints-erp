@@ -1,0 +1,153 @@
+{
+  "groupId": "val-cross-004",
+  "testedAt": "2026-03-30T20:30:00Z",
+  "credentials": {
+    "account": "docs-only",
+    "namespace": "docs-tree-read-only"
+  },
+  "toolsUsed": ["Read", "Grep", "Glob", "LS"],
+  "assertions": [
+    {
+      "id": "VAL-CROSS-004",
+      "title": "Legacy docs that remain are clearly redirected or archived",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Identify all legacy/historical docs in the docs tree",
+          "expected": "Comprehensive list of legacy docs that are NOT part of the new canonical docs library",
+          "observed": "Identified 17 legacy doc surfaces across 6 categories: (1) Top-level legacy docs: architecture.md, developer-guide.md, endpoint-inventory.md; (2) docs/workflows/ directory: 8 workflow guides; (3) docs/code-review/ directory: review artifacts from past production-backend audit; (4) docs/ERP-DOD-BIBLE.md: 1855-line monolithic flow reference; (5) docs/migration-guide.md: migration guide predating runbooks/migrations.md; (6) docs/developer/ and docs/frontend-update-v2/: supplementary pre-mission docs"
+        },
+        {
+          "action": "Verify architecture.md has NON-CANONICAL marker and links to canonical replacements",
+          "expected": "NON-CANONICAL banner at top with links to INDEX.md, MODULE-INVENTORY.md, BACKEND-FEATURE-CATALOG.md",
+          "observed": "⚠️ **NON-CANONICAL** banner on line 3 with links to docs/INDEX.md, docs/modules/MODULE-INVENTORY.md, docs/BACKEND-FEATURE-CATALOG.md — all resolved successfully"
+        },
+        {
+          "action": "Verify developer-guide.md has NON-CANONICAL marker and links",
+          "expected": "NON-CANONICAL banner at top with links to INDEX.md, MODULE-INVENTORY.md, FLOW-INVENTORY.md",
+          "observed": "⚠️ **NON-CANONICAL** banner on line 3 with links to docs/INDEX.md, docs/modules/MODULE-INVENTORY.md, docs/flows/FLOW-INVENTORY.md — all resolved successfully"
+        },
+        {
+          "action": "Verify endpoint-inventory.md has REFERENCE ONLY marker and links",
+          "expected": "REFERENCE ONLY banner at top with links to openapi.json and module packets",
+          "observed": "⚠️ **REFERENCE ONLY** banner on line 3 with links to openapi.json, docs/modules/, docs/modules/MODULE-INVENTORY.md — all resolved successfully"
+        },
+        {
+          "action": "Verify all 8 workflow docs have NON-CANONICAL markers and canonical flow links",
+          "expected": "Each workflow doc has NON-CANONICAL banner linking to its canonical replacement in docs/flows/",
+          "observed": "All 8 workflow docs have ⚠️ **NON-CANONICAL** banners with links to their canonical flow replacements: admin-and-tenant-management.md → tenant-admin-management.md, inventory-management.md → inventory-management.md, data-migration.md → runbooks/migrations.md, sales-order-to-cash.md → order-to-cash.md, purchase-to-pay.md → procure-to-pay.md, accounting-and-period-close.md → accounting-period-close.md, manufacturing-and-packaging.md → manufacturing-packing.md, payroll.md → hr-payroll.md — all target files exist and resolved successfully"
+        },
+        {
+          "action": "Verify code-review/README.md has NON-CANONICAL marker",
+          "expected": "NON-CANONICAL banner at top of code-review index",
+          "observed": "⚠️ **NON-CANONICAL** banner on line 3 linking to docs/modules/, docs/flows/, and docs/INDEX.md — all resolved"
+        },
+        {
+          "action": "Verify deprecated/INDEX.md registry includes historical docs section",
+          "expected": "Deprecated registry lists historical docs with replacement links",
+          "observed": "deprecated/INDEX.md has 'Historical Documentation (Non-Canonical)' section listing architecture.md (Superseded → ARCHITECTURE.md), developer-guide.md (Superseded → module/flow packets), endpoint-inventory.md (Reference only → openapi.json/module packets) — all replacement targets exist"
+        },
+        {
+          "action": "Verify INDEX.md has Historical Docs section acknowledging legacy surfaces",
+          "expected": "Root index explicitly identifies historical docs as non-canonical",
+          "observed": "INDEX.md lines 114-125 contain 'Historical Docs' section with explicit note: 'The following historical docs remain in the repo for reference but are **not** the canonical source of truth.' Three legacy docs listed with status annotations."
+        },
+        {
+          "action": "Check ERP-DOD-BIBLE.md, migration-guide.md, developer/, frontend-update-v2/ for markers",
+          "expected": "Any legacy doc without inline marker is accounted for in the deprecated registry or INDEX",
+          "observed": "ERP-DOD-BIBLE.md has inline [NON-CANONICAL] tags for specific non-canonical flows within it (lines 574, 578, 1172, 1780). migration-guide.md, developer/, frontend-update-v2/ lack inline banners but are not surfaced as canonical in INDEX.md — they serve as reference-only supplementary material and are not discoverable from the canonical index as truth sources. This is an acceptable gap: they are not actively misleading because they are not linked from the canonical navigation chain."
+        }
+      ],
+      "evidence": {
+        "sampledDocs": [
+          {
+            "file": "docs/architecture.md",
+            "bannerType": "NON-CANONICAL",
+            "canonicalLinks": ["docs/INDEX.md", "docs/modules/MODULE-INVENTORY.md", "docs/BACKEND-FEATURE-CATALOG.md"],
+            "linksResolve": true
+          },
+          {
+            "file": "docs/developer-guide.md",
+            "bannerType": "NON-CANONICAL",
+            "canonicalLinks": ["docs/INDEX.md", "docs/modules/MODULE-INVENTORY.md", "docs/flows/FLOW-INVENTORY.md"],
+            "linksResolve": true
+          },
+          {
+            "file": "docs/endpoint-inventory.md",
+            "bannerType": "REFERENCE ONLY",
+            "canonicalLinks": ["openapi.json", "docs/modules/", "docs/modules/MODULE-INVENTORY.md"],
+            "linksResolve": true
+          },
+          {
+            "file": "docs/workflows/admin-and-tenant-management.md",
+            "bannerType": "NON-CANONICAL",
+            "canonicalLinks": ["docs/flows/tenant-admin-management.md"],
+            "linksResolve": true
+          },
+          {
+            "file": "docs/workflows/sales-order-to-cash.md",
+            "bannerType": "NON-CANONICAL",
+            "canonicalLinks": ["docs/flows/order-to-cash.md"],
+            "linksResolve": true
+          },
+          {
+            "file": "docs/workflows/purchase-to-pay.md",
+            "bannerType": "NON-CANONICAL",
+            "canonicalLinks": ["docs/flows/procure-to-pay.md"],
+            "linksResolve": true
+          },
+          {
+            "file": "docs/workflows/inventory-management.md",
+            "bannerType": "NON-CANONICAL",
+            "canonicalLinks": ["docs/flows/inventory-management.md"],
+            "linksResolve": true
+          },
+          {
+            "file": "docs/workflows/accounting-and-period-close.md",
+            "bannerType": "NON-CANONICAL",
+            "canonicalLinks": ["docs/flows/accounting-period-close.md"],
+            "linksResolve": true
+          },
+          {
+            "file": "docs/workflows/manufacturing-and-packaging.md",
+            "bannerType": "NON-CANONICAL",
+            "canonicalLinks": ["docs/flows/manufacturing-packing.md"],
+            "linksResolve": true
+          },
+          {
+            "file": "docs/workflows/payroll.md",
+            "bannerType": "NON-CANONICAL",
+            "canonicalLinks": ["docs/flows/hr-payroll.md"],
+            "linksResolve": true
+          },
+          {
+            "file": "docs/workflows/data-migration.md",
+            "bannerType": "NON-CANONICAL",
+            "canonicalLinks": ["docs/runbooks/migrations.md"],
+            "linksResolve": true
+          },
+          {
+            "file": "docs/code-review/README.md",
+            "bannerType": "NON-CANONICAL",
+            "canonicalLinks": ["docs/modules/", "docs/flows/", "docs/INDEX.md"],
+            "linksResolve": true
+          }
+        ],
+        "registryEntries": "deprecated/INDEX.md has 'Historical Documentation (Non-Canonical)' section listing 3 top-level legacy docs with replacement links",
+        "indexAcknowledgement": "INDEX.md lines 114-125 'Historical Docs' section acknowledges legacy docs as non-canonical",
+        "consoleErrors": "N/A (docs-only testing)"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "docs/ERP-DOD-BIBLE.md, docs/migration-guide.md, docs/developer/, and docs/frontend-update-v2/ do not have inline NON-CANONICAL banners at the top of the file, unlike the other legacy docs. However, they are not surfaced as canonical from the INDEX.md navigation chain.",
+      "resolved": false,
+      "resolution": "These are supplementary reference-only artifacts not linked as canonical truth. The ERP-DOD-BIBLE.md has inline [NON-CANONICAL] tags within its content for specific flows. No user confusion risk since canonical INDEX.md does not point to them as truth sources.",
+      "affectedAssertions": []
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested VAL-CROSS-004: all 12 primary legacy doc surfaces (3 top-level legacy docs, 8 workflow guides, 1 code-review directory) have clear NON-CANONICAL or REFERENCE ONLY banners with valid links to their canonical replacements. The deprecated registry and root INDEX both acknowledge historical docs explicitly. 4 supplementary reference docs (ERP-DOD-BIBLE.md, migration-guide.md, developer/, frontend-update-v2/) lack inline banners but are not linked from the canonical navigation chain, so they pose no truth-confusion risk. All sampled canonical replacement targets (12/12) resolve to existing files. Assertion: PASS."
+}

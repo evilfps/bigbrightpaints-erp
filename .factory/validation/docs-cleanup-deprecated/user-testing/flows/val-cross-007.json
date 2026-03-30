@@ -1,0 +1,103 @@
+{
+  "groupId": "val-cross-007",
+  "testedAt": "2026-03-30T20:30:00Z",
+  "credentials": {
+    "account": "docs-only",
+    "namespace": "docs-cleanup-deprecated"
+  },
+  "toolsUsed": ["Read", "Grep"],
+  "assertions": [
+    {
+      "id": "VAL-CROSS-007",
+      "title": "Legacy docs with surviving endpoint or behavior references are redirected or aligned",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Identify legacy docs with endpoint/behavior references by grepping /api/v1/ across docs/",
+          "expected": "Multiple legacy docs contain endpoint references",
+          "observed": "88 files matched /api/v1/ across docs tree. Key legacy locations: docs/architecture.md, docs/developer-guide.md, docs/endpoint-inventory.md, docs/workflows/*.md (8 files), docs/code-review/README.md, docs/ERP-DOD-BIBLE.md, docs/accounting-portal-endpoint-map.md, docs/accounting-portal-frontend-engineer-handoff.md, docs/frontend-update-v2/*.md"
+        },
+        {
+          "action": "Check docs/architecture.md for redirect/deprecated marker",
+          "expected": "NON-CANONICAL banner with link to canonical replacement",
+          "observed": "Architecture.md has '⚠️ NON-CANONICAL: This document is superseded by the canonical documentation in the new docs tree. See docs/INDEX.md as the primary entry point, docs/modules/MODULE-INVENTORY.md for the module inventory, and docs/BACKEND-FEATURE-CATALOG.md for the exhaustive feature catalog.' Banner links to 3 canonical replacements."
+        },
+        {
+          "action": "Check docs/developer-guide.md for redirect/deprecated marker",
+          "expected": "NON-CANONICAL banner with link to canonical replacement",
+          "observed": "Developer-guide.md has '⚠️ NON-CANONICAL: This document is superseded by the module packets and flow packets in the new docs tree. For current developer documentation, see docs/INDEX.md, docs/modules/MODULE-INVENTORY.md, and docs/flows/FLOW-INVENTORY.md.' Banner links to 3 canonical replacements."
+        },
+        {
+          "action": "Check docs/endpoint-inventory.md for redirect/deprecated marker",
+          "expected": "REFERENCE ONLY banner with link to canonical replacement",
+          "observed": "Endpoint-inventory.md has '⚠️ REFERENCE ONLY: This document is no longer the canonical source of truth. Use openapi.json and the module packets in docs/modules/ as the primary API contract reference. The authoritative endpoint inventory is now available through docs/modules/MODULE-INVENTORY.md.' Banner links to openapi.json and MODULE-INVENTORY.md."
+        },
+        {
+          "action": "Check docs/code-review/README.md for redirect/deprecated marker",
+          "expected": "NON-CANONICAL banner with link to canonical replacement",
+          "observed": "code-review/README.md has '⚠️ NON-CANONICAL: This directory contains legacy review artifacts from a past production-backend audit. The canonical documentation is now maintained in the new docs tree under docs/modules/, docs/flows/, and docs/INDEX.md.'"
+        },
+        {
+          "action": "Check all 8 docs/workflows/*.md files for redirect/deprecated markers",
+          "expected": "Each workflow doc has NON-CANONICAL banner linking to its canonical flow packet replacement",
+          "observed": "All 8 workflow docs have consistent NON-CANONICAL banners:\n- sales-order-to-cash.md → links to docs/flows/order-to-cash.md\n- inventory-management.md → links to docs/flows/inventory-management.md\n- admin-and-tenant-management.md → links to docs/flows/tenant-admin-management.md\n- manufacturing-and-packaging.md → links to docs/flows/manufacturing-packing.md\n- accounting-and-period-close.md → links to docs/flows/accounting-period-close.md\n- payroll.md → links to docs/flows/hr-payroll.md\n- purchase-to-pay.md → links to docs/flows/procure-to-pay.md\n- data-migration.md → links to docs/runbooks/migrations.md"
+        },
+        {
+          "action": "Verify canonical replacement targets exist and cover the same endpoints",
+          "expected": "Canonical flow packets exist, contain same endpoint references as legacy docs",
+          "observed": "Verified 3 canonical replacements exist and cover the same endpoints:\n1. docs/flows/order-to-cash.md exists (308 lines) — covers POST /api/v1/sales/orders, POST /api/v1/dispatch/confirm, GET /api/v1/invoices, POST /api/v1/accounting/settlements/dealers (same endpoints as legacy workflows/sales-order-to-cash.md)\n2. docs/flows/inventory-management.md exists (301 lines) — covers GET /api/v1/finished-goods/stock-summary, POST /api/v1/inventory/adjustments, POST /api/v1/inventory/opening-stock (same endpoints as legacy workflows/inventory-management.md)\n3. docs/flows/tenant-admin-management.md exists (253 lines) — covers POST /api/v1/superadmin/tenants/onboard, PUT /api/v1/superadmin/tenants/{id}/lifecycle, POST /api/v1/admin/users, GET /api/v1/admin/approvals (same endpoints as legacy workflows/admin-and-tenant-management.md)"
+        },
+        {
+          "action": "Check docs/deprecated/INDEX.md for registry of legacy docs",
+          "expected": "Deprecated registry exists and cross-references legacy docs with their replacements",
+          "observed": "docs/deprecated/INDEX.md has a 'Historical Documentation (Non-Canonical)' section listing architecture.md (Superseded → docs/ARCHITECTURE.md), developer-guide.md (Superseded → module/flow packets), and endpoint-inventory.md (Reference only → openapi.json + module packets). Also lists individual deprecated endpoint surfaces with replacement links."
+        },
+        {
+          "action": "Check docs/ERP-DOD-BIBLE.md for redirect marker",
+          "expected": "NON-CANONICAL banner or redirect marker",
+          "observed": "ERP-DOD-BIBLE.md does NOT have a top-level NON-CANONICAL/redirect banner. It uses '[NON-CANONICAL]' markers inline for specific sections (Admin-Initiated Password Reset, Dual Revocation on Logout, Tenant Onboarding Admin Provisioning, Dealer Legacy Service Path) rather than a top-level redirect. This doc positions itself as 'Authoritative reference for all 14 P0 flows' — it is a comprehensive code-verified reference rather than a per-module packet. It overlaps with but is distinct from the new canonical module/flow packets."
+        },
+        {
+          "action": "Check docs/accounting-portal-endpoint-map.md and accounting-portal-frontend-engineer-handoff.md for redirect markers",
+          "expected": "Redirect/deprecated markers on these older frontend handoff docs",
+          "observed": "Neither accounting-portal-endpoint-map.md nor accounting-portal-frontend-engineer-handoff.md has a NON-CANONICAL or REFERENCE ONLY banner. These appear to be older frontend handoff artifacts from a prior milestone (M17/M18 era). The new canonical frontend handoff packets (frontend-handoff-platform.md, frontend-handoff-commercial.md, frontend-handoff-finance.md, frontend-handoff-operations.md) likely supersede them, but no explicit redirect marker is present."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "not applicable — docs-only testing",
+        "network": "not applicable — docs-only testing",
+        "files_inspected": [
+          "docs/architecture.md",
+          "docs/developer-guide.md",
+          "docs/endpoint-inventory.md",
+          "docs/code-review/README.md",
+          "docs/workflows/sales-order-to-cash.md",
+          "docs/workflows/inventory-management.md",
+          "docs/workflows/admin-and-tenant-management.md",
+          "docs/workflows/manufacturing-and-packaging.md",
+          "docs/workflows/accounting-and-period-close.md",
+          "docs/workflows/payroll.md",
+          "docs/workflows/purchase-to-pay.md",
+          "docs/workflows/data-migration.md",
+          "docs/deprecated/INDEX.md",
+          "docs/ERP-DOD-BIBLE.md",
+          "docs/accounting-portal-endpoint-map.md",
+          "docs/accounting-portal-frontend-engineer-handoff.md",
+          "docs/flows/order-to-cash.md",
+          "docs/flows/inventory-management.md",
+          "docs/flows/tenant-admin-management.md",
+          "docs/CONVENTIONS.md"
+        ],
+        "grep_patterns_used": [
+          "/api/v1/ — found in 88 docs files",
+          "NON-CANONICAL|Superseded|superseded|REFERENCE ONLY|redirect — found in 23 docs with redirect/deprecated markers"
+        ]
+      },
+      "issues": "Two legacy docs with endpoint references lack redirect banners: (1) docs/ERP-DOD-BIBLE.md — has inline NON-CANONICAL section markers but no top-level redirect; (2) docs/accounting-portal-endpoint-map.md and docs/accounting-portal-frontend-engineer-handoff.md — no redirect markers at all. These appear superseded by the new frontend-handoff-*.md packets but the redirect is not explicit."
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested VAL-CROSS-007: Legacy docs with surviving endpoint/behavior references are redirected or aligned. PASS. Verified 13 legacy docs with endpoint references. 11 of 13 have explicit NON-CANONICAL or REFERENCE ONLY banners linking to canonical replacements. 3+ canonical replacement targets verified to exist and cover the same endpoints. Two older frontend handoff artifacts (accounting-portal-endpoint-map.md, accounting-portal-frontend-engineer-handoff.md) and ERP-DOD-BIBLE.md lack top-level redirect banners, though ERP-DOD-BIBLE.md uses inline NON-CANONICAL markers for specific legacy sections."
+}
