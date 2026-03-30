@@ -211,8 +211,8 @@ Provides dashboard data: active dealer count, order counts bucketed by status (o
 | `SalesOrderItemDto` | Line item response |
 | `SalesOrderSearchFilters` | Search parameters (status, dealer, order number, date range, pagination) |
 | `SalesOrderStatusHistoryDto` | Status transition record |
-| `CancelRequest` | Cancellation reason code and reason text |
-| `StatusRequest` | Manual status update target |
+| `CancelRequest` | **SalesController inner record** — Cancellation reason code and reason text |
+| `StatusRequest` | **SalesController inner record** — Manual status update target |
 
 ### Dealer DTOs
 
@@ -259,10 +259,10 @@ Provides dashboard data: active dealer count, order counts bucketed by status (o
 | --- | --- | --- |
 | `Dealer` | `dealers` | Tenant-scoped, unique code per company, links to portal `UserAccount` and receivable `Account`, GST registration, payment terms, region |
 | `SalesOrder` | `sales_orders` | Tenant-scoped, unique order number, status lifecycle, idempotency key/hash, payment mode, GST treatment, financial markers (journal/invoice IDs) |
-| `SalesOrderItem` | (embedded in order) | Line items with product code, quantity, unit price, GST rate |
+| `SalesOrderItem` | `sales_order_items` | Line items with product code, quantity, unit price, GST rate. Related to parent `SalesOrder` via `@ManyToOne` FK. |
 | `SalesOrderStatusHistory` | `sales_order_status_histories` | Append-only status transition log |
-| `CreditRequest` | (credit requests) | Durable credit limit increase requests with requester identity |
-| `CreditLimitOverrideRequest` | (credit limit override requests) | Per-dispatch override requests linked to slip/order |
+| `CreditRequest` | `credit_requests` | Durable credit limit increase requests with requester identity |
+| `CreditLimitOverrideRequest` | `credit_limit_override_requests` | Per-dispatch override requests linked to slip/order |
 | `Promotion` | (promotions) | Sales promotions |
 | `SalesTarget` | (sales targets) | Sales targets |
 
