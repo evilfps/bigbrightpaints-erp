@@ -72,9 +72,8 @@ Frontend handoff packets explain canonical hosts, payload families, RBAC assumpt
 | [docs/frontend-handoff-platform.md](frontend-handoff-platform.md) | Platform surfaces: auth/session, company lifecycle/runtime gating, admin/control-plane ownership, shared support-ticket DTOs, portal RBAC splits |
 | [docs/frontend-handoff-operations.md](frontend-handoff-operations.md) | Operational surfaces: catalog/setup, inventory, factory — hosts, payloads, RBAC, read/write boundaries |
 | [docs/frontend-handoff-commercial.md](frontend-handoff-commercial.md) | Commercial surfaces: sales/O2C, purchasing/P2P, invoices, dealer finance — hosts, payloads, RBAC, internal vs self-service parity |
+| [docs/frontend-handoff-finance.md](frontend-handoff-finance.md) | Finance/reporting/HR surfaces: accounting journals, period close, payroll, financial reports — hosts, payloads, RBAC, read/write boundaries |
 | [docs/accounting-portal-frontend-engineer-handoff.md](accounting-portal-frontend-engineer-handoff.md) | Accounting portal deep handoff: endpoint maps, API inventory, route map with permissions (curated accounting-portal scope) |
-
-> **Status:** Finance/reporting frontend handoff will be added in a future feature.
 
 ## Deprecated and Incomplete Surfaces
 
