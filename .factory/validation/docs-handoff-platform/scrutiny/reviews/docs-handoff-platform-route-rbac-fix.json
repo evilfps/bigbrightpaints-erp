@@ -1,0 +1,34 @@
+{
+  "featureId": "docs-handoff-platform-route-rbac-fix",
+  "reviewedAt": "2026-03-30T13:50:00.000Z",
+  "commitId": "1eaf45b8c",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The fix adequately addresses 3 of the 4 original blocking issues (missing SuperAdminController routes, RBAC platform-vs-tenant scope clarification, and periodLockEnforced guard documentation). However, the dealerId/DTO fix introduced a new inaccuracy: the handoff now lists 'priority' as a field in SupportTicketCreateRequest, but the actual DTO has no priority field. The DTO only contains category, subject, and description. Additionally, the RBAC note in Section 3.2 point 2 incorrectly claims SUPER_ADMIN cannot access /api/v1/admin/users — but the route table in Section 2.3 clearly lists ADMIN, SUPER_ADMIN for that endpoint. This is a factual contradiction within the document.",
+    "issues": [
+      {
+        "file": "docs/frontend-handoff-platform.md",
+        "line": 245,
+        "severity": "blocking",
+        "description": "Section 5.5 Support Ticket Payloads lists `SupportTicketCreateRequest` fields as `category`, `subject`, `description`, `priority` for the admin side. However, the actual DTO source (`SupportTicketCreateRequest.java`) only has three fields: `category` (@NotBlank, max 32), `subject` (@NotBlank, max 255), and `description` (@NotBlank, max 4000). There is NO `priority` field in the DTO. This was pre-existing in the original packet and was NOT introduced by this fix, but the fix missed correcting it while correcting the dealerId field claim. A frontend developer would implement a priority selector that doesn't exist in the backend DTO."
+      },
+      {
+        "file": "docs/frontend-handoff-platform.md",
+        "line": 146,
+        "severity": "non_blocking",
+        "description": "Section 3.2 Key RBAC Boundaries, point 2 states: 'Super-admin users cannot access tenant-scoped admin endpoints like `/api/v1/admin/users`, `/api/v1/admin/roles`, `/api/v1/admin/approvals`'. However, the route tables in Section 2.3 explicitly list these endpoints as accessible by `ADMIN, SUPER_ADMIN`. This creates a factual contradiction within the document. The likely intent is that SUPER_ADMIN's access to admin endpoints is via a different mechanism (platform scope rather than tenant ADMIN inheritance), but as written, the RBAC note contradicts the route table. This should be clarified to explain that SUPER_ADMIN can access these endpoints but does so through platform-level authority, not through tenant-level ROLE_ADMIN inheritance."
+      },
+      {
+        "file": "docs/frontend-handoff-platform.md",
+        "line": 153,
+        "severity": "non_blocking",
+        "description": "Section 3.2 has duplicate numbering: items 3 and 3 (Portal insights and Portal finance). After inserting the new item 2 (Super-admin does NOT inherit), the original numbering was not adjusted. Items should be numbered 1–6 sequentially."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": ".factory/validation/docs-handoff-platform/scrutiny/reviews/docs-frontend-handoff-platform-surfaces.json",
+  "summary": "The fix successfully addresses 3 of 4 blocking issues: (1) All 6 missing SuperAdminController routes are now documented with correct HTTP methods matching the source code exactly — POST for support/warnings, admin-password-reset, email-change/request, email-change/confirm; PUT for support/context and admins/main. (2) The RBAC summary now clearly explains that ROLE_SUPER_ADMIN is platform-scoped and does NOT inherit tenant-level ROLE_ADMIN permissions. (3) The periodLockEnforced SUPER_ADMIN guard on PUT /api/v1/admin/settings is now documented with a clear warning callout. For issue #3 (dealerId DTO claim), the fix correctly removed the erroneous 'optional dealerId' and verified against source. However, the fix missed that the handoff also lists a 'priority' field that doesn't exist in SupportTicketCreateRequest (only category, subject, description exist). This is a new blocking inaccuracy — the fix should have caught all DTO field discrepancies. Additionally, the new RBAC note creates an internal contradiction by claiming SUPER_ADMIN cannot access /api/v1/admin/users while the route table in the same document lists ADMIN, SUPER_ADMIN for that endpoint."
+}

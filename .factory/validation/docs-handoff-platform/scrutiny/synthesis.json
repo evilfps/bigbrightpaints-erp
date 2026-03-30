@@ -1,6 +1,6 @@
 {
   "milestone": "docs-handoff-platform",
-  "round": 1,
+  "round": 2,
   "status": "fail",
   "validatorsRun": {
     "lint": {
@@ -32,61 +32,29 @@
     "total": 1,
     "passed": 0,
     "failed": 1,
-    "failedFeatures": ["docs-frontend-handoff-platform-surfaces"]
+    "failedFeatures": ["docs-handoff-platform-route-rbac-fix"]
   },
   "blockingIssues": [
     {
-      "featureId": "docs-frontend-handoff-platform-surfaces",
+      "featureId": "docs-handoff-platform-route-rbac-fix",
       "severity": "blocking",
-      "description": "Section 2.3 Admin Routes and Section 2.2 Company/Tenant Routes omit 6 SuperAdminController routes that exist in the controller: POST /api/v1/superadmin/tenants/{id}/support/warnings, POST /api/v1/superadmin/tenants/{id}/support/admin-password-reset, PUT /api/v1/superadmin/tenants/{id}/support/context, PUT /api/v1/superadmin/tenants/{id}/admins/main, POST /api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/request, POST /api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/confirm. For a frontend handoff packet, these tenant-management routes must be documented."
-    },
-    {
-      "featureId": "docs-frontend-handoff-platform-surfaces",
-      "severity": "blocking",
-      "description": "Section 3.1 RBAC Summary table does not clearly explain that ROLE_SUPER_ADMIN is a platform-level role that does NOT inherit tenant-level ROLE_ADMIN permissions. The table shows SUPER_ADMIN as having '—' for Portal (Insights), Portal (Finance), and Dealer Portal, but the explanation of why is missing. Frontend developers need to understand this distinction for conditional UI rendering."
-    },
-    {
-      "featureId": "docs-frontend-handoff-platform-surfaces",
-      "severity": "blocking",
-      "description": "Section 5.5 Support Ticket Payloads claims the admin-side SupportTicketCreateRequest has an optional dealerId field while the dealer side does not, but does not reference the specific DTO file for verification. The shared DTO claim needs explicit source verification."
-    },
-    {
-      "featureId": "docs-frontend-handoff-platform-surfaces",
-      "severity": "blocking",
-      "description": "PUT /api/v1/admin/settings requires SUPER_ADMIN only, but the actual code has an additional guard requireSuperAdminForPeriodLockEnforcedChange() that requires SUPER_ADMIN specifically for changing periodLockEnforced. The handoff doc does not mention this additional constraint."
+      "description": "Section 5.5 Support Ticket Payloads lists `priority` as a field in SupportTicketCreateRequest, but the actual DTO only has three fields: category, subject, description. This pre-existing inaccuracy was not caught by the fix. Frontend developers would implement a priority selector that doesn't exist in the backend."
     }
   ],
   "nonBlockingIssues": [
     {
-      "featureId": "docs-frontend-handoff-platform-surfaces",
+      "featureId": "docs-handoff-platform-route-rbac-fix",
       "severity": "non_blocking",
-      "description": "Auth routes table could note that /api/v1/auth/profile endpoints are served by UserProfileController (separate from AuthController) for frontend consumers who need to understand codebase organization."
+      "description": "Section 3.2 point 2 claims SUPER_ADMIN cannot access /api/v1/admin/users, but the route table in Section 2.3 lists ADMIN, SUPER_ADMIN for that endpoint. The note should clarify that SUPER_ADMIN accesses admin endpoints through platform-level authority, not through tenant-level ROLE_ADMIN inheritance."
     },
     {
-      "featureId": "docs-frontend-handoff-platform-surfaces",
+      "featureId": "docs-handoff-platform-route-rbac-fix",
       "severity": "non_blocking",
-      "description": "Section 5.6 Approval Payloads should note that approve/reject endpoints are populated dynamically based on approval type (credit request, credit override, payroll, period close, export), not a uniform pattern."
-    },
-    {
-      "featureId": "docs-frontend-handoff-platform-surfaces",
-      "severity": "non_blocking",
-      "description": "Section 7.3 Must-Change-Password Corridor allowed-paths list should be verified against the actual MustChangePasswordFilter implementation for completeness."
+      "description": "Section 3.2 has duplicate numbering: items 3 and 3 (Portal insights and Portal finance). Should be renumbered 1-6 sequentially."
     }
   ],
   "appliedUpdates": [],
-  "suggestedGuidanceUpdates": [
-    {
-      "target": "AGENTS.md",
-      "suggestion": "Add a boundary note for docs-worker: when writing frontend handoff packets, workers must enumerate ALL controller endpoints by reading the actual controller source, not just the routes mentioned in existing module docs or library files. Cross-reference against openapi.json and the controller Java source to ensure route completeness.",
-      "evidence": "The docs-frontend-handoff-platform-surfaces feature omitted 6 SuperAdminController routes because the worker relied on existing documentation surfaces rather than enumerating the actual controller methods.",
-      "isSystemic": false
-    }
-  ],
-  "rejectedObservations": [
-    {
-      "observation": "PortalRoleActionMatrix as a centralized RBAC abstraction is not documented for frontend consumers.",
-      "reason": "This is a convention/pattern observation better suited for library docs about the backend architecture. The frontend-handoff.md library file already documents RBAC predicates per-endpoint. Documenting the internal PortalRoleActionMatrix pattern in handoff packets is not necessary for frontend consumers who only need to know which roles can access which endpoints."
-    }
-  ],
-  "previousRound": null
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/docs-handoff-platform/scrutiny/synthesis.json"
 }
