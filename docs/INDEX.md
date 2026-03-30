@@ -41,6 +41,7 @@ Module packets explain what each module owns: controllers, services, DTOs, entit
 | [factory/manufacturing](modules/factory.md) | Manufacturing execution: production logs, packing, packaging mappings, batch registration, cost allocation, dispatch handoff boundary, deprecated seams, and replay/config caveats |
 | [sales](modules/sales.md) | Dealer/customer management, order lifecycle, credit controls, dispatch coordination, dealer self-service, and canonical O2C path |
 | [production/catalog](modules/catalog-setup.md) | Catalog and setup readiness: brands, items, import, SKU readiness evaluation, packaging-material definitions, payload families, and setup prerequisites for downstream flows |
+| [purchasing/procure-to-pay](modules/purchasing.md) | Supplier lifecycle, purchase orders, goods receipt (GRN), purchase invoices, purchase returns, supplier settlements, and explicit stock-truth vs AP-truth boundaries |
 
 ## Flows
 
