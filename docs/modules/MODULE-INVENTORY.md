@@ -20,7 +20,7 @@ A reader can discover module ownership from this inventory without grepping the 
 | **factory** | Manufacturing execution: production logs, packing, packaging mappings, batch registration, cost allocation (WIP/consumption), and dispatch handoff boundary | [factory.md](factory.md) |
 | **hr** | HR and payroll truth: employee management, leave, attendance, payroll run lifecycle, payroll calculation, payroll posting, and payroll payment on the accounting host | [AGENTS.md](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md) |
 | **inventory** | Stock truth boundary: stock summaries, batch traceability, reservations, adjustments, opening stock import, valuation, dispatch execution, and inventory–accounting event bridge | [inventory.md](inventory.md) |
-| **invoice** | Invoice lifecycle: invoice issuance, settlement behavior, ledger/aging/statement surfaces, and invoice-related DTO families | [source](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/) *(per-module packet pending)* |
+| **invoice** | Invoice lifecycle: invoice issuance, settlement behavior, ledger/aging/statement surfaces, and invoice-related DTO families | [invoice.md](invoice.md) |
 | **portal** | Dealer self-service portal: dealer-facing endpoints, portal finance views, portal-specific DTOs and isolation boundaries | [admin-portal-rbac.md](admin-portal-rbac.md) |
 | **production** | Catalog and product surfaces: brands, items, readiness, SKU setup, packaging material definitions, and product/variant management | [catalog-setup.md](catalog-setup.md) |
 | **purchasing** | Procure-to-pay truth: supplier lifecycle, purchase orders, GRN, purchase invoices, purchase returns, settlements, and AP boundaries | [purchasing.md](purchasing.md) |
