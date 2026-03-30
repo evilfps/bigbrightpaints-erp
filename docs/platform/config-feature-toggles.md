@@ -92,11 +92,13 @@ These settings are managed through `SystemSettingsService` and persisted in the 
 
 **Config prefix:** `erp.mail.*` (via `EmailProperties`)
 
+**Dual-default note:** The `mail.enabled` setting has a split default that depends on which layer reads it. `EmailProperties` (`@ConfigurationProperties(prefix = "erp.mail")`) defaults `enabled` to `false` at the Java-field level, so email sending is off until explicitly enabled through config or the runtime settings API. However, `SmtpPropertiesValidator` reads `erp.mail.enabled` via `@Value("${erp.mail.enabled:true}")`, which defaults to `true`. In practice this means: if `erp.mail.enabled` is never set, the `EmailProperties` bean sees `false` (no email is sent), but the SMTP validator also sees `true` (so it will enforce SMTP property completeness in the `prod` profile). To avoid a startup failure in production, either set `erp.mail.enabled=false` explicitly (which also silences the validator) or provide complete SMTP configuration. The runtime-tunable value stored in `system_settings` overrides the `EmailProperties` field at startup, but does not affect `SmtpPropertiesValidator`, which only reads the Spring config property.
+
 **Consumer:** `EmailService` checks these flags before attempting to send any email. `CompanyService` and `PasswordResetService` also guard credential and password-reset delivery on the corresponding sub-flags.
 
 **Operational caveat:** If `erp.mail.enabled=true` but SMTP properties (`spring.mail.host`, `spring.mail.username`, `spring.mail.password`) are missing or invalid, email sending will fail at delivery time. The `RequiredConfigHealthIndicator` (when enabled) reports mail as misconfigured in this case.
 
-**SMTP validation:** `SmtpPropertiesValidator` runs at startup and logs a warning if `erp.mail.enabled=true` but SMTP configuration is incomplete.
+**SMTP validation:** `SmtpPropertiesValidator` (active only under the `prod` profile, excluded for `seed`) runs at startup and throws `IllegalStateException` if `erp.mail.enabled=true` but required SMTP properties are missing or use the default `changeme` password. This prevents the application from starting in production with incomplete mail configuration. The validator checks `spring.mail.host`, `spring.mail.username`, and `spring.mail.password` (when SMTP auth is enabled). When `erp.mail.enabled=false`, the validator skips all checks entirely.
 
 ### 1.5 CORS Allowed Origins
 
@@ -178,7 +180,7 @@ These settings are scoped to individual tenants and are not directly tunable thr
 | --- | --- |
 | `AUTH` | `/api/v1/auth` |
 | `ACCOUNTING` | `/api/v1/accounting`, `/api/v1/invoices`, `/api/v1/audit` |
-| `SALES` | `/api/v1/sales`, `/api/v1/dealers`, `/api/v1/credit/*` |
+| `SALES` | `/api/v1/sales`, `/api/v1/dealers`, `/api/v1/credit/override-requests`, `/api/v1/credit/limit-requests` |
 | `INVENTORY` | `/api/v1/inventory`, `/api/v1/raw-materials`, `/api/v1/dispatch`, `/api/v1/finished-goods` |
 
 **Enforcement:** `ModuleGatingInterceptor` resolves the target module from the request path and calls `ModuleGatingService.requireEnabledForCurrentCompany()`. If the module is disabled for the tenant, the request is rejected with `MODULE_DISABLED`.
