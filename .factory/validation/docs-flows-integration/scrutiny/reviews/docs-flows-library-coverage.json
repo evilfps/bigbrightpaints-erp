@@ -1,0 +1,47 @@
+{
+  "featureId": "docs-flows-library-coverage",
+  "milestone": "docs-flows-integration",
+  "reviewedAt": "2026-03-30T17:30:00Z",
+  "commitId": "b7163c2da",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The flow library comprehensively covers all 11 major backend flow families with complete, consistent flow packets. Each packet follows a uniform structure (actors, entrypoints, preconditions, lifecycle, completion boundary, current limitations, canonical vs non-canonical paths, cross-module dependencies, event/listener boundaries, security, related docs, open decisions). Minor issues: stale prose in FLOW-INVENTORY.md and INDEX.md, duplicate section numbering in two files.",
+    "issues": [
+      {
+        "file": "docs/flows/FLOW-INVENTORY.md",
+        "line": 58,
+        "severity": "non_blocking",
+        "description": "Coverage Notes still say 'Individual flow packets are listed as (packet pending). They will be created in later milestones.' But all 11 flow packets now exist and are linked in the inventory table. This stale prose is misleading — a reader would believe 6 packets are missing when they are all present."
+      },
+      {
+        "file": "docs/INDEX.md",
+        "line": 54,
+        "severity": "non_blocking",
+        "description": "Flows section says 'Five flow packets (flows 1–5) are now available; the remaining six will be added in later milestones.' All 11 flow packets now exist. This stale prose was last updated in commit 75937a0b when only 5 were done and was never updated when the commercial/finance packets (6–11) were added."
+      },
+      {
+        "file": "docs/flows/accounting-period-close.md",
+        "line": 310,
+        "severity": "non_blocking",
+        "description": "Related Documentation links to MODULE-INVENTORY.md as 'Accounting module reference' instead of a dedicated accounting module packet. No docs/modules/accounting.md exists. This is acceptable but the link text is slightly misleading."
+      },
+      {
+        "file": "docs/flows/hr-payroll.md",
+        "line": 302,
+        "severity": "non_blocking",
+        "description": "Duplicate section numbering — two '## 10.' headings (Related Documentation at line 289 and Open Decisions at line 302). Should be '## 10. Related Documentation' and '## 11. Open Decisions' for consistency with other flow packets."
+      },
+      {
+        "file": "docs/flows/reporting-export.md",
+        "line": 271,
+        "severity": "non_blocking",
+        "description": "Duplicate section numbering — two '## 10.' headings (Related Documentation at line 261 and Open Decisions at line 271). Should be '## 10. Related Documentation' and '## 11. Open Decisions' for consistency with other flow packets."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS with 5 non-blocking issues. The flow library comprehensively covers all 11 major backend flow families (auth/identity, tenant/admin, catalog/setup, manufacturing/packing, inventory, O2C, P2P, invoice/dealer-finance, accounting/period-close, HR/payroll, reporting/export). Each flow packet follows a consistent structure with actors, entrypoints, preconditions, lifecycle, completion boundaries, current limitations, and cross-references to module docs, ADRs, and FLOW-INVENTORY. All freshness markers are set to 2026-03-30. The main gaps are stale prose in FLOW-INVENTORY.md (packet pending note) and INDEX.md (claiming only 5 of 11 packets available) and duplicate section numbering in two files. These are cosmetic/documentation-accuracy issues that don't block the feature's core requirement of covering all major backend flows."
+}

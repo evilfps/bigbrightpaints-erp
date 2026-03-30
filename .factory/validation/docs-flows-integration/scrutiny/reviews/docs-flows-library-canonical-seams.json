@@ -1,0 +1,46 @@
+{
+  "featureId": "docs-flows-library-canonical-seams",
+  "milestone": "docs-flows-integration",
+  "reviewedAt": "2026-03-30T12:00:00.000Z",
+  "commitId": "b200f8338",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The commit adds Event/Listener Boundaries sections (section 8) and access-control boundary documentation to 4 major flow packets: order-to-cash.md, inventory-management.md, manufacturing-packing.md, and reporting-export.md. Each file now has canonical vs non-canonical paths (section 6), cross-module dependency tables (section 7), event/listener boundary tables with key boundary notes (section 8), and security considerations (section 9). The implementation preserves existing canonical-path documentation and adds new event/listener and access-control seam content. Section numbering was correctly shifted (8→9→10→11) for three of the four files. One file has a duplicate section number.",
+    "issues": [
+      {
+        "file": "docs/flows/reporting-export.md",
+        "line": 261,
+        "severity": "non_blocking",
+        "description": "Duplicate section number: '## 10. Open Decisions' should be '## 11. Open Decisions'. The preceding section '## 10. Related Documentation' already uses number 10. The other three modified files (O2C, inventory, manufacturing) correctly renumbered Open Decisions to 11."
+      },
+      {
+        "file": "docs/flows/inventory-management.md",
+        "line": 283,
+        "severity": "suggestion",
+        "description": "Access-control boundaries are documented inline in the Event/Listener Boundaries section (section 8) rather than in a separate subsection. While the content is comprehensive, it duplicates some points from Security Considerations (section 9): RBAC by operation and idempotency requirements appear in both sections. Consider consolidating to avoid drift."
+      },
+      {
+        "file": "docs/flows/inventory-management.md",
+        "line": 260,
+        "severity": "suggestion",
+        "description": "The Non-Canonical / Deprecated Paths table lists 'Legacy intake endpoints' with status 'Partially disabled' but has no explicit replacement or 'no replacement' note. Consider adding a clearer note (e.g., 'No replacement — intake gated by erp.raw-material.intake.enabled')."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "4 of 11 flow packets (auth-identity, tenant-admin-management, catalog-setup-readiness, invoice-dealer-finance) lack Event/Listener Boundaries sections. These were added to the 7 other packets across earlier features and this feature. The feature scope says 'where they materially affect a major flow', which may justify omission for flows with minimal event-driven behavior (e.g., auth, catalog setup). However, AGENTS.md and the docs-worker skill don't define the threshold for when event/listener sections are required vs optional.",
+      "evidence": "auth-identity.md goes directly from section 7 (Cross-Module Dependencies) to section 8 (Security Considerations) with no Event/Listener section. Same for tenant-admin-management.md, catalog-setup-readiness.md, invoice-dealer-finance.md."
+    },
+    {
+      "area": "conventions",
+      "observation": "The flow packet section numbering convention is consistent (1-11 across all packets) but not explicitly documented in docs/CONVENTIONS.md or the docs-worker skill. Workers must manually track section renumbering when inserting new sections, which led to the reporting-export.md duplicate section number issue.",
+      "evidence": "reporting-export.md has two '## 10.' sections after the Event/Listener insertion was not followed by proper renumbering of Open Decisions to 11."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS with non-blocking issues. The commit successfully adds canonical-seam documentation (Event/Listener Boundaries, access-control boundaries, key boundary notes) to the 4 major flow packets that were in scope. All validation checks (lint-knowledgebase, enterprise policy, architecture, orchestrator layer) pass. The FLOW-INVENTORY.md correctly reflects all 11 flow packets with valid links. Cross-references to module docs and ADRs are valid. One non-blocking issue: reporting-export.md has a duplicate section 10 number (should be 11 for Open Decisions). Three suggestions: potential content duplication between Event/Listener and Security sections in inventory-management.md, and a non-canonical path entry without explicit replacement note. The feature fulfills VAL-FLOW-004 (canonical vs non-canonical paths) and VAL-FLOW-007 (event/listener and access-control boundaries) for the modified packets."
+}
