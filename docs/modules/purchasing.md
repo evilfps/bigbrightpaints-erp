@@ -214,14 +214,25 @@ DRAFT ──approve──▸ APPROVED ──receive(partial)──▸ PARTIALLY_
 ### GRN Status Flow
 
 ```
-PARTIAL → RECEIVED → INVOICED
+[CREATION TIME]──────►[INVOICE TIME]
+      │                       │
+      ▼                       ▼
+ PARTIAL/RECEIVED ─────────► INVOICED
 ```
+
+**Important clarification:** The `PARTIAL` vs `RECEIVED` status is determined **at GRN creation time** based on fulfillment level, not as a sequential transition.
 
 | Status | Meaning | How Reached |
 | --- | --- | --- |
-| `PARTIAL` | Created with partial line items received | Initial state on GRN creation |
-| `RECEIVED` | Fully processed, stock created, accounting period validated | After successful GRN creation |
-| `INVOICED` | Purchase invoice has been captured against this GRN | Purchase invoice posted against GRN lines |
+| `PARTIAL` | GRN created with partial quantity relative to PO line(s) | Set at GRN creation when `fullyReceived = false` |
+| `RECEIVED` | GRN created with full quantity for all PO line(s) | Set at GRN creation when `fullyReceived = true` |
+| `INVOICED` | Purchase invoice has been captured against this GRN | Applied when purchase invoice is posted (not a sequential transition from RECEIVED) |
+
+**Status determination at creation:** The `GoodsReceiptService` evaluates whether the GRN fulfills all purchase order lines at creation time:
+- If the GRN quantity for any line is less than the remaining PO quantity → status = `PARTIAL`
+- If the GRN quantity equals the remaining PO quantity for all lines → status = `RECEIVED`
+
+The `INVOICED` status is applied later when a purchase invoice is captured against the GRN lines — this is not a sequential transition from `RECEIVED`, but rather an independent status update applied when invoicing occurs.
 
 ### GRN Creation
 
