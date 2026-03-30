@@ -24,9 +24,11 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.audit.IntegrationFailureMetadataSchema;
+import com.bigbrightpaints.erp.core.auditaccess.AuditAccessService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.modules.accounting.controller.AccountingAuditController;
 import com.bigbrightpaints.erp.modules.accounting.controller.AccountingController;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -752,15 +754,13 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
 
   @Test
   void controllerTransactionAudit_parsesDateFiltersAndForwardsParameters() {
-    AccountingService service = org.mockito.Mockito.mock(AccountingService.class);
-    AccountingAuditTrailService auditService =
-        org.mockito.Mockito.mock(AccountingAuditTrailService.class);
-    AccountingController controller = accountingController(service, auditService);
+    AuditAccessService auditAccessService = org.mockito.Mockito.mock(AuditAccessService.class);
+    AccountingAuditController controller = accountingAuditController(auditAccessService);
 
     controller.transactionAudit("2026-02-01", "2026-02-10", "AR", "OPEN", "REF-1", 2, 25);
 
-    verify(auditService)
-        .listTransactions(
+    verify(auditAccessService)
+        .queryAccountingTransactions(
             java.time.LocalDate.of(2026, 2, 1),
             java.time.LocalDate.of(2026, 2, 10),
             "AR",
@@ -772,26 +772,22 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
 
   @Test
   void controllerTransactionAudit_allowsNullDateFilters() {
-    AccountingService service = org.mockito.Mockito.mock(AccountingService.class);
-    AccountingAuditTrailService auditService =
-        org.mockito.Mockito.mock(AccountingAuditTrailService.class);
-    AccountingController controller = accountingController(service, auditService);
+    AuditAccessService auditAccessService = org.mockito.Mockito.mock(AuditAccessService.class);
+    AccountingAuditController controller = accountingAuditController(auditAccessService);
 
     controller.transactionAudit(null, null, null, null, null, 0, 50);
 
-    verify(auditService).listTransactions(null, null, null, null, null, 0, 50);
+    verify(auditAccessService).queryAccountingTransactions(null, null, null, null, null, 0, 50);
   }
 
   @Test
   void controllerTransactionAuditDetail_forwardsJournalEntryId() {
-    AccountingService service = org.mockito.Mockito.mock(AccountingService.class);
-    AccountingAuditTrailService auditService =
-        org.mockito.Mockito.mock(AccountingAuditTrailService.class);
-    AccountingController controller = accountingController(service, auditService);
+    AuditAccessService auditAccessService = org.mockito.Mockito.mock(AuditAccessService.class);
+    AccountingAuditController controller = accountingAuditController(auditAccessService);
 
     controller.transactionAuditDetail(77L);
 
-    verify(auditService).transactionDetail(77L);
+    verify(auditAccessService).getAccountingTransactionDetail(77L);
   }
 
   @Test
@@ -1409,6 +1405,10 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
       AccountingService accountingService,
       AccountingAuditTrailService accountingAuditTrailService) {
     return accountingController(accountingService, accountingAuditTrailService, null, null);
+  }
+
+  private AccountingAuditController accountingAuditController(AuditAccessService auditAccessService) {
+    return new AccountingAuditController(auditAccessService);
   }
 
   private AccountingController accountingController(

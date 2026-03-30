@@ -1,74 +1,75 @@
 # R2 Checkpoint
 
 ## Scope
-- Feature: `ERP-39 integrated security remediation wave`
-- Branch: `packet/erp-39-hardcut-integration`
-- Baseline head: `53873362b0f9e10ab9e7b587ee6aa79163023e7a`
+- Feature: `ERP-46 audit read hard-cut`
+- Branch: `fix/audit-unification-hard-cut`
+- Baseline head: `46f11fcb2a801517578182e0a4905ee5c5b5ba5b`
 - Review candidate:
-  - hard-fail suspended tenant runtime access and tighten tenant/accounting scope checks
-  - remove raw settlement idempotency keys from public audit and linked-reference surfaces
-  - preserve signed inventory revaluation deltas and reject settlement-date replay drift
-  - defer implicit auto-settlement replay keys to resolved allocation state
-  - harden export ownership, dealer credit exposure, supplier read visibility, runtime error redaction, and CI/release guard paths
-  - add `migration_v2/V176__opening_stock_content_fingerprint.sql` so opening-stock replay protection survives caller-supplied batch or idempotency-key churn
-- Why this is R2: the packet changes live accounting, tenant access, company onboarding, and schema enforcement paths. A wrong cut can break settlement replay guarantees, expose sensitive audit data, reject valid tenant traffic, or let duplicate opening-stock imports through during rollout.
+  - hard-cut tenant, tenant-admin, and superadmin audit reads onto explicit canonical controllers
+  - merge `audit_logs` and enterprise business audit events behind `AuditAccessService`
+  - remove retired audit-trail and audit-digest read paths plus dead scheduler/query code
+  - keep accounting trail failures visible in the accounting feed and keep module filters semantically aligned
+  - fail closed merged-feed paging with a bounded 5,000-row result window and overflow-safe page math
+- Why this is R2: the branch changes live accounting, company/superadmin audit access paths and removes public endpoints. A wrong cut can hide accounting evidence, leak the wrong tenant/platform scope, or break audit review during incidents.
 
 ## Risk Trigger
 - Triggered by:
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/**`
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/**`
-  - `erp-domain/src/main/resources/db/migration_v2/V176__opening_stock_content_fingerprint.sql`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/**`
 - Contract surfaces affected:
-  - settlement replay/idempotency semantics
-  - accounting audit detail and linked-reference payloads
-  - inventory revaluation posting polarity
-  - tenant lifecycle enforcement and onboarding policy sync
-  - opening-stock replay protection across repeated file imports
+  - tenant accounting event review
+  - tenant-admin audit review
+  - superadmin platform audit review
+  - accounting transaction audit detail/provenance
+  - audit paging and module-filter semantics
 - Failure mode if wrong:
-  - valid revaluation write-downs could post with the wrong sign
-  - settlement replays could silently accept different effective dates or different resolved allocation sets
-  - audit surfaces could continue leaking raw client idempotency keys
-  - suspended tenants could keep runtime access or onboarding policy could drift from current controls
-  - opening-stock imports could be replayed under new batch keys after the migration lands
+  - accounting audit readers could miss `INTEGRATION_FAILURE` markers for event-trail persistence failures
+  - tenant-admin readers could receive `ACCOUNTING` rows while filtering for `BUSINESS`
+  - oversized page values could crash merged audit feeds instead of failing closed
+  - removed `/api/v1/accounting/audit-trail` or `/api/v1/accounting/audit/digest*` callers could silently drift back into frontend or integration usage
+  - superadmin/platform review could regress back onto tenant-scoped surfaces
 
 ## Approval Authority
 - Mode: human
-- Approver: `ERP-39 owner`
-- Canary owner: `ERP-39 owner`
-- Approval status: `pending human review; draft PR #173 is the current candidate`
-- Basis: this is a destructive hard-cut across accounting, tenant policy, and migration surfaces, so technical green alone is not sufficient for deployment approval.
+- Approver: `ERP-46 owner`
+- Canary owner: `ERP-46 owner`
+- Approval status: `pending human review; PR #177 is the current candidate`
+- Basis: this is a destructive audit-surface hard-cut across accounting and platform review paths, so technical green alone is not sufficient for deployment approval.
 
 ## Escalation Decision
 - Human escalation required: yes
-- Reason: the packet changes accounting replay controls plus a `migration_v2` contract, so deployment should not rely on automated gate success alone.
+- Reason: the branch removes public audit routes and rewires tenant/platform visibility, so deployment should not rely on automated gate success alone.
 
 ## Rollback Owner
-- Owner: `ERP-39 owner`
+- Owner: `ERP-46 owner`
 - Rollback method:
-  - before merge: abandon `packet/erp-39-hardcut-integration` and do not promote the artifact
-  - after merge but before deploy: revert the ERP-39 packet commits together; do not keep the migration/docs changes while dropping the runtime fixes
-  - after deploy: keep the ERP-39-compatible backend live unless the database is first restored to a pre-`V176` snapshot/PITR state
-  - do not hand-edit settlement replay rows, tenant policy state, or opening-stock fingerprints toward mixed legacy/current behavior
+  - before merge: abandon `fix/audit-unification-hard-cut` and do not promote the artifact
+  - after merge but before deploy: revert the audit hard-cut commits together; do not keep the controller/doc removals while dropping the access-layer fixes
+  - after deploy: restore the last known-good pre-hard-cut backend if tenant/platform audit review is impaired
+  - do not selectively reintroduce removed audit endpoints beside the canonical controllers
 - Rollback trigger:
-  - accounting audit consumers require the removed raw idempotency key surface
-  - settlement replay rejects valid same-date replays or still accepts drifted effective dates/open-item sets
-  - opening-stock import replay behavior diverges from the verified fingerprint-based contract
-  - tenant runtime access or onboarding policy enforcement regresses after deploy
+  - accounting users cannot see canonical audit evidence on `/api/v1/accounting/audit/events`
+  - tenant-admin or superadmin review loses the intended scope boundary
+  - merged feed paging or module filters produce wrong results or 5xx responses
+  - downstream clients still depend on removed `/api/v1/accounting/audit-trail` or digest surfaces
 
 ## Expiry
 - Valid until: `2026-04-05`
-- Re-evaluate if: scope widens beyond ERP-39, another `migration_v2` change lands, or the approver/canary/rollback owners change.
+- Re-evaluate if: scope widens beyond ERP-46 audit hard-cut follow-ups, audit ownership changes again, or the approver/canary/rollback owners change.
 
 ## Verification Evidence
 - Commands run:
-  - `MIGRATION_SET=v2 mvn -q -Dtest=AccountingServiceTest#settleDealerInvoices_replayPartnerMismatchIncludesPartnerDetails+settleDealerInvoices_idempotentReplayReturnsSameCashAmount+settleSupplierInvoices_replayPartnerMismatchIncludesPartnerDetails test`
-  - `MIGRATION_SET=v2 mvn -q -Dtest=AccountingServiceTest,AccountingAuditTrailServiceTest,SettlementServiceTest,TruthRailsSharedDtoContractTest,LandedCostRevaluationIT,AccountingControllerJournalEndpointsTest,AccountingControllerExceptionHandlerTest test`
-  - `ENTERPRISE_DIFF_BASE=53873362b0f9e10ab9e7b587ee6aa79163023e7a bash ci/check-enterprise-policy.sh`
+  - `mvn -B -ntp --settings erp-domain/.mvn/settings.xml -f erp-domain/pom.xml -Dtest=AuditEventClassifierTest,AuditFeedFilterTest,AuditLogReadAdapterTest,DefaultAuditAccessServiceTest test`
+  - `bash scripts/gate_fast.sh`
+  - `bash ci/lint-knowledgebase.sh`
+  - `bash ci/check-enterprise-policy.sh`
+  - `bash ci/check-codex-review-guidelines.sh`
 - Result summary:
-  - integrated replay/date guard regressions are covered and green on the branch head
-  - the integrated accounting, audit, settlement, controller, and revaluation suite passed on `28d43192345ffd0981677c966f174facb7acb597`
-  - enterprise-policy is expected to pass once this checkpoint and the matching migration/rollback runbook updates are included in the PR diff
+  - targeted audit-access regression tests are green on the current branch head
+  - `gate_fast.sh` passed locally after the latest audit-feed fixes
+  - enterprise policy and codex review guideline checks passed locally after the checkpoint update was added to the branch diff
 - Artifacts/links:
-  - repo checkout: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-39-hardcut-integration`
-  - PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/173`
-  - Linear issue: `https://linear.app/orchestratorerp/issue/ERP-39/security-findings-verification-and-grouped-remediation-triage-from`
+  - repo checkout: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/audit-unification-hard-cut`
+  - PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/177`
+  - local gate artifacts: `artifacts/gate-fast/`

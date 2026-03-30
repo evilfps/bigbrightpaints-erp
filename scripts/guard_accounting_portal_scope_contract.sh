@@ -187,8 +187,8 @@ require_literal "Updated portal endpoint map and frontend handoff docs" "$GUARDR
 require_regex_match 'Updated `?docs/endpoint-inventory\.md`? module mapping and examples' "$GUARDRAIL_DOC" \
   "scope guardrail doc must require endpoint inventory updates for scope changes"
 
-require_literal "admin-only deprecated exports and must not be treated as required APIs for new accountant-owned UI flows" "$HANDOFF_DOC" \
-  "handoff must explicitly classify legacy audit digest endpoints as admin-only deprecated exports"
+require_literal "Canonical audit reads are \`GET /api/v1/accounting/audit/{events,transactions,transactions/{journalEntryId}}\`; tenant-admin review stays on \`GET /api/v1/admin/audit/events\`, and platform review stays on \`GET /api/v1/superadmin/audit/platform-events\`." "$HANDOFF_DOC" \
+  "handoff must explicitly document the canonical audit route split"
 
 forbid_section_line_literals "### \`/accounting/ar/invoices\`" "- Required API calls" "invoiceDownloadInvoicePdf" "$HANDOFF_DOC" \
   "invoice route must not list admin-only PDF export as a shared required API"
@@ -208,14 +208,8 @@ require_section_literal "### \`/accounting/ar/collections-settlements\`" "Intern
 require_section_literal "### \`/accounting/ar/collections-settlements\`" "Role/permission gate: Mixed by endpoint: receipts/settlements/portal-finance reads use \`ROLE_ADMIN|ROLE_ACCOUNTING\`; \`GET /api/v1/accounting/sales/returns\` also permits \`ROLE_SALES\`." "$HANDOFF_DOC" \
   "collections route must document mixed RBAC truth for portal finance reads"
 
-forbid_section_line_literals "### \`/accounting/reports/financial\`" "- Required API calls" "acctAuditDigest" "$HANDOFF_DOC" \
-  "financial reports route must not list deprecated digest endpoints as required APIs"
-forbid_section_line_literals "### \`/accounting/reports/financial\`" "- Required API calls" "acctAuditDigestCsv" "$HANDOFF_DOC" \
-  "financial reports route must not list deprecated digest CSV as a required API"
-require_section_literal "### \`/accounting/reports/financial\`" "Admin-only legacy exports (do not treat as required for this route): \`acctAuditDigest\`, \`acctAuditDigestCsv\`" "$HANDOFF_DOC" \
-  "financial reports route must classify digest exports as admin-only legacy"
-require_section_literal "### \`/accounting/reports/financial\`" "Audit-trail route dependency: use \`/accounting/audit-trail\` with \`acctAuditTransactions\` and \`acctAuditTransactionDetail\` for new transaction-audit UX." "$HANDOFF_DOC" \
-  "financial reports route must point new audit UX to transaction audit route"
+require_section_literal "### \`/accounting/reports/financial\`" "Audit-trail route dependency: use \`/accounting/audit-trail\` with \`acctAuditEvents\`, \`acctAuditTransactions\`, and \`acctAuditTransactionDetail\`; tenant-admin escalations use \`GET /api/v1/admin/audit/events\`." "$HANDOFF_DOC" \
+  "financial reports route must point new audit UX to canonical tenant and tenant-admin audit routes"
 require_section_literal "### \`/accounting/reports/financial\`" "Role/permission gate: Mixed by endpoint:" "$HANDOFF_DOC" \
   "financial reports route must document mixed RBAC truth"
 

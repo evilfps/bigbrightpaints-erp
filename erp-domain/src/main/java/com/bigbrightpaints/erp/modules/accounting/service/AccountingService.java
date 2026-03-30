@@ -19,7 +19,6 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccrualRequest;
-import com.bigbrightpaints.erp.modules.accounting.dto.AuditDigestResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.BadDebtWriteOffRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.CreditNoteRequest;
@@ -307,16 +306,6 @@ public class AccountingService extends AccountingCoreService {
   @Override
   public JournalEntryDto adjustWip(WipAdjustmentRequest request) {
     return inventoryAccountingService.adjustWip(request);
-  }
-
-  @Override
-  public AuditDigestResponse auditDigest(java.time.LocalDate from, java.time.LocalDate to) {
-    return accountingAuditService.auditDigest(from, to);
-  }
-
-  @Override
-  public String auditDigestCsv(java.time.LocalDate from, java.time.LocalDate to) {
-    return accountingAuditService.auditDigestCsv(from, to);
   }
 
   private AccountingFacade resolveAccountingFacade() {

@@ -99,7 +99,7 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/company
   - `GET /api/v1/accounting/audit/transactions`
   - `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
   - `GET /api/v1/accounting/date-context`
-- Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snapshot as admin-only deprecated exports and must not be treated as required APIs for new accountant-owned UI flows.
+- Canonical audit reads are `GET /api/v1/accounting/audit/{events,transactions,transactions/{journalEntryId}}`; tenant-admin review stays on `GET /api/v1/admin/audit/events`, and platform review stays on `GET /api/v1/superadmin/audit/platform-events`.
 
 ## Task 2: Frontend API Inventory (Grouped by Domain)
 
@@ -126,8 +126,7 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/company
 | `portalFinanceAging` | GET | `/api/v1/portal/finance/aging` | dealerId (query) | - | Yes | No | Yes |
 | `acctSupplierAging` | GET | `/api/v1/accounting/aging/suppliers/{supplierId}` | supplierId (path) | asOf (query), buckets (query) | Yes | No | Yes |
 | `acctSupplierAgingPdf` | GET | `/api/v1/accounting/aging/suppliers/{supplierId}/pdf` | supplierId (path) | asOf (query), buckets (query) | Yes | No | Yes |
-| `acctAuditDigest` | GET | `/api/v1/accounting/audit/digest` | - | from (query), to (query) | Yes | No | Yes |
-| `acctAuditDigestCsv` | GET | `/api/v1/accounting/audit/digest.csv` | - | from (query), to (query) | Yes | No | Yes |
+| `acctAuditEvents` | GET | `/api/v1/accounting/audit/events` | - | action (query), actor (query), entityType (query), from (query), module (query), page (query), reference (query), size (query), status (query), to (query) | Yes | No | Yes |
 | `acctWriteOffBadDebt` | POST | `/api/v1/accounting/bad-debts/write-off` | amount (body), expenseAccountId (body), invoiceId (body) | adminOverride (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
 | `acctPostCreditNote` | POST | `/api/v1/accounting/credit-notes` | invoiceId (body) | adminOverride (body), amount (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
 | `acctPostDebitNote` | POST | `/api/v1/accounting/debit-notes` | purchaseId (body) | adminOverride (body), amount (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
@@ -594,14 +593,13 @@ These rows are required for the period-close maker-checker UX, but they live out
 ### `/accounting/reports/financial`
 - Purpose: Trial balance, P&L, balance sheet, cash flow, inventory valuation/reconciliation, aged debtors, wastage.
 - Required API calls: `reportTrialBalance`, `acctGetTrialBalanceAsOf`, `reportProfitLoss`, `reportBalanceSheet`, `reportCashFlow`, `reportInventoryValuation`, `reportInventoryReconciliation`, `reportAgedDebtors`, `reportWastageReport`, `reportReconciliationDashboard`, `acctGenerateGstReturn`
-- Admin-only legacy exports (do not treat as required for this route): `acctAuditDigest`, `acctAuditDigestCsv`
-- Audit-trail route dependency: use `/accounting/audit-trail` with `acctAuditTransactions` and `acctAuditTransactionDetail` for new transaction-audit UX.
+- Audit-trail route dependency: use `/accounting/audit-trail` with `acctAuditEvents`, `acctAuditTransactions`, and `acctAuditTransactionDetail`; tenant-admin escalations use `GET /api/v1/admin/audit/events`.
 - Loading state: report loader with parameter panel; no-data period state; export/download progress + failure details.
 - Empty state: no rows / no open items / no period data for selected filters.
 - Error state: inline widget errors + page-level retry + action-level toast; preserve user filters and unsaved inputs.
 - Suggested table columns: Report dependent; enforce standard grid controls: sticky totals row, drill-through links, export columns metadata.
 - Suggested form fields: Filter controls: fromDate, toDate, asOfDate, dealer/supplier/account selectors, grouping granularity.
-- Role/permission gate: Mixed by endpoint: financial reports and GST return use `ROLE_ADMIN|ROLE_ACCOUNTING`; deprecated digest exports are `ROLE_ADMIN` only.
+- Role/permission gate: Mixed by endpoint: financial reports and GST return use `ROLE_ADMIN|ROLE_ACCOUNTING`; tenant-admin review feed is `ROLE_ADMIN`; platform audit feed is `ROLE_SUPER_ADMIN`.
 
 ## Accountant-Grade UX/Logic Controls (Must-Have)
 
@@ -617,19 +615,24 @@ These rows are required for the period-close maker-checker UX, but they live out
 
 ### New Accounting Audit Trail APIs (Must Add In FE)
 
+- `GET /api/v1/accounting/audit/events`
+  - Query params: `from`, `to`, `module`, `action`, `status`, `actor`, `entityType`, `reference`, `page` (default `0`), `size` (default `50`).
+  - Returns paged `AuditFeedItemDto` rows for tenant-scoped accounting/business audit evidence.
 - `GET /api/v1/accounting/audit/transactions`
   - Query params: `from`, `to`, `module`, `status`, `reference`, `page` (default `0`), `size` (default `50`).
   - Returns paged `AccountingTransactionAuditListItemDto` rows.
 - `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
   - Returns `AccountingTransactionAuditDetailDto` with linked documents, settlement allocations, and event trail.
-- Legacy digest endpoints remain admin-only and are deprecated; keep them out of new accountant-owned routes:
-  - `GET /api/v1/accounting/audit/digest`
-  - `GET /api/v1/accounting/audit/digest.csv`
+- `GET /api/v1/admin/audit/events`
+  - Tenant-admin-only audit review feed; do not expose to attached superadmins or accountant-only flows.
+- `GET /api/v1/superadmin/audit/platform-events`
+  - Platform-only control-plane audit feed for `ROLE_SUPER_ADMIN`; do not mix with tenant business activity.
 
 Implementation note:
-- `/api/v1/accounting/audit/transactions*` is code-verified from `AccountingController`; if OpenAPI snapshot is stale, treat backend controller contract as authoritative until snapshot refresh.
+- `/api/v1/accounting/audit/*`, `/api/v1/admin/audit/events`, and `/api/v1/superadmin/audit/platform-events` are code-verified canonical audit surfaces.
 
 Frontend function-name additions:
+- `acctAuditEvents` -> `GET /api/v1/accounting/audit/events`
 - `acctAuditTransactions` -> `GET /api/v1/accounting/audit/transactions`
 - `acctAuditTransactionDetail` -> `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
 
@@ -659,7 +662,7 @@ Costing views/actions must stay visible in accounting portal:
 - `GET /api/v1/reports/inventory-reconciliation`
 
 UX rule:
-- Any costing report/action with resulting journal reference must support drill-through into `/accounting/audit-trail`.
+- Any costing report/action with resulting journal reference must support drill-through into `/accounting/audit-trail` backed by `acctAuditEvents` plus transaction detail APIs.
 
 ### Approval Flow Contract For Accounting Approvers
 

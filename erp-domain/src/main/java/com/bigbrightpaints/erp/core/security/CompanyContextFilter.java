@@ -40,7 +40,8 @@ import jakarta.servlet.http.HttpServletResponse;
 public class CompanyContextFilter extends OncePerRequestFilter {
 
   private static final Logger log = LoggerFactory.getLogger(CompanyContextFilter.class);
-  private static final String AUDIT_API_PREFIX = "/api/v1/audit";
+  private static final Set<String> TENANT_AUDIT_WORKFLOW_PREFIXES =
+      Set.of("/api/v1/audit", "/api/v1/admin/audit");
   private static final List<CompanyBoundControlRoute> COMPANY_BOUND_CONTROL_ROUTES =
       List.of(
           controlRoute("GET", "^/api/v1/superadmin/tenants/([^/]+)$", false),
@@ -561,7 +562,10 @@ public class CompanyContextFilter extends OncePerRequestFilter {
 
   private boolean isTenantAuditWorkflowRequest(String path) {
     String normalizedPath = normalizePath(path);
-    return StringUtils.hasText(normalizedPath) && normalizedPath.startsWith(AUDIT_API_PREFIX);
+    return StringUtils.hasText(normalizedPath)
+        && TENANT_AUDIT_WORKFLOW_PREFIXES.stream()
+            .anyMatch(
+                prefix -> normalizedPath.equals(prefix) || normalizedPath.startsWith(prefix + "/"));
   }
 
   private boolean isPlatformScopedRequestAllowed(String path) {

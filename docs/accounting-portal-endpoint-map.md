@@ -20,10 +20,13 @@ Count lock for parity checks: **138**
   - Shared foundation APIs (4): `GET /api/v1/auth/me`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/auth/logout`
   - Dealer support APIs (2): `GET /api/v1/sales/dealers`, `GET /api/v1/sales/dealers/search`
 - Explicit outside-lock ledger (present in `docs/endpoint-inventory.md` and `openapi.json`):
+  - `GET /api/v1/accounting/audit/events`
   - `GET /api/v1/accounting/audit/transactions`
   - `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
+  - `GET /api/v1/admin/audit/events`
+  - `GET /api/v1/superadmin/audit/platform-events`
   - `GET /api/v1/accounting/date-context`
-- Legacy `GET /api/v1/accounting/audit/digest*` endpoints are still present in this OpenAPI snapshot and should be treated as deprecated in new frontend flows.
+- Canonical audit reads are hard-cut to `/api/v1/accounting/audit/*`, `/api/v1/admin/audit/events`, and `/api/v1/superadmin/audit/platform-events`; removed digest aliases must not be reintroduced in frontend flows.
 - Legacy raw-material intake is intentionally excluded from this curated frontend parity baseline. Product setup and stock entry are canonicalized to `/api/v1/catalog/items`, `/api/v1/inventory/opening-stock`, and downstream P2P receiving flows.
 
 ## Accounting Core (GL, Periods, Journals, Controls)
@@ -42,8 +45,7 @@ Count lock for parity checks: **138**
 | `POST /api/v1/accounting/accruals` | create-form; req: amount (body), creditAccountId (body), debitAccountId (body); opt: adminOverride (body), autoReverseDate (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
 | `GET /api/v1/accounting/aging/suppliers/{supplierId}` | detail-view; req: supplierId (path); opt: asOf (query), buckets (query); states: loading, error, success, empty | path=supplierId; query=asOf, buckets; body=none; ct=- | ok 200; err 400 |
 | `GET /api/v1/accounting/aging/suppliers/{supplierId}/pdf` | detail-view; req: supplierId (path); opt: asOf (query), buckets (query); states: loading, error, success, empty | path=supplierId; query=asOf, buckets; body=none; ct=- | ok 200; err 400 |
-| `GET /api/v1/accounting/audit/digest` | list-view; req: -; opt: from (query), to (query); states: loading, error, success, empty | path=-; query=from, to; body=none; ct=- | ok 200; err 400 |
-| `GET /api/v1/accounting/audit/digest.csv` | list-view; req: -; opt: from (query), to (query); states: loading, error, success, empty | path=-; query=from, to; body=none; ct=- | ok 200; err 400 |
+| `GET /api/v1/accounting/audit/events` | list-view; req: -; opt: action (query), actor (query), entityType (query), from (query), module (query), page (query), reference (query), size (query), status (query), to (query); states: loading, error, success, empty | path=-; query=from, to, module, action, status, actor, entityType, reference, page, size; body=none; ct=- | ok 200; err 400 |
 | `POST /api/v1/accounting/bad-debts/write-off` | create-form; req: amount (body), expenseAccountId (body), invoiceId (body); opt: adminOverride (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
 | `POST /api/v1/accounting/credit-notes` | create-form; req: invoiceId (body); opt: adminOverride (body), amount (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
 | `POST /api/v1/accounting/debit-notes` | create-form; req: purchaseId (body); opt: adminOverride (body), amount (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |

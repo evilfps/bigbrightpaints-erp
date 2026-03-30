@@ -1,6 +1,8 @@
 package com.bigbrightpaints.erp.modules.accounting.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.Map;
 
@@ -13,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.bigbrightpaints.erp.core.audit.IntegrationFailureMetadataSchema;
+import com.bigbrightpaints.erp.core.auditaccess.AuditAccessService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.exception.GlobalExceptionHandler;
@@ -227,17 +230,6 @@ class AccountingControllerExceptionHandlerTest {
   }
 
   @Test
-  void auditDigest_invalidDateReturnsValidationEnvelope() throws Exception {
-    accountingControllerMvc()
-        .perform(get("/api/v1/accounting/audit/digest").param("to", "2026-13-01"))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.success").value(false))
-        .andExpect(jsonPath("$.message").value("Invalid to date format; expected ISO date yyyy-MM-dd"))
-        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
-        .andExpect(jsonPath("$.data.details.to").value("2026-13-01"));
-  }
-
-  @Test
   void transactionAudit_invalidDateReturnsValidationEnvelope() throws Exception {
     accountingControllerMvc()
         .perform(get("/api/v1/accounting/audit/transactions").param("from", "2026-02-30"))
@@ -247,6 +239,22 @@ class AccountingControllerExceptionHandlerTest {
             jsonPath("$.message").value("Invalid from date format; expected ISO date yyyy-MM-dd"))
         .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
         .andExpect(jsonPath("$.data.details.from").value("2026-02-30"));
+  }
+
+  @Test
+  void transactionAuditDetail_missingJournalEntryReturnsNotFoundEnvelope() throws Exception {
+    AuditAccessService auditAccessService = mock(AuditAccessService.class);
+    when(auditAccessService.getAccountingTransactionDetail(999L))
+        .thenThrow(
+            new ApplicationException(
+                ErrorCode.BUSINESS_ENTITY_NOT_FOUND, "Journal entry not found"));
+
+    accountingControllerMvc(auditAccessService)
+        .perform(get("/api/v1/accounting/audit/transactions/999"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.message").value("Journal entry not found"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.BUSINESS_ENTITY_NOT_FOUND.getCode()));
   }
 
   @Test
@@ -356,8 +364,20 @@ class AccountingControllerExceptionHandlerTest {
         null, null, null, null, null, null, null);
   }
 
+  private AccountingAuditController auditController() {
+    return auditController(null);
+  }
+
+  private AccountingAuditController auditController(AuditAccessService auditAccessService) {
+    return new AccountingAuditController(auditAccessService);
+  }
+
   private MockMvc accountingControllerMvc() {
-    return MockMvcBuilders.standaloneSetup(controller())
+    return accountingControllerMvc(null);
+  }
+
+  private MockMvc accountingControllerMvc(AuditAccessService auditAccessService) {
+    return MockMvcBuilders.standaloneSetup(controller(), auditController(auditAccessService))
         .setControllerAdvice(new GlobalExceptionHandler())
         .build();
   }

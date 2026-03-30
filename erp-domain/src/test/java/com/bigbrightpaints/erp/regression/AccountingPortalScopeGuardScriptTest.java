@@ -318,7 +318,7 @@ Maker-checker period-close note:
 HR, PURCHASING, INVENTORY, and REPORTS come under the Accounting portal in frontend scope.
 Scoped endpoint count: **4**
 Current handoff inventory total is **10**
-Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snapshot as admin-only deprecated exports and must not be treated as required APIs for new accountant-owned UI flows.
+Canonical audit reads are `GET /api/v1/accounting/audit/{events,transactions,transactions/{journalEntryId}}`; tenant-admin review stays on `GET /api/v1/admin/audit/events`, and platform review stays on `GET /api/v1/superadmin/audit/platform-events`.
 ## Purchasing & Payables
 ## Inventory & Costing
 ## HR & Payroll
@@ -365,9 +365,8 @@ Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snaps
 
 ### `/accounting/reports/financial`
 - Required API calls: `reportTrialBalance`, `acctGetTrialBalanceAsOf`, `reportProfitLoss`, `reportBalanceSheet`, `reportCashFlow`, `reportInventoryValuation`, `reportInventoryReconciliation`, `reportAgedDebtors`, `reportWastageReport`, `reportReconciliationDashboard`, `acctGenerateGstReturn`
-- Admin-only legacy exports (do not treat as required for this route): `acctAuditDigest`, `acctAuditDigestCsv`
-- Audit-trail route dependency: use `/accounting/audit-trail` with `acctAuditTransactions` and `acctAuditTransactionDetail` for new transaction-audit UX.
-- Role/permission gate: Mixed by endpoint: financial reports and GST return use `ROLE_ADMIN|ROLE_ACCOUNTING`; deprecated digest exports are `ROLE_ADMIN` only.
+- Audit-trail route dependency: use `/accounting/audit-trail` with `acctAuditEvents`, `acctAuditTransactions`, and `acctAuditTransactionDetail`; tenant-admin escalations use `GET /api/v1/admin/audit/events`.
+- Role/permission gate: Mixed by endpoint: financial reports and GST return use `ROLE_ADMIN|ROLE_ACCOUNTING`; tenant-admin review feed is `ROLE_ADMIN`; platform audit feed is `ROLE_SUPER_ADMIN`.
 """);
 
     Files.writeString(
