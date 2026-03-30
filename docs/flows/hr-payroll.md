@@ -299,7 +299,7 @@ The payroll flow itself does not publish events that trigger downstream listener
 
 ---
 
-## 10. Open Decisions
+## 11. Open Decisions
 
 | Decision | Status | Notes |
 | --- | --- | --- |

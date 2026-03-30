@@ -232,10 +232,10 @@ The flow is complete when:
 
 ### Non-Canonical / Deprecated Paths
 
-| Path | Status | Notes |
+| Path | Status | Replacement |
 | --- | --- | --- |
-| `/api/v1/dispatch/confirm` (legacy) | Retired | Now `POST /api/v1/dispatch/confirm` |
-| Legacy intake endpoints | Partially disabled | `erp.raw-material.intake.enabled=false` blocks intake |
+| `/api/v1/dispatch/confirm` (legacy) | Retired | Use `POST /api/v1/dispatch/confirm` |
+| Legacy intake endpoints | No replacement | The raw-material intake path was disabled via `erp.raw-material.intake.enabled=false`. Stock intake for raw materials now occurs through the [procure-to-pay flow](procure-to-pay.md) via GRN (Goods Receipt Note) processing. |
 
 ---
 
@@ -273,10 +273,10 @@ See [orchestrator.md](../modules/orchestrator.md) for the full event bridge map 
 
 ## 9. Security Considerations
 
-- **RBAC by operation** — Adjustments require ADMIN or ACCOUNTING; dispatch requires OPERATIONAL_DISPATCH
 - **Accounting metadata visibility** — Some stock data filtered for non-accounting roles
-- **Idempotency required** — Adjustments require idempotency key to prevent duplicates
 - **Company scoping** — All inventory operations scoped to tenant via JWT
+
+> **Note:** RBAC and idempotency requirements are documented in [Section 8: Event/Listener Boundaries](#8-eventlistener-boundaries) where the access-control boundaries are detailed.
 
 ---
 

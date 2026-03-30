@@ -268,7 +268,7 @@ The reporting/export flow consumes data from upstream modules and enforces an ap
 
 ---
 
-## 10. Open Decisions
+## 11. Open Decisions
 
 | Decision | Status | Notes |
 | --- | --- | --- |

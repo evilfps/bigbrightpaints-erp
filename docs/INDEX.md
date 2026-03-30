@@ -51,7 +51,7 @@ Flow packets explain cross-module behavior: actors, entrypoints, preconditions, 
 | --- | --- |
 | [docs/flows/FLOW-INVENTORY.md](flows/FLOW-INVENTORY.md) | Canonical inventory of the eleven major backend flow families with ownership summary, cross-module participants, and links to flow packets |
 
-The flow inventory covers auth/identity, tenant/admin management, catalog/setup readiness, manufacturing/packing, inventory management, order-to-cash, procure-to-pay, invoice/dealer-finance, accounting/period close, HR/payroll, and reporting/export. Five flow packets (flows 1–5: auth/identity, tenant/admin management, catalog/setup readiness, manufacturing/packing, and inventory management) are now available; the remaining six will be added in later milestones.
+The flow inventory covers auth/identity, tenant/admin management, catalog/setup readiness, manufacturing/packing, inventory management, order-to-cash, procure-to-pay, invoice/dealer-finance, accounting/period close, HR/payroll, and reporting/export. All eleven flow packets are now available.
 
 ## Architecture Decision Records (ADRs)
 

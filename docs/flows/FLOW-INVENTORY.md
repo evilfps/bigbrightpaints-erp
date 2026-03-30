@@ -34,8 +34,8 @@ A reader can discover the current flow landscape from this inventory without gre
   - **Operations:** Catalog/Setup Readiness, Manufacturing/Packing, Inventory Management
   - **Commercial and finance:** Order-to-Cash, Procure-to-Pay, Invoice/Dealer Finance, Accounting/Period Close, HR/Payroll
   - **Reporting:** Reporting/Export
-- Individual flow packets are listed as *(packet pending)*. They will be created in later milestones (`docs-flows-platform-operations`, `docs-flows-commercial-finance`, `docs-flows-library-integration`). When a flow packet is created, the corresponding inventory row should be updated to remove the *(packet pending)* marker.
-- Historical workflow guides under [docs/workflows/](../workflows/) remain available as reference but are not the canonical flow packets. The new flow packets will supersede them with behaviour-first documentation including current definitions of done, canonical vs non-canonical paths, and known limitations.
+- All eleven flow packets have been created and are linked from this inventory. Each packet contains behaviour-first documentation including current definitions of done, canonical vs non-canonical paths, and known limitations.
+- Historical workflow guides under [docs/workflows/](../workflows/) remain available as reference but are not the canonical flow packets. The new flow packets supersede them.
 
 ## Supporting Workflow Guides (Historical)
 
