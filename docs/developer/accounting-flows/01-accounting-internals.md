@@ -104,7 +104,7 @@ AccountingCoreEngineCore
 - `AccountingCoreEngine` / `AccountingCoreLogic` / `AccountingCoreService` are wrapper-only layers
 - `AccountingService` duplicates the public API of specialized services
 - `BankReconciliationSessionService.reconcileLegacy(...)` is an explicit old/new bridge
-- deprecated digest endpoints are still live on `AccountingController`
+- retired digest and legacy audit-trail endpoints are hard-cut; canonical reads now live on `AccountingAuditController`, `AdminAuditController`, and `SuperAdminAuditController`
 - `JournalReferenceResolver` still walks direct -> legacy -> canonical mappings
 
 ## Review Hotspots

@@ -2,7 +2,7 @@
 
 ## Scope and evidence
 
-This review covers the orchestrator entrypoints, lease-based command dispatch, outbox publication, transaction listeners, scheduler registration, dashboard aggregation, integration-health surfaces, correlation/trace handling, retries, and failure routing. It also includes the related background integrations that materially affect incident recovery in this branch: enterprise audit retries, GitHub ticket sync, daily audit digest, and dunning sweeps.
+This review covers the orchestrator entrypoints, lease-based command dispatch, outbox publication, transaction listeners, scheduler registration, dashboard aggregation, integration-health surfaces, correlation/trace handling, retries, and failure routing. It also includes the related background integrations that materially affect incident recovery in this branch: enterprise audit retries, GitHub ticket sync, and dunning sweeps.
 
 Primary evidence:
 
@@ -16,7 +16,6 @@ Primary evidence:
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/{event/SalesOrderCreatedEvent.java,service/SalesCoreEngine.java}`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/{exception/AuditExceptionRoutingService.java,audit/{IntegrationFailureAlertRoutingPolicy,IntegrationFailureMetadataSchema,IntegrationFailureAlertRoute}.java,audittrail/EnterpriseAuditTrailService.java}`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/SupportTicketGitHubSyncService.java`
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AuditDigestScheduler.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/DunningService.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/config/DevRabbitConfig.java`
 - `erp-domain/src/main/resources/{application.yml,application-prod.yml,db/migration_v2/V6__orchestrator.sql,db/migration_v2/V35__performance_hotspot_indexes.sql}`
@@ -39,7 +38,7 @@ Supporting runtime evidence in this session:
 | Dashboard aggregation | `GET /api/v1/orchestrator/dashboard/{admin,factory,finance}` | `DashboardController` | Thin wrappers over `IntegrationCoordinator.fetch*Dashboard(...)`. |
 | Transaction listener | `SalesOrderCreatedEvent` | `OrderAutoApprovalListener.onOrderCreated(...)` | Fires after sales-order commit and can trigger orchestrator auto-approval. |
 | Scheduler bootstrap | app startup + `@PostConstruct` | `OutboxPublisherJob.schedule()` | Registers the `outbox-publisher` job in `scheduled_jobs` and in the in-memory scheduler. |
-| Related background integrations | `@Scheduled` / `@Async` methods | `EnterpriseAuditTrailService`, `SupportTicketGitHubSyncService`, `AuditDigestScheduler`, `DunningService` | These are not in the orchestrator package, but they shape the actual background failure and recovery posture. |
+| Related background integrations | `@Scheduled` / `@Async` methods | `EnterpriseAuditTrailService`, `SupportTicketGitHubSyncService`, `DunningService` | These are not in the orchestrator package, but they shape the actual background failure and recovery posture. |
 
 `openapi.json` should expose only the canonical orchestrator command, trace, health, and dashboard surfaces; legacy dispatch/payroll aliases and the factory-dispatch shim are retired from the published contract.
 
@@ -172,11 +171,10 @@ The orchestrator flow does not live in isolation. Several adjacent background se
 
 - `EnterpriseAuditTrailService` records business events asynchronously, retries them every 30 seconds, keeps both an in-memory queue and a persisted retry table, and drops retries after the configured max attempts. This improves latency for front-door transactions but accepts eventual audit gaps during prolonged failures.
 - `SupportTicketGitHubSyncService` creates GitHub issues asynchronously and polls issue status every five minutes. Status sync retries on the next schedule, but initial issue-creation failures are only written to `githubLastError`; there is no scheduler that automatically re-submits unsynced tickets.
-- `AuditDigestScheduler` emits per-company previous-day accounting digest lines to logs at `02:30`.
 - `DunningService` performs a daily dealer hold/reminder sweep at `03:15`.
 - `ExternalSyncService` advertises retryable outbound integrations (`sendCostingSnapshot`, `exportAccountingData`) with Spring Retry, but there are no call sites in this branch.
 
-These jobs share an operational smell: only the outbox publisher uses ShedLock. The enterprise audit retry job, GitHub sync, dunning sweep, and audit digest all rely on plain `@Scheduled` execution. In a multi-instance deployment, they will duplicate unless deployment topology guarantees a single scheduler instance.
+These jobs share an operational smell: only the outbox publisher uses ShedLock. The enterprise audit retry job, GitHub sync, and dunning sweep all rely on plain `@Scheduled` execution. In a multi-instance deployment, they will duplicate unless deployment topology guarantees a single scheduler instance.
 
 ## Retries, failures, and failure routing
 
@@ -204,7 +202,7 @@ The branch contains a generic integration-failure routing policy, but orchestrat
 
 - `AuditExceptionRoutingService` routes malformed requests and settlement-related `ApplicationException`s into `AuditEvent.INTEGRATION_FAILURE` with a stable schema and alert routes such as `SEV2_URGENT` and `SEV3_TICKET`.
 - Orchestrator command denials and outbox failures do **not** feed that policy. They remain in `orchestrator_commands`, `orchestrator_outbox.lastError`, and logs.
-- `SupportTicketGitHubSyncService`, `AuditDigestScheduler`, `DunningService`, and `EnterpriseAuditTrailService` mostly record failures as warnings or per-record last-error strings rather than central incident routes.
+- `SupportTicketGitHubSyncService`, `DunningService`, and `EnterpriseAuditTrailService` mostly record failures as warnings or per-record last-error strings rather than central incident routes.
 
 So the repo has three different failure-routing styles at once:
 
@@ -263,7 +261,7 @@ That means recovery today is evidence-rich but tool-poor: the system records wha
 | high | resilience / incident recovery | Outbox ambiguous, finalize-failure, and stale-lease rows are intentionally held for manual reconciliation, but the repo provides no replay API, reconciliation job, or dead-letter consumer contract. | `EventPublisherService`, `OutboxEventRepository`, absence of consumer/binding code for `bbp.orchestrator.events` | The system avoids duplicate side effects, but real incident recovery depends on manual operator work rather than a supported control plane. |
 | high | design / state-machine drift | `WorkflowService` step definitions and `OrderAutoApprovalState` flags imply a fuller orchestrated lifecycle than the code actually executes; `salesJournalPosted`, `dispatchFinalized`, `invoiceIssued`, `queueProduction(...)`, and `createAccountingEntry(...)` are not wired into live flows. | `WorkflowService`, `OrderAutoApprovalState`, `IntegrationCoordinator`, repo-wide call-site search | Readers can overestimate what the orchestrator truly guarantees, and incident triage will find state tables that do not reflect dispatch/journal/invoice reality. |
 | medium | performance / scalability | The outbox publisher drains at most 10 rows per scheduled run and the default cron is every 30 seconds; backlog age is not surfaced anywhere. | `OutboxEventRepository.findTop10...`, `OutboxPublisherJob`, `application.yml` | A bursty integration workload can accumulate pending events faster than the scheduled publisher drains them, without a first-class “oldest stuck event” alarm. |
-| medium | runtime operations | Only the outbox publisher is protected by ShedLock; enterprise audit retry, GitHub sync, audit digest, and dunning sweeps are plain `@Scheduled` jobs. | `ShedLockConfig`, `OutboxPublisherJob`, `EnterpriseAuditTrailService`, `SupportTicketGitHubSyncService`, `AuditDigestScheduler`, `DunningService` | In clustered deployments, duplicate executions can create duplicate emails, duplicate GitHub polls, or confusing audit retry behavior. |
+| medium | runtime operations | Only the outbox publisher is protected by ShedLock; enterprise audit retry, GitHub sync, and dunning sweeps are plain `@Scheduled` jobs. | `ShedLockConfig`, `OutboxPublisherJob`, `EnterpriseAuditTrailService`, `SupportTicketGitHubSyncService`, `DunningService` | In clustered deployments, duplicate executions can create duplicate emails, duplicate GitHub polls, or confusing audit retry behavior. |
 | medium | API / observability drift | OpenAPI still advertises deprecated dispatch/payroll endpoints, the app port lacks actuator health, and `/health/integrations` is only a count snapshot rather than a true dependency probe. | `openapi.json`, `OrchestratorController`, runtime curls to `8081` and `9090`, `IntegrationCoordinator.health()` | Clients and operators can integrate to dead or misleading surfaces and miss the actual management-port health story. |
 | medium | operator-surface drift | `GET /api/v1/admin/operations/status` currently returns `404`, so the expected operator-status surface is absent on the live backend. | live backend probe on `GET /api/v1/admin/operations/status`, operator/admin route survey during review | Ops dashboards or frontend operator tooling can assume there is a dedicated status endpoint and only discover at runtime that the backend exposes no live handler. |
 | medium | test-confidence gap | `DevRabbitConfig` turns broker publishes into no-op debug logs in `dev`/`openapi` profiles. | `DevRabbitConfig.NoOpRabbitTemplate` | Non-prod validation can mark outbox rows as published without proving real broker routing or downstream consumer behavior. |
