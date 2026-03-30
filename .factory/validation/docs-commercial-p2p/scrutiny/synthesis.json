@@ -1,0 +1,87 @@
+{
+  "milestone": "docs-commercial-p2p",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "lint-knowledgebase": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh",
+      "exitCode": 0
+    },
+    "check-architecture": {
+      "passed": true,
+      "command": "bash ci/check-architecture.sh",
+      "exitCode": 0
+    },
+    "check-enterprise-policy": {
+      "passed": true,
+      "command": "bash ci/check-enterprise-policy.sh",
+      "exitCode": 0
+    },
+    "check-orchestrator-layer": {
+      "passed": true,
+      "command": "bash ci/check-orchestrator-layer.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "failedFeatures": ["docs-commercial-purchasing-p2p"]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "docs-commercial-purchasing-p2p",
+      "severity": "blocking",
+      "description": "SupplierStatus enum values wrong: docs say PENDING_APPROVAL, code is PENDING (SupplierStatus.java)",
+      "file": "docs/modules/purchasing.md",
+      "suggestedFix": "Change PENDING_APPROVAL to PENDING in Section 1 enum table and Section 3 status flow table/diagram"
+    },
+    {
+      "featureId": "docs-commercial-purchasing-p2p",
+      "severity": "blocking",
+      "description": "PurchaseOrderStatus enum values wrong: docs say VOIDED, code is VOID; docs miss INVOICED status entirely (PurchaseOrderStatus.java)",
+      "file": "docs/modules/purchasing.md",
+      "suggestedFix": "Change VOIDED to VOID in Section 1 enum table. Add INVOICED status. Update Section 4 flow diagram and status table to include INVOICED between FULLY_RECEIVED and CLOSED."
+    },
+    {
+      "featureId": "docs-commercial-purchasing-p2p",
+      "severity": "blocking",
+      "description": "GoodsReceiptStatus values completely wrong: docs say PENDING→POSTED, code has PARTIAL/RECEIVED/INVOICED (GoodsReceiptStatus.java)",
+      "file": "docs/modules/purchasing.md",
+      "suggestedFix": "Replace PENDING→POSTED flow in Section 5 with actual values PARTIAL, RECEIVED, INVOICED. Update Section 1 enum table."
+    },
+    {
+      "featureId": "docs-commercial-purchasing-p2p",
+      "severity": "blocking",
+      "description": "PO status transition model significantly wrong: misses INVOICED step, VOID allowed only from DRAFT/APPROVED not PARTIALLY_RECEIVED, close only from INVOICED not FULLY_RECEIVED (PurchaseOrderService.isValidTransition)",
+      "file": "docs/modules/purchasing.md",
+      "suggestedFix": "Update Section 4 flow diagram to: DRAFT→APPROVED→PARTIALLY_RECEIVED→FULLY_RECEIVED→INVOICED→CLOSED, with VOID from DRAFT and APPROVED only. Update close constraint to 'Can only close POs in INVOICED status'."
+    }
+  ],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-commercial-purchasing-p2p",
+      "severity": "non_blocking",
+      "description": "Supplier activation path incomplete: docs only show APPROVED→ACTIVE, code also allows SUSPENDED→ACTIVE",
+      "file": "docs/modules/purchasing.md"
+    },
+    {
+      "featureId": "docs-commercial-purchasing-p2p",
+      "severity": "non_blocking",
+      "description": "Payable account code suffix collision logic not documented. Docs say 'must not already exist' but code auto-resolves with suffix",
+      "file": "docs/modules/purchasing.md"
+    },
+    {
+      "featureId": "docs-commercial-purchasing-p2p",
+      "severity": "non_blocking",
+      "description": "PO void and close constraints in Section 4 text contradict the flow diagram and actual code",
+      "file": "docs/modules/purchasing.md"
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [],
+  "previousRound": null
+}
