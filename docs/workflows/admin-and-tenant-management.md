@@ -1,5 +1,7 @@
 # Admin and Tenant Management Workflow
 
+> ⚠️ **NON-CANONICAL**: This document is superseded by the canonical flow packets in [docs/flows/](flows/). The current admin and tenant management behavior is documented in [docs/flows/tenant-admin-management.md](../flows/tenant-admin-management.md).
+
 **Audience:** Super admin, company admin, operations support lead
 
 This guide covers tenant onboarding, canonical superadmin tenant control, tenant-admin user control, export governance, support tickets, and changelog publishing.

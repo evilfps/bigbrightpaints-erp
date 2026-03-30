@@ -1,5 +1,7 @@
 # Code-review synthesis index
 
+> ⚠️ **NON-CANONICAL**: This directory contains legacy review artifacts from a past production-backend audit. The canonical documentation is now maintained in the new docs tree under [docs/modules/](modules/), [docs/flows/](flows/), and [docs/INDEX.md](../INDEX.md).
+
 This directory now holds the full review set for the production-backend audit. The index below links every completed review document, points to the milestone validation evidence under `.factory/validation/`, and records the environment limits that affected how much runtime corroboration the mission could gather.
 
 The final review set carries **90 review findings** from the completed area reviews plus **5 mission-level evidence constraints** into the synthesis outputs, and it now includes the implementation-facing [remediation-backlog.md](./remediation-backlog.md) handoff for the follow-up fix mission.

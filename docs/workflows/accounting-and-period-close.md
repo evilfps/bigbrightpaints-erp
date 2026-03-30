@@ -1,5 +1,7 @@
 # Accounting and Period Close Workflow
 
+> ⚠️ **NON-CANONICAL**: This document is superseded by the canonical flow packets in [docs/flows/](flows/). The current accounting and period close behavior is documented in [docs/flows/accounting-period-close.md](../flows/accounting-period-close.md).
+
 **Audience:** Accountants, finance manager, approver/admin
 
 This guide covers journaling, reconciliation, discrepancy handling, period controls, and reporting.

@@ -1,5 +1,7 @@
 # Sales Order to Cash (O2C) Workflow
 
+> ⚠️ **NON-CANONICAL**: This document is superseded by the canonical flow packets in [docs/flows/](flows/). The current sales and order-to-cash behavior is documented in [docs/flows/order-to-cash.md](../flows/order-to-cash.md).
+
 **Audience:** Sales team, dispatch team, finance/accounting
 
 This guide explains how to complete one full customer order cycle: from dealer creation to period close.

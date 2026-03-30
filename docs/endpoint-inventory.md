@@ -1,5 +1,7 @@
 # Endpoint Inventory (OpenAPI)
 
+> ⚠️ **REFERENCE ONLY**: This document is no longer the canonical source of truth. Use `openapi.json` and the module packets in [docs/modules/](modules/) as the primary API contract reference. The authoritative endpoint inventory is now available through [docs/modules/MODULE-INVENTORY.md](modules/MODULE-INVENTORY.md).
+
 Source: `openapi.json`
 Updated: 2026-03-28
 

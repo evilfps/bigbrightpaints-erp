@@ -1,5 +1,7 @@
 # Inventory Management Workflow
 
+> ⚠️ **NON-CANONICAL**: This document is superseded by the canonical flow packets in [docs/flows/](flows/). The current inventory management behavior is documented in [docs/flows/inventory-management.md](../flows/inventory-management.md).
+
 **Audience:** Warehouse/store team, inventory controller, finance controller
 
 This guide covers daily stock visibility, adjustments, opening loads, and traceability.

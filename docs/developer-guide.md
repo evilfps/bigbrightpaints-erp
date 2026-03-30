@@ -1,5 +1,7 @@
 # BigBright ERP Developer Workflow & Onboarding Guide
 
+> ⚠️ **NON-CANONICAL**: This document is superseded by the module packets and flow packets in the new docs tree. For current developer documentation, see [docs/INDEX.md](INDEX.md), [docs/modules/MODULE-INVENTORY.md](modules/MODULE-INVENTORY.md), and [docs/flows/FLOW-INVENTORY.md](flows/FLOW-INVENTORY.md).
+
 This is the day-1 guide for backend developers working in this repository.
 
 ## 1) Team workflow

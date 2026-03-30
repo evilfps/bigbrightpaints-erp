@@ -1,5 +1,7 @@
 # Payroll Workflow
 
+> ⚠️ **NON-CANONICAL**: This document is superseded by the canonical flow packets in [docs/flows/](flows/). The current HR and payroll behavior is documented in [docs/flows/hr-payroll.md](../flows/hr-payroll.md).
+
 **Audience:** HR operations, payroll processor, finance/accounting approver
 
 This guide covers payroll run creation through accounting posting and payment closure.

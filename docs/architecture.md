@@ -1,5 +1,7 @@
 # BigBright ERP Architecture (Code-Grounded)
 
+> ⚠️ **NON-CANONICAL**: This document is superseded by the canonical documentation in the new docs tree. See [docs/INDEX.md](INDEX.md) as the primary entry point, [docs/modules/MODULE-INVENTORY.md](modules/MODULE-INVENTORY.md) for the module inventory, and [docs/BACKEND-FEATURE-CATALOG.md](BACKEND-FEATURE-CATALOG.md) for the exhaustive feature catalog.
+
 Last reviewed: 2026-03-29
 
 This document captures the runtime architecture implemented in `erp-domain` and is intended as an engineering reference for cross-module behavior, invariants, and dependency boundaries.
