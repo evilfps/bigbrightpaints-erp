@@ -19,6 +19,10 @@ public interface RawMaterialMovementRepository extends JpaRepository<RawMaterial
   List<RawMaterialMovement> findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
       Company company, String referenceType, String referenceId);
 
+  List<RawMaterialMovement>
+      findByRawMaterial_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
+          Company company, Long journalEntryId, String referenceType);
+
   List<RawMaterialMovement> findByRawMaterialBatch(RawMaterialBatch batch);
 
   List<RawMaterialMovement> findByRawMaterialBatchOrderByCreatedAtAsc(RawMaterialBatch batch);

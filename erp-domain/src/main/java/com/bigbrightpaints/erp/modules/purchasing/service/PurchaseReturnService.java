@@ -450,7 +450,7 @@ public class PurchaseReturnService {
         continue;
       }
       try {
-        validateReplayCorrectionJournal(entry, sourceEntry, expectedSourceReference);
+        validateReplayCorrectionJournal(entry, sourceEntry, expectedSourceReference, reference);
       } catch (ApplicationException ex) {
         throw new ApplicationException(
                 ErrorCode.CONCURRENCY_CONFLICT,
@@ -464,6 +464,14 @@ public class PurchaseReturnService {
 
   private void validateReplayCorrectionJournal(
       JournalEntry entry, JournalEntry sourceEntry, String purchaseInvoiceNumber) {
+    validateReplayCorrectionJournal(entry, sourceEntry, purchaseInvoiceNumber, null);
+  }
+
+  private void validateReplayCorrectionJournal(
+      JournalEntry entry,
+      JournalEntry sourceEntry,
+      String purchaseInvoiceNumber,
+      String returnReference) {
     if (entry == null) {
       return;
     }
@@ -487,7 +495,9 @@ public class PurchaseReturnService {
           "Purchase return reference already used for another correction flow");
     }
     if (StringUtils.hasText(entry.getSourceReference())
-        && !Objects.equals(entry.getSourceReference(), purchaseInvoiceNumber)) {
+        && !Objects.equals(entry.getSourceReference(), purchaseInvoiceNumber)
+        && !(StringUtils.hasText(returnReference)
+            && Objects.equals(entry.getSourceReference(), returnReference))) {
       throw new ApplicationException(
           ErrorCode.CONCURRENCY_CONFLICT,
           "Purchase return reference already used for another purchase");

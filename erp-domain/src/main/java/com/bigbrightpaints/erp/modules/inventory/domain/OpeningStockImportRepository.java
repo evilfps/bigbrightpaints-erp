@@ -18,5 +18,7 @@ public interface OpeningStockImportRepository extends JpaRepository<OpeningStock
   Optional<OpeningStockImport> findByCompanyAndOpeningStockBatchKey(
       Company company, String openingStockBatchKey);
 
+  java.util.List<OpeningStockImport> findByCompanyOrderByCreatedAtAscIdAsc(Company company);
+
   Page<OpeningStockImport> findByCompany(Company company, Pageable pageable);
 }

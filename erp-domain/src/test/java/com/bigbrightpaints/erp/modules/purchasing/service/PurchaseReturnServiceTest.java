@@ -1406,6 +1406,34 @@ class PurchaseReturnServiceTest {
   }
 
   @Test
+  void purchaseReturnHelpers_validateReplayPurchaseReturnProvenanceAllowsLegacyReturnReference() {
+    RawMaterialPurchase replayPurchase = new RawMaterialPurchase();
+    replayPurchase.setInvoiceNumber("PI-30");
+    JournalEntry source = new JournalEntry();
+    ReflectionTestUtils.setField(source, "id", 991L);
+    replayPurchase.setJournalEntry(source);
+
+    RawMaterialMovement legacyMovement = new RawMaterialMovement();
+    legacyMovement.setJournalEntryId(992L);
+
+    JournalEntry legacyReturnEntry = new JournalEntry();
+    legacyReturnEntry.setReversalOf(source);
+    legacyReturnEntry.setCorrectionReason("PURCHASE_RETURN");
+    legacyReturnEntry.setSourceModule("PURCHASING_RETURN");
+    legacyReturnEntry.setSourceReference("PR-30");
+
+    when(journalEntryRepository.findByCompanyAndId(company, 992L))
+        .thenReturn(Optional.of(legacyReturnEntry));
+
+    ReflectionTestUtils.invokeMethod(
+        purchaseReturnService,
+        "validateReplayPurchaseReturnProvenance",
+        replayPurchase,
+        "PR-30",
+        List.of(legacyMovement));
+  }
+
+  @Test
   void recordPurchaseReturn_rejectsReplayWhenReturnedJournalBelongsToAnotherCorrectionFlow() {
     Account payable = new Account();
     ReflectionTestUtils.setField(payable, "id", 40L);
