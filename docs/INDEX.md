@@ -24,7 +24,7 @@ This is the canonical entrypoint for backend documentation. Every major docs sec
 | --- | --- |
 | [docs/modules/MODULE-INVENTORY.md](modules/MODULE-INVENTORY.md) | Canonical inventory of every live backend module with ownership summary and links to per-module documentation packets |
 
-Module packets explain what each module owns: controllers, services, DTOs, entities, helpers, events, and cross-module boundaries. Nine modules have canonical documentation packets today:
+Module packets explain what each module owns: controllers, services, DTOs, entities, helpers, events, and cross-module boundaries. Ten modules have canonical documentation packets today:
 
 | Module | Description |
 | --- | --- |
@@ -38,6 +38,7 @@ Module packets explain what each module owns: controllers, services, DTOs, entit
 | [orchestrator](modules/orchestrator.md) | Background coordination: outbox publishing, command dispatch, Spring event bridges, schedulers, retry/dead-letter behavior, feature flags, and deprecated/dead orchestration seams |
 | [hr](../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md) | Employees, leave, attendance, payroll runs, and payroll posting/payment |
 | [inventory](modules/inventory.md) | Stock truth boundary: stock summaries, batches, adjustments, opening stock import, valuation, traceability, dispatch execution, and inventory–accounting event bridge |
+| [factory/manufacturing](modules/factory.md) | Manufacturing execution: production logs, packing, packaging mappings, batch registration, cost allocation, dispatch handoff boundary, deprecated seams, and replay/config caveats |
 | [sales](../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/AGENTS.md) | Dealer/customer flows, order lifecycle, credit controls, and dispatch ownership |
 | [production/catalog](modules/catalog-setup.md) | Catalog and setup readiness: brands, items, import, SKU readiness evaluation, packaging-material definitions, payload families, and setup prerequisites for downstream flows |
 
