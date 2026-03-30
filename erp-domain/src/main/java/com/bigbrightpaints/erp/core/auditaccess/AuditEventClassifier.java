@@ -1,8 +1,11 @@
 package com.bigbrightpaints.erp.core.auditaccess;
 
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -14,6 +17,18 @@ import com.bigbrightpaints.erp.core.audittrail.AuditActionEvent;
 @Component
 public class AuditEventClassifier {
 
+  private static final Set<AuditEvent> ACCOUNTING_EVENTS =
+      Collections.unmodifiableSet(
+          EnumSet.of(
+              AuditEvent.JOURNAL_ENTRY_POSTED,
+              AuditEvent.JOURNAL_ENTRY_REVERSED,
+              AuditEvent.SETTLEMENT_RECORDED,
+              AuditEvent.PAYROLL_POSTED,
+              AuditEvent.TRANSACTION_CREATED,
+              AuditEvent.TRANSACTION_APPROVED,
+              AuditEvent.TRANSACTION_REJECTED,
+              AuditEvent.PAYMENT_PROCESSED,
+              AuditEvent.REFUND_ISSUED));
   private static final List<String> SUBJECT_ID_KEYS =
       List.of("subjectUserId", "targetUserId", "requesterUserId", "adminUserId", "userId");
   private static final List<String> SUBJECT_IDENTIFIER_KEYS =
@@ -98,11 +113,31 @@ public class AuditEventClassifier {
         return "COMPANIES";
       }
     }
-    return normalizeOrDefault(log.getResourceType(), categoryFor(log));
+    String resourceType = normalize(log.getResourceType());
+    if (resourceType != null) {
+      return resourceType.toUpperCase(Locale.ROOT);
+    }
+    Map<String, String> metadata = log.getMetadata();
+    String metadataResourceType = metadata == null ? null : normalize(metadata.get("resourceType"));
+    if (metadataResourceType != null) {
+      return metadataResourceType.toUpperCase(Locale.ROOT);
+    }
+    if (isAccountingEvent(log.getEventType())) {
+      return "ACCOUNTING";
+    }
+    return categoryFor(log);
   }
 
   public String moduleFor(AuditActionEvent event) {
     return normalizeOrDefault(event.getModule(), "BUSINESS");
+  }
+
+  public boolean isAccountingEvent(AuditEvent event) {
+    return event != null && ACCOUNTING_EVENTS.contains(event);
+  }
+
+  public Set<AuditEvent> accountingEventTypes() {
+    return ACCOUNTING_EVENTS;
   }
 
   public Long subjectUserId(Map<String, String> metadata) {

@@ -43,7 +43,7 @@ public class DefaultAuditAccessService implements AuditAccessService {
 
   @Override
   public PageResponse<AuditFeedItemDto> queryTenantAdminFeed(AuditFeedFilter filter) {
-    validateTenantAdminMergeWindow(filter);
+    validateMergedFeedWindow(filter);
     Company company = companyContextService.requireCurrentCompany();
     AuditFeedSlice tenantAuditLogs = auditLogReadAdapter.queryTenantCompanyFeed(company, filter);
     AuditFeedSlice tenantBusinessEvents = businessAuditReadAdapter.queryTenantCompanyFeed(company, filter);
@@ -52,9 +52,11 @@ public class DefaultAuditAccessService implements AuditAccessService {
 
   @Override
   public PageResponse<AuditFeedItemDto> queryAccountingFeed(AuditFeedFilter filter) {
+    validateMergedFeedWindow(filter);
     Company company = companyContextService.requireCurrentCompany();
-    AuditFeedSlice feed = businessAuditReadAdapter.queryAccountingFeed(company, filter);
-    return PageResponse.of(feed.items(), feed.totalElements(), filter.safePage(), filter.safeSize());
+    AuditFeedSlice accountingAuditLogs = auditLogReadAdapter.queryAccountingFeed(company, filter);
+    AuditFeedSlice accountingBusinessEvents = businessAuditReadAdapter.queryAccountingFeed(company, filter);
+    return merge(filter, accountingAuditLogs, accountingBusinessEvents);
   }
 
   @Override
@@ -75,7 +77,7 @@ public class DefaultAuditAccessService implements AuditAccessService {
     return accountingTransactionAuditReadAdapter.transactionDetail(journalEntryId);
   }
 
-  private void validateTenantAdminMergeWindow(AuditFeedFilter filter) {
+  private void validateMergedFeedWindow(AuditFeedFilter filter) {
     if (!filter.exceedsMergeWindow()) {
       return;
     }

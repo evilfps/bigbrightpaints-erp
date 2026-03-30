@@ -22,6 +22,8 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 @Component
 public class BusinessAuditReadAdapter {
 
+  private static final String NO_MODULE_MATCH = "__NO_MATCH__";
+
   private final AuditActionEventRepository auditActionEventRepository;
   private final AuditEventClassifier auditEventClassifier;
   private final AuditVisibilityPolicy auditVisibilityPolicy;
@@ -37,26 +39,19 @@ public class BusinessAuditReadAdapter {
 
   @Transactional(readOnly = true)
   public AuditFeedSlice queryTenantCompanyFeed(Company company, AuditFeedFilter filter) {
-    Page<AuditActionEvent> page =
-        auditActionEventRepository.findAll(
-            buildSpecification(company.getId(), filter, filter.normalizedModule()),
-            PageRequest.of(0, filter.fetchLimit(), sort()));
-    return new AuditFeedSlice(
-        page.getContent().stream().map(event -> toDto(event, company.getCode())).toList(),
-        page.getTotalElements());
+    return queryCompanyFeed(company, filter, filter.normalizedModule());
   }
 
   @Transactional(readOnly = true)
   public AuditFeedSlice queryAccountingFeed(Company company, AuditFeedFilter filter) {
-    String requestedModule = filter.normalizedModule();
-    String enforcedModule =
-        requestedModule == null
-            ? "ACCOUNTING"
-            : auditVisibilityPolicy.isAccountingModule(requestedModule) ? requestedModule : "__NO_MATCH__";
+    return queryCompanyFeed(company, filter, enforcedAccountingModule(filter.normalizedModule()));
+  }
+
+  private AuditFeedSlice queryCompanyFeed(Company company, AuditFeedFilter filter, String module) {
     Page<AuditActionEvent> page =
         auditActionEventRepository.findAll(
-            buildSpecification(company.getId(), filter, enforcedModule),
-            PageRequest.of(filter.safePage(), filter.safeSize(), sort()));
+            buildSpecification(company.getId(), filter, module),
+            PageRequest.of(0, filter.fetchLimit(), sort()));
     return new AuditFeedSlice(
         page.getContent().stream().map(event -> toDto(event, company.getCode())).toList(),
         page.getTotalElements());
@@ -165,5 +160,12 @@ public class BusinessAuditReadAdapter {
     } catch (NumberFormatException ex) {
       return null;
     }
+  }
+
+  private String enforcedAccountingModule(String requestedModule) {
+    if (requestedModule == null) {
+      return "ACCOUNTING";
+    }
+    return auditVisibilityPolicy.isAccountingModule(requestedModule) ? requestedModule : NO_MODULE_MATCH;
   }
 }

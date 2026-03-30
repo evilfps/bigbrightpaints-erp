@@ -102,6 +102,91 @@ class DefaultAuditAccessServiceTest {
   }
 
   @Test
+  void queryAccountingFeed_mergesAuditLogsAndBusinessEventsInDescendingTimestampOrder() {
+    CompanyContextService companyContextService = mock(CompanyContextService.class);
+    AuditLogReadAdapter auditLogReadAdapter = mock(AuditLogReadAdapter.class);
+    BusinessAuditReadAdapter businessAuditReadAdapter = mock(BusinessAuditReadAdapter.class);
+    AccountingTransactionAuditReadAdapter transactionReadAdapter =
+        mock(AccountingTransactionAuditReadAdapter.class);
+    DefaultAuditAccessService service =
+        new DefaultAuditAccessService(
+            companyContextService, auditLogReadAdapter, businessAuditReadAdapter, transactionReadAdapter);
+    Company company = new Company();
+    ReflectionTestUtils.setField(company, "id", 7L);
+    company.setCode("TENANT-A");
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    AuditFeedFilter filter =
+        new AuditFeedFilter(
+            LocalDate.of(2026, 3, 1),
+            LocalDate.of(2026, 3, 31),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            2);
+    when(auditLogReadAdapter.queryAccountingFeed(company, filter))
+        .thenReturn(
+            new AuditFeedSlice(
+                List.of(
+                    new AuditFeedItemDto(
+                        1L,
+                        "AUDIT_LOG",
+                        "BUSINESS",
+                        Instant.parse("2026-03-01T09:00:00Z"),
+                        7L,
+                        "TENANT-A",
+                        "ACCOUNTING",
+                        "PAYROLL_POSTED",
+                        "SUCCESS",
+                        null,
+                        "ops@example.com",
+                        null,
+                        null,
+                        "PAYROLL_RUN",
+                        "17",
+                        "17",
+                        "POST",
+                        "/api/v1/hr/payroll/17/post",
+                        "trace-1",
+                        Map.of())),
+                1));
+    when(businessAuditReadAdapter.queryAccountingFeed(company, filter))
+        .thenReturn(
+            new AuditFeedSlice(
+                List.of(
+                    new AuditFeedItemDto(
+                        2L,
+                        "BUSINESS_EVENT",
+                        "ACCOUNTING",
+                        Instant.parse("2026-03-01T10:00:00Z"),
+                        7L,
+                        "TENANT-A",
+                        "ACCOUNTING",
+                        "JOURNAL_ENTRY_POSTED",
+                        "SUCCESS",
+                        42L,
+                        "ops@example.com",
+                        null,
+                        null,
+                        "JOURNAL_ENTRY",
+                        "17",
+                        "JE-17",
+                        null,
+                        null,
+                        "trace-2",
+                        Map.of())),
+                1));
+
+    PageResponse<AuditFeedItemDto> page = service.queryAccountingFeed(filter);
+
+    assertThat(page.totalElements()).isEqualTo(2);
+    assertThat(page.content()).extracting(AuditFeedItemDto::sourceId).containsExactly(2L, 1L);
+  }
+
+  @Test
   void accountingTransactionQueries_delegateToCanonicalTransactionAdapter() {
     CompanyContextService companyContextService = mock(CompanyContextService.class);
     AuditLogReadAdapter auditLogReadAdapter = mock(AuditLogReadAdapter.class);
@@ -187,6 +272,31 @@ class DefaultAuditAccessServiceTest {
         new AuditFeedFilter(null, null, null, null, null, null, null, null, 30, 200);
 
     assertThatThrownBy(() -> service.queryTenantAdminFeed(filter))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_OUT_OF_RANGE);
+              assertThat(ex.getDetails())
+                  .containsEntry("page", 30)
+                  .containsEntry("size", 200)
+                  .containsEntry("maxWindow", 5000);
+            });
+  }
+
+  @Test
+  void queryAccountingFeed_rejectsWindowsLargerThanTheSupportedMergeLimit() {
+    CompanyContextService companyContextService = mock(CompanyContextService.class);
+    AuditLogReadAdapter auditLogReadAdapter = mock(AuditLogReadAdapter.class);
+    BusinessAuditReadAdapter businessAuditReadAdapter = mock(BusinessAuditReadAdapter.class);
+    AccountingTransactionAuditReadAdapter transactionReadAdapter =
+        mock(AccountingTransactionAuditReadAdapter.class);
+    DefaultAuditAccessService service =
+        new DefaultAuditAccessService(
+            companyContextService, auditLogReadAdapter, businessAuditReadAdapter, transactionReadAdapter);
+    AuditFeedFilter filter =
+        new AuditFeedFilter(null, null, "ACCOUNTING", null, null, null, null, null, 30, 200);
+
+    assertThatThrownBy(() -> service.queryAccountingFeed(filter))
         .isInstanceOfSatisfying(
             ApplicationException.class,
             ex -> {

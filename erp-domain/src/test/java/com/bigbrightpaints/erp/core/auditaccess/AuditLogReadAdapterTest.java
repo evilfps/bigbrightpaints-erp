@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -48,6 +49,26 @@ class AuditLogReadAdapterTest {
   }
 
   @Test
+  void referenceResolvers_supportLegacyAuditMetadataKeys() {
+    AuditLogReadAdapter adapter =
+        new AuditLogReadAdapter(
+            mock(AuditLogRepository.class), new AuditEventClassifier(), mock(AuditVisibilityPolicy.class));
+    AuditLog journalAuditLog = new AuditLog();
+    journalAuditLog.setMetadata(Map.of("journalEntryId", "19", "journalReference", "JE-19"));
+    AuditLog orderAuditLog = new AuditLog();
+    orderAuditLog.setMetadata(Map.of("orderNumber", "SO-2026-0001"));
+    AuditLog referenceAuditLog = new AuditLog();
+    referenceAuditLog.setMetadata(Map.of("reference", "REF-2026-0001"));
+
+    assertThat(adapter.entityIdFor(journalAuditLog)).isEqualTo("19");
+    assertThat(adapter.referenceNumberFor(journalAuditLog)).isEqualTo("JE-19");
+    assertThat(adapter.entityIdFor(orderAuditLog)).isEqualTo("SO-2026-0001");
+    assertThat(adapter.referenceNumberFor(orderAuditLog)).isEqualTo("SO-2026-0001");
+    assertThat(adapter.entityIdFor(referenceAuditLog)).isEqualTo("REF-2026-0001");
+    assertThat(adapter.referenceNumberFor(referenceAuditLog)).isEqualTo("REF-2026-0001");
+  }
+
+  @Test
   void queryPlatformFeed_resolvesMissingCompanyCodesInOneBatchPerPage() {
     AuditLogRepository auditLogRepository = mock(AuditLogRepository.class);
     AuditVisibilityPolicy auditVisibilityPolicy = mock(AuditVisibilityPolicy.class);
@@ -80,5 +101,39 @@ class AuditLogReadAdapterTest {
 
     assertThat(slice.items()).extracting(item -> item.companyCode()).containsExactly("TENANT-A", "TENANT-B");
     verify(auditVisibilityPolicy).resolveCompanyCodes(java.util.Set.of(7L));
+  }
+
+  @Test
+  void queryPlatformFeed_preservesNullMetadataValuesWithoutThrowing() {
+    AuditLogRepository auditLogRepository = mock(AuditLogRepository.class);
+    AuditVisibilityPolicy auditVisibilityPolicy = mock(AuditVisibilityPolicy.class);
+    AuditLogReadAdapter adapter =
+        new AuditLogReadAdapter(auditLogRepository, new AuditEventClassifier(), auditVisibilityPolicy);
+    Specification<com.bigbrightpaints.erp.core.audit.AuditLog> allowAll =
+        (root, query, cb) -> cb.conjunction();
+    when(auditVisibilityPolicy.platformVisibility()).thenReturn(allowAll);
+
+    AuditLog auditLog = new AuditLog();
+    auditLog.setRequestPath("/api/v1/companies/9");
+    HashMap<String, String> metadata = new HashMap<>();
+    metadata.put("journalEntryId", "19");
+    metadata.put("journalReference", null);
+    auditLog.setMetadata(metadata);
+
+    when(
+            auditLogRepository.findAll(
+                org.mockito.ArgumentMatchers.<Specification<AuditLog>>any(), any(Pageable.class)))
+        .thenReturn(new PageImpl<>(java.util.List.of(auditLog)));
+
+    AuditFeedSlice slice =
+        adapter.queryPlatformFeed(
+            new AuditFeedFilter(null, null, null, null, null, null, null, null, 0, 50));
+
+    assertThat(slice.items()).singleElement().satisfies(
+        item -> {
+          assertThat(item.entityId()).isEqualTo("19");
+          assertThat(item.metadata()).containsKey("journalReference");
+          assertThat(item.metadata().get("journalReference")).isNull();
+        });
   }
 }

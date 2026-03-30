@@ -3,7 +3,9 @@ package com.bigbrightpaints.erp.core.auditaccess;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,6 +37,21 @@ import jakarta.persistence.criteria.Root;
 @Component
 public class AuditLogReadAdapter {
 
+  private static final List<String> ENTITY_ID_METADATA_KEYS =
+      List.of("resourceId", "entityId", "journalEntryId", "journalReference", "reference", "orderNumber");
+  private static final List<String> REFERENCE_METADATA_KEYS =
+      List.of("referenceNumber", "journalReference", "reference", "orderNumber");
+  private static final List<String> REFERENCE_FILTER_METADATA_KEYS =
+      List.of(
+          "resourceId",
+          "entityId",
+          "referenceNumber",
+          "journalEntryId",
+          "journalReference",
+          "reference",
+          "orderNumber");
+  private static final String NO_MODULE_MATCH = "__NO_MATCH__";
+
   private final AuditLogRepository auditLogRepository;
   private final AuditEventClassifier auditEventClassifier;
   private final AuditVisibilityPolicy auditVisibilityPolicy;
@@ -50,11 +67,20 @@ public class AuditLogReadAdapter {
 
   @Transactional(readOnly = true)
   public AuditFeedSlice queryTenantCompanyFeed(Company company, AuditFeedFilter filter) {
+    return queryCompanyFeed(company, filter, filter.normalizedModule());
+  }
+
+  @Transactional(readOnly = true)
+  public AuditFeedSlice queryAccountingFeed(Company company, AuditFeedFilter filter) {
+    return queryCompanyFeed(company, filter, enforcedAccountingModule(filter.normalizedModule()));
+  }
+
+  private AuditFeedSlice queryCompanyFeed(Company company, AuditFeedFilter filter, String module) {
     int fetchLimit = filter.fetchLimit();
     Specification<AuditLog> spec =
         Specification.where(auditVisibilityPolicy.tenantCompanyVisibility(company.getId()))
             .and(byOccurredRange(filter.from(), filter.to()))
-            .and(byModule(filter.normalizedModule()))
+            .and(byModule(module))
             .and(byActor(filter.normalizedActor()))
             .and(byStatus(filter.normalizedStatus()))
             .and(byAction(filter.normalizedAction()))
@@ -89,10 +115,12 @@ public class AuditLogReadAdapter {
   private AuditFeedItemDto toDto(
       AuditLog log, String currentCompanyCode, Map<Long, String> fallbackCompanyCodes) {
     Map<String, String> metadata = metadata(log);
+    String fallbackCompanyCode =
+        log.getCompanyId() == null ? null : fallbackCompanyCodes.get(log.getCompanyId());
     String companyCode =
         currentCompanyCode != null
             ? currentCompanyCode
-            : firstNonBlank(metadata.get("targetCompanyCode"), fallbackCompanyCodes.get(log.getCompanyId()));
+            : firstNonBlank(metadata.get("targetCompanyCode"), fallbackCompanyCode);
     String entityType = entityTypeFor(log, metadata);
     String entityId = entityIdFor(log, metadata);
     return new AuditFeedItemDto(
@@ -136,11 +164,11 @@ public class AuditLogReadAdapter {
   }
 
   private String entityIdFor(AuditLog log, Map<String, String> metadata) {
-    return firstNonBlank(log.getResourceId(), metadata.get("resourceId"), metadata.get("entityId"));
+    return firstNonBlank(log.getResourceId(), firstMetadataValue(metadata, ENTITY_ID_METADATA_KEYS));
   }
 
   private String referenceNumberFor(String entityId, Map<String, String> metadata) {
-    return firstNonBlank(metadata.get("referenceNumber"), entityId);
+    return firstNonBlank(firstMetadataValue(metadata, REFERENCE_METADATA_KEYS), entityId);
   }
 
   private Map<Long, String> resolveFallbackCompanyCodes(List<AuditLog> logs) {
@@ -257,13 +285,15 @@ public class AuditLogReadAdapter {
       return null;
     }
     String normalizedReference = reference.trim().toLowerCase(java.util.Locale.ROOT);
-    return (root, query, cb) ->
-        cb.or(
-            equalsIgnoreCase(root.get("resourceId"), normalizedReference, cb),
-            equalsIgnoreCase(root.get("traceId"), normalizedReference, cb),
-            metadataValueEquals(root, query, cb, "resourceId", normalizedReference),
-            metadataValueEquals(root, query, cb, "entityId", normalizedReference),
-            metadataValueEquals(root, query, cb, "referenceNumber", normalizedReference));
+    return (root, query, cb) -> {
+      ArrayList<Predicate> matches = new ArrayList<>();
+      matches.add(equalsIgnoreCase(root.get("resourceId"), normalizedReference, cb));
+      matches.add(equalsIgnoreCase(root.get("traceId"), normalizedReference, cb));
+      for (String metadataKey : REFERENCE_FILTER_METADATA_KEYS) {
+        matches.add(metadataValueEquals(root, query, cb, metadataKey, normalizedReference));
+      }
+      return cb.or(matches.toArray(Predicate[]::new));
+    };
   }
 
   private Predicate equalsIgnoreCase(Path<String> path, String value, CriteriaBuilder cb) {
@@ -340,6 +370,7 @@ public class AuditLogReadAdapter {
               AuditEvent.ROLE_ASSIGNED,
               AuditEvent.ROLE_REMOVED,
               AuditEvent.CONFIGURATION_CHANGED);
+      case "ACCOUNTING" -> auditEventClassifier.accountingEventTypes();
       case "DATA" ->
           EnumSet.of(
               AuditEvent.DATA_CREATE,
@@ -410,7 +441,9 @@ public class AuditLogReadAdapter {
   }
 
   private Map<String, String> metadata(AuditLog log) {
-    return log.getMetadata() == null ? Map.of() : Map.copyOf(log.getMetadata());
+    return log.getMetadata() == null
+        ? Map.of()
+        : Collections.unmodifiableMap(new LinkedHashMap<>(log.getMetadata()));
   }
 
   private String firstNonBlank(String... values) {
@@ -420,6 +453,26 @@ public class AuditLogReadAdapter {
       }
     }
     return null;
+  }
+
+  private String firstMetadataValue(Map<String, String> metadata, List<String> keys) {
+    if (metadata == null || metadata.isEmpty()) {
+      return null;
+    }
+    for (String key : keys) {
+      String value = metadata.get(key);
+      if (StringUtils.hasText(value)) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  private String enforcedAccountingModule(String requestedModule) {
+    if (requestedModule == null) {
+      return "ACCOUNTING";
+    }
+    return auditVisibilityPolicy.isAccountingModule(requestedModule) ? requestedModule : NO_MODULE_MATCH;
   }
 
   private Long parseLong(String value) {
