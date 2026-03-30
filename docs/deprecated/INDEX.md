@@ -121,7 +121,7 @@ Each entry follows this pattern:
 | Direct period reopen from CLOSED status | Not supported | Closed periods cannot be reopened; create adjustment journal entries instead |
 | Editing posted journals | Not supported | Must reverse and re-create via correction entries |
 
-**Module Reference**: [reports.md](../modules/reports.md), [accounting-period-close flow](../flows/accounting-period-close.md)
+**Module Reference**: [reports.md](../modules/reports.md), [accounting-period-close flow](../flows/accounting-period-close.md), [reporting-export flow](../flows/reporting-export.md)
 
 ---
 

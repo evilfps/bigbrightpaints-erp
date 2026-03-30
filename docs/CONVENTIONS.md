@@ -130,6 +130,28 @@ A doc is stale when:
 - No two active packets may claim to own the same truth.
 - If a new packet replaces an old one, the old packet must be redirected, archived, or marked non-canonical in the same change that introduces the new packet.
 
+### 6.4 Canonical banner template for legacy docs
+
+When marking a legacy doc as non-canonical or reference-only, use one of these standardized banner formats at the top of the file:
+
+**NON-CANONICAL (superseded by canonical docs):**
+```markdown
+> ⚠️ **NON-CANONICAL**: This document is superseded by the canonical flow packets in [docs/flows/](flows/). The current [area] behavior is documented in [docs/flows/AREA-FLOW.md](../flows/AREA-FLOW.md).
+```
+
+**REFERENCE ONLY (replaced by primary truth source):**
+```markdown
+> ⚠️ **REFERENCE ONLY**: This document is no longer the canonical source of truth. Use `openapi.json` and the module packets in [docs/modules/](modules/) as the primary API contract reference. The authoritative [area] inventory is now available through [docs/modules/MODULE-INVENTORY.md](modules/MODULE-INVENTORY.md).
+```
+
+**Key elements:**
+- Start with `> ⚠️` (warning emoji + blockquote) for visual prominence
+- Use **bold** for the banner type (NON-CANONICAL or REFERENCE ONLY)
+- State what the reader should use instead (canonical packet path)
+- Keep the message brief but informative
+
+Use these templates consistently so future legacy-doc redirects follow one uniform format across the docs tree.
+
 ## 7) Docs-Only Validation
 
 Docs-only changes validate with:
