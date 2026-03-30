@@ -1,0 +1,205 @@
+{
+  "groupId": "canonical-seams-events",
+  "testedAt": "2026-03-30T12:00:00Z",
+  "credentials": {
+    "account": "docs-only-surface",
+    "namespace": "docs-flows-integration"
+  },
+  "toolsUsed": ["Read", "Grep"],
+  "assertions": [
+    {
+      "id": "VAL-FLOW-004",
+      "title": "Each major flow doc identifies canonical vs non-canonical paths",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read FLOW-INVENTORY.md to identify all 11 major flow packets",
+          "expected": "All flow packets enumerated",
+          "observed": "11 flow packets identified: auth-identity, tenant-admin-management, catalog-setup-readiness, manufacturing-packing, inventory-management, order-to-cash, procure-to-pay, invoice-dealer-finance, accounting-period-close, hr-payroll, reporting-export"
+        },
+        {
+          "action": "Grep all flow packets for 'Canonical vs Non-Canonical' section headers",
+          "expected": "Each flow packet has a dedicated canonical vs non-canonical section",
+          "observed": "All 11 flow packets contain '## 6. Canonical vs Non-Canonical Paths' with both '### Canonical Paths' and '### Non-Canonical / Deprecated Paths' subsections"
+        },
+        {
+          "action": "Verify canonical paths identify owning module/controller and entrypoint ownership",
+          "expected": "Each canonical path names the owning controller/module",
+          "observed": "Every canonical path table includes Owner column (e.g., AuthController/AuthService, SalesController, DispatchController, PurchasingWorkflowController, HrPayrollController, etc.)"
+        },
+        {
+          "action": "Verify non-canonical paths include replacement notes or explicit status",
+          "expected": "Each deprecated path has a replacement or 'no replacement' note",
+          "observed": "All non-canonical paths include Status (Deprecated, Retired, Non-canonical) and Replacement column pointing to canonical alternatives or noting no replacement exists"
+        },
+        {
+          "action": "Verify cross-module boundary notes explain which module owns entrypoint vs downstream side effect",
+          "expected": "Cross-Module Dependencies section in each packet identifies module ownership and direction",
+          "observed": "All 11 flow packets have '## 7. Cross-Module Dependencies' with Module, Dependency, and Direction columns explaining entrypoint ownership and downstream side-effect ownership"
+        }
+      ],
+      "evidence": {
+        "canonicalNonCanonicalSections": {
+          "auth-identity.md": "Section 6: 4 canonical paths (login, refresh, logout, password reset, MFA) owned by AuthController/AuthService/PasswordResetService/MfaService; 3 non-canonical (legacy super-admin alias, email-only recovery, companyId alias)",
+          "tenant-admin-management.md": "Section 6: 7 canonical paths (onboarding, lifecycle, limits, modules, user CRUD); 1 non-canonical (shared /api/v1/support/** → use host-specific)",
+          "catalog-setup-readiness.md": "Section 6: 4 canonical paths (item creation, import, packaging mappings, readiness); 3 retired (product endpoints hard-cut to items)",
+          "manufacturing-packing.md": "Section 6: 4 canonical paths (production logs, packing records, cost allocation, packaging mappings); 4 non-canonical (production-batches retired, /factory/pack retired, PackingCompletionService partial)",
+          "inventory-management.md": "Section 6: 5 canonical paths (FG adjustments, RM adjustments, opening stock, batch traceability, dispatch); 2 non-canonical (legacy dispatch, legacy intake via toggle)",
+          "order-to-cash.md": "Section 6: 5 canonical paths (order creation, confirmation, dispatch, credit requests, dealer portal credit); 4 non-canonical (deprecated dealer alias, legacy idempotency, legacy statuses, promotions not integrated)",
+          "procure-to-pay.md": "Section 6: 5 canonical paths (suppliers, POs, GRN, purchase invoices, auto-settle); 3 non-canonical (legacy X-Idempotency-Key rejected, PO/invoice no idempotency)",
+          "invoice-dealer-finance.md": "Section 6: 5 canonical paths (auto-issue during dispatch, portal finance ledger, dealer self-service, payments, PDF); 4 retired (dealer ledger/invoices/aging → portal finance, aging report → portal finance)",
+          "accounting-period-close.md": "Section 6: 5 canonical paths (journal CRUD, posting, period close, reconciliation, sub-ledger reconciliation); 3 non-canonical (period reopen unsupported, editing posted journals unsupported, automatic posting not implemented)",
+          "hr-payroll.md": "Section 6: 5 canonical paths (payroll run CRUD, calculation, posting, mark-paid, employees); 3 deprecated (legacy /hr/payroll-runs → /payroll/runs)",
+          "reporting-export.md": "Section 6: 5 canonical paths (trial balance, balance sheet, GST return, export request, export download); 4 non-canonical (cash flow no date filter, aged-debtors vs aging/receivables split, account-statement dealer-only, audit digest deprecated)"
+        },
+        "crossModuleBoundaryNotes": {
+          "auth-identity.md": "Section 7: company (read), rbac (read), admin (write) — auth is platform boundary, no direct accounting dependency",
+          "tenant-admin-management.md": "Section 7: auth (write), rbac (read), accounting (write for CoA/period), sales (read), portal (write)",
+          "catalog-setup-readiness.md": "Section 7: inventory (write mirror sync, read stock), factory (read), accounting (read)",
+          "manufacturing-packing.md": "Section 7: production/catalog (read), inventory (write consumption + FG batch), accounting (write WIP/cost journals)",
+          "inventory-management.md": "Section 7: factory (read batch source), sales (write reservations, read slips), purchasing (read batch source), accounting (write journals)",
+          "order-to-cash.md": "Section 7: inventory (write dispatch + COGS), accounting (write AR/revenue/settlements), invoice (write trigger), auth (write dealer user), factory (read slips)",
+          "procure-to-pay.md": "Section 7: inventory (write batch create + reduce), accounting (write AP journals + settlements)",
+          "invoice-dealer-finance.md": "Section 7: sales (trigger dispatch→invoice), accounting (write AR/settlement), inventory (read slip)",
+          "accounting-period-close.md": "Section 7: sales (trigger AR/revenue), purchasing (trigger AP), inventory (trigger adjustment), factory (trigger WIP), hr (trigger payroll)",
+          "hr-payroll.md": "Section 7: accounting (write post + payment reference), company (read gating + context)",
+          "reporting-export.md": "Section 7: accounting (read journals), inventory (read stock), factory (read production), sales (read commercial), admin (read approval)"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-005",
+      "title": "Each major flow doc records open decisions and incomplete seams",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Grep all flow packets for 'Open Decisions' section headers",
+          "expected": "Each flow packet has an open decisions section",
+          "observed": "All 11 flow packets contain an 'Open Decisions' section (Section 10 or 11 depending on packet structure)"
+        },
+        {
+          "action": "Grep all flow packets for 'Current Limitations' sections",
+          "expected": "Each flow packet records current limitations/incomplete seams",
+          "observed": "All 11 flow packets contain '### Current Limitations' under Section 5 (Completion Boundary / Current Definition of Done)"
+        },
+        {
+          "action": "Verify open decisions are tabular with status and notes columns",
+          "expected": "Open decisions table with Decision, Status, Notes",
+          "observed": "All open decisions sections use a table format with Decision, Status, and Notes columns"
+        },
+        {
+          "action": "Verify limitations describe incomplete seams, dead ends, and non-maintained behavior",
+          "expected": "Limitations identify specific incomplete or blocked behavior",
+          "observed": "Limitations are specific and numbered, identifying dead ends (e.g., company deletion blocked, zero-cost dispatch blocked), incomplete seams (e.g., no automated settlement, no event-driven confirmation), and non-maintained behavior (e.g., SecurityMonitoringService dead weight, MFA table unused)"
+        }
+      ],
+      "evidence": {
+        "currentLimitationsSummary": {
+          "auth-identity.md": "5 limitations: MFA table unused (column used instead), refresh burns token before validation, lockout not enforced on existing tokens, profile changes not audited, brute-force monitoring inactive",
+          "tenant-admin-management.md": "6 limitations: company deletion blocked, accounting cannot approve exports, main admin cannot self-deactivate, changelog no approval, support ticket sync best-effort, tenant limits not auto-enforced",
+          "catalog-setup-readiness.md": "8 limitations: brand deactivation no cascade, item deactivation no cascade, readiness point-in-time, import no delete, search capped at 100, accounting metadata filtered, semi-finished SKU suffix reserved, inventory accounting events toggle",
+          "manufacturing-packing.md": "6 limitations: production plan optional, no automated cost integration, wastage reason limited, idempotency key required (no fallback), batch number per month, packaging mapping mandatory",
+          "inventory-management.md": "7 limitations: WAC cache 5-min TTL, zero-cost dispatch blocked, batch ID ambiguity, opening stock readiness gating, inventory accounting events toggle, no batch merge, no stock transfer",
+          "order-to-cash.md": "7 limitations: no automated settlement, no automated order closure, no auto payment reconciliation, single domain event only, no shipment tracking, dunning rudimentary, no partial fulfillment by default",
+          "procure-to-pay.md": "7 limitations: PO no idempotency, invoice no idempotency, GRN line-level only, no partial GRN per line, return stock reversal simple, no supplier dunning, supplier balance ledger-derived",
+          "invoice-dealer-finance.md": "6 limitations: no auto payment reconciliation, settlement manual, no invoice approval workflow, limited invoice adjustment, aging hardcoded buckets, no partial payment allocation",
+          "accounting-period-close.md": "7 limitations: no auto journal posting, period close manual, no scheduled reconciliation, correction via reversal only, opening balance limited, Tally import basic, no auto GST filing",
+          "hr-payroll.md": "6 limitations: HR module paused by default, Indian regulatory only, no auto attendance-to-payroll sync, no employee self-service, no multi-currency, accounting-host payment seam",
+          "reporting-export.md": "8 limitations: P&L no snapshot, cash flow no date filtering, cash flow heuristic, aging split ownership, balance sheet date drift, reconciliation dashboard session-tied, inventory recon no date filter, export approval configurable"
+        },
+        "openDecisionsSummary": {
+          "auth-identity.md": "3 decisions: MFA recovery code table unused (known), profile audit gap (known), brute-force monitoring (unused)",
+          "tenant-admin-management.md": "3 decisions: company deletion (blocked), auto-limit enforcement (partial), changelog approval (none)",
+          "catalog-setup-readiness.md": "3 decisions: bulk variant dry-run (supported), deactivation cascade (not implemented), readiness caching (not implemented)",
+          "manufacturing-packing.md": "3 decisions: production plan usage (optional), cost integration (not automated), packing idempotency fallback (none)",
+          "inventory-management.md": "4 decisions: batch merge (not implemented), stock transfer (not implemented), zero-cost dispatch (blocked), intake toggle (configurable)",
+          "order-to-cash.md": "5 decisions: automated settlement (not implemented), automated order closure (not implemented), shipment tracking (not implemented), event-driven confirmation (not implemented), partial fulfillment (not default)",
+          "procure-to-pay.md": "4 decisions: PO idempotency (not implemented), invoice idempotency (not implemented), supplier dunning (not implemented), partial GRN per line (not supported)",
+          "invoice-dealer-finance.md": "4 decisions: auto payment reconciliation (not implemented), invoice approval (not implemented), credit notes (limited), custom aging buckets (not supported)",
+          "accounting-period-close.md": "4 decisions: auto journal posting (not implemented), scheduled reconciliation (not implemented), auto GST filing (not implemented), edit posted journals (not supported)",
+          "hr-payroll.md": "4 decisions: HR module default (paused by default), non-Indian payroll (not supported), employee self-service (not implemented), multi-currency (not supported)",
+          "reporting-export.md": "5 decisions: P&L snapshot (not implemented), cash flow date filtering (not implemented), cash flow tagging (not implemented), unified aging source (not implemented), historical reconciliation (not implemented)"
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-007",
+      "title": "Flow packets surface event/listener and access-control boundaries where they matter",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Grep all flow packets for 'Event/Listener Boundaries' section headers",
+          "expected": "Flow packets that materially depend on events/listeners have this section",
+          "observed": "7 of 11 flow packets have explicit '## 8. Event/Listener Boundaries' sections: manufacturing-packing, inventory-management, order-to-cash, procure-to-pay, accounting-period-close, hr-payroll, reporting-export"
+        },
+        {
+          "action": "Verify event tables name specific event, listener, phase, and effect",
+          "expected": "Event tables with Event, Listener, Phase, Effect columns",
+          "observed": "All 7 packets with event sections have tables with Event | Listener | Phase | Effect columns naming specific Spring events (InventoryMovementEvent, InventoryValuationChangedEvent, SalesOrderCreatedEvent, JournalEntryPostedEvent) and listeners (InventoryAccountingEventListener, InventoryAuditListener, OrderAutoApprovalListener, SalesOrderCreatedAuditListener, JournalEntryPostedAuditListener)"
+        },
+        {
+          "action": "Verify event sections include key boundary notes about orchestration behavior",
+          "expected": "Key boundary notes explain hidden coupling and configuration guards",
+          "observed": "Each event section includes a 'Key boundary note' paragraph explaining: feature flag dependencies (erp.inventory.accounting.events.enabled), fail-open behavior, synchronous vs asynchronous patterns, REQUIRES_NEW transaction semantics"
+        },
+        {
+          "action": "Check packets without explicit event sections for access-control boundaries",
+          "expected": "Packets without material event dependencies still document access-control gates",
+          "observed": "4 packets (auth-identity, tenant-admin-management, catalog-setup-readiness, invoice-dealer-finance) have '## 8. Security Considerations' with RBAC/access-control notes. Auth-identity has RBAC per entrypoint. Invoice-dealer-finance documents host isolation (/api/v1/portal/finance/** vs /api/v1/dealer-portal/**). Catalog-setup documents class-level RBAC and write restrictions."
+        },
+        {
+          "action": "Verify access-control boundaries are documented where non-obvious gates exist",
+          "expected": "Non-obvious access-control gates are explicitly named",
+          "observed": "OPERATIONAL_DISPATCH role predicate for dispatch (inventory, O2C); auto-approval listener conditional on SystemSettingsService.isAutoApprovalEnabled() (O2C); export approval gate with exportApprovalRequired toggle (reporting); HR module gating per tenant (HR/payroll); dealer self-service auto-scoping via JWT (invoice/O2C)"
+        }
+      ],
+      "evidence": {
+        "eventListenerSections": {
+          "manufacturing-packing.md": "Section 8: InventoryMovementEvent → InventoryAccountingEventListener (AFTER_COMMIT), InventoryValuationChangedEvent → InventoryAccountingEventListener (AFTER_COMMIT). Key boundary note on erp.inventory.accounting.events.enabled toggle.",
+          "inventory-management.md": "Section 8: InventoryMovementEvent → InventoryAccountingEventListener (AFTER_COMMIT), InventoryValuationChangedEvent → InventoryAccountingEventListener (AFTER_COMMIT), InventoryMovementEvent → InventoryAuditListener (AFTER_COMMIT). Plus access-control boundaries: OPERATIONAL_DISPATCH predicate, RBAC by operation, idempotency required.",
+          "order-to-cash.md": "Section 8: SalesOrderCreatedEvent → OrderAutoApprovalListener (AFTER_COMMIT), SalesOrderCreatedEvent → SalesOrderCreatedAuditListener (AFTER_COMMIT). Key boundary note: only SalesOrderCreatedEvent published; confirmation/dispatch/cancellation operate via direct service calls, not events.",
+          "procure-to-pay.md": "Section 8: InventoryMovementEvent → InventoryAccountingEventListener (AFTER_COMMIT), InventoryValuationChangedEvent → InventoryAccountingEventListener (AFTER_COMMIT). Key boundary note on GRN stock truth boundary and feature flag dependency.",
+          "accounting-period-close.md": "Section 8: InventoryMovementEvent → InventoryAccountingEventListener (AFTER_COMMIT), InventoryValuationChangedEvent → InventoryAccountingEventListener (AFTER_COMMIT), JournalEntryPostedEvent → JournalEntryPostedAuditListener (AFTER_COMMIT, fallbackExecution=true). Key boundary notes: REQUIRES_NEW transaction semantics, configuration-guarded fail-open behavior.",
+          "hr-payroll.md": "Section 8: SalesOrderCreatedEvent → OrderAutoApprovalListener (AFTER_COMMIT) — indirect connection only. Key boundary note: payroll does not publish events; is primarily a consumer of accounting services.",
+          "reporting-export.md": "Section 8: JournalEntryPostedEvent → Report queries (read-time). Access-control boundaries: export approval gate, RBAC, statement PDFs bypass approval, split aging ownership. Key boundary note on live vs snapshot report data."
+        },
+        "accessControlOnlyPackets": {
+          "auth-identity.md": "Section 8 Security Considerations: bearer token auth, HS256 JWT, company-context filter, rate limiting, token blacklist. Roles per actor in Section 1.",
+          "tenant-admin-management.md": "Section 8 Security Considerations: super-admin auth, tenant isolation, session revocation, export approval gate, company context filter. Roles per actor in Section 1.",
+          "catalog-setup-readiness.md": "Section 8 Security Considerations: class-level RBAC, write restriction to ADMIN/ACCOUNTING, accounting metadata visibility filtering.",
+          "invoice-dealer-finance.md": "Section 8 Security Considerations: host isolation (/api/v1/portal/finance/** vs /api/v1/dealer-portal/**), RBAC, dealer auto-scoping via JWT, cross-dealer prevention, PDF audit logging."
+        },
+        "namedEvents": [
+          "InventoryMovementEvent",
+          "InventoryValuationChangedEvent",
+          "SalesOrderCreatedEvent",
+          "JournalEntryPostedEvent"
+        ],
+        "namedListeners": [
+          "InventoryAccountingEventListener",
+          "InventoryAuditListener",
+          "OrderAutoApprovalListener",
+          "SalesOrderCreatedAuditListener",
+          "JournalEntryPostedAuditListener"
+        ],
+        "namedAccessControlGates": [
+          "OPERATIONAL_DISPATCH role predicate (dispatch confirmation)",
+          "SystemSettingsService.isAutoApprovalEnabled() (order auto-approval)",
+          "erp.inventory.accounting.events.enabled (inventory-accounting event bridge)",
+          "exportApprovalRequired (export approval gate)",
+          "HR module gating per tenant (ERP-33)",
+          "Dealer JWT auto-scoping (dealer-portal isolation)",
+          "Company context filter (tenant isolation)",
+          "Class-level RBAC (catalog write restrictions)",
+          "Host isolation (/api/v1/portal/finance/** vs /api/v1/dealer-portal/**)"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 3 assertions across 11 major flow packets. All 3 assertions PASS. VAL-FLOW-004: All 11 flow packets have Section 6 'Canonical vs Non-Canonical Paths' with explicit canonical path tables (owning controller/module), non-canonical/deprecated path tables (with replacement notes or no-replacement status), and Section 7 'Cross-Module Dependencies' identifying entrypoint ownership and downstream side-effect direction. VAL-FLOW-005: All 11 flow packets have 'Current Limitations' subsections and 'Open Decisions' sections recording incomplete seams, dead ends, blocked behavior, and non-maintained surfaces with explicit status (not implemented, blocked, partial, configurable). VAL-FLOW-007: 7 of 11 packets have dedicated 'Event/Listener Boundaries' sections (Section 8) naming specific Spring events and listeners with phase, effect, and key boundary notes; the remaining 4 packets (auth, tenant-admin, catalog, invoice-finance) do not materially depend on internal events and instead document access-control gates in Security Considerations sections. 9 named access-control gates were identified across all packets."
+}

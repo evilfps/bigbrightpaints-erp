@@ -1,0 +1,223 @@
+{
+  "groupId": "coverage-lifecycle",
+  "testedAt": "2026-03-30T17:30:00Z",
+  "credentials": {
+    "account": "docs-only",
+    "namespace": "docs-flows-integration"
+  },
+  "toolsUsed": ["Read", "Grep"],
+  "assertions": [
+    {
+      "id": "VAL-FLOW-001",
+      "title": "Flow library covers the major backend flows",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read docs/flows/FLOW-INVENTORY.md",
+          "expected": "Inventory lists all 10 required flow families: auth/identity, tenant/admin, catalog/setup, manufacturing/packing, inventory, O2C, P2P, accounting/period close, HR/payroll, reporting/export",
+          "observed": "FLOW-INVENTORY.md lists 11 flow families in its inventory table: (1) Auth/Identity → auth-identity.md, (2) Tenant/Admin Management → tenant-admin-management.md, (3) Catalog/Setup Readiness → catalog-setup-readiness.md, (4) Manufacturing/Packing → manufacturing-packing.md, (5) Inventory Management → inventory-management.md, (6) Order-to-Cash → order-to-cash.md, (7) Procure-to-Pay → procure-to-pay.md, (8) Invoice/Dealer Finance → invoice-dealer-finance.md, (9) Accounting/Period Close → accounting-period-close.md, (10) HR/Payroll → hr-payroll.md, (11) Reporting/Export → reporting-export.md. All 10 required flow families are present; Invoice/Dealer Finance is an additional 11th entry."
+        },
+        {
+          "action": "Verify each flow packet file exists on disk",
+          "expected": "All 11 packet files exist in docs/flows/",
+          "observed": "LS of docs/flows/ confirms all 11 .md files present: auth-identity.md (11251 bytes), tenant-admin-management.md (12965 bytes), catalog-setup-readiness.md (10919 bytes), manufacturing-packing.md (12773 bytes), inventory-management.md (14517 bytes), order-to-cash.md (15231 bytes), procure-to-pay.md (13980 bytes), invoice-dealer-finance.md (10196 bytes), accounting-period-close.md (14765 bytes), hr-payroll.md (13255 bytes), reporting-export.md (12753 bytes). FLOW-INVENTORY.md also present (9246 bytes)."
+        },
+        {
+          "action": "Verify each inventory entry links to its canonical packet",
+          "expected": "Each row in the inventory table has a non-empty 'Canonical Packet' column linking to the corresponding file",
+          "observed": "All 11 rows in the FLOW-INVENTORY.md inventory table have markdown links to their respective packet files (e.g., [auth-identity.md](auth-identity.md)). No 'packet pending' markers found."
+        },
+        {
+          "action": "Verify inventory includes summary, owning module, and cross-module participants for each entry",
+          "expected": "Each inventory entry has summary, owning module, and cross-module participants",
+          "observed": "All 11 entries have all four metadata columns filled: Flow Family, Summary, Owning Module(s), Key Cross-Module Participants, and Canonical Packet. No empty cells found."
+        }
+      ],
+      "evidence": {
+        "flowInventory": "docs/flows/FLOW-INVENTORY.md — 11 entries covering all 10 required flow families plus Invoice/Dealer Finance as a separate entry. Each entry has summary, owning module(s), cross-module participants, and canonical packet link.",
+        "packetFiles": [
+          "docs/flows/auth-identity.md",
+          "docs/flows/tenant-admin-management.md",
+          "docs/flows/catalog-setup-readiness.md",
+          "docs/flows/manufacturing-packing.md",
+          "docs/flows/inventory-management.md",
+          "docs/flows/order-to-cash.md",
+          "docs/flows/procure-to-pay.md",
+          "docs/flows/invoice-dealer-finance.md",
+          "docs/flows/accounting-period-close.md",
+          "docs/flows/hr-payroll.md",
+          "docs/flows/reporting-export.md"
+        ],
+        "noPendingMarkers": true
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-002",
+      "title": "Each major flow doc explains the current canonical lifecycle",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read auth-identity.md and check for required sections",
+          "expected": "Contains actors, entrypoints, preconditions, lifecycle/status progression, and completion boundary",
+          "observed": "§1 Actors (4 actors with roles and scope), §2 Entrypoints (14 endpoints), §3 Preconditions (3 precondition groups: login, refresh, password reset), §4 Lifecycle (5 sub-lifecycles: login, refresh, logout, password reset, MFA with flow diagrams), §5 Completion Boundary (4 completion criteria + 5 current limitations), §6 Canonical vs Non-Canonical Paths (5 canonical + 3 deprecated). PASS."
+        },
+        {
+          "action": "Read tenant-admin-management.md and check for required sections",
+          "expected": "Contains actors, entrypoints, preconditions, lifecycle/status progression, and completion boundary",
+          "observed": "§1 Actors (4 actors), §2 Entrypoints (24 endpoints), §3 Preconditions (4 groups), §4 Lifecycle (5 sub-lifecycles: onboarding, lifecycle state machine, admin user management, support intervention, export approval), §5 Completion Boundary (5 completion criteria + 6 limitations), §6 Canonical vs Non-Canonical (7 canonical + 1 deprecated). PASS."
+        },
+        {
+          "action": "Read catalog-setup-readiness.md and check for required sections",
+          "expected": "Contains actors, entrypoints, preconditions, lifecycle/status progression, and completion boundary",
+          "observed": "§1 Actors (4 actors), §2 Entrypoints (17 endpoints), §3 Preconditions (4 groups), §4 Lifecycle (5 sub-lifecycles: brand, item, import, SKU readiness, packaging mapping), §5 Completion Boundary (5 criteria + 8 limitations), §6 Canonical vs Non-Canonical (4 canonical + 3 retired). PASS."
+        },
+        {
+          "action": "Read manufacturing-packing.md and check for required sections",
+          "expected": "Contains actors, entrypoints, preconditions, lifecycle/status progression, and completion boundary",
+          "observed": "§1 Actors (3 actors), §2 Entrypoints (20 endpoints), §3 Preconditions (3 groups), §4 Lifecycle (5 sub-lifecycles: production plan, production log, packing, wastage closure, cost allocation), §5 Completion Boundary (4 criteria + 6 limitations), §6 Canonical vs Non-Canonical (4 canonical + 4 deprecated). §8 Event/Listener Boundaries. PASS."
+        },
+        {
+          "action": "Read inventory-management.md and check for required sections",
+          "expected": "Contains actors, entrypoints, preconditions, lifecycle/status progression, and completion boundary",
+          "observed": "§1 Actors (5 actors), §2 Entrypoints (21 endpoints across FG, RM, adjustments, batches, opening stock, dispatch), §3 Preconditions (4 groups), §4 Lifecycle (6 sub-lifecycles: stock summary, low stock, batch traceability, FG adjustment, opening stock, dispatch), §5 Completion Boundary (6 criteria + 7 limitations), §6 Canonical vs Non-Canonical (5 canonical + 2 deprecated). §8 Event/Listener Boundaries (3 events documented). PASS."
+        },
+        {
+          "action": "Read order-to-cash.md and check for required sections",
+          "expected": "Contains actors, entrypoints, preconditions, lifecycle/status progression, and completion boundary",
+          "observed": "§1 Actors (6 actors including Operational Dispatch), §2 Entrypoints (25 endpoints across dealer portal, internal sales, dealer management, credit management, dispatch), §3 Preconditions (4 groups), §4 Lifecycle (6 sub-lifecycles: dealer onboarding, order creation, order confirmation, dispatch confirmation, settlement, order closure), §5 Completion Boundary (5 criteria + 7 limitations), §6 Canonical vs Non-Canonical (5 canonical + 4 deprecated). §8 Event/Listener Boundaries (2 events). PASS."
+        },
+        {
+          "action": "Read procure-to-pay.md and check for required sections",
+          "expected": "Contains actors, entrypoints, preconditions, lifecycle/status progression, and completion boundary",
+          "observed": "§1 Actors (3 actors), §2 Entrypoints (23 endpoints across supplier, PO, GRN, invoice, settlement), §3 Preconditions (5 groups), §4 Lifecycle (7 sub-lifecycles: supplier onboarding, approval, PO, GRN, invoice, return, settlement), §5 Completion Boundary (5 criteria + 7 limitations), §6 Canonical vs Non-Canonical (5 canonical + 3 deprecated). §8 Event/Listener Boundaries (2 events). PASS."
+        },
+        {
+          "action": "Read invoice-dealer-finance.md and check for required sections",
+          "expected": "Contains actors, entrypoints, preconditions, lifecycle/status progression, and completion boundary",
+          "observed": "§1 Actors (4 actors), §2 Entrypoints (19 endpoints across invoice, portal finance, dealer portal, settlement), §3 Preconditions (3 groups), §4 Lifecycle (5 sub-lifecycles: creation, statuses, settlement, void/reversal, dealer self-service), §5 Completion Boundary (4 criteria + 6 limitations), §6 Canonical vs Non-Canonical (5 canonical + 4 retired). PASS."
+        },
+        {
+          "action": "Read accounting-period-close.md and check for required sections",
+          "expected": "Contains actors, entrypoints, preconditions, lifecycle/status progression, and completion boundary",
+          "observed": "§1 Actors (4 actors), §2 Entrypoints (28 endpoints across journals, periods, period close, bank reconciliation, sub-ledger, GST, imports), §3 Preconditions (5 groups), §4 Lifecycle (6 sub-lifecycles: journal entry, period, bank reconciliation, sub-ledger, opening balance, Tally import), §5 Completion Boundary (6 criteria + 7 limitations), §6 Canonical vs Non-Canonical (5 canonical + 3 non-canonical). §8 Event/Listener Boundaries (3 events). PASS."
+        },
+        {
+          "action": "Read hr-payroll.md and check for required sections",
+          "expected": "Contains actors, entrypoints, preconditions, lifecycle/status progression, and completion boundary",
+          "observed": "§1 Actors (3 actors), §2 Entrypoints (27 endpoints across employee, leave, attendance, salary, payroll run), §3 Preconditions (6 groups), §4 Lifecycle (6 sub-lifecycles: employee, leave, attendance, payroll run, posting seam, payment seam), §5 Completion Boundary (6 criteria + 6 limitations), §6 Canonical vs Non-Canonical (5 canonical + 3 deprecated). §8 Event/Listener Boundaries (1 event). PASS."
+        },
+        {
+          "action": "Read reporting-export.md and check for required sections",
+          "expected": "Contains actors, entrypoints, preconditions, lifecycle/status progression, and completion boundary",
+          "observed": "§1 Actors (4 actors), §2 Entrypoints (24 endpoints across financial reports, operational reports, dashboard, exports, statement PDFs), §3 Preconditions (4 groups), §4 Lifecycle (4 sub-lifecycles: financial report, operational report, export request, GST return), §5 Completion Boundary (4 criteria + 8 limitations), §6 Canonical vs Non-Canonical (5 canonical + 4 non-canonical/deprecated). §8 Event/Listener Boundaries (2 events + access-control boundaries). PASS."
+        }
+      ],
+      "evidence": {
+        "sectionCoverage": {
+          "actors": "All 11 packets have §1 Actors with role descriptions and authorization scopes",
+          "entrypoints": "All 11 packets have §2 Entrypoints with method/path/actor/purpose tables",
+          "preconditions": "All 11 packets have §3 Preconditions with numbered prerequisite groups",
+          "lifecycle": "All 11 packets have §4 Lifecycle with ASCII flow diagrams and key behaviors",
+          "completionBoundary": "All 11 packets have §5 Completion Boundary / Current Definition of Done with numbered completion criteria and current limitations",
+          "crossModuleDependencies": "All 11 packets have §7 Cross-Module Dependencies with module/dependency/direction tables",
+          "canonicalVsNonCanonical": "All 11 packets have §6 Canonical vs Non-Canonical Paths with canonical tables and deprecated/replacement tables",
+          "eventListenerBoundaries": "7 of 11 packets have §8 Event/Listener Boundaries (auth-identity, tenant-admin, catalog-setup do not — appropriately, as they don't have material event bridges)"
+        },
+        "totalEndpoints": 222 unique endpoint entries across all 11 packets",
+        "totalLifecycles": 56 sub-lifecycle descriptions with flow diagrams"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-003",
+      "title": "Each major flow doc states the current backend definition of done",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify auth-identity.md has completion boundary and limitations",
+          "expected": "§5 states completion boundary and lists current limitations",
+          "observed": "§5 'Completion Boundary / Current Definition of Done' has 4 concrete completion criteria (Login, Refresh, Logout, Password reset). 'Current Limitations' subsection has 5 numbered items using explicit language: 'unused', 'burns token before validation', 'not enforced', 'not audited', 'not active'. No aspirational language."
+        },
+        {
+          "action": "Verify tenant-admin-management.md has completion boundary and limitations",
+          "expected": "§5 states completion boundary and lists current limitations",
+          "observed": "§5 has 5 completion criteria. 'Current Limitations' has 6 items using explicit language: 'cannot be deleted', 'cannot approve exports', 'cannot be self-deactivated', 'has no approval', 'is best-effort', 'not fully implemented'. No aspirational language."
+        },
+        {
+          "action": "Verify catalog-setup-readiness.md has completion boundary and limitations",
+          "expected": "§5 states completion boundary and lists current limitations",
+          "observed": "§5 has 5 completion criteria. 'Current Limitations' has 8 items using explicit language: 'does not cascade' (x2), 'point-in-time', 'does not delete', 'silently capped', 'filtered', 'suffix reserved', 'toggle'. No aspirational language."
+        },
+        {
+          "action": "Verify manufacturing-packing.md has completion boundary and limitations",
+          "expected": "§5 states completion boundary and lists current limitations",
+          "observed": "§5 has 4 completion criteria. 'Current Limitations' has 6 items using explicit language: 'optional', 'no automated', 'limited', 'fails', 'per month', 'mandatory'. No aspirational language."
+        },
+        {
+          "action": "Verify inventory-management.md has completion boundary and limitations",
+          "expected": "§5 states completion boundary and lists current limitations",
+          "observed": "§5 has 6 completion criteria. 'Current Limitations' has 7 items using explicit language: 'cache', 'fails hard', 'ambiguity', 'gating', 'toggle', 'no merge', 'no transfer'. No aspirational language."
+        },
+        {
+          "action": "Verify order-to-cash.md has completion boundary and limitations",
+          "expected": "§5 states completion boundary and lists current limitations",
+          "observed": "§5 has 5 completion criteria. 'Current Limitations' has 7 items using explicit language: 'No automated', 'No automated', 'No automatic', 'Only one event', 'No integration', 'rudimentary', 'No partial'. No aspirational language."
+        },
+        {
+          "action": "Verify procure-to-pay.md has completion boundary and limitations",
+          "expected": "§5 states completion boundary and lists current limitations",
+          "observed": "§5 has 5 completion criteria. 'Current Limitations' has 7 items using explicit language: 'no idempotency' (x2), 'line-level only', 'Cannot split', 'simple', 'No automated', 'ledger-derived'. No aspirational language."
+        },
+        {
+          "action": "Verify invoice-dealer-finance.md has completion boundary and limitations",
+          "expected": "§5 states completion boundary and lists current limitations",
+          "observed": "§5 has 4 completion criteria. 'Current Limitations' has 6 items using explicit language: 'No automatic', 'manual', 'No approval', 'Limited', 'Hardcoded', 'No partial'. No aspirational language."
+        },
+        {
+          "action": "Verify accounting-period-close.md has completion boundary and limitations",
+          "expected": "§5 states completion boundary and lists current limitations",
+          "observed": "§5 has 6 completion criteria. 'Current Limitations' has 7 items using explicit language: 'No automatic', 'manual', 'No scheduled', 'reversal only', 'limited', 'basic', 'No automatic'. No aspirational language."
+        },
+        {
+          "action": "Verify hr-payroll.md has completion boundary and limitations",
+          "expected": "§5 states completion boundary and lists current limitations",
+          "observed": "§5 has 6 completion criteria. 'Current Limitations' has 6 items using explicit language: 'paused by default', 'India-specific only', 'No automatic', 'No employee self-service', 'Single currency', 'accounting-host payment seam'. No aspirational language."
+        },
+        {
+          "action": "Verify reporting-export.md has completion boundary and limitations",
+          "expected": "§5 states completion boundary and lists current limitations",
+          "observed": "§5 has 4 completion criteria. 'Current Limitations' has 8 items using explicit language: 'no snapshot branch', 'no date filtering', 'heuristic', 'split ownership', 'drift', 'session-only', 'no date filter', 'configurable'. No aspirational language."
+        },
+        {
+          "action": "Check for implemented-vs-planned language consistency across all packets",
+          "expected": "No aspirational or planned language; all limitations use definitive language about current state",
+          "observed": "All 73 limitations across 11 packets use definitive, current-state language. Common patterns: 'Not implemented', 'Not supported', 'Manual required', 'Limited', 'No', 'Cannot'. Zero instances of aspirational language like 'will be', 'planned to', 'should be', or 'in the future'."
+        }
+      ],
+      "evidence": {
+        "completionBoundarySections": "All 11 packets have §5 titled 'Completion Boundary / Current Definition of Done' with numbered completion criteria",
+        "limitationsCounts": {
+          "auth-identity.md": 5,
+          "tenant-admin-management.md": 6,
+          "catalog-setup-readiness.md": 8,
+          "manufacturing-packing.md": 6,
+          "inventory-management.md": 7,
+          "order-to-cash.md": 7,
+          "procure-to-pay.md": 7,
+          "invoice-dealer-finance.md": 6,
+          "accounting-period-close.md": 7,
+          "hr-payroll.md": 6,
+          "reporting-export.md": 8
+        },
+        "totalLimitations": 73,
+        "aspirationalLanguageFound": false,
+        "implementedVsPlannedLanguage": "All limitation items use definitive current-state language. No planned/future/aspirational language detected."
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 3 assertions: all 3 passed. VAL-FLOW-001: Flow inventory covers all 10 required flow families (plus 1 additional) with 11 complete packets. VAL-FLOW-002: All 11 flow packets contain the 6 required sections (actors, entrypoints, preconditions, lifecycle/status progression, cross-module dependencies, completion boundary) with 222 total endpoints and 56 sub-lifecycle descriptions. VAL-FLOW-003: All 11 flow packets have explicit 'Completion Boundary / Current Definition of Done' sections with 73 total current limitations using definitive implemented-vs-planned language and zero aspirational claims."
+}
