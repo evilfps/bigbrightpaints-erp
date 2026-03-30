@@ -25,7 +25,7 @@ Catalog/setup truth (brands, items, SKU readiness) is documented separately in [
 
 ## 2. Canonical Host and Route Map
 
-All factory endpoints live under `/api/v1/factory/**` and require `ROLE_ADMIN` or `ROLE_FACTORY`.
+All factory endpoints live under `/api/v1/factory/**`. Most require `ROLE_ADMIN` or `ROLE_FACTORY`. PackingController endpoints additionally grant `ROLE_ACCOUNTING`. Packaging mapping write operations are restricted to `ROLE_ADMIN` only.
 
 ### Production Plans
 
@@ -69,11 +69,11 @@ All factory endpoints live under `/api/v1/factory/**` and require `ROLE_ADMIN` o
 
 | Route | Method | Actor | Purpose |
 | --- | --- | --- | --- |
-| `/api/v1/factory/packing-records` | POST | ADMIN, FACTORY | Record packing (requires `Idempotency-Key` header) |
-| `/api/v1/factory/unpacked-batches` | GET | ADMIN, FACTORY | List unpacked batches (READY_TO_PACK or PARTIAL_PACKED) |
-| `/api/v1/factory/production-logs/{id}/packing-history` | GET | ADMIN, FACTORY | Get packing history for a production log |
-| `/api/v1/factory/bulk-batches/{finishedGoodId}` | GET | ADMIN, FACTORY | List bulk (semi-finished) batches for a finished good |
-| `/api/v1/factory/bulk-batches/{parentBatchId}/children` | GET | ADMIN, FACTORY | List child FG batches from a parent bulk batch |
+| `/api/v1/factory/packing-records` | POST | ADMIN, FACTORY, ACCOUNTING | Record packing (requires `Idempotency-Key` header) |
+| `/api/v1/factory/unpacked-batches` | GET | ADMIN, FACTORY, ACCOUNTING | List unpacked batches (READY_TO_PACK or PARTIAL_PACKED) |
+| `/api/v1/factory/production-logs/{id}/packing-history` | GET | ADMIN, FACTORY, ACCOUNTING | Get packing history for a production log |
+| `/api/v1/factory/bulk-batches/{finishedGoodId}` | GET | ADMIN, FACTORY, ACCOUNTING | List bulk (semi-finished) batches for a finished good |
+| `/api/v1/factory/bulk-batches/{parentBatchId}/children` | GET | ADMIN, FACTORY, ACCOUNTING | List child FG batches from a parent bulk batch |
 
 ### Packaging Setup (Mappings)
 
@@ -331,7 +331,7 @@ Despite similar names, these are separate entities in separate modules with sepa
 | --- | --- | --- | --- | --- | --- |
 | `ROLE_ADMIN` | Full | Full | Full (CRUD) | Full | Full |
 | `ROLE_FACTORY` | Full | Full | Read-only | Full (with transport metadata) | Full |
-| `ROLE_ACCOUNTING` | — | — | — | Full | — |
+| `ROLE_ACCOUNTING` | — | Full | — | Full | — |
 | `ROLE_SALES` | — | — | — | Full | — |
 
 ---
