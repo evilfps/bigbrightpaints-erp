@@ -50,6 +50,7 @@ public class AuditLogReadAdapter {
           "journalReference",
           "reference",
           "orderNumber");
+  private static final String ACCOUNTING_EVENT_TRAIL_OPERATION_KEY = "eventTrailOperation";
   private static final String NO_MODULE_MATCH = "__NO_MATCH__";
 
   private final AuditLogRepository auditLogRepository;
@@ -228,14 +229,25 @@ public class AuditLogReadAdapter {
               equalsIgnoreCase(root.get("resourceType"), normalizedModule, cb),
               metadataValueEquals(root, query, cb, "resourceType", normalizedModule));
       Predicate categoryMatch = categoryPredicate(root.get("eventType"), cb, normalizedModule);
+      Predicate accountingFailureMatch = accountingFailurePredicate(root, query, cb);
 
       ArrayList<Predicate> matches = new ArrayList<>();
       if (pathMatch != null) {
         matches.add(pathMatch);
       }
       matches.add(cb.and(cb.not(knownPath), resourceTypeMatch));
-      if (categoryMatch != null) {
-        matches.add(cb.and(cb.not(knownPath), cb.not(resourceTypePresent), categoryMatch));
+      if ("ACCOUNTING".equals(normalizedModule)) {
+        Predicate accountingFallbackMatch = accountingFailureMatch;
+        if (categoryMatch != null) {
+          accountingFallbackMatch = cb.or(categoryMatch, accountingFailureMatch);
+        }
+        matches.add(cb.and(cb.not(knownPath), cb.not(resourceTypePresent), accountingFallbackMatch));
+      } else if (categoryMatch != null) {
+        Predicate fallbackCategoryMatch = categoryMatch;
+        if ("SYSTEM".equals(normalizedModule)) {
+          fallbackCategoryMatch = cb.and(categoryMatch, cb.not(accountingFailureMatch));
+        }
+        matches.add(cb.and(cb.not(knownPath), cb.not(resourceTypePresent), fallbackCategoryMatch));
       }
       return cb.or(matches.toArray(Predicate[]::new));
     };
@@ -395,18 +407,16 @@ public class AuditLogReadAdapter {
           EnumSet.of(
               AuditEvent.REFERENCE_GENERATED,
               AuditEvent.ORDER_NUMBER_GENERATED,
-              AuditEvent.JOURNAL_ENTRY_POSTED,
-              AuditEvent.JOURNAL_ENTRY_REVERSED,
-              AuditEvent.DISPATCH_CONFIRMED,
-              AuditEvent.SETTLEMENT_RECORDED,
-              AuditEvent.PAYROLL_POSTED,
-              AuditEvent.TRANSACTION_CREATED,
-              AuditEvent.TRANSACTION_APPROVED,
-              AuditEvent.TRANSACTION_REJECTED,
-              AuditEvent.PAYMENT_PROCESSED,
-              AuditEvent.REFUND_ISSUED);
+              AuditEvent.DISPATCH_CONFIRMED);
       default -> null;
     };
+  }
+
+  private Predicate accountingFailurePredicate(
+      Root<AuditLog> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
+    return cb.and(
+        cb.equal(root.get("eventType"), AuditEvent.INTEGRATION_FAILURE),
+        metadataValueHasText(root, query, cb, ACCOUNTING_EVENT_TRAIL_OPERATION_KEY));
   }
 
   private Predicate metadataValueEquals(

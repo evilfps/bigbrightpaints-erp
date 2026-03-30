@@ -68,7 +68,7 @@ public record AuditFeedFilter(
   }
 
   private int requestedWindow() {
-    long requested = (long) (safePage() + 1) * safeSize();
+    long requested = ((long) safePage() + 1L) * safeSize();
     return (int) Math.min(requested, Integer.MAX_VALUE);
   }
 }

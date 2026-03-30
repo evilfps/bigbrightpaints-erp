@@ -95,7 +95,8 @@ public class DefaultAuditAccessService implements AuditAccessService {
     int safeSize = filter.safeSize();
     List<AuditFeedItemDto> merged =
         Stream.concat(left.items().stream(), right.items().stream()).sorted(FEED_ORDER).toList();
-    int start = Math.min(safePage * safeSize, merged.size());
+    long offset = (long) safePage * safeSize;
+    int start = (int) Math.min(offset, merged.size());
     int end = Math.min(start + safeSize, merged.size());
     return PageResponse.of(merged.subList(start, end), left.totalElements() + right.totalElements(), safePage, safeSize);
   }

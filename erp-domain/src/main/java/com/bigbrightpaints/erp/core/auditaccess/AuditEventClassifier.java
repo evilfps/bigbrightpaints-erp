@@ -17,6 +17,7 @@ import com.bigbrightpaints.erp.core.audittrail.AuditActionEvent;
 @Component
 public class AuditEventClassifier {
 
+  private static final String ACCOUNTING_EVENT_TRAIL_OPERATION_KEY = "eventTrailOperation";
   private static final Set<AuditEvent> ACCOUNTING_EVENTS =
       Collections.unmodifiableSet(
           EnumSet.of(
@@ -122,7 +123,7 @@ public class AuditEventClassifier {
     if (metadataResourceType != null) {
       return metadataResourceType.toUpperCase(Locale.ROOT);
     }
-    if (isAccountingEvent(log.getEventType())) {
+    if (isAccountingEvent(log)) {
       return "ACCOUNTING";
     }
     return categoryFor(log);
@@ -134,6 +135,21 @@ public class AuditEventClassifier {
 
   public boolean isAccountingEvent(AuditEvent event) {
     return event != null && ACCOUNTING_EVENTS.contains(event);
+  }
+
+  public boolean isAccountingEvent(AuditLog log) {
+    if (log == null) {
+      return false;
+    }
+    if (isAccountingEvent(log.getEventType())) {
+      return true;
+    }
+    if (log.getEventType() != AuditEvent.INTEGRATION_FAILURE) {
+      return false;
+    }
+    Map<String, String> metadata = log.getMetadata();
+    return metadata != null
+        && StringUtils.hasText(metadata.get(ACCOUNTING_EVENT_TRAIL_OPERATION_KEY));
   }
 
   public Set<AuditEvent> accountingEventTypes() {

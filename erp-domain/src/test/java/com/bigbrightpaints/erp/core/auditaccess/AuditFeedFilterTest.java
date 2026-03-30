@@ -19,4 +19,13 @@ class AuditFeedFilterTest {
 
     assertThat(filter.exceedsMergeWindow()).isTrue();
   }
+
+  @Test
+  void exceedsMergeWindow_handlesExtremePagesWithoutOverflow() {
+    AuditFeedFilter filter =
+        new AuditFeedFilter(null, null, null, null, null, null, null, null, Integer.MAX_VALUE, 50);
+
+    assertThat(filter.exceedsMergeWindow()).isTrue();
+    assertThat(filter.fetchLimit()).isEqualTo(filter.maxMergeWindow());
+  }
 }
