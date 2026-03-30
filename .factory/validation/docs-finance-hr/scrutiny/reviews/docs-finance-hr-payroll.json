@@ -1,0 +1,45 @@
+{
+  "featureId": "docs-finance-hr-payroll",
+  "reviewedAt": "2026-03-30T10:15:00.000Z",
+  "commitId": "bb9114a0a",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature produces a comprehensive HR/payroll module packet at docs/modules/hr.md that accurately reflects the codebase implementation. The documentation covers all required topics: employees, leave, attendance, payroll run lifecycle, calculation, posting/payment boundaries, required accounts, multi-tenant boundaries, idempotency expectations, and deprecated paths. MODULE-INVENTORY.md was correctly updated to link to the new packet. All code-level claims were verified against source: controller endpoints match, service names are correct, AccountingFacade is presented as the canonical seam (not AccountingCoreEngineCore), required accounts match the REQUIRED_PAYROLL_ACCOUNT_TYPES constant, module gating behavior is accurate, and legacy endpoint deprecation (410 GONE) is correctly documented. One non-blocking issue found: docs/INDEX.md still links the HR module entry to the source AGENTS.md rather than the new docs/modules/hr.md packet.",
+    "issues": [
+      {
+        "file": "docs/INDEX.md",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "The HR module entry in docs/INDEX.md still links to '../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md' instead of the new canonical packet at 'modules/hr.md'. MODULE-INVENTORY.md was updated correctly, but the root index was not. This creates an inconsistency: a reader navigating from docs/INDEX.md reaches the old source AGENTS.md, while a reader starting from MODULE-INVENTORY.md reaches the new canonical hr.md. The INDEX.md HR link should be updated to point to 'modules/hr.md' in a follow-up."
+      },
+      {
+        "file": "docs/modules/hr.md",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "The PayrollStatus lifecycle table lists DRAFT → CALCULATED → APPROVED → POSTED → PAID but omits CANCELLED which exists in the PayrollStatus enum. While CANCELLED is not part of the happy path, it should be mentioned in the lifecycle section or noted as a terminal status available outside the standard progression."
+      },
+      {
+        "file": "docs/modules/hr.md",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "The cross-reference to docs/modules/accounting.md (in the Cross-references section) points to a file that does not exist. The accounting module documentation lives at erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md. The link should be corrected to point to the actual accounting packet location."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "When a new module packet is created at docs/modules/<name>.md, the worker updates MODULE-INVENTORY.md but does not always update the corresponding entry in docs/INDEX.md. This creates discoverability gaps because docs/INDEX.md is described as the canonical entrypoint ('If a packet is not reachable through this index, it is not part of the canonical docs tree'). AGENTS.md or the docs-worker skill could include a step to also update INDEX.md module entries when creating or moving module packets.",
+      "evidence": "docs/INDEX.md HR entry still links to source AGENTS.md while MODULE-INVENTORY.md correctly links to hr.md. Previous module packets (inventory, factory, sales, purchasing, catalog-setup) all appear to link correctly from INDEX.md, suggesting this was an oversight specific to this feature rather than a pattern issue."
+    },
+    {
+      "area": "knowledge",
+      "observation": "The LeaveRequest status field is stored as a plain String rather than an enum, unlike other domain entities in the HR module (PayrollRun uses PayrollStatus enum, Employee uses EmployeeType enum). The documentation accurately describes the behavior but this implementation inconsistency may be worth noting in .factory/library/ for future workers who need to document or modify the leave domain.",
+      "evidence": "LeaveRequest.java has 'private String status = \"PENDING\"' while PayrollRun.java has 'private PayrollStatus status = PayrollStatus.DRAFT' with a proper enum definition."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS with non-blocking issues. The HR/payroll documentation packet is comprehensive, accurate, and code-grounded. It covers all required areas from VAL-FIN-003 (employee/leave/attendance, payroll lifecycle, posting/payment boundaries, required accounts, multi-tenant boundaries, idempotency) and VAL-FIN-004 (deprecated paths clearly labeled). MODULE-INVENTORY.md was correctly updated. Three non-blocking issues: (1) docs/INDEX.md HR entry not updated to point to new hr.md, (2) CANCELLED status omitted from payroll lifecycle table, (3) broken cross-reference link to non-existent docs/modules/accounting.md. None of these are blocking — the core documentation quality is high and the validation contract assertions are satisfied."
+}
