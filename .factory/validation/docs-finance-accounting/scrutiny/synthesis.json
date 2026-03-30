@@ -1,0 +1,61 @@
+{
+  "milestone": "docs-finance-accounting",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "docs-lint": { "passed": true, "command": "bash ci/lint-knowledgebase.sh", "exitCode": 0 },
+    "enterprise-policy": { "passed": true, "command": "bash ci/check-enterprise-policy.sh", "exitCode": 0 },
+    "architecture": { "passed": true, "command": "bash ci/check-architecture.sh", "exitCode": 0 },
+    "orchestrator-layer": { "passed": true, "command": "bash ci/check-orchestrator-layer.sh", "exitCode": 0 }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "fixesApplied": [
+    {
+      "featureId": "docs-finance-accounting-core",
+      "severity": "blocking",
+      "description": "Removed non-existent 'AccountingPeriodController' from controllers list. Period endpoints are all in AccountingController.",
+      "fix": "Consolidated controller list to only list AccountingController with full period lifecycle scope."
+    },
+    {
+      "featureId": "docs-finance-accounting-core",
+      "severity": "blocking",
+      "description": "Cross-module boundary incorrectly stated 'PayrollPostingService → AccountingCoreEngineCore'. Source code shows PayrollPostingService uses AccountingFacade.",
+      "fix": "Corrected to 'PayrollPostingService → AccountingFacade'."
+    },
+    {
+      "featureId": "docs-finance-accounting-core",
+      "severity": "blocking",
+      "description": "Posted-truth rules (reversal vs editing boundaries) required by VAL-FIN-001 were not explicit.",
+      "fix": "Added explicit Posted-Truth Rules section documenting period-state-dependent reversal rules, correction types, period-lock enforcement, and compliance audit requirements — all verified against AccountingCoreEngineCore source."
+    }
+  ],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-finance-accounting-core",
+      "description": "JournalCreationRequest DTO description could be more precise — the actual DTO shape differs from the description which mixes JournalCreationRequest and JournalEntryRequest fields.",
+      "severity": "non_blocking"
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "docs-worker skill",
+      "suggestion": "Add a verification step for code-grounding accuracy: workers should cross-check controller names against actual source files and verify cross-module dependency paths by inspecting import statements before claiming documentation is complete.",
+      "evidence": "docs-finance-accounting-core worker handoff claimed 'already satisfies VAL-FIN-001 requirements' but the document listed a non-existent controller (AccountingPeriodController) and misstated a cross-module dependency path (PayrollPostingService → AccountingCoreEngineCore instead of AccountingFacade).",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Relative paths in AGENTS.md are extremely deep and brittle",
+      "reason": "This is the existing convention for module-level AGENTS.md files; changing it is a style preference, not a factual error. The paths work correctly."
+    }
+  ],
+  "previousRound": null
+}
