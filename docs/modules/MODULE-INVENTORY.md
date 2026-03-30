@@ -25,7 +25,7 @@ A reader can discover module ownership from this inventory without grepping the 
 | **production** | Catalog and product surfaces: brands, items, readiness, SKU setup, packaging material definitions, and product/variant management | [catalog-setup.md](catalog-setup.md) |
 | **purchasing** | Procure-to-pay truth: supplier lifecycle, purchase orders, GRN, purchase invoices, purchase returns, settlements, and AP boundaries | [purchasing.md](purchasing.md) |
 | **rbac** | Role-based access control: role definitions, permission matrices, role assignment restrictions, and RBAC config | [admin-portal-rbac.md](admin-portal-rbac.md) |
-| **reports** | Reporting surfaces: trial balance, P&L, balance sheet, cash flow, GST, aging, dashboards, and export/report generation | [source](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/) *(per-module packet pending)* |
+| **reports** | Reporting surfaces: trial balance, P&L, balance sheet, cash flow, GST, aging, dashboards, and export/report generation | [reports.md](reports.md) |
 | **sales** | Commercial lifecycle truth: dealer/customer management, order lifecycle, credit controls, dispatch coordination, dealer portal | [sales.md](sales.md) |
 
 ---
