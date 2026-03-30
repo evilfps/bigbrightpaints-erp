@@ -1,0 +1,74 @@
+{
+  "milestone": "docs-commercial-sales",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh",
+      "exitCode": 0,
+      "observation": "[ticket-parity] OK: no ticket.yaml present; skipping parity check\n[knowledgebase-lint] OK"
+    },
+    "architecture": {
+      "passed": true,
+      "command": "bash ci/check-architecture.sh",
+      "exitCode": 0,
+      "observation": "[architecture-check] allowlist evidence contract\n[allowlist-evidence] OK\n[architecture-check] OK"
+    },
+    "enterprisePolicy": {
+      "passed": true,
+      "command": "bash ci/check-enterprise-policy.sh",
+      "exitCode": 0,
+      "observation": "[enterprise-policy] canonical workflow decision contract guard\n[guard_workflow_canonical_paths] verified canonical dispatch source path\n[guard_workflow_canonical_paths] OK\n[enterprise-policy] high-risk paths changed; enforcing R2 enterprise controls\n[enterprise-policy] OK"
+    },
+    "orchestratorLayer": {
+      "passed": true,
+      "command": "bash ci/check-orchestrator-layer.sh",
+      "exitCode": 0,
+      "observation": "[orchestrator-layer] OK"
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-commercial-sales-o2c-credit",
+      "severity": "non_blocking",
+      "description": "SalesOrderItem described as '(embedded in order)' when it's actually a separate @Entity with @ManyToOne to SalesOrder. Functionally accurate (cascade-managed aggregate child) but imprecise persistence terminology.",
+      "file": "docs/modules/sales.md",
+      "suggestedFix": "Change to '(cascade-managed child of SalesOrder aggregate, table: sales_order_items)'"
+    },
+    {
+      "featureId": "docs-commercial-sales-o2c-credit",
+      "severity": "non_blocking",
+      "description": "CancelRequest and StatusRequest listed as DTOs but are inner records of SalesController, not standalone DTOs in the dto package.",
+      "file": "docs/modules/sales.md",
+      "suggestedFix": "Note '(inner record of SalesController)' for these entries"
+    },
+    {
+      "featureId": "docs-commercial-sales-o2c-credit",
+      "severity": "suggestion",
+      "description": "Placeholder table names in Key Entities table for CreditRequest and CreditLimitOverrideRequest.",
+      "file": "docs/modules/sales.md",
+      "suggestedFix": "Resolve actual @Table names from entity annotations"
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [
+    {
+      "observation": "DealerPortalCreditRequestCreateRequest.java is dead/unused code in the dto/ directory",
+      "reason": "This is a source-code cleanup observation, not a documentation concern. The documentation correctly does not reference this DTO, and flagging dead code is outside the scope of a docs-only scrutiny pass."
+    },
+    {
+      "observation": "DealerRequest.java is an internal DTO used by services but not controllers",
+      "reason": "This is a factual code observation that does not affect documentation quality. The docs packet correctly documents the controller-facing DTOs and does not need to enumerate internal service DTOs."
+    }
+  ],
+  "previousRound": null
+}
