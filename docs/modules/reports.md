@@ -172,6 +172,24 @@ Provides a real-time view of:
 
 ---
 
+### Inventory Reconciliation
+
+- **Endpoint:** `GET /api/v1/reports/inventory-reconciliation`
+- **Service:** `ReportService.inventoryReconciliation()`
+- **Source:** Compares inventory valuation (from inventory batches) against the general ledger inventory account balance
+
+**Source-of-truth behavior:**
+- **Inventory value side**: Reads from `InventoryValuationService.currentSnapshot()` — aggregates all inventory batches weighted by the company's configured valuation method (FIFO, weighted average)
+- **Ledger side**: Reads from `resolveInventoryLedgerBalance()` — resolves the general ledger inventory account balance via journal line aggregation
+- **Variance calculation**: `inventory total value - ledger balance = variance`
+
+**Current limitations:**
+- No date filtering — always returns current-state reconciliation
+- No drill-down into which specific batches or journal entries drive the variance
+- Only compares the single inventory GL account — does not account for work-in-progress or raw materials sub-accounts separately
+
+---
+
 ### Production Reports
 
 - **Endpoints:**
