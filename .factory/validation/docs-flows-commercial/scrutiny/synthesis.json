@@ -1,0 +1,72 @@
+{
+  "milestone": "docs-flows-commercial",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": { "passed": true, "command": "bash ci/lint-knowledgebase.sh", "exitCode": 0 },
+    "architecture": { "passed": true, "command": "bash ci/check-architecture.sh", "exitCode": 0 },
+    "enterprise-policy": { "passed": true, "command": "bash ci/check-enterprise-policy.sh", "exitCode": 0 },
+    "orchestrator-layer": { "passed": true, "command": "bash ci/check-orchestrator-layer.sh", "exitCode": 0 }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-flows-commercial-finance",
+      "file": "docs/flows/procure-to-pay.md",
+      "severity": "non_blocking",
+      "description": "P2P flow does not discuss whether PO confirmation, GRN creation, or purchase invoice capture emit domain events. Event/listener boundary gap per VAL-FLOW-007."
+    },
+    {
+      "featureId": "docs-flows-commercial-finance",
+      "file": "docs/flows/accounting-period-close.md",
+      "severity": "non_blocking",
+      "description": "Accounting flow does not discuss event/listener boundaries. Whether module-to-accounting communication uses events (outbox per ADR-003) is not addressed."
+    },
+    {
+      "featureId": "docs-flows-commercial-finance",
+      "file": "docs/flows/hr-payroll.md",
+      "severity": "non_blocking",
+      "description": "HR flow does not discuss event/listener boundaries. Payroll posting seam via AccountingFacade described as direct call but synchronous vs asynchronous not stated."
+    },
+    {
+      "featureId": "docs-flows-commercial-finance",
+      "file": "docs/flows/order-to-cash.md",
+      "severity": "non_blocking",
+      "description": "Relationship between DispatchController and SalesDispatchReconciliationService could be made more explicit in the dispatch lifecycle."
+    },
+    {
+      "featureId": "docs-flows-commercial-finance",
+      "file": "docs/flows/invoice-dealer-finance.md",
+      "severity": "non_blocking",
+      "description": "Naming inconsistency between SalesFulfillmentService and SalesDispatchReconciliationService should be clarified across canonical paths and lifecycle sections."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention: flow packets should cross-link to directly relevant ADRs when they exist. ADR-003 (outbox pattern) is relevant to accounting/period-close and P2P flows; ADR-006 (portal/host boundaries) is relevant to invoice-dealer-finance flows. Currently no flow packets link to any ADR despite 6 ADRs existing.",
+      "evidence": "grep for 'ADR' across docs/flows/ returns zero matches. docs/adrs/ contains 6 accepted ADRs. Review of docs-flows-commercial-finance flagged this as a VAL-FLOW-006 gap.",
+      "isSystemic": true
+    },
+    {
+      "target": "docs-worker skill",
+      "suggestion": "Add procedural step: when writing flow packets, explicitly check whether any existing ADR is relevant and cross-link it in a Related Documentation section. Also add step: explicitly state whether cross-module communication is synchronous (direct call) or asynchronous (event/outbox) to close the event/listener boundary gap.",
+      "evidence": "5 of 6 commercial/finance flow packets (P2P, accounting, HR, invoice, reporting) do not discuss event/listener boundaries. O2C correctly documents the single-event gap. This is a recurring pattern suggesting the skill should call it out explicitly.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "No flow packets cross-link to frontend handoff docs (VAL-FLOW-006).",
+      "reason": "expected-absent — no frontend handoff docs exist yet at this milestone stage. Will be addressed in docs-handoff-* milestones."
+    }
+  ],
+  "previousRound": null
+}
