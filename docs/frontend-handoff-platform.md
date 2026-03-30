@@ -144,17 +144,17 @@ All platform endpoints use the same host prefix:
 
 1. **Super-admin is control-plane only** — Super-admin users authenticate with platform scope (`PLATFORM`) and are restricted to `/api/v1/superadmin/**`, `/api/v1/auth/**`, `/api/v1/companies`, and `/api/v1/admin/settings`. They cannot access tenant business endpoints.
 
-2. **Super-admin does NOT inherit tenant-level ADMIN permissions** — `ROLE_SUPER_ADMIN` is platform-scoped and operates at the control-plane level. It does NOT inherit or include the permissions of `ROLE_ADMIN` within a tenant. Super-admin users cannot access tenant-scoped admin endpoints like `/api/v1/admin/users`, `/api/v1/admin/roles`, `/api/v1/admin/approvals`, or portal insights (`/api/v1/portal/dashboard/**`). This is a strict separation: platform scope (`PLATFORM`) vs tenant scope (`TENANT`).
+2. **Super-admin does NOT inherit tenant-level ADMIN permissions** — `ROLE_SUPER_ADMIN` is platform-scoped and operates at the control-plane level. It does NOT inherit or include the permissions of `ROLE_ADMIN` within a tenant. Super-admin users cannot access tenant-scoped admin endpoints like `/api/v1/admin/roles`, `/api/v1/admin/approvals`, or portal insights (`/api/v1/portal/dashboard/**`). Note that `/api/v1/admin/users` IS accessible by SUPER_ADMIN (via explicit grant in the controller), but this is a special case — most tenant-scoped admin endpoints are NOT accessible. This is a strict separation: platform scope (`PLATFORM`) vs tenant scope (`TENANT`).
 
 3. **Portal insights are admin-only** — Dashboard, operations, and workforce insights require `ROLE_ADMIN` exclusively. Accounting and other roles cannot access these endpoints.
 
-3. **Portal finance is admin/accounting only** — Ledger, invoices, and aging require `ADMIN_OR_ACCOUNTING` and need an explicit `dealerId` query parameter.
+4. **Portal finance is admin/accounting only** — Ledger, invoices, and aging require `ADMIN_OR_ACCOUNTING` and need an explicit `dealerId` query parameter.
 
-4. **Dealer portal is self-service only** — All dealer-portal endpoints require `ROLE_DEALER` and auto-scope to the authenticated dealer's own data. No `dealerId` parameter is needed or allowed.
+5. **Dealer portal is self-service only** — All dealer-portal endpoints require `ROLE_DEALER` and auto-scope to the authenticated dealer's own data. No `dealerId` parameter is needed or allowed.
 
-5. **Admin settings have split read/write** — Reading settings requires `ROLE_ADMIN`; writing settings requires `ROLE_SUPER_ADMIN`.
+6. **Admin settings have split read/write** — Reading settings requires `ROLE_ADMIN`; writing settings requires `ROLE_SUPER_ADMIN`.
 
-6. **Export approval is admin/super-admin only** — Both approve and reject require `ROLE_ADMIN` or `ROLE_SUPER_ADMIN`.
+7. **Export approval is admin/super-admin only** — Both approve and reject require `ROLE_ADMIN` or `ROLE_SUPER_ADMIN`.
 
 ---
 
@@ -248,13 +248,13 @@ The `/api/v1/portal/*` host family has **non-uniform RBAC** with different predi
 > ⚠️ **Key Contract**: Support ticket DTOs are **shared** between admin and dealer surfaces. Both use the same `SupportTicketCreateRequest`, `SupportTicketResponse`, and `SupportTicketListResponse` from the `admin` module.
 
 **Create (admin side):**
-- `SupportTicketCreateRequest` — `category`, `subject`, `description`, `priority`
+- `SupportTicketCreateRequest` — `category`, `subject`, `description`
 - Response: `SupportTicketResponse` with `ticketId`, `status`, `createdAt`
 
 > ⚠️ **Note**: The admin-side `SupportTicketCreateRequest` does NOT include a `dealerId` field. Support tickets are created within the tenant's company context and scoped to the authenticated user's company.
 
 **Create (dealer side):**
-- `SupportTicketCreateRequest` — `category`, `subject`, `description`, `priority`
+- `SupportTicketCreateRequest` — `category`, `subject`, `description`
 - Response: `SupportTicketResponse` — same structure, but auto-scoped to authenticated dealer
 
 **List (admin side):**
@@ -264,7 +264,7 @@ The `/api/v1/portal/*` host family has **non-uniform RBAC** with different predi
 - `SupportTicketListResponse` — same structure, filtered to dealer's own tickets
 
 **Detail:**
-- `SupportTicketResponse` — `ticketId`, `category`, `subject`, `description`, `priority`, `status`, `createdAt`, `updatedAt`, `resolvedAt`, `createdBy`, `assignedTo`, `comments[]`
+- `SupportTicketResponse` — `ticketId`, `category`, `subject`, `description`, `status`, `createdAt`, `updatedAt`, `resolvedAt`, `createdBy`, `assignedTo`, `comments[]`
 
 ### 5.6 Approval Payloads
 
