@@ -316,7 +316,6 @@ Aging reports split across **two different ownership paths**:
 
 ## Known Gaps and Incomplete Areas
 
-- No dedicated flow packet for Reporting/Export (tracked in flow inventory as packet pending)
 - P&L lacks snapshot branch — data can change for closed periods
 - Cash flow has no date filtering — returns all-time data
 - Hierarchical P&L exists (`GET /api/v1/reports/income-statement/hierarchy`) but is not documented in the P&L section above — coverage to be expanded

@@ -211,9 +211,15 @@ The `SchedulerConfig` configures a `ThreadPoolTaskScheduler` with a 5-thread poo
 
 ### Deprecated: Orchestrator Batch Dispatch (HARD BLOCK)
 
-`CommandDispatcher.dispatchBatch()` throws `OrchestratorFeatureDisabledException` unconditionally with a clear message pointing to the canonical dispatch path at `/api/v1/dispatch/confirm`. This is not a fallback shim; it was hard-cut during the dispatch contract work and is intentionally not recoverable. The canonical dispatch path is `POST /api/v1/dispatch/confirm`, owned by the sales module.
+`CommandDispatcher.dispatchBatch()` throws `OrchestratorFeatureDisabledException` unconditionally with a clear message pointing to the canonical dispatch path at `/api/v1/dispatch/confirm`. This is not a fallback shim; it was hard-cut during the dispatch contract work and is intentionally not recoverable.
 
-**Action:** Do not call `dispatchBatch`. The response is the redirect to `/api/v1/dispatch/confirm`. Dispatch confirmation should be routed through the canonical sales module path.
+**Dispatch is explicitly a two-layer seam:**
+- **Transport/controller ownership**: `inventory.DispatchController` at `/api/v1/dispatch/**`
+- **Commercial/accounting ownership**: `sales.SalesDispatchReconciliationService` handles the authoritative commercial and accounting side effects
+
+The canonical dispatch path is `POST /api/v1/dispatch/confirm`, owned by the sales module. Routing dispatch confirmation through the orchestrator is deprecated and blocked.
+
+**Action:** Do not call `dispatchBatch`. Route dispatch confirmation through `/api/v1/dispatch/confirm` (the canonical sales module path).
 
 ### Deprecated: Orchestrator Payroll Run (HARD BLOCK)
 
@@ -243,7 +249,7 @@ The `SchedulerConfig` configures a `ThreadPoolTaskScheduler` with a 5-thread poo
 | --- | --- | --- |
 | `erp.inventory.accounting.events.enabled = false` | Inventory movements and valuation changes will **not** trigger accounting journal entries. | If this toggle is off, inventory operations silently skip financial side effects rather than failing closed. This is a significant hidden coupling risk. |
 | `orchestrator.payroll.enabled = false` | Orchestrator payroll run commands will be rejected. | This is the correct fail-closed behavior but means the orchestrator payroll path is a dead end. |
-| `orchestrator.factory-dispatch.enabled = false` | Orchestrator factory-dispatch commands will be rejected. | The canonical dispatch path is owned by the sales module, not the orchestrator. |
+| `orchestrator.factory-dispatch.enabled = false` | Orchestrator factory-dispatch commands will be rejected. | Dispatch is a two-layer seam: inventory owns transport/controller (`/api/v1/dispatch/**`), sales owns commercial/accounting side effects. The canonical dispatch path is `POST /api/v1/dispatch/confirm`, owned by the sales module, not the orchestrator. |
 | `auto-approval disabled` | `SalesOrderCreatedEvent` will be consumed but the listener will log and skip. | No inventory reservation or orchestrator event is published. Orders stay in their initial status until manually approved. |
 
 ---
@@ -257,7 +263,7 @@ A reader must understand the distinction between what the orchestrator coordinat
 | Order approval workflow | Coordinates approval events, inventory reservation, and production scheduling | Sales module owns order lifecycle; orchestrator is a coordination overlay |
 | Inventory reservation | Performs reservation on behalf of the approval workflow | Inventory module owns reservation logic (`FinishedGoodsService`) |
 | Production scheduling | Creates urgent production plans for shortfalls | Factory module owns production plans (`FactoryService`) |
-| Dispatch confirmation | **Deprecated** — throws `OrchestratorFeatureDisabledException` | Sales module owns canonical dispatch (`POST /api/v1/dispatch/confirm`) |
+| Dispatch confirmation | **Deprecated** — throws `OrchestratorFeatureDisabledException` | Two-layer seam: inventory owns transport/controller (`/api/v1/dispatch/**`), sales owns commercial/accounting (`SalesDispatchReconciliationService`). Canonical path: `POST /api/v1/dispatch/confirm` |
 | Payroll run + payment | **Deprecated** for generation; still wraps payment recording | HR module owns canonical payroll (`POST /api/v1/payroll/runs`) |
 | Dashboard aggregation | Aggregates cross-module read models for admin/factory/finance dashboards | Each module owns its own read models; orchestrator only composes them |
 | Outbox event publishing | Owns the full outbox lifecycle | Orchestrator owns this; it is not delegated to business modules |
