@@ -65,6 +65,7 @@ flowchart LR
 - [14-credit-ledger-and-customer-flows.md](./14-credit-ledger-and-customer-flows.md)
 - [15-payroll-hr-overlap.md](./15-payroll-hr-overlap.md)
 - [16-changelog-governance-flow.md](./16-changelog-governance-flow.md)
+- [17-audit-read-hard-cut.md](./17-audit-read-hard-cut.md)
 
 ## Fast Review Order
 
