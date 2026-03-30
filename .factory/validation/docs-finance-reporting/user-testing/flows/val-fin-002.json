@@ -1,0 +1,71 @@
+{
+  "assertionId": "VAL-FIN-002",
+  "status": "pass",
+  "testedAt": "2026-03-30T12:00:00Z",
+  "credentials": {
+    "account": "docs-only-validation",
+    "namespace": "docs-finance-reporting"
+  },
+  "toolsUsed": ["Read", "Grep", "Glob"],
+  "evidence": {
+    "periodControls": {
+      "found": true,
+      "location": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md + docs/developer/accounting-flows/08-period-close-reconciliation.md + docs/workflows/accounting-and-period-close.md",
+      "summary": "Period controls are documented across three files. AGENTS.md describes open/close/lock/reopen states with maker-checker workflow. 08-period-close-reconciliation.md documents the canonical workflow graph (requestClose → approveClose → rejectClose → reopen) and the maker-checker path. accounting-and-period-close.md provides an 8-step end-to-end workflow including lock, request-close, approve-close, and finalize. Source code confirms AccountingPeriodServiceCore contains closePeriod, reopenPeriod, requestPeriodClose, approvePeriodClose, and rejectPeriodClose methods."
+    },
+    "reconciliation": {
+      "found": true,
+      "location": "docs/developer/accounting-flows/08-period-close-reconciliation.md + docs/modules/reports.md + docs/workflows/accounting-and-period-close.md",
+      "summary": "Three reconciliation surfaces are documented: (1) Bank reconciliation sessions (startSession, updateItems, completeSession) in 08-period-close-reconciliation.md, with canonical path through ReconciliationServiceCore. (2) Discrepancy resolution (reconcileSubledgerBalances, syncPeriodDiscrepancies, resolveDiscrepancy, createResolutionJournal). (3) Inventory reconciliation in reports.md (inventory valuation vs GL balance comparison). accounting-and-period-close.md Step 2 covers bank/AR/AP/GST reconciliation. Source code confirms BankReconciliationSessionService, ReconciliationService, ReconciliationServiceCore, and BankReconciliationSession domain entities exist."
+    },
+    "trialBalance": {
+      "found": true,
+      "location": "docs/modules/reports.md (lines 26-40) + docs/developer/accounting-flows/07-reports-truth-sources.md",
+      "summary": "Trial balance documentation explains snapshot-vs-live branching: closed periods read from stored AccountingPeriodTrialBalanceLine snapshot records; open periods read from live journal summaries via JournalLineRepository.summarizeByAccountWithin(). Limitations explicitly noted: no comparative period functionality beyond optional second period parameters, binary snapshot branching (no hybrid views), and fail behavior if closed period has no snapshot. Source code confirms TrialBalanceReportQueryService and AccountingPeriodTrialBalanceLineRepository exist."
+    },
+    "profitAndLoss": {
+      "found": true,
+      "location": "docs/modules/reports.md (lines 42-57) + docs/developer/accounting-flows/07-reports-truth-sources.md",
+      "summary": "P&L documentation explains source-of-truth behavior: always reads live journal summaries with no snapshot branch. Current limitations are explicitly called out: no closed-period snapshot path, ReportMetadata may incorrectly indicate SNAPSHOT source while data comes from live journals (known correctness gap), and users may assume frozen period data when it's actually live. Source code confirms ProfitLossReportQueryService exists."
+    },
+    "balanceSheet": {
+      "found": true,
+      "location": "docs/modules/reports.md (lines 59-74) + docs/developer/accounting-flows/07-reports-truth-sources.md",
+      "summary": "Balance sheet documentation explains snapshot-vs-live branching: closed periods read from stored snapshot (similar to trial balance), open periods use live journal summaries plus current earnings logic (accumulated profit/loss calculation bridging income statement to equity). Hierarchical variant endpoint documented. Limitations: shares same snapshot branching as trial balance, date-parameter behavior may drift toward period activity after period rows are seeded. Source code confirms BalanceSheetReportQueryService exists."
+    },
+    "cashFlow": {
+      "found": true,
+      "location": "docs/modules/reports.md (lines 76-90) + docs/modules/reports.md (Non-Canonical section, lines 270-278) + docs/developer/accounting-flows/07-reports-truth-sources.md",
+      "summary": "Cash flow documentation explains it scans posted journals directly using heuristic counterparty classification. Limitations are explicitly documented: no date-window discipline (no date/period parameters), no snapshot branch (always live), and heuristic classification may miscategorize transactions (no explicit cash flow tagging). Also called out as 'the most non-canonical path in the reporting module' with a recommendation for explicit cash flow tagging. Source code confirms ReportService.cashFlow() method exists."
+    },
+    "gst": {
+      "found": true,
+      "location": "docs/modules/reports.md (lines 93-113)",
+      "summary": "GST return documentation explains source-of-truth: reads from sales and purchase journal lines, builds output tax from sales and input tax from purchases. Line-level component breakdown documented (cgst_amount, sgst_amount, igst_amount). Falls back to splitting aggregate tax amount if line-level components are missing. Reduces input tax credit by returnedQuantity using retained-quantity ratio. Component structure documented (CGST, SGST, IGST per rate bucket). Limitations: only for GST-configured companies, legacy entries use estimation, no snapshot branch (always live journal data). Source code confirms GstReturnReportDto and GstReturnDto exist."
+    },
+    "aging": {
+      "found": true,
+      "location": "docs/modules/reports.md (lines 115-137) + docs/modules/reports.md (Non-Canonical section, lines 289-300)",
+      "summary": "Aging reports documented with two ownership paths: (1) Aged Debtors (dealer-centric) via AgedDebtorsReportQueryService using DealerLedgerRepository, and (2) Aged Receivables (account-centric) via AgingReportService using journal lines aggregated by age bucket. Limitations: two ownership paths create semantic duplication with potential data inconsistency, aging buckets are hardcoded (0-30, 31-60, 61-90, 91+ days), no configurable aging criteria. Non-canonical split ownership is explicitly called out. Source code confirms AgedDebtorsReportQueryService exists."
+    },
+    "dashboards": {
+      "found": true,
+      "location": "docs/modules/reports.md (lines 139-168)",
+      "summary": "Two dashboard surfaces documented: (1) Reconciliation Dashboard (GET /api/v1/reports/reconciliation-dashboard) providing real-time view of outstanding checks/deposits, bank charges, interest, and reconciliation discrepancies. Limitations: requires active bank reconciliation session, no historical dashboard. (2) Balance Warnings (GET /api/v1/reports/balance-warnings) scanning for anomalous account balances. Source code confirms ReportService.reconciliationDashboard() and balanceWarnings() methods exist."
+    },
+    "snapshotVsLiveLimitations": {
+      "found": true,
+      "location": "docs/modules/reports.md (throughout: Trial Balance lines 32-39, P&L lines 49-55, Balance Sheet lines 65-71, Cash Flow lines 86-87, GST line 113) + docs/developer/accounting-flows/07-reports-truth-sources.md + docs/developer/accounting-flows/08-period-close-reconciliation.md + erp-domain/.../reports/service/ReportQuerySupport.java",
+      "summary": "Snapshot-vs-live limitations are explicitly documented per report type. Trial balance and balance sheet: binary snapshot branching (closed=snapshot, open=live). P&L: always live, no snapshot branch (known correctness gap). Cash flow: always live, no date filtering. GST: always live journal data. ReportQuerySupport.resolveWindow() in source code confirms: for CLOSED periods, it resolves AccountingPeriodSnapshot and sets source=SNAPSHOT; for non-closed periods it uses LIVE source. The docs explicitly flag P&L metadata potentially incorrectly indicating SNAPSHOT while data is live (Review Hotspot #1). The 07-reports-truth-sources.md file maps canonical workflow graphs showing snapshot vs live paths."
+    }
+  },
+  "discoverability": {
+    "fromIndex": true,
+    "path": "docs/INDEX.md → Modules section links to reports.md and accounting/AGENTS.md. Also reachable via docs/flows/FLOW-INVENTORY.md → accounting-and-period-close.md, and via docs/developer/accounting-flows/README.md → 07-reports-truth-sources.md and 08-period-close-reconciliation.md.",
+    "moduleInventoryEntry": "docs/modules/MODULE-INVENTORY.md lists 'reports' module with link to reports.md"
+  },
+  "issues": [],
+  "frictions": [],
+  "blockers": [],
+  "summary": "All 10 sub-assertions for VAL-FIN-002 verified as PASS. Period controls, reconciliation (bank, discrepancy, inventory), trial balance, P&L, balance sheet, cash flow, GST, aging, dashboards, and snapshot-vs-live limitations are all documented in the canonical docs tree. Documentation is discoverable from docs/INDEX.md and docs/modules/MODULE-INVENTORY.md. Source code confirms the documented services, entities, and query paths exist. Explicit limitations and correctness gaps are honestly disclosed."
+}

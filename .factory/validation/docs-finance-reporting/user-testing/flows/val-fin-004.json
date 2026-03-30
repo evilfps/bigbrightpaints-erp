@@ -1,0 +1,76 @@
+{
+  "assertionId": "VAL-FIN-004",
+  "status": "pass",
+  "evidence": {
+    "deprecatedSectionInReports": {
+      "found": true,
+      "location": "docs/modules/reports.md — section 'Deprecated and Non-Canonical Surfaces'",
+      "summary": "Dedicated section exists covering four deprecated/non-canonical surfaces: audit digest CSV, cash flow, account statement, and aging split. Also includes a 'Review Hotspots' section with five additional correctness concerns including P&L metadata gap and balance sheet date drift."
+    },
+    "auditDigestDeprecated": {
+      "found": true,
+      "location": "docs/modules/reports.md — 'Deprecated: Audit Digest CSV Export' subsection under 'Deprecated and Non-Canonical Surfaces'",
+      "replacement": "Standard export workflow (POST /api/v1/exports/request → GET /api/v1/exports/{requestId}/download). The audit digest CSV specifically is documented as 'not being actively maintained' with guidance to use alternative audit trails.",
+      "sourceCodeConfirmation": "AccountingController.java exposes GET /audit/digest and GET /audit/digest.csv (lines 978-1003). Docs and endpoint-map both note these are deprecated."
+    },
+    "cashFlowNonCanonical": {
+      "found": true,
+      "location": "docs/modules/reports.md — 'Non-Canonical: Cash Flow Report' subsection; also in docs/developer/accounting-flows/07-reports-truth-sources.md under 'Cash Flow' and 'Duplicates and Bad Paths'",
+      "limitations": "No date filtering (no date/period parameters), no snapshot branch (always reads live data), heuristic counterparty classification (pattern matching rather than explicit cash flow tagging in journal lines). Documented as 'the most non-canonical path in the reporting module'.",
+      "sourceCodeConfirmation": "ReportService.cashFlow() (line 170) accepts no date parameters. resolveCashFlowAllocations uses classifyCashFlowCounterparty for heuristic classification."
+    },
+    "accountStatementDrift": {
+      "found": true,
+      "location": "docs/modules/reports.md — 'Non-Canonical: Account Statement' subsection; also in 07-reports-truth-sources.md under 'Account Statement' and 'Duplicates and Bad Paths'",
+      "drift": "Endpoint name suggests fuller statement capability but only returns dealer-only balance rollup. Name implies the fuller StatementService engine but current behavior is narrower. No dedicated replacement endpoint exists — portal finance exposes ledger and invoice endpoints separately.",
+      "sourceCodeConfirmation": "ReportController exposes GET /reports/account-statement (line 179). ReportService.accountStatement() (line 654) returns List<AccountStatementEntryDto> built from dealer balance snapshot only."
+    },
+    "agingSplit": {
+      "found": true,
+      "location": "docs/modules/reports.md — 'Non-Canonical: Aging Report Split' subsection and 'Aging Reports' section; also in 07-reports-truth-sources.md under 'Aging'",
+      "details": "Two ownership paths: (1) GET /api/v1/reports/aged-debtors via AgedDebtorsReportQueryService (dealer-centric, source: DealerLedgerRepository) and (2) GET /api/v1/reports/aging/receivables via AgingReportService (account-centric, source: journal lines). Documented as potentially returning inconsistent data due to different underlying queries. Both are currently maintained with no immediate single canonical replacement.",
+      "sourceCodeConfirmation": "AgedDebtorsReportQueryService.java (reports/service) and AgingReportService.java (accounting/service) confirm two different services in two different modules."
+    },
+    "plMetadataGap": {
+      "found": true,
+      "location": "docs/modules/reports.md — 'Profit and Loss' section under 'Current limitations' and 'Review Hotspots' item 1; also in 07-reports-truth-sources.md under 'Profit and Loss' and 'Duplicates and Bad Paths'",
+      "details": "P&L always reads live journal summaries (no snapshot branch). ReportMetadata may incorrectly indicate SNAPSHOT source while data actually comes from live journals. This is documented as a known correctness gap where users may assume frozen period data when it is actually live.",
+      "sourceCodeConfirmation": "ProfitLossReportQueryService delegates to ReportQuerySupport.metadata(window) which resolves source based on window resolution. The resolveWindow logic sets source=SNAPSHOT when a closed-period snapshot is found, but P&L's summarize() always reads live journal summaries regardless of snapshot status, creating the metadata-claim mismatch."
+    },
+    "balanceSheetDateDrift": {
+      "found": true,
+      "location": "docs/modules/reports.md — 'Balance Sheet' section under 'Current limitations' and 'Review Hotspots' item 3",
+      "details": "Date-parameter behavior may drift toward 'period activity' instead of cumulative 'as-of balance' after period rows are seeded. This is flagged as a review hotspot in the reports module packet.",
+      "sourceCodeConfirmation": "BalanceSheetReportQueryService uses ReportQuerySupport.resolveWindow which applies snapshot resolution for closed periods. The date interpretation semantics (period activity vs cumulative as-of) are noted as a concern in documentation."
+    },
+    "accountingDeprecatedSeams": {
+      "found": true,
+      "location": "docs/developer/accounting-flows/01-accounting-internals.md — section 'Duplicates and Bad Paths'; also in 00-accounting-module-map.md — section 3.2 'Retired setup hosts' and 12-accounting-outward-flow-map.md",
+      "details": "Accounting module docs identify multiple deprecated/confusing seams: (1) AccountingCoreEngine/AccountingCoreLogic/AccountingCoreService are wrapper-only layers, (2) AccountingService duplicates the public API of specialized services, (3) BankReconciliationSessionService.reconcileLegacy() is an explicit old/new bridge, (4) deprecated digest endpoints are still live on AccountingController, (5) JournalReferenceResolver walks direct→legacy→canonical mappings. Retired setup hosts (legacy product routes, legacy accounting-prefixed product setup routes) are documented as must-stay-retired."
+    },
+    "hrDeprecatedSeams": {
+      "found": true,
+      "location": "docs/developer/accounting-flows/15-payroll-hr-overlap.md — 'Legacy Alias Behavior' and 'Duplicates and Bad Paths'; also in 06-hr-payroll-bridge.md — 'Duplicates and Bad Paths'",
+      "details": "HR module docs identify deprecated seams: (1) Legacy alias /api/v1/hr/payroll-runs returns 410 GONE, pointing to /api/v1/payroll/runs as canonical replacement, (2) HrService.createPayrollRun exists only to throw legacy-deprecated exception, (3) PayrollRun and PayrollRunLine carry legacy compatibility fields and fallback getters, (4) PayrollPostingService accepts either journalEntryId or legacy relation linkage, (5) batch payment path can set a run PAID without full HR-side finalization data, (6) module ownership is path-sensitive (/api/v1/payroll/** = HR_PAYROLL, /api/v1/accounting/payroll/** = ACCOUNTING).",
+      "sourceCodeConfirmation": "HrController.legacyPayrollRunsGone() returns 410 GONE (line 215-219). HrService throws 'Legacy payroll run creation is deprecated' (line 163)."
+    },
+    "replacementNotes": {
+      "found": true,
+      "location": "docs/modules/reports.md — 'Deprecated and Non-Canonical Surfaces' section; docs/modules/invoice.md — 'Deprecated / Non-Canonical Paths' table; docs/developer/accounting-flows/15-payroll-hr-overlap.md — 'Legacy Alias Behavior'",
+      "summary": "Each deprecated/non-canonical surface has either a canonical replacement identified or an explicit note that no replacement exists: (1) Audit digest CSV → standard export workflow (partial replacement; audit digest specifically is 'not actively maintained'), (2) Cash flow → no replacement (heuristic classification is current behavior, explicit cash flow tagging would be needed), (3) Account statement → no dedicated replacement endpoint (portal finance endpoints cover parts), (4) Aging split → either endpoint may be used, no single canonical replacement yet, (5) Legacy HR payroll aliases → canonical /api/v1/payroll/runs, (6) Legacy dealer finance aliases → /api/v1/portal/finance/* for internal, /api/v1/dealer-portal/* for self-service (documented in invoice.md with full retired→replacement mapping table)."
+    }
+  },
+  "issues": [],
+  "frictions": [
+    {
+      "description": "Accounting and HR modules do not have dedicated docs/modules/*.md packets; their documentation lives in docs/developer/accounting-flows/ files and the AGENTS.md files referenced from MODULE-INVENTORY.md. No AGENTS.md files were found in erp-domain/src/main/java/.../modules/accounting/ or modules/hr/ at the file system level, despite MODULE-INVENTORY.md linking to them. The accounting deprecated seams are documented in the developer flow docs rather than in a consolidated module packet.",
+      "resolved": false,
+      "resolution": "Not a blocker — the deprecated seam information is present and discoverable via the developer flow docs. However, the MODULE-INVENTORY links to non-existent AGENTS.md files for accounting and HR modules are broken links.",
+      "affectedAssertions": ["VAL-FIN-004"]
+    }
+  ],
+  "blockers": [],
+  "toolsUsed": ["Read", "Grep"],
+  "testedAt": "2026-03-30T15:30:00Z",
+  "summary": "Tested VAL-FIN-004: Finance and HR docs disclose deprecated or confusing seams. PASS. All 10 verification points confirmed: (1) reports.md has a dedicated 'Deprecated and Non-Canonical Surfaces' section, (2) audit digest CSV deprecation is documented with replacement guidance, (3) cash flow is identified as non-canonical with all limitations listed, (4) account statement naming drift is called out, (5) aging report split ownership is documented, (6) P&L metadata correctness gap is disclosed, (7) balance sheet date behavior drift is documented, (8) accounting deprecated seams are documented in developer flow docs, (9) HR deprecated payroll seams are documented with 410 GONE legacy aliases and replacement paths, (10) each deprecated surface has either a canonical replacement or explicit no-replacement note. One friction noted: MODULE-INVENTORY.md links to AGENTS.md files for accounting/HR modules that do not exist on disk, though the actual deprecated seam information is present in developer flow docs."
+}
