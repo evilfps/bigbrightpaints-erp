@@ -1,0 +1,175 @@
+{
+  "groupId": "audit-auth-ownership",
+  "testedAt": "2026-03-31T07:00:00Z",
+  "credentials": {
+    "account": "docs-only",
+    "namespace": "docs-surface-validation"
+  },
+  "toolsUsed": ["Read", "Grep", "Glob", "LS"],
+  "assertions": [
+    {
+      "id": "VAL-MAIN-003",
+      "title": "Audit read hard-cut docs match current canonical audit surfaces",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Search docs/ for references to /api/v1/accounting/audit/*",
+          "expected": "Canonical audit read docs reflect /api/v1/accounting/audit/* as a surviving surface",
+          "observed": "Found extensive references across docs/frontend-api/accounting-reference-chains.md, docs/endpoint-inventory.md, docs/accounting-portal-endpoint-map.md, docs/accounting-portal-frontend-engineer-handoff.md, and docs/AUDIT_TRAIL_OWNERSHIP.md. Accounting audit surfaces are well-documented."
+        },
+        {
+          "action": "Search docs/ for references to /api/v1/admin/audit/events and /api/v1/superadmin/audit/platform-events",
+          "expected": "These routes are documented as surviving canonical audit surfaces with route references",
+          "observed": "docs/frontend-api/accounting-reference-chains.md line 168 states: 'The paths /api/v1/admin/audit/events and /api/v1/superadmin/audit/platform-events do not exist in the current API contract. Use the accounting audit endpoints listed above for audit queries.' These routes do NOT exist as canonical surfaces."
+        },
+        {
+          "action": "Search docs/ for retirement markers for old accounting/business-audit read paths",
+          "expected": "Explicit retirement markers for superseded accounting/business-audit paths",
+          "observed": "No references found to '/api/v1/accounting/business-audit' anywhere in docs. The audit digest endpoints (GET /api/v1/accounting/audit/digest*) are documented as deprecated in multiple locations: docs/accounting-portal-endpoint-map.md line 26, docs/accounting-portal-frontend-engineer-handoff.md line 94, docs/deprecated/INDEX.md line 120. The /api/v1/audit/business-events route exists but is documented as a live enterprise audit surface, not a retired one. Legacy summary success writes in AuditService are documented as fully decommissioned in docs/AUDIT_TRAIL_OWNERSHIP.md and docs/modules/core-audit-runtime-settings.md."
+        }
+      ],
+      "evidence": {
+        "canonical_audit_surfaces": "docs/frontend-api/accounting-reference-chains.md lists five canonical audit read surfaces: /api/v1/accounting/audit-trail, /api/v1/accounting/audit/transactions, /api/v1/accounting/audit/digest, /api/v1/audit/business-events, /api/v1/audit/ml-events",
+        "admin_superadmin_audit_nonexistent": "docs/frontend-api/accounting-reference-chains.md line 168: '/api/v1/admin/audit/events and /api/v1/superadmin/audit/platform-events do not exist in the current API contract'",
+        "digest_deprecated": "docs/accounting-portal-endpoint-map.md line 26: 'Legacy GET /api/v1/accounting/audit/digest* endpoints are still present in this OpenAPI snapshot and should be treated as deprecated in new frontend flows'",
+        "audit_trail_ownership": "docs/AUDIT_TRAIL_OWNERSHIP.md documents canonical audit surfaces and de-dup policy with legacy summary writes fully decommissioned"
+      },
+      "issues": "The assertion expects docs to reflect /api/v1/admin/audit/events and /api/v1/superadmin/audit/platform-events as surviving canonical surfaces, but the docs explicitly state these paths do NOT exist in the current API contract. The canonical audit surfaces are instead the accounting-audit and enterprise-audit-trail routes. The docs are internally consistent about what actually exists, but the assertion's expected surfaces diverge from the documented reality. The assertion also expects retirement markers for 'old accounting/business-audit read paths' — no such '/api/v1/accounting/business-audit' path exists in the docs at all, though /api/v1/audit/business-events is documented as a live canonical surface."
+    },
+    {
+      "id": "VAL-MAIN-004",
+      "title": "Tenant-admin, superadmin, and auth boundary docs reflect fail-closed mainline rules",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Search docs for tenant-admin vs superadmin role distinction",
+          "expected": "Docs state tenant-admin is distinct from superadmin with clear role split",
+          "observed": "docs/frontend-api/auth-and-company-scope.md has explicit Role Boundaries table: ROLE_SUPER_ADMIN routes to superadmin portal at /api/v1/superadmin/**, ROLE_TENANT_ADMIN routes to tenant-admin at /api/v1/admin/**. docs/frontend-portals/README.md line 31-32: 'A user with ROLE_SUPER_ADMIN must never be sent to tenant-admin screens even if the approval payload shape would otherwise match.'"
+        },
+        {
+          "action": "Search docs for companyCode (not companyId) as tenant scope",
+          "expected": "Docs state tenant-scoped UIs persist companyCode not companyId",
+          "observed": "docs/frontend-api/auth-and-company-scope.md: 'Use companyCode as the persisted tenant scope identifier' with explicit 'Do not send X-Company-Id header — this is retired.' docs/frontend-api/README.md lists retired routes including 'companyId in frontend state -> Use companyCode'. docs/frontend-portals/README.md line 10: 'Persist tenant scope as companyCode, never companyId.'"
+        },
+        {
+          "action": "Search docs for GET /api/v1/auth/me as sole bootstrap",
+          "expected": "GET /api/v1/auth/me documented as the only bootstrap endpoint",
+          "observed": "docs/frontend-api/README.md line 14: 'Only bootstrap endpoint: GET /api/v1/auth/me is the sole supported frontend identity surface.' docs/frontend-api/auth-and-company-scope.md opens with 'The only supported frontend identity bootstrap endpoint is: GET /api/v1/auth/me'. docs/frontend-portals/README.md line 9: 'Use GET /api/v1/auth/me as the only frontend identity bootstrap.'"
+        },
+        {
+          "action": "Search docs for retired /api/v1/auth/profile warnings",
+          "expected": "Docs state /api/v1/auth/profile is retired and not wired",
+          "observed": "docs/frontend-api/README.md line 22: 'Do not use: /api/v1/auth/profile — this endpoint is retired and no longer wired into the current frontend contract.' docs/frontend-api/README.md Retired Routes table lists '/api/v1/auth/profile -> Use /api/v1/auth/me'. docs/frontend-api/auth-and-company-scope.md section 'Non-Canonical Identity Endpoints' details why /api/v1/auth/profile is not recommended. docs/frontend-portals/README.md line 32: 'Do not wire retired surfaces such as /api/v1/auth/profile.'"
+        }
+      ],
+      "evidence": {
+        "role_split": "docs/frontend-api/auth-and-company-scope.md Role Boundaries table separates ROLE_SUPER_ADMIN (superadmin portal) from ROLE_TENANT_ADMIN (tenant-admin portal) with explicit authorization routes",
+        "companyCode_scoping": "docs/frontend-api/auth-and-company-scope.md tenant identifier section: 'Use companyCode as the persisted tenant scope identifier... Do not use companyId (numeric) for tenant-shell auth — it is retired'",
+        "sole_bootstrap": "docs/frontend-api/README.md line 14 and docs/frontend-api/auth-and-company-scope.md opening both declare GET /api/v1/auth/me as the sole supported identity bootstrap",
+        "retired_profile_warning": "docs/frontend-api/README.md line 22: 'Do not use: /api/v1/auth/profile — this endpoint is retired and no longer wired into the current frontend contract'; docs/frontend-api/README.md Retired Routes table; docs/frontend-portals/README.md line 32"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-MAIN-005",
+      "title": "Portal ownership and approval/dispatch boundaries match mainline placement",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify export approvals in tenant-admin",
+          "expected": "Docs show export approvals owned by tenant-admin",
+          "observed": "docs/frontend-api/exports-and-approvals.md Approval Ownership section: 'Export approvals belong to tenant-admin, not accounting.' Table lists export requests, credit requests, period close, and payroll runs all owned by tenant-admin at /api/v1/admin/approvals. docs/frontend-portals/README.md line 21: 'Export approvals belong to tenant-admin, not accounting.' docs/frontend-portals/tenant-admin/README.md: 'Approval inbox for tenant-admin decisions' and 'Export approval decisions' listed under 'What belongs here.'"
+        },
+        {
+          "action": "Verify report consumption in accounting",
+          "expected": "Docs show report consumption in accounting portal",
+          "observed": "docs/frontend-portals/accounting/README.md: 'own finance reports and export-governed downloads' listed under Portal Ownership. docs/frontend-portals/portal-matrix.md: accounting portal owns 'GET /api/v1/reports/**' and 'finance reports' under Core screens."
+        },
+        {
+          "action": "Verify dispatch confirmation in factory",
+          "expected": "Docs show dispatch confirmation in factory portal",
+          "observed": "docs/frontend-portals/factory/README.md: 'POST /api/v1/dispatch/confirm is the only O2C posting boundary. Factory owns that action.' docs/frontend-portals/portal-matrix.md: factory portal owns 'POST /api/v1/dispatch/confirm'. docs/frontend-portals/sales/README.md Explicit Non-Ownership includes 'POST /api/v1/dispatch/confirm'."
+        },
+        {
+          "action": "Verify dealer-client/internal shells separated cleanly",
+          "expected": "Docs show clean separation between dealer-client and internal shells",
+          "observed": "docs/frontend-portals/dealer-client/README.md Explicit Non-Ownership: 'internal dealer master create/edit by sales', 'dispatch execution, production logs', 'accounting journal correction', 'tenant-user management, export approval'. docs/frontend-portals/sales/README.md: 'Sales may show dispatch state... but it must never offer a dispatch-confirm button, a standalone invoice list, or any accounting workaround.' docs/frontend-portals/portal-matrix.md: dealer-client backend prefixes are '/api/v1/dealer-portal/**' only, clearly separated from internal routes."
+        }
+      ],
+      "evidence": {
+        "export_approvals_tenant_admin": "docs/frontend-api/exports-and-approvals.md Approval Ownership: 'Export approvals belong to tenant-admin, not accounting' with table listing all approval types owned by tenant-admin; docs/frontend-portals/tenant-admin/README.md lists 'Export approval decisions' under ownership",
+        "report_consumption_accounting": "docs/frontend-portals/accounting/README.md: 'own finance reports and export-governed downloads'; docs/frontend-portals/portal-matrix.md: accounting owns 'GET /api/v1/reports/**'",
+        "dispatch_confirmation_factory": "docs/frontend-portals/factory/README.md: 'POST /api/v1/dispatch/confirm is the only O2C posting boundary. Factory owns that action.'; docs/frontend-portals/portal-matrix.md: factory owns 'POST /api/v1/dispatch/confirm'",
+        "dealer_client_internal_separation": "docs/frontend-portals/dealer-client/README.md lists comprehensive non-ownership for internal features; docs/frontend-portals/portal-matrix.md separates dealer-client routes (/api/v1/dealer-portal/**) from internal routes; docs/frontend-portals/README.md folder ownership table has clean must-not-own boundaries for each portal"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-MAIN-006",
+      "title": "Legacy docs that remain after catch-up are explicitly marked non-canonical or reference-only",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Check docs/architecture.md for non-canonical marker",
+          "expected": "Legacy doc marked non-canonical with link to canonical replacement",
+          "observed": "Line 3: '> ⚠️ **NON-CANONICAL**: This document is superseded by the canonical documentation in the new docs tree. See docs/INDEX.md as the primary entry point, docs/modules/MODULE-INVENTORY.md for the module inventory, and docs/BACKEND-FEATURE-CATALOG.md for the exhaustive feature catalog.'"
+        },
+        {
+          "action": "Check docs/developer-guide.md for non-canonical marker",
+          "expected": "Legacy doc marked non-canonical with link to canonical replacement",
+          "observed": "Line 3: '> ⚠️ **NON-CANONICAL**: This document is superseded by the module packets and flow packets in the new docs tree. For current developer documentation, see docs/INDEX.md, docs/modules/MODULE-INVENTORY.md, and docs/flows/FLOW-INVENTORY.md.'"
+        },
+        {
+          "action": "Check docs/endpoint-inventory.md for reference-only marker",
+          "expected": "Legacy doc marked reference-only with link to canonical replacement",
+          "observed": "Line 3: '> ⚠️ **REFERENCE ONLY**: This document is no longer the canonical source of truth. Use openapi.json and the module packets in docs/modules/ as the primary API contract reference. The authoritative endpoint inventory is now available through docs/modules/MODULE-INVENTORY.md.'"
+        },
+        {
+          "action": "Check docs/code-review/ for non-canonical marker",
+          "expected": "Legacy review directory marked non-canonical",
+          "observed": "docs/code-review/README.md line 3: '> ⚠️ **NON-CANONICAL**: This directory contains legacy review artifacts from a past production-backend audit. The canonical documentation is now maintained in the new docs tree under docs/modules/, docs/flows/, and docs/INDEX.md.'"
+        },
+        {
+          "action": "Check docs/workflows/ for non-canonical markers",
+          "expected": "All legacy workflow docs marked non-canonical",
+          "observed": "All seven workflow docs have NON-CANONICAL banners with links to their canonical flow packet replacements: manufacturing-and-packaging.md -> docs/flows/manufacturing-packing.md, payroll.md -> docs/flows/hr-payroll.md, purchase-to-pay.md -> docs/flows/procure-to-pay.md, sales-order-to-cash.md -> docs/flows/order-to-cash.md, inventory-management.md -> docs/flows/inventory-management.md, accounting-and-period-close.md -> docs/flows/accounting-period-close.md, admin-and-tenant-management.md -> docs/flows/tenant-admin-management.md, data-migration.md -> docs/runbooks/migrations.md"
+        },
+        {
+          "action": "Check docs/frontend-update-v2/ for non-canonical marker",
+          "expected": "Legacy frontend update tracker clearly not competing as truth",
+          "observed": "docs/frontend-portals/README.md lines 4-6: 'Older tracker-style notes under docs/frontend-update-v2/ are delta/history references only. They are not a second source of truth for routing, API ownership, or portal placement.' The frontend-update-v2/README.md itself does not have a banner, but it is explicitly redirected in the canonical frontend-portals README."
+        },
+        {
+          "action": "Check frontend handoff files for non-second-source markers",
+          "expected": "Frontend handoff files defer to canonical docs",
+          "observed": "All four frontend-handoff-*.md files (platform, commercial, finance, operations) have the statement: 'This packet defers to the canonical module and flow docs for implementation truth and is not a second source of truth.'"
+        },
+        {
+          "action": "Check docs/INDEX.md historical docs section",
+          "expected": "Historical docs section in index clearly marks them as non-canonical",
+          "observed": "docs/INDEX.md line 118-124 has a 'Historical Docs' section: 'The following historical docs remain in the repo for reference but are not the canonical source of truth. They may be stale, partial, or contradictory with the current implementation.' Lists architecture.md (Superseded), developer-guide.md (Superseded), endpoint-inventory.md (Reference only)."
+        },
+        {
+          "action": "Check docs/deprecated/INDEX.md for non-canonical section",
+          "expected": "Deprecated index has historical documentation section marking non-canonical docs",
+          "observed": "docs/deprecated/INDEX.md lines 149-157: 'Historical Documentation (Non-Canonical)' section lists architecture.md (Superseded), developer-guide.md (Superseded), endpoint-inventory.md (Reference only) with links to canonical replacements."
+        }
+      ],
+      "evidence": {
+        "architecture_md_marker": "Line 3: NON-CANONICAL banner linking to docs/INDEX.md, docs/modules/MODULE-INVENTORY.md, and docs/BACKEND-FEATURE-CATALOG.md",
+        "developer_guide_marker": "Line 3: NON-CANONICAL banner linking to docs/INDEX.md, docs/modules/MODULE-INVENTORY.md, and docs/flows/FLOW-INVENTORY.md",
+        "endpoint_inventory_marker": "Line 3: REFERENCE ONLY banner linking to openapi.json and docs/modules/MODULE-INVENTORY.md",
+        "code_review_marker": "docs/code-review/README.md line 3: NON-CANONICAL banner redirecting to docs/modules/, docs/flows/, and docs/INDEX.md",
+        "workflow_docs_markers": "All 8 workflow docs under docs/workflows/ have NON-CANONICAL banners with explicit links to their canonical flow packet replacements",
+        "frontend_update_v2_redirect": "docs/frontend-portals/README.md explicitly states frontend-update-v2/ is 'delta/history references only' and 'not a second source of truth'",
+        "frontend_handoff_deferred": "All 4 frontend-handoff-*.md files state 'defers to the canonical module and flow docs for implementation truth and is not a second source of truth'",
+        "index_historical_section": "docs/INDEX.md Historical Docs section marks architecture.md, developer-guide.md, and endpoint-inventory.md as non-canonical",
+        "deprecated_index_section": "docs/deprecated/INDEX.md Historical Documentation (Non-Canonical) section with explicit status and replacement links"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 4 assertions: 3 passed, 1 failed (VAL-MAIN-003). VAL-MAIN-003 fails because the assertion expects docs to reflect /api/v1/admin/audit/events and /api/v1/superadmin/audit/platform-events as surviving canonical surfaces, but the docs explicitly state these paths do NOT exist in the current API contract. The actual canonical audit surfaces are /api/v1/accounting/audit-trail, /api/v1/accounting/audit/transactions, /api/v1/audit/business-events, /api/v1/audit/ml-events, and the deprecated /api/v1/accounting/audit/digest. The docs are internally consistent about what exists. VAL-MAIN-004 passes: all four requirements (tenant-admin/superadmin split, companyCode scoping, sole /auth/me bootstrap, retired /auth/profile warning) are documented across multiple canonical files. VAL-MAIN-005 passes: export approvals in tenant-admin, report consumption in accounting, dispatch confirmation in factory, and clean dealer-client/internal separation are all documented. VAL-MAIN-006 passes: all surviving legacy docs carry explicit NON-CANONICAL or REFERENCE ONLY banners with links to canonical replacements."
+}
