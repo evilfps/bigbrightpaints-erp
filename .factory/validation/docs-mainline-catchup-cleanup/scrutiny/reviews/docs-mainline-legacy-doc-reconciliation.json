@@ -1,0 +1,39 @@
+{
+  "featureId": "docs-mainline-legacy-doc-reconciliation",
+  "reviewedAt": "2026-03-31T02:30:00.000Z",
+  "commitId": "23283fc51",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The commit successfully reconciles legacy docs to the new mainline canonical frontend structure. Five files changed: (1) docs/INDEX.md updated with a new 'Canonical Frontend Documentation' section pointing to docs/frontend-portals/ and docs/frontend-api/ as authoritative, and a 'Legacy Frontend Handoff (Reference Only)' section marking old handoff files as superseded; (2) docs/adr/ADR-001-allowlist-cross-module-imports-baseline.md deleted (duplicate of docs/adrs/); (3-5) NON-CANONICAL banners added to frontend-handoff-platform.md, frontend-handoff-operations.md, and frontend-handoff-commercial.md. All cross-links resolve to existing files. The lint-knowledgebase and enterprise-policy checks both passed. One non-blocking observation: docs/frontend-handoff-finance.md and docs/accounting-portal-frontend-engineer-handoff.md are listed in the 'Legacy Frontend Handoff (Reference Only)' section of INDEX.md but do not carry inline NON-CANONICAL banners in their file bodies. INDEX.md clearly marks them as reference-only, which is sufficient for the stated feature scope, but adding inline banners to these two files would improve consistency.",
+    "issues": [
+      {
+        "file": "docs/frontend-handoff-finance.md",
+        "line": 1,
+        "severity": "non_blocking",
+        "description": "Listed in INDEX.md 'Legacy Frontend Handoff (Reference Only)' section but lacks an inline NON-CANONICAL banner at the top of the file body. The three other frontend-handoff files (platform, operations, commercial) all received inline banners. Adding one here would be consistent, though INDEX.md's explicit 'Reference Only' labeling covers the requirement."
+      },
+      {
+        "file": "docs/accounting-portal-frontend-engineer-handoff.md",
+        "line": 1,
+        "severity": "non_blocking",
+        "description": "Listed in INDEX.md 'Legacy Frontend Handoff (Reference Only)' section but lacks an inline NON-CANONICAL banner. The file still reads as an active handoff document without any deprecation marker in its body."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "docs/workflows/ and docs/code-review/ directories contain documents with NON-CANONICAL banners from prior reconciliation work, but are not listed in docs/INDEX.md at all. These are orphaned doc trees that are not navigable from the canonical index. The feature description says 'add useful orphaned docs/directories to index/navigation by default' but these were not addressed.",
+      "evidence": "docs/workflows/ has 8 files with NON-CANONICAL banners; docs/code-review/ has 11 files including README.md. Neither directory appears in docs/INDEX.md. grep -c 'NON-CANONICAL' on these directories confirms banners exist."
+    },
+    {
+      "area": "conventions",
+      "observation": "The NON-CANONICAL banner pattern is well-established in the codebase (docs/CONVENTIONS.md documents it at line 137-149), but there is no automated check that legacy docs listed as reference-only in INDEX.md actually carry the inline banner. This led to the inconsistency where finance and accounting-portal handoff files are marked reference-only in INDEX.md but lack inline banners.",
+      "evidence": "docs/CONVENTIONS.md lines 137-149 define the NON-CANONICAL banner template. Three of five legacy frontend-handoff files have inline banners; two do not."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The feature successfully reconciles legacy frontend docs to the mainline canonical structure. INDEX.md now clearly distinguishes canonical (docs/frontend-portals/, docs/frontend-api/) from legacy (frontend-handoff-*.md) frontend documentation, the duplicate docs/adr/ tree is removed in favor of docs/adrs/, and three of the five legacy handoff files carry inline NON-CANONICAL banners. Two non-blocking issues noted: (1) docs/frontend-handoff-finance.md and docs/accounting-portal-frontend-engineer-handoff.md lack inline NON-CANONICAL banners despite being listed as reference-only in INDEX.md, and (2) docs/workflows/ and docs/code-review/ are orphaned doc trees not reachable from INDEX.md."
+}
