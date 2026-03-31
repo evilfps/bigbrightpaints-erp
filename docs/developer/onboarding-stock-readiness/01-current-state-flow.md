@@ -11,7 +11,6 @@ flowchart LR
     TOS --> BOOT["Company + COA + OPEN-BAL + open period + first admin"]
 
     DEF["Company defaults screen"] --> DACC["GET/PUT /api/v1/accounting/default-accounts"]
-    DEF --> COMP["PUT /api/v1/companies/{id} (super-admin correction only)"]
 
     SKU["Catalog item setup screen"] --> BR["GET/POST /api/v1/catalog/brands"]
     SKU --> ITEM["GET/POST /api/v1/catalog/items"]
@@ -73,10 +72,6 @@ flowchart LR
 
 - controller: `AccountingController`
 - service: `CompanyDefaultAccountsService`
-
-### Super-admin correction path
-
-- `PUT /api/v1/companies/{id}` remains the control-plane path for company metadata corrections such as timezone, state code, and default GST rate
 
 ### Operational truth
 

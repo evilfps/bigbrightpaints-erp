@@ -67,8 +67,8 @@ public class CompanyService {
   private static final String SUPERADMIN_DASHBOARD_READ_REASON = "superadmin-dashboard-read";
   private static final String TENANT_SUPPORT_WARNING_ISSUED_REASON =
       "tenant-support-warning-issued";
+  private static final String TENANT_RUNTIME_POLICY_SYNC_REASON = "tenant-runtime-policy-sync";
   private static final long ERROR_RATE_BASIS_POINTS_SCALE = 10_000L;
-  private static final BigDecimal DEFAULT_BOOTSTRAP_GST_RATE = BigDecimal.valueOf(18);
 
   private final CompanyRepository repository;
   private final AuditService auditService;
@@ -178,6 +178,7 @@ public class CompanyService {
     Company saved = repository.save(company);
     provisionInitialAdminIfRequested(
         saved, request.firstAdminEmail(), request.firstAdminDisplayName());
+    synchronizeRuntimePolicyEnvelope(saved, authentication, TENANT_RUNTIME_POLICY_SYNC_REASON);
     auditAuthorityDecision(true, "tenant-bootstrap-created", normalizedCompanyCode, authentication);
     return toDto(saved);
   }
@@ -204,6 +205,9 @@ public class CompanyService {
     }
     if (request.defaultGstRate() != null) {
       company.setDefaultGstRate(request.defaultGstRate());
+      if (request.defaultGstRate().compareTo(BigDecimal.ZERO) == 0) {
+        clearGstTaxAccounts(company);
+      }
     }
     company.setQuotaMaxActiveUsers(
         resolveQuotaForUpdate(request.quotaMaxActiveUsers(), company.getQuotaMaxActiveUsers()));
@@ -223,7 +227,15 @@ public class CompanyService {
     if (request.enabledModules() != null) {
       company.setEnabledModules(validateAndNormalizeEnabledModules(request.enabledModules()));
     }
+    synchronizeRuntimePolicyEnvelope(
+        company, SecurityContextHolder.getContext().getAuthentication(), TENANT_RUNTIME_POLICY_SYNC_REASON);
     return toDto(company);
+  }
+
+  private void clearGstTaxAccounts(Company company) {
+    company.setGstInputTaxAccountId(null);
+    company.setGstOutputTaxAccountId(null);
+    company.setGstPayableAccountId(null);
   }
 
   @Transactional
@@ -530,10 +542,8 @@ public class CompanyService {
   @Transactional
   public TenantRuntimeEnforcementService.TenantRuntimeSnapshot updateTenantRuntimePolicy(
       Long companyId, TenantRuntimePolicyMutationRequest request) {
-    if (tenantRuntimeEnforcementService == null) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
-          "Tenant runtime enforcement service unavailable");
-    }
+    TenantRuntimeEnforcementService runtimeEnforcementService =
+        requireTenantRuntimeEnforcementService();
     if (!hasRuntimePolicyMutation(request)) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Runtime policy mutation payload is required");
@@ -548,7 +558,7 @@ public class CompanyService {
                         "Company not found"));
     assertBoundControlPlaneMutationContextMatchesTarget(company.getCode());
     TenantRuntimeEnforcementService.TenantRuntimeSnapshot snapshot =
-        tenantRuntimeEnforcementService.updatePolicy(
+        runtimeEnforcementService.updatePolicy(
             company.getCode(),
             parseRuntimeState(request.holdState()),
             request.reasonCode(),
@@ -781,7 +791,7 @@ public class CompanyService {
     if (!StringUtils.hasText(boundCompanyCode)) {
       return;
     }
-    if (authScopeService != null && authScopeService.isPlatformScope(boundCompanyCode)) {
+    if (requireAuthScopeService().isPlatformScope(boundCompanyCode)) {
       return;
     }
     if (!boundCompanyCode.trim().equalsIgnoreCase(targetCompanyCode.trim())) {
@@ -799,7 +809,7 @@ public class CompanyService {
           "Bound company context is required for targeted tenant mutation");
     }
     String normalizedBoundCompanyCode = boundCompanyCode.trim();
-    if (authScopeService != null && authScopeService.isPlatformScope(normalizedBoundCompanyCode)) {
+    if (requireAuthScopeService().isPlatformScope(normalizedBoundCompanyCode)) {
       return;
     }
     if (!normalizedBoundCompanyCode.equalsIgnoreCase(targetCompanyCode.trim())) {
@@ -813,18 +823,39 @@ public class CompanyService {
       String lifecycleReason,
       Authentication authentication) {
     if (company == null
-        || tenantRuntimeEnforcementService == null
         || requestedState == null
         || !StringUtils.hasText(company.getCode())) {
       return;
     }
-    tenantRuntimeEnforcementService.updatePolicy(
+    requireTenantRuntimeEnforcementService().updatePolicy(
         company.getCode(),
         mapLifecycleToRuntimeState(requestedState),
         lifecycleReason,
         safeRuntimeLimit(company.getQuotaMaxConcurrentRequests()),
         safeRuntimeLimit(company.getQuotaMaxApiRequests()),
         safeRuntimeLimit(company.getQuotaMaxActiveUsers()),
+        resolveActor(authentication));
+  }
+
+  private void synchronizeRuntimePolicyEnvelope(
+      Company company, Authentication authentication, String reasonCode) {
+    if (company == null || !StringUtils.hasText(company.getCode())) {
+      return;
+    }
+    TenantRuntimeEnforcementService.TenantRuntimeState runtimeState =
+        mapLifecycleToRuntimeState(
+            company.getLifecycleState() == null ? CompanyLifecycleState.ACTIVE : company.getLifecycleState());
+    String effectiveReason =
+        StringUtils.hasText(company.getLifecycleReason())
+            ? company.getLifecycleReason()
+            : reasonCode;
+    requireTenantRuntimeEnforcementService().updatePolicy(
+        company.getCode(),
+        runtimeState,
+        effectiveReason,
+        TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxConcurrentRequests()),
+        TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxApiRequests()),
+        TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxActiveUsers()),
         resolveActor(authentication));
   }
 
@@ -853,7 +884,7 @@ public class CompanyService {
   }
 
   private void ensureCompanyCodeAvailableForCreate(String companyCode) {
-    if (authScopeService != null && authScopeService.isPlatformScope(companyCode)) {
+    if (requireAuthScopeService().isPlatformScope(companyCode)) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Company code conflicts with platform auth code: " + companyCode);
     }
@@ -867,7 +898,7 @@ public class CompanyService {
   }
 
   private void ensureCompanyCodeAvailableForUpdate(Long companyId, String companyCode) {
-    if (authScopeService != null && authScopeService.isPlatformScope(companyCode)) {
+    if (requireAuthScopeService().isPlatformScope(companyCode)) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Company code conflicts with platform auth code: " + companyCode);
     }
@@ -904,7 +935,7 @@ public class CompanyService {
   }
 
   private BigDecimal resolveDefaultGstRateForCreate(BigDecimal requestedDefaultGstRate) {
-    return requestedDefaultGstRate == null ? DEFAULT_BOOTSTRAP_GST_RATE : requestedDefaultGstRate;
+    return TenantBootstrapDefaults.resolveDefaultGstRate(requestedDefaultGstRate);
   }
 
   private void provisionInitialAdminIfRequested(
@@ -943,6 +974,22 @@ public class CompanyService {
           "Password reset email delivery is disabled; enable erp.mail.enabled=true and"
               + " erp.mail.send-password-reset=true");
     }
+  }
+
+  private AuthScopeService requireAuthScopeService() {
+    if (authScopeService == null) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+          "Auth scope service unavailable");
+    }
+    return authScopeService;
+  }
+
+  private TenantRuntimeEnforcementService requireTenantRuntimeEnforcementService() {
+    if (tenantRuntimeEnforcementService == null) {
+      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+          "Tenant runtime enforcement service unavailable");
+    }
+    return tenantRuntimeEnforcementService;
   }
 
   private TenantRuntimeEnforcementService.TenantRuntimeState parseRuntimeState(String holdState) {

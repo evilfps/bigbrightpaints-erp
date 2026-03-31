@@ -87,7 +87,7 @@ class TS_RuntimeAccountingFacadeExecutableCoverageTest {
   }
 
   @Test
-  void postPurchaseJournal_legacyPrefixFallback_ignoresReversalSuffixes() {
+  void postPurchaseJournal_ignoresLegacyPrefixedEntriesWithoutBaseReplay() {
     Long supplierId = 88L;
     Supplier supplier = new Supplier();
     supplier.setStatus(SupplierStatus.ACTIVE);
@@ -96,36 +96,61 @@ class TS_RuntimeAccountingFacadeExecutableCoverageTest {
     payable.setName("Accounts Payable");
     ReflectionTestUtils.setField(payable, "id", 301L);
     supplier.setPayableAccount(payable);
-    when(companyEntityLookup.requireSupplier(eq(company), eq(supplierId))).thenReturn(supplier);
+    when(supplierRepository.findByCompanyAndIdWithPayableAccount(eq(company), eq(supplierId)))
+        .thenReturn(Optional.of(supplier));
 
     Long inventoryAccountId = 201L;
+    Account inventory = new Account();
+    ReflectionTestUtils.setField(inventory, "id", inventoryAccountId);
+    when(companyEntityLookup.requireAccount(eq(company), eq(inventoryAccountId)))
+        .thenReturn(inventory);
 
     String baseReference = "RMP-ACME-SUP-INV100";
+    String canonicalReference = baseReference + "-0005";
     when(referenceNumberService.purchaseReferenceKey(eq(company), eq(supplier), eq("INV-100")))
         .thenReturn(baseReference);
     when(journalReferenceResolver.findExistingEntry(eq(company), eq(baseReference)))
         .thenReturn(Optional.empty());
-
-    JournalEntry reversal = new JournalEntry();
-    ReflectionTestUtils.setField(reversal, "id", 501L);
-    reversal.setReferenceNumber(baseReference + "-0001-REV");
-
-    JournalEntry canonical = new JournalEntry();
-    ReflectionTestUtils.setField(canonical, "id", 500L);
-    canonical.setReferenceNumber(baseReference + "-0001");
-    canonical.setEntryDate(LocalDate.of(2026, 1, 13));
-
-    JournalEntry later = new JournalEntry();
-    ReflectionTestUtils.setField(later, "id", 499L);
-    later.setReferenceNumber(baseReference + "-0002");
-    later.setEntryDate(LocalDate.of(2026, 1, 10));
-
-    when(journalEntryRepository.findByCompanyAndReferenceNumberStartingWith(
-            eq(company), eq(baseReference + "-")))
-        .thenReturn(List.of(reversal, later, canonical));
+    when(referenceNumberService.purchaseReference(eq(company), eq(supplier), eq("INV-100")))
+        .thenReturn(canonicalReference);
+    when(journalEntryRepository.findByCompanyAndReferenceNumber(
+            eq(company), eq(canonicalReference)))
+        .thenReturn(Optional.empty());
     when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(
             eq(company), eq(baseReference)))
         .thenReturn(Optional.empty());
+    JournalEntryDto created =
+        new JournalEntryDto(
+            915L,
+            null,
+            canonicalReference,
+            LocalDate.of(2026, 1, 10),
+            "created",
+            "POSTED",
+            null,
+            null,
+            supplierId,
+            supplier.getName(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            List.<JournalLineDto>of(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
+    when(accountingService.createStandardJournal(any())).thenReturn(created);
+    JournalEntry saved = new JournalEntry();
+    ReflectionTestUtils.setField(saved, "id", 915L);
+    saved.setReferenceNumber(canonicalReference);
+    when(companyEntityLookup.requireJournalEntry(eq(company), eq(915L))).thenReturn(saved);
 
     JournalEntryDto dto =
         accountingFacade.postPurchaseJournal(
@@ -138,8 +163,10 @@ class TS_RuntimeAccountingFacadeExecutableCoverageTest {
             new BigDecimal("100.00"),
             null);
 
-    assertThat(dto.referenceNumber()).isEqualTo(baseReference + "-0001");
-    verify(accountingService, never()).createJournalEntry(any());
+    assertThat(dto.referenceNumber()).isEqualTo(canonicalReference);
+    verify(journalEntryRepository, never())
+        .findByCompanyAndReferenceNumberStartingWith(eq(company), eq(baseReference + "-"));
+    verify(accountingService).createStandardJournal(any());
   }
 
   @Test

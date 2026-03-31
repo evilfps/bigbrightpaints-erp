@@ -70,14 +70,10 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
-import com.bigbrightpaints.erp.modules.production.dto.BulkVariantRequest;
-import com.bigbrightpaints.erp.modules.production.dto.BulkVariantResponse;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogImportResponse;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogItemCreateCommand;
 import com.bigbrightpaints.erp.modules.production.dto.CatalogItemUpdateCommand;
-import com.bigbrightpaints.erp.modules.production.dto.ProductionBrandDto;
 import com.bigbrightpaints.erp.modules.production.dto.ProductionProductDto;
-import com.bigbrightpaints.erp.modules.production.dto.SkuReadinessDto;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
@@ -122,13 +118,6 @@ public class ProductionCatalogService {
           "fgRevenueAccountId", "fg_revenue_account_id",
           "fgDiscountAccountId", "fg_discount_account_id",
           "fgTaxAccountId", "fg_tax_account_id");
-  private static final String VARIANT_REASON_GENERATED = "GENERATED";
-  private static final String VARIANT_REASON_WOULD_CREATE = "WOULD_CREATE";
-  private static final String VARIANT_REASON_CREATED = "CREATED";
-  private static final String VARIANT_REASON_SKU_ALREADY_EXISTS = "SKU_ALREADY_EXISTS";
-  private static final String VARIANT_REASON_DUPLICATE_IN_REQUEST = "DUPLICATE_IN_REQUEST";
-  private static final String VARIANT_REASON_CONCURRENT_CONFLICT = "CONCURRENT_SKU_CONFLICT";
-  private static final int BULK_VARIANT_AUDIT_SAMPLE_LIMIT = 12;
   private static final ObjectMapper OBJECT_MAPPER =
       new ObjectMapper().configure(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS, true);
   private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
@@ -765,415 +754,6 @@ public class ProductionCatalogService {
     return percent(value);
   }
 
-  /**
-   * Bulk variant creation: generates SKUs for each (color x size) and creates products if missing.
-   */
-  @Transactional
-  public BulkVariantResponse createVariants(BulkVariantRequest request) {
-    return createVariants(request, false);
-  }
-
-  @Transactional
-  public BulkVariantResponse createVariants(BulkVariantRequest request, boolean dryRun) {
-    Company company = companyContextService.requireCurrentCompany();
-    VariantExecutionPlan plan = prepareVariantExecutionPlan(company, request);
-    BulkVariantResponse dryRunResponse = toVariantResponse(plan, plan.conflicts(), List.of());
-
-    if (dryRun) {
-      auditBulkVariantOutcome(company, plan, dryRunResponse, true, true, null);
-      return dryRunResponse;
-    }
-
-    if (!plan.conflicts().isEmpty()) {
-      auditBulkVariantOutcome(
-          company, plan, dryRunResponse, false, false, "pre-validation-conflicts");
-      throw bulkVariantConflictException(
-          dryRunResponse, "Bulk variant request has SKU conflicts. Resolve conflicts and retry.");
-    }
-
-    List<BulkVariantResponse.VariantItem> created = new ArrayList<>();
-    for (VariantCandidate candidate : plan.candidatesToCreate()) {
-      try {
-        createCatalogItem(candidate.createRequest());
-        created.add(candidate.toItem(VARIANT_REASON_CREATED));
-      } catch (RuntimeException ex) {
-        if (isVariantDuplicateConflict(ex, company, candidate.sku())) {
-          BulkVariantResponse raceConflictResponse =
-              toVariantResponse(
-                  plan, List.of(candidate.toItem(VARIANT_REASON_CONCURRENT_CONFLICT)), List.of());
-          auditBulkVariantOutcome(
-              company, plan, raceConflictResponse, false, false, "write-time-conflict");
-          throw bulkVariantConflictException(
-              raceConflictResponse,
-              "Bulk variant write conflict for SKU "
-                  + candidate.sku()
-                  + ". Re-run with dryRun=true and resubmit.");
-        }
-        throw ex;
-      }
-    }
-
-    BulkVariantResponse committedResponse = toVariantResponse(plan, List.of(), created);
-    auditBulkVariantOutcome(company, plan, committedResponse, false, true, null);
-    return committedResponse;
-  }
-
-  private VariantExecutionPlan prepareVariantExecutionPlan(
-      Company company, BulkVariantRequest request) {
-    Map<String, String> colorsByKey = new LinkedHashMap<>();
-    for (String color : expandTokens(request.colors())) {
-      colorsByKey.putIfAbsent(IdempotencyUtils.normalizeUpperToken(color), color);
-    }
-    Map<String, ColorSizeSpec> colorSizeMatrix = expandColorSizeMatrix(request.colorSizeMatrix());
-    for (ColorSizeSpec matrixEntry : colorSizeMatrix.values()) {
-      colorsByKey.putIfAbsent(
-          IdempotencyUtils.normalizeUpperToken(matrixEntry.color()), matrixEntry.color());
-    }
-    List<String> globalSizes = expandTokens(request.sizes());
-
-    if (colorsByKey.isEmpty()) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "At least one color is required");
-    }
-    if (globalSizes.isEmpty()
-        && colorSizeMatrix.values().stream().allMatch(entry -> entry.sizes().isEmpty())) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "At least one size is required");
-    }
-
-    String normalizedCategory = normalizeCategory(request.category());
-    VariantBrandPlan brandPlan =
-        resolveBrandPlanForVariantPlanning(
-            company, request.brandId(), request.brandName(), request.brandCode());
-    String baseName = request.baseProductName().trim();
-    String unit =
-        StringUtils.hasText(request.unitOfMeasure()) ? request.unitOfMeasure().trim() : "UNIT";
-    String normalizedItemClass = normalizeVariantItemClass(normalizedCategory);
-    String normalizedBrandCode = sanitizeCode(brandPlan.brandCode());
-    String baseSkuFragment =
-        requireVariantSkuFragment("baseProductName", baseName, Integer.MAX_VALUE);
-
-    List<VariantCandidate> generatedCandidates = new ArrayList<>();
-    for (Map.Entry<String, String> colorEntry : colorsByKey.entrySet()) {
-      String color = colorEntry.getValue();
-      ColorSizeSpec matrixEntry = colorSizeMatrix.get(colorEntry.getKey());
-      List<String> sizes =
-          matrixEntry != null && !matrixEntry.sizes().isEmpty() ? matrixEntry.sizes() : globalSizes;
-      if (sizes.isEmpty()) {
-        throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-            "At least one size is required for color '" + color + "'");
-      }
-      String colorCode = requireVariantSkuFragment("color", color, 8);
-      for (String size : sizes) {
-        String sizeCode = requireVariantSkuFragment("size", size, 8);
-        String sku =
-            String.join(
-                    "-",
-                    List.of(
-                        itemClassSkuPrefix(normalizedItemClass),
-                        normalizedBrandCode,
-                        baseSkuFragment,
-                        colorCode,
-                        sizeCode))
-                .replaceAll("-+", "-");
-        CatalogItemCreateCommand createRequest =
-            new CatalogItemCreateCommand(
-                brandPlan.brandId(),
-                brandPlan.brandId() == null ? brandPlan.brandName() : null,
-                brandPlan.brandId() == null ? brandPlan.brandCode() : null,
-                baseName + " " + color + " " + size,
-                normalizedCategory,
-                normalizedItemClass,
-                color,
-                size,
-                unit,
-                null,
-                sku,
-                request.basePrice(),
-                request.gstRate(),
-                request.minDiscountPercent(),
-                request.minSellingPrice(),
-                request.metadata());
-        generatedCandidates.add(
-            new VariantCandidate(sku, color, size, createRequest.productName(), createRequest));
-      }
-    }
-
-    Set<String> duplicateSkuKeys =
-        generatedCandidates.stream()
-            .collect(
-                Collectors.groupingBy(
-                    candidate -> normalizeSkuKey(candidate.sku()),
-                    LinkedHashMap::new,
-                    Collectors.counting()))
-            .entrySet()
-            .stream()
-            .filter(entry -> entry.getValue() > 1)
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
-
-    Set<String> generatedSkuKeys =
-        generatedCandidates.stream()
-            .map(candidate -> normalizeSkuKey(candidate.sku()))
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-
-    Set<String> existingSkuKeys =
-        generatedSkuKeys.isEmpty()
-            ? Set.of()
-            : productRepository.findByCompanyAndSkuCodeIn(company, generatedSkuKeys).stream()
-                .map(ProductionProduct::getSkuCode)
-                .map(ProductionCatalogService::normalizeSkuKey)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
-    List<BulkVariantResponse.VariantItem> generated = new ArrayList<>();
-    List<BulkVariantResponse.VariantItem> conflicts = new ArrayList<>();
-    List<BulkVariantResponse.VariantItem> wouldCreate = new ArrayList<>();
-    List<VariantCandidate> candidatesToCreate = new ArrayList<>();
-
-    for (VariantCandidate candidate : generatedCandidates) {
-      generated.add(candidate.toItem(VARIANT_REASON_GENERATED));
-      String skuKey = normalizeSkuKey(candidate.sku());
-      if (duplicateSkuKeys.contains(skuKey)) {
-        conflicts.add(candidate.toItem(VARIANT_REASON_DUPLICATE_IN_REQUEST));
-        continue;
-      }
-      if (existingSkuKeys.contains(skuKey)) {
-        conflicts.add(candidate.toItem(VARIANT_REASON_SKU_ALREADY_EXISTS));
-        continue;
-      }
-      wouldCreate.add(candidate.toItem(VARIANT_REASON_WOULD_CREATE));
-      candidatesToCreate.add(candidate);
-    }
-
-    return new VariantExecutionPlan(
-        brandPlan,
-        baseName,
-        normalizedCategory,
-        List.copyOf(candidatesToCreate),
-        List.copyOf(generated),
-        List.copyOf(conflicts),
-        List.copyOf(wouldCreate));
-  }
-
-  private VariantBrandPlan resolveBrandPlanForVariantPlanning(
-      Company company, Long brandId, String brandName, String providedCode) {
-    if (brandId != null) {
-      ProductionBrand brand = companyEntityLookup.requireProductionBrand(company, brandId);
-      return new VariantBrandPlan(brand.getId(), brand.getName(), brand.getCode());
-    }
-    if (!StringUtils.hasText(brandName)) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Brand is required");
-    }
-    String effectiveName = brandName.trim();
-    if (StringUtils.hasText(providedCode)) {
-      Optional<ProductionBrand> byCode =
-          brandRepository.findByCompanyAndCodeIgnoreCase(company, sanitizeCode(providedCode));
-      if (byCode.isPresent()) {
-        ProductionBrand brand = byCode.get();
-        return new VariantBrandPlan(brand.getId(), brand.getName(), brand.getCode());
-      }
-    }
-    Optional<ProductionBrand> byName =
-        brandRepository.findByCompanyAndNameIgnoreCase(company, effectiveName);
-    if (byName.isPresent()) {
-      ProductionBrand brand = byName.get();
-      return new VariantBrandPlan(brand.getId(), brand.getName(), brand.getCode());
-    }
-    String plannedCode =
-        nextBrandCode(company, providedCode != null ? providedCode : effectiveName);
-    return new VariantBrandPlan(null, effectiveName, plannedCode);
-  }
-
-  private BulkVariantResponse toVariantResponse(
-      VariantExecutionPlan plan,
-      List<BulkVariantResponse.VariantItem> conflicts,
-      List<BulkVariantResponse.VariantItem> created) {
-    Set<String> conflictSkuKeys =
-        conflicts == null
-            ? Set.of()
-            : conflicts.stream()
-                .map(BulkVariantResponse.VariantItem::sku)
-                .map(ProductionCatalogService::normalizeSkuKey)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-    List<BulkVariantResponse.VariantItem> filteredWouldCreate =
-        plan.wouldCreate().stream()
-            .filter(item -> !conflictSkuKeys.contains(normalizeSkuKey(item.sku())))
-            .toList();
-    return new BulkVariantResponse(
-        plan.generated(),
-        conflicts == null ? List.of() : List.copyOf(conflicts),
-        filteredWouldCreate,
-        created == null ? List.of() : List.copyOf(created));
-  }
-
-  private ApplicationException bulkVariantConflictException(
-      BulkVariantResponse response, String message) {
-    return new ApplicationException(ErrorCode.CONCURRENCY_CONFLICT, message)
-        .withDetail("operation", "catalog-bulk-variants")
-        .withDetail("generated", response.generated())
-        .withDetail("conflicts", response.conflicts())
-        .withDetail("wouldCreate", response.wouldCreate())
-        .withDetail("created", response.created());
-  }
-
-  private void auditBulkVariantOutcome(
-      Company company,
-      VariantExecutionPlan plan,
-      BulkVariantResponse response,
-      boolean dryRun,
-      boolean success,
-      String failureReason) {
-    Map<String, String> metadata = new HashMap<>();
-    metadata.put("operation", "catalog-bulk-variants");
-    metadata.put("mode", dryRun ? "dry-run" : "commit");
-    metadata.put(
-        "companyId", company != null && company.getId() != null ? company.getId().toString() : "");
-    metadata.put(
-        "brandId",
-        plan.brandPlan() != null && plan.brandPlan().brandId() != null
-            ? plan.brandPlan().brandId().toString()
-            : "");
-    metadata.put(
-        "brandCode",
-        safeAuditValue(plan.brandPlan() != null ? plan.brandPlan().brandCode() : null));
-    metadata.put(
-        "brandName",
-        safeAuditValue(plan.brandPlan() != null ? plan.brandPlan().brandName() : null));
-    metadata.put("baseProductName", safeAuditValue(plan.baseProductName()));
-    metadata.put("category", safeAuditValue(plan.category()));
-    metadata.put("generatedCount", Integer.toString(response.generated().size()));
-    metadata.put("conflictCount", Integer.toString(response.conflicts().size()));
-    metadata.put("wouldCreateCount", Integer.toString(response.wouldCreate().size()));
-    metadata.put("createdCount", Integer.toString(response.created().size()));
-    metadata.put("conflictSkus", summarizeAuditSkus(response.conflicts()));
-    metadata.put("wouldCreateSkus", summarizeAuditSkus(response.wouldCreate()));
-    if (!success && StringUtils.hasText(failureReason)) {
-      metadata.put("reason", failureReason);
-    }
-    if (success) {
-      auditService.logSuccess(dryRun ? AuditEvent.DATA_READ : AuditEvent.DATA_CREATE, metadata);
-      return;
-    }
-    auditService.logFailure(AuditEvent.DATA_CREATE, metadata);
-  }
-
-  private String summarizeAuditSkus(List<BulkVariantResponse.VariantItem> items) {
-    if (items == null || items.isEmpty()) {
-      return "";
-    }
-    return items.stream()
-        .map(BulkVariantResponse.VariantItem::sku)
-        .filter(StringUtils::hasText)
-        .limit(BULK_VARIANT_AUDIT_SAMPLE_LIMIT)
-        .collect(Collectors.joining(","));
-  }
-
-  private String safeAuditValue(String value) {
-    if (!StringUtils.hasText(value)) {
-      return "";
-    }
-    String trimmed = value.trim();
-    return trimmed.length() > 120 ? trimmed.substring(0, 120) : trimmed;
-  }
-
-  private String resolveVariantPrefix(String requestedPrefix, String brandCode) {
-    String source = StringUtils.hasText(requestedPrefix) ? requestedPrefix : brandCode;
-    String prefix = sanitizeSkuFragment(source);
-    if (!StringUtils.hasText(prefix)) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Bulk variant skuPrefix/brandCode must contain at least one alphanumeric SKU character");
-    }
-    return prefix;
-  }
-
-  private String requireVariantSkuFragment(String fieldName, String rawValue, int maxLength) {
-    String sanitized = sanitizeSkuFragment(rawValue);
-    sanitized = maxLength > 0 ? truncate(sanitized, maxLength) : sanitized;
-    if (!StringUtils.hasText(sanitized)) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Bulk variant " + fieldName + " must contain at least one alphanumeric SKU character");
-    }
-    return sanitized;
-  }
-
-  private List<String> expandTokens(List<String> items) {
-    if (items == null) return List.of();
-    Map<String, String> tokens = new LinkedHashMap<>();
-    for (String raw : items) {
-      if (!StringUtils.hasText(raw)) {
-        continue;
-      }
-      String[] chunks = raw.split("[,;\\n]+");
-      for (String chunk : chunks) {
-        if (!StringUtils.hasText(chunk)) {
-          continue;
-        }
-        String token = chunk.trim();
-        tokens.putIfAbsent(IdempotencyUtils.normalizeUpperToken(token), token);
-      }
-    }
-    return List.copyOf(tokens.values());
-  }
-
-  private Map<String, ColorSizeSpec> expandColorSizeMatrix(
-      List<BulkVariantRequest.ColorSizeMatrixEntry> entries) {
-    if (entries == null) {
-      return Map.of();
-    }
-    Map<String, ColorSizeSpec> matrix = new LinkedHashMap<>();
-    for (BulkVariantRequest.ColorSizeMatrixEntry entry : entries) {
-      if (entry == null || !StringUtils.hasText(entry.color())) {
-        continue;
-      }
-      List<String> colors = expandTokens(List.of(entry.color()));
-      if (colors.isEmpty()) {
-        continue;
-      }
-      List<String> sizes = expandTokens(entry.sizes());
-      for (String color : colors) {
-        String colorKey = IdempotencyUtils.normalizeUpperToken(color);
-        ColorSizeSpec existing = matrix.get(colorKey);
-        if (existing == null) {
-          matrix.put(colorKey, new ColorSizeSpec(color, sizes));
-          continue;
-        }
-        matrix.put(
-            colorKey, new ColorSizeSpec(existing.color(), mergeTokens(existing.sizes(), sizes)));
-      }
-    }
-    return matrix;
-  }
-
-  private List<String> mergeTokens(List<String> first, List<String> second) {
-    Map<String, String> merged = new LinkedHashMap<>();
-    if (first != null) {
-      for (String token : first) {
-        if (StringUtils.hasText(token)) {
-          merged.putIfAbsent(IdempotencyUtils.normalizeUpperToken(token), token.trim());
-        }
-      }
-    }
-    if (second != null) {
-      for (String token : second) {
-        if (StringUtils.hasText(token)) {
-          merged.putIfAbsent(IdempotencyUtils.normalizeUpperToken(token), token.trim());
-        }
-      }
-    }
-    return List.copyOf(merged.values());
-  }
-
-  private String resolveEffectiveSizeLabel(String sizeLabel, String unitOfMeasure) {
-    if (StringUtils.hasText(sizeLabel)) {
-      return sizeLabel.trim();
-    }
-    return StringUtils.hasText(unitOfMeasure) ? unitOfMeasure.trim() : unitOfMeasure;
-  }
-
   private void validateSingleVariantField(String fieldName, String value) {
     if (!StringUtils.hasText(value)) {
       return;
@@ -1195,43 +775,6 @@ public class ProductionCatalogService {
   private String sanitizeSkuFragment(String value) {
     if (!StringUtils.hasText(value)) return "";
     return NON_SKU_CHAR.matcher(value.trim().toUpperCase()).replaceAll("");
-  }
-
-  @Transactional
-  public List<ProductionBrandDto> listBrands() {
-    Company company = companyContextService.requireCurrentCompany();
-    List<ProductionBrand> brands = brandRepository.findByCompanyOrderByNameAsc(company);
-    Map<Long, Long> productCounts =
-        productRepository.findByCompanyOrderByProductNameAsc(company).stream()
-            .collect(
-                Collectors.groupingBy(
-                    product -> product.getBrand().getId(), Collectors.counting()));
-    return brands.stream()
-        .map(
-            brand ->
-                new ProductionBrandDto(
-                    brand.getId(),
-                    brand.getPublicId(),
-                    brand.getName(),
-                    brand.getCode(),
-                    productCounts.getOrDefault(brand.getId(), 0L)))
-        .toList();
-  }
-
-  @Transactional
-  public List<ProductionProductDto> listBrandProducts(Long brandId) {
-    Company company = companyContextService.requireCurrentCompany();
-    ProductionBrand brand = companyEntityLookup.requireProductionBrand(company, brandId);
-    return productRepository.findByBrandOrderByProductNameAsc(brand).stream()
-        .map(this::toProductDto)
-        .toList();
-  }
-
-  public List<ProductionProductDto> listProducts() {
-    Company company = companyContextService.requireCurrentCompany();
-    return productRepository.findByCompanyOrderByProductNameAsc(company).stream()
-        .map(this::toProductDto)
-        .toList();
   }
 
   @Transactional
@@ -2427,6 +1970,7 @@ public class ProductionCatalogService {
       Map<Long, Long> validatedFinishedGoodAccounts,
       boolean requireConfiguredDefaults) {
     Map<String, Object> working = metadata == null ? new HashMap<>() : new HashMap<>(metadata);
+
     var defaults =
         requireConfiguredDefaults
             ? companyDefaultAccountsService.requireDefaults()
@@ -2453,7 +1997,11 @@ public class ProductionCatalogService {
     if (requireConfiguredDefaults) {
       for (String key :
           List.of(
-              "fgValuationAccountId", "fgCogsAccountId", "fgRevenueAccountId", "fgTaxAccountId")) {
+              "fgValuationAccountId",
+              "fgCogsAccountId",
+              "fgRevenueAccountId",
+              "fgDiscountAccountId",
+              "fgTaxAccountId")) {
         if (!hasLongValue(working.get(key))) {
           throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
               "Default "
@@ -2511,17 +2059,11 @@ public class ProductionCatalogService {
 
   private void assertIdempotencyMatch(
       CatalogImport record, String expectedHash, String idempotencyKey) {
-    idempotencyReservationService.assertAndRepairSignature(
-        record,
-        idempotencyKey,
-        expectedHash,
-        persisted ->
-            StringUtils.hasText(persisted.getIdempotencyHash())
-                ? persisted.getIdempotencyHash()
-                : persisted.getFileHash(),
-        CatalogImport::setIdempotencyHash,
-        catalogImportRepository::save,
-        () -> idempotencyReservationService.payloadMismatch(idempotencyKey));
+    String storedHash = record.getIdempotencyHash();
+    if (StringUtils.hasText(storedHash) && storedHash.equals(expectedHash)) {
+      return;
+    }
+    throw idempotencyReservationService.payloadMismatch(idempotencyKey);
   }
 
   private CatalogImportResponse toResponse(CatalogImport record) {
@@ -2637,35 +2179,6 @@ public class ProductionCatalogService {
       }
     }
     return true;
-  }
-
-  private record VariantExecutionPlan(
-      VariantBrandPlan brandPlan,
-      String baseProductName,
-      String category,
-      List<VariantCandidate> candidatesToCreate,
-      List<BulkVariantResponse.VariantItem> generated,
-      List<BulkVariantResponse.VariantItem> conflicts,
-      List<BulkVariantResponse.VariantItem> wouldCreate) {}
-
-  private record VariantBrandPlan(Long brandId, String brandName, String brandCode) {}
-
-  private record VariantCandidate(
-      String sku,
-      String color,
-      String size,
-      String productName,
-      CatalogItemCreateCommand createRequest) {
-    private BulkVariantResponse.VariantItem toItem(String reason) {
-      return new BulkVariantResponse.VariantItem(sku, reason, productName, color, size);
-    }
-  }
-
-  private record ColorSizeSpec(String color, List<String> sizes) {
-    private ColorSizeSpec {
-      color = color == null ? "" : color;
-      sizes = sizes == null ? List.of() : List.copyOf(sizes);
-    }
   }
 
   private record BrandResolution(ProductionBrand brand, boolean created) {}

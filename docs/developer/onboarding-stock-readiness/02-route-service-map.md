@@ -27,12 +27,23 @@ This file inventories the controllers and services that own the current setup jo
 
 - retained routes in this packet:
   - `GET /api/v1/companies`
-  - `PUT /api/v1/companies/{id}`
-  - tenant lifecycle/support/runtime routes under `/api/v1/companies/{id}/...`
+- depublished routes in this packet:
+  - `/api/v1/companies/{id}` no longer exposes a live delete operation
 - retired bootstrap aliases:
   - `POST /api/v1/companies`
   - `POST /api/v1/companies/superadmin/tenants`
   - `PUT /api/v1/companies/superadmin/tenants/{id}`
+
+### `SuperAdminController`
+
+- canonical tenant control routes adjacent to onboarding:
+  - `GET /api/v1/superadmin/tenants`
+  - `GET /api/v1/superadmin/tenants/{id}`
+  - `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
+  - `PUT /api/v1/superadmin/tenants/{id}/limits`
+  - `PUT /api/v1/superadmin/tenants/{id}/modules`
+  - `POST /api/v1/superadmin/tenants/{id}/support/warnings`
+  - `POST /api/v1/superadmin/tenants/{id}/support/admin-password-reset`
 
 ## Company Defaults
 

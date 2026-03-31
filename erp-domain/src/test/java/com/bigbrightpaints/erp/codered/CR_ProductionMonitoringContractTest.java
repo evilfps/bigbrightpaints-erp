@@ -41,16 +41,18 @@ class CR_ProductionMonitoringContractTest {
         .contains("management:")
         .contains("server:")
         .contains("port: ${MANAGEMENT_SERVER_PORT:9090}")
-        .contains("include: health,info,metrics,prometheus")
+        .contains("include: health,info")
         .contains("include: readinessState,db,rabbit,diskSpace,requiredConfig,configuration")
         .contains("include: livenessState,ping,diskSpace")
         .contains("metrics:")
         .contains("prometheus:")
+        .contains("access: none")
         .contains("otlp:")
         .contains("tracing:")
         .contains("endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}")
         .contains("timeout-per-shutdown-phase: ${SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE:30s}")
-        .contains("shutdown: graceful");
+        .contains("shutdown: graceful")
+        .contains("required: true");
   }
 
   @Test

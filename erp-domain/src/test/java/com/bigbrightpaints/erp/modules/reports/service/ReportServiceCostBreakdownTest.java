@@ -66,7 +66,7 @@ class ReportServiceCostBreakdownTest {
   @Mock private RawMaterialMovementRepository rawMaterialMovementRepository;
   @Mock private CompanyEntityLookup companyEntityLookup;
   @Mock private CompanyClock companyClock;
-  @Mock private InventoryValuationService inventoryValuationService;
+  @Mock private InventoryValuationQueryService inventoryValuationService;
   @Mock private TrialBalanceReportQueryService trialBalanceReportQueryService;
   @Mock private ProfitLossReportQueryService profitLossReportQueryService;
   @Mock private BalanceSheetReportQueryService balanceSheetReportQueryService;

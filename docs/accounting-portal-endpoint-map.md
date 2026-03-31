@@ -16,14 +16,18 @@ Count lock for parity checks: **138**
 - M17-S1 canonical API contract source-of-truth is `openapi.json`; guard behavior is non-mutating (parity checks validate and fail on drift, but do not rewrite docs).
 - M17-S2 parity baseline for this slice is a curated lock of **138** unique `METHOD /api/v1/...` rows.
 - The `138` lock is a curated frontend parity baseline and does not claim full accounting-portal OpenAPI coverage.
-- The handoff inventory may only add **9** non-owned dependencies on top of these 138 rows:
-  - Shared foundation APIs (7): `GET /api/v1/auth/me`, `GET /api/v1/auth/profile`, `PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/multi-company/companies/switch`, `POST /api/v1/auth/logout`
+- The handoff inventory may only add **6** non-owned dependencies on top of these 138 rows:
+  - Shared foundation APIs (4): `GET /api/v1/auth/me`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/auth/logout`
   - Dealer support APIs (2): `GET /api/v1/sales/dealers`, `GET /api/v1/sales/dealers/search`
 - Explicit outside-lock ledger (present in `docs/endpoint-inventory.md` and `openapi.json`):
+  - `GET /api/v1/accounting/audit/events`
   - `GET /api/v1/accounting/audit/transactions`
   - `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
+  - `GET /api/v1/admin/audit/events`
+  - `GET /api/v1/superadmin/audit/platform-events`
   - `GET /api/v1/accounting/date-context`
-- Legacy `GET /api/v1/accounting/audit/digest*` endpoints are still present in this OpenAPI snapshot and should be treated as deprecated in new frontend flows.
+- Canonical audit reads are hard-cut to `/api/v1/accounting/audit/*`, `/api/v1/admin/audit/events`, and `/api/v1/superadmin/audit/platform-events`; removed digest aliases must not be reintroduced in frontend flows.
+- Legacy raw-material intake is intentionally excluded from this curated frontend parity baseline. Product setup and stock entry are canonicalized to `/api/v1/catalog/items`, `/api/v1/inventory/opening-stock`, and downstream P2P receiving flows.
 
 ## Accounting Core (GL, Periods, Journals, Controls)
 
@@ -41,8 +45,7 @@ Count lock for parity checks: **138**
 | `POST /api/v1/accounting/accruals` | create-form; req: amount (body), creditAccountId (body), debitAccountId (body); opt: adminOverride (body), autoReverseDate (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
 | `GET /api/v1/accounting/aging/suppliers/{supplierId}` | detail-view; req: supplierId (path); opt: asOf (query), buckets (query); states: loading, error, success, empty | path=supplierId; query=asOf, buckets; body=none; ct=- | ok 200; err 400 |
 | `GET /api/v1/accounting/aging/suppliers/{supplierId}/pdf` | detail-view; req: supplierId (path); opt: asOf (query), buckets (query); states: loading, error, success, empty | path=supplierId; query=asOf, buckets; body=none; ct=- | ok 200; err 400 |
-| `GET /api/v1/accounting/audit/digest` | list-view; req: -; opt: from (query), to (query); states: loading, error, success, empty | path=-; query=from, to; body=none; ct=- | ok 200; err 400 |
-| `GET /api/v1/accounting/audit/digest.csv` | list-view; req: -; opt: from (query), to (query); states: loading, error, success, empty | path=-; query=from, to; body=none; ct=- | ok 200; err 400 |
+| `GET /api/v1/accounting/audit/events` | list-view; req: -; opt: action (query), actor (query), entityType (query), from (query), module (query), page (query), reference (query), size (query), status (query), to (query); states: loading, error, success, empty | path=-; query=from, to, module, action, status, actor, entityType, reference, page, size; body=none; ct=- | ok 200; err 400 |
 | `POST /api/v1/accounting/bad-debts/write-off` | create-form; req: amount (body), expenseAccountId (body), invoiceId (body); opt: adminOverride (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
 | `POST /api/v1/accounting/credit-notes` | create-form; req: invoiceId (body); opt: adminOverride (body), amount (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
 | `POST /api/v1/accounting/debit-notes` | create-form; req: purchaseId (body); opt: adminOverride (body), amount (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
@@ -54,14 +57,11 @@ Count lock for parity checks: **138**
 | `POST /api/v1/accounting/inventory/wip-adjustment` | create-form; req: amount (body), direction (body), inventoryAccountId (body), productionLogId (body), wipAccountId (body); opt: adminOverride (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
 | `GET /api/v1/accounting/journal-entries` | list-view; req: -; opt: dealerId (query), page (query), size (query), supplierId (query); states: loading, error, success, empty | path=-; query=dealerId, supplierId, page, size; body=none; ct=- | ok 200; err 400 |
 | `POST /api/v1/accounting/journal-entries` | create-form; req: entryDate (body), lines (body), lines[].accountId (body), lines[].credit (body), lines[].debit (body); opt: adminOverride (body), currency (body), dealerId (body), fxRate (body), lines[].description (body), lines[].foreignCurrencyAmount (body), memo (body), referenceNumber (body), supplierId (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
-| `POST /api/v1/accounting/journal-entries/{entryId}/cascade-reverse` | create-form; req: entryId (path); opt: adminOverride (body), approvedBy (body), cascadeRelatedEntries (body), effectivePercentage (body), memo (body), partialReversal (body), reason (body), reasonCode (body), relatedEntryIds (body), reversalDate (body), reversalPercentage (body), supportingDocumentRef (body), voidOnly (body); states: loading, error, success | path=entryId; query=-; body=required; ct=application/json | ok 200; err 400 |
 | `POST /api/v1/accounting/journal-entries/{entryId}/reverse` | create-form; req: entryId (path); opt: adminOverride (body), approvedBy (body), cascadeRelatedEntries (body), effectivePercentage (body), memo (body), partialReversal (body), reason (body), reasonCode (body), relatedEntryIds (body), reversalDate (body), reversalPercentage (body), supportingDocumentRef (body), voidOnly (body); states: loading, error, success | path=entryId; query=-; body=optional; ct=application/json | ok 200; err 400 |
 | `GET /api/v1/accounting/month-end/checklist` | list-view; req: -; opt: periodId (query); states: loading, error, success, empty | path=-; query=periodId; body=none; ct=- | ok 200; err 400 |
 | `POST /api/v1/accounting/month-end/checklist/{periodId}` | create-form; req: periodId (path); opt: bankReconciled (body), inventoryCounted (body), note (body); states: loading, error, success | path=periodId; query=-; body=required; ct=application/json | ok 200; err 400 |
 | `POST /api/v1/accounting/payroll/payments` | create-form; req: amount (body), cashAccountId (body), expenseAccountId (body), payrollRunId (body); opt: memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
 | `GET /api/v1/accounting/periods` | list-view; req: -; opt: -; states: loading, error, success, empty | path=-; query=-; body=none; ct=- | ok 200; err 400 |
-| `POST /api/v1/accounting/periods/{periodId}/close` | create-form; req: periodId (path); opt: force (body), note (body); states: loading, error, success | path=periodId; query=-; body=optional; ct=application/json | ok 200; err 400 |
-| `POST /api/v1/accounting/periods/{periodId}/lock` | create-form; req: periodId (path); opt: reason (body); states: loading, error, success | path=periodId; query=-; body=optional; ct=application/json | ok 200; err 400 |
 | `POST /api/v1/accounting/periods/{periodId}/reopen` | create-form; req: periodId (path); opt: reason (body); states: loading, error, success | path=periodId; query=-; body=optional; ct=application/json | ok 200; err 400 |
 | `POST /api/v1/accounting/receipts/dealer` | create-form; req: allocations (body), allocations[].appliedAmount (body), amount (body), cashAccountId (body), dealerId (body); opt: Idempotency-Key (header), allocations[].discountAmount (body), allocations[].fxAdjustment (body), allocations[].invoiceId (body), allocations[].memo (body), allocations[].purchaseId (body), allocations[].writeOffAmount (body), idempotencyKey (body), memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
 | `POST /api/v1/accounting/receipts/dealer/hybrid` | create-form; req: dealerId (body), incomingLines (body), incomingLines[].accountId (body), incomingLines[].amount (body); opt: Idempotency-Key (header), idempotencyKey (body), memo (body), referenceNumber (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err 400 |
@@ -79,8 +79,8 @@ Count lock for parity checks: **138**
 Maker-checker period-close note:
 - `POST /api/v1/accounting/periods/{periodId}/request-close` is the supported maker action for frontend close submission.
 - `POST /api/v1/accounting/periods/{periodId}/approve-close` and `POST /api/v1/accounting/periods/{periodId}/reject-close` are surfaced through `GET /api/v1/admin/approvals`.
-- `GET /api/v1/admin/approvals` is visible to `ROLE_ADMIN|ROLE_ACCOUNTING` in portal flows, and the backend also allows `ROLE_SUPER_ADMIN`.
-- `POST /api/v1/accounting/periods/{periodId}/close` still exists in OpenAPI, but `AccountingPeriodService.closePeriod(...)` rejects direct close for frontend flows.
+- `GET /api/v1/admin/approvals` is visible to `ROLE_ADMIN|ROLE_ACCOUNTING` in portal flows; platform `ROLE_SUPER_ADMIN` is blocked from this tenant-admin workflow prefix.
+- Direct close is not part of the frontend contract; maker-checker close owns the period finalization path.
 
 ### portal-finance-controller (3)
 
@@ -161,8 +161,7 @@ Portal finance drill-ins stay on `/api/v1/portal/finance/*` for admin/accounting
 | `DELETE /api/v1/catalog/items/{itemId}` | delete-action; req: itemId (path); opt: -; states: loading, error, success | path=itemId; query=-; body=none; ct=- | ok 200; err - |
 | `PUT /api/v1/catalog/items/{itemId}` | edit-form; req: itemId (path), brandId (body), gstRate (body), hsnCode (body), itemClass (body), name (body), unitOfMeasure (body); opt: active (body), basePrice (body), color (body), metadata (body), minDiscountPercent (body), minSellingPrice (body), size (body); states: loading, error, success | path=itemId; query=-; body=required; ct=application/json | ok 200; err - |
 | `GET /api/v1/catalog/items/{itemId}` | detail-view; req: itemId (path); opt: includeReadiness (query), includeStock (query); states: loading, error, success, empty | path=itemId; query=includeReadiness,includeStock; body=none; ct=- | ok 200; err - |
-| `POST /api/v1/inventory/raw-materials/adjustments` | create-form; req: adjustmentAccountId (body), direction (body), lines (body), lines[].quantity (body), lines[].rawMaterialId (body); opt: Idempotency-Key (header), X-Idempotency-Key (header), adjustmentDate (body), adminOverride (body), idempotencyKey (body), lines[].note (body), lines[].unitCost (body), reason (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err - |
-| `POST /api/v1/raw-materials/intake` | create-form; req: costPerUnit (body), quantity (body), rawMaterialId (body), supplierId (body), unit (body); opt: Idempotency-Key (header), X-Idempotency-Key (header), batchCode (body), expiryDate (body), manufacturingDate (body), notes (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err - |
+| `POST /api/v1/inventory/raw-materials/adjustments` | create-form; req: adjustmentAccountId (body), direction (body), Idempotency-Key (header), lines (body), lines[].quantity (body), lines[].rawMaterialId (body); opt: adjustmentDate (body), adminOverride (body), idempotencyKey (body), lines[].note (body), lines[].unitCost (body), reason (body); states: loading, error, success | path=-; query=-; body=required; ct=application/json | ok 200; err - |
 | `GET /api/v1/raw-materials/stock` | list-view; req: -; opt: -; states: loading, error, success, empty | path=-; query=-; body=none; ct=- | ok 200; err - |
 | `GET /api/v1/raw-materials/stock/inventory` | list-view; req: -; opt: -; states: loading, error, success, empty | path=-; query=-; body=none; ct=- | ok 200; err - |
 | `GET /api/v1/raw-materials/stock/low-stock` | list-view; req: -; opt: -; states: loading, error, success, empty | path=-; query=-; body=none; ct=- | ok 200; err - |

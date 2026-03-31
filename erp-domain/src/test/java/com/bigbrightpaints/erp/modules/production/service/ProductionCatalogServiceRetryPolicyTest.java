@@ -1,13 +1,16 @@
 package com.bigbrightpaints.erp.modules.production.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Constructor;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -18,11 +21,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -40,6 +46,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.production.domain.CatalogImport;
 import com.bigbrightpaints.erp.modules.production.domain.CatalogImportRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
@@ -108,6 +115,44 @@ class ProductionCatalogServiceRetryPolicyTest {
             auditService,
             skuReadinessService,
             transactionManager);
+  }
+
+  @Test
+  void importCatalog_existingRecordWithoutIdempotencyHashFailsClosedEvenWhenFileHashMatches()
+      throws Exception {
+    Company company = new Company();
+    MockMultipartFile file = csvFile("brand,product_name\nSafari,Emulsion White\n");
+    String fileHash = IdempotencyUtils.sha256Hex(file.getBytes());
+    CatalogImport existing = catalogImport("catalog-key-001", null, fileHash);
+
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(catalogImportRepository.findByCompanyAndIdempotencyKey(company, "catalog-key-001"))
+        .thenReturn(Optional.of(existing));
+
+    assertThatThrownBy(() -> service.importCatalog(file, "catalog-key-001"))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Idempotency key already used with different payload");
+
+    verify(catalogImportRepository, never()).save(any(CatalogImport.class));
+    verifyNoInteractions(transactionManager);
+  }
+
+  @Test
+  void importCatalog_existingRecordWithoutPersistedHashesFailsClosedWithoutAutoRepair() {
+    Company company = new Company();
+    MockMultipartFile file = csvFile("brand,product_name\nSafari,Emulsion White\n");
+    CatalogImport existing = catalogImport("catalog-key-002", null, null);
+
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(catalogImportRepository.findByCompanyAndIdempotencyKey(company, "catalog-key-002"))
+        .thenReturn(Optional.of(existing));
+
+    assertThatThrownBy(() -> service.importCatalog(file, "catalog-key-002"))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Idempotency key already used with different payload");
+
+    verify(catalogImportRepository, never()).save(any(CatalogImport.class));
+    verifyNoInteractions(transactionManager);
   }
 
   @Test
@@ -595,6 +640,20 @@ class ProductionCatalogServiceRetryPolicyTest {
         null,
         null,
         metadata);
+  }
+
+  private CatalogImport catalogImport(
+      String idempotencyKey, String idempotencyHash, String fileHash) {
+    CatalogImport record = new CatalogImport();
+    record.setIdempotencyKey(idempotencyKey);
+    record.setIdempotencyHash(idempotencyHash);
+    record.setFileHash(fileHash);
+    return record;
+  }
+
+  private MockMultipartFile csvFile(String csv) {
+    return new MockMultipartFile(
+        "file", "catalog.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8));
   }
 
   private Company company(Long id, Long defaultInventoryAccountId) {

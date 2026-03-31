@@ -2,12 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MIGRATION_SET="${MIGRATION_SET:-v1}"
+MIGRATION_SET="${MIGRATION_SET:-v2}"
 FAIL_ON_FINDINGS="${FAIL_ON_FINDINGS:-false}"
 
 usage() {
   cat <<USAGE
-Usage: bash scripts/flyway_overlap_scan.sh [--migration-set <v1|v2>]
+Usage: bash scripts/flyway_overlap_scan.sh [--migration-set <v2>]
 USAGE
 }
 
@@ -29,20 +29,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-case "$MIGRATION_SET" in
-  v1)
-    MIGRATIONS_DIR="$ROOT_DIR/erp-domain/src/main/resources/db/migration"
-    ALLOWLIST_FILE="$ROOT_DIR/scripts/flyway_overlap_allowlist.txt"
-    ;;
-  v2)
-    MIGRATIONS_DIR="$ROOT_DIR/erp-domain/src/main/resources/db/migration_v2"
-    ALLOWLIST_FILE="$ROOT_DIR/scripts/flyway_overlap_allowlist_v2.txt"
-    ;;
-  *)
-    echo "[flyway_overlap_scan] invalid migration set: $MIGRATION_SET (expected v1 or v2)" >&2
-    exit 2
-    ;;
-esac
+if [[ "$MIGRATION_SET" != "v2" ]]; then
+  echo "[flyway_overlap_scan] invalid migration set: $MIGRATION_SET (expected v2 only)" >&2
+  exit 2
+fi
+
+MIGRATIONS_DIR="$ROOT_DIR/erp-domain/src/main/resources/db/migration_v2"
+ALLOWLIST_FILE="$ROOT_DIR/scripts/flyway_overlap_allowlist_v2.txt"
 
 if [[ ! -d "$MIGRATIONS_DIR" ]]; then
   echo "[flyway_overlap_scan] missing migrations dir: $MIGRATIONS_DIR"

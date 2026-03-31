@@ -76,6 +76,7 @@ class OpeningStockPostingRegressionIT extends AbstractIntegrationTest {
   private Company company;
   private Account inventoryAccount;
   private Account wipAccount;
+  private Account discountAccount;
 
   @BeforeEach
   void setUp() {
@@ -92,6 +93,7 @@ class OpeningStockPostingRegressionIT extends AbstractIntegrationTest {
                 });
     inventoryAccount = ensureAccount(company, "INV-LF021", "Inventory", AccountType.ASSET);
     wipAccount = ensureAccount(company, "WIP-LF021", "Work In Progress", AccountType.ASSET);
+    discountAccount = ensureAccount(company, "DISC-LF021", "Discounts", AccountType.EXPENSE);
     ensureAccount(company, "COGS-LF021", "COGS", AccountType.COGS);
     ensureAccount(company, "REV-LF021", "Revenue", AccountType.REVENUE);
     ensureAccount(company, "GST-LF021", "GST Output", AccountType.LIABILITY);
@@ -108,6 +110,7 @@ class OpeningStockPostingRegressionIT extends AbstractIntegrationTest {
             .findByCompanyAndCodeIgnoreCase(company, "REV-LF021")
             .orElseThrow()
             .getId());
+    company.setDefaultDiscountAccountId(discountAccount.getId());
     company.setDefaultTaxAccountId(
         accountRepository
             .findByCompanyAndCodeIgnoreCase(company, "GST-LF021")

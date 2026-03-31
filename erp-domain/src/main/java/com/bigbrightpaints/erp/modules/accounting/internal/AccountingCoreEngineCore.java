@@ -26,7 +26,10 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.security.core.Authentication;
@@ -76,10 +79,11 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 import jakarta.persistence.EntityManager;
 
-public abstract class AccountingCoreEngineCore {
+abstract class AccountingCoreEngineCore {
 
   private static final Logger log = LoggerFactory.getLogger(AccountingCoreEngineCore.class);
 
@@ -479,8 +483,8 @@ public abstract class AccountingCoreEngineCore {
   }
 
   @Transactional(readOnly = true)
-  public List<JournalListItemDto> listJournals(
-      LocalDate fromDate, LocalDate toDate, String journalType, String sourceModule) {
+  public PageResponse<JournalListItemDto> listJournals(
+      LocalDate fromDate, LocalDate toDate, String journalType, String sourceModule, int page, int size) {
     if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
       throw new ApplicationException(
               ErrorCode.VALIDATION_INVALID_DATE, "fromDate cannot be after toDate")
@@ -490,23 +494,49 @@ public abstract class AccountingCoreEngineCore {
     JournalEntryType typeFilter = parseJournalTypeFilter(journalType);
     String normalizedSourceModule = normalizeSourceModule(sourceModule);
     Company company = companyContextService.requireCurrentCompany();
-    return journalEntryRepository.findByCompanyOrderByEntryDateDesc(company).stream()
-        .filter(
-            entry ->
-                fromDate == null
-                    || (entry.getEntryDate() != null && !entry.getEntryDate().isBefore(fromDate)))
-        .filter(
-            entry ->
-                toDate == null
-                    || (entry.getEntryDate() != null && !entry.getEntryDate().isAfter(toDate)))
-        .filter(entry -> typeFilter == null || typeFilter.equals(entry.getJournalType()))
-        .filter(
-            entry ->
-                normalizedSourceModule == null
-                    || (entry.getSourceModule() != null
-                        && normalizedSourceModule.equalsIgnoreCase(entry.getSourceModule())))
-        .map(this::toJournalListItemDto)
-        .toList();
+    int safePage = Math.max(page, 0);
+    int safeSize = Math.max(1, Math.min(size, 200));
+    Specification<JournalEntry> spec =
+        Specification.where(byJournalCompany(company))
+            .and(byJournalEntryDateRange(fromDate, toDate))
+            .and(byJournalType(typeFilter))
+            .and(byJournalSourceModule(normalizedSourceModule));
+    Page<JournalEntry> journalPage =
+        journalEntryRepository.findAll(
+            spec, PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "entryDate", "id")));
+    List<JournalListItemDto> content = journalPage.getContent().stream().map(this::toJournalListItemDto).toList();
+    return PageResponse.of(content, journalPage.getTotalElements(), safePage, safeSize);
+  }
+
+  private Specification<JournalEntry> byJournalCompany(Company company) {
+    return (root, query, cb) -> cb.equal(root.get("company"), company);
+  }
+
+  private Specification<JournalEntry> byJournalEntryDateRange(LocalDate fromDate, LocalDate toDate) {
+    return (root, query, cb) -> {
+      if (fromDate == null && toDate == null) {
+        return cb.conjunction();
+      }
+      if (fromDate != null && toDate != null) {
+        return cb.between(root.get("entryDate"), fromDate, toDate);
+      }
+      if (fromDate != null) {
+        return cb.greaterThanOrEqualTo(root.get("entryDate"), fromDate);
+      }
+      return cb.lessThanOrEqualTo(root.get("entryDate"), toDate);
+    };
+  }
+
+  private Specification<JournalEntry> byJournalType(JournalEntryType typeFilter) {
+    return (root, query, cb) ->
+        typeFilter != null ? cb.equal(root.get("journalType"), typeFilter) : cb.conjunction();
+  }
+
+  private Specification<JournalEntry> byJournalSourceModule(String normalizedSourceModule) {
+    return (root, query, cb) ->
+        normalizedSourceModule != null
+            ? cb.equal(cb.lower(root.get("sourceModule")), normalizedSourceModule.toLowerCase(Locale.ROOT))
+            : cb.conjunction();
   }
 
   @Retryable(
@@ -2503,6 +2533,8 @@ public abstract class AccountingCoreEngineCore {
         StringUtils.hasText(request.memo())
             ? request.memo().trim()
             : "Settlement for dealer " + dealer.getName();
+    LocalDate requestedEffectiveSettlementDate =
+        request.settlementDate() != null ? request.settlementDate() : currentDate(company);
     boolean settlementOverrideRequested = settlementOverrideRequested(totals);
     if (settlementOverrideRequested) {
       requireAdminExceptionReason("Settlement override", request.adminOverride(), request.memo());
@@ -2538,6 +2570,7 @@ public abstract class AccountingCoreEngineCore {
             trimmedIdempotencyKey,
             PartnerType.DEALER,
             dealer.getId(),
+            requestedEffectiveSettlementDate,
             memo,
             entry,
             lineDraft.lines());
@@ -2564,6 +2597,7 @@ public abstract class AccountingCoreEngineCore {
           trimmedIdempotencyKey,
           PartnerType.DEALER,
           dealer.getId(),
+          requestedEffectiveSettlementDate,
           memo,
           entry,
           lineDraft.lines());
@@ -2571,8 +2605,7 @@ public abstract class AccountingCoreEngineCore {
     }
 
     lineDraft = buildDealerSettlementLines(company, request, receivableAccount, totals, memo, true);
-    LocalDate entryDate =
-        request.settlementDate() != null ? request.settlementDate() : currentDate(company);
+    LocalDate entryDate = requestedEffectiveSettlementDate;
 
     BigDecimal totalApplied = totals.totalApplied();
     BigDecimal totalDiscount = totals.totalDiscount();
@@ -2781,6 +2814,8 @@ public abstract class AccountingCoreEngineCore {
         StringUtils.hasText(request.memo())
             ? request.memo().trim()
             : "Settlement to supplier " + supplier.getName();
+    LocalDate requestedEffectiveSettlementDate =
+        request.settlementDate() != null ? request.settlementDate() : currentDate(company);
     boolean settlementOverrideRequested = settlementOverrideRequested(totals);
     if (settlementOverrideRequested) {
       requireAdminExceptionReason("Settlement override", request.adminOverride(), request.memo());
@@ -2812,6 +2847,7 @@ public abstract class AccountingCoreEngineCore {
             trimmedIdempotencyKey,
             PartnerType.SUPPLIER,
             supplier.getId(),
+            requestedEffectiveSettlementDate,
             memo,
             entry,
             replayLineDraft.lines());
@@ -2840,6 +2876,7 @@ public abstract class AccountingCoreEngineCore {
           trimmedIdempotencyKey,
           PartnerType.SUPPLIER,
           supplier.getId(),
+          requestedEffectiveSettlementDate,
           memo,
           entry,
           replayLineDraft.lines());
@@ -2850,8 +2887,7 @@ public abstract class AccountingCoreEngineCore {
     SettlementLineDraft lineDraft =
         buildSupplierSettlementLines(company, request, payableAccount, totals, memo, true);
 
-    LocalDate entryDate =
-        request.settlementDate() != null ? request.settlementDate() : currentDate(company);
+    LocalDate entryDate = requestedEffectiveSettlementDate;
 
     BigDecimal totalApplied = totals.totalApplied();
     BigDecimal totalDiscount = totals.totalDiscount();
@@ -4483,9 +4519,12 @@ public abstract class AccountingCoreEngineCore {
       String idempotencyKey,
       PartnerType partnerType,
       Long partnerId,
+      LocalDate requestedEffectiveSettlementDate,
       String memo,
       JournalEntry entry,
       List<JournalEntryRequest.JournalLineRequest> expectedLines) {
+    validatePartnerSettlementReplayDate(
+        idempotencyKey, partnerType, partnerId, requestedEffectiveSettlementDate, entry);
     validatePartnerJournalReplay(
         idempotencyKey,
         partnerType,
@@ -4494,6 +4533,28 @@ public abstract class AccountingCoreEngineCore {
         entry,
         expectedLines,
         "Idempotency key already used for a different settlement payload");
+  }
+
+  private void validatePartnerSettlementReplayDate(
+      String idempotencyKey,
+      PartnerType partnerType,
+      Long partnerId,
+      LocalDate requestedEffectiveSettlementDate,
+      JournalEntry entry) {
+    if (entry == null || requestedEffectiveSettlementDate == null) {
+      return;
+    }
+    LocalDate persistedSettlementDate = entry.getEntryDate();
+    if (Objects.equals(persistedSettlementDate, requestedEffectiveSettlementDate)) {
+      return;
+    }
+    throw replayConflictWithPartnerContext(
+            "Idempotency key already used with a different settlement date",
+            idempotencyKey,
+            partnerType,
+            partnerId)
+        .withDetail("existingSettlementDate", persistedSettlementDate)
+        .withDetail("requestedSettlementDate", requestedEffectiveSettlementDate);
   }
 
   private ApplicationException missingReservedPartnerAllocation(
@@ -5266,6 +5327,42 @@ public abstract class AccountingCoreEngineCore {
       boolean settlementOverrideRequested,
       String settlementOverrideReason,
       String settlementOverrideActor) {
+    Map<String, String> auditMetadata =
+        buildSettlementAuditSuccessMetadata(
+            partnerType,
+            partnerId,
+            journalEntryDto,
+            settlementDate,
+            idempotencyKey,
+            allocationCount,
+            totalApplied,
+            cashAmount,
+            totalDiscount,
+            totalWriteOff,
+            totalFxGain,
+            totalFxLoss,
+            settlementOverrideRequested,
+            settlementOverrideReason,
+            settlementOverrideActor);
+    logAuditSuccessAfterCommit(AuditEvent.SETTLEMENT_RECORDED, auditMetadata);
+  }
+
+  private Map<String, String> buildSettlementAuditSuccessMetadata(
+      PartnerType partnerType,
+      Long partnerId,
+      JournalEntryDto journalEntryDto,
+      LocalDate settlementDate,
+      String idempotencyKey,
+      int allocationCount,
+      BigDecimal totalApplied,
+      BigDecimal cashAmount,
+      BigDecimal totalDiscount,
+      BigDecimal totalWriteOff,
+      BigDecimal totalFxGain,
+      BigDecimal totalFxLoss,
+      boolean settlementOverrideRequested,
+      String settlementOverrideReason,
+      String settlementOverrideActor) {
     Map<String, String> auditMetadata = new HashMap<>();
     auditMetadata.put(IntegrationFailureMetadataSchema.KEY_PARTNER_TYPE, partnerType.name());
     if (partnerId != null) {
@@ -5279,8 +5376,10 @@ public abstract class AccountingCoreEngineCore {
       auditMetadata.put(
           IntegrationFailureMetadataSchema.KEY_SETTLEMENT_DATE, settlementDate.toString());
     }
-    if (idempotencyKey != null) {
-      auditMetadata.put(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
+    if (StringUtils.hasText(idempotencyKey)) {
+      auditMetadata.put(
+          IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY,
+          sanitizeIdempotencyLogValue(idempotencyKey.trim()));
     }
     auditMetadata.put(
         IntegrationFailureMetadataSchema.KEY_ALLOCATION_COUNT, Integer.toString(allocationCount));
@@ -5297,7 +5396,7 @@ public abstract class AccountingCoreEngineCore {
     if (StringUtils.hasText(settlementOverrideActor)) {
       auditMetadata.put("settlementOverrideActor", settlementOverrideActor.trim());
     }
-    logAuditSuccessAfterCommit(AuditEvent.SETTLEMENT_RECORDED, auditMetadata);
+    return auditMetadata;
   }
 
   private Map<JournalLineSignature, Integer> lineSignatureCountsFromRequests(
@@ -5537,9 +5636,11 @@ public abstract class AccountingCoreEngineCore {
     JournalEntry primaryEntry = companyEntityLookup.requireJournalEntry(company, primaryEntryId);
     List<JournalEntryDto> reversedEntries = new java.util.ArrayList<>();
     java.util.Set<Long> processedIds = new java.util.HashSet<>();
+    JournalEntryReversalRequest primaryRequest = request.withoutCascadeReplay();
 
     // First reverse the primary entry
-    JournalEntryDto primaryReversal = reverseJournalEntry(primaryEntryId, request);
+    JournalEntryDto primaryReversal =
+        reverseJournalEntryInternal(company, primaryEntry, primaryRequest, false);
     reversedEntries.add(primaryReversal);
     processedIds.add(primaryEntryId);
     if (primaryReversal != null && primaryReversal.id() != null) {
@@ -5569,21 +5670,10 @@ public abstract class AccountingCoreEngineCore {
       if (!"REVERSED".equalsIgnoreCase(related.getStatus())
           && !"VOIDED".equalsIgnoreCase(related.getStatus())) {
         try {
+          JournalEntryReversalRequest relatedRequest =
+              request.forCascadeChild(cascadeReason, "Cascade from " + baseRef);
           JournalEntryDto relatedReversal =
-              reverseJournalEntry(
-                  related.getId(),
-                  new JournalEntryReversalRequest(
-                      request.reversalDate(),
-                      request.voidOnly(),
-                      cascadeReason,
-                      "Cascade from " + baseRef,
-                      request.adminOverride(),
-                      request.reversalPercentage(),
-                      false,
-                      null,
-                      request.reasonCode(),
-                      request.approvedBy(),
-                      request.supportingDocumentRef()));
+              reverseJournalEntryInternal(company, related, relatedRequest, false);
           reversedEntries.add(relatedReversal);
           processedIds.add(related.getId());
         } catch (ApplicationException e) {
@@ -5610,7 +5700,9 @@ public abstract class AccountingCoreEngineCore {
             processedIds.add(relatedId);
             continue;
           }
-          JournalEntryDto relatedReversal = reverseJournalEntry(relatedId, request);
+          JournalEntryDto relatedReversal =
+              reverseJournalEntryInternal(
+                  company, relatedEntry, request.withoutCascadeReplay(), false);
           reversedEntries.add(relatedReversal);
           processedIds.add(relatedId);
         } catch (ApplicationException e) {
@@ -6030,6 +6122,14 @@ public abstract class AccountingCoreEngineCore {
           "Invoice " + invoice.getInvoiceNumber() + " is void; cannot apply credit note");
     }
     BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
+    if (amount.subtract(currentOutstanding).compareTo(ALLOCATION_TOLERANCE) > 0) {
+      throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT,
+              "Credit note exceeds remaining invoice outstanding amount")
+          .withDetail("invoiceId", invoice.getId())
+          .withDetail("outstandingAmount", currentOutstanding)
+          .withDetail("requested", amount);
+    }
     BigDecimal newOutstanding = currentOutstanding.subtract(amount);
     invoice.setOutstandingAmount(newOutstanding);
     invoice.getPaymentReferences().add(reference);
@@ -6052,6 +6152,14 @@ public abstract class AccountingCoreEngineCore {
       return;
     }
     BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(purchase.getOutstandingAmount());
+    if (amount.subtract(currentOutstanding).compareTo(ALLOCATION_TOLERANCE) > 0) {
+      throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT,
+              "Debit note exceeds remaining purchase outstanding amount")
+          .withDetail("purchaseId", purchase.getId())
+          .withDetail("outstandingAmount", currentOutstanding)
+          .withDetail("requested", amount);
+    }
     BigDecimal newOutstanding = currentOutstanding.subtract(amount);
     purchase.setOutstandingAmount(newOutstanding);
     BigDecimal totalAmount = MoneyUtils.zeroIfNull(purchase.getTotalAmount());
@@ -6497,6 +6605,30 @@ public abstract class AccountingCoreEngineCore {
     return notes.stream().map(this::calculateEntryTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
+  private BigDecimal remainingCreditableAmount(
+      Invoice invoice, JournalEntry source, Company company) {
+    if (invoice == null || source == null || company == null) {
+      return BigDecimal.ZERO;
+    }
+    BigDecimal outstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
+    BigDecimal remainingByNotes =
+        MoneyUtils.zeroIfNull(invoice.getTotalAmount())
+            .subtract(totalCreditNoteAmount(company, source, invoice));
+    return outstanding.min(remainingByNotes).max(BigDecimal.ZERO);
+  }
+
+  private BigDecimal remainingDebitableAmount(
+      RawMaterialPurchase purchase, JournalEntry source, Company company) {
+    if (purchase == null || source == null || company == null) {
+      return BigDecimal.ZERO;
+    }
+    BigDecimal outstanding = MoneyUtils.zeroIfNull(purchase.getOutstandingAmount());
+    BigDecimal remainingByNotes =
+        MoneyUtils.zeroIfNull(purchase.getTotalAmount())
+            .subtract(totalNoteAmount(company, source, "DEBIT_NOTE"));
+    return outstanding.min(remainingByNotes).max(BigDecimal.ZERO);
+  }
+
   private List<JournalEntryRequest.JournalLineRequest> buildScaledReversalLines(
       JournalEntry source, BigDecimal ratio, String prefix) {
     BigDecimal factor = ratio != null ? ratio : BigDecimal.ONE;
@@ -6563,7 +6695,7 @@ public abstract class AccountingCoreEngineCore {
           ErrorCode.VALIDATION_INVALID_INPUT, "Credit note amount must be positive");
     }
     BigDecimal creditedSoFar = totalCreditNoteAmount(company, source, invoice);
-    BigDecimal remaining = totalAmount.subtract(creditedSoFar);
+    BigDecimal remaining = remainingCreditableAmount(invoice, source, company);
     if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
       throw new ApplicationException(
           ErrorCode.BUSINESS_INVALID_STATE,
@@ -6659,8 +6791,7 @@ public abstract class AccountingCoreEngineCore {
     if (existing.isPresent()) {
       BigDecimal existingAmount = calculateEntryTotal(existing.get());
       BigDecimal totalDebited = totalNoteAmount(company, source, "DEBIT_NOTE");
-      ensureCorrectionJournalProvenance(
-          existing.get(), source, "DEBIT_NOTE", "DEBIT_NOTE", purchase.getInvoiceNumber());
+      validateDebitNoteReplay(reference, purchase, source, existing.get(), request.amount());
       applyDebitNoteToPurchase(purchase, existingAmount, totalDebited);
       return toDto(existing.get());
     }
@@ -6677,7 +6808,7 @@ public abstract class AccountingCoreEngineCore {
           ErrorCode.VALIDATION_INVALID_INPUT, "Debit note amount must be positive");
     }
     BigDecimal debitedSoFar = totalNoteAmount(company, source, "DEBIT_NOTE");
-    BigDecimal remaining = totalAmount.subtract(debitedSoFar);
+    BigDecimal remaining = remainingDebitableAmount(purchase, source, company);
     if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
       throw new ApplicationException(
           ErrorCode.BUSINESS_INVALID_STATE,
@@ -6724,6 +6855,88 @@ public abstract class AccountingCoreEngineCore {
     BigDecimal totalDebited = debitedSoFar.add(postedAmount);
     applyDebitNoteToPurchase(purchase, postedAmount, totalDebited);
     return toDto(saved);
+  }
+
+  private void validateDebitNoteReplay(
+      String reference,
+      RawMaterialPurchase purchase,
+      JournalEntry source,
+      JournalEntry entry,
+      BigDecimal requestedAmount) {
+    if (entry == null) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Debit note reference already used but journal entry is missing")
+          .withDetail("reference", reference);
+    }
+    if (purchase != null
+        && purchase.getSupplier() != null
+        && entry.getSupplier() != null
+        && !Objects.equals(entry.getSupplier().getId(), purchase.getSupplier().getId())) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Debit note reference already used for another supplier")
+          .withDetail("reference", reference);
+    }
+    if (source != null
+        && entry.getReversalOf() != null
+        && !Objects.equals(entry.getReversalOf().getId(), source.getId())) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Debit note reference already used for another purchase reversal")
+          .withDetail("reference", reference);
+    }
+    if (StringUtils.hasText(entry.getCorrectionReason())
+        && !"DEBIT_NOTE".equalsIgnoreCase(entry.getCorrectionReason())) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Debit note reference already used for a different correction flow")
+          .withDetail("reference", reference);
+    }
+    if (StringUtils.hasText(entry.getSourceModule())
+        && !"DEBIT_NOTE".equalsIgnoreCase(entry.getSourceModule())) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Debit note reference already used for a different source module")
+          .withDetail("reference", reference);
+    }
+    if (StringUtils.hasText(entry.getSourceReference()) && purchase != null
+        && !Objects.equals(entry.getSourceReference(), purchase.getInvoiceNumber())) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Debit note reference already used for another purchase")
+          .withDetail("reference", reference)
+          .withDetail("existingSourceReference", entry.getSourceReference())
+          .withDetail("requestedSourceReference", purchase.getInvoiceNumber());
+    }
+    BigDecimal existingAmount = calculateEntryTotal(entry);
+    BigDecimal expectedAmount =
+        requestedAmount != null ? roundCurrency(requestedAmount) : existingAmount;
+    if (existingAmount.compareTo(expectedAmount) != 0) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Debit note reference already used with a different amount")
+          .withDetail("reference", reference)
+          .withDetail("existingAmount", existingAmount)
+          .withDetail("requestedAmount", expectedAmount);
+    }
+    if (source != null && requestedAmount != null
+        && MoneyUtils.zeroIfNull(purchase != null ? purchase.getTotalAmount() : null).compareTo(BigDecimal.ZERO)
+            > 0) {
+      BigDecimal ratio =
+          expectedAmount.divide(
+              MoneyUtils.zeroIfNull(Objects.requireNonNull(purchase).getTotalAmount()),
+              6,
+              RoundingMode.HALF_UP);
+      List<JournalEntryRequest.JournalLineRequest> expectedLines =
+          buildScaledReversalLines(source, ratio, "Debit note reversal - ");
+      if (!lineSignatureCounts(entry.getLines()).equals(lineSignatureCountsFromRequests(expectedLines))) {
+        throw new ApplicationException(
+                ErrorCode.CONCURRENCY_CONFLICT,
+                "Debit note reference already used with a different payload")
+            .withDetail("reference", reference);
+      }
+    }
   }
 
   private void ensureCorrectionJournalProvenance(
@@ -6925,6 +7138,7 @@ public abstract class AccountingCoreEngineCore {
     Account inventoryAccount = requireAccount(company, request.inventoryAccountId());
     Account offsetAccount = requireAccount(company, request.offsetAccountId());
     LocalDate entryDate = request.entryDate() != null ? request.entryDate() : currentDate(company);
+    accountingPeriodService.requireOpenPeriod(company, entryDate);
     String memo =
         StringUtils.hasText(request.memo())
             ? request.memo().trim()
@@ -6966,6 +7180,7 @@ public abstract class AccountingCoreEngineCore {
     Account inventoryAccount = requireAccount(company, request.inventoryAccountId());
     Account revalAccount = requireAccount(company, request.revaluationAccountId());
     LocalDate entryDate = request.entryDate() != null ? request.entryDate() : currentDate(company);
+    accountingPeriodService.requireOpenPeriod(company, entryDate);
     String memo =
         StringUtils.hasText(request.memo()) ? request.memo().trim() : "Inventory revaluation";
     BigDecimal delta = request.deltaAmount();
@@ -7041,79 +7256,6 @@ public abstract class AccountingCoreEngineCore {
             null,
             request.adminOverride(),
             List.of(line1, line2)));
-  }
-
-  public AuditDigestResponse auditDigest(LocalDate from, LocalDate to) {
-    Company company = companyContextService.requireCurrentCompany();
-    LocalDate start = from != null ? from : currentDate(company);
-    LocalDate end = to != null ? to : start;
-    List<JournalEntry> entries =
-        journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
-            company, start, end);
-    List<String> digest = entries.stream().map(this::buildDigestLine).toList();
-    String label = start.equals(end) ? start.toString() : start + " to " + end;
-    return new AuditDigestResponse(label, digest);
-  }
-
-  public String auditDigestCsv(LocalDate from, LocalDate to) {
-    AuditDigestResponse digest = auditDigest(from, to);
-    StringBuilder sb = new StringBuilder();
-    sb.append("period,reference,date,memo,entity,account,debit,credit").append("\n");
-    Company company = companyContextService.requireCurrentCompany();
-    LocalDate start = from != null ? from : currentDate(company);
-    LocalDate end = to != null ? to : start;
-    List<JournalEntry> entries =
-        journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
-            company, start, end);
-    for (JournalEntry entry : entries) {
-      String entity =
-          entry.getDealer() != null
-              ? "Dealer:" + entry.getDealer().getName()
-              : entry.getSupplier() != null ? "Supplier:" + entry.getSupplier().getName() : "";
-      for (JournalLine line : entry.getLines()) {
-        sb.append(digest.periodLabel())
-            .append(",")
-            .append(entry.getReferenceNumber())
-            .append(",")
-            .append(entry.getEntryDate())
-            .append(",")
-            .append(entry.getMemo() != null ? entry.getMemo().replace(",", " ") : "")
-            .append(",")
-            .append(entity)
-            .append(",")
-            .append(line.getAccount().getCode())
-            .append(",")
-            .append(line.getDebit())
-            .append(",")
-            .append(line.getCredit())
-            .append("\n");
-      }
-    }
-    return sb.toString();
-  }
-
-  private String buildDigestLine(JournalEntry entry) {
-    StringBuilder sb = new StringBuilder();
-    sb.append(entry.getEntryDate()).append(" ").append(entry.getReferenceNumber()).append(" ");
-    if (entry.getMemo() != null) {
-      sb.append(entry.getMemo());
-    }
-    if (entry.getDealer() != null) {
-      sb.append(" [Dealer: ").append(entry.getDealer().getName()).append("]");
-    }
-    if (entry.getSupplier() != null) {
-      sb.append(" [Supplier: ").append(entry.getSupplier().getName()).append("]");
-    }
-    sb.append(" | ");
-    for (JournalLine line : entry.getLines()) {
-      sb.append(line.getAccount().getCode())
-          .append(" Dr ")
-          .append(line.getDebit())
-          .append(" Cr ")
-          .append(line.getCredit())
-          .append("; ");
-    }
-    return sb.toString().trim();
   }
 
   private void validateSettlementIdempotencyKey(

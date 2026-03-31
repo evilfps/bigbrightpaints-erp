@@ -74,7 +74,7 @@ flowchart LR
 
 ## Duplicates and Bad Paths
 
-- `/periods/{periodId}/close` is a dead route in practice
+- direct `/periods/{periodId}/close` is retired from the public contract; use maker-checker request/approve/reject instead
 - `/reconciliation/bank` duplicates the session workflow
 - controller/service auth can drift on close approval roles
 - checklist flows default to latest open period when `periodId` is omitted

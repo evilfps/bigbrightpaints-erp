@@ -37,6 +37,7 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
   private static final String COMPANY_CODE = "APPROVAL-RBAC";
   private static final String ADMIN_EMAIL = "approval-admin@bbp.com";
   private static final String ACCOUNTING_EMAIL = "approval-accounting@bbp.com";
+  private static final String SUPER_ADMIN_EMAIL = "approval-superadmin@bbp.com";
   private static final String SALES_EMAIL = "approval-sales@bbp.com";
   private static final String FACTORY_EMAIL = "approval-factory@bbp.com";
   private static final String DEALER_EMAIL = "approval-dealer@bbp.com";
@@ -60,6 +61,12 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
         COMPANY_CODE,
         List.of("ROLE_ACCOUNTING"));
     dataSeeder.ensureUser(
+        SUPER_ADMIN_EMAIL,
+        PASSWORD,
+        "Approval Super Admin",
+        COMPANY_CODE,
+        List.of("ROLE_SUPER_ADMIN"));
+    dataSeeder.ensureUser(
         SALES_EMAIL, PASSWORD, "Approval Sales", COMPANY_CODE, List.of("ROLE_SALES"));
     dataSeeder.ensureUser(
         FACTORY_EMAIL, PASSWORD, "Approval Factory", COMPANY_CODE, List.of("ROLE_FACTORY"));
@@ -73,6 +80,7 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
   void adminApprovalsEndpointAllowsAdminAndAccountingRoles() {
     HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, PASSWORD);
     HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD);
+    HttpHeaders superAdminHeaders = authHeaders(SUPER_ADMIN_EMAIL, PASSWORD);
     HttpHeaders salesHeaders = authHeaders(SALES_EMAIL, PASSWORD);
 
     ResponseEntity<Map> adminResponse =
@@ -87,6 +95,14 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
             new HttpEntity<>(accountingHeaders),
             Map.class);
     assertThat(accountingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    ResponseEntity<Map> superAdminResponse =
+        rest.exchange(
+            "/api/v1/admin/approvals",
+            HttpMethod.GET,
+            new HttpEntity<>(superAdminHeaders),
+            Map.class);
+    assertThat(superAdminResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
     ResponseEntity<Map> salesResponse =
         rest.exchange(

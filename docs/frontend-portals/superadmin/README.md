@@ -13,7 +13,7 @@ This portal is the platform-owner control plane. It is the only frontend shell t
 
 - Platform dashboard and tenant list
 - Tenant onboarding with COA template selection
-- Tenant detail with onboarding truth, limits, usage, support context, support timeline, and main-admin summary
+- Tenant detail with onboarding truth, limits, usage, modules, support context, support timeline, and main-admin summary
 - Lifecycle mutation
 - Quota and module mutation
 - Warning issuance, forced logout, admin password reset, main-admin replacement, admin email change

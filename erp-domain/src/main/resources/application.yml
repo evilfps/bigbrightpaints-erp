@@ -156,7 +156,7 @@ erp:
   inventory:
     accounting:
       events:
-        enabled: true
+        enabled: false
   github:
     enabled: ${ERP_GITHUB_ENABLED:false}
     token: ${ERP_GITHUB_TOKEN:}

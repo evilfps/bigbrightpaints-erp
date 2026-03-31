@@ -62,14 +62,38 @@ def run(cmd: list[str], cwd: Path | None = None, check: bool = True) -> subproce
     )
 
 
-def run_shell(command: str, cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["bash", "-lc", command],
-        cwd=str(cwd),
-        text=True,
-        capture_output=True,
-        check=check,
-    )
+DISALLOWED_CHECK_TOKENS = {"|", "||", "&", "&&", ";", "<", ">", ">>", "1>", "1>>", "2>", "2>>"}
+DISALLOWED_SHELL_CHARS = {"|", "&", ";", "<", ">"}
+DISALLOWED_CHECK_EXECUTABLES = {"bash", "sh", "zsh"}
+DISALLOWED_SHELL_FLAGS = {"-c", "-lc", "--command"}
+
+
+def parse_required_check_command(command: str) -> list[str]:
+    raw = str(command).strip()
+    if not raw:
+        raise ValueError("required check command cannot be blank")
+    if "\n" in raw or "\r" in raw:
+        raise ValueError(f"required check command must be single-line: {raw!r}")
+
+    try:
+        argv = shlex.split(raw, posix=True)
+    except ValueError as exc:
+        raise ValueError(f"invalid required check command {raw!r}: {exc}") from exc
+
+    if not argv:
+        raise ValueError("required check command cannot be blank")
+    if any(token in DISALLOWED_CHECK_TOKENS for token in argv):
+        raise ValueError(f"required check command uses unsupported shell syntax: {raw!r}")
+    if any(any(char in token for char in DISALLOWED_SHELL_CHARS) for token in argv):
+        raise ValueError(f"required check command uses unsupported shell syntax: {raw!r}")
+    if any("$(" in token or "`" in token for token in argv):
+        raise ValueError(f"required check command uses unsupported shell expansion: {raw!r}")
+
+    executable = Path(argv[0]).name
+    if executable in DISALLOWED_CHECK_EXECUTABLES and any(arg in DISALLOWED_SHELL_FLAGS for arg in argv[1:]):
+        raise ValueError(f"required check command may not invoke an interactive shell: {raw!r}")
+
+    return argv
 
 
 def load_yaml(path: Path) -> dict[str, Any]:
@@ -2236,13 +2260,23 @@ def verify_ticket(args: argparse.Namespace) -> int:
         check_fail = False
         check_log = []
         for idx, cmd in enumerate(checks, start=1):
-            proc = run_shell(cmd, cwd=wt, check=False)
             cmd_log = harness_dir / f"check-{idx:02d}.log"
+            try:
+                argv = parse_required_check_command(cmd)
+                proc = run(argv, cwd=wt, check=False)
+                command_line = " ".join(shlex.quote(part) for part in argv)
+                stdout = proc.stdout
+                stderr = proc.stderr
+                ok = proc.returncode == 0
+            except ValueError as exc:
+                command_line = cmd
+                stdout = ""
+                stderr = f"{exc}\n"
+                ok = False
             cmd_log.write_text(
-                f"$ {cmd}\n\nSTDOUT:\n{proc.stdout}\n\nSTDERR:\n{proc.stderr}\n",
+                f"$ {command_line}\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}\n",
                 encoding="utf-8",
             )
-            ok = proc.returncode == 0
             check_log.append((cmd, ok, cmd_log))
             if not ok:
                 check_fail = True

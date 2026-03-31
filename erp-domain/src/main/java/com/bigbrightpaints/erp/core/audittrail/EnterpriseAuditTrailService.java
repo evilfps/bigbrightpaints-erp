@@ -39,7 +39,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.bigbrightpaints.erp.core.audittrail.web.AuditEventIngestItemRequest;
-import com.bigbrightpaints.erp.core.audittrail.web.BusinessAuditEventResponse;
 import com.bigbrightpaints.erp.core.audittrail.web.MlAuditIngestResponse;
 import com.bigbrightpaints.erp.core.audittrail.web.MlInteractionEventResponse;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
@@ -229,61 +228,6 @@ public class EnterpriseAuditTrailService {
       mlInteractionEventRepository.saveAll(accepted);
     }
     return new MlAuditIngestResponse(accepted.size(), dropped);
-  }
-
-  @Transactional(readOnly = true)
-  public PageResponse<BusinessAuditEventResponse> queryBusinessEvents(
-      LocalDate fromDate,
-      LocalDate toDate,
-      String module,
-      String action,
-      AuditActionEventStatus status,
-      Long actorUserId,
-      String referenceNumber,
-      int page,
-      int size) {
-    Company company = companyContextService.requireCurrentCompany();
-    int safeSize = Math.max(1, Math.min(size, 200));
-    int safePage = Math.max(page, 0);
-
-    Specification<AuditActionEvent> spec =
-        Specification.where(byCompany(company.getId()))
-            .and(byOccurredRange(fromDate, toDate))
-            .and(byEquals("module", module))
-            .and(byEquals("action", action))
-            .and(byStatus(status))
-            .and(byActor(actorUserId))
-            .and(byEquals("referenceNumber", referenceNumber));
-
-    Page<AuditActionEvent> data =
-        auditActionEventRepository.findAll(
-            spec, PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "occurredAt")));
-
-    List<BusinessAuditEventResponse> content =
-        data.getContent().stream()
-            .map(
-                event ->
-                    new BusinessAuditEventResponse(
-                        event.getId(),
-                        event.getOccurredAt(),
-                        event.getSource(),
-                        event.getModule(),
-                        event.getAction(),
-                        event.getEntityType(),
-                        event.getEntityId(),
-                        event.getReferenceNumber(),
-                        event.getStatus(),
-                        event.getFailureReason(),
-                        event.getAmount(),
-                        event.getCurrency(),
-                        event.getCorrelationId(),
-                        event.getRequestId(),
-                        event.getTraceId(),
-                        event.getActorUserId(),
-                        event.getActorIdentifier(),
-                        event.getMetadata()))
-            .toList();
-    return PageResponse.of(content, data.getTotalElements(), safePage, safeSize);
   }
 
   @Transactional(readOnly = true)

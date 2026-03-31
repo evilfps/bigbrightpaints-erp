@@ -2,8 +2,6 @@ package com.bigbrightpaints.erp.modules.factory.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -60,7 +58,8 @@ class PackingInventoryServiceTest {
     ProductionLog log = productionLog("PROD-1", "FG-BASE");
 
     assertThat(service.consumeSemiFinishedInventory(log, BigDecimal.ZERO, 10L)).isNull();
-    verifyNoInteractions(rawMaterialRepository, rawMaterialBatchRepository, rawMaterialMovementRepository);
+    verifyNoInteractions(
+        rawMaterialRepository, rawMaterialBatchRepository, rawMaterialMovementRepository);
   }
 
   @Test
@@ -171,7 +170,8 @@ class PackingInventoryServiceTest {
     service.consumeSemiFinishedWastage(log, null);
     service.consumeSemiFinishedWastage(log, BigDecimal.ZERO);
 
-    verifyNoInteractions(rawMaterialRepository, rawMaterialBatchRepository, rawMaterialMovementRepository);
+    verifyNoInteractions(
+        rawMaterialRepository, rawMaterialBatchRepository, rawMaterialMovementRepository);
   }
 
   @Test

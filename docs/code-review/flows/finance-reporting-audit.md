@@ -6,11 +6,11 @@ This review covers finance bootstrap/configuration, account/default-account gove
 
 Primary evidence:
 
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/{AccountingController,AccountingConfigurationController,AccountingAuditTrailController,OpeningBalanceImportController,TallyImportController,PayrollController}.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/{AccountingController,AccountingAuditController,AccountingConfigurationController,OpeningBalanceImportController,TallyImportController,PayrollController}.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/controller/HrPayrollController.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/controller/ReportController.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/audittrail/web/EnterpriseAuditTrailController.java`
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/{CompanyDefaultAccountsService,CompanyAccountingSettingsService,OpeningBalanceImportService,TallyImportService,AccountingPeriodService,TaxService,AccountingAuditTrailService,AuditTrailQueryService}.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/{CompanyDefaultAccountsService,CompanyAccountingSettingsService,OpeningBalanceImportService,TallyImportService,AccountingPeriodService,TaxService,AccountingAuditTrailService}.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/{AccountingCoreEngineCore,AccountingFacadeCore,AccountingPeriodServiceCore,ReconciliationServiceCore}.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/{PayrollService,PayrollPostingService}.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/service/{ReportService,ReportQuerySupport,BalanceSheetReportQueryService,ProfitLossReportQueryService,TrialBalanceReportQueryService,TemporalBalanceService,InventoryValuationService}.java`
@@ -45,12 +45,12 @@ Planning notes:
 | Surface | Entrypoints | Controller | Notes |
 | --- | --- | --- | --- |
 | Finance bootstrap and configuration | `GET/PUT /api/v1/accounting/default-accounts`, `GET /api/v1/accounting/configuration/health`, `POST /api/v1/accounting/opening-balances`, `POST /api/v1/migration/tally-import` | `AccountingController`, `AccountingConfigurationController`, `OpeningBalanceImportController`, `TallyImportController` | Default-account governance, configuration health scan, and migration/bootstrap flows share the finance setup boundary. |
-| Journal posting and finance operations | `GET/POST /api/v1/accounting/accounts`, `GET/POST /api/v1/accounting/journal-entries`, `GET /api/v1/accounting/journals`, `POST /api/v1/accounting/journals/manual`, `POST /api/v1/accounting/journal-entries/{id}/{reverse,cascade-reverse}`, `POST /api/v1/accounting/{receipts/dealer,receipts/dealer/hybrid,settlements/dealers,dealers/{dealerId}/auto-settle,payroll/payments,suppliers/payments,settlements/suppliers,suppliers/{supplierId}/auto-settle,credit-notes,debit-notes,accruals,bad-debts/write-off}`, `POST /api/v1/accounting/inventory/{landed-cost,revaluation,wip-adjustment}` | `AccountingController` | One controller fronts general GL posting, settlements, bad-debt/credit/debit adjustments, payroll payment, and finance-led inventory journals. |
-| Tax, period, and month-end controls | `GET /api/v1/accounting/gst/{return,reconciliation}`, `GET/POST/PUT /api/v1/accounting/periods`, `POST /api/v1/accounting/periods/{id}/{close,request-close,approve-close,reject-close,lock,reopen}`, `GET/POST /api/v1/accounting/month-end/checklist{/{periodId}}` | `AccountingController` | The public surface still exposes `/close`, but service code now forces the request/approve maker-checker path. |
+| Journal posting and finance operations | `GET/POST /api/v1/accounting/accounts`, `GET/POST /api/v1/accounting/journal-entries`, `GET /api/v1/accounting/journals`, `POST /api/v1/accounting/journal-entries/{id}/reverse`, `POST /api/v1/accounting/{receipts/dealer,receipts/dealer/hybrid,settlements/dealers,dealers/{dealerId}/auto-settle,payroll/payments,suppliers/payments,settlements/suppliers,suppliers/{supplierId}/auto-settle,credit-notes,debit-notes,accruals,bad-debts/write-off}`, `POST /api/v1/accounting/inventory/{landed-cost,revaluation,wip-adjustment}` | `AccountingController` | One controller fronts general GL posting, settlements, bad-debt/credit/debit adjustments, payroll payment, and finance-led inventory journals. |
+| Tax, period, and month-end controls | `GET /api/v1/accounting/gst/{return,reconciliation}`, `GET/POST/PUT /api/v1/accounting/periods`, `POST /api/v1/accounting/periods/{id}/{request-close,approve-close,reject-close,reopen}`, `GET/POST /api/v1/accounting/month-end/checklist{/{periodId}}` | `AccountingController` | Period close is a maker-checker path; direct close is not part of the frontend contract. |
 | Reconciliation and statements | `POST /api/v1/accounting/reconciliation/bank`, `POST/PUT/GET /api/v1/accounting/reconciliation/bank/sessions{/**}`, `GET /api/v1/accounting/reconciliation/{subledger,discrepancies,inter-company}`, `POST /api/v1/accounting/reconciliation/discrepancies/{id}/resolve`, `GET /api/v1/accounting/{statements,aging}/{dealers|suppliers}/{id}`, admin-only PDF variants | `AccountingController` | Covers AR/AP/bank/GST/inter-company reconciliation plus partner statement and aging exports. |
 | Payroll lifecycle and accounting | `GET/POST /api/v1/payroll/runs{,/weekly,/monthly}`, `POST /api/v1/payroll/runs/{id}/{calculate,approve,post,mark-paid}`, `GET /api/v1/payroll/summary/**`, `POST /api/v1/accounting/payroll/payments/batch`, `POST /api/v1/accounting/payroll/payments` | `HrPayrollController`, `PayrollController`, `AccountingController` | HR owns run creation/approval/post/mark-paid; accounting also exposes a one-call batch payroll path and explicit payroll-payment journal path. |
 | Financial reporting and export approval | `GET /api/v1/reports/{balance-sheet,profit-loss,trial-balance,inventory-valuation,gst-return,inventory-reconciliation,reconciliation-dashboard,aged-debtors}`, `POST /api/v1/exports/request`, `GET /api/v1/exports/{requestId}/download` | `ReportController` | Reporting is admin/accounting scoped; export approval is a separate request/download workflow rather than the only way to see report data. |
-| Accounting and enterprise audit | `GET /api/v1/accounting/audit-trail`, `GET /api/v1/accounting/audit/{digest.csv,transactions,transactions/{journalEntryId}}`, `GET /api/v1/audit/business-events`, `POST/GET /api/v1/audit/ml-events` | `AccountingAuditTrailController`, `AccountingController`, `EnterpriseAuditTrailController` | There are two distinct audit surfaces: business-event audit and journal-centric transaction audit. |
+| Accounting and enterprise audit | `GET /api/v1/accounting/audit/{events,transactions,transactions/{journalEntryId}}`, `GET /api/v1/admin/audit/events`, `GET /api/v1/superadmin/audit/platform-events`, `POST/GET /api/v1/audit/ml-events` | `AccountingAuditController`, `AdminAuditController`, `SuperAdminAuditController`, `EnterpriseAuditTrailController` | Canonical audit reads are now role-scoped: tenant accounting/admin feeds, tenant-admin-only review feed, and a platform-only superadmin feed. |
 | Temporal/as-of finance queries | `GET /api/v1/accounting/accounts/{accountId}/balance/as-of`, `GET /api/v1/accounting/trial-balance/as-of`, `GET /api/v1/accounting/accounts/{accountId}/activity`, `GET /api/v1/accounting/accounts/{accountId}/compare-balances` | `AccountingController` | These routes bypass the generic report query layer and use `TemporalBalanceService` directly. |
 
 ## Data path and schema touchpoints
@@ -98,18 +98,13 @@ Important rules observed in code and tests:
 
 Manual and system journals reuse the same machinery:
 
-- `POST /api/v1/accounting/journals/manual` lets callers supply an explicit idempotency key/source reference.
+- `POST /api/v1/accounting/journal-entries` is the single public manual journal entry surface.
 - Sales, purchase, payroll, settlement, and inventory override flows call back into `AccountingFacadeCore` so all roads still end at the same balancing/idempotency engine.
-- Reversal and cascade-reversal endpoints create linked correction journals instead of mutating the original entry.
+- Reversal creates a linked correction journal instead of mutating the original entry.
 
 The audit trail is also part of the posting contract. `AccountingCoreEngineCore.handleAccountingEventTrailFailure(...)` is controlled by `erp.accounting.event-trail.strict`, which defaults to `true`; under the default policy, event-trail persistence failure raises `SYSTEM_DATABASE_ERROR` and fails the journal instead of silently dropping the trail.
 
-### 3. Period close is now a maker/checker workflow, not a direct button
-
-The API shape and the actual close policy have drifted.
-
-- `AccountingController` still publishes `POST /api/v1/accounting/periods/{periodId}/close`.
-- `AccountingPeriodService.closePeriod(...)` now hard-fails with `"Direct close is disabled; submit /request-close and approve via maker-checker workflow"`.
+### 3. Period close is a maker/checker workflow, not a direct button
 
 The real path is:
 
@@ -213,16 +208,15 @@ This is operationally convenient for contractor/weekly batch disbursement, but i
 
 ### 7. The repo has three distinct audit surfaces
 
-#### 7.1 Accounting business-event audit view
+#### 7.1 Canonical accounting and tenant-admin audit feeds
 
-`/api/v1/accounting/audit-trail` is backed by `AuditTrailQueryService`, not by journals.
+`/api/v1/accounting/audit/events` and `/api/v1/admin/audit/events` are backed by the unified `AuditAccessService`.
 
-- It reads from `audit_action_events`.
-- It filters to `module == ACCOUNTING`.
-- It surfaces `beforeState`, `afterState`, and `sensitiveOperation` from metadata.
-- It pages in-memory after loading the company/date-scoped event set.
+- They merge `audit_logs` and `audit_action_events` into one timestamp-sorted feed.
+- `/api/v1/accounting/audit/events` is the accounting/admin view for tenant-scoped finance and business activity.
+- `/api/v1/admin/audit/events` is tenant-admin only and keeps superadmins out of tenant business audit reads.
 
-This is the “who changed what” view for accounting business events.
+This is now the canonical “who changed what” view for tenant-scoped audit evidence.
 
 #### 7.2 Journal-centric transaction audit
 
@@ -246,7 +240,9 @@ This is the “is the journal internally coherent and what business documents do
 
 The role split is intentional:
 
-- `GET /api/v1/audit/business-events` is admin/accounting,
+- `GET /api/v1/admin/audit/events` is tenant-admin only,
+- `GET /api/v1/accounting/audit/events` and transaction audit remain tenant admin/accounting,
+- `GET /api/v1/superadmin/audit/platform-events` is platform-only for `ROLE_SUPER_ADMIN`,
 - `POST /api/v1/audit/ml-events` is any authenticated user,
 - `GET /api/v1/audit/ml-events` is admin only.
 
@@ -284,8 +280,7 @@ The role split is intentional:
 Separate admin-only finance exports bypass this workflow entirely:
 
 - dealer/supplier statement PDFs,
-- dealer/supplier aging PDFs,
-- deprecated `audit/digest.csv`.
+- dealer/supplier aging PDFs.
 
 Those endpoints are still controlled and audit-logged (`AccountingExportGovernanceIT` proves admin-only access and `DATA_EXPORT` metadata), but they do not consult `ExportApprovalService`.
 
@@ -369,9 +364,9 @@ Recovery posture is strongest where explicit replay anchors exist (imports, jour
 | Severity | Category | Finding | Evidence | Why it matters |
 | --- | --- | --- | --- | --- |
 | critical | accounting boundary / configuration assumption | Goods receipts publish payable-to-inventory accounting events, and the inventory listener will auto-post them when `erp.inventory.accounting.events.enabled=true`; purchase invoicing later posts the purchase/AP journal and links the same receipt movements. | `GoodsReceiptService`, `InventoryAccountingEventListener`, `PurchaseInvoiceEngine`, `application.yml`, `application-prod.yml` | The same purchasing business event can hit GL twice unless production keeps the inventory-accounting listener disabled. |
-| high | API / workflow drift | `POST /api/v1/accounting/periods/{id}/close` is still published even though `AccountingPeriodService.closePeriod(...)` always rejects it and forces `/request-close` + `/approve-close`. | `AccountingController`, `AccountingPeriodService` | Clients or operators can integrate to a dead route and discover the real maker/checker policy only at runtime. |
+| resolved | API / workflow drift | Direct period close is removed from the public controller surface; frontend close flows must use `/request-close` + `/approve-close` and the service-level maker-checker path. | `AccountingController`, `AccountingPeriodService` | The public route no longer competes with the approved maker-checker workflow. |
 | high | reporting correctness | `ReportQuerySupport.resolveWindow(...)` back-fills period start/end dates for `AS_OF` requests when a period exists, while `BalanceSheetReportQueryService` and `TrialBalanceReportQueryService` aggregate `summarizeByAccountWithin(...)` for non-snapshot windows instead of always aggregating up to `asOfDate`. | `ReportQuerySupport`, `BalanceSheetReportQueryService`, `TrialBalanceReportQueryService` | Once period rows are seeded, `?date=` report calls have a latent risk of behaving like period activity instead of cumulative as-of balances. |
-| high | audit-runtime break | `GET /api/v1/audit/business-events?page=0&size=20` currently returns `500` on the live backend. | live backend probe on `GET /api/v1/audit/business-events?page=0&size=20`, `EnterpriseAuditTrailController`, business-event audit query path | Finance/compliance users lose the main business-event audit browse surface exactly when they need operational evidence, weakening investigation and review workflows. |
+| resolved | audit hard-cut cleanup | Canonical audit feeds are now role-scoped on `GET /api/v1/accounting/audit/events`, `GET /api/v1/admin/audit/events`, and `GET /api/v1/superadmin/audit/platform-events`; the broken shared business-events route is removed. | `AccountingAuditController`, `AdminAuditController`, `SuperAdminAuditController`, `AuditAccessService` | Finance/compliance audit readers now have explicit tenant/accounting/platform surfaces instead of a broken shared endpoint. |
 | high | segregation of duties | `processPayrollBatchPayment(...)` creates payroll runs, journals, and a paid state in one call, bypassing the stronger `calculate -> approve -> post -> mark-paid` HR workflow. | `PayrollController`, `AccountingCoreEngineCore.processPayrollBatchPayment(...)`, `PayrollBatchPaymentIT` | Finance convenience can undercut maker/checker expectations for payroll if the shortcut becomes the default operational path. |
 | medium | export governance gap | Export approval is optional, and even when enabled it only gates the explicit request/download flow; direct report JSON endpoints and admin-only PDF/CSV finance exports bypass it. | `ExportApprovalService`, `ReportController`, `AccountingController`, `ReportExportApprovalIT`, `AccountingExportGovernanceIT` | “Require export approval” is not a universal exfiltration control for privileged users. |
 | medium | audit consistency / eventual visibility | Enterprise business audit persistence is async and retry-based; persistent failures are retried, but the system does not block the originating business action waiting for audit durability. | `EnterpriseAuditTrailService`, `EnterpriseAuditTrailServiceTest` | Fresh actions may not appear immediately in audit queries, and a persistent outage can still create audit gaps after retries exhaust. |

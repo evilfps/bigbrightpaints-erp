@@ -292,5 +292,4 @@ class InventoryBatchTraceabilityServiceTest {
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Unsupported batchType");
   }
-
 }

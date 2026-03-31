@@ -258,8 +258,8 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
 
     assertThat(invokeNormalizePath(" /api/v1/superadmin/tenants/77/limits/// "))
         .isEqualTo("/api/v1/superadmin/tenants/77/limits");
-    assertThat(invokeNormalizePath("/api/v1/audit;tenant=acme/business-events;mode=full///"))
-        .isEqualTo("/api/v1/audit/business-events");
+    assertThat(invokeNormalizePath("/api/v1/admin;tenant=acme/audit/events;mode=full///"))
+        .isEqualTo("/api/v1/admin/audit/events");
   }
 
   @Test
@@ -274,7 +274,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         .isFalse();
     assertThat(invokeIsTenantBusinessRequestBlockedForSuperAdmin("/api/v1/accounting/journals"))
         .isTrue();
-    assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/audit/business-events")).isTrue();
+    assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/admin/audit/events")).isTrue();
     assertThat(invokeIsTenantAuditWorkflowRequest("/api/v1/admin/settings")).isFalse();
     assertThat(
             invokeHasTenantRuntimePolicyControlAuthority(

@@ -296,9 +296,8 @@ class SettlementServiceTest {
     verify(accountingIdempotencyService)
         .autoSettleSupplier(org.mockito.ArgumentMatchers.eq(92L), supplierCaptor.capture());
 
-    assertThat(dealerCaptor.getValue().referenceNumber()).startsWith("SET-");
-    assertThat(dealerCaptor.getValue().idempotencyKey())
-        .isEqualTo(dealerCaptor.getValue().referenceNumber());
+    assertThat(dealerCaptor.getValue().referenceNumber()).isNull();
+    assertThat(dealerCaptor.getValue().idempotencyKey()).isNull();
     assertThat(dealerCaptor.getValue().memo()).isEqualTo("dealer auto");
 
     assertThat(supplierCaptor.getValue().referenceNumber()).isEqualTo("SUP-CUSTOM-1");

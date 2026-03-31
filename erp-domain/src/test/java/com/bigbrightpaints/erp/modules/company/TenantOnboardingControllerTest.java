@@ -1,16 +1,21 @@
 package com.bigbrightpaints.erp.modules.company;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -20,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
+import com.bigbrightpaints.erp.core.notification.EmailService;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
@@ -48,6 +54,8 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
   @Autowired private UserAccountRepository userAccountRepository;
 
   @Autowired private SystemSettingsRepository systemSettingsRepository;
+
+  @SpyBean private EmailService emailService;
 
   @BeforeEach
   void seedSuperAdmin() {
@@ -150,6 +158,91 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
     assertThat(systemSettingsRepository.findById("cors.allowed-origins")).isNotPresent();
   }
 
+  @Test
+  void onboardTenant_allows_first_admin_login_and_immediate_auth_me_company_binding() {
+    String superAdminToken = loginToken(SUPER_ADMIN_EMAIL, ROOT_COMPANY_CODE);
+    String companyCode = uniqueCode("E2E");
+    String adminEmail = "first-admin-" + UUID.randomUUID() + "@example.com";
+    String adminDisplayName = "First Admin";
+    AtomicReference<String> temporaryPassword = new AtomicReference<>();
+
+    doAnswer(
+            invocation -> {
+              temporaryPassword.set(invocation.getArgument(2, String.class));
+              return null;
+            })
+        .when(emailService)
+        .sendUserCredentialsEmailRequired(
+            eq(adminEmail), eq(adminDisplayName), anyString(), eq(companyCode));
+
+    ResponseEntity<Map> onboardResponse =
+        rest.exchange(
+            "/api/v1/superadmin/tenants/onboard",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "name",
+                    "E2E Tenant",
+                    "code",
+                    companyCode,
+                    "timezone",
+                    "Asia/Kolkata",
+                    "firstAdminEmail",
+                    adminEmail,
+                    "firstAdminDisplayName",
+                    adminDisplayName,
+                    "coaTemplateCode",
+                    "GENERIC"),
+                headers(superAdminToken, ROOT_COMPANY_CODE)),
+            Map.class);
+
+    assertThat(onboardResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(temporaryPassword.get()).isNotBlank();
+
+    ResponseEntity<Map> loginResponse =
+        rest.postForEntity(
+            "/api/v1/auth/login",
+            Map.of(
+                "email", adminEmail,
+                "password", temporaryPassword.get(),
+                "companyCode", companyCode),
+            Map.class);
+
+    assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(loginResponse.getBody()).isNotNull();
+    assertThat(loginResponse.getBody()).containsEntry("companyCode", companyCode);
+    assertThat(loginResponse.getBody()).containsEntry("displayName", adminDisplayName);
+    assertThat(loginResponse.getBody()).containsEntry("mustChangePassword", true);
+
+    String accessToken = loginResponse.getBody().get("accessToken").toString();
+    ResponseEntity<Map> meResponse =
+        rest.exchange(
+            "/api/v1/auth/me",
+            HttpMethod.GET,
+            new HttpEntity<>(headers(accessToken, companyCode)),
+            Map.class);
+
+    assertThat(meResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(meResponse.getBody()).isNotNull();
+    @SuppressWarnings("unchecked")
+    Map<String, Object> meData = (Map<String, Object>) meResponse.getBody().get("data");
+    assertThat(meData).isNotNull();
+    assertThat(meData).containsEntry("email", adminEmail);
+    assertThat(meData).containsEntry("displayName", adminDisplayName);
+    assertThat(meData).containsEntry("companyCode", companyCode);
+    assertThat(meData).containsEntry("mustChangePassword", true);
+    assertThat(meData).doesNotContainKey("companyId");
+    @SuppressWarnings("unchecked")
+    List<String> roles = (List<String>) meData.get("roles");
+    assertThat(roles).contains("ROLE_ADMIN");
+
+    UserAccount admin =
+        userAccountRepository
+            .findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(adminEmail, companyCode)
+            .orElseThrow();
+    assertThat(admin.getCompany()).extracting(Company::getCode).isEqualTo(companyCode);
+  }
+
   private String uniqueCode(String prefix) {
     return prefix
         + UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase(Locale.ROOT);
@@ -164,10 +257,14 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
   }
 
   private String loginToken(String email, String companyCode) {
+    return loginToken(email, companyCode, PASSWORD);
+  }
+
+  private String loginToken(String email, String companyCode, String password) {
     Map<String, Object> request =
         Map.of(
             "email", email,
-            "password", PASSWORD,
+            "password", password,
             "companyCode", companyCode);
     ResponseEntity<Map> response = rest.postForEntity("/api/v1/auth/login", request, Map.class);
     return (String) response.getBody().get("accessToken");

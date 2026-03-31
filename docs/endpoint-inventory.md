@@ -1,9 +1,7 @@
 # Endpoint Inventory (OpenAPI)
 
-> ⚠️ **REFERENCE ONLY**: This document is no longer the canonical source of truth. Use `openapi.json` and the module packets in [docs/modules/](modules/) as the primary API contract reference. The authoritative endpoint inventory is now available through [docs/modules/MODULE-INVENTORY.md](modules/MODULE-INVENTORY.md).
-
 Source: `openapi.json`
-Updated: 2026-03-28
+Updated: 2026-03-30
 
 Related behavior contract:
 - `docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md`
@@ -17,18 +15,19 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `622d0826c4c902c8574438de5ada2f817a4588bcd22ca7f2b8dab373a85cac3e`)
-- OpenAPI total paths: `279`
-- OpenAPI total operations: `331`
+- OpenAPI snapshot: `openapi.json` (sha256 `01a3f75d074156a2635d4a5cff54eabfef872c9320b35a862c7567314e90bb52`)
+- OpenAPI total paths: `271`
+- OpenAPI total operations: `322`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
+- Hard-cut contract reminder: retired surfaces such as `/api/v1/auth/profile`, `/api/v1/accounting/journals/manual`, `/api/v1/accounting/journals/{entryId}/reverse`, and direct `/api/v1/accounting/periods/{periodId}/close` are intentionally absent from this inventory and must not be reintroduced in frontend or review docs.
 
 ## Summary by module
 
 | Module | Path count | Examples |
 |---|---:|---|
-| `accounting` | 65 | /api/v1/accounting/accounts, /api/v1/accounting/accounts/tree, /api/v1/accounting/accounts/tree/{type} |
-| `admin` | 14 | /api/v1/admin/approvals, /api/v1/admin/exports/{requestId}/approve, /api/v1/admin/exports/{requestId}/reject |
-| `audit` | 2 | /api/v1/audit/business-events, /api/v1/audit/ml-events |
+| `accounting` | 57 | /api/v1/accounting/accounts, /api/v1/accounting/accounts/tree, /api/v1/accounting/audit/events |
+| `admin` | 15 | /api/v1/admin/approvals, /api/v1/admin/audit/events, /api/v1/admin/exports/{requestId}/approve |
+| `audit` | 1 | /api/v1/audit/ml-events |
 | `auth` | 11 | /api/v1/auth/login, /api/v1/auth/logout, /api/v1/auth/me |
 | `catalog` | 5 | /api/v1/catalog/brands, /api/v1/catalog/items, /api/v1/catalog/import |
 | `changelog` | 2 | /api/v1/changelog, /api/v1/changelog/latest-highlighted |
@@ -53,7 +52,7 @@ Portal scope guardrail:
 | `raw-materials` | 3 | /api/v1/raw-materials/stock, /api/v1/raw-materials/stock/inventory, /api/v1/raw-materials/stock/low-stock |
 | `reports` | 17 | /api/v1/reports/account-statement, /api/v1/reports/aged-debtors, /api/v1/reports/aging/receivables |
 | `sales` | 16 | /api/v1/sales/dashboard, /api/v1/sales/dealers, /api/v1/sales/dealers/search |
-| `superadmin` | 17 | /api/v1/superadmin/changelog, /api/v1/superadmin/changelog/{id}, /api/v1/superadmin/dashboard |
+| `superadmin` | 18 | /api/v1/superadmin/audit/platform-events, /api/v1/superadmin/changelog, /api/v1/superadmin/dashboard |
 | `suppliers` | 5 | /api/v1/suppliers, /api/v1/suppliers/{id}, /api/v1/suppliers/{id}/activate |
 | `support` | 4 | /api/v1/portal/support/tickets, /api/v1/dealer-portal/support/tickets, /api/v1/portal/support/tickets/{ticketId} |
 
@@ -68,9 +67,7 @@ Portal scope guardrail:
 - `POST` `/api/v1/accounting/accruals`
 - `GET` `/api/v1/accounting/aging/suppliers/{supplierId}`
 - `GET` `/api/v1/accounting/aging/suppliers/{supplierId}/pdf`
-- `GET` `/api/v1/accounting/audit-trail`
-- ⚠️ `GET` `/api/v1/accounting/audit/digest` **(deprecated — use `/api/v1/accounting/audit/transactions` for audit queries)**
-- ⚠️ `GET` `/api/v1/accounting/audit/digest.csv` **(deprecated — use standard export workflow)**
+- `GET` `/api/v1/accounting/audit/events`
 - `GET` `/api/v1/accounting/audit/transactions`
 - `GET` `/api/v1/accounting/audit/transactions/{journalEntryId}`
 - `POST` `/api/v1/accounting/bad-debts/write-off`
@@ -86,11 +83,8 @@ Portal scope guardrail:
 - `POST` `/api/v1/accounting/inventory/revaluation`
 - `POST` `/api/v1/accounting/inventory/wip-adjustment`
 - `GET, POST` `/api/v1/accounting/journal-entries`
-- `POST` `/api/v1/accounting/journal-entries/{entryId}/cascade-reverse`
 - `POST` `/api/v1/accounting/journal-entries/{entryId}/reverse`
 - `GET` `/api/v1/accounting/journals`
-- `POST` `/api/v1/accounting/journals/manual`
-- `POST` `/api/v1/accounting/journals/{entryId}/reverse`
 - `GET` `/api/v1/accounting/month-end/checklist`
 - `POST` `/api/v1/accounting/month-end/checklist/{periodId}`
 - `POST` `/api/v1/accounting/opening-balances`
@@ -99,8 +93,6 @@ Portal scope guardrail:
 - `GET, POST` `/api/v1/accounting/periods`
 - `PUT` `/api/v1/accounting/periods/{periodId}`
 - `POST` `/api/v1/accounting/periods/{periodId}/approve-close`
-- `POST` `/api/v1/accounting/periods/{periodId}/close`
-- `POST` `/api/v1/accounting/periods/{periodId}/lock`
 - `POST` `/api/v1/accounting/periods/{periodId}/reject-close`
 - `POST` `/api/v1/accounting/periods/{periodId}/reopen`
 - `POST` `/api/v1/accounting/periods/{periodId}/request-close`
@@ -127,6 +119,7 @@ Portal scope guardrail:
 ## `admin`
 
 - `GET` `/api/v1/admin/approvals`
+- `GET` `/api/v1/admin/audit/events`
 - `PUT` `/api/v1/admin/exports/{requestId}/approve`
 - `PUT` `/api/v1/admin/exports/{requestId}/reject`
 - `POST` `/api/v1/admin/notify`
@@ -143,7 +136,6 @@ Portal scope guardrail:
 
 ## `audit`
 
-- `GET` `/api/v1/audit/business-events`
 - `GET, POST` `/api/v1/audit/ml-events`
 
 ## `auth`
@@ -157,7 +149,6 @@ Portal scope guardrail:
 - `POST` `/api/v1/auth/password/change`
 - `POST` `/api/v1/auth/password/forgot`
 - `POST` `/api/v1/auth/password/reset`
-- `GET, PUT` `/api/v1/auth/profile`
 - `POST` `/api/v1/auth/refresh-token`
 
 ## `catalog`
@@ -176,7 +167,7 @@ Portal scope guardrail:
 ## `companies`
 
 - `GET` `/api/v1/companies`
-- `DELETE` `/api/v1/companies/{id}`
+- Path shell retained in spec inventory only: `/api/v1/companies/{id}` has no active operations.
 
 ## `credit`
 
@@ -396,6 +387,7 @@ Bulk operator note: `/api/v1/factory/bulk-batches/{finishedGoodId}` and `/api/v1
 
 ## `superadmin`
 
+- `GET` `/api/v1/superadmin/audit/platform-events`
 - `POST` `/api/v1/superadmin/changelog`
 - `DELETE, PUT` `/api/v1/superadmin/changelog/{id}`
 - `GET` `/api/v1/superadmin/dashboard`

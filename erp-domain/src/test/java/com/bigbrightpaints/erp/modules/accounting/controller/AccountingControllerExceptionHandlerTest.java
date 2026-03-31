@@ -1,19 +1,31 @@
 package com.bigbrightpaints.erp.modules.accounting.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.Map;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.bigbrightpaints.erp.core.audit.IntegrationFailureMetadataSchema;
+import com.bigbrightpaints.erp.core.auditaccess.AuditAccessService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.exception.GlobalExceptionHandler;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@Tag("critical")
 class AccountingControllerExceptionHandlerTest {
 
   private static final String REPLAY_REASON_SUPPLIER =
@@ -195,6 +207,125 @@ class AccountingControllerExceptionHandlerTest {
         .containsEntry("message", "Invalid reconciliation discrepancy type: BANK");
   }
 
+  @Test
+  void supplierStatement_invalidDateReturnsValidationEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(get("/api/v1/accounting/statements/suppliers/42").param("from", "2026-02-30"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.message").value("Invalid from date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
+        .andExpect(jsonPath("$.data.details.from").value("2026-02-30"));
+  }
+
+  @Test
+  void supplierAging_invalidDateReturnsValidationEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(get("/api/v1/accounting/aging/suppliers/42").param("asOf", "not-a-date"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.message").value("Invalid asOf date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
+        .andExpect(jsonPath("$.data.details.asOf").value("not-a-date"));
+  }
+
+  @Test
+  void transactionAudit_invalidDateReturnsValidationEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(get("/api/v1/accounting/audit/transactions").param("from", "2026-02-30"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(
+            jsonPath("$.message").value("Invalid from date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
+        .andExpect(jsonPath("$.data.details.from").value("2026-02-30"));
+  }
+
+  @Test
+  void transactionAuditDetail_missingJournalEntryReturnsNotFoundEnvelope() throws Exception {
+    AuditAccessService auditAccessService = mock(AuditAccessService.class);
+    when(auditAccessService.getAccountingTransactionDetail(999L))
+        .thenThrow(
+            new ApplicationException(
+                ErrorCode.BUSINESS_ENTITY_NOT_FOUND, "Journal entry not found"));
+
+    accountingControllerMvc(auditAccessService)
+        .perform(get("/api/v1/accounting/audit/transactions/999"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.message").value("Journal entry not found"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.BUSINESS_ENTITY_NOT_FOUND.getCode()));
+  }
+
+  @Test
+  void balanceAsOf_invalidDateReturnsValidationEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(get("/api/v1/accounting/accounts/42/balance/as-of").param("date", "bad-date"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(
+            jsonPath("$.message").value("Invalid date date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
+        .andExpect(jsonPath("$.data.details.date").value("bad-date"));
+  }
+
+  @Test
+  void trialBalanceAsOf_invalidDateReturnsValidationEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(get("/api/v1/accounting/trial-balance/as-of").param("date", "2026-99-01"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(
+            jsonPath("$.message").value("Invalid date date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
+        .andExpect(jsonPath("$.data.details.date").value("2026-99-01"));
+  }
+
+  @Test
+  void accountActivity_invalidDateReturnsCanonicalEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(
+            get("/api/v1/accounting/accounts/42/activity")
+                .param("startDate", "2026-03-40")
+                .param("endDate", "2026-03-31"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(
+            jsonPath("$.message")
+                .value("Invalid account activity date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
+        .andExpect(jsonPath("$.data.details.startDate").value("2026-03-40"))
+        .andExpect(jsonPath("$.data.details.endDate").value("2026-03-31"));
+  }
+
+  @Test
+  void accountActivity_missingDateRangeReturnsValidationEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(get("/api/v1/accounting/accounts/42/activity"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(
+            jsonPath("$.message")
+                .value("Account activity requires startDate/endDate (or from/to) query parameters"))
+        .andExpect(
+            jsonPath("$.data.code").value(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD.getCode()));
+  }
+
+  @Test
+  void compareBalances_invalidDateReturnsValidationEnvelope() throws Exception {
+    accountingControllerMvc()
+        .perform(
+            get("/api/v1/accounting/accounts/42/balance/compare")
+                .param("date1", "2026-03-01")
+                .param("date2", "invalid"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(
+            jsonPath("$.message").value("Invalid date2 date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
+        .andExpect(jsonPath("$.data.details.date2").value("invalid"));
+  }
+
   private ApiResponse<Map<String, Object>> assertReplayErrorEnvelope(
       ResponseEntity<ApiResponse<Map<String, Object>>> response,
       HttpStatus status,
@@ -231,5 +362,23 @@ class AccountingControllerExceptionHandlerTest {
     return new AccountingController(
         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
         null, null, null, null, null, null, null);
+  }
+
+  private AccountingAuditController auditController() {
+    return auditController(null);
+  }
+
+  private AccountingAuditController auditController(AuditAccessService auditAccessService) {
+    return new AccountingAuditController(auditAccessService);
+  }
+
+  private MockMvc accountingControllerMvc() {
+    return accountingControllerMvc(null);
+  }
+
+  private MockMvc accountingControllerMvc(AuditAccessService auditAccessService) {
+    return MockMvcBuilders.standaloneSetup(controller(), auditController(auditAccessService))
+        .setControllerAdvice(new GlobalExceptionHandler())
+        .build();
   }
 }

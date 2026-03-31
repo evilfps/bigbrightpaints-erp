@@ -16,6 +16,7 @@ import com.bigbrightpaints.erp.modules.inventory.service.InventoryBatchQueryServ
 import com.bigbrightpaints.erp.modules.inventory.service.RawMaterialService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
@@ -24,6 +25,9 @@ import jakarta.validation.Validator;
 @RequestMapping("/api/v1")
 @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_FACTORY')")
 public class RawMaterialController {
+
+  private static final String CANONICAL_RAW_MATERIAL_ADJUSTMENT_PATH =
+      "/api/v1/inventory/raw-materials/adjustments";
 
   private final RawMaterialService rawMaterialService;
   private final InventoryBatchQueryService inventoryBatchQueryService;
@@ -57,7 +61,8 @@ public class RawMaterialController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<RawMaterialAdjustmentDto>> adjustRawMaterials(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey,
+      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
+          String legacyIdempotencyKey,
       @RequestBody RawMaterialAdjustmentRequest request) {
     RawMaterialAdjustmentRequest resolvedRequest =
         applyAdjustmentIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
@@ -85,9 +90,13 @@ public class RawMaterialController {
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
           "Raw material adjustment request is required");
     }
+    IdempotencyHeaderUtils.rejectLegacyHeader(
+        legacyIdempotencyKeyHeader,
+        "raw material adjustments",
+        CANONICAL_RAW_MATERIAL_ADJUSTMENT_PATH);
     String resolvedKey =
         IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
-            request.idempotencyKey(), idempotencyKeyHeader, legacyIdempotencyKeyHeader);
+            request.idempotencyKey(), idempotencyKeyHeader, null);
     if (StringUtils.hasText(request.idempotencyKey())) {
       return request;
     }

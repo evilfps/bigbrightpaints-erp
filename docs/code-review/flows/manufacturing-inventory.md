@@ -60,7 +60,7 @@ The local `openapi.json` snapshot publishes the major catalog, raw-material, fin
 | Store / contract | Evidence | Used by |
 | --- | --- | --- |
 | `production_brands`, `production_products`, `size_variants` | `CatalogService`, `ProductionCatalogService`, `V4__inventory_production.sql`, `V38__size_variants_and_packing_traceability.sql` | Commercial catalog, manufacturing product identity, size/carton metadata, and catalog-import replay targets. |
-| `raw_materials`, `raw_material_batches`, `raw_material_movements` | `RawMaterialService`, `GoodsReceiptService`, `ProductionLogService`, `PackagingMaterialService`, `V4__inventory_production.sql`, `V35__performance_hotspot_indexes.sql` | Supplier receipts, manual intake, opening stock, production consumption, packaging consumption, and raw-material traceability. |
+| `raw_materials`, `raw_material_batches`, `raw_material_movements` | `RawMaterialService`, `GoodsReceiptService`, `ProductionLogService`, `PackagingMaterialService`, `V4__inventory_production.sql`, `V35__performance_hotspot_indexes.sql` | Supplier receipts, manual batch creation escape hatch, opening stock, production consumption, packaging consumption, and raw-material traceability. |
 | `finished_goods`, `finished_good_batches`, `inventory_movements` | `ProductionCatalogService.ensureCatalogFinishedGood(...)`, `FinishedGoodsWorkflowEngineService`, `PackingBatchService`, `FinishedGoodsDispatchEngine`, `V4__inventory_production.sql` | Sellable finished-good identity, packing receipts, dispatch relief, and COGS linkage. |
 | `inventory_adjustments`, `inventory_adjustment_lines`, raw-material adjustment rows | `InventoryAdjustmentService`, `RawMaterialService.adjustStock(...)`, `V4__inventory_production.sql` | Replay-safe stock corrections and linked journal anchors. |
 | `opening_stock_imports` | `OpeningStockImportService`, `V4__inventory_production.sql` | CSV hash/idempotency-key replay anchor, import status, counts, and import-level journal linkage. |
@@ -133,13 +133,16 @@ The healthy model is therefore bidirectional convergence, but only if callers st
 
 That means the AP truth boundary is purchase invoicing, even though the raw-material movement already exists at receipt time.
 
-#### Escape hatches: manual batch creation / intake
+#### Escape hatch: manual batch creation
 
-- `createBatch(...)` and `intake(...)` are guarded by `erp.raw-material.intake.enabled`.
+- `createBatch(...)` is guarded by `erp.raw-material.intake.enabled`.
 - `application.yml` defaults this flag to `false`.
-- Both manual paths require an idempotency key and persist a `RawMaterialIntakeRecord` with movement/journal references.
+- The remaining manual helper requires an idempotency key and persists a
+  `RawMaterialIntakeRecord` with movement/journal references.
 
-The code is intentionally telling operators that these are noncanonical paths: error messages point users back to `/api/v1/purchasing/raw-material-purchases` or supplier receipts.
+The code is intentionally telling operators that this is a noncanonical path:
+error messages point users back to `/api/v1/purchasing/raw-material-purchases`
+or supplier receipts.
 
 ### 5. Opening stock import
 
@@ -221,7 +224,7 @@ This entire chain fails closed when account metadata is incomplete. Missing `wip
 
 ### 9. Finished goods, reservations, dispatch, and COGS
 
-`FinishedGoodsWorkflowEngineService` is the operational façade over finished-good stock.
+`FinishedGoodsService` is the public operational façade over finished-good stock.
 
 - Finished-good stock views and threshold controls work directly on `FinishedGood` rows.
 - Stock ingress for finished goods is canonicalized through production, packing, opening-stock import, and inventory-adjustment workflows; there is no standalone manual FG batch registration route.
@@ -254,7 +257,7 @@ The codebase has two valuation layers.
 - Invalidates cache on adjustments, packing receipts, dispatch, and other finished-good mutations.
 - Chooses dispatch/adjustment batch order according to active costing method.
 
-#### Reporting valuation (`modules.reports.service.InventoryValuationService`)
+#### Reporting valuation (`modules.reports.service.InventoryValuationQueryService`)
 
 - Produces current and `asOf` snapshots for raw materials and finished goods.
 - For historical valuation, it starts from current stock and reverses movements after the cutoff date rather than reading a materialized historical snapshot table.
@@ -300,7 +303,8 @@ This asymmetry is workable, but fragile: raw-material receipts are listener-capa
 
 - **Accounting-aware catalog import:** explicit caller-visible idempotency via key-or-file-hash replay.
 - **Bulk variants:** conflict-aware create with deterministic candidate generation, but not a separate replay table.
-- **Raw-material manual intake / manual batch creation:** explicit idempotency key + persisted intake record.
+- **Raw-material manual batch creation escape hatch:** explicit idempotency key
+  plus persisted intake record.
 - **Opening stock import:** explicit idempotency key + file-hash signature + unique company/key row.
 - **Raw-material and finished-good adjustments:** explicit idempotency key + payload signature + durable adjustment row.
 - **Packing:** optional caller-supplied idempotency key with reserve-first semantics.
@@ -322,7 +326,12 @@ The overall model is uneven: adjustments/imports/packing are strongly replay-saf
 - Cost allocation mutates production-log totals, recalculates finished-good batch unit costs, and posts cost-variance journals.
 - Inventory reporting depends on both movement integrity and product/master-data linkage because report valuation enriches inventory rows through `ProductionProduct` lookups.
 
-Recovery is strongest where explicit replay anchors exist: catalog import, opening stock import, adjustments, manual intake, and canonical packing can all deterministically reject or reuse prior work. Recovery is weaker on generic catalog CRUD, production-log create, and dispatch confirm because those flows rely more on uniqueness/state markers than on a dedicated public idempotency contract.
+Recovery is strongest where explicit replay anchors exist: catalog import,
+opening stock import, adjustments, manual batch creation, and canonical packing
+can all deterministically reject or reuse prior work. Recovery is weaker on
+generic catalog CRUD, production-log create, and dispatch confirm because those
+flows rely more on uniqueness/state markers than on a dedicated public
+idempotency contract.
 
 ## Risk hotspots
 
@@ -335,7 +344,7 @@ Recovery is strongest where explicit replay anchors exist: catalog import, openi
 | medium | bootstrap / configuration drift | The canonical stock-bearing item path currently fails in the seeded `MOCK` tenant because company default accounts are not configured; the retired accounting bulk-variant helper and `POST /api/v1/catalog/items` return `VAL_007` until defaults are seeded. | live backend probes on the retired accounting bulk-variant helper and `POST /api/v1/catalog/items`, `ProductionCatalogService`, company default-account requirements in finance setup | Demo/QA environments can appear catalog-ready but still reject the manufacturing-safe creation paths that inventory, valuation, reservation, and dispatch depend on. |
 | medium | bootstrap strictness | Opening-stock import now fails closed when a prepared SKU lacks a finished-good mirror (`Finished good mirror missing for prepared SKU ...`) instead of auto-creating one. | `OpeningStockImportService.handleFinishedGood(...)`, readiness checks in `SkuReadinessService` | This prevents silent catalog/inventory divergence, but it turns incomplete SKU provisioning into an immediate import blocker that operators must fix first. |
 | medium | packaging setup drift | Packing now fails closed when Packaging Setup is missing, inactive, or unusable, including zero-cost setup resolution. | `PackagingMaterialService.consumePackagingMaterial(...)` | Operators cannot finish packing until Packaging Setup / Rules are corrected, but the fail-closed contract avoids silent under-costing and skipped packaging consumption. |
-| medium | historical valuation model | Report-time `asOf` valuation is reconstructed by reversing later movements from current stock, not by reading a historical snapshot table. | `modules.reports.service.InventoryValuationService` | Any movement corruption, missing journal link, or manual data repair can distort historical valuation and reconciliation reports long after the operational event. |
+| medium | historical valuation model | Report-time `asOf` valuation is reconstructed by reversing later movements from current stock, not by reading a historical snapshot table. | `modules.reports.service.InventoryValuationQueryService` | Any movement corruption, missing journal link, or manual data repair can distort historical valuation and reconciliation reports long after the operational event. |
 | medium | noncanonical manual paths | Manual raw-material intake remains an admin escape hatch outside the stronger purchasing receipt workflow. | `RawMaterialService`, `application.yml` | This path still widens the drift surface because it bypasses the primary purchasing flow invariants that normally create stock. |
 
 ## Security, privacy, protocol, performance, and observability notes
@@ -343,7 +352,8 @@ Recovery is strongest where explicit replay anchors exist: catalog import, openi
 ### Strengths
 
 - Stock-bearing mutations use pessimistic locks on raw materials, finished goods, batches, production logs, or company rows where double-consumption would corrupt truth.
-- Imports, adjustments, manual intake, and canonical packing all have explicit replay or conflict semantics.
+- Imports, adjustments, manual batch creation, and canonical packing all have
+  explicit replay or conflict semantics.
 - Batch traceability includes `journalEntryId` and `packingSlipId`, which makes physical-to-financial investigation possible.
 - Schema constraints backstop important invariants: SKU uniqueness, batch-code uniqueness, opening-stock idempotency, packaging-slip uniqueness, and packaging-mapping uniqueness.
 - Production explicitly disables the risky inventory->GL auto-listener for the purchasing path.

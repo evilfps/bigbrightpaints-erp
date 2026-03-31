@@ -35,12 +35,13 @@ This packet is hard-cut.
   Retired seams and delete-first rules for future cleanup in this area.
 - [05-definition-of-done-and-update-hygiene.md](./05-definition-of-done-and-update-hygiene.md)
   Scope, proof, stop rules, and doc hygiene.
+- [06-stock-truth-decision.md](./06-stock-truth-decision.md)
+  Wave 3 stock-truth decision: authoritative writers, derived fields, and Wave 4 constraints.
 
 ## Current-State Contract
 
 - `POST /api/v1/superadmin/tenants/onboard` seeds the tenant, chart of accounts, open period, first admin, and `OPEN-BAL`
 - `GET/PUT /api/v1/accounting/default-accounts` owns tenant stock-bearing default-account completion
-- `PUT /api/v1/companies/{id}` is the super-admin correction path for company metadata such as timezone, state code, and default GST rate
 - `GET/POST /api/v1/catalog/brands`, `GET /api/v1/catalog/items`, and `POST /api/v1/catalog/items` are the surviving operator-facing setup routes for brand selection and stock-bearing item creation
 - `GET /api/v1/catalog/items` and `GET /api/v1/catalog/items/{itemId}` with `includeReadiness=true` keep readiness visible before factory execution
 - `POST /api/v1/inventory/opening-stock` requires explicit `Idempotency-Key` plus explicit `openingStockBatchKey`, and only accepts prepared SKUs

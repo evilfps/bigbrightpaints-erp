@@ -3,7 +3,6 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -69,7 +68,7 @@ import com.bigbrightpaints.erp.modules.sales.util.SalesOrderReference;
  * @author ERP Development Team
  * @since 1.0
  */
-public class AccountingFacadeCore {
+class AccountingFacadeCore {
 
   private static final Logger log = LoggerFactory.getLogger(AccountingFacadeCore.class);
   private static final BigDecimal BALANCE_TOLERANCE = BigDecimal.ZERO;
@@ -450,12 +449,6 @@ public class AccountingFacadeCore {
         journalReferenceResolver.findExistingEntry(company, baseReference);
     if (existingByBase.isPresent()) {
       return toSimpleDto(existingByBase.get());
-    }
-    Optional<JournalEntry> legacyByPrefix =
-        findLegacyPurchaseCanonicalEntry(company, baseReference);
-    if (legacyByPrefix.isPresent()) {
-      ensurePurchaseReferenceMapping(company, baseReference, legacyByPrefix.get());
-      return toSimpleDto(legacyByPrefix.get());
     }
 
     supplier.requireTransactionalUsage("post purchase journals");
@@ -2089,59 +2082,12 @@ public class AccountingFacadeCore {
     journalReferenceMappingRepository.save(mapping);
   }
 
-  private Optional<JournalEntry> findLegacyPurchaseCanonicalEntry(
-      Company company, String baseReference) {
-    if (company == null || !StringUtils.hasText(baseReference)) {
-      return Optional.empty();
-    }
-    return journalEntryRepository
-        .findByCompanyAndReferenceNumberStartingWith(company, baseReference + "-")
-        .stream()
-        .filter(entry -> isCanonicalPurchaseReference(baseReference, entry.getReferenceNumber()))
-        .min(
-            Comparator.comparingLong(
-                    (JournalEntry entry) ->
-                        purchaseReferenceSequence(baseReference, entry.getReferenceNumber()))
-                .thenComparing(
-                    JournalEntry::getId, Comparator.nullsLast(Comparator.naturalOrder())));
-  }
-
-  private boolean isCanonicalPurchaseReference(String baseReference, String candidateReference) {
-    if (!StringUtils.hasText(baseReference) || !StringUtils.hasText(candidateReference)) {
-      return false;
-    }
-    String prefix = baseReference + "-";
-    if (!candidateReference.startsWith(prefix)) {
-      return false;
-    }
-    String suffix = candidateReference.substring(prefix.length());
-    if (suffix.isEmpty()) {
-      return false;
-    }
-    for (int i = 0; i < suffix.length(); i++) {
-      if (!Character.isDigit(suffix.charAt(i))) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  private long purchaseReferenceSequence(String baseReference, String candidateReference) {
-    String suffix = candidateReference.substring((baseReference + "-").length());
-    try {
-      return Long.parseLong(suffix);
-    } catch (NumberFormatException ex) {
-      return Long.MAX_VALUE;
-    }
-  }
-
   private Supplier requireSupplier(Company company, Long supplierId) {
-    try {
-      return companyEntityLookup.requireSupplier(company, supplierId);
-    } catch (IllegalArgumentException ex) {
-      throw new ApplicationException(ErrorCode.BUSINESS_ENTITY_NOT_FOUND, "Supplier not found")
-          .withDetail("supplierId", supplierId);
-    }
+    return supplierRepository
+        .findByCompanyAndIdWithPayableAccount(company, supplierId)
+        .orElseThrow(
+            () -> new ApplicationException(ErrorCode.BUSINESS_ENTITY_NOT_FOUND, "Supplier not found")
+                .withDetail("supplierId", supplierId));
   }
 
   private Account requireAccountById(Company company, Long accountId, String accountType) {

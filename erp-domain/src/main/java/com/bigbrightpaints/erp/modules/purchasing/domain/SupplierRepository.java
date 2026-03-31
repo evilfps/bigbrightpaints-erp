@@ -25,11 +25,14 @@ public interface SupplierRepository extends JpaRepository<Supplier, Long> {
 
   Optional<Supplier> findByCompanyAndId(Company company, Long id);
 
+  @EntityGraph(attributePaths = "payableAccount")
+  @Query("select s from Supplier s where s.company = :company and s.id = :id")
+  Optional<Supplier> findByCompanyAndIdWithPayableAccount(
+      @Param("company") Company company, @Param("id") Long id);
+
   Optional<Supplier> findByCompanyAndCodeIgnoreCase(Company company, String code);
 
   Optional<Supplier> findByCompanyAndPayableAccount(Company company, Account payableAccount);
-
-  List<Supplier> findAllByCompanyAndPayableAccount(Company company, Account payableAccount);
 
   List<Supplier> findByCompanyAndPayableAccountIn(
       Company company, Collection<Account> payableAccounts);

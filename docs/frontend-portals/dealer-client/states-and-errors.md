@@ -2,21 +2,24 @@
 
 ## Important States
 
-- order `DRAFT`, `CONFIRMED`, `RESERVED`, `PENDING_DISPATCH`, `PARTIALLY_DISPATCHED`, `DISPATCHED`, `INVOICED`, `SETTLED`, `CANCELLED`
-- invoice `DRAFT`, `ISSUED`, `PARTIALLY_PAID`, `PAID`, `OVERDUE`, `CANCELLED`
-- credit request `PENDING`, `APPROVED`, `REJECTED`, `EXPIRED`
-- support ticket `OPEN`, `IN_PROGRESS`, `WAITING_CUSTOMER`, `RESOLVED`, `CLOSED`
+- order `SUBMITTED`, `CONFIRMED`, `PENDING_DISPATCH`, `PARTIALLY_DISPATCHED`, `DISPATCHED`, `INVOICED`, `SETTLED`, `CANCELLED`
+- invoice `OPEN`, `PARTIALLY_PAID`, `PAID`, `OVERDUE`
+- support request `OPEN`, `IN_PROGRESS`, `RESOLVED`, `CLOSED`
+- credit request `PENDING`, `APPROVED`, `REJECTED`
 
-## Blocking Errors
+## Common Errors
 
-- session does not contain valid `companyCode` for the dealer's company
-- invoice PDF generation failed or file not found
-- credit request submission failed validation
-- support ticket submission failed validation
+- unauthorized dealer-to-dealer access attempt
+- order unavailable because tenant or dealer status blocks access
+- invoice not ready because dispatch is incomplete
+- ledger or aging temporarily unavailable
+- support submission failure
+- credit request submission rejected by validation rules
 
 ## UI Rules
 
-- Always show dealer-specific state explanations, not generic error codes.
-- When dispatch is pending, show factory-owned status without exposing actions.
-- When invoice is not ready, show dispatch-read state.
-- When credit request is pending, show approval timeline.
+- Keep security failures distinct from empty-state messaging.
+- Show order, invoice, ledger, and aging empty states separately so dealers
+  understand what is missing.
+- When credit is exhausted, explain the self-service request path without
+  exposing internal override workflows.

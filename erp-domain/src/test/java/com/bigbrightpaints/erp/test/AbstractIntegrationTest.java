@@ -162,7 +162,8 @@ public abstract class AbstractIntegrationTest {
     return toFinishedGoodDto(saved);
   }
 
-  protected FinishedGoodBatchDto registerFinishedGoodBatchForTest(FinishedGoodBatchRequest request) {
+  protected FinishedGoodBatchDto registerFinishedGoodBatchForTest(
+      FinishedGoodBatchRequest request) {
     Company company = companyContextService.requireCurrentCompany();
     FinishedGood finishedGood =
         finishedGoodRepository

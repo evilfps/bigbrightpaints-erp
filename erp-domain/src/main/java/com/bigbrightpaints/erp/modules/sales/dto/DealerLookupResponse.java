@@ -1,6 +1,5 @@
 package com.bigbrightpaints.erp.modules.sales.dto;
 
-import java.math.BigDecimal;
 import java.util.UUID;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.GstRegistrationType;
@@ -11,8 +10,6 @@ public record DealerLookupResponse(
     UUID publicId,
     String name,
     String code,
-    BigDecimal outstandingBalance,
-    BigDecimal creditLimit,
     Long receivableAccountId,
     String receivableAccountCode,
     String stateCode,
@@ -26,8 +23,6 @@ public record DealerLookupResponse(
       UUID publicId,
       String name,
       String code,
-      BigDecimal outstandingBalance,
-      BigDecimal creditLimit,
       Long receivableAccountId,
       String receivableAccountCode) {
     this(
@@ -35,8 +30,6 @@ public record DealerLookupResponse(
         publicId,
         name,
         code,
-        outstandingBalance,
-        creditLimit,
         receivableAccountId,
         receivableAccountCode,
         null,

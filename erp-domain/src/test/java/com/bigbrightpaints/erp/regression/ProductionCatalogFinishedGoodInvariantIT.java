@@ -282,7 +282,8 @@ class ProductionCatalogFinishedGoodInvariantIT extends AbstractIntegrationTest {
 
     RawMaterial semiFinished =
         rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, sku + "-BULK").orElseThrow();
-    assertThat(rawMaterialBatchRepository.findByRawMaterialAndBatchCode(semiFinished, productionCode))
+    assertThat(
+            rawMaterialBatchRepository.findByRawMaterialAndBatchCode(semiFinished, productionCode))
         .isPresent();
   }
 

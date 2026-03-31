@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,14 +32,21 @@ public class SupplierController {
 
   @GetMapping
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_FACTORY')")
-  public ResponseEntity<ApiResponse<List<SupplierResponse>>> listSuppliers() {
-    return ResponseEntity.ok(ApiResponse.success("Suppliers", supplierService.listSuppliers()));
+  public ResponseEntity<ApiResponse<List<SupplierResponse>>> listSuppliers(
+      Authentication authentication) {
+    return ResponseEntity.ok(
+        ApiResponse.success(
+            "Suppliers",
+            supplierService.listSuppliers(canViewSensitiveBankDetails(authentication))));
   }
 
   @GetMapping("/{id}")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','ROLE_FACTORY')")
-  public ResponseEntity<ApiResponse<SupplierResponse>> getSupplier(@PathVariable Long id) {
-    return ResponseEntity.ok(ApiResponse.success(supplierService.getSupplier(id)));
+  public ResponseEntity<ApiResponse<SupplierResponse>> getSupplier(
+      @PathVariable Long id, Authentication authentication) {
+    return ResponseEntity.ok(
+        ApiResponse.success(
+            supplierService.getSupplier(id, canViewSensitiveBankDetails(authentication))));
   }
 
   @PostMapping
@@ -76,5 +84,15 @@ public class SupplierController {
   public ResponseEntity<ApiResponse<SupplierResponse>> suspendSupplier(@PathVariable Long id) {
     return ResponseEntity.ok(
         ApiResponse.success("Supplier suspended", supplierService.suspendSupplier(id)));
+  }
+
+  private boolean canViewSensitiveBankDetails(Authentication authentication) {
+    if (authentication == null || authentication.getAuthorities() == null) {
+      return false;
+    }
+    return authentication.getAuthorities().stream()
+        .map(grantedAuthority -> grantedAuthority.getAuthority())
+        .anyMatch(
+            authority -> "ROLE_ADMIN".equals(authority) || "ROLE_ACCOUNTING".equals(authority));
   }
 }

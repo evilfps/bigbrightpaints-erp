@@ -2,142 +2,101 @@
 
 Last reviewed: 2026-03-31
 
-## Export Workflows
+## Ownership split
 
-Exports are asynchronous operations that return a file (CSV, Excel, PDF) after processing.
+- Export request and approval submission UX belongs to `tenant-admin`.
+- Report viewing, drill-down, and export intent begins in `accounting`.
+- Download eligibility is resolved through the canonical download contract, not
+  through a separate pending-export alias.
 
-### Export Request Flow
+## Canonical flow
 
-1. **Request export** — Submit an export request with parameters.
-2. **Check status** — Retry the download endpoint until the file becomes available.
-3. **Download** — When ready, download the generated file.
+1. Accounting user configures the report and requests export.
+2. Backend creates an export request.
+3. Tenant-admin reviews the request in `GET /api/v1/admin/approvals`.
+4. Tenant-admin approves or rejects the request.
+5. Requester checks `GET /api/v1/exports/{requestId}/download`.
+6. Frontend enables the actual file retrieval or download action only when the
+   returned contract says the request is approved, or when the backend
+   explicitly reports that the approval gate is disabled.
 
-### Create Export Request
+## API surfaces
 
-> **Note**: The `parameters` field is typed as a `string` in the OpenAPI schema (not a native object). Pass parameters as a stringified JSON object.
+- `POST /api/v1/exports/request`
+- `GET /api/v1/admin/approvals`
+- `PUT /api/v1/admin/exports/{requestId}/approve`
+- `PUT /api/v1/admin/exports/{requestId}/reject`
+- `GET /api/v1/exports/{requestId}/download`
 
-```
-POST /api/v1/exports/request
-```
+## Canonical request body
 
-**Request:**
+`POST /api/v1/exports/request` accepts:
 
 ```json
 {
-  "reportType": "JOURNAL_ENTRY",
-  "parameters": "{\"startDate\": \"2026-01-01\", \"endDate\": \"2026-03-31\", \"accountCodes\": [\"1000\", \"2000\"]}"
+  "reportType": "TRIAL_BALANCE",
+  "parameters": "periodId=3&startDate=2026-03-01&endDate=2026-03-31&exportFormat=CSV"
 }
 ```
 
-**Response:**
+Notes:
+
+- `reportType` is required.
+- `parameters` is a serialized filter string. Frontend should generate it from
+  the exact active report filters, not from hidden client-only state.
+- There is no separate export-history list endpoint in the current backend.
+
+## Contract rules
+
+- Do not expose direct file-download actions while the download contract is
+  still blocked.
+- Rejections should surface reviewer reason and a path back to the originating
+  report screen.
+- Export approval actions do not belong in accounting page chrome.
+- Approval inbox rows should be keyed from `GET /api/v1/admin/approvals`, not
+  from a retired export-specific pending list.
+- The download contract does not return `fileName` or `downloadUrl`. Frontend
+  must derive its next action from `requestId`, `status`, `reportType`,
+  `parameters`, and `message`.
+- When export approval is disabled at system-settings level, the download
+  contract may return a non-approved status with an allow message. Treat that
+  as an explicit backend bypass, not as a frontend-created exception path.
+
+## Statuses frontend must render
+
+- `PENDING`: request submitted, waiting for tenant-admin decision
+- `APPROVED`: request can proceed through the download contract
+- `REJECTED`: show reviewer reason and a path back to the originating report
+- `EXPIRED`: stale request; user must submit a fresh export request
+
+Example approval row:
+
+```json
+{
+  "id": "exp-901",
+  "originType": "EXPORT_REQUEST",
+  "ownerType": "REPORTS",
+  "status": "PENDING",
+  "reportType": "GST_SUMMARY",
+  "createdAt": "2026-03-28T10:22:11Z"
+}
+```
+
+Example download contract:
 
 ```json
 {
   "success": true,
   "data": {
-    "requestId": "export-req-001",
-    "status": "PROCESSING",
-    "createdAt": "2026-03-31T10:00:00Z"
-  },
-  "message": "Export request created",
-  "timestamp": "2026-03-31T10:00:00Z"
-}
-```
-
-> **Note**: There is no dedicated status polling endpoint. After creating an export request via `POST /api/v1/exports/request`, the client should retry the download endpoint (`GET /api/v1/exports/{requestId}/download`) until the file becomes available. The download endpoint returns the current request status in its response.
-
-### Download Export
-
-```
-GET /api/v1/exports/{requestId}/download
-```
-
-**Status Values:**
-
-| Status | Description |
-|---|---|
-| `PROCESSING` | Export is being generated — poll for completion |
-| `COMPLETED` | File is ready for download |
-| `FAILED` | Export failed — check error details |
-
-### Export Types (reportType values)
-
-| reportType | Module | Description |
-|---|---|---|
-| `JOURNAL_ENTRY` | accounting | Journal entries for a date range |
-| `LEDGER` | accounting | General ledger report |
-| `DEALER_AGING` | accounting | Aged receivables by dealer |
-| `INVOICE` | invoice | Invoice export |
-| `GST_RETURN` | accounting | GST return data |
-| `PRODUCT_CATALOG` | catalog | Product/brand catalog |
-
-## Approval Workflows
-
-Approvals are requests that require an authorized user (typically tenant-admin) to approve or reject before the operation proceeds.
-
-### Approval Request Flow
-
-1. **Request approval** — A user triggers an operation that requires approval.
-2. **Admin reviews** — Tenant-admin reviews the request and approves or rejects.
-3. **Execution** — If approved, the operation executes; if rejected, the requester is notified.
-
-### Submit Approval Request
-
-> **Note**: Sales order approval requests are not currently exposed as a dedicated REST endpoint. Approval requests are created automatically for credit limit requests, export requests, payroll runs, and period close requests. The `GET /api/v1/admin/approvals` endpoint returns pending approvals with `actionType` and `actionLabel` fields that indicate the required action.
-
-### List Pending Approvals
-
-```
-GET /api/v1/admin/approvals?filter.status=PENDING
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "content": [
-      {
-        "approvalId": "approval-001",
-        "originType": "CREDIT_REQUEST",
-        "ownerType": "SALES",
-        "requesterEmail": "user@example.com",
-        "summary": "Credit limit increase request for Acme Corp",
-        "status": "PENDING",
-        "createdAt": "2026-03-31T10:00:00Z"
-      }
-    ]
+    "requestId": 901,
+    "status": "APPROVED",
+    "reportType": "GST_SUMMARY",
+    "parameters": "periodId=3",
+    "message": "Export request approved for download"
   }
 }
 ```
 
-> **Note**: The approve/reject actions are not currently exposed as separate REST endpoints. The approval workflow is managed internally based on the approval request type (credit requests, export requests, payroll runs, period close requests). The `GET /api/v1/admin/approvals` endpoint returns pending approvals with `actionType` and `actionLabel` fields that indicate the required action, but the actual approve/reject operations are triggered through module-specific endpoints (e.g., `POST /api/v1/credit/limit-requests/{id}/approve`, `POST /api/v1/payroll/runs/{id}/approve`, `PUT /api/v1/admin/exports/{requestId}/approve`, etc.).
+## Create Response and Polling
 
-## Approval Ownership
-
-**Export approvals** belong to **tenant-admin**, not accounting.
-
-| Approval Type | Owner Portal | Endpoint |
-|---|---|---|
-| Export requests | tenant-admin | `/api/v1/admin/approvals` |
-| Credit requests | tenant-admin | `/api/v1/admin/approvals` |
-| Period close | tenant-admin | `/api/v1/admin/approvals` |
-| Payroll runs | tenant-admin | `/api/v1/admin/approvals` |
-
-See [`docs/frontend-portals/tenant-admin/README.md`](../frontend-portals/tenant-admin/README.md) for detailed approval ownership.
-
-## Approval Origin Types
-
-| Origin Type | Description |
-|---|---|
-| `CREDIT_REQUEST` | Dealer credit limit increase request |
-| `CREDIT_LIMIT_OVERRIDE_REQUEST` | Override existing credit limit |
-| `PAYROLL_RUN` | Payroll execution request |
-| `PERIOD_CLOSE_REQUEST` | Accounting period close request |
-| `EXPORT_REQUEST` | Large export request requiring approval |
-
-## Links
-
-- See [`docs/frontend-portals/tenant-admin/workflows.md`](../frontend-portals/tenant-admin/workflows.md) for approval workflows specific to tenant-admin.
-- See [`idempotency-and-errors.md`](./idempotency-and-errors.md) for idempotency handling on export requests.
+`POST /api/v1/exports/request` creates the export request record. There is no separate status endpoint in the current contract; frontend should keep the returned request id and poll `GET /api/v1/exports/{requestId}/download` for readiness.

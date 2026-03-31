@@ -2,6 +2,52 @@
 
 Last reviewed: 2026-03-29
 
+## 2026-03-29 — `erp-domain/src/main/resources/db/migration_v2/V176__opening_stock_content_fingerprint.sql`
+
+- **Purpose:** add a canonical `content_fingerprint` to `opening_stock_imports` so the ERP-39 opening-stock replay guard can detect the same imported content even when callers change `opening_stock_batch_key` or `idempotency_key`.
+- **Release-guard posture:** this is a forward-only normalization companion to the ERP-39 hard-cut replay protection. Runtime code remains single-path and relies on the persisted fingerprint instead of compatibility fallbacks.
+- **Forward plan:** apply `V176__opening_stock_content_fingerprint.sql` together with the ERP-39 packet, backfill existing rows from the current canonical import keys, enforce `NOT NULL`, and keep the company-plus-fingerprint index live before promoting the stricter replay protection to production.
+- **Dry-run commands:**
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=OpeningStockImportServiceTest test`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AccountingServiceTest,AccountingAuditTrailServiceTest,SettlementServiceTest,TruthRailsSharedDtoContractTest,LandedCostRevaluationIT,AccountingControllerJournalEndpointsTest,AccountingControllerExceptionHandlerTest test`
+  - `ENTERPRISE_DIFF_BASE=53873362b0f9e10ab9e7b587ee6aa79163023e7a bash ci/check-enterprise-policy.sh`
+- **Rollback strategy:** treat `V176` as a coordinated app-and-schema cut. If rollout must be abandoned after the migration is applied, keep the ERP-39-compatible backend live or restore the database from a pre-`V176` snapshot/PITR before reverting application code. Do not drop or null out `content_fingerprint` under mixed runtime behavior.
+
+## 2026-03-29 — `erp-domain/src/main/resources/db/migration_v2/V175__canonicalize_company_gst_accounts.sql`
+
+- **Purpose:** normalize company GST account bindings on upgrade paths so GST-mode tenants do not retain a null `gst_payable_account_id`, and non-GST tenants do not keep stale GST input/output/payable account IDs after the strict health checks ship.
+- **Release-guard posture:** this is another ERP-48 data canonicalization migration. It keeps the current fail-closed GST health/runtime rules intact by repairing old tenant rows instead of adding runtime fallbacks.
+- **Forward plan:** apply `V175__canonicalize_company_gst_accounts.sql` together with ERP-48. Non-GST tenants are cleared of `gstInputTaxAccountId`, `gstOutputTaxAccountId`, and `gstPayableAccountId`; GST-mode tenants backfill those fields from canonical GST/TDS/default-tax accounts where possible.
+- **Dry-run commands:**
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Dtest=GstConfigurationRegressionIT,ConfigurationHealthServiceTest test`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Derp.openapi.snapshot.verify=true -Dtest=OpenApiSnapshotIT test`
+  - `bash ci/check-enterprise-policy.sh`
+- **Rollback strategy:** treat `V175` as forward-only normalization inside ERP-48. If rollout must be abandoned after the migration is applied, keep the ERP-48-compatible backend live or restore the database from a pre-`V175` snapshot/PITR before reverting application code. Do not selectively repopulate GST account columns by hand.
+
+## 2026-03-29 — `erp-domain/src/main/resources/db/migration_v2/V174__backfill_default_discount_accounts.sql`
+
+- **Purpose:** backfill `companies.default_discount_account_id` for pre-hard-cut tenants so the canonical finished-good/account-default contract can remain fail-closed without breaking upgraded companies that still have a null discount default.
+- **Release-guard posture:** this is a data canonicalization migration, not a compatibility bridge. It seeds one real `DISC` expense account per company only when needed, then binds `default_discount_account_id` to `DISC` or an existing `SALES-RETURNS` account. Runtime code remains single-path and still fails closed if a tenant is missing a discount default after the migration.
+- **Forward plan:** apply `V174__backfill_default_discount_accounts.sql` together with the ERP-48 packet. Do not deploy the stricter default-account validation without this backfill on upgrade paths.
+- **Dry-run commands:**
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true -Dtest=OpenApiSnapshotIT test`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Dtest=CompanyDefaultAccountsServiceTest,SalesControllerIdempotencyHeaderTest,InventoryAdjustmentControllerTest,RawMaterialControllerTest test`
+  - `bash ci/check-enterprise-policy.sh`
+- **Rollback strategy:** treat `V174` as forward-only data normalization inside ERP-48. If rollout must be abandoned after the migration is applied, keep the ERP-48-compatible backend live or restore the database from a pre-`V174` snapshot/PITR before reverting application code. Do not null out `default_discount_account_id` by hand after the packet is deployed.
+
+## 2026-03-28 — `erp-domain/src/main/resources/db/migration_v2/V173__company_lifecycle_constraint_hard_cut.sql`
+
+- **Purpose:** finalize the tenant lifecycle hard-cut by rewriting any lingering `HOLD` or `BLOCKED` values to `SUSPENDED` or `DEACTIVATED`, dropping the legacy lifecycle constraints, and installing the canonical `chk_companies_lifecycle_state_v173` constraint on `companies.lifecycle_state`.
+- **Release-guard posture:** this packet also hardens the release harness itself. `scripts/verify_local.sh`, `scripts/gate_release.sh`, and `scripts/release_migration_matrix.sh` were fixed in the same cut so fresh-path and upgrade-path Flyway v2 proofs are real and hermetic instead of depending on local helper-path quirks.
+- **Forward plan:** apply `V173__company_lifecycle_constraint_hard_cut.sql`, deploy the ERP-48 hard-cut packet together with the canonical auth/accounting/control-plane runtime changes, and keep `ACTIVE`, `SUSPENDED`, and `DEACTIVATED` as the only supported lifecycle vocabulary. Do not preserve or reintroduce the pre-hard-cut constraint names or state values.
+- **Dry-run commands:**
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_fast.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_core.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_reconciliation.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_release.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 PGHOST=127.0.0.1 PGPORT=55432 PGUSER=erp PGPASSWORD=erp PGDATABASE=postgres MIGRATION_SET=v2 bash scripts/release_migration_matrix.sh --artifact-dir artifacts/gate-release`
+- **Rollback strategy:** treat `V173` as a coordinated app-and-schema cut. If rollout must be abandoned after the migration is applied, keep the ERP-48-compatible backend live or restore the affected database from a pre-`V173` snapshot/PITR before reopening traffic with older code. Do not attempt an ad hoc reverse-SQL rollback that leaves mixed legacy and current lifecycle constraints in place.
+
 ## 2026-03-27 — `erp-domain/src/main/resources/db/migration_v2/V171__drop_finished_good_batch_legacy_bulk_flag.sql`
 
 - **Purpose:** remove the retired `finished_good_batches.is_bulk` flag and its supporting index so FG batch storage no longer carries the legacy BULK/semi-finished marker in the canonical inventory model.
@@ -28,7 +74,7 @@ Last reviewed: 2026-03-29
 
 ## 2026-03-26 — `erp-domain/src/main/resources/db/migration_v2/V167__erp37_superadmin_control_plane_hard_cut.sql`
 
-- **Purpose:** hard-cut tenant control onto one canonical superadmin tenants family by rewriting lifecycle storage to a three-state enum, renaming the concurrency quota column to `quota_max_concurrent_requests`, persisting main-admin/support/onboarding truth on `companies`, and creating first-class `tenant_support_warnings` plus `tenant_admin_email_change_requests`.
+- **Purpose:** hard-cut tenant control onto one canonical the canonical superadmin tenant control-plane route family family by rewriting lifecycle storage to `ACTIVE`, `SUSPENDED`, and `DEACTIVATED`, renaming the concurrency quota column to `quota_max_concurrent_requests`, persisting main-admin/support/onboarding truth on `companies`, and creating first-class `tenant_support_warnings` plus `tenant_admin_email_change_requests`.
 - **Release-guard posture:** `V167` now uses strict DDL for the new tables/indexes/columns and direct column rename semantics; the only `schema_drift_scan` v2 allowlist entry for this migration is the reviewed deterministic ranked-admin `UPDATE ... FROM` backfill that seeds `main_admin_user_id` and onboarding admin truth.
 - **Forward plan:** apply `V167__erp37_superadmin_control_plane_hard_cut.sql`, then deploy the ERP-37 backend packet that serves the canonical superadmin tenant detail/control plane, authenticated changelog reads, and superadmin-only changelog writes. Refresh `openapi.json`, `docs/endpoint-inventory.md`, `.factory/library/frontend-handoff.md`, and the ERP-37 review docs in the same packet before claiming contract parity.
 - **Dry-run commands:**

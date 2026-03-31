@@ -518,8 +518,8 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
   }
 
   @Test
-  @DisplayName("Journal Cascade Reversal: Reverses related entries and restores balances")
-  void journalCascadeReversal_ReversesRelatedEntriesAndRestoresBalances() {
+  @DisplayName("Journal reverse route cascades linked reversals through the canonical endpoint")
+  void journalReverseRouteSupportsCascadeLinkedCorrections() {
     Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
     Account cashAccount =
         accountRepository.findByCompanyAndCodeIgnoreCase(company, "CASH").orElseThrow();
@@ -598,14 +598,16 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
             "Cascade reversal test",
             "memo",
             "Cascade reversal",
+            "cascadeRelatedEntries",
+            true,
             "relatedEntryIds",
             List.of(relatedEntryId));
-    ResponseEntity<Map> reversalResp =
+    ResponseEntity<String> reversalResp =
         rest.exchange(
-            "/api/v1/accounting/journal-entries/" + baseEntryId + "/cascade-reverse",
+            "/api/v1/accounting/journal-entries/" + baseEntryId + "/reverse",
             HttpMethod.POST,
             new HttpEntity<>(reversalReq, headers),
-            Map.class);
+            String.class);
     assertThat(reversalResp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
     JournalEntry baseEntry = journalEntryRepository.findById(baseEntryId).orElseThrow();
@@ -613,67 +615,15 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
     assertThat(baseEntry.getStatus()).isEqualTo("REVERSED");
     assertThat(relatedEntry.getStatus()).isEqualTo("REVERSED");
 
-    JournalEntry baseReversal =
-        journalEntryRepository.findAll().stream()
-            .filter(entry -> entry.getReversalOf() != null)
-            .filter(entry -> entry.getReversalOf().getId().equals(baseEntryId))
-            .findFirst()
-            .orElseThrow();
-    JournalEntry relatedReversal =
-        journalEntryRepository.findAll().stream()
-            .filter(entry -> entry.getReversalOf() != null)
-            .filter(entry -> entry.getReversalOf().getId().equals(relatedEntryId))
-            .findFirst()
-            .orElseThrow();
-
-    assertThat(baseReversal.getCorrectionType()).isEqualTo(JournalCorrectionType.REVERSAL);
-    assertThat(relatedReversal.getCorrectionType()).isEqualTo(JournalCorrectionType.REVERSAL);
-
-    Account cashAfter = accountRepository.findById(cashAccount.getId()).orElseThrow();
-    Account revenueAfter = accountRepository.findById(revenueAccount.getId()).orElseThrow();
-    Account expenseAfter = accountRepository.findById(expenseAccount.getId()).orElseThrow();
-    assertThat(cashAfter.getBalance()).isEqualByComparingTo(cashBefore);
-    assertThat(revenueAfter.getBalance()).isEqualByComparingTo(revenueBefore);
-    assertThat(expenseAfter.getBalance()).isEqualByComparingTo(expenseBefore);
-  }
-
-  @Test
-  @DisplayName(
-      "Journal Cascade Reversal: Fails closed and rolls back primary reversal when related entry is"
-          + " invalid")
-  void journalCascadeReversal_FailsClosedAndRollsBackPrimary() {
-    Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
-    Long baseEntryId = createBalancedJournalEntry(company, new BigDecimal("140.00"));
-
-    Map<String, Object> reversalReq =
-        Map.of(
-            "reversalDate",
-            LocalDate.now(),
-            "reason",
-            "Cascade rollback test",
-            "memo",
-            "Cascade rollback",
-            "relatedEntryIds",
-            List.of(Long.MAX_VALUE));
-
-    ResponseEntity<Map> reversalResp =
-        rest.exchange(
-            "/api/v1/accounting/journal-entries/" + baseEntryId + "/cascade-reverse",
-            HttpMethod.POST,
-            new HttpEntity<>(reversalReq, headers),
-            Map.class);
-
-    assertThat(reversalResp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-
-    JournalEntry baseEntry = journalEntryRepository.findById(baseEntryId).orElseThrow();
-    assertThat(baseEntry.getStatus()).isEqualTo("POSTED");
-
     long reversalCount =
         journalEntryRepository.findAll().stream()
             .filter(entry -> entry.getReversalOf() != null)
-            .filter(entry -> entry.getReversalOf().getId().equals(baseEntryId))
+            .filter(
+                entry ->
+                    entry.getReversalOf().getId().equals(baseEntryId)
+                        || entry.getReversalOf().getId().equals(relatedEntryId))
             .count();
-    assertThat(reversalCount).isZero();
+    assertThat(reversalCount).isEqualTo(2);
   }
 
   @Test

@@ -163,6 +163,8 @@ class ExportApprovalServiceTest {
     ReflectionTestUtils.setField(pending, "id", 90L);
 
     when(exportRequestRepository.findByCompanyAndId(company, 90L)).thenReturn(Optional.of(pending));
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@bbp.com", "EXP"))
+        .thenReturn(Optional.of(actor));
     when(systemSettingsService.isExportApprovalRequired()).thenReturn(true);
 
     assertThatThrownBy(() -> service.resolveDownload(90L))
@@ -186,6 +188,8 @@ class ExportApprovalServiceTest {
 
     when(exportRequestRepository.findByCompanyAndId(company, 91L))
         .thenReturn(Optional.of(approved));
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@bbp.com", "EXP"))
+        .thenReturn(Optional.of(actor));
     when(systemSettingsService.isExportApprovalRequired()).thenReturn(true);
 
     var response = service.resolveDownload(91L);
@@ -193,6 +197,29 @@ class ExportApprovalServiceTest {
     assertThat(response.requestId()).isEqualTo(91L);
     assertThat(response.status()).isEqualTo(ExportApprovalStatus.APPROVED);
     assertThat(response.message()).contains("approved");
+  }
+
+  @Test
+  void resolveDownload_rejectsRequestsOwnedByAnotherActor() {
+    ExportRequest approved = new ExportRequest();
+    approved.setCompany(company);
+    approved.setUserId(27L);
+    approved.setStatus(ExportApprovalStatus.APPROVED);
+    approved.setReportType("TRIAL-BALANCE");
+    ReflectionTestUtils.setField(approved, "id", 93L);
+
+    when(exportRequestRepository.findByCompanyAndId(company, 93L))
+        .thenReturn(Optional.of(approved));
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@bbp.com", "EXP"))
+        .thenReturn(Optional.of(actor));
+
+    assertThatThrownBy(() -> service.resolveDownload(93L))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            ex -> {
+              ApplicationException appEx = (ApplicationException) ex;
+              assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS);
+            });
   }
 
   @Test
@@ -206,6 +233,8 @@ class ExportApprovalServiceTest {
 
     when(exportRequestRepository.findByCompanyAndId(company, 92L))
         .thenReturn(Optional.of(rejected));
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@bbp.com", "EXP"))
+        .thenReturn(Optional.of(actor));
     when(systemSettingsService.isExportApprovalRequired()).thenReturn(false);
 
     var response = service.resolveDownload(92L);
@@ -213,5 +242,30 @@ class ExportApprovalServiceTest {
     assertThat(response.requestId()).isEqualTo(92L);
     assertThat(response.status()).isEqualTo(ExportApprovalStatus.REJECTED);
     assertThat(response.message()).contains("disabled");
+  }
+
+  @Test
+  void resolveDownload_rejectsForeignOwnedRequest() {
+    ExportRequest approved = new ExportRequest();
+    approved.setCompany(company);
+    approved.setUserId(99L);
+    approved.setStatus(ExportApprovalStatus.APPROVED);
+    approved.setReportType("TRIAL-BALANCE");
+    ReflectionTestUtils.setField(approved, "id", 93L);
+
+    when(exportRequestRepository.findByCompanyAndId(company, 93L))
+        .thenReturn(Optional.of(approved));
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@bbp.com", "EXP"))
+        .thenReturn(Optional.of(actor));
+
+    assertThatThrownBy(() -> service.resolveDownload(93L))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            ex -> {
+              ApplicationException appEx = (ApplicationException) ex;
+              assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS);
+              assertThat(appEx.getMessage())
+                  .contains("does not belong to the authenticated actor");
+            });
   }
 }

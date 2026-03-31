@@ -49,9 +49,7 @@ require_literal() {
 
 for path in "$DOC" "$ACCOUNTING_SERVICE" "$APP_CONFIG_MAIN" "$APP_CONFIG_TEST" "$APP_CONFIG_IT_TEST"; do
   if [[ ! -f "$path" ]]; then
-    echo "[guard_audit_trail_ownership_contract] WARN: missing optional audit-ownership file: $path"
-    echo "[guard_audit_trail_ownership_contract] WARN: continuing with fail-open compatibility mode"
-    exit 0
+    fail "missing required audit-ownership file: $path"
   fi
 done
 

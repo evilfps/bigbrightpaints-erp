@@ -2,6 +2,50 @@
 
 Last reviewed: 2026-03-29
 
+## 2026-03-29 — `erp-39.opening-stock-fingerprint-and-replay-hard-cut`
+
+- **Scope:** revert `erp-domain/src/main/resources/db/migration_v2/V176__opening_stock_content_fingerprint.sql` together with the ERP-39 runtime packet that now uses persisted opening-stock content fingerprints plus stricter settlement replay and audit hardening.
+- **Application rollback:** do not redeploy a pre-ERP-39 backend against a database where `V176` has already been applied unless the database is first restored to a pre-`V176` state.
+- **Database rollback:** preferred path is snapshot/PITR restore to a point before `V176`. Ad hoc reverse SQL is intentionally unsupported because the migration backfills `content_fingerprint` from canonical import keys and the reviewed runtime contract assumes those fingerprints remain durable once the hard-cut replay guard is live.
+- **Guard note:** this packet intentionally removes legacy replay ambiguity. If rollback abandons ERP-39 after merge, revert the runtime packet together with the migration/runbook contract instead of keeping mixed old/new replay behavior.
+- **Verification:** after restore or coordinated packet revert, rerun:
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=OpeningStockImportServiceTest test`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -q -Dtest=AccountingServiceTest,AccountingAuditTrailServiceTest,SettlementServiceTest,TruthRailsSharedDtoContractTest,LandedCostRevaluationIT,AccountingControllerJournalEndpointsTest,AccountingControllerExceptionHandlerTest test`
+  - `ENTERPRISE_DIFF_BASE=53873362b0f9e10ab9e7b587ee6aa79163023e7a bash ci/check-enterprise-policy.sh`
+
+## 2026-03-29 — `erp-48.gst-account-canonicalization-hard-cut`
+
+- **Scope:** revert `erp-domain/src/main/resources/db/migration_v2/V175__canonicalize_company_gst_accounts.sql` together with the ERP-48 GST health/runtime packet that now treats missing payable accounts and stale non-GST GST bindings as configuration defects.
+- **Application rollback:** do not redeploy a pre-canonicalization ERP-48 build against a database where `V175` has already normalized GST account columns unless the database is first restored to a pre-`V175` state.
+- **Database rollback:** preferred path is snapshot/PITR restore to a point before `V175`. Ad hoc reverse SQL is intentionally unsupported because the migration deliberately clears stale non-GST columns and may bind GST-mode tenants onto canonical GST/TDS/default-tax accounts.
+- **Guard note:** `V175` exists so strict GST health does not depend on manual tenant repair during deployment. If it has run, treat GST account state as forward-only until snapshot restore is available.
+- **Verification:** after restore or coordinated packet revert, rerun:
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Dtest=GstConfigurationRegressionIT,ConfigurationHealthServiceTest test`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Derp.openapi.snapshot.verify=true -Dtest=OpenApiSnapshotIT test`
+
+## 2026-03-29 — `erp-48.discount-default-backfill-hard-cut`
+
+- **Scope:** revert `erp-domain/src/main/resources/db/migration_v2/V174__backfill_default_discount_accounts.sql` together with the ERP-48 runtime packet that now requires `default_discount_account_id` for canonical finished-good/default-account posting.
+- **Application rollback:** do not redeploy a pre-backfill ERP-48 build against a database where `V174` has already normalized discount defaults unless the database is first restored to a pre-`V174` state.
+- **Database rollback:** preferred path is snapshot/PITR restore to a point before `V174`. Ad hoc reverse SQL is intentionally unsupported because the migration may create canonical `DISC` accounts and bind them into live tenant defaults.
+- **Guard note:** `V174` is the reviewed upgrade-path companion to the fail-closed discount-default hard-cut. If it has run, treat discount-default state as forward-only until snapshot restore is available.
+- **Verification:** after restore or coordinated packet revert, rerun:
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Derp.openapi.snapshot.verify=true -Dtest=OpenApiSnapshotIT test`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 mvn -f erp-domain/pom.xml -B -ntp -Dspring.profiles.active=test,flyway-v2 -Dspring.flyway.locations=classpath:db/migration_v2 -Dspring.flyway.table=flyway_schema_history_v2 -Dtest=CompanyDefaultAccountsServiceTest,SalesControllerIdempotencyHeaderTest,InventoryAdjustmentControllerTest,RawMaterialControllerTest test`
+
+## 2026-03-28 — `erp-48.lifecycle-constraint-and-release-hard-cut`
+
+- **Scope:** revert `erp-domain/src/main/resources/db/migration_v2/V173__company_lifecycle_constraint_hard_cut.sql` together with the ERP-48 runtime packet that hard-cuts auth identity, tenant-admin approval ownership, manual journal/reversal public routes, GST/default-account fail-closed behavior, and the release-harness fixes used by `gate_release`.
+- **Application rollback:** do not redeploy a pre-ERP-48 backend against a database that has already applied `V173`. Keep the ERP-48-compatible backend live unless the database is first restored to a pre-`V173` state.
+- **Database rollback:** preferred path is snapshot/PITR restore to a point before `V173`. Ad hoc reverse SQL is intentionally unsupported because the packet normalizes lifecycle values and replaces the prior lifecycle constraint set with one canonical `chk_companies_lifecycle_state_v173` contract.
+- **Guard note:** the release proof for this packet depends on the corrected `verify_local` and `release_migration_matrix` harnesses. If a rollback abandons ERP-48 after merge, revert those scripts together with the runtime packet so the release gates and migration matrix stay internally consistent.
+- **Verification:** after restore or coordinated packet revert, rerun:
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_fast.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_core.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_reconciliation.sh`
+  - `env DOCKER_HOST=unix:///Users/anas/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_HOST_OVERRIDE=192.168.64.2 GATE_CANONICAL_BASE_REF=origin/main bash scripts/gate_release.sh`
+  and confirm the reverted packet re-establishes a coherent auth/accounting/control-plane contract before reopening traffic.
+
 ## 2026-03-27 — `erp-23.finished-good-bulk-flag-hard-cut`
 
 - **Scope:** revert `erp-domain/src/main/resources/db/migration_v2/V171__drop_finished_good_batch_legacy_bulk_flag.sql` and the ERP-23 hard-cut runtime packet that removes legacy BULK flag dependencies from FG stock-truth flows and catalog item setup internals.
@@ -26,7 +70,7 @@ Last reviewed: 2026-03-29
 
 ## 2026-03-26 — `erp-37.superadmin-control-plane-hard-cut`
 
-- **Scope:** revert `erp-domain/src/main/resources/db/migration_v2/V167__erp37_superadmin_control_plane_hard_cut.sql` and the ERP-37 runtime packet that hard-cuts tenant control onto the canonical superadmin tenants family, rewrites lifecycle storage to a three-state enum, renames the concurrency quota column to `quota_max_concurrent_requests`, persists main-admin/support/onboarding truth on `companies`, and adds `tenant_support_warnings` plus `tenant_admin_email_change_requests`.
+- **Scope:** revert `erp-domain/src/main/resources/db/migration_v2/V167__erp37_superadmin_control_plane_hard_cut.sql` and the ERP-37 runtime packet that hard-cuts tenant control onto the canonical superadmin tenant control-plane route family, rewrites lifecycle storage to `ACTIVE`, `SUSPENDED`, and `DEACTIVATED`, renames the concurrency quota column to `quota_max_concurrent_requests`, persists main-admin/support/onboarding truth on `companies`, and adds `tenant_support_warnings` plus `tenant_admin_email_change_requests`.
 - **Application rollback:** do not redeploy a pre-ERP-37 backend against a database that has already applied `V167`. Keep the ERP-37-compatible backend live unless the database is first restored to a pre-`V167` state.
 - **Database rollback:** restore the affected tenant/database from a snapshot or point-in-time backup taken before `V167`. Ad hoc SQL rollback is intentionally unsupported because `V167` rewrites lifecycle values, renames the concurrency quota column, and introduces new persisted support/email-change truth that older code does not serve.
 - **Guard note:** the only reviewed `schema_drift_scan` exception for `V167` is the deterministic ranked-admin backfill that seeds `main_admin_user_id` and onboarding admin truth; if that backfill has already run, treat the tenant as forward-only and use snapshot/PITR instead of hand-edited reverse SQL.

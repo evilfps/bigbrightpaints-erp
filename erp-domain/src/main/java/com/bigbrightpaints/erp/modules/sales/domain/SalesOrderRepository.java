@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.sales.domain;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -16,6 +17,7 @@ import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.sales.dto.DealerCreditExposureView;
 
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
@@ -166,6 +168,28 @@ where o.company = :company
       @Param("dealer") Dealer dealer,
       @Param("statuses") Set<String> statuses,
       @Param("excludeOrderId") Long excludeOrderId);
+
+  @Query(
+      """
+select new com.bigbrightpaints.erp.modules.sales.dto.DealerCreditExposureView(o.dealer.id, coalesce(sum(o.totalAmount), 0))
+from SalesOrder o
+where o.company = :company
+  and o.dealer.id in :dealerIds
+  and o.status is not null
+  and (o.paymentMode is null or upper(trim(o.paymentMode)) <> 'CASH')
+  and upper(trim(o.status)) in :statuses
+  and not exists (
+        select 1
+        from Invoice i
+        where i.company = :company
+          and i.salesOrder = o
+          and (i.status is null or upper(trim(i.status)) not in ('DRAFT', 'VOID', 'REVERSED')))
+group by o.dealer.id
+""")
+  List<DealerCreditExposureView> sumPendingCreditExposureByCompanyAndDealerIds(
+      @Param("company") Company company,
+      @Param("dealerIds") Collection<Long> dealerIds,
+      @Param("statuses") Set<String> statuses);
 
   @Query(
       """

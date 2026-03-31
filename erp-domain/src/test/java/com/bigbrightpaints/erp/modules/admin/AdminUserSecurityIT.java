@@ -442,7 +442,6 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
             Map.class);
     assertThat(policyResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-    Company activeCompany = companyRepository.findByCodeIgnoreCase(COMPANY).orElseThrow();
     Map<String, Object> createPayload =
         Map.of(
             "email",
@@ -450,9 +449,7 @@ public class AdminUserSecurityIT extends AbstractIntegrationTest {
             "displayName",
             "Quota Limited User",
             "roles",
-            List.of("ROLE_SALES"),
-            "companyId",
-            activeCompany.getId());
+            List.of("ROLE_SALES"));
     ResponseEntity<Map> createResponse =
         rest.exchange(
             "/api/v1/admin/users",

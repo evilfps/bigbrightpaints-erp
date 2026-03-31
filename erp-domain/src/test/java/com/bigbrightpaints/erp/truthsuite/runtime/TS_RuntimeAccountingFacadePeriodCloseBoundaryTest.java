@@ -78,7 +78,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
   }
 
   @Test
-  void postPurchaseJournal_legacyFallback_prefersCanonicalNumericSequence() {
+  void postPurchaseJournal_ignoresLegacyPrefixedEntriesWithoutBaseReplay() {
     CompanyContextService companyContextService = mock(CompanyContextService.class);
     AccountingService accountingService = mock(AccountingService.class);
     JournalEntryRepository journalEntryRepository = mock(JournalEntryRepository.class);
@@ -87,6 +87,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
     JournalReferenceResolver journalReferenceResolver = mock(JournalReferenceResolver.class);
     JournalReferenceMappingRepository journalReferenceMappingRepository =
         mock(JournalReferenceMappingRepository.class);
+    SupplierRepository supplierRepository = mock(SupplierRepository.class);
 
     AccountingFacade facade =
         new AccountingFacade(
@@ -96,7 +97,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
             journalEntryRepository,
             referenceNumberService,
             mock(DealerRepository.class),
-            mock(SupplierRepository.class),
+            supplierRepository,
             mock(CompanyClock.class),
             companyEntityLookup,
             mock(CompanyAccountingSettingsService.class),
@@ -111,36 +112,58 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
     Account payable = new Account();
     ReflectionTestUtils.setField(payable, "id", 301L);
     supplier.setPayableAccount(payable);
-    when(companyEntityLookup.requireSupplier(company, 88L)).thenReturn(supplier);
+    when(supplierRepository.findByCompanyAndIdWithPayableAccount(company, 88L))
+        .thenReturn(Optional.of(supplier));
 
     Account inventory = new Account();
     ReflectionTestUtils.setField(inventory, "id", 201L);
     when(companyEntityLookup.requireAccount(company, 201L)).thenReturn(inventory);
 
     String baseReference = "RMP-SUP-INV100";
+    String generatedReference = baseReference + "-0003";
     when(referenceNumberService.purchaseReferenceKey(company, supplier, "INV-100"))
         .thenReturn(baseReference);
     when(journalReferenceResolver.findExistingEntry(company, baseReference))
         .thenReturn(Optional.empty());
-
-    JournalEntry nonCanonical = new JournalEntry();
-    ReflectionTestUtils.setField(nonCanonical, "id", 900L);
-    nonCanonical.setReferenceNumber(baseReference + "-0001-REV");
-
-    JournalEntry canonicalSecond = new JournalEntry();
-    ReflectionTestUtils.setField(canonicalSecond, "id", 502L);
-    canonicalSecond.setReferenceNumber(baseReference + "-0002");
-
-    JournalEntry canonicalFirst = new JournalEntry();
-    ReflectionTestUtils.setField(canonicalFirst, "id", 501L);
-    canonicalFirst.setReferenceNumber(baseReference + "-0001");
-
-    when(journalEntryRepository.findByCompanyAndReferenceNumberStartingWith(
-            company, baseReference + "-"))
-        .thenReturn(List.of(nonCanonical, canonicalSecond, canonicalFirst));
+    when(referenceNumberService.purchaseReference(company, supplier, "INV-100"))
+        .thenReturn(generatedReference);
+    when(journalEntryRepository.findByCompanyAndReferenceNumber(company, generatedReference))
+        .thenReturn(Optional.empty());
     when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(
             company, baseReference))
         .thenReturn(Optional.empty());
+    when(accountingService.createStandardJournal(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(
+            new JournalEntryDto(
+                501L,
+                null,
+                generatedReference,
+                LocalDate.of(2026, 2, 21),
+                null,
+                "POSTED",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
+    JournalEntry saved = new JournalEntry();
+    ReflectionTestUtils.setField(saved, "id", 501L);
+    saved.setReferenceNumber(generatedReference);
+    when(companyEntityLookup.requireJournalEntry(company, 501L)).thenReturn(saved);
 
     assertThat(
             facade
@@ -154,9 +177,10 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
                     new BigDecimal("100.00"),
                     null)
                 .referenceNumber())
-        .isEqualTo(baseReference + "-0001");
+        .isEqualTo(generatedReference);
 
-    verify(accountingService, never()).createJournalEntry(org.mockito.ArgumentMatchers.any());
+    verify(journalEntryRepository, never())
+        .findByCompanyAndReferenceNumberStartingWith(company, baseReference + "-");
   }
 
   @Test
@@ -167,6 +191,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
     ReferenceNumberService referenceNumberService = mock(ReferenceNumberService.class);
     CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
     JournalReferenceResolver journalReferenceResolver = mock(JournalReferenceResolver.class);
+    SupplierRepository supplierRepository = mock(SupplierRepository.class);
 
     AccountingFacade facade =
         new AccountingFacade(
@@ -176,7 +201,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
             journalEntryRepository,
             referenceNumberService,
             mock(DealerRepository.class),
-            mock(SupplierRepository.class),
+            supplierRepository,
             mock(CompanyClock.class),
             companyEntityLookup,
             mock(CompanyAccountingSettingsService.class),
@@ -191,7 +216,8 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
     Account payable = new Account();
     ReflectionTestUtils.setField(payable, "id", 401L);
     supplier.setPayableAccount(payable);
-    when(companyEntityLookup.requireSupplier(company, 99L)).thenReturn(supplier);
+    when(supplierRepository.findByCompanyAndIdWithPayableAccount(company, 99L))
+        .thenReturn(Optional.of(supplier));
 
     Account inventory = new Account();
     ReflectionTestUtils.setField(inventory, "id", 501L);
@@ -236,6 +262,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
     JournalReferenceResolver journalReferenceResolver = mock(JournalReferenceResolver.class);
     JournalReferenceMappingRepository journalReferenceMappingRepository =
         mock(JournalReferenceMappingRepository.class);
+    SupplierRepository supplierRepository = mock(SupplierRepository.class);
 
     AccountingFacade facade =
         new AccountingFacade(
@@ -245,7 +272,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
             journalEntryRepository,
             referenceNumberService,
             mock(DealerRepository.class),
-            mock(SupplierRepository.class),
+            supplierRepository,
             mock(CompanyClock.class),
             companyEntityLookup,
             mock(CompanyAccountingSettingsService.class),
@@ -260,7 +287,8 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
     Account payable = new Account();
     ReflectionTestUtils.setField(payable, "id", 601L);
     supplier.setPayableAccount(payable);
-    when(companyEntityLookup.requireSupplier(company, 55L)).thenReturn(supplier);
+    when(supplierRepository.findByCompanyAndIdWithPayableAccount(company, 55L))
+        .thenReturn(Optional.of(supplier));
 
     Account inventory = new Account();
     ReflectionTestUtils.setField(inventory, "id", 701L);
@@ -272,9 +300,6 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
         .thenReturn(baseReference);
     when(journalReferenceResolver.findExistingEntry(company, baseReference))
         .thenReturn(Optional.empty());
-    when(journalEntryRepository.findByCompanyAndReferenceNumberStartingWith(
-            company, baseReference + "-"))
-        .thenReturn(List.of());
     when(referenceNumberService.purchaseReference(company, supplier, "INV-NEW"))
         .thenReturn(generatedReference);
     when(journalEntryRepository.findByCompanyAndReferenceNumber(company, generatedReference))
@@ -335,77 +360,5 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
                     null)
                 .referenceNumber())
         .isEqualTo(generatedReference);
-  }
-
-  @Test
-  void purchaseReferenceHelpers_enforceCanonicalNumericSuffixContract() {
-    AccountingFacade facade =
-        new AccountingFacade(
-            mock(CompanyContextService.class),
-            mock(AccountRepository.class),
-            mock(AccountingService.class),
-            mock(JournalEntryRepository.class),
-            mock(ReferenceNumberService.class),
-            mock(DealerRepository.class),
-            mock(SupplierRepository.class),
-            mock(CompanyClock.class),
-            mock(CompanyEntityLookup.class),
-            mock(CompanyAccountingSettingsService.class),
-            mock(JournalReferenceResolver.class),
-            mock(JournalReferenceMappingRepository.class));
-
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    facade,
-                    "isCanonicalPurchaseReference",
-                    "RMP-SUP-INV100",
-                    "RMP-SUP-INV100-0001"))
-        .isTrue();
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    facade,
-                    "isCanonicalPurchaseReference",
-                    "RMP-SUP-INV100",
-                    "RMP-SUP-INV100-0001-REV"))
-        .isFalse();
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    facade, "isCanonicalPurchaseReference", "RMP-SUP-INV100", "RMP-SUP-INV100"))
-        .isFalse();
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    facade, "isCanonicalPurchaseReference", "RMP-SUP-INV100", "RMP-SUP-INV100-"))
-        .isFalse();
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    facade, "isCanonicalPurchaseReference", "RMP-SUP-INV100", " "))
-        .isFalse();
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    facade, "isCanonicalPurchaseReference", " ", "RMP-SUP-INV100-0001"))
-        .isFalse();
-
-    assertThat(
-            (Long)
-                ReflectionTestUtils.invokeMethod(
-                    facade, "purchaseReferenceSequence", "RMP-SUP-INV100", "RMP-SUP-INV100-0002"))
-        .isEqualTo(2L);
-    assertThat(
-            (Long)
-                ReflectionTestUtils.invokeMethod(
-                    facade, "purchaseReferenceSequence", "RMP-SUP-INV100", "RMP-SUP-INV100-REV"))
-        .isEqualTo(Long.MAX_VALUE);
-
-    assertThat(
-            (Optional<?>)
-                ReflectionTestUtils.invokeMethod(
-                    facade, "findLegacyPurchaseCanonicalEntry", new Company(), " "))
-        .isEmpty();
   }
 }

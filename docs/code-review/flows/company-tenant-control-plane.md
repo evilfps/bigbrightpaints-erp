@@ -22,11 +22,10 @@ Primary evidence:
 | Surface | Entrypoints | Controller | Notes |
 | --- | --- | --- | --- |
 | Tenant bootstrap | `GET /api/v1/superadmin/tenants/coa-templates`, `POST /api/v1/superadmin/tenants/onboard` | `SuperAdminTenantOnboardingController` | Creates tenant shell, chart of accounts, first admin, default period, and some global settings; the response now explicitly confirms seeded bootstrap outcomes. |
-| Company directory and control plane | `GET /api/v1/companies`, `PUT /api/v1/companies/{id}`, `DELETE /api/v1/companies/{id}` | `CompanyController` | List and update are real; delete is intentionally hard-denied in code, and create moved to the super-admin onboarding flow only. |
-| Canonical super-admin company controls | `POST /api/v1/companies/{id}/lifecycle-state`, `GET /api/v1/companies/{id}/tenant-metrics`, `PUT /api/v1/companies/{id}/tenant-runtime/policy`, `POST /api/v1/companies/{id}/support/admin-password-reset`, `POST /api/v1/companies/{id}/support/warnings` | `CompanyController` | This family is the only company-id path family that `CompanyContextFilter` explicitly recognizes as target-tenant control traffic. The retired `GET /api/v1/companies/superadmin/dashboard` alias is removed from the live contract. |
-| Super-admin operations hub | `GET /api/v1/superadmin/dashboard`, `GET /api/v1/superadmin/tenants`, `POST /api/v1/superadmin/tenants/{id}/{suspend|activate|deactivate}`, `POST /api/v1/superadmin/tenants/{id}/lifecycle-state`, `PUT /api/v1/superadmin/tenants/{id}/modules`, `GET /api/v1/superadmin/tenants/{id}/usage` | `SuperAdminController` | The live public dashboard route remains here as the smaller aggregate-count surface; it is not a drop-in replacement for the retired detailed tenant payload while lifecycle, module, and usage concerns still span a second control plane. |
+| Company directory and control plane | `GET /api/v1/companies` | `CompanyController` | Tenant creation moved to the super-admin onboarding flow. The old `/api/v1/companies/{id}` delete surface is retired and no longer has a live operation contract. |
+| Canonical super-admin company controls | `PUT /api/v1/superadmin/tenants/{id}/lifecycle`, `PUT /api/v1/superadmin/tenants/{id}/limits`, `PUT /api/v1/superadmin/tenants/{id}/modules`, `POST /api/v1/superadmin/tenants/{id}/support/admin-password-reset`, `POST /api/v1/superadmin/tenants/{id}/support/warnings`, `PUT /api/v1/superadmin/tenants/{id}/support/context`, `POST /api/v1/superadmin/tenants/{id}/force-logout` | `SuperAdminController` | The live contract is tenant-id under `/api/v1/superadmin/tenants/**`; company-id control-plane aliases are retired from the canonical surface. |
+| Super-admin operations hub | `GET /api/v1/superadmin/dashboard`, `GET /api/v1/superadmin/tenants`, `GET /api/v1/superadmin/tenants/{id}` | `SuperAdminController` | Platform dashboard and tenant-detail reads stay here; lifecycle and support mutations use the canonical tenant-control endpoints above. |
 | Scoped company context | Login and refresh with `companyCode`; `GET /api/v1/companies` for company metadata | `AuthController`, `CompanyController` | The canonical contract has no post-login company-switch route; bearer scope is chosen during login or refresh for one scoped account. |
-| Tenant-self runtime policy | `GET /api/v1/admin/tenant-runtime/metrics`, `PUT /api/v1/admin/tenant-runtime/policy` | `AdminSettingsController` | Reads and mutates tenant runtime settings for the current company context. |
 
 ## Data path and schema touchpoints
 
@@ -70,11 +69,11 @@ Side effects:
 
 ### 2. Company CRUD and tenant configuration
 
-`CompanyController` and `CompanyService` own the mutable company record.
+`CompanyService` still contains some tenant-control mutations internally, but the published control-plane contract is the super-admin tenant family.
 
-- `PUT /api/v1/companies/{id}` calls `CompanyService.update(...)`.
 - `POST /api/v1/superadmin/tenants/onboard` is the only tenant-creation surface left in the live contract.
 - `PUT /api/v1/superadmin/tenants/{id}/modules` calls `CompanyService.updateEnabledModules(...)`.
+- `PUT /api/v1/superadmin/tenants/{id}/lifecycle`, `PUT /api/v1/superadmin/tenants/{id}/limits`, `PUT /api/v1/superadmin/tenants/{id}/modules`, `POST /api/v1/superadmin/tenants/{id}/support/warnings`, `PUT /api/v1/superadmin/tenants/{id}/support/context`, and `POST /api/v1/superadmin/tenants/{id}/force-logout` are the current-state control mutations.
 
 What actually changes in `Company`:
 
@@ -92,16 +91,16 @@ That means the control plane currently treats `region` and `timezone` as the sam
 
 ### 3. Lifecycle changes and tenant admission control
 
-There are two mutation families for lifecycle state:
+Lifecycle changes now flow through the super-admin tenant family:
 
-- Canonical: `POST /api/v1/companies/{id}/lifecycle-state` -> `CompanyService.updateLifecycleState(...)` -> `TenantLifecycleService.transition(...)`
-- Alias hub: `POST /api/v1/superadmin/tenants/{id}/{suspend|activate|deactivate}` and `POST /api/v1/superadmin/tenants/{id}/lifecycle-state` -> `SuperAdminService` -> `TenantLifecycleService.transition(...)`
+- Canonical: `PUT /api/v1/superadmin/tenants/{id}/lifecycle` -> `SuperAdminTenantControlPlaneService.updateLifecycleState(...)` -> `CompanyService.updateLifecycleState(...)` -> `TenantLifecycleService.transition(...)`
+- Retired company-id lifecycle aliases belong to history only and are not part of the current-state contract.
 
 Runtime admission then happens in `CompanyContextFilter` before controller code:
 
 1. Reconcile `X-Company-Code` with JWT claims.
 2. Reject unauthenticated company-scoped traffic.
-3. For canonical `/api/v1/companies/{id}/...` control paths, resolve the path target company id and, if the actor is `ROLE_SUPER_ADMIN`, rebind the active company context to the targeted tenant.
+3. For canonical `/api/v1/superadmin/tenants/{id}/...` control paths, resolve the path target company id and, if the actor is `ROLE_SUPER_ADMIN`, rebind the active company context to the targeted tenant.
 4. Apply lifecycle rules: `ACTIVE` allows all, `SUSPENDED` is read-only, `DEACTIVATED` blocks everything.
 5. Delegate request admission to `modules.company.service.TenantRuntimeEnforcementService.beginRequest(...)`.
 
@@ -139,11 +138,10 @@ This is lightweight, but it makes route-prefix naming part of the authorization 
 
 The runtime policy layer is split across multiple implementations that share the same `tenant.runtime.*` setting keys.
 
-#### Canonical runtime policy path
+#### Published runtime policy paths
 
-- `PUT /api/v1/companies/{id}/tenant-runtime/policy`
-- `CompanyController` -> `CompanyService.updateTenantRuntimePolicy(...)`
-- `modules.company.service.TenantRuntimeEnforcementService.updatePolicy(...)`
+- Tenant self-service reads and writes use `GET /api/v1/admin/tenant-runtime/metrics` and `PUT /api/v1/admin/tenant-runtime/policy` via `AdminSettingsController` -> `TenantRuntimePolicyService`.
+- The old company-id runtime-policy mutation path is retired from the published contract even though `CompanyService.updateTenantRuntimePolicy(...)` still exists as an internal implementation seam.
 
 This service also powers:
 
@@ -171,7 +169,7 @@ Result: the control plane exposes multiple tenant-usage dashboards that do not s
 
 #### Admin password reset
 
-`POST /api/v1/companies/{id}/support/admin-password-reset` -> `CompanyService.resetTenantAdminPassword(...)` -> `TenantAdminProvisioningService.resetTenantAdminPassword(...)`.
+`POST /api/v1/superadmin/tenants/{id}/support/admin-password-reset` -> `SuperAdminService.resetTenantAdminPassword(...)` -> `TenantAdminProvisioningService.resetTenantAdminPassword(...)`.
 
 This path:
 
@@ -184,7 +182,7 @@ This path:
 
 #### Support warning
 
-`POST /api/v1/companies/{id}/support/warnings` -> `CompanyService.issueTenantSupportWarning(...)`.
+`POST /api/v1/superadmin/tenants/{id}/support/warnings` -> `SuperAdminTenantControlPlaneService.issueSupportWarning(...)` -> `CompanyService.issueTenantSupportWarning(...)`.
 
 This path only creates a response DTO plus audit metadata. It does **not** persist a warning entity, queue a notification workflow, or change lifecycle state. The “warning” is therefore an operator signal, not a managed workflow object.
 
@@ -193,8 +191,8 @@ This path only creates a response DTO plus audit metadata. It does **not** persi
 - Tenant lifecycle is terminal once it reaches `DEACTIVATED`; service code does not allow recovery transitions.
 - `CompanyContextFilter` is fail-closed on mismatched company headers, mismatched JWT claims, or missing company claims on authenticated requests.
 - Public password-reset endpoints bypass tenant binding; most other authenticated requests require a company claim.
-- Canonical `/api/v1/companies/{id}/...` control paths can be executed by super admins outside the tenant membership list because the filter rebinds to the path target company.
-- `/api/v1/superadmin/**` and `/api/v1/companies/superadmin/**` do not use that same rebinding path.
+- Canonical `/api/v1/superadmin/tenants/{id}/...` control paths can be executed by super admins outside the tenant membership list because the filter rebinds to the path target company.
+- `/api/v1/companies/{id}` remains a retired path shell and is not part of the live operation contract.
 - `enabledModules` may only contain optional modules; core modules are implicit and always enabled.
 - Company quota flags are enforced fail-closed at the entity/schema level (`soft OR hard` must stay true), but the live request-admission layer reads a different settings-backed quota model.
 - There is no canonical post-login company-switch route; company scope is selected during login or refresh.
@@ -216,13 +214,13 @@ This path only creates a response DTO plus audit metadata. It does **not** persi
 | high | integrity / migrations | Database lifecycle constraint still allows `ACTIVE/HOLD/BLOCKED`, while the Java enum and DTOs use `ACTIVE/SUSPENDED/DEACTIVATED`. | `V19__company_lifecycle_state.sql`, `CompanyLifecycleState.java` | Super-admin suspend/deactivate flows can fail against migrated databases or drift between old and new lifecycle vocabularies. |
 | high | governance / integrity | The quota envelope stored on `Company` is not the same model used by live runtime admission. | `CompanyService.create/update`, `TenantOnboardingService.createCompany`, `CompanyService.getTenantMetrics`, `TenantRuntimeEnforcementService.loadPersistedPolicy(...)`, no main-code callers for `CompanyService.isRuntimeAccessAllowed(...)` | Operators can configure quotas in company CRUD and dashboards, but request admission still follows separate `tenant.runtime.*` settings and defaults. |
 | low | resolved hard-cut cleanup | Auth V2 onboarding no longer returns plaintext password fields, and credential email delivery is required before success is returned. | `TenantOnboardingResponse.java`, `ScopedAccountBootstrapService`, `TenantOnboardingControllerTest` | This earlier privacy finding is resolved on the current branch and retained here only for traceability. |
-| medium | design / protocol | Control-plane behavior is duplicated across canonical `/api/v1/companies/{id}/...`, alias `/api/v1/companies/superadmin/...`, and `/api/v1/superadmin/...` paths, but `CompanyContextFilter` only treats the canonical family as target-tenant control traffic. | `CompanyContextFilter.isLifecycleControlRequest(...)`, `CompanyController`, `SuperAdminController`, `openapi.json` | Audit scope, runtime-policy bypass, and request-company binding differ by endpoint family; root-only super-admin behavior is therefore inconsistent across aliases. |
+| medium | design / protocol | Historical company-id control paths and alias families still leave behind implementation seams next to the published `/api/v1/superadmin/tenants/{id}/...` control plane. | `CompanyContextFilter.isLifecycleControlRequest(...)`, `CompanyController`, `SuperAdminController`, `openapi.json` | Audit scope, runtime-policy bypass, and request-company binding can still drift if retired company-id paths are treated as live again. |
 | medium | observability | Usage and runtime dashboards are backed by different counters and different interceptors. | `CompanyService.getTenantMetrics(...)`, `SuperAdminService.getTenantUsage(...)`, `TenantUsageMetricsService`, `TenantRuntimePolicyService`, `TenantRuntimeEnforcementInterceptor` | `/companies/{id}/tenant-metrics`, `/superadmin/tenants/{id}/usage`, `/superadmin/dashboard`, and `/admin/tenant-runtime/metrics` can disagree under load or after denials; the retired `/companies/superadmin/dashboard` alias is intentionally out of contract. |
-| high | cache invalidation / runtime policy drift | Canonical `PUT /api/v1/companies/{id}/tenant-runtime/policy` updates can skip immediate policy-cache invalidation because `CompanyContextFilter` no longer calls `beginRequest()` on lifecycle-control paths, so `TenantRuntimeEnforcementService.completeRequest()` sees `TenantRequestAdmission.notTracked()` instead of a tracked policy-control request. | PR review on `CompanyContextFilter.beginRequest()/completeRequest()`, `TenantRuntimeEnforcementService.completeRequest(...)`, canonical company runtime-policy update path | A super-admin can tighten quotas or block a tenant and the same node may keep enforcing stale policy for roughly the cache TTL instead of the new setting. |
+| high | cache invalidation / runtime policy drift | The retired company-id runtime-policy mutation seam can still miss immediate policy-cache invalidation because `CompanyContextFilter` no longer calls `beginRequest()` on lifecycle-control paths, so `TenantRuntimeEnforcementService.completeRequest()` sees `TenantRequestAdmission.notTracked()` instead of a tracked policy-control request. | PR review on `CompanyContextFilter.beginRequest()/completeRequest()`, `TenantRuntimeEnforcementService.completeRequest(...)`, retired `CompanyService.updateTenantRuntimePolicy(...)` seam | If that internal seam is reused without a published contract refresh, a node can keep enforcing stale policy for roughly the cache TTL instead of the new setting. |
 | medium | contract / dashboard drift | `GET /api/v1/admin/tenant-runtime/metrics` and `GET /api/v1/portal/{dashboard,operations,workforce}` return `200`, but their live payload shapes are still undocumented and may not match frontend tile/runtime assumptions. | live backend probes on `/api/v1/admin/tenant-runtime/metrics` and `/api/v1/portal/{dashboard,operations,workforce}`, `AdminSettingsController`, `PortalInsightsController`, absence of shape-specific contract coverage in review artifacts | Dashboard and quota UI work is forced to integrate against implicit payloads, increasing the chance of silent frontend/backend drift on tenant runtime and portal tiles. |
 | medium | protocol / API drift | Super-admin alias DTOs call the field `region`, but the value is written into `Company.timezone` and later exposed back as `region`. | `CompanyController.SuperAdminTenantCreateRequest`, `CompanyRequest`, `CompanyService.buildTenantOverview(...)`, `CompanySuperAdminDashboardDto` | The public contract blurs geography and timezone, which is hard to migrate cleanly once clients depend on it. |
 | medium | observability / workflow design | Support warnings are not persisted objects and are not part of the canonical target-tenant rebinding list. | `CompanyService.issueTenantSupportWarning(...)`, `CompanyContextFilter.isLifecycleControlRequest(...)`, `CompanyControllerIT.support_warning_endpoint_issues_warning_for_super_admin` | Warnings are hard to track, retry, or list later, and request/audit attribution follows a weaker path than lifecycle or reset actions. |
-| low | API / UX | `DELETE /api/v1/companies/{id}` is published but always throws `AccessDeniedException("Deleting companies is not permitted")`. | `CompanyController.delete(...)`, `openapi.json` | Client generators and operators see a destructive surface that the backend never intends to honor. |
+| low | API / UX | Historical company-id delete references linger in review artifacts even though `/api/v1/companies/{id}` is retired from the live contract. | retired `CompanyController.delete(...)` references, `openapi.json` history | Client generators and operators can still be misled if the retired history is read as current contract truth. |
 
 ## Security, privacy, protocol, and observability notes
 
@@ -240,12 +238,12 @@ This path only creates a response DTO plus audit metadata. It does **not** persi
 - Lifecycle code writes audit metadata claiming `lifecycleEvidence=immutable-audit-log`, but `AuditService` is asynchronous and intentionally fail-open on persistence errors, so the evidence trail is best-effort rather than guaranteed.
 - Because there is no canonical post-login switch route, frontend and operator flows must treat login/refresh as the only valid way to change tenant scope.
 - There are effectively three runtime-policy implementations in main code (`modules.company.service.TenantRuntimeEnforcementService`, `modules.admin.service.TenantRuntimePolicyService` + `modules.portal.service.TenantRuntimeEnforcementInterceptor`, and `core.security.TenantRuntimeEnforcementService` with no obvious production wiring). Shared keys with divergent logic are a maintenance risk.
-- The current auth/security follow-up PR also introduced a regression where company-scoped runtime-policy updates may leave the in-memory cache stale until TTL expiry because canonical control-plane requests are no longer tracked for invalidation.
+- The current auth/security follow-up PR still leaves a regression risk if retired company-scoped runtime-policy updates are ever revived without restoring tracked invalidation.
 
 ## Evidence notes
 
 - `TenantOnboardingControllerTest` proves onboarding creates company, accounts, admin membership, and an open accounting period for each template.
-- `CompanyControllerIT` proves canonical `PUT /api/v1/companies/{id}` and canonical `PUT /api/v1/companies/{id}/tenant-runtime/policy` work for a root-only super admin, while support warnings succeed through the root-company context.
+- Historical `CompanyControllerIT` coverage referenced retired company-id control paths; current published control-plane proof is centered on `/api/v1/superadmin/**` and tenant-scoped admin runtime surfaces.
 - `SuperAdminControllerIT` proves `/api/v1/superadmin/**` can suspend, activate, deactivate, list usage, and rewrite enabled modules.
 - `TS_RuntimeCompanyContextFilterExecutableCoverageTest` and `TS_RuntimeTenantPolicyControlExecutableCoverageTest` prove that canonical control paths are explicitly recognized, and that privileged runtime-policy control is path-sensitive.
 - `TS_RuntimeTenantControlPlaneEnforcementTest` shows the separate runtime-enforcement service still interprets the same `tenant.runtime.*` policy namespace. Legacy token fallback behavior is out of contract and removed on this branch.

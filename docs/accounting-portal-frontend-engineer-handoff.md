@@ -1,11 +1,12 @@
 # Accounting Portal Frontend Engineer Handoff (Deep)
 
 > ⚠️ **NON-CANONICAL / REFERENCE ONLY**
-> 
+>
 > This document is **superseded** by the canonical accounting portal documentation at:
 > - [docs/frontend-portals/accounting/](frontend-portals/accounting/README.md) — routes, API contracts, workflows, role boundaries
+> - [docs/frontend-api/](frontend-api/README.md) — shared auth, company scope, idempotency, pagination, approvals, and DTO guidance
 >
-> This legacy handoff file is retained for reference only. Do not use it as the source of truth.
+> Status: historical deep-reference only. If this file disagrees with the six-portal frontend contract or the frontend API pack, the newer portal docs win.
 
 Source: `openapi.json` parsed via `map_openapi_frontend.py`.
 

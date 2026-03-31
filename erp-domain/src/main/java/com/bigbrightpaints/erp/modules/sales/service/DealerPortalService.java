@@ -39,6 +39,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 public class DealerPortalService {
 
   private static final String PORTAL_AGING_BUCKETS = "0-0,1-30,31-60,61-90,91";
+  private static final String ACTIVE_DEALER_STATUS = "ACTIVE";
 
   public record RequesterIdentity(Long userId, String email) {}
 
@@ -87,10 +88,8 @@ public class DealerPortalService {
               dealerRepository.findAllByCompanyAndPortalUserId(company, authenticatedUser.getId()),
               "userId:" + authenticatedUser.getId());
       if (matchedByUserId != null) {
-        return matchedByUserId;
+        return requireActivePortalDealer(matchedByUserId);
       }
-      throw new AccessDeniedException(
-          "Dealer mapping missing for authenticated principal userId:" + authenticatedUser.getId());
     }
 
     String email = resolveAuthenticatedEmail(authenticatedUser, auth);
@@ -99,7 +98,7 @@ public class DealerPortalService {
             dealerRepository.findAllByCompanyAndPortalUserEmailIgnoreCase(company, email),
             "email:" + email);
     if (matchedByEmail != null) {
-      return matchedByEmail;
+      return requireActivePortalDealer(matchedByEmail);
     }
     throw new AccessDeniedException("Dealer mapping missing for authenticated principal");
   }
@@ -370,6 +369,17 @@ public class DealerPortalService {
     return dealerRepository
         .findByCompanyAndId(company, dealerId)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dealer not found"));
+  }
+
+  private Dealer requireActivePortalDealer(Dealer dealer) {
+    if (dealer == null) {
+      throw new AccessDeniedException("Dealer mapping missing for authenticated principal");
+    }
+    String status = dealer.getStatus();
+    if (status != null && ACTIVE_DEALER_STATUS.equalsIgnoreCase(status.trim())) {
+      return dealer;
+    }
+    throw new AccessDeniedException("Dealer portal access is disabled for inactive dealer mapping");
   }
 
   private BigDecimal resolvePendingOrderExposure(Dealer dealer, Long excludeOrderId) {

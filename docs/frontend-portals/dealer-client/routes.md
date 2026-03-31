@@ -1,28 +1,26 @@
 # Dealer Client Routes
 
-Every route below belongs to the dealer-client shell. Do not duplicate these
-screens in sales, factory, accounting, or tenant-admin.
+Every route below belongs to the external dealer shell only.
 
 | UI route | Purpose | Backend contract family |
 | --- | --- | --- |
-| `/dealer/dashboard` | Dealer summary, order count, credit exposure, payment status, recent activity. | `/api/v1/dealer-portal/dashboard` |
-| `/dealer/orders` | Dealer order list, status filters, and order history. | `/api/v1/dealer-portal/orders/**` |
-| `/dealer/orders/:orderId` | Order detail, timeline, dispatch status, and invoice links. | `/api/v1/dealer-portal/orders/{id}` |
-| `/dealer/invoices` | Invoice list for the dealer's company, with status filters. | `/api/v1/dealer-portal/invoices/**` |
-| `/dealer/invoices/:invoiceId` | Invoice detail, line items, tax breakdown, and PDF download. | `/api/v1/dealer-portal/invoices/{id}` |
-| `/dealer/ledger` | Account ledger for the dealer's company, with date range filters. | `/api/v1/dealer-portal/ledger/**` |
-| `/dealer/aging` | Receivable aging summary by due date bucket. | `/api/v1/dealer-portal/aging` |
-| `/dealer/credit` | Self-service credit request entry and existing request status. | `/api/v1/dealer-portal/credit/**` |
-| `/dealer/credit/:requestId` | Credit request detail and decision history. | `/api/v1/dealer-portal/credit/{id}` |
-| `/dealer/support` | Support ticket list and new ticket creation. | `/api/v1/portal/support/tickets` |
-| `/dealer/support/:ticketId` | Ticket detail and conversation thread. | `/api/v1/portal/support/tickets/{id}` |
+| `/dealer/dashboard` | Dealer summary, open orders, open invoices, overdue aging, support shortcuts. | dealer portal dashboard reads |
+| `/dealer/orders` | Dealer order list with status filters. | dealer portal order reads |
+| `/dealer/orders/:orderId` | Dealer order detail, shipment status, and invoice readiness. | dealer portal order reads, dispatch read summary |
+| `/dealer/invoices` | Invoice list and payment-status tracking. | dealer portal invoice reads |
+| `/dealer/invoices/:invoiceId` | Invoice detail and download or print actions where allowed. | dealer portal invoice reads |
+| `/dealer/ledger` | Dealer ledger read with running balance. | dealer portal finance reads |
+| `/dealer/aging` | Aging buckets and overdue insight. | dealer portal finance reads |
+| `/dealer/support` | Support ticket list and new support request flow. | dealer portal support endpoints |
+| `/dealer/support/:ticketId` | Support detail and threaded updates where allowed. | dealer portal support endpoints |
+| `/dealer/credit-requests` | Credit request list and current exposure view. | dealer portal credit endpoints |
+| `/dealer/credit-requests/new` | Self-service credit request submission. | dealer portal credit endpoints |
 
 Route rules:
 
-- Dealer routes must always use the dealer's own `companyCode` from the session.
-- Do not expose internal sales routes like `/sales/orders/new` or
-  `/sales/dealers/new` to dealer users.
-- Do not expose factory dispatch-confirm or production log routes to dealer
-  users.
-- Do not expose accounting correction, journal reversal, or admin approval
-  routes to dealer users.
+- No internal dealer-master edit screens in this folder.
+- No accounting settlement or approval screens in this folder.
+- If a route primarily serves internal staff, it belongs in sales or accounting,
+  not here.
+- Dealer invoice list, detail, and PDF/download actions stay here even though
+  internal sales can observe invoice readiness from order detail.

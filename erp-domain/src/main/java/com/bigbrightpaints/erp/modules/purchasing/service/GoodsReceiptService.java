@@ -416,19 +416,14 @@ public class GoodsReceiptService {
 
   private void assertIdempotencyMatch(
       GoodsReceipt receipt, String expectedSignature, String idempotencyKey) {
-    idempotencyReservationService.assertAndRepairSignature(
-        receipt,
-        idempotencyKey,
-        expectedSignature,
-        GoodsReceipt::getIdempotencyHash,
-        GoodsReceipt::setIdempotencyHash,
-        goodsReceiptRepository::save,
-        () ->
-            new ApplicationException(
-                    ErrorCode.CONCURRENCY_CONFLICT,
-                    "Idempotency key already used with different payload")
-                .withDetail("idempotencyKey", idempotencyKey)
-                .withDetail("receiptNumber", receipt.getReceiptNumber()));
+    String storedSignature = receipt.getIdempotencyHash();
+    if (StringUtils.hasText(storedSignature) && storedSignature.equals(expectedSignature)) {
+      return;
+    }
+    throw new ApplicationException(
+            ErrorCode.CONCURRENCY_CONFLICT, "Idempotency key already used with different payload")
+        .withDetail("idempotencyKey", idempotencyKey)
+        .withDetail("receiptNumber", receipt.getReceiptNumber());
   }
 
   private String buildGoodsReceiptSignature(

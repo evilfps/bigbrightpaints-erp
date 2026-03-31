@@ -595,7 +595,11 @@ class AccountingAuditTrailServiceTest {
     allocation.setCompany(company);
     allocation.setPartnerType(PartnerType.DEALER);
     allocation.setInvoice(invoice);
-    allocation.setJournalEntry(entry);
+    JournalEntry settlementEntry = new JournalEntry();
+    setField(settlementEntry, "id", 702L);
+    settlementEntry.setReferenceNumber("SET-602");
+    settlementEntry.setStatus("POSTED");
+    allocation.setJournalEntry(settlementEntry);
     allocation.setAllocationAmount(new BigDecimal("675.00"));
     allocation.setIdempotencyKey("settlement-602");
 
@@ -628,6 +632,15 @@ class AccountingAuditTrailServiceTest {
             org.assertj.core.groups.Tuple.tuple("DISPATCH", "PACKAGING_SLIP"),
             org.assertj.core.groups.Tuple.tuple("SETTLEMENT", "SETTLEMENT_ALLOCATION"),
             org.assertj.core.groups.Tuple.tuple("ACCOUNTING_ENTRY", "JOURNAL_ENTRY"));
+    assertThat(detail.linkedReferenceChain())
+        .filteredOn(reference -> "SETTLEMENT".equals(reference.relationType()))
+        .singleElement()
+        .satisfies(
+            reference -> {
+              assertThat(reference.documentId()).isEqualTo(602L);
+              assertThat(reference.documentNumber()).isEqualTo("SET-602");
+              assertThat(reference.journalEntryId()).isEqualTo(702L);
+            });
   }
 
   @Test
@@ -1462,6 +1475,11 @@ class AccountingAuditTrailServiceTest {
     allocation.setCompany(company);
     allocation.setInvoice(invoice);
     allocation.setPurchase(purchase);
+    JournalEntry settlementEntry = new JournalEntry();
+    setField(settlementEntry, "id", 1890L);
+    settlementEntry.setReferenceNumber("SET-890");
+    settlementEntry.setStatus("POSTED");
+    allocation.setJournalEntry(settlementEntry);
     allocation.setIdempotencyKey("settlement-890");
 
     when(settlementAllocationRepository.findByCompanyAndInvoiceOrderByCreatedAtDesc(
@@ -1481,9 +1499,27 @@ class AccountingAuditTrailServiceTest {
     assertThat(invoiceChain)
         .extracting(LinkedBusinessReferenceDto::relationType)
         .contains("SETTLEMENT");
+    assertThat(invoiceChain)
+        .filteredOn(reference -> "SETTLEMENT".equals(reference.relationType()))
+        .singleElement()
+        .satisfies(
+            reference -> {
+              assertThat(reference.documentId()).isEqualTo(890L);
+              assertThat(reference.documentNumber()).isEqualTo("SET-890");
+              assertThat(reference.journalEntryId()).isEqualTo(1890L);
+            });
     assertThat(purchaseChain)
         .extracting(LinkedBusinessReferenceDto::relationType)
         .contains("SETTLEMENT");
+    assertThat(purchaseChain)
+        .filteredOn(reference -> "SETTLEMENT".equals(reference.relationType()))
+        .singleElement()
+        .satisfies(
+            reference -> {
+              assertThat(reference.documentId()).isEqualTo(890L);
+              assertThat(reference.documentNumber()).isEqualTo("SET-890");
+              assertThat(reference.journalEntryId()).isEqualTo(1890L);
+            });
   }
 
   @Test
@@ -1772,11 +1808,21 @@ class AccountingAuditTrailServiceTest {
     ReflectionTestUtils.setField(invoiceAllocation, "id", 1005L);
     invoiceAllocation.setInvoice(invoice);
     invoiceAllocation.setIdempotencyKey("settlement-invoice");
+    JournalEntry invoiceSettlementEntry = new JournalEntry();
+    ReflectionTestUtils.setField(invoiceSettlementEntry, "id", 2005L);
+    invoiceSettlementEntry.setReferenceNumber("SET-1005");
+    invoiceSettlementEntry.setStatus("POSTED");
+    invoiceAllocation.setJournalEntry(invoiceSettlementEntry);
 
     PartnerSettlementAllocation purchaseAllocation = new PartnerSettlementAllocation();
     ReflectionTestUtils.setField(purchaseAllocation, "id", 1006L);
     purchaseAllocation.setPurchase(purchase);
     purchaseAllocation.setIdempotencyKey("settlement-purchase");
+    JournalEntry purchaseSettlementEntry = new JournalEntry();
+    ReflectionTestUtils.setField(purchaseSettlementEntry, "id", 2006L);
+    purchaseSettlementEntry.setReferenceNumber("SUP-SET-1006");
+    purchaseSettlementEntry.setStatus("POSTED");
+    purchaseAllocation.setJournalEntry(purchaseSettlementEntry);
 
     when(settlementAllocationRepository.findByCompanyAndInvoiceOrderByCreatedAtDesc(
             scopedCompany, invoice))
@@ -1827,9 +1873,27 @@ class AccountingAuditTrailServiceTest {
     assertThat(invoiceChain)
         .extracting(LinkedBusinessReferenceDto::relationType)
         .contains("DRIVING_DOCUMENT", "SOURCE_ORDER", "DISPATCH", "SETTLEMENT", "ACCOUNTING_ENTRY");
+    assertThat(invoiceChain)
+        .filteredOn(reference -> "SETTLEMENT".equals(reference.relationType()))
+        .singleElement()
+        .satisfies(
+            reference -> {
+              assertThat(reference.documentId()).isEqualTo(1005L);
+              assertThat(reference.documentNumber()).isEqualTo("SET-1005");
+              assertThat(reference.journalEntryId()).isEqualTo(2005L);
+            });
     assertThat(purchaseChain)
         .extracting(LinkedBusinessReferenceDto::relationType)
         .contains("DRIVING_DOCUMENT", "SETTLEMENT", "ACCOUNTING_ENTRY");
+    assertThat(purchaseChain)
+        .filteredOn(reference -> "SETTLEMENT".equals(reference.relationType()))
+        .singleElement()
+        .satisfies(
+            reference -> {
+              assertThat(reference.documentId()).isEqualTo(1006L);
+              assertThat(reference.documentNumber()).isEqualTo("SUP-SET-1006");
+              assertThat(reference.journalEntryId()).isEqualTo(2006L);
+            });
 
     Object reversedError =
         ReflectionTestUtils.invokeMethod(

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MIGRATION_SET="${MIGRATION_SET:-v1}"
+MIGRATION_SET="${MIGRATION_SET:-v2}"
 MIGRATIONS_DIR="${MIGRATIONS_DIR:-}"
 ALLOWLIST_FILE="${ALLOWLIST_FILE:-}"
 
@@ -10,7 +10,7 @@ FAIL_ON_FINDINGS="${FAIL_ON_FINDINGS:-false}"
 
 usage() {
   cat <<USAGE
-Usage: bash scripts/schema_drift_scan.sh [--migration-set <v1|v2>] [--migrations-dir <dir>] [--allowlist <file>]
+Usage: bash scripts/schema_drift_scan.sh [--migration-set <v2>] [--migrations-dir <dir>] [--allowlist <file>]
 USAGE
 }
 
@@ -41,25 +41,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$MIGRATIONS_DIR" ]]; then
-  case "$MIGRATION_SET" in
-    v1)
-      MIGRATIONS_DIR="$ROOT_DIR/erp-domain/src/main/resources/db/migration"
-      ;;
-    v2)
-      MIGRATIONS_DIR="$ROOT_DIR/erp-domain/src/main/resources/db/migration_v2"
-      ;;
-    *)
-      echo "[schema_drift_scan] invalid --migration-set: $MIGRATION_SET" >&2
-      exit 2
-      ;;
-  esac
+  if [[ "$MIGRATION_SET" != "v2" ]]; then
+    echo "[schema_drift_scan] invalid --migration-set: $MIGRATION_SET (expected v2 only)" >&2
+    exit 2
+  fi
+  MIGRATIONS_DIR="$ROOT_DIR/erp-domain/src/main/resources/db/migration_v2"
 fi
 
 if [[ -z "$ALLOWLIST_FILE" ]]; then
-  case "$MIGRATION_SET" in
-    v1) ALLOWLIST_FILE="$ROOT_DIR/scripts/schema_drift_scan_allowlist.txt" ;;
-    v2) ALLOWLIST_FILE="$ROOT_DIR/scripts/schema_drift_scan_allowlist_v2.txt" ;;
-  esac
+  ALLOWLIST_FILE="$ROOT_DIR/scripts/schema_drift_scan_allowlist_v2.txt"
 fi
 
 if [[ ! -d "$MIGRATIONS_DIR" ]]; then
@@ -94,11 +84,14 @@ fi
 
 is_allowlisted() {
   local file="$1"
+  local relative_file
+  relative_file="${file#"$ROOT_DIR"/}"
+  relative_file="${relative_file#./}"
   if [[ "${#allowlist[@]}" -eq 0 ]]; then
     return 1
   fi
   for entry in "${allowlist[@]}"; do
-    if [[ "$file" == *"$entry" ]]; then
+    if [[ "$file" == "$entry" || "$relative_file" == "$entry" ]]; then
       return 0
     fi
   done
@@ -108,14 +101,17 @@ is_allowlisted() {
 scan_pattern() {
   local label="$1"
   local pattern="$2"
+  local tmp_file
   echo
   echo "[schema_drift_scan] $label"
+  tmp_file="$(mktemp "${TMPDIR:-/tmp}/schema_drift_scan.XXXXXX")"
+  trap 'rm -f "$tmp_file"' RETURN
   if [[ "$SEARCH_TOOL" == "rg" ]]; then
-    rg -n --glob '*.sql' "$pattern" "$MIGRATIONS_DIR" >/tmp/schema_drift_scan.tmp 2>/dev/null || true
+    rg -n --glob '*.sql' "$pattern" "$MIGRATIONS_DIR" >"$tmp_file" 2>/dev/null || true
   else
-    grep -RIn --include='*.sql' -e "$pattern" "$MIGRATIONS_DIR" >/tmp/schema_drift_scan.tmp 2>/dev/null || true
+    grep -RIn --include='*.sql' -e "$pattern" "$MIGRATIONS_DIR" >"$tmp_file" 2>/dev/null || true
   fi
-  if [[ -s /tmp/schema_drift_scan.tmp ]]; then
+  if [[ -s "$tmp_file" ]]; then
     local printed=false
     while IFS= read -r line; do
       local file="${line%%:*}"
@@ -124,7 +120,7 @@ scan_pattern() {
       fi
       printed=true
       echo "$line"
-    done < /tmp/schema_drift_scan.tmp
+    done < "$tmp_file"
     if [[ "$printed" == "true" ]]; then
       findings=1
     else
@@ -133,6 +129,8 @@ scan_pattern() {
   else
     echo "  (none)"
   fi
+  trap - RETURN
+  rm -f "$tmp_file"
 }
 
 # Drift generators

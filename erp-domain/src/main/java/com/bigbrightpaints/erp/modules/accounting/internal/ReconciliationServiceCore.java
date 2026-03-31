@@ -437,17 +437,32 @@ public class ReconciliationServiceCore {
           "companyA and companyB must be different companies");
     }
 
+    Company activeCompany = companyContextService.requireCurrentCompany();
+    Long activeCompanyId = activeCompany != null ? activeCompany.getId() : null;
+    if (activeCompanyId == null) {
+      throw ValidationUtils.invalidState(
+          "Active company must be persisted for inter-company reconciliation");
+    }
+    if (!Objects.equals(companyAId, activeCompanyId) && !Objects.equals(companyBId, activeCompanyId)) {
+      throw new ApplicationException(
+              ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS,
+              "Inter-company reconciliation must include the active company")
+          .withDetail("activeCompanyId", activeCompanyId)
+          .withDetail("companyA", companyAId)
+          .withDetail("companyB", companyBId);
+    }
+
     Company companyA =
-        companyRepository
-            .findById(companyAId)
-            .orElseThrow(
+        Objects.equals(companyAId, activeCompanyId)
+            ? activeCompany
+            : companyRepository.findById(companyAId).orElseThrow(
                 () ->
                     com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                         "Company not found: " + companyAId));
     Company companyB =
-        companyRepository
-            .findById(companyBId)
-            .orElseThrow(
+        Objects.equals(companyBId, activeCompanyId)
+            ? activeCompany
+            : companyRepository.findById(companyBId).orElseThrow(
                 () ->
                     com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                         "Company not found: " + companyBId));

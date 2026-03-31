@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.accounting.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -11,16 +12,21 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
+import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
@@ -30,13 +36,13 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryReversalReques
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalLineDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalListItemDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.ManualJournalRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.PartnerStatementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnPreviewDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationApplication;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountHierarchyService;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditTrailService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
@@ -56,29 +62,29 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.service.SalesReturnService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
+import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 @Tag("critical")
 class AccountingControllerJournalEndpointsTest {
 
   @Test
-  void createManualJournal_delegatesToAccountingService() {
+  void createJournalEntry_delegatesToAccountingServiceWithReferenceAsIdempotencyKey() {
     AccountingService accountingService = mock(AccountingService.class);
     AccountingController controller =
         newController(accountingService, mock(JournalEntryService.class), null);
-    ManualJournalRequest request =
-        new ManualJournalRequest(
+    JournalEntryRequest request =
+        new JournalEntryRequest(
+            "manual-100",
             LocalDate.of(2026, 2, 28),
             "Manual adjustment",
-            "manual-100",
+            null,
+            null,
             false,
             List.of(
-                new ManualJournalRequest.LineRequest(
-                    11L, new BigDecimal("50.00"), "Debit", ManualJournalRequest.EntryType.DEBIT),
-                new ManualJournalRequest.LineRequest(
-                    22L,
-                    new BigDecimal("50.00"),
-                    "Credit",
-                    ManualJournalRequest.EntryType.CREDIT)));
+                new JournalEntryRequest.JournalLineRequest(
+                    11L, "Debit", new BigDecimal("50.00"), BigDecimal.ZERO),
+                new JournalEntryRequest.JournalLineRequest(
+                    22L, "Credit", BigDecimal.ZERO, new BigDecimal("50.00"))));
     JournalEntryDto expected =
         new JournalEntryDto(
             100L,
@@ -106,13 +112,52 @@ class AccountingControllerJournalEndpointsTest {
             null,
             null,
             null);
-    when(accountingService.createManualJournal(request)).thenReturn(expected);
+    ArgumentCaptor<JournalEntryRequest> requestCaptor =
+        ArgumentCaptor.forClass(JournalEntryRequest.class);
+    when(accountingService.createManualJournalEntry(
+            any(JournalEntryRequest.class), eq("manual-100")))
+        .thenReturn(expected);
 
-    ApiResponse<JournalEntryDto> body = controller.createManualJournal(request).getBody();
+    ApiResponse<JournalEntryDto> body = controller.createJournalEntry(request).getBody();
 
     assertThat(body).isNotNull();
     assertThat(body.success()).isTrue();
     assertThat(body.data()).isEqualTo(expected);
+    verify(accountingService).createManualJournalEntry(requestCaptor.capture(), eq("manual-100"));
+    assertThat(requestCaptor.getValue().referenceNumber()).isNull();
+    assertThat(requestCaptor.getValue().entryDate()).isEqualTo(request.entryDate());
+    assertThat(requestCaptor.getValue().memo()).isEqualTo(request.memo());
+    assertThat(requestCaptor.getValue().lines()).isEqualTo(request.lines());
+  }
+
+  @Test
+  void createJournalEntry_rejectsReservedReferenceNamespace() {
+    AccountingController controller =
+        newController(mock(AccountingService.class), mock(JournalEntryService.class), null);
+    JournalEntryRequest request =
+        new JournalEntryRequest(
+            "INV-2026-0001",
+            LocalDate.of(2026, 2, 28),
+            "Manual adjustment",
+            null,
+            null,
+            false,
+            List.of(
+                new JournalEntryRequest.JournalLineRequest(
+                    11L, "Debit", new BigDecimal("50.00"), BigDecimal.ZERO),
+                new JournalEntryRequest.JournalLineRequest(
+                    22L, "Credit", BigDecimal.ZERO, new BigDecimal("50.00"))));
+
+    assertThatThrownBy(() -> controller.createJournalEntry(request))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            ex -> {
+              ApplicationException applicationException = (ApplicationException) ex;
+              assertThat(applicationException.getErrorCode())
+                  .isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+              assertThat(applicationException.getUserMessage())
+                  .contains("Reference number is reserved for system journals");
+            });
   }
 
   @Test
@@ -133,24 +178,250 @@ class AccountingControllerJournalEndpointsTest {
                 "INV-10",
                 new BigDecimal("100.00"),
                 new BigDecimal("100.00")));
+    PageResponse<JournalListItemDto> expectedPage = PageResponse.of(expected, 1, 2, 40);
     when(accountingService.listJournals(
-            LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28), "AUTOMATED", "SALES"))
-        .thenReturn(expected);
+            LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28), "AUTOMATED", "SALES", 2, 40))
+        .thenReturn(expectedPage);
 
-    ApiResponse<List<JournalListItemDto>> body =
+    ApiResponse<PageResponse<JournalListItemDto>> body =
         controller
-            .listJournals(LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28), "AUTOMATED", "SALES")
+            .listJournals(
+                LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28), "AUTOMATED", "SALES", 2, 40)
             .getBody();
 
     assertThat(body).isNotNull();
-    assertThat(body.data()).containsExactlyElementsOf(expected);
+    assertThat(body.data()).isEqualTo(expectedPage);
   }
 
   @Test
-  void reverseJournalEntryByJournalPath_delegatesToService() {
-    AccountingService accountingService = mock(AccountingService.class);
+  void parseOptionalDate_returnsNullForBlankInput() {
     AccountingController controller =
-        newController(accountingService, mock(JournalEntryService.class), null);
+        newController(mock(AccountingService.class), mock(JournalEntryService.class), null);
+
+    LocalDate parsed =
+        (LocalDate)
+            ReflectionTestUtils.invokeMethod(controller, "parseOptionalDate", "   ", "fromDate");
+
+    assertThat(parsed)
+        .isNull();
+  }
+
+  @Test
+  void parseRequiredDate_trimsValidIsoDate() {
+    AccountingController controller =
+        newController(mock(AccountingService.class), mock(JournalEntryService.class), null);
+
+    LocalDate parsed =
+        (LocalDate)
+            ReflectionTestUtils.invokeMethod(
+                controller, "parseRequiredDate", " 2026-03-10 ", "fromDate");
+
+    assertThat(parsed)
+        .isEqualTo(LocalDate.of(2026, 3, 10));
+  }
+
+  @Test
+  void parseRequiredDate_rejectsInvalidIsoDateWithFieldDetail() {
+    AccountingController controller =
+        newController(mock(AccountingService.class), mock(JournalEntryService.class), null);
+
+    assertThatThrownBy(
+            () -> ReflectionTestUtils.invokeMethod(controller, "parseRequiredDate", "03/10/2026", "date"))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            ex -> {
+              ApplicationException applicationException = (ApplicationException) ex;
+              assertThat(applicationException.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_DATE);
+              assertThat(applicationException.getDetails()).containsEntry("date", "03/10/2026");
+            });
+  }
+
+  @Test
+  void supplierStatement_parsesOptionalDates() {
+    StatementService statementService = mock(StatementService.class);
+    PartnerStatementResponse expected =
+        new PartnerStatementResponse(
+            7L,
+            "Supplier 7",
+            LocalDate.of(2026, 3, 1),
+            LocalDate.of(2026, 3, 31),
+            BigDecimal.ZERO,
+            new BigDecimal("42.00"),
+            List.of());
+    when(statementService.supplierStatement(
+            7L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31)))
+        .thenReturn(expected);
+
+    ApiResponse<PartnerStatementResponse> body =
+        controllerWithStatementService(statementService)
+            .supplierStatement(7L, " 2026-03-01 ", "2026-03-31 ")
+            .getBody();
+
+    assertThat(body).isNotNull();
+    assertThat(body.data()).isSameAs(expected);
+    verify(statementService).supplierStatement(7L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31));
+  }
+
+  @Test
+  void supplierAging_parsesOptionalAsOfDate() {
+    StatementService statementService = mock(StatementService.class);
+    AgingSummaryResponse expected =
+        new AgingSummaryResponse(7L, "Supplier 7", new BigDecimal("42.00"), List.of());
+    when(statementService.supplierAging(7L, LocalDate.of(2026, 3, 31), "30,60,90"))
+        .thenReturn(expected);
+
+    ApiResponse<AgingSummaryResponse> body =
+        controllerWithStatementService(statementService)
+            .supplierAging(7L, " 2026-03-31 ", "30,60,90")
+            .getBody();
+
+    assertThat(body).isNotNull();
+    assertThat(body.data()).isSameAs(expected);
+    verify(statementService).supplierAging(7L, LocalDate.of(2026, 3, 31), "30,60,90");
+  }
+
+  @Test
+  void supplierStatementPdf_parsesOptionalDates() {
+    StatementService statementService = mock(StatementService.class);
+    byte[] pdf = new byte[] {1, 2, 3};
+    when(statementService.supplierStatementPdf(
+            7L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31)))
+        .thenReturn(pdf);
+
+    byte[] body =
+        controllerWithStatementService(statementService)
+            .supplierStatementPdf(7L, " 2026-03-01 ", "2026-03-31 ")
+            .getBody();
+
+    assertThat(body).isEqualTo(pdf);
+    verify(statementService).supplierStatementPdf(7L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31));
+  }
+
+  @Test
+  void supplierAgingPdf_parsesOptionalAsOfDate() {
+    StatementService statementService = mock(StatementService.class);
+    byte[] pdf = new byte[] {4, 5, 6};
+    when(statementService.supplierAgingPdf(7L, LocalDate.of(2026, 3, 31), "30,60,90"))
+        .thenReturn(pdf);
+
+    byte[] body =
+        controllerWithStatementService(statementService)
+            .supplierAgingPdf(7L, " 2026-03-31 ", "30,60,90")
+            .getBody();
+
+    assertThat(body).isEqualTo(pdf);
+    verify(statementService).supplierAgingPdf(7L, LocalDate.of(2026, 3, 31), "30,60,90");
+  }
+
+  @Test
+  void getBalanceAsOf_parsesRequiredDate() {
+    TemporalBalanceService temporalBalanceService = mock(TemporalBalanceService.class);
+    when(temporalBalanceService.getBalanceAsOfDate(9L, LocalDate.of(2026, 3, 31)))
+        .thenReturn(new BigDecimal("42.00"));
+
+    ApiResponse<BigDecimal> body =
+        controllerWithTemporalBalanceService(temporalBalanceService)
+            .getBalanceAsOf(9L, " 2026-03-31 ")
+            .getBody();
+
+    assertThat(body).isNotNull();
+    assertThat(body.data()).isEqualByComparingTo("42.00");
+    verify(temporalBalanceService).getBalanceAsOfDate(9L, LocalDate.of(2026, 3, 31));
+  }
+
+  @Test
+  void getTrialBalanceAsOf_parsesRequiredDate() {
+    TemporalBalanceService temporalBalanceService = mock(TemporalBalanceService.class);
+    TemporalBalanceService.TrialBalanceSnapshot expected =
+        new TemporalBalanceService.TrialBalanceSnapshot(
+            LocalDate.of(2026, 3, 31), List.of(), BigDecimal.ONE, BigDecimal.ONE);
+    when(temporalBalanceService.getTrialBalanceAsOf(LocalDate.of(2026, 3, 31))).thenReturn(expected);
+
+    ApiResponse<TemporalBalanceService.TrialBalanceSnapshot> body =
+        controllerWithTemporalBalanceService(temporalBalanceService)
+            .getTrialBalanceAsOf(" 2026-03-31 ")
+            .getBody();
+
+    assertThat(body).isNotNull();
+    assertThat(body.data()).isSameAs(expected);
+    verify(temporalBalanceService).getTrialBalanceAsOf(LocalDate.of(2026, 3, 31));
+  }
+
+  @Test
+  void getAccountActivity_wrapsInvalidDateFormat() {
+    AccountingController controller = controllerWithTemporalBalanceService(mock(TemporalBalanceService.class));
+
+    assertThatThrownBy(() -> controller.getAccountActivity(9L, "bad", "2026-03-31", null, null))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            ex -> {
+              ApplicationException applicationException = (ApplicationException) ex;
+              assertThat(applicationException.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_DATE);
+              assertThat(applicationException.getDetails())
+                  .containsEntry("startDate", "bad")
+                  .containsEntry("endDate", "2026-03-31");
+            });
+  }
+
+  @Test
+  void getAccountActivity_parsesRequiredDates() {
+    TemporalBalanceService temporalBalanceService = mock(TemporalBalanceService.class);
+    TemporalBalanceService.AccountActivityReport expected =
+        new TemporalBalanceService.AccountActivityReport(
+            "AR-009",
+            "Accounts Receivable",
+            LocalDate.of(2026, 3, 1),
+            LocalDate.of(2026, 3, 31),
+            new BigDecimal("10.00"),
+            new BigDecimal("12.00"),
+            new BigDecimal("20.00"),
+            new BigDecimal("18.00"),
+            List.of());
+    when(temporalBalanceService.getAccountActivity(
+            9L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31)))
+        .thenReturn(expected);
+
+    ApiResponse<TemporalBalanceService.AccountActivityReport> body =
+        controllerWithTemporalBalanceService(temporalBalanceService)
+            .getAccountActivity(9L, " 2026-03-01 ", "2026-03-31 ", null, null)
+            .getBody();
+
+    assertThat(body).isNotNull();
+    assertThat(body.data()).isSameAs(expected);
+    verify(temporalBalanceService)
+        .getAccountActivity(9L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31));
+  }
+
+  @Test
+  void compareBalances_parsesRequiredDates() {
+    TemporalBalanceService temporalBalanceService = mock(TemporalBalanceService.class);
+    TemporalBalanceService.BalanceComparison expected =
+        new TemporalBalanceService.BalanceComparison(
+            9L,
+            LocalDate.of(2026, 3, 1),
+            new BigDecimal("10.00"),
+            LocalDate.of(2026, 3, 31),
+            new BigDecimal("12.00"),
+            new BigDecimal("2.00"));
+    when(temporalBalanceService.compareBalances(
+            9L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31)))
+        .thenReturn(expected);
+
+    ApiResponse<TemporalBalanceService.BalanceComparison> body =
+        controllerWithTemporalBalanceService(temporalBalanceService)
+            .compareBalances(9L, " 2026-03-01 ", "2026-03-31 ")
+            .getBody();
+
+    assertThat(body).isNotNull();
+    assertThat(body.data()).isSameAs(expected);
+    verify(temporalBalanceService).compareBalances(9L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31));
+  }
+
+  @Test
+  void reverseJournalEntry_delegatesToJournalEntryService() {
+    JournalEntryService journalEntryService = mock(JournalEntryService.class);
+    AccountingController controller =
+        newController(mock(AccountingService.class), journalEntryService, null);
     JournalEntryReversalRequest request =
         new JournalEntryReversalRequest(
             LocalDate.of(2026, 2, 28), false, "Correction", "Reversal", false);
@@ -181,10 +452,9 @@ class AccountingControllerJournalEndpointsTest {
             null,
             null,
             null);
-    when(accountingService.reverseJournalEntry(200L, request)).thenReturn(expected);
+    when(journalEntryService.reverseJournalEntry(200L, request)).thenReturn(expected);
 
-    ApiResponse<JournalEntryDto> body =
-        controller.reverseJournalEntryByJournalPath(200L, request).getBody();
+    ApiResponse<JournalEntryDto> body = controller.reverseJournalEntry(200L, request).getBody();
 
     assertThat(body).isNotNull();
     assertThat(body.data()).isEqualTo(expected);
@@ -449,7 +719,7 @@ class AccountingControllerJournalEndpointsTest {
     when(settlementService.settleSupplierInvoices(any(SupplierSettlementRequest.class)))
         .thenReturn(expected);
 
-    controller.settleSupplier(request, "IDEMP-SUP-HDR-1");
+    controller.settleSupplier(request, "IDEMP-SUP-HDR-1", null);
 
     ArgumentCaptor<SupplierSettlementRequest> requestCaptor =
         ArgumentCaptor.forClass(SupplierSettlementRequest.class);
@@ -481,7 +751,7 @@ class AccountingControllerJournalEndpointsTest {
     when(settlementService.autoSettleSupplier(eq(8L), any(AutoSettlementRequest.class)))
         .thenReturn(expected);
 
-    controller.autoSettleSupplier(8L, request, "IDEMP-SUP-AUTO-1");
+    controller.autoSettleSupplier(8L, request, "IDEMP-SUP-AUTO-1", null);
 
     ArgumentCaptor<AutoSettlementRequest> requestCaptor =
         ArgumentCaptor.forClass(AutoSettlementRequest.class);
@@ -721,7 +991,60 @@ class AccountingControllerJournalEndpointsTest {
         mock(AccountHierarchyService.class),
         mock(AgingReportService.class),
         mock(CompanyDefaultAccountsService.class),
-        mock(AccountingAuditTrailService.class),
+        null,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  private AccountingController controllerWithStatementService(StatementService statementService) {
+    return new AccountingController(
+        mock(AccountingService.class),
+        mock(JournalEntryService.class),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        mock(SalesReturnService.class),
+        null,
+        null,
+        statementService,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
+  }
+
+  private AccountingController controllerWithTemporalBalanceService(
+      TemporalBalanceService temporalBalanceService) {
+    return new AccountingController(
+        mock(AccountingService.class),
+        mock(JournalEntryService.class),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        mock(SalesReturnService.class),
+        null,
+        null,
+        mock(StatementService.class),
+        null,
+        temporalBalanceService,
+        null,
+        null,
+        null,
+        null,
         null,
         null,
         null,

@@ -3,6 +3,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPAT_BASH_ENV_BOOTSTRAP="$ROOT_DIR/scripts/bash_env_bootstrap.sh"
+MAVEN_MEMORY_DEFAULTS="$ROOT_DIR/scripts/maven_memory_defaults.sh"
+if [[ -f "$MAVEN_MEMORY_DEFAULTS" ]]; then
+  source "$MAVEN_MEMORY_DEFAULTS"
+  bbp_ensure_maven_memory_defaults
+elif [[ -z "${MAVEN_OPTS:-}" ]]; then
+  export MAVEN_OPTS="-Xmx${BBP_MAVEN_XMX:-1536m} -XX:MaxMetaspaceSize=${BBP_MAVEN_MAX_METASPACE:-512m} -XX:+UseG1GC"
+fi
 if [[ "${BASH_ENV:-}" != "$COMPAT_BASH_ENV_BOOTSTRAP" && -n "${BASH_ENV:-}" ]]; then
   export BBP_CHAINED_BASH_ENV="${BASH_ENV:-}"
   export BBP_CHAINED_BASH_ENV_PARENT_PID="$$"
@@ -14,22 +21,14 @@ export BASH_ENV="$COMPAT_BASH_ENV_BOOTSTRAP"
 MIGRATION_SET="${MIGRATION_SET:-v2}"
 MVN_ARGS=(-B -ntp)
 
-case "$MIGRATION_SET" in
-  v2)
-    MVN_ARGS+=("-Dspring.profiles.active=test,flyway-v2")
-    MVN_ARGS+=("-Dspring.flyway.locations=classpath:db/migration_v2")
-    MVN_ARGS+=("-Dspring.flyway.table=flyway_schema_history_v2")
-    ;;
-  v1)
-    MVN_ARGS+=("-Dspring.profiles.active=test")
-    MVN_ARGS+=("-Dspring.flyway.locations=classpath:db/migration")
-    MVN_ARGS+=("-Dspring.flyway.table=flyway_schema_history")
-    ;;
-  *)
-    echo "[verify_local] invalid MIGRATION_SET: $MIGRATION_SET (expected v1 or v2)" >&2
-    exit 2
-    ;;
-esac
+if [[ "$MIGRATION_SET" != "v2" ]]; then
+  echo "[verify_local] invalid MIGRATION_SET: $MIGRATION_SET (expected v2 only)" >&2
+  exit 2
+fi
+
+MVN_ARGS+=("-Dspring.profiles.active=test,flyway-v2")
+MVN_ARGS+=("-Dspring.flyway.locations=classpath:db/migration_v2")
+MVN_ARGS+=("-Dspring.flyway.table=flyway_schema_history_v2")
 
 echo "[verify_local] root=$ROOT_DIR"
 echo "[verify_local] migration_set=$MIGRATION_SET"
@@ -71,10 +70,10 @@ echo "[verify_local] legacy migration freeze guard"
 bash "$ROOT_DIR/scripts/guard_legacy_migration_freeze.sh" --no-range
 
 echo "[verify_local] schema drift scan"
-FAIL_ON_FINDINGS=true bash "$ROOT_DIR/scripts/schema_drift_scan.sh" --migration-set "$MIGRATION_SET"
+FAIL_ON_FINDINGS=true bash "$ROOT_DIR/scripts/schema_drift_scan.sh"
 
 echo "[verify_local] flyway overlap scan (heuristic)"
-FAIL_ON_FINDINGS=true bash "$ROOT_DIR/scripts/flyway_overlap_scan.sh" --migration-set "$MIGRATION_SET"
+FAIL_ON_FINDINGS=true bash "$ROOT_DIR/scripts/flyway_overlap_scan.sh"
 
 if [[ "$SKIP_RELEASE_DUPLICATE_GUARDS" == "true" ]]; then
   echo "[verify_local] skip orchestrator correlation contract guard (delegated by caller)"
@@ -92,29 +91,27 @@ bash "$ROOT_DIR/scripts/guard_accounting_portal_scope_contract.sh"
 echo "[verify_local] audit trail ownership contract guard"
 bash "$ROOT_DIR/scripts/guard_audit_trail_ownership_contract.sh"
 
-if [[ "$MIGRATION_SET" == "v2" ]]; then
-  if [[ "$SKIP_RELEASE_DUPLICATE_GUARDS" == "true" ]]; then
-    echo "[verify_local] skip payroll account bootstrap contract guard (delegated by caller)"
-    echo "[verify_local] skip flyway v2 migration ownership guard (delegated by caller)"
-    echo "[verify_local] skip flyway v2 migration ownership fixture matrix (delegated by caller)"
-    echo "[verify_local] skip flyway v2 referential contract canary (delegated by caller)"
-    echo "[verify_local] skip flyway v2 referential contract fixture matrix (delegated by caller)"
-  else
-    echo "[verify_local] payroll account bootstrap contract guard"
-    bash "$ROOT_DIR/scripts/guard_payroll_account_bootstrap_contract.sh"
+if [[ "$SKIP_RELEASE_DUPLICATE_GUARDS" == "true" ]]; then
+  echo "[verify_local] skip payroll account bootstrap contract guard (delegated by caller)"
+  echo "[verify_local] skip flyway v2 migration ownership guard (delegated by caller)"
+  echo "[verify_local] skip flyway v2 migration ownership fixture matrix (delegated by caller)"
+  echo "[verify_local] skip flyway v2 referential contract canary (delegated by caller)"
+  echo "[verify_local] skip flyway v2 referential contract fixture matrix (delegated by caller)"
+else
+  echo "[verify_local] payroll account bootstrap contract guard"
+  bash "$ROOT_DIR/scripts/guard_payroll_account_bootstrap_contract.sh"
 
-    echo "[verify_local] flyway v2 migration ownership guard"
-    bash "$ROOT_DIR/scripts/guard_flyway_v2_migration_ownership.sh"
+  echo "[verify_local] flyway v2 migration ownership guard"
+  bash "$ROOT_DIR/scripts/guard_flyway_v2_migration_ownership.sh"
 
-    echo "[verify_local] flyway v2 migration ownership fixture matrix"
-    bash "$ROOT_DIR/scripts/guard_flyway_v2_migration_ownership_fixture_matrix.sh"
+  echo "[verify_local] flyway v2 migration ownership fixture matrix"
+  bash "$ROOT_DIR/scripts/guard_flyway_v2_migration_ownership_fixture_matrix.sh"
 
-    echo "[verify_local] flyway v2 referential contract canary"
-    bash "$ROOT_DIR/scripts/guard_flyway_v2_referential_contract.sh"
+  echo "[verify_local] flyway v2 referential contract canary"
+  bash "$ROOT_DIR/scripts/guard_flyway_v2_referential_contract.sh"
 
-    echo "[verify_local] flyway v2 referential contract fixture matrix"
-    bash "$ROOT_DIR/scripts/guard_flyway_v2_referential_contract_fixture_matrix.sh"
-  fi
+  echo "[verify_local] flyway v2 referential contract fixture matrix"
+  bash "$ROOT_DIR/scripts/guard_flyway_v2_referential_contract_fixture_matrix.sh"
 fi
 
 if [[ "$SKIP_RELEASE_DUPLICATE_GUARDS" == "true" ]]; then
@@ -124,44 +121,42 @@ else
   bash "$ROOT_DIR/scripts/guard_flyway_guard_contract.sh"
 fi
 
-if [[ "$MIGRATION_SET" == "v2" ]]; then
-  ALLOW_GUARD_DB_MISMATCH="${ALLOW_FLYWAY_GUARD_DB_MISMATCH:-false}"
-  if [[ -n "${FLYWAY_GUARD_DB_NAME:-}" && -n "${PGDATABASE:-}" && "${FLYWAY_GUARD_DB_NAME}" != "${PGDATABASE}" ]]; then
-    if [[ "$ALLOW_GUARD_DB_MISMATCH" != "true" ]]; then
-      echo "[verify_local] FLYWAY_GUARD_DB_NAME and PGDATABASE differ. Set ALLOW_FLYWAY_GUARD_DB_MISMATCH=true only for intentional split-target runs." >&2
-      exit 4
-    fi
-    echo "[verify_local] WARNING: FLYWAY_GUARD_DB_NAME and PGDATABASE differ; using FLYWAY_GUARD_DB_NAME due to ALLOW_FLYWAY_GUARD_DB_MISMATCH=true" >&2
+ALLOW_GUARD_DB_MISMATCH="${ALLOW_FLYWAY_GUARD_DB_MISMATCH:-false}"
+if [[ -n "${FLYWAY_GUARD_DB_NAME:-}" && -n "${PGDATABASE:-}" && "${FLYWAY_GUARD_DB_NAME}" != "${PGDATABASE}" ]]; then
+  if [[ "$ALLOW_GUARD_DB_MISMATCH" != "true" ]]; then
+    echo "[verify_local] FLYWAY_GUARD_DB_NAME and PGDATABASE differ. Set ALLOW_FLYWAY_GUARD_DB_MISMATCH=true only for intentional split-target runs." >&2
+    exit 4
   fi
+  echo "[verify_local] WARNING: FLYWAY_GUARD_DB_NAME and PGDATABASE differ; using FLYWAY_GUARD_DB_NAME due to ALLOW_FLYWAY_GUARD_DB_MISMATCH=true" >&2
+fi
 
-  GUARD_DB_NAME="${FLYWAY_GUARD_DB_NAME:-${PGDATABASE:-}}"
-  SKIP_FLYWAY_GUARD="${VERIFY_LOCAL_SKIP_FLYWAY_GUARD:-false}"
-  DELEGATED_GUARD_EXECUTED="${VERIFY_LOCAL_GUARD_ALREADY_EXECUTED:-false}"
+GUARD_DB_NAME="${FLYWAY_GUARD_DB_NAME:-${PGDATABASE:-}}"
+SKIP_FLYWAY_GUARD="${VERIFY_LOCAL_SKIP_FLYWAY_GUARD:-false}"
+DELEGATED_GUARD_EXECUTED="${VERIFY_LOCAL_GUARD_ALREADY_EXECUTED:-false}"
 
-  if [[ "${REQUIRE_FLYWAY_V2_GUARD:-false}" == "true" && -z "$GUARD_DB_NAME" ]]; then
-    echo "[verify_local] FLYWAY_GUARD_DB_NAME/PGDATABASE is required when REQUIRE_FLYWAY_V2_GUARD=true" >&2
-    exit 3
+if [[ "${REQUIRE_FLYWAY_V2_GUARD:-false}" == "true" && -z "$GUARD_DB_NAME" ]]; then
+  echo "[verify_local] FLYWAY_GUARD_DB_NAME/PGDATABASE is required when REQUIRE_FLYWAY_V2_GUARD=true" >&2
+  exit 3
+fi
+
+if [[ "$SKIP_FLYWAY_GUARD" == "true" && "${REQUIRE_FLYWAY_V2_GUARD:-false}" == "true" ]]; then
+  echo "[verify_local] ignore flyway v2 transient checksum delegation while REQUIRE_FLYWAY_V2_GUARD=true"
+  SKIP_FLYWAY_GUARD=false
+elif [[ "$SKIP_FLYWAY_GUARD" == "true" && "$DELEGATED_GUARD_EXECUTED" != "true" ]]; then
+  echo "[verify_local] ignore flyway v2 transient checksum delegation (VERIFY_LOCAL_GUARD_ALREADY_EXECUTED=true not set)"
+  SKIP_FLYWAY_GUARD=false
+fi
+
+if [[ "$SKIP_FLYWAY_GUARD" == "true" && -n "$GUARD_DB_NAME" ]]; then
+  echo "[verify_local] skip flyway v2 transient checksum guard (delegated by caller with FLYWAY_GUARD_DB_NAME=$GUARD_DB_NAME)"
+elif [[ -n "$GUARD_DB_NAME" ]]; then
+  if [[ -z "${FLYWAY_GUARD_DB_NAME:-}" && -n "${PGDATABASE:-}" ]]; then
+    echo "[verify_local] deriving FLYWAY_GUARD_DB_NAME from PGDATABASE"
   fi
-
-  if [[ "$SKIP_FLYWAY_GUARD" == "true" && "${REQUIRE_FLYWAY_V2_GUARD:-false}" == "true" ]]; then
-    echo "[verify_local] ignore flyway v2 transient checksum delegation while REQUIRE_FLYWAY_V2_GUARD=true"
-    SKIP_FLYWAY_GUARD=false
-  elif [[ "$SKIP_FLYWAY_GUARD" == "true" && "$DELEGATED_GUARD_EXECUTED" != "true" ]]; then
-    echo "[verify_local] ignore flyway v2 transient checksum delegation (VERIFY_LOCAL_GUARD_ALREADY_EXECUTED=true not set)"
-    SKIP_FLYWAY_GUARD=false
-  fi
-
-  if [[ "$SKIP_FLYWAY_GUARD" == "true" && -n "$GUARD_DB_NAME" ]]; then
-    echo "[verify_local] skip flyway v2 transient checksum guard (delegated by caller with FLYWAY_GUARD_DB_NAME=$GUARD_DB_NAME)"
-  elif [[ -n "$GUARD_DB_NAME" ]]; then
-    if [[ -z "${FLYWAY_GUARD_DB_NAME:-}" && -n "${PGDATABASE:-}" ]]; then
-      echo "[verify_local] deriving FLYWAY_GUARD_DB_NAME from PGDATABASE"
-    fi
-    echo "[verify_local] flyway v2 transient checksum guard"
-    bash "$ROOT_DIR/scripts/guard_flyway_v2_transient_checksum.sh" "$GUARD_DB_NAME"
-  else
-    echo "[verify_local] skip flyway v2 transient checksum guard (set FLYWAY_GUARD_DB_NAME or PGDATABASE to enable)"
-  fi
+  echo "[verify_local] flyway v2 transient checksum guard"
+  bash "$ROOT_DIR/scripts/guard_flyway_v2_transient_checksum.sh" "$GUARD_DB_NAME"
+else
+  echo "[verify_local] skip flyway v2 transient checksum guard (set FLYWAY_GUARD_DB_NAME or PGDATABASE to enable)"
 fi
 
 echo "[verify_local] time api scan"

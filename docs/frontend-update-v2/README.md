@@ -1,5 +1,12 @@
 # Frontend update v2 tracker
 
+This folder is no longer the canonical frontend handoff surface for ERP-48.
+Use [`docs/frontend-portals/`](/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-48-canonical-hardcut-d2df29ee/docs/frontend-portals/README.md)
+and [`docs/frontend-api/`](/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-48-canonical-hardcut-d2df29ee/docs/frontend-api/README.md)
+as the only authoritative current-state contract. If any note here conflicts
+with those newer docs, the portal/API pack wins and this tracker must be
+treated as historical delta context only.
+
 This folder is the dedicated review surface for frontend follow-up from the `security-auth-hardening` mission. Every auth/admin/lifecycle hardening change in this branch is listed here, including explicit no-op entries when no frontend code change is required.
 
 ## Overall contract summary

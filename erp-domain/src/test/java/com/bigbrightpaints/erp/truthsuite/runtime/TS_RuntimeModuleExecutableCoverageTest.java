@@ -129,7 +129,7 @@ class TS_RuntimeModuleExecutableCoverageTest {
             ApplicationException.class,
             ex -> {
               assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_STATE);
-              assertThat(ex.getMessage()).contains("default accounts are not configured");
+              assertThat(ex.getMessage()).contains("fgTaxAccountId");
             });
 
     Account invalidTax = account(99L, company, "BAD-TAX", AccountType.ASSET);

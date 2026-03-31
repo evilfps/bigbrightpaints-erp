@@ -3,77 +3,75 @@
 Last reviewed: 2026-03-29
 
 ## Scope
-- Feature: `ERP-45 Wave 1 fail-closed platform hardening`
-- Branch: mdanas7869292/erp-45-wave-1-fail-closed-blockers-and-platformapi-surface-cleanup
-- PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/166`
+- Feature: `ERP-46 audit read hard-cut`
+- Branch: `audit-unification-hard-cut`
+- Baseline head: `46f11fcb2a801517578182e0a4905ee5c5b5ba5b`
 - Review candidate:
-  - fail closed all targeted tenant control-plane mutations when the bound company context is blank or mismatched
-  - keep prod crypto and secret contracts explicit with no runtime fallback path
-  - keep admin/RBAC read surfaces canonical and fail closed for unknown platform roles
-  - preserve the runtime-enforcement naming split between request admission and policy ownership
-  - remove retired API surface and refresh OpenAPI and endpoint inventory to the current canonical routes only
-- Why this is R2: this PR changes high-risk `company`, `auth`, `rbac`, and `orchestrator` runtime paths plus the prod secret contract. A wrong merge could widen authority, bypass tenant isolation, or ship a prod profile that starts without required signing material.
+  - hard-cut tenant, tenant-admin, and superadmin audit reads onto explicit canonical controllers
+  - merge `audit_logs` and enterprise business audit events behind `AuditAccessService`
+  - remove retired audit-trail and audit-digest read paths plus dead scheduler/query code
+  - keep accounting trail failures visible in the accounting feed and keep module filters semantically aligned
+  - fail closed merged-feed paging with a bounded 5,000-row result window and overflow-safe page math
+- Why this is R2: the branch changes live accounting, company/superadmin audit access paths and removes public endpoints. A wrong cut can hide accounting evidence, leak the wrong tenant/platform scope, or break audit review during incidents.
 
 ## Risk Trigger
 - Triggered by:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/**`
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/**`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/auth/**`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/rbac/**`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/**`
-  - `erp-domain/src/main/resources/application-prod.yml`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/**`
 - Contract surfaces affected:
-  - superadmin tenant mutation flows under `/api/v1/superadmin/tenants/**`
-  - admin role lookup under /api/v1/admin/roles/*roleKey*
-  - prod actuator, health, and swagger exposure rules
-  - retired orchestrator and catalog endpoints removed from the canonical API surface
+  - tenant accounting event review
+  - tenant-admin audit review
+  - superadmin platform audit review
+  - accounting transaction audit detail/provenance
+  - audit paging and module-filter semantics
 - Failure mode if wrong:
-  - blank or mismatched tenant context could still mutate another tenant
-  - prod startup or runtime audit signing could drift into implicit fallback behavior
-  - admin callers could receive fabricated RBAC data instead of a hard failure
-  - stale endpoint aliases could remain callable after the hard cut
+  - accounting audit readers could miss `INTEGRATION_FAILURE` markers for event-trail persistence failures
+  - tenant-admin readers could receive `ACCOUNTING` rows while filtering for `BUSINESS`
+  - oversized page values could crash merged audit feeds instead of failing closed
+  - removed accounting audit-trail or audit-digest callers could silently drift back into frontend or integration usage
+  - superadmin/platform review could regress back onto tenant-scoped surfaces
 
 ## Approval Authority
 - Mode: human
-- Approver: `ERP-45 owner`
-- Canary owner: `ERP-45 owner`
-- Approval status: `pending green CI + reviewer confirmation`
-- Basis: this wave changes tenant isolation and prod security contracts, so merge still requires explicit human signoff after automated proof is green.
+- Approver: `ERP-46 owner`
+- Canary owner: `ERP-46 owner`
+- Approval status: `pending human review; PR #177 is the current candidate`
+- Basis: this is a destructive audit-surface hard-cut across accounting and platform review paths, so technical green alone is not sufficient for deployment approval.
 
 ## Escalation Decision
 - Human escalation required: yes
-- Reason: the packet set changes authorization boundaries, tenant control-plane mutation guards, and prod secret requirements.
+- Reason: the branch removes public audit routes and rewires tenant/platform visibility, so deployment should not rely on automated gate success alone.
 
 ## Rollback Owner
-- Owner: `ERP-45 owner`
+- Owner: `ERP-46 owner`
 - Rollback method:
-  - revert PR `#166` and redeploy the last green `main` build as one unit
-  - if rollback is triggered after prod verification starts, restore the previous application build and previous env secret set together so prod secret and audit-signing contracts stay aligned
+  - before merge: abandon `audit-unification-hard-cut` and do not promote the artifact
+  - after merge but before deploy: revert the audit hard-cut commits together; do not keep the controller/doc removals while dropping the access-layer fixes
+  - after deploy: restore the last known-good pre-hard-cut backend if tenant/platform audit review is impaired
+  - do not selectively reintroduce removed audit endpoints beside the canonical controllers
 - Rollback trigger:
-  - tenant mutation succeeds with blank or mismatched company context
-  - prod profile fails hard on required secret/crypto readiness after merge
-  - reviewer or CI evidence shows retired endpoints or fabricated RBAC responses still present
+  - accounting users cannot see canonical audit evidence on the accounting audit events route
+  - tenant-admin or superadmin review loses the intended scope boundary
+  - merged feed paging or module filters produce wrong results or 5xx responses
+  - downstream clients still depend on removed accounting audit-trail or digest surfaces
 
 ## Expiry
-- Valid until: `2026-04-04`
-- Re-evaluate if: Wave 1 scope expands, any new high-risk auth/company/orchestrator path is added, or reviewer feedback asks for further authorization or API-surface changes.
+- Valid until: `2026-04-05`
+- Re-evaluate if: scope widens beyond ERP-46 audit hard-cut follow-ups, audit ownership changes again, or the approver/canary/rollback owners change.
 
 ## Verification Evidence
 - Commands run:
-  - `MIGRATION_SET=v2 mvn -B -ntp -DskipTests compile`
-  - `MIGRATION_SET=v2 mvn -B -ntp -Dtest=CompanyServiceTest,RoleControllerSecurityContractTest,TenantRuntimeRequestAdmissionServiceTest test`
-  - `MIGRATION_SET=v2 mvn -B -ntp -Dtest=CR_ActuatorProdHardeningIT,CR_HealthEndpointProdHardeningIT,CR_SwaggerProdHardeningIT,CR_PayrollLegacyEndpointGatedIT,CR_DispatchOrderLookupReadOnlyIT test`
+  - `mvn -B -ntp --settings erp-domain/.mvn/settings.xml -f erp-domain/pom.xml -Dtest=AuditEventClassifierTest,AuditFeedFilterTest,AuditLogReadAdapterTest,DefaultAuditAccessServiceTest test`
+  - `bash scripts/gate_fast.sh`
+  - `bash ci/lint-knowledgebase.sh`
   - `bash ci/check-enterprise-policy.sh`
   - `bash ci/check-codex-review-guidelines.sh`
-  - `bash scripts/gate_fast.sh`
 - Result summary:
-  - Wave 1 remains fail closed on tenant mutation context, RBAC unknown-role lookup, prod secret readiness, and retired endpoint removal
-  - changed-file coverage follow-up is included in the same PR so the high-risk diff is fully mapped to packet-local tests
-  - final command outcomes are refreshed on the PR branch before merge
+  - targeted audit-access regression tests are green on the current branch head
+  - `scripts/gate_fast.sh` passed locally after the latest audit-feed fixes
+  - enterprise policy and codex review guideline checks passed locally after the checkpoint update was added to the branch diff
 - Artifacts/links:
-  - Repo checkout: (local filesystem)
-  - PR: https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/166
-  - Linear issue: ERP-45
-
-## Test Waiver (Only if no tests changed)
-
-This R2 checkpoint also covers the docs-foundation-full-contract-lint-pass feature in the docs-only mission. The untracked module AGENTS.md files under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md` and `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md` are documentation-only governance files (not runtime code), created as part of the canonical docs scaffold. No production logic is changed; no tests are required for docs-only AGENTS.md governance files.
+  - repo checkout: local workspace
+  - PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/177`
+  - local gate artifacts: `artifacts/gate-fast/`

@@ -37,6 +37,30 @@ public record JournalEntryReversalRequest(
     this(reversalDate, voidOnly, reason, memo, adminOverride, null, false, null, null, null, null);
   }
 
+  public JournalEntryReversalRequest withoutCascadeReplay() {
+    return copyWith(reason, memo, false, null);
+  }
+
+  public JournalEntryReversalRequest forCascadeChild(String cascadeReason, String cascadeMemo) {
+    return copyWith(cascadeReason, cascadeMemo, false, null);
+  }
+
+  private JournalEntryReversalRequest copyWith(
+      String nextReason, String nextMemo, boolean nextCascadeRelatedEntries, List<Long> nextRelatedIds) {
+    return new JournalEntryReversalRequest(
+        reversalDate,
+        voidOnly,
+        nextReason,
+        nextMemo,
+        adminOverride,
+        reversalPercentage,
+        nextCascadeRelatedEntries,
+        nextRelatedIds,
+        reasonCode,
+        approvedBy,
+        supportingDocumentRef);
+  }
+
   public BigDecimal getEffectivePercentage() {
     return reversalPercentage != null ? reversalPercentage : new BigDecimal("100.00");
   }

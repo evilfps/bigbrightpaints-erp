@@ -28,7 +28,7 @@ import jakarta.persistence.EntityManager;
 /**
  * Cross-cutting accounting orchestration shell.
  */
-public abstract class AccountingCoreLogic extends AccountingCoreEngine {
+abstract class AccountingCoreLogic extends AccountingCoreEngine {
 
   protected AccountingCoreLogic(
       CompanyContextService companyContextService,

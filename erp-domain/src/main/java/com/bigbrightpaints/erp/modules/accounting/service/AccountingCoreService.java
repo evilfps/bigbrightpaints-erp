@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.stereotype.Service;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.config.SystemSettingsService;
@@ -26,8 +25,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 
 import jakarta.persistence.EntityManager;
 
-@Service
-public class AccountingCoreService extends AccountingCoreLogic {
+class AccountingCoreService extends AccountingCoreLogic {
 
   public AccountingCoreService(
       CompanyContextService companyContextService,

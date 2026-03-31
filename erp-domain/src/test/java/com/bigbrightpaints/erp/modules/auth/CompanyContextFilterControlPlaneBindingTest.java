@@ -39,7 +39,6 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
-import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeRequestAdmissionService;
 
 import io.jsonwebtoken.Claims;
@@ -205,7 +204,7 @@ class CompanyContextFilterControlPlaneBindingTest {
       throws ServletException, IOException {
     authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("TENANT-A"));
 
-    MockHttpServletRequest request = request("GET", "/api/v1/audit/business-events");
+    MockHttpServletRequest request = request("GET", "/api/v1/admin/audit/events");
     request.setAttribute("jwtClaims", claimsFor("TENANT-A"));
     MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -231,7 +230,7 @@ class CompanyContextFilterControlPlaneBindingTest {
     assertThat(
             (Boolean)
                 ReflectionTestUtils.invokeMethod(
-                    filter, "isPlatformScopedRequestAllowed", "/api/v1/audit/business-events"))
+                    filter, "isPlatformScopedRequestAllowed", "/api/v1/admin/audit/events"))
         .isFalse();
     assertThat(
             (Boolean)
@@ -249,7 +248,7 @@ class CompanyContextFilterControlPlaneBindingTest {
     authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of());
     when(authScopeService.isPlatformScope("PLATFORM")).thenReturn(true);
 
-    MockHttpServletRequest request = request("GET", "/api/v1/audit/business-events");
+    MockHttpServletRequest request = request("GET", "/api/v1/admin/audit/events");
     request.setAttribute("jwtClaims", claimsFor("PLATFORM"));
     request.addHeader("X-Company-Code", "PLATFORM");
     MockHttpServletResponse response = new MockHttpServletResponse();

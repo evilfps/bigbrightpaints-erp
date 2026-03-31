@@ -5,22 +5,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
-import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.modules.accounting.service.CostingMethodService;
-import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReservationRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
-import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationResponse;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchPreviewDto;
@@ -30,18 +23,15 @@ import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodLowStockThresho
 import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.StockSummaryDto;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
-import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 
 import jakarta.transaction.Transactional;
 
 @Service
-public class FinishedGoodsWorkflowEngineService {
+class FinishedGoodsWorkflowEngineService {
   private final CompanyContextService companyContextService;
   private final FinishedGoodRepository finishedGoodRepository;
   private final FinishedGoodBatchRepository finishedGoodBatchRepository;
-  private final BatchNumberService batchNumberService;
   private final InventoryValuationService inventoryValuationService;
-  private final InventoryMovementRecorder movementRecorder;
   private final FinishedGoodsReservationEngine reservationEngine;
   private final FinishedGoodsDispatchEngine dispatchEngine;
   private final PackagingSlipService packagingSlipService;
@@ -50,63 +40,17 @@ public class FinishedGoodsWorkflowEngineService {
       CompanyContextService companyContextService,
       FinishedGoodRepository finishedGoodRepository,
       FinishedGoodBatchRepository finishedGoodBatchRepository,
-      PackagingSlipRepository packagingSlipRepository,
-      InventoryMovementRepository inventoryMovementRepository,
-      InventoryReservationRepository inventoryReservationRepository,
-      BatchNumberService batchNumberService,
-      SalesOrderRepository salesOrderRepository,
-      CostingMethodService costingMethodService,
-      GstService gstService,
-      ApplicationEventPublisher eventPublisher,
-      CompanyClock companyClock) {
+      InventoryValuationService inventoryValuationService,
+      FinishedGoodsReservationEngine reservationEngine,
+      FinishedGoodsDispatchEngine dispatchEngine,
+      PackagingSlipService packagingSlipService) {
     this.companyContextService = companyContextService;
     this.finishedGoodRepository = finishedGoodRepository;
     this.finishedGoodBatchRepository = finishedGoodBatchRepository;
-    this.batchNumberService = batchNumberService;
-    this.movementRecorder =
-        new InventoryMovementRecorder(inventoryMovementRepository, eventPublisher, companyClock);
-    this.inventoryValuationService =
-        new InventoryValuationService(
-            finishedGoodBatchRepository, costingMethodService, companyClock);
-    this.packagingSlipService =
-        new PackagingSlipService(
-            companyContextService,
-            packagingSlipRepository,
-            inventoryReservationRepository,
-            finishedGoodRepository,
-            finishedGoodBatchRepository,
-            salesOrderRepository,
-            this.inventoryValuationService,
-            batchNumberService);
-    this.reservationEngine =
-        new FinishedGoodsReservationEngine(
-            companyContextService,
-            finishedGoodRepository,
-            finishedGoodBatchRepository,
-            packagingSlipRepository,
-            inventoryMovementRepository,
-            inventoryReservationRepository,
-            salesOrderRepository,
-            batchNumberService,
-            costingMethodService,
-            companyClock,
-            this.movementRecorder,
-            this.inventoryValuationService);
-    this.dispatchEngine =
-        new FinishedGoodsDispatchEngine(
-            companyContextService,
-            finishedGoodRepository,
-            finishedGoodBatchRepository,
-            packagingSlipRepository,
-            inventoryMovementRepository,
-            inventoryReservationRepository,
-            salesOrderRepository,
-            gstService,
-            companyClock,
-            movementRecorder,
-            this.reservationEngine,
-            this.packagingSlipService,
-            this.inventoryValuationService);
+    this.inventoryValuationService = inventoryValuationService;
+    this.reservationEngine = reservationEngine;
+    this.dispatchEngine = dispatchEngine;
+    this.packagingSlipService = packagingSlipService;
   }
 
   public List<FinishedGoodDto> listFinishedGoods() {
@@ -349,5 +293,4 @@ public class FinishedGoodsWorkflowEngineService {
         batch.getManufacturedAt(),
         batch.getExpiryDate());
   }
-
 }

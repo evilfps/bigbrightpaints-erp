@@ -9,5 +9,4 @@ import jakarta.validation.constraints.NotEmpty;
 public record CreateUserRequest(
     @Email @NotBlank String email,
     @NotBlank String displayName,
-    Long companyId,
     @NotEmpty List<String> roles) {}

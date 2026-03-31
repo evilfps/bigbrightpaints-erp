@@ -276,7 +276,6 @@ public class SystemSettingsService {
       boolean httpAllowed =
           "http".equals(normalizedScheme)
               && (LOOPBACK_HOSTS.contains(normalizedHost)
-                  || (!environmentValidationEnabled && isPrivateNetworkIpv4Literal(normalizedHost))
                   || (allowTailscaleHttpOrigins && isTailscaleIpv4Literal(normalizedHost)));
       if (!httpsAllowed && !httpAllowed) {
         invalidOrigins.add(origin);
@@ -289,11 +288,7 @@ public class SystemSettingsService {
       normalizedOrigins.add(normalizedOrigin);
     }
     if (!invalidOrigins.isEmpty()) {
-      String httpPolicy =
-          environmentValidationEnabled
-              ? "http allowed only for localhost"
-              : "http allowed only for localhost or private-network IPv4 when"
-                  + " erp.environment.validation.enabled=false";
+      String httpPolicy = "http allowed only for localhost";
       if (allowTailscaleHttpOrigins) {
         httpPolicy =
             httpPolicy
@@ -306,30 +301,6 @@ public class SystemSettingsService {
               + invalidOrigins);
     }
     return new ArrayList<>(normalizedOrigins);
-  }
-
-  private boolean isPrivateNetworkIpv4Literal(String host) {
-    String[] parts = host.split("\\.");
-    if (parts.length != 4) {
-      return false;
-    }
-    int[] octets = new int[4];
-    for (int i = 0; i < parts.length; i++) {
-      if (!parts[i].chars().allMatch(Character::isDigit)) {
-        return false;
-      }
-      try {
-        octets[i] = Integer.parseInt(parts[i]);
-      } catch (NumberFormatException ex) {
-        return false;
-      }
-      if (octets[i] < 0 || octets[i] > 255) {
-        return false;
-      }
-    }
-    return octets[0] == 10
-        || (octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31)
-        || (octets[0] == 192 && octets[1] == 168);
   }
 
   private boolean isTailscaleIpv4Literal(String host) {
@@ -378,7 +349,8 @@ public class SystemSettingsService {
       return false;
     }
     String normalizedHost = host.toLowerCase(Locale.ROOT);
-    return LOOPBACK_HOSTS.contains(normalizedHost) || isPrivateNetworkIpv4Literal(normalizedHost);
+    return LOOPBACK_HOSTS.contains(normalizedHost)
+        || (allowTailscaleHttpOrigins && isTailscaleIpv4Literal(normalizedHost));
   }
 
   private boolean isDisallowedProdHttpOrigin(String origin) {
@@ -400,8 +372,6 @@ public class SystemSettingsService {
     if (allowTailscaleHttpOrigins && isTailscaleIpv4Literal(normalizedHost)) {
       return false;
     }
-    return LOOPBACK_HOSTS.contains(normalizedHost)
-        || isPrivateNetworkIpv4Literal(normalizedHost)
-        || isTailscaleIpv4Literal(normalizedHost);
+    return LOOPBACK_HOSTS.contains(normalizedHost) || isTailscaleIpv4Literal(normalizedHost);
   }
 }

@@ -513,23 +513,22 @@ class ReconciliationServiceTest {
 
   @Test
   void interCompanyReconcile_bidirectionalBalancesMatch_reportsMatchedItems() {
-    Company companyA = company(11L, "COMP-A", "Company A");
+    Company companyA = company;
     Company companyB = company(22L, "COMP-B", "Company B");
 
     Dealer aReceivableFromB = dealer(101L, "COMP-B", "Company B Dealer", "150.00");
-    Supplier bPayableToA = supplier(201L, "COMP-A", "Company A Supplier");
+    Supplier bPayableToA = supplier(201L, "ACME", "Company A Supplier");
 
-    Dealer bReceivableFromA = dealer(102L, "COMP-A", "Company A Dealer", "80.00");
+    Dealer bReceivableFromA = dealer(102L, "ACME", "Company A Dealer", "80.00");
     Supplier aPayableToB = supplier(202L, "COMP-B", "Company B Supplier");
 
-    when(companyRepository.findById(11L)).thenReturn(Optional.of(companyA));
     when(companyRepository.findById(22L)).thenReturn(Optional.of(companyB));
 
     when(dealerRepository.findByCompanyAndCodeIgnoreCase(companyA, "COMP-B"))
         .thenReturn(Optional.of(aReceivableFromB));
-    when(supplierRepository.findByCompanyAndCodeIgnoreCase(companyB, "COMP-A"))
+    when(supplierRepository.findByCompanyAndCodeIgnoreCase(companyB, "ACME"))
         .thenReturn(Optional.of(bPayableToA));
-    when(dealerRepository.findByCompanyAndCodeIgnoreCase(companyB, "COMP-A"))
+    when(dealerRepository.findByCompanyAndCodeIgnoreCase(companyB, "ACME"))
         .thenReturn(Optional.of(bReceivableFromA));
     when(supplierRepository.findByCompanyAndCodeIgnoreCase(companyA, "COMP-B"))
         .thenReturn(Optional.of(aPayableToB));
@@ -539,7 +538,7 @@ class ReconciliationServiceTest {
         .thenReturn(Optional.of(new SupplierBalanceView(202L, new BigDecimal("80.00"))));
 
     ReconciliationService.InterCompanyReconciliationReport report =
-        reconciliationService.interCompanyReconcile(11L, 22L);
+        reconciliationService.interCompanyReconcile(1L, 22L);
 
     assertThat(report.reconciled()).isTrue();
     assertThat(report.matchedItems()).hasSize(2);
@@ -549,21 +548,20 @@ class ReconciliationServiceTest {
 
   @Test
   void interCompanyReconcile_mismatchAndMissingCounterparty_reportsUnmatchedItems() {
-    Company companyA = company(11L, "COMP-A", "Company A");
+    Company companyA = company;
     Company companyB = company(22L, "COMP-B", "Company B");
 
     Dealer aReceivableFromB = dealer(101L, "COMP-B", "Company B Dealer", "150.00");
-    Supplier bPayableToA = supplier(201L, "COMP-A", "Company A Supplier");
+    Supplier bPayableToA = supplier(201L, "ACME", "Company A Supplier");
     Supplier aPayableToB = supplier(202L, "COMP-B", "Company B Supplier");
 
-    when(companyRepository.findById(11L)).thenReturn(Optional.of(companyA));
     when(companyRepository.findById(22L)).thenReturn(Optional.of(companyB));
 
     when(dealerRepository.findByCompanyAndCodeIgnoreCase(companyA, "COMP-B"))
         .thenReturn(Optional.of(aReceivableFromB));
-    when(supplierRepository.findByCompanyAndCodeIgnoreCase(companyB, "COMP-A"))
+    when(supplierRepository.findByCompanyAndCodeIgnoreCase(companyB, "ACME"))
         .thenReturn(Optional.of(bPayableToA));
-    when(dealerRepository.findByCompanyAndCodeIgnoreCase(companyB, "COMP-A"))
+    when(dealerRepository.findByCompanyAndCodeIgnoreCase(companyB, "ACME"))
         .thenReturn(Optional.empty());
     when(supplierRepository.findByCompanyAndCodeIgnoreCase(companyA, "COMP-B"))
         .thenReturn(Optional.of(aPayableToB));
@@ -573,7 +571,7 @@ class ReconciliationServiceTest {
         .thenReturn(Optional.of(new SupplierBalanceView(202L, new BigDecimal("75.00"))));
 
     ReconciliationService.InterCompanyReconciliationReport report =
-        reconciliationService.interCompanyReconcile(11L, 22L);
+        reconciliationService.interCompanyReconcile(1L, 22L);
 
     assertThat(report.reconciled()).isFalse();
     assertThat(report.matchedItems()).isEmpty();
@@ -582,6 +580,66 @@ class ReconciliationServiceTest {
     assertThat(report.unmatchedItems())
         .extracting(ReconciliationService.InterCompanyReconciliationItem::counterpartyMissing)
         .containsExactlyInAnyOrder(false, true);
+  }
+
+  @Test
+  void interCompanyReconcile_rejectsTraversalThatExcludesActiveCompany() {
+    assertThatThrownBy(() -> reconciliationService.interCompanyReconcile(11L, 22L))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(com.bigbrightpaints.erp.core.exception.ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS);
+              assertThat(ex.getMessage())
+                  .isEqualTo("Inter-company reconciliation must include the active company");
+              assertThat(ex.getDetails())
+                  .containsEntry("activeCompanyId", 1L)
+                  .containsEntry("companyA", 11L)
+                  .containsEntry("companyB", 22L);
+            });
+  }
+
+  @Test
+  void interCompanyReconcile_rejectsWhenActiveCompanyIsNotPersisted() {
+    Company transientCompany = new Company();
+    transientCompany.setCode("TRANSIENT");
+    when(companyContextService.requireCurrentCompany()).thenReturn(transientCompany);
+
+    assertThatThrownBy(() -> reconciliationService.interCompanyReconcile(11L, 22L))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Active company must be persisted");
+  }
+
+  @Test
+  void interCompanyReconcile_usesActiveCompanyWhenPassedAsCompanyB() {
+    Company companyA = company(22L, "COMP-B", "Company B");
+
+    Dealer aReceivableFromActive = dealer(103L, "ACME", "Active Company Dealer", "70.00");
+    Supplier activePayableToA = supplier(203L, "COMP-B", "Company B Supplier");
+
+    Dealer activeReceivableFromA = dealer(104L, "COMP-B", "Company B Dealer", "55.00");
+    Supplier aPayableToActive = supplier(204L, "ACME", "Active Company Supplier");
+
+    when(companyRepository.findById(22L)).thenReturn(Optional.of(companyA));
+    when(dealerRepository.findByCompanyAndCodeIgnoreCase(companyA, "ACME"))
+        .thenReturn(Optional.of(aReceivableFromActive));
+    when(supplierRepository.findByCompanyAndCodeIgnoreCase(company, "COMP-B"))
+        .thenReturn(Optional.of(activePayableToA));
+    when(dealerRepository.findByCompanyAndCodeIgnoreCase(company, "COMP-B"))
+        .thenReturn(Optional.of(activeReceivableFromA));
+    when(supplierRepository.findByCompanyAndCodeIgnoreCase(companyA, "ACME"))
+        .thenReturn(Optional.of(aPayableToActive));
+    when(supplierLedgerRepository.aggregateBalance(company, activePayableToA))
+        .thenReturn(Optional.of(new SupplierBalanceView(203L, new BigDecimal("70.00"))));
+    when(supplierLedgerRepository.aggregateBalance(companyA, aPayableToActive))
+        .thenReturn(Optional.of(new SupplierBalanceView(204L, new BigDecimal("55.00"))));
+
+    ReconciliationService.InterCompanyReconciliationReport report =
+        reconciliationService.interCompanyReconcile(22L, 1L);
+
+    assertThat(report.reconciled()).isTrue();
+    assertThat(report.companyAId()).isEqualTo(22L);
+    assertThat(report.companyBId()).isEqualTo(1L);
+    verify(companyRepository, never()).findById(1L);
   }
 
   @Test

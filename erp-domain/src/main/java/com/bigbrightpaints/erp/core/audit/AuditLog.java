@@ -354,13 +354,3 @@ public class AuditLog extends VersionedEntity {
     this.metadata = metadata;
   }
 }
-
-/**
- * Status of the audited event.
- */
-enum AuditStatus {
-  SUCCESS,
-  FAILURE,
-  WARNING,
-  INFO
-}

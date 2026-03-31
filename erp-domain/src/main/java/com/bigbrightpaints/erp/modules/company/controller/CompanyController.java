@@ -38,17 +38,6 @@ public class CompanyController {
         ApiResponse.success(companyService.findAll(requireCompanyContext(principal))));
   }
 
-  @DeleteMapping("/{id}")
-  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-  public ResponseEntity<Void> delete(
-      @AuthenticationPrincipal UserPrincipal principal, @PathVariable Long id) {
-    Company allowedCompany = requireCompanyContext(principal);
-    if (allowedCompany.getId() == null || !allowedCompany.getId().equals(id)) {
-      throw new AccessDeniedException("Not allowed to delete company");
-    }
-    throw new AccessDeniedException("Deleting companies is not permitted");
-  }
-
   private Company requireCompanyContext(UserPrincipal principal) {
     if (principal == null
         || principal.getUser() == null

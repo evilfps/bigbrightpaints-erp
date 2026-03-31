@@ -40,6 +40,14 @@ This folder provides the shared topic files that all frontend portal shells (`su
 
 See [`docs/frontend-portals/README.md`](../frontend-portals/README.md) for detailed folder ownership.
 
+### Additional Current Contract Rules
+
+- **Manual journals:** `POST /api/v1/accounting/journal-entries` is the only public manual journal create route.
+- **Reversals:** `POST /api/v1/accounting/journal-entries/{entryId}/reverse` is the only public reversal route.
+- **Period close:** frontend must follow maker-checker flow: request close → tenant-admin approvals inbox → approve/reject close.
+- **Exports:** export approval belongs to `tenant-admin`; report consumption stays in `accounting`.
+- **Dispatch:** dispatch confirmation belongs to `factory` even when invoice or journal side effects follow.
+
 ## Shared Topic Files
 
 | Topic | Description |
@@ -60,6 +68,9 @@ The following routes are no longer part of the current frontend contract:
 | `GET /api/v1/auth/profile` | Use `GET /api/v1/auth/me` for all identity data |
 | `X-Company-Id` header | Use `X-Company-Code` header with `companyCode` value |
 | `companyId` in frontend state | Use `companyCode` in frontend state and localStorage |
+| `POST /api/v1/accounting/journals/manual` | Use `POST /api/v1/accounting/journal-entries` |
+| `POST /api/v1/accounting/journal-entries/{entryId}/cascade-reverse` | Use `POST /api/v1/accounting/journal-entries/{entryId}/reverse` |
+| `POST /api/v1/accounting/periods/{periodId}/close` | Use maker-checker flow: request close → admin approvals → approve/reject close |
 
 ## Relationship to Frontend Portals
 

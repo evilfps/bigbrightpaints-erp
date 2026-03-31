@@ -113,6 +113,15 @@ public class ExportApprovalService {
   public ExportRequestDownloadResponse resolveDownload(Long requestId) {
     Company company = companyContextService.requireCurrentCompany();
     ExportRequest request = requireRequest(company, requestId);
+    UserAccount actor = resolveActor(company);
+
+    if (request.getUserId() == null || !request.getUserId().equals(actor.getId())) {
+      throw new ApplicationException(
+              ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS,
+              "Export request does not belong to the authenticated actor")
+          .withDetail("requestId", requestId)
+          .withDetail("actor", actor.getEmail());
+    }
 
     if (!isApprovalRequired()) {
       return new ExportRequestDownloadResponse(

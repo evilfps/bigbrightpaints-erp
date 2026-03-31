@@ -162,6 +162,23 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
   }
 
   @Test
+  @DisplayName("Inactive dealer portal mapping is denied even with a valid dealer token")
+  void inactiveDealerPortalMapping_isDenied() {
+    dealerA.setStatus("INACTIVE");
+    dealerRepository.saveAndFlush(dealerA);
+
+    HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
+    ResponseEntity<Map> response =
+        rest.exchange(
+            "/api/v1/dealer-portal/dashboard",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
+  @Test
   @DisplayName("Dealer and portal finance hosts stay on one ledger, invoice, and aging truth")
   void dealerAndPortalFinanceHosts_shareCanonicalFinanceTruth() {
     HttpHeaders dealerHeaders = authHeaders(DEALER_A_EMAIL, PASSWORD);
@@ -849,6 +866,7 @@ class DealerPortalControllerSecurityIT extends AbstractIntegrationTest {
     dealer.setCompany(company);
     dealer.setCode(code);
     dealer.setName(name);
+    dealer.setStatus("ACTIVE");
     dealer.setCompanyName(name + " Pvt Ltd");
     dealer.setEmail(portalUser.getEmail());
     dealer.setCreditLimit(new BigDecimal("100000"));

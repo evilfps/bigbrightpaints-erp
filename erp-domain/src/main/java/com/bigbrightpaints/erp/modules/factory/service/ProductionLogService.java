@@ -183,7 +183,9 @@ public class ProductionLogService {
     }
 
     String batchCode = log.getProductionCode();
-    if (rawMaterialBatchRepository.lockByRawMaterialAndBatchCode(semiFinished, batchCode).isPresent()) {
+    if (rawMaterialBatchRepository
+        .lockByRawMaterialAndBatchCode(semiFinished, batchCode)
+        .isPresent()) {
       throw new ApplicationException(
           ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
           "Semi-finished batch already exists for production " + log.getProductionCode());
@@ -202,8 +204,7 @@ public class ProductionLogService {
     movement.setReferenceId(log.getProductionCode());
     movement.setMovementType("RECEIPT");
     movement.setQuantity(mixedQty);
-    movement.setUnitCost(
-        log.getUnitCost() != null ? log.getUnitCost() : BigDecimal.ZERO);
+    movement.setUnitCost(log.getUnitCost() != null ? log.getUnitCost() : BigDecimal.ZERO);
     RawMaterialMovement savedMovement = rawMaterialMovementRepository.save(movement);
 
     BigDecimal amount = totalCost.setScale(2, COST_ROUNDING);
@@ -270,7 +271,8 @@ public class ProductionLogService {
     batch.setCostPerUnit(log.getUnitCost() != null ? log.getUnitCost() : BigDecimal.ZERO);
     batch.setReceivedAt(log.getProducedAt());
     batch.setManufacturedAt(log.getProducedAt());
-    batch.setSource(com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource.PRODUCTION);
+    batch.setSource(
+        com.bigbrightpaints.erp.modules.inventory.domain.InventoryBatchSource.PRODUCTION);
     return rawMaterialBatchRepository.save(batch);
   }
 

@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
+import java.math.BigDecimal;
+
 import org.springframework.stereotype.Service;
 
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
@@ -33,13 +35,15 @@ public class CompanyDefaultAccountsService {
 
   public DefaultAccounts requireDefaults() {
     Company company = companyContextService.requireCurrentCompany();
-    if (company.getDefaultInventoryAccountId() == null
-        || company.getDefaultCogsAccountId() == null
-        || company.getDefaultRevenueAccountId() == null
-        || company.getDefaultTaxAccountId() == null) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
-          "Company default accounts are not configured for " + company.getCode());
-    }
+    requireConfiguredDefault(
+        company.getDefaultInventoryAccountId(), company.getCode(), "fgValuationAccountId");
+    requireConfiguredDefault(
+        company.getDefaultCogsAccountId(), company.getCode(), "fgCogsAccountId");
+    requireConfiguredDefault(
+        company.getDefaultRevenueAccountId(), company.getCode(), "fgRevenueAccountId");
+    requireConfiguredDefault(
+        company.getDefaultDiscountAccountId(), company.getCode(), "fgDiscountAccountId");
+    requireConfiguredDefault(company.getDefaultTaxAccountId(), company.getCode(), "fgTaxAccountId");
     return new DefaultAccounts(
         company.getDefaultInventoryAccountId(),
         company.getDefaultCogsAccountId(),
@@ -94,6 +98,14 @@ public class CompanyDefaultAccountsService {
       Account account = companyEntityLookup.requireAccount(company, taxAccountId);
       requireType(account, AccountType.LIABILITY, "tax");
       company.setDefaultTaxAccountId(account.getId());
+      if (isNonGstMode(company)) {
+        company.setGstInputTaxAccountId(null);
+        company.setGstOutputTaxAccountId(null);
+        company.setGstPayableAccountId(null);
+      } else {
+        company.setGstOutputTaxAccountId(account.getId());
+        company.setGstPayableAccountId(account.getId());
+      }
     }
     companyRepository.save(company);
     return new DefaultAccounts(
@@ -115,6 +127,23 @@ public class CompanyDefaultAccountsService {
               + expected
               + ")");
     }
+  }
+
+  private void requireConfiguredDefault(Long accountId, String companyCode, String fieldName) {
+    if (accountId != null) {
+      return;
+    }
+    throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
+        "Default "
+            + fieldName
+            + " is not configured for company "
+            + companyCode
+            + ". Configure company default accounts to enable product posting.");
+  }
+
+  private boolean isNonGstMode(Company company) {
+    BigDecimal defaultGstRate = company.getDefaultGstRate();
+    return defaultGstRate != null && defaultGstRate.compareTo(BigDecimal.ZERO) == 0;
   }
 
   public record DefaultAccounts(

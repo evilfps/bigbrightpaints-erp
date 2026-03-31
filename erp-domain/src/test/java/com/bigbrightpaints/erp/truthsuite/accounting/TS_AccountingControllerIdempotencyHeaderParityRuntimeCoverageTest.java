@@ -76,15 +76,14 @@ class TS_AccountingControllerIdempotencyHeaderParityRuntimeCoverageTest {
   }
 
   @Test
-  void recordDealerReceipt_primaryLegacyMismatch_throwsApplicationException() {
+  void recordDealerReceipt_legacyHeader_throwsApplicationException() {
     DealerReceiptService dealerReceiptService = mock(DealerReceiptService.class);
     AccountingController controller = newController(dealerReceiptService);
 
     assertThatThrownBy(
-            () ->
-                controller.recordDealerReceipt(dealerReceiptRequest(null), "hdr-001", "legacy-001"))
+            () -> controller.recordDealerReceipt(dealerReceiptRequest(null), null, "legacy-001"))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Idempotency key mismatch");
+        .hasMessageContaining("X-Idempotency-Key is not supported");
     verifyNoInteractions(dealerReceiptService);
   }
 
@@ -96,7 +95,7 @@ class TS_AccountingControllerIdempotencyHeaderParityRuntimeCoverageTest {
     DealerReceiptRequest blankHeaderRequest = dealerReceiptRequest(null);
     when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
 
-    controller.recordDealerReceipt(nonBlankHeaderRequest, "  hdr-trim-001  ", "hdr-trim-001");
+    controller.recordDealerReceipt(nonBlankHeaderRequest, "  hdr-trim-001  ", "   ");
     controller.recordDealerReceipt(blankHeaderRequest, "   ", "\t");
 
     ArgumentCaptor<DealerReceiptRequest> captor =

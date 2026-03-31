@@ -66,8 +66,8 @@ public record AccountingTransactionAuditDetailDto(
       BigDecimal fxDifferenceAmount,
       String applicationType,
       String memo,
-      LocalDate settlementDate,
-      String idempotencyKey) {}
+      LocalDate settlementDate
+) {}
 
   public record EventTrailItem(
       Long eventId,

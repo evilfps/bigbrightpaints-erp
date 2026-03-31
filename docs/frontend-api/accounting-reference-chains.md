@@ -1,75 +1,226 @@
 # Accounting Reference Chains
 
-Last reviewed: 2026-03-31
+This file captures the canonical document and reference chains frontend uses across onboarding, stock bootstrap, accounting workflows, and audit/provenance reads.
 
-## Overview
+Reference chains define which upstream business event the frontend should use
+when linking screens, toasts, audits, and support traces.
 
-Accounting transactions often reference other documents in the system. Understanding reference chains helps frontend applications display provenance, navigate between related documents, and audit transaction flows.
+## Tenant onboarding
 
-## Common Reference Chains
+- `GET /api/v1/superadmin/tenants/coa-templates`
+- operator selects `coaTemplateCode`
+- `POST /api/v1/superadmin/tenants/onboard`
+- `seededChartOfAccounts=true`
+- `defaultAccountingPeriodCreated=true`
+- `tenantAdminProvisioned=true`
 
-### Invoice → Journal Entry
+UI implication:
 
-An invoice post creates a journal entry. The journal entry references the invoice.
+- Accounting screens stay blocked until onboarding confirms all bootstrap truth
+  flags.
+- Do not build a local fallback that assumes a tenant can enter accounting first
+  and seed COA later.
+- Portal owner: `superadmin` for onboarding, then `accounting` for post-bootstrap
+  setup.
 
-**Invoice response includes:**
+## Inventory bootstrap
 
-```json
-{
-  "invoiceNumber": "INV-2026-0042",
-  "journalEntryId": 1001,
-  "postedAt": "2026-03-31T10:00:00Z"
-}
-```
+- catalog item create
+- readiness resolution
+- opening stock import
+- stock movement
+- journal entry
 
-**Journal entry response includes:**
+UI implication:
 
-```json
-{
-  "journalEntryId": 1001,
-  "referenceNumber": "INV-2026-0042",
-  "linkedDocuments": [
-    {
-      "type": "INVOICE",
-      "id": 42,
-      "reference": "INV-2026-0042"
-    }
-  ]
-}
-```
+- Product setup and opening stock are two separate steps. Do not collapse them
+  into one wizard.
+- Portal owner:
+  - `accounting` for readiness and opening-stock import
+  - `factory` and `sales` only consume the ready result
 
-### Payment → Invoice → Journal Entry
+## Product readiness and default-account mapping
 
-A payment allocates to an invoice, which references the original journal entry.
+- `GET /api/v1/accounting/accounts/tree`
+- `GET /api/v1/accounting/accounts`
+- `GET /api/v1/accounting/default-accounts`
+- `PUT /api/v1/accounting/default-accounts`
+- company default accounts
+- item create on `POST /api/v1/catalog/items`
+- readiness evaluation
+- opening stock or downstream operational use
 
-**Payment response includes:**
+UI implication:
 
-```json
-{
-  "paymentId": 5001,
-  "allocations": [
-    {
-      "invoiceId": 42,
-      "invoiceNumber": "INV-2026-0042",
-      "appliedAmount": 1500.00
-    }
-  ]
-}
-```
+- Treat readiness blockers such as missing `inventoryAccountId`,
+  `fgValuationAccountId`, `fgCogsAccountId`, `fgRevenueAccountId`,
+  `fgDiscountAccountId`, or `fgTaxAccountId` as exact blockers. Do not let
+  operators push a half-configured SKU into stock, production, dispatch, or
+  manual accounting flows.
+- Make the source of each resolved account explicit in UI:
+  - item-level metadata
+  - inherited company default
+  - missing blocking dependency
+- `PUT /api/v1/accounting/default-accounts` is the only company-default edit
+  path; in GST mode it keeps output-tax posting aligned, and non-GST tenants
+  must not retain stale GST account bindings after a GST-off change.
+- Portal owner: `accounting`
 
-### Sales Order → Invoice → Journal Entry
+## Tax and GST readiness
 
-A sales order may generate multiple invoices (progress billing). Each invoice references the originating order.
+- GST mode selection
+- GST input account
+- GST output account
+- GST payable account
+- `defaultGstRate`
+- taxable finished-good tax mapping
+- readiness evaluation
 
-**Invoice response includes:**
+UI implication:
 
-```json
-{
-  "invoiceNumber": "INV-2026-0043",
-  "orderId": 2001,
-  "orderNumber": "SO-2026-0156"
-}
-```
+- Frontend must keep GST or tax setup in accounting, not split it across
+  superadmin, catalog, or sales screens.
+- If GST mode is on, input, output, and payable accounts are all blocking
+  prerequisites.
+- If GST mode is off, the UI must clear GST-only assumptions instead of
+  preserving stale tax-account state in drafts or cached forms.
+- Portal owner: `accounting`
+
+## O2C
+
+- dealer
+- sales order
+- dispatch preparation
+- dispatch confirm
+- invoice
+- journal
+- receipt or settlement
+
+UI implication:
+
+- Sales can create orders and monitor readiness, but factory owns the dispatch
+  confirm action.
+- Factory reads dispatch queue and slip detail from:
+  - `GET /api/v1/dispatch/pending`
+  - `GET /api/v1/dispatch/preview/{slipId}`
+  - `GET /api/v1/dispatch/slip/{slipId}`
+  - `GET /api/v1/dispatch/order/{orderId}`
+- Sales owns order-linked invoice readiness and optional read-only invoice
+  summary from the current order only.
+- Dealer-client owns the external invoice list, detail, and PDF/download flow.
+
+## P2P
+
+- supplier
+- purchase order
+- goods receipt
+- purchase invoice
+- supplier settlement
+
+UI implication:
+
+- Stock becomes true at GRN; AP becomes true at purchase invoice. Frontend must
+  not present them as the same posting step.
+- Portal owner:
+  - purchasing flow owns PO and GRN
+  - accounting owns supplier settlement, supplier statement, supplier aging, and
+    reconciliation after purchase invoice exists
+
+## Manual journals and reversals
+
+- manual journal draft
+- `POST /api/v1/accounting/journal-entries`
+- posted journal
+- `POST /api/v1/accounting/journal-entries/{entryId}/reverse`
+- reversal journal
+
+UI implication:
+
+- Link manual journals and reversals through one canonical create path and one
+  canonical reverse path only. Do not expose a second manual-journal path or a
+  separate public cascade-reverse action.
+
+## Journal correction
+
+- source journal
+- reverse request
+- reversal journal
+- optional related reversals expressed inside the same request payload
+
+UI implication:
+
+- Show reversal lineage as one action tree. Do not invent a second public
+  "cascade reverse" route in the client.
+
+## Period close maker-checker
+
+- reconciliation and checklist completion
+- close request
+- approval inbox item in `GET /api/v1/admin/approvals`
+- `POST /api/v1/accounting/periods/{periodId}/approve-close` or
+  `POST /api/v1/accounting/periods/{periodId}/reject-close`
+- closed period
+
+UI implication:
+
+- Direct close is not a supported frontend action. Render period close as a
+  maker-checker flow with approval state, approver identity, and rejection
+  reason tracking.
+
+## AR settlement and dealer finance reads
+
+- dealer receipt or hybrid receipt
+- dealer settlement or auto-settle
+- dealer ledger read
+- dealer invoice read
+- dealer aging read
+- aged receivables report
+- bank or subledger reconciliation refresh
+
+UI implication:
+
+- Portal owner: `accounting`
+- Use `POST /api/v1/accounting/receipts/dealer`,
+  `POST /api/v1/accounting/receipts/dealer/hybrid`,
+  `POST /api/v1/accounting/settlements/dealers`,
+  `POST /api/v1/accounting/dealers/{dealerId}/auto-settle`,
+  `GET /api/v1/portal/finance/ledger?dealerId={dealerId}`,
+  `GET /api/v1/portal/finance/invoices?dealerId={dealerId}`,
+  and `GET /api/v1/portal/finance/aging?dealerId={dealerId}` as one connected
+  clearing chain.
+
+## AP settlement and supplier finance reads
+
+- supplier settlement or auto-settle
+- supplier statement
+- supplier aging
+- reconciliation refresh
+
+UI implication:
+
+- Portal owner: `accounting`
+- Use `POST /api/v1/accounting/settlements/suppliers`,
+  `POST /api/v1/accounting/suppliers/{supplierId}/auto-settle`,
+  `GET /api/v1/accounting/statements/suppliers/{supplierId}`,
+  and `GET /api/v1/accounting/aging/suppliers/{supplierId}` as one connected
+  AP-clearing chain.
+
+## Export request and approval
+
+- accounting report filters
+- `POST /api/v1/exports/request`
+- approval inbox item in `GET /api/v1/admin/approvals`
+- approve or reject in tenant-admin
+- `GET /api/v1/exports/{requestId}/download`
+
+UI implication:
+
+- Portal owner:
+  - `accounting` for request creation and download recheck
+  - `tenant-admin` for approve or reject
+- Do not invent a separate export-history backend list. Keep request status on
+  the originating accounting report screen unless the backend grows a dedicated
+  request history surface.
 
 ## Audit Trail
 

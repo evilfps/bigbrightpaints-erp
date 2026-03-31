@@ -86,6 +86,11 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         "#/components/schemas/ResetPasswordRequest",
         "200",
         "#/components/schemas/ApiResponseString");
+    assertOperationMissing(root, "/api/v1/auth/profile", "get");
+    assertOperationMissing(root, "/api/v1/auth/profile", "put");
+    assertThat(root.path("components").path("schemas").has("ProfileResponse")).isFalse();
+    assertThat(root.path("components").path("schemas").has("UpdateProfileRequest")).isFalse();
+    assertThat(root.path("components").path("schemas").has("ApiResponseProfileResponse")).isFalse();
 
     assertOperationContract(
         root,
@@ -101,6 +106,28 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         "#/components/schemas/SystemSettingsUpdateRequest",
         "200",
         "#/components/schemas/ApiResponseSystemSettingsDto");
+    assertOperationContract(
+        root,
+        "/api/v1/admin/approvals",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseAdminApprovalsResponse");
+    assertOperationContract(
+        root,
+        "/api/v1/admin/exports/{requestId}/approve",
+        "put",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseExportRequestDto");
+    assertOperationContract(
+        root,
+        "/api/v1/admin/exports/{requestId}/reject",
+        "put",
+        "#/components/schemas/ExportRequestDecisionRequest",
+        "200",
+        "#/components/schemas/ApiResponseExportRequestDto");
+    assertOperationMissing(root, "/api/v1/admin/exports/pending", "get");
     assertOperationContract(
         root,
         "/api/v1/superadmin/tenants/onboard",
@@ -218,6 +245,48 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
         "#/components/schemas/ApiResponseChangelogEntryResponse");
     assertOperationContract(
         root,
+        "/api/v1/accounting/periods/{periodId}/request-close",
+        "post",
+        "#/components/schemas/PeriodCloseRequestActionRequest",
+        "200",
+        "#/components/schemas/ApiResponsePeriodCloseRequestDto");
+    assertOperationContract(
+        root,
+        "/api/v1/accounting/periods/{periodId}/approve-close",
+        "post",
+        "#/components/schemas/PeriodCloseRequestActionRequest",
+        "200",
+        "#/components/schemas/ApiResponseAccountingPeriodDto");
+    assertOperationContract(
+        root,
+        "/api/v1/accounting/periods/{periodId}/reject-close",
+        "post",
+        "#/components/schemas/PeriodCloseRequestActionRequest",
+        "200",
+        "#/components/schemas/ApiResponsePeriodCloseRequestDto");
+    assertOperationContract(
+        root,
+        "/api/v1/accounting/periods/{periodId}/reopen",
+        "post",
+        "#/components/schemas/AccountingPeriodReopenRequest",
+        "200",
+        "#/components/schemas/ApiResponseAccountingPeriodDto");
+    assertOperationContract(
+        root,
+        "/api/v1/exports/request",
+        "post",
+        "#/components/schemas/ExportRequestCreateRequest",
+        "200",
+        "#/components/schemas/ApiResponseExportRequestDto");
+    assertOperationContract(
+        root,
+        "/api/v1/exports/{requestId}/download",
+        "get",
+        null,
+        "200",
+        "#/components/schemas/ApiResponseExportRequestDownloadResponse");
+    assertOperationContract(
+        root,
         "/api/v1/superadmin/changelog",
         "post",
         "#/components/schemas/ChangelogEntryRequest",
@@ -237,6 +306,7 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertOperationMissing(root, "/api/v1/admin/changelog/{id}", "put");
     assertOperationMissing(root, "/api/v1/admin/changelog/{id}", "delete");
     assertOperationMissing(root, "/api/v1/companies", "post");
+    assertOperationMissing(root, "/api/v1/companies/{id}", "delete");
     assertOperationMissing(root, "/api/v1/companies/{id}/lifecycle-state", "put");
     assertOperationMissing(root, "/api/v1/companies/{id}/tenant-metrics", "get");
     assertOperationMissing(root, "/api/v1/companies/{id}/tenant-runtime/policy", "put");
@@ -440,7 +510,11 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertThat(fulfillmentResponseSchema.path("type").asText()).isEqualTo("object");
     assertThat(fulfillmentResponseSchema.path("additionalProperties").path("type").asText())
         .isEqualTo("object");
-    assertThat(root.path("paths").path("/api/v1/orchestrator/traces/{traceId}").path("get").isMissingNode())
+    assertThat(
+            root.path("paths")
+                .path("/api/v1/orchestrator/traces/{traceId}")
+                .path("get")
+                .isMissingNode())
         .isFalse();
     assertThat(
             root.path("paths")
@@ -463,7 +537,10 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
                 .has("200"))
         .isTrue();
     assertThat(
-            root.path("paths").path("/api/v1/orchestrator/health/events").path("get").isMissingNode())
+            root.path("paths")
+                .path("/api/v1/orchestrator/health/events")
+                .path("get")
+                .isMissingNode())
         .isFalse();
     assertThat(
             root.path("paths")
@@ -573,8 +650,9 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void inventory_contract_requires_explicit_opening_stock_batch_key_and_removes_retired_bulk_pack_request()
-      throws IOException {
+  void
+      inventory_contract_requires_explicit_opening_stock_batch_key_and_removes_retired_bulk_pack_request()
+          throws IOException {
     JsonNode root = fetchCurrentSpecNode();
 
     assertMultipartBinaryRequest(root, "/api/v1/inventory/opening-stock", "post", "file");
@@ -686,6 +764,48 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertThat(packingRequest.path("properties").has("idempotencyKey"))
         .withFailMessage("PackingRequest must not expose idempotencyKey in the request body")
         .isFalse();
+  }
+
+  @Test
+  void accounting_manual_journal_and_receipt_settlement_contracts_are_hard_cut()
+      throws IOException {
+    JsonNode root = fetchCurrentSpecNode();
+
+    assertOperationContract(
+        root,
+        "/api/v1/accounting/journal-entries",
+        "post",
+        "#/components/schemas/JournalEntryRequest",
+        "200",
+        "#/components/schemas/ApiResponseJournalEntryDto");
+    assertOperationMissing(root, "/api/v1/accounting/journals/manual", "post");
+    assertOperationMissing(root, "/api/v1/accounting/journals/{entryId}/reverse", "post");
+    assertOperationMissing(
+        root, "/api/v1/accounting/journal-entries/{entryId}/cascade-reverse", "post");
+    assertOperationMissing(root, "/api/v1/accounting/periods/{periodId}/close", "post");
+
+    assertHeaderParameters(root, "/api/v1/accounting/receipts/dealer", "post", "Idempotency-Key");
+    assertHeaderParameters(
+        root, "/api/v1/accounting/receipts/dealer/hybrid", "post", "Idempotency-Key");
+    assertHeaderParameters(
+        root, "/api/v1/accounting/settlements/dealers", "post", "Idempotency-Key");
+    assertHeaderParameters(
+        root, "/api/v1/accounting/dealers/{dealerId}/auto-settle", "post", "Idempotency-Key");
+    assertHeaderParameters(
+        root, "/api/v1/accounting/settlements/suppliers", "post", "Idempotency-Key");
+    assertHeaderParameters(
+        root, "/api/v1/accounting/suppliers/{supplierId}/auto-settle", "post", "Idempotency-Key");
+  }
+
+  @Test
+  void legacy_idempotency_headers_are_hidden_on_hard_cut_sales_and_inventory_writes()
+      throws IOException {
+    JsonNode root = fetchCurrentSpecNode();
+
+    assertHeaderParameters(root, "/api/v1/sales/orders", "post", "Idempotency-Key");
+    assertHeaderParameters(root, "/api/v1/inventory/adjustments", "post", "Idempotency-Key");
+    assertHeaderParameters(
+        root, "/api/v1/inventory/raw-materials/adjustments", "post", "Idempotency-Key");
   }
 
   @Test
@@ -808,6 +928,19 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
   private static String canonicalizeJson(String spec) throws IOException {
     JsonNode parsedSpec = CANONICAL_JSON.readTree(spec);
     return CANONICAL_JSON.writeValueAsString(canonicalizeNode(parsedSpec));
+  }
+
+  private void assertHeaderParameters(
+      JsonNode root, String path, String method, String... expectedHeaderNames) {
+    JsonNode parameters = root.path("paths").path(path).path(method).path("parameters");
+    List<String> parameterNames = new ArrayList<>();
+    parameters.forEach(
+        parameter -> {
+          if ("header".equals(parameter.path("in").asText())) {
+            parameterNames.add(parameter.path("name").asText());
+          }
+        });
+    assertThat(parameterNames).containsExactly(expectedHeaderNames);
   }
 
   private static List<String> extractOperationSignatures(String spec) throws IOException {

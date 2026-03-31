@@ -204,7 +204,8 @@ class ProductionLogServiceCostingFallbackTest {
             productionLogService, "ensureSemiFinishedRawMaterial", company, product);
 
     assertThat(resolved).isSameAs(existing);
-    verify(rawMaterialRepository, never()).save(org.mockito.ArgumentMatchers.any(RawMaterial.class));
+    verify(rawMaterialRepository, never())
+        .save(org.mockito.ArgumentMatchers.any(RawMaterial.class));
   }
 
   @Test

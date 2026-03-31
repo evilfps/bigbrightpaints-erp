@@ -6,7 +6,7 @@ This review inventories the current automated-test layers, the GitHub Actions wo
 
 Primary evidence:
 
-- `.github/workflows/{ci.yml,doc-lint.yml,codex-review.yml,codex-autofix.yml,rag-mcp-sidecar.yml}`
+- `.github/workflows/{ci.yml,doc-lint.yml,codex-review.yml,codex-autofix.yml}`
 - `README.md`
 - `docs/developer-guide.md`
 - `.factory/services.yaml`
@@ -73,7 +73,6 @@ Several suites exist but are not part of the normal CI hard gates:
 | `.github/workflows/doc-lint.yml` | PR, push to `main`, manual | Runs `bash ci/lint-knowledgebase.sh`. | Functionally **duplicates** the `knowledgebase-lint` job already present in `ci.yml`. |
 | `.github/workflows/codex-review.yml` | PR, manual | Enforces Codex review policy via `scripts/enforce_codex_review_policy.sh`. | Governance/process workflow, not product-quality evidence. |
 | `.github/workflows/codex-autofix.yml` | Manual | Runs template autofix checks. | Manual helper, not a hard release gate. |
-| `.github/workflows/rag-mcp-sidecar.yml` | PR on selected paths, manual | Builds/refreshes RAG index and silent-failure artifacts. | Observability/support workflow, not a direct shipping gate. |
 
 ## Gate classification
 

@@ -135,7 +135,7 @@ class CompanyControllerIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void delete_company_is_not_permitted_even_for_member_admin() {
+  void delete_company_endpoint_is_not_exposed() {
     Long companyId = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow().getId();
 
     ResponseEntity<Map> response =
@@ -145,7 +145,7 @@ class CompanyControllerIT extends AbstractIntegrationTest {
             new HttpEntity<>(jsonHeaders(loginToken(ADMIN_EMAIL, COMPANY_CODE), COMPANY_CODE)),
             Map.class);
 
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
   }
 
   @Test

@@ -289,6 +289,7 @@ public class PurchaseReturnService {
       String memo,
       List<RawMaterialMovement> existingMovements) {
     validateReturnReplay(material, quantity, unitCost, reference, existingMovements);
+    validateReplayPurchaseReturnProvenance(purchase, reference, existingMovements);
     BigDecimal lineNet = currency(MoneyUtils.safeMultiply(quantity, unitCost));
     BigDecimal taxAmount = computeReturnTax(purchase, material, quantity);
     BigDecimal totalAmount = currency(lineNet.add(taxAmount));
@@ -371,6 +372,12 @@ public class PurchaseReturnService {
         .findByCompanyAndId(company, entryDto.id())
         .ifPresent(
             entry -> {
+              boolean bootstrapCandidate =
+                  canCanonicalizeFreshPurchaseReturnJournal(
+                      entry, entryDto.referenceNumber(), purchaseInvoiceNumber);
+              if (!bootstrapCandidate) {
+                validateReplayCorrectionJournal(entry, sourceEntry, purchaseInvoiceNumber);
+              }
               boolean changed = false;
               if (entry.getCorrectionType() != JournalCorrectionType.REVERSAL) {
                 entry.setCorrectionType(JournalCorrectionType.REVERSAL);
@@ -392,6 +399,109 @@ public class PurchaseReturnService {
                 journalEntryRepository.save(entry);
               }
             });
+  }
+
+  private boolean canCanonicalizeFreshPurchaseReturnJournal(
+      JournalEntry entry, String returnReference, String purchaseInvoiceNumber) {
+    if (entry == null || !StringUtils.hasText(purchaseInvoiceNumber)) {
+      return false;
+    }
+    if (entry.getCorrectionType() != null
+        && entry.getCorrectionType() != JournalCorrectionType.REVERSAL) {
+      return false;
+    }
+    if (StringUtils.hasText(entry.getCorrectionReason())
+        && !"PURCHASE_RETURN".equalsIgnoreCase(entry.getCorrectionReason())) {
+      return false;
+    }
+    if (StringUtils.hasText(entry.getSourceModule())
+        && !"PURCHASING_RETURN".equalsIgnoreCase(entry.getSourceModule())) {
+      return false;
+    }
+    if (!StringUtils.hasText(entry.getSourceReference())) {
+      return true;
+    }
+    if (Objects.equals(entry.getSourceReference(), purchaseInvoiceNumber)) {
+      return true;
+    }
+    return StringUtils.hasText(returnReference)
+        && Objects.equals(entry.getSourceReference(), returnReference);
+  }
+
+  private void validateReplayPurchaseReturnProvenance(
+      RawMaterialPurchase purchase,
+      String reference,
+      List<RawMaterialMovement> existingMovements) {
+    if (purchase == null || existingMovements == null || existingMovements.isEmpty()) {
+      return;
+    }
+    String expectedSourceReference = purchase.getInvoiceNumber();
+    JournalEntry sourceEntry = purchase.getJournalEntry();
+    for (RawMaterialMovement movement : existingMovements) {
+      Long journalEntryId = movement.getJournalEntryId();
+      if (journalEntryId == null) {
+        continue;
+      }
+      JournalEntry entry =
+          journalEntryRepository
+              .findByCompanyAndId(companyContextService.requireCurrentCompany(), journalEntryId)
+              .orElse(null);
+      if (entry == null) {
+        continue;
+      }
+      try {
+        validateReplayCorrectionJournal(entry, sourceEntry, expectedSourceReference, reference);
+      } catch (ApplicationException ex) {
+        throw new ApplicationException(
+                ErrorCode.CONCURRENCY_CONFLICT,
+                "Purchase return reference already used for another purchase")
+            .withDetail("reference", reference)
+            .withDetail("journalEntryId", journalEntryId)
+            .withDetail("purchaseInvoiceNumber", expectedSourceReference);
+      }
+    }
+  }
+
+  private void validateReplayCorrectionJournal(
+      JournalEntry entry, JournalEntry sourceEntry, String purchaseInvoiceNumber) {
+    validateReplayCorrectionJournal(entry, sourceEntry, purchaseInvoiceNumber, null);
+  }
+
+  private void validateReplayCorrectionJournal(
+      JournalEntry entry,
+      JournalEntry sourceEntry,
+      String purchaseInvoiceNumber,
+      String returnReference) {
+    if (entry == null) {
+      return;
+    }
+    if (entry.getReversalOf() != null
+        && sourceEntry != null && sourceEntry.getId() != null
+        && !Objects.equals(entry.getReversalOf().getId(), sourceEntry.getId())) {
+      throw new ApplicationException(
+          ErrorCode.CONCURRENCY_CONFLICT,
+          "Purchase return reference already used for another purchase");
+    }
+    if (StringUtils.hasText(entry.getCorrectionReason())
+        && !"PURCHASE_RETURN".equalsIgnoreCase(entry.getCorrectionReason())) {
+      throw new ApplicationException(
+          ErrorCode.CONCURRENCY_CONFLICT,
+          "Purchase return reference already used for another correction flow");
+    }
+    if (StringUtils.hasText(entry.getSourceModule())
+        && !"PURCHASING_RETURN".equalsIgnoreCase(entry.getSourceModule())) {
+      throw new ApplicationException(
+          ErrorCode.CONCURRENCY_CONFLICT,
+          "Purchase return reference already used for another correction flow");
+    }
+    if (StringUtils.hasText(entry.getSourceReference())
+        && !Objects.equals(entry.getSourceReference(), purchaseInvoiceNumber)
+        && !(StringUtils.hasText(returnReference)
+            && Objects.equals(entry.getSourceReference(), returnReference))) {
+      throw new ApplicationException(
+          ErrorCode.CONCURRENCY_CONFLICT,
+          "Purchase return reference already used for another purchase");
+    }
   }
 
   private void validateReturnReplay(

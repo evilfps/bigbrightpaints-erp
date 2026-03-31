@@ -6,6 +6,11 @@ from pathlib import Path
 
 
 JAVA_SOURCE_ROOT = "erp-domain/src/main/java/"
+LOCAL_SEED_RUNTIME_EXCLUSIONS = (
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/core/config/MockDataInitializer.java",
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/core/config/SeedCompanyAdminSupport.java",
+    "erp-domain/src/main/java/com/bigbrightpaints/erp/core/config/ValidationSeedDataInitializer.java",
+)
 
 CI_INFRA_PATTERNS = (
     ".github/workflows/ci.yml",
@@ -133,7 +138,11 @@ def matches_keyword(path: str, keywords: tuple[str, ...]) -> bool:
 
 def compute_flags(paths: list[str]) -> dict[str, str]:
     run_ci_infra_validation = any(matches_prefix(path, CI_INFRA_PATTERNS) for path in paths)
-    changed_runtime_source_count = sum(1 for path in paths if path.startswith(JAVA_SOURCE_ROOT))
+    changed_runtime_source_count = sum(
+        1
+        for path in paths
+        if path.startswith(JAVA_SOURCE_ROOT) and path not in LOCAL_SEED_RUNTIME_EXCLUSIONS
+    )
 
     run_auth_tenant = run_ci_infra_validation or any(
         matches_prefix(path, ACCESS_PATTERNS) or matches_prefix(path, AUTH_TENANT_PROOF_PATTERNS)

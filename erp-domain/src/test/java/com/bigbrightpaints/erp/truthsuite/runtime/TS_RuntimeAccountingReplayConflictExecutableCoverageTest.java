@@ -24,9 +24,11 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.audit.IntegrationFailureMetadataSchema;
+import com.bigbrightpaints.erp.core.auditaccess.AuditAccessService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.modules.accounting.controller.AccountingAuditController;
 import com.bigbrightpaints.erp.modules.accounting.controller.AccountingController;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -609,7 +611,7 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     controller.recordDealerHybridReceipt(
         controllerDealerReceiptSplitRequest("   "), "HDR-DRS", null);
     controller.settleDealer(controllerDealerSettlementRequest("   "), "HDR-ADS", null);
-    controller.settleSupplier(controllerSupplierSettlementRequest("   "), "HDR-APS");
+    controller.settleSupplier(controllerSupplierSettlementRequest("   "), "HDR-APS", null);
 
     ArgumentCaptor<DealerReceiptRequest> dealerCaptor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
@@ -649,7 +651,7 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     controller.recordDealerHybridReceipt(
         controllerDealerReceiptSplitRequest("BODY-DRS"), "BODY-DRS", null);
     controller.settleDealer(controllerDealerSettlementRequest("BODY-ADS"), "BODY-ADS", null);
-    controller.settleSupplier(controllerSupplierSettlementRequest("BODY-APS"), "BODY-APS");
+    controller.settleSupplier(controllerSupplierSettlementRequest("BODY-APS"), "BODY-APS", null);
 
     ArgumentCaptor<DealerReceiptRequest> dealerCaptor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
@@ -688,7 +690,7 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     controller.recordDealerReceipt(controllerDealerReceiptRequest(null), null, null);
     controller.recordDealerHybridReceipt(controllerDealerReceiptSplitRequest(null), null, null);
     controller.settleDealer(controllerDealerSettlementRequest(null), null, null);
-    controller.settleSupplier(controllerSupplierSettlementRequest(null), null);
+    controller.settleSupplier(controllerSupplierSettlementRequest(null), null, null);
 
     ArgumentCaptor<DealerReceiptRequest> dealerCaptor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
@@ -727,7 +729,7 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     controller.recordDealerReceipt(null, "HDR-DR", "LEGACY-DR");
     controller.recordDealerHybridReceipt(null, "HDR-DRS", "LEGACY-DRS");
     controller.settleDealer(null, "HDR-ADS", "LEGACY-ADS");
-    controller.settleSupplier(null, "HDR-APS");
+    controller.settleSupplier(null, "HDR-APS", null);
 
     ArgumentCaptor<DealerReceiptRequest> dealerCaptor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
@@ -752,15 +754,13 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
 
   @Test
   void controllerTransactionAudit_parsesDateFiltersAndForwardsParameters() {
-    AccountingService service = org.mockito.Mockito.mock(AccountingService.class);
-    AccountingAuditTrailService auditService =
-        org.mockito.Mockito.mock(AccountingAuditTrailService.class);
-    AccountingController controller = accountingController(service, auditService);
+    AuditAccessService auditAccessService = org.mockito.Mockito.mock(AuditAccessService.class);
+    AccountingAuditController controller = accountingAuditController(auditAccessService);
 
     controller.transactionAudit("2026-02-01", "2026-02-10", "AR", "OPEN", "REF-1", 2, 25);
 
-    verify(auditService)
-        .listTransactions(
+    verify(auditAccessService)
+        .queryAccountingTransactions(
             java.time.LocalDate.of(2026, 2, 1),
             java.time.LocalDate.of(2026, 2, 10),
             "AR",
@@ -772,26 +772,22 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
 
   @Test
   void controllerTransactionAudit_allowsNullDateFilters() {
-    AccountingService service = org.mockito.Mockito.mock(AccountingService.class);
-    AccountingAuditTrailService auditService =
-        org.mockito.Mockito.mock(AccountingAuditTrailService.class);
-    AccountingController controller = accountingController(service, auditService);
+    AuditAccessService auditAccessService = org.mockito.Mockito.mock(AuditAccessService.class);
+    AccountingAuditController controller = accountingAuditController(auditAccessService);
 
     controller.transactionAudit(null, null, null, null, null, 0, 50);
 
-    verify(auditService).listTransactions(null, null, null, null, null, 0, 50);
+    verify(auditAccessService).queryAccountingTransactions(null, null, null, null, null, 0, 50);
   }
 
   @Test
   void controllerTransactionAuditDetail_forwardsJournalEntryId() {
-    AccountingService service = org.mockito.Mockito.mock(AccountingService.class);
-    AccountingAuditTrailService auditService =
-        org.mockito.Mockito.mock(AccountingAuditTrailService.class);
-    AccountingController controller = accountingController(service, auditService);
+    AuditAccessService auditAccessService = org.mockito.Mockito.mock(AuditAccessService.class);
+    AccountingAuditController controller = accountingAuditController(auditAccessService);
 
     controller.transactionAuditDetail(77L);
 
-    verify(auditService).transactionDetail(77L);
+    verify(auditAccessService).getAccountingTransactionDetail(77L);
   }
 
   @Test
@@ -824,8 +820,7 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
   }
 
   @Test
-  void
-      settleSupplierInvoices_existingAllocations_replay_branch_revalidates_supplier_journal_lines() {
+  void settleSupplierInvoices_existingAllocations_rejectsDifferentEffectiveSettlementDate() {
     AccountingService service = accountingService();
     CompanyContextService companyContextService =
         (CompanyContextService) ReflectionTestUtils.getField(service, "companyContextService");
@@ -867,6 +862,7 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     replayEntry.setReferenceNumber("SUP-SET-REF-1");
     replayEntry.setSupplier(supplier);
     replayEntry.setMemo("supplier settle memo");
+    replayEntry.setEntryDate(LocalDate.of(2026, 2, 15));
     replayEntry.getLines().add(journalLine(701L, "100.00", "0.00"));
     replayEntry.getLines().add(journalLine(702L, "0.00", "100.00"));
 
@@ -918,12 +914,17 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
                     BigDecimal.ZERO,
                     "alloc-1")));
 
-    PartnerSettlementResponse response = service.settleSupplierInvoices(request);
-
-    assertThat(response).isNotNull();
-    assertThat(response.journalEntry()).isNotNull();
-    assertThat(response.journalEntry().id()).isEqualTo(8801L);
-    assertThat(response.totalApplied()).isEqualByComparingTo("100.00");
+    assertThatThrownBy(() -> service.settleSupplierInvoices(request))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            throwable -> {
+              ApplicationException ex = (ApplicationException) throwable;
+              assertReplayConflict(ex, "idem-supplier-settle", "SUPPLIER", 301L);
+              assertThat(ex.getMessage()).contains("settlement date");
+              assertThat(ex.getDetails())
+                  .containsEntry("existingSettlementDate", LocalDate.of(2026, 2, 15))
+                  .containsEntry("requestedSettlementDate", LocalDate.of(2026, 2, 16));
+            });
   }
 
   @Test
@@ -1404,6 +1405,10 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
       AccountingService accountingService,
       AccountingAuditTrailService accountingAuditTrailService) {
     return accountingController(accountingService, accountingAuditTrailService, null, null);
+  }
+
+  private AccountingAuditController accountingAuditController(AuditAccessService auditAccessService) {
+    return new AccountingAuditController(auditAccessService);
   }
 
   private AccountingController accountingController(

@@ -532,8 +532,8 @@ class PurchasingServiceGoodsReceiptTest {
   }
 
   @Test
-  @DisplayName("createGoodsReceipt legacy replay backfills missing idempotency hash")
-  void createGoodsReceipt_legacyReplayBackfillsHash() {
+  @DisplayName("createGoodsReceipt legacy replay without idempotency hash fails closed")
+  void createGoodsReceipt_legacyReplayMissingHashFailsClosed() {
     GoodsReceiptRequest request =
         request(
             "idem-legacy-backfill",
@@ -552,15 +552,19 @@ class PurchasingServiceGoodsReceiptTest {
     when(goodsReceiptRepository.findWithLinesByCompanyAndIdempotencyKey(
             company, "idem-legacy-backfill"))
         .thenReturn(Optional.of(existing));
-    when(goodsReceiptRepository.save(existing)).thenReturn(existing);
 
-    GoodsReceiptResponse response = purchasingService.createGoodsReceipt(request);
+    assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONCURRENCY_CONFLICT);
+              assertThat(ex).hasMessage("Idempotency key already used with different payload");
+              assertThat(ex.getDetails()).containsEntry("idempotencyKey", "idem-legacy-backfill");
+              assertThat(ex.getDetails()).containsEntry("receiptNumber", "GRN-30-01");
+            });
 
-    assertThat(existing.getIdempotencyHash()).isEqualTo(signatureFor(request));
-    assertThat(response.id()).isEqualTo(901L);
-    assertThat(response.receiptNumber()).isEqualTo("GRN-30-01");
-    assertThat(response.status()).isEqualTo("RECEIVED");
-    verify(goodsReceiptRepository).save(existing);
+    assertThat(existing.getIdempotencyHash()).isNull();
+    verify(goodsReceiptRepository, never()).save(existing);
     verifyNoInteractions(
         accountingPeriodService,
         purchaseOrderRepository,

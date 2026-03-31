@@ -22,6 +22,7 @@ import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 import io.micrometer.core.annotation.Timed;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 
 @RestController
@@ -115,7 +116,8 @@ public class SalesController {
   @PreAuthorize("hasAnyAuthority('ROLE_SALES','ROLE_ADMIN')")
   public ResponseEntity<ApiResponse<SalesOrderDto>> createOrder(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey,
+      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
+          String legacyIdempotencyKey,
       @Valid @RequestBody SalesOrderRequest request) {
     SalesOrderRequest resolved =
         applyOrderIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
@@ -183,18 +185,11 @@ public class SalesController {
     if (request == null) {
       return null;
     }
-    String primaryHeader = normalizeIdempotencyHeader(idempotencyKeyHeader);
-    String legacyHeader = normalizeIdempotencyHeader(legacyIdempotencyKeyHeader);
-    if (primaryHeader != null && legacyHeader != null && !primaryHeader.equals(legacyHeader)) {
-      throw new ApplicationException(
-              ErrorCode.VALIDATION_INVALID_INPUT,
-              "Idempotency key mismatch between Idempotency-Key and X-Idempotency-Key headers")
-          .withDetail("idempotencyKey", primaryHeader)
-          .withDetail("legacyIdempotencyKey", legacyHeader);
-    }
+    IdempotencyHeaderUtils.rejectLegacyHeader(
+        legacyIdempotencyKeyHeader, "sales orders", "/api/v1/sales/orders");
     String resolvedKey =
         IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
-            request.idempotencyKey(), primaryHeader, legacyHeader);
+            request.idempotencyKey(), idempotencyKeyHeader, null);
     if (!StringUtils.hasText(resolvedKey) || StringUtils.hasText(request.idempotencyKey())) {
       return request;
     }
@@ -209,13 +204,6 @@ public class SalesController {
         request.gstInclusive(),
         resolvedKey,
         request.paymentMode());
-  }
-
-  private String normalizeIdempotencyHeader(String headerValue) {
-    if (!StringUtils.hasText(headerValue)) {
-      return null;
-    }
-    return headerValue.trim();
   }
 
   private String combineCancellationReason(String reasonCode, String reason) {

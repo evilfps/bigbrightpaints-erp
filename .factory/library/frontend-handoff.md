@@ -242,10 +242,11 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
 
 - Dedicated review tracker: see `docs/frontend-update-v2/README.md` for the per-feature frontend follow-up matrix and explicit no-op entries for this mission.
 - 2026-03-06 `privileged-user-boundary-hardening`: no admin user-management request or response shape changes were required for `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, or `DELETE /api/v1/admin/users/{id}`. The feature aligned tenant-boundary authorization and audit behavior while preserving the existing frontend payloads for authorized super-admin flows, and the company control-plane lifecycle endpoint once again accepts `HOLD`/`BLOCKED` compatibility aliases while preserving the existing path shape. The later `masked-admin-target-lookup-hardening` refinement now defines the current foreign-target masking behavior for auth-sensitive tenant-admin actions.
-- 2026-03-06 `global-security-settings-authorization`: no admin request or response payload shapes changed, but `PUT /api/v1/admin/settings` now requires `ROLE_SUPER_ADMIN` because it mutates platform-wide CORS, mail, export, and related security/runtime settings. Tenant admins still retain `GET /api/v1/admin/tenant-runtime/metrics` for tenant-scoped visibility.
-- 2026-03-06 `auth-compatibility-regression-handoff`: no admin request or response payload shapes changed for `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, `DELETE /api/v1/admin/users/{id}`, `GET /api/v1/admin/settings`, `PUT /api/v1/admin/settings`, and `GET /api/v1/admin/tenant-runtime/metrics`; the refreshed OpenAPI snapshot also documents the user-control no-content endpoints as `204 No Content` instead of stale `200` responses.
-- 2026-03-15 `lane01-canonicalize-company-runtime-writer`: the public runtime-policy mutation contract is now canonicalized on `PUT /api/v1/companies/{id}/tenant-runtime/policy`. `PUT /api/v1/admin/tenant-runtime/policy` is retired from the published contract, controller routing, and privileged path handling; admin/operator clients must move any remaining write calls to the company-scoped control-plane path, while `GET /api/v1/admin/tenant-runtime/metrics` remains the tenant-scoped read surface.
-- 2026-03-06 `tenant-lifecycle-rollout-safety-hardening`: no auth/admin/lifecycle request or response payload shapes changed. `POST /api/v1/superadmin/tenants/{id}/{suspend|activate|deactivate}`, `POST /api/v1/superadmin/tenants/{id}/lifecycle-state`, and `POST /api/v1/companies/{id}/lifecycle-state` keep the same payloads while the backend continues to persist Flyway-v2-compatible lifecycle storage values (`ACTIVE`, `HOLD`, `BLOCKED`); if a stored lifecycle value is corrupted or unrecognized, tenant access now fails closed instead of being treated as active, so no frontend code change is required.
+- 2026-03-06 `global-security-settings-authorization`: no admin settings request or response payload shapes changed, but `PUT /api/v1/admin/settings` requires `ROLE_SUPER_ADMIN` because it mutates platform-wide CORS, mail, export, and related global settings. The current public control plane does not publish `GET /api/v1/admin/tenant-runtime/metrics` or `PUT /api/v1/admin/tenant-runtime/policy`; tenant quota and lifecycle control now live on the superadmin tenant routes below.
+- 2026-03-06 `auth-compatibility-regression-handoff`: no admin request or response payload shapes changed for `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, `DELETE /api/v1/admin/users/{id}`, `GET /api/v1/admin/settings`, and `PUT /api/v1/admin/settings`; the refreshed OpenAPI snapshot also documents the user-control no-content endpoints as `204 No Content` instead of stale `200` responses.
+- 2026-03-15 `lane01-canonicalize-company-runtime-writer`: both legacy public runtime-policy writers are retired from the published contract. `PUT /api/v1/admin/tenant-runtime/policy` and `PUT /api/v1/companies/{id}/tenant-runtime/policy` are not current frontend targets; superadmin tenant quota/runtime control now lives on `PUT /api/v1/superadmin/tenants/{id}/limits`, and tenant detail/limits reads come from the superadmin tenant detail routes.
+- 2026-03-29 `erp-11-12-13-26-29-contract-closure`: the current backend does not expose dedicated UI fields for `sessionTimeoutMinutes`, `passwordMinLength`, `maxLoginAttempts`, or `mfaRequired`. Frontend/UAT should treat those as unsupported until a real backend contract lands, use the support endpoints under `/api/v1/superadmin/tenants/{id}/support/*`, create catalog records through `/api/v1/catalog/items`, and treat `/api/v1/raw-materials/intake` plus bulk-variant catalog routes as retired.
+- 2026-03-06 `tenant-lifecycle-rollout-safety-hardening`: no auth/admin/lifecycle request or response payload shapes changed. The current public lifecycle control plane is `PUT /api/v1/superadmin/tenants/{id}/lifecycle`; the backend continues to persist Flyway-v2-compatible lifecycle storage values (`ACTIVE`, `HOLD`, `BLOCKED`), and corrupted or unrecognized stored lifecycle values now fail closed instead of being treated as active.
 - 2026-03-07 `masked-admin-target-lookup-hardening`: admin user-management request and success-response payload shapes still did not change, but tenant-admin attempts to `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, or `DELETE /api/v1/admin/users/{id}` against a foreign-tenant user id now return the same `400 User not found` validation envelope as a truly missing id. This masks foreign targets from enumeration while preserving internal `ACCESS_DENIED` audit evidence, and `POST /api/v1/admin/roles` remains request/response compatible while now enforcing the super-admin mutation boundary directly at the controller guard.
 - 2026-03-07 `masked-admin-lock-scope-regression-fix`: no admin request or response payload shapes changed. The masked foreign-target behavior from `masked-admin-target-lookup-hardening` remains the same for tenant-admin `suspend`, `unsuspend`, `mfa/disable`, and `delete` actions, but those paths no longer take cross-tenant pessimistic locks before scope checks, so the frontend should continue treating foreign and missing targets identically and needs no migration.
 
@@ -256,15 +257,21 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
 | Method | Path | Auth | Request | Response `data` |
 |---|---|---|---|---|
 | GET | `/api/v1/superadmin/dashboard` | `ROLE_SUPER_ADMIN` | None | `SuperAdminDashboardDto` |
-| GET | `/api/v1/superadmin/tenants` | `ROLE_SUPER_ADMIN` | Optional query: `status=ACTIVE|SUSPENDED|DEACTIVATED` | `List<SuperAdminTenantDto>` |
-| POST | `/api/v1/superadmin/tenants/{id}/suspend` | `ROLE_SUPER_ADMIN` | None | `SuperAdminTenantDto` |
-| POST | `/api/v1/superadmin/tenants/{id}/activate` | `ROLE_SUPER_ADMIN` | None | `SuperAdminTenantDto` |
-| POST | `/api/v1/superadmin/tenants/{id}/deactivate` | `ROLE_SUPER_ADMIN` | None | `SuperAdminTenantDto` |
-| POST | `/api/v1/superadmin/tenants/{id}/lifecycle-state` | `ROLE_SUPER_ADMIN` | `CompanyLifecycleStateRequest` | `CompanyLifecycleStateDto` |
-| PUT | `/api/v1/superadmin/tenants/{id}/modules` | `ROLE_SUPER_ADMIN` | `TenantModulesUpdateRequest` | `CompanyEnabledModulesDto` |
-| GET | `/api/v1/superadmin/tenants/{id}/usage` | `ROLE_SUPER_ADMIN` | None | `SuperAdminTenantUsageDto` |
+| GET | `/api/v1/superadmin/audit/platform-events` | `ROLE_SUPER_ADMIN` | Query: `from?`, `to?`, `action?`, `status?`, `actor?`, `entityType?`, `reference?`, `page?`, `size?` | `PageResponse<AuditFeedItemDto>` |
+| GET | `/api/v1/superadmin/tenants` | `ROLE_SUPER_ADMIN` | Optional query: `status` | `List<SuperAdminTenantSummaryDto>` |
 | GET | `/api/v1/superadmin/tenants/coa-templates` | `ROLE_SUPER_ADMIN` | None | `List<CoATemplateDto>` |
 | POST | `/api/v1/superadmin/tenants/onboard` | `ROLE_SUPER_ADMIN` | `TenantOnboardingRequest` | `TenantOnboardingResponse` |
+| GET | `/api/v1/superadmin/tenants/{id}` | `ROLE_SUPER_ADMIN` | None | `SuperAdminTenantDetailDto` |
+| PUT | `/api/v1/superadmin/tenants/{id}/lifecycle` | `ROLE_SUPER_ADMIN` | `CompanyLifecycleStateRequest` | `CompanyLifecycleStateDto` |
+| PUT | `/api/v1/superadmin/tenants/{id}/limits` | `ROLE_SUPER_ADMIN` | `TenantLimitsUpdateRequest` | `SuperAdminTenantLimitsDto` |
+| PUT | `/api/v1/superadmin/tenants/{id}/modules` | `ROLE_SUPER_ADMIN` | `TenantModulesUpdateRequest` | `CompanyEnabledModulesDto` |
+| POST | `/api/v1/superadmin/tenants/{id}/support/warnings` | `ROLE_SUPER_ADMIN` | `TenantSupportWarningRequest` | `CompanySupportWarningDto` |
+| POST | `/api/v1/superadmin/tenants/{id}/support/admin-password-reset` | `ROLE_SUPER_ADMIN` | `TenantAdminPasswordResetRequest` | `CompanyAdminCredentialResetDto` |
+| PUT | `/api/v1/superadmin/tenants/{id}/support/context` | `ROLE_SUPER_ADMIN` | `TenantSupportContextUpdateRequest` | `SuperAdminTenantSupportContextDto` |
+| POST | `/api/v1/superadmin/tenants/{id}/force-logout` | `ROLE_SUPER_ADMIN` | Optional `TenantForceLogoutRequest` | `SuperAdminTenantForceLogoutDto` |
+| PUT | `/api/v1/superadmin/tenants/{id}/admins/main` | `ROLE_SUPER_ADMIN` | `TenantMainAdminUpdateRequest` | `MainAdminSummaryDto` |
+| POST | `/api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/request` | `ROLE_SUPER_ADMIN` | `TenantAdminEmailChangeRequest` | `SuperAdminTenantAdminEmailChangeRequestDto` |
+| POST | `/api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/confirm` | `ROLE_SUPER_ADMIN` | `TenantAdminEmailChangeConfirmRequest` | `SuperAdminTenantAdminEmailChangeConfirmationDto` |
 
 **B) Tenant admin user-management endpoints**
 
@@ -279,6 +286,7 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
 | PATCH | `/api/v1/admin/users/{id}/unsuspend` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `204 No Content` |
 | PATCH | `/api/v1/admin/users/{id}/mfa/disable` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `204 No Content` |
 | DELETE | `/api/v1/admin/users/{id}` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `204 No Content` |
+| GET | `/api/v1/admin/audit/events` | `ROLE_ADMIN` (tenant-scoped only) | Query: `from?`, `to?`, `module?`, `action?`, `status?`, `actor?`, `entityType?`, `reference?`, `page?`, `size?` | `PageResponse<AuditFeedItemDto>` |
 | GET | `/api/v1/admin/roles` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `List<RoleDto>` |
 | GET | `/api/v1/admin/roles/{roleKey}` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `RoleDto` |
 | POST | `/api/v1/admin/roles` | `ROLE_SUPER_ADMIN` | `CreateRoleRequest` | `RoleDto` |
@@ -670,9 +678,7 @@ Catalog note (2026-03-21): accounting-facing stock-bearing setup now uses the ca
 | `GET` | `/api/v1/portal/finance/aging` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | Query: `dealerId` | `ApiResponse<Map<String,Object>>` |
 | `GET` | `/api/v1/accounting/aging/suppliers/{supplierId}` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `AgingSummaryResponse` |
 | `GET` | `/api/v1/accounting/aging/suppliers/{supplierId}/pdf` | `hasAuthority('ROLE_ADMIN')` | `—` | `byte[]` |
-| `GET` | `/api/v1/accounting/audit-trail` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `PageResponse<AccountingAuditTrailEntryDto>` |
-| `GET` | `/api/v1/accounting/audit/digest` | `hasAuthority('ROLE_ADMIN')` | `—` | `AuditDigestResponse` |
-| `GET` | `/api/v1/accounting/audit/digest.csv` | `hasAuthority('ROLE_ADMIN')` | `—` | `String` |
+| `GET` | `/api/v1/accounting/audit/events` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `PageResponse<AuditFeedItemDto>` |
 | `GET` | `/api/v1/accounting/audit/transactions` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `PageResponse<AccountingTransactionAuditListItemDto>` |
 | `GET` | `/api/v1/accounting/audit/transactions/{journalEntryId}` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `AccountingTransactionAuditDetailDto` |
 | `POST` | `/api/v1/accounting/bad-debts/write-off` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `BadDebtWriteOffRequest` | `JournalEntryDto` |
@@ -784,7 +790,7 @@ _Total documented accounting endpoints: **82**._
 7. **GST return preparation**
    1. Run tax return: `GET /api/v1/accounting/gst/return?period=YYYY-MM`
    2. Run component reconciliation: `GET /api/v1/accounting/gst/reconciliation?period=YYYY-MM`
-   3. Optional diagnostics for audit period: `GET /api/v1/accounting/audit-trail`
+   3. Optional diagnostics for audit period: `GET /api/v1/accounting/audit/events`
 
 7. **Opening balance CSV bootstrap (migration/import flow)**
    1. Collect opening-trial data in CSV with exact header order: `account_code,account_name,account_type,debit_amount,credit_amount,narration`
@@ -1167,31 +1173,32 @@ _Total documented accounting endpoints: **82**._
   - `buckets`: `List<AgingBucketDto>`
 - **`byte[]`**
   - Primitive/raw payload type (no DTO field list).
-- **`PageResponse<AccountingAuditTrailEntryDto>`**
-  - `content`: `List<AccountingAuditTrailEntryDto>`
-    - `id`: `Long`
-    - `timestamp`: `Instant`
+- **`PageResponse<AuditFeedItemDto>`**
+  - `content`: `List<AuditFeedItemDto>`
+    - `sourceId`: `Long`
+    - `sourceKind`: `String`
+    - `category`: `String`
+    - `occurredAt`: `Instant`
     - `companyId`: `Long`
     - `companyCode`: `String`
+    - `module`: `String`
+    - `action`: `String`
+    - `status`: `String`
     - `actorUserId`: `Long`
     - `actorIdentifier`: `String`
-    - `actionType`: `String`
+    - `subjectUserId`: `Long`
+    - `subjectIdentifier`: `String`
     - `entityType`: `String`
     - `entityId`: `String`
     - `referenceNumber`: `String`
+    - `requestMethod`: `String`
+    - `requestPath`: `String`
     - `traceId`: `String`
-    - `ipAddress`: `String`
-    - `beforeState`: `String`
-    - `afterState`: `String`
-    - `sensitiveOperation`: `boolean`
     - `metadata`: `Map<String, String>`
   - `totalElements`: `long`
   - `totalPages`: `int`
   - `page`: `int` (0-based)
   - `size`: `int`
-- **`AuditDigestResponse`**
-  - `periodLabel`: `String`
-  - `entries`: `List<String>`
 - **`String`**
   - Primitive/raw payload type (no DTO field list).
 - **`PageResponse<AccountingTransactionAuditListItemDto>`**
@@ -1682,14 +1689,17 @@ Auth default for controller: `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING','RO
 | Method | Path | Request | Response `data` |
 |---|---|---|---|
 | GET | `/api/v1/catalog/items` | Query: `q`, `itemClass`, `includeStock`, `includeReadiness`, `page`, `pageSize` | `PageResponse<CatalogItemDto>` |
-| POST | `/api/v1/catalog/items` | `CatalogItemRequest` (`itemClass=RAW_MATERIAL` or `PACKAGING_RAW_MATERIAL`) | `CatalogItemDto` |
+| POST | `/api/v1/catalog/items` | `CatalogItemRequest` (`itemClass=FINISHED_GOOD`, `RAW_MATERIAL`, or `PACKAGING_RAW_MATERIAL`) | `CatalogItemDto` |
 | PUT | `/api/v1/catalog/items/{itemId}` | `CatalogItemRequest` | `CatalogItemDto` |
 | DELETE | `/api/v1/catalog/items/{itemId}` | — | `CatalogItemDto` |
 | GET | `/api/v1/raw-materials/stock` | — | `StockSummaryDto` |
 | GET | `/api/v1/raw-materials/stock/inventory` | — | `List<InventoryStockSnapshot>` |
 | GET | `/api/v1/raw-materials/stock/low-stock` | — | `List<InventoryStockSnapshot>` |
 | POST | `/api/v1/inventory/raw-materials/adjustments` | Header/body idempotency + `RawMaterialAdjustmentRequest` | `RawMaterialAdjustmentDto` |
-| POST | `/api/v1/raw-materials/intake` | Headers: `Idempotency-Key`/`X-Idempotency-Key`, body `RawMaterialIntakeRequest` | `RawMaterialBatchDto` |
+
+Notes:
+- Retired catalog routes such as `/api/v1/catalog/products`, `/api/v1/catalog/products/single`, and `/api/v1/catalog/products/bulk-variants` are not part of the current contract. Frontend product creation should target `/api/v1/catalog/items` one item at a time.
+- `/api/v1/raw-materials/intake` is retired and returns `404`; raw-material stock changes should use `/api/v1/inventory/raw-materials/adjustments`.
 
 ##### Inventory adjustment + traceability APIs
 

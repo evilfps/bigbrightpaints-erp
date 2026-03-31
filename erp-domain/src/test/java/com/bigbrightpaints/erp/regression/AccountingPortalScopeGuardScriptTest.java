@@ -192,6 +192,17 @@ class AccountingPortalScopeGuardScriptTest {
   }
 
   @Test
+  void guardFailsClosedWhenRequiredContractFileIsMissing() throws Exception {
+    FixturePaths fixturePaths = writeFixture(13);
+    Files.delete(fixturePaths.guardrailDoc());
+
+    ProcessResult result = runGuard(fixturePaths);
+
+    assertThat(result.exitCode()).isNotEqualTo(0);
+    assertThat(result.stderr()).contains("missing required scope contract file");
+  }
+
+  @Test
   void guardFailsWhenEndpointMapMethodTokenIsMalformed() throws Exception {
     FixturePaths fixturePaths = writeFixture(13);
     replaceInFile(
@@ -297,7 +308,7 @@ Portal finance drill-ins stay on `/api/v1/portal/finance/*` for admin/accounting
 Maker-checker period-close note:
 - `POST /api/v1/accounting/periods/{periodId}/request-close` is the supported maker action for frontend close submission.
 - `POST /api/v1/accounting/periods/{periodId}/approve-close` and `POST /api/v1/accounting/periods/{periodId}/reject-close` are surfaced through `GET /api/v1/admin/approvals`.
-- `GET /api/v1/admin/approvals` is visible to `ROLE_ADMIN|ROLE_ACCOUNTING` in portal flows, and the backend also allows `ROLE_SUPER_ADMIN`.
+- `GET /api/v1/admin/approvals` is visible to `ROLE_ADMIN|ROLE_ACCOUNTING` in portal flows; platform `ROLE_SUPER_ADMIN` is blocked from this tenant-admin workflow prefix.
 """);
 
     Files.writeString(
@@ -306,8 +317,8 @@ Maker-checker period-close note:
 # Accounting Portal Frontend Handoff
 HR, PURCHASING, INVENTORY, and REPORTS come under the Accounting portal in frontend scope.
 Scoped endpoint count: **4**
-Current handoff inventory total is **12**
-Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snapshot as admin-only deprecated exports and must not be treated as required APIs for new accountant-owned UI flows.
+Current handoff inventory total is **10**
+Canonical audit reads are `GET /api/v1/accounting/audit/{events,transactions,transactions/{journalEntryId}}`; tenant-admin review stays on `GET /api/v1/admin/audit/events`, and platform review stays on `GET /api/v1/superadmin/audit/platform-events`.
 ## Purchasing & Payables
 ## Inventory & Costing
 ## HR & Payroll
@@ -320,8 +331,6 @@ Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snaps
 | `portalFinanceInvoices` | GET | `/api/v1/portal/finance/invoices` |
 | `portalFinanceAging` | GET | `/api/v1/portal/finance/aging` |
 | `authGetMe` | GET | `/api/v1/auth/me` |
-| `authProfileGet` | GET | `/api/v1/auth/profile` |
-| `authProfileUpdate` | PUT | `/api/v1/auth/profile` |
 | `authChangePassword` | POST | `/api/v1/auth/password/change` |
 | `companiesList` | GET | `/api/v1/companies` |
 | `authLogout` | POST | `/api/v1/auth/logout` |
@@ -335,7 +344,7 @@ Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snaps
 | `rejectPeriodClose` | POST | `/api/v1/accounting/periods/{periodId}/reject-close` |
 
 ### `/accounting/period-close`
-- Required API calls: `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, `acctLockPeriod`, `requestPeriodClose`, `approvePeriodClose`, `rejectPeriodClose`, `acctReopenPeriod`
+- Required API calls: `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, `requestPeriodClose`, `approvePeriodClose`, `rejectPeriodClose`, `acctReopenPeriod`
 - Period grid from `AccountingPeriodDto`
 - Pending review state: derive it by joining `PeriodCloseRequestDto` / `approvals` data
 - Direct close protection: do not wire `acctClosePeriod` as a frontend action
@@ -356,9 +365,8 @@ Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snaps
 
 ### `/accounting/reports/financial`
 - Required API calls: `reportTrialBalance`, `acctGetTrialBalanceAsOf`, `reportProfitLoss`, `reportBalanceSheet`, `reportCashFlow`, `reportInventoryValuation`, `reportInventoryReconciliation`, `reportAgedDebtors`, `reportWastageReport`, `reportReconciliationDashboard`, `acctGenerateGstReturn`
-- Admin-only legacy exports (do not treat as required for this route): `acctAuditDigest`, `acctAuditDigestCsv`
-- Audit-trail route dependency: use `/accounting/audit-trail` with `acctAuditTransactions` and `acctAuditTransactionDetail` for new transaction-audit UX.
-- Role/permission gate: Mixed by endpoint: financial reports and GST return use `ROLE_ADMIN|ROLE_ACCOUNTING`; deprecated digest exports are `ROLE_ADMIN` only.
+- Audit-trail route dependency: use `/accounting/audit-trail` with `acctAuditEvents`, `acctAuditTransactions`, and `acctAuditTransactionDetail`; tenant-admin escalations use `GET /api/v1/admin/audit/events`.
+- Role/permission gate: Mixed by endpoint: financial reports and GST return use `ROLE_ADMIN|ROLE_ACCOUNTING`; tenant-admin review feed is `ROLE_ADMIN`; platform audit feed is `ROLE_SUPER_ADMIN`.
 """);
 
     Files.writeString(

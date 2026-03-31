@@ -22,7 +22,7 @@ class TS_CostingHelperCentralizationContractTest {
   private static final String PRODUCTION_LOG_SERVICE =
       "src/main/java/com/bigbrightpaints/erp/modules/factory/service/ProductionLogService.java";
   private static final String INVENTORY_VALUATION_SERVICE =
-      "src/main/java/com/bigbrightpaints/erp/modules/reports/service/InventoryValuationService.java";
+      "src/main/java/com/bigbrightpaints/erp/modules/reports/service/InventoryValuationQueryService.java";
 
   @Test
   void inventoryAndReportsUseSharedCostingSelectionHelpers() {

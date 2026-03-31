@@ -65,13 +65,13 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void tenantAdminCanReadAuditBusinessEvents_butTenantAttachedSuperAdminIsDenied() {
+  void tenantAdminCanReadAdminAuditFeed_butTenantAttachedSuperAdminIsDenied() {
     String adminToken = login(ADMIN_EMAIL, TENANT_A);
     String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
 
     ResponseEntity<Map> adminResponse =
         rest.exchange(
-            "/api/v1/audit/business-events?page=0&size=5",
+            "/api/v1/admin/audit/events?page=0&size=5",
             HttpMethod.GET,
             new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
             Map.class);
@@ -79,7 +79,7 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> deniedResponse =
         rest.exchange(
-            "/api/v1/audit/business-events?page=0&size=5",
+            "/api/v1/admin/audit/events?page=0&size=5",
             HttpMethod.GET,
             new HttpEntity<>(jsonHeaders(superAdminToken, TENANT_A)),
             Map.class);
@@ -118,6 +118,29 @@ class SuperAdminTenantWorkflowIsolationIT extends AbstractIntegrationTest {
             Map.class);
     assertThat(deniedDetailResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     assertForbiddenReason(deniedDetailResponse, "SUPER_ADMIN_PLATFORM_ONLY");
+  }
+
+  @Test
+  void tenantAttachedSuperAdminIsDeniedFromTenantApprovalInbox() {
+    String adminToken = login(ADMIN_EMAIL, TENANT_A);
+    String superAdminToken = login(SUPER_ADMIN_EMAIL, TENANT_A);
+
+    ResponseEntity<Map> adminResponse =
+        rest.exchange(
+            "/api/v1/admin/approvals",
+            HttpMethod.GET,
+            new HttpEntity<>(jsonHeaders(adminToken, TENANT_A)),
+            Map.class);
+    assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    ResponseEntity<Map> deniedResponse =
+        rest.exchange(
+            "/api/v1/admin/approvals",
+            HttpMethod.GET,
+            new HttpEntity<>(jsonHeaders(superAdminToken, TENANT_A)),
+            Map.class);
+    assertThat(deniedResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    assertForbiddenReason(deniedResponse, "SUPER_ADMIN_PLATFORM_ONLY");
   }
 
   @Test

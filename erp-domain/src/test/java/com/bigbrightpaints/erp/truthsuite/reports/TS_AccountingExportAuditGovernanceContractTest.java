@@ -13,15 +13,15 @@ class TS_AccountingExportAuditGovernanceContractTest {
       "src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java";
 
   @Test
-  void auditDigestEndpointsRemainAdminOnly() {
+  void supplierPdfExportEndpointsRemainAdminOnly() {
     TruthSuiteFileAssert.assertContainsInOrder(
         ACCOUNTING_CONTROLLER,
-        "@GetMapping(\"/audit/digest\")",
+        "@GetMapping(value = \"/statements/suppliers/{supplierId}/pdf\", produces = \"application/pdf\")",
         "@PreAuthorize(\"hasAuthority('ROLE_ADMIN')\")",
-        "public ResponseEntity<ApiResponse<AuditDigestResponse>> auditDigest(",
-        "@GetMapping(value = \"/audit/digest.csv\", produces = \"text/csv\")",
+        "public ResponseEntity<byte[]> supplierStatementPdf(",
+        "@GetMapping(value = \"/aging/suppliers/{supplierId}/pdf\", produces = \"application/pdf\")",
         "@PreAuthorize(\"hasAuthority('ROLE_ADMIN')\")",
-        "public ResponseEntity<String> auditDigestCsv(");
+        "public ResponseEntity<byte[]> supplierAgingPdf(");
   }
 
   @Test

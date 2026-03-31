@@ -1,6 +1,5 @@
 package com.bigbrightpaints.erp.modules.sales.dto;
 
-import java.math.BigDecimal;
 import java.util.UUID;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.GstRegistrationType;
@@ -15,8 +14,6 @@ public record DealerResponse(
     String email,
     String phone,
     String address,
-    BigDecimal creditLimit,
-    BigDecimal outstandingBalance,
     Long receivableAccountId,
     String receivableAccountCode,
     String portalEmail,
@@ -24,7 +21,8 @@ public record DealerResponse(
     String stateCode,
     GstRegistrationType gstRegistrationType,
     DealerPaymentTerms paymentTerms,
-    String region) {
+    String region,
+    String creditStatus) {
 
   public DealerResponse(
       Long id,
@@ -35,8 +33,6 @@ public record DealerResponse(
       String email,
       String phone,
       String address,
-      BigDecimal creditLimit,
-      BigDecimal outstandingBalance,
       Long receivableAccountId,
       String receivableAccountCode,
       String portalEmail) {
@@ -49,8 +45,6 @@ public record DealerResponse(
         email,
         phone,
         address,
-        creditLimit,
-        outstandingBalance,
         receivableAccountId,
         receivableAccountCode,
         portalEmail,
@@ -58,6 +52,7 @@ public record DealerResponse(
         null,
         GstRegistrationType.UNREGISTERED,
         DealerPaymentTerms.NET_30,
-        null);
+        null,
+        "WITHIN_LIMIT");
   }
 }

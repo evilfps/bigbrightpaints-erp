@@ -212,7 +212,7 @@ Under `com.bigbrightpaints.erp.modules.<module>`:
 - Add details via `.withDetail(...)` when useful for clients/debugging.
 
 ## Idempotency conventions
-- Use `Idempotency-Key` (and where supported, `X-Idempotency-Key` compatibility).
+- Use `Idempotency-Key` only. Reject legacy `X-Idempotency-Key` on public write surfaces unless a route explicitly documents a fail-closed legacy-reject contract.
 - Normalize/resolve keys via shared utilities (`IdempotencyHeaderUtils`, `IdempotencyUtils`, `IdempotencyReservationService`, `IdempotencySignatureBuilder`).
 - Detect mismatched payload-on-retry and return conflict-style `ApplicationException`.
 
@@ -226,7 +226,9 @@ Under `com.bigbrightpaints.erp.modules.<module>`:
 ## 5) Deployment notes
 
 ## Production configuration checklist
-- Use `SPRING_PROFILES_ACTIVE=prod` (or `prod,flyway-v2` for v2 migration path).
+- Use `SPRING_PROFILES_ACTIVE=prod`. The production profile group already adds
+  `flyway-v2`; do not point production-like runtime at the legacy migration
+  chain.
 - Set required secrets/envs:
   - `JWT_SECRET`
   - `ERP_SECURITY_ENCRYPTION_KEY`

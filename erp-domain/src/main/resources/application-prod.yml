@@ -22,6 +22,7 @@ spring:
           auth: true
           starttls:
             enable: true
+            required: true
   flyway:
     enabled: true
   lifecycle:
@@ -104,7 +105,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info
       cors:
         allowed-origins: ${MANAGEMENT_CORS_ALLOWED_ORIGINS:https://ops.bigbrightpaints.com}
         allowed-methods: GET
@@ -122,9 +123,9 @@ management:
           include: readinessState,db,rabbit,diskSpace,requiredConfig,configuration
       show-details: when_authorized
     metrics:
-      access: read-only
+      access: none
     prometheus:
-      access: read-only
+      access: none
   otlp:
     tracing:
       endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}

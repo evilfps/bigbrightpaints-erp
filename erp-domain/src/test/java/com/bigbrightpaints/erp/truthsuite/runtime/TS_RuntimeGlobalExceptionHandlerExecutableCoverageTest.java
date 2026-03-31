@@ -268,8 +268,7 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
     assertThat(unchangedUri).isEqualTo("/api/v1/catalog/items");
 
     Boolean nullPathRejected =
-        ReflectionTestUtils.invokeMethod(
-            handler, "matchesEndpointPath", "", CATALOG_ITEM_PATH);
+        ReflectionTestUtils.invokeMethod(handler, "matchesEndpointPath", "", CATALOG_ITEM_PATH);
     assertThat(nullPathRejected).isFalse();
 
     Boolean blankEndpointRejected =
@@ -279,10 +278,7 @@ class TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest {
 
     Boolean prefixedPathAccepted =
         ReflectionTestUtils.invokeMethod(
-            handler,
-            "matchesEndpointPath",
-            "/erp" + CATALOG_ITEM_PATH,
-            CATALOG_ITEM_PATH);
+            handler, "matchesEndpointPath", "/erp" + CATALOG_ITEM_PATH, CATALOG_ITEM_PATH);
     assertThat(prefixedPathAccepted).isTrue();
 
     String normalizedWithoutSlash =

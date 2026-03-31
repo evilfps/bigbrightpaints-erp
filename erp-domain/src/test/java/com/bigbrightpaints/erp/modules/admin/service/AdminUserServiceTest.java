@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -50,7 +49,6 @@ import com.bigbrightpaints.erp.modules.auth.service.PasswordResetService;
 import com.bigbrightpaints.erp.modules.auth.service.RefreshTokenService;
 import com.bigbrightpaints.erp.modules.auth.service.ScopedAccountBootstrapService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
-import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 import com.bigbrightpaints.erp.modules.rbac.service.RoleService;
@@ -62,7 +60,6 @@ class AdminUserServiceTest {
 
   @Mock private UserAccountRepository userRepository;
   @Mock private CompanyContextService companyContextService;
-  @Mock private CompanyRepository companyRepository;
   @Mock private RoleService roleService;
   @Mock private PasswordEncoder passwordEncoder;
   @Mock private EmailService emailService;
@@ -89,7 +86,6 @@ class AdminUserServiceTest {
         new AdminUserService(
             userRepository,
             companyContextService,
-            companyRepository,
             roleService,
             emailService,
             tokenBlacklistService,
@@ -162,7 +158,7 @@ class AdminUserServiceTest {
         .thenReturn(Optional.of(existingDealer));
 
     service.createUser(
-        new CreateUserRequest("dealer@example.com", "Dealer User", 1L, List.of("ROLE_DEALER")));
+        new CreateUserRequest("dealer@example.com", "Dealer User", List.of("ROLE_DEALER")));
 
     ArgumentCaptor<Dealer> dealerCaptor = ArgumentCaptor.forClass(Dealer.class);
     verify(dealerRepository).save(dealerCaptor.capture());
@@ -176,100 +172,12 @@ class AdminUserServiceTest {
   }
 
   @Test
-  void createUser_superAdminCanAssignUserToRequestedTenantCompany() {
-    Company foreignCompany = new Company();
-    ReflectionTestUtils.setField(foreignCompany, "id", 2L);
-    foreignCompany.setCode("FOREIGN");
-
-    when(companyRepository.findById(2L)).thenReturn(Optional.of(foreignCompany));
-    SecurityContextHolder.getContext()
-        .setAuthentication(
-            new UsernamePasswordAuthenticationToken(
-                "super-admin@bbp.com",
-                "n/a",
-                List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
-
-    try {
-      service.createUser(
-          new CreateUserRequest("ops-user@example.com", "Ops User", 2L, List.of("ROLE_SALES")));
-    } finally {
-      SecurityContextHolder.clearContext();
-    }
-
-    ArgumentCaptor<UserAccount> userCaptor = ArgumentCaptor.forClass(UserAccount.class);
-    verify(userRepository).save(userCaptor.capture());
-    UserAccount savedUser = userCaptor.getValue();
-    assertThat(savedUser.getCompany()).extracting(Company::getCode).isEqualTo("FOREIGN");
-    verify(tenantRuntimePolicyService).assertCanAddEnabledUser(foreignCompany, "ADMIN_USER_CREATE");
-  }
-
-  @Test
-  void createUser_nonSuperAdminRejectsForeignCompanyScope() {
-    assertThatThrownBy(
-            () ->
-                service.createUser(
-                    new CreateUserRequest(
-                        "scope-user@example.com", "Scope User", 2L, List.of("ROLE_SALES"))))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("User must be assigned to the active company");
-  }
-
-  @Test
-  void createUser_superAdminRejectsMissingCompanyAssignments() {
-    SecurityContextHolder.getContext()
-        .setAuthentication(
-            new UsernamePasswordAuthenticationToken(
-                "super-admin@bbp.com",
-                "n/a",
-                List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
-    try {
-      assertThatThrownBy(
-              () ->
-                  service.createUser(
-                      new CreateUserRequest(
-                          "missing-company@example.com",
-                          "Missing Company",
-                          null,
-                          List.of("ROLE_SALES"))))
-          .isInstanceOf(ApplicationException.class)
-          .hasMessageContaining("User must belong to an active company");
-    } finally {
-      SecurityContextHolder.clearContext();
-    }
-  }
-
-  @Test
-  void createUser_superAdminRejectsUnknownCompanyId() {
-    SecurityContextHolder.getContext()
-        .setAuthentication(
-            new UsernamePasswordAuthenticationToken(
-                "super-admin@bbp.com",
-                "n/a",
-                List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
-    when(companyRepository.findById(99L)).thenReturn(Optional.empty());
-    try {
-      assertThatThrownBy(
-              () ->
-                  service.createUser(
-                      new CreateUserRequest(
-                          "unknown-company@example.com",
-                          "Unknown Company",
-                          99L,
-                          List.of("ROLE_SALES"))))
-          .isInstanceOf(ApplicationException.class)
-          .hasMessageContaining("Company not found: 99");
-    } finally {
-      SecurityContextHolder.clearContext();
-    }
-  }
-
-  @Test
   void createUser_nonSuperAdminCannotAssignSuperAdminRole() {
     assertThatThrownBy(
             () ->
                 service.createUser(
                     new CreateUserRequest(
-                        "tenant-user@example.com", "Tenant User", 1L, List.of("ROLE_SUPER_ADMIN"))))
+                        "tenant-user@example.com", "Tenant User", List.of("ROLE_SUPER_ADMIN"))))
         .isInstanceOf(AccessDeniedException.class)
         .hasMessageContaining("SUPER_ADMIN authority required");
   }
@@ -282,7 +190,7 @@ class AdminUserServiceTest {
             () ->
                 service.createUser(
                     new CreateUserRequest(
-                        "tenant-admin@example.com", "Tenant Admin", 1L, List.of("admin"))))
+                        "tenant-admin@example.com", "Tenant Admin", List.of("admin"))))
         .isInstanceOf(AccessDeniedException.class)
         .hasMessageContaining("SUPER_ADMIN authority required for role: ROLE_ADMIN");
 
@@ -307,11 +215,10 @@ class AdminUserServiceTest {
                 "super-admin@bbp.com",
                 "n/a",
                 List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
-    when(companyRepository.findById(1L)).thenReturn(Optional.of(company));
     try {
       service.createUser(
           new CreateUserRequest(
-              "platform-owner@example.com", "Platform Owner", 1L, List.of("ROLE_SUPER_ADMIN")));
+              "platform-owner@example.com", "Platform Owner", List.of("ROLE_SUPER_ADMIN")));
       verify(userRepository).save(any(UserAccount.class));
     } finally {
       SecurityContextHolder.clearContext();
@@ -335,7 +242,7 @@ class AdminUserServiceTest {
     var response =
         service.createUser(
             new CreateUserRequest(
-                "fallback-user@example.com", "Fallback User", 1L, List.of("ROLE_SALES")));
+                "fallback-user@example.com", "Fallback User", List.of("ROLE_SALES")));
 
     assertThat(response.roles()).isEmpty();
     assertThat(response.companyCode()).isNull();
@@ -344,7 +251,7 @@ class AdminUserServiceTest {
   @Test
   void createUser_issuesScopedBootstrapEmailAndForcesReset() {
     service.createUser(
-        new CreateUserRequest("temp-user@example.com", "Temp User", 1L, List.of("ROLE_SALES")));
+        new CreateUserRequest("temp-user@example.com", "Temp User", List.of("ROLE_SALES")));
 
     ArgumentCaptor<UserAccount> userCaptor = ArgumentCaptor.forClass(UserAccount.class);
     verify(userRepository).save(userCaptor.capture());
@@ -377,7 +284,7 @@ class AdminUserServiceTest {
 
     service.createUser(
         new CreateUserRequest(
-            "dealer-active@example.com", "Dealer Active", 1L, List.of("ROLE_DEALER")));
+            "dealer-active@example.com", "Dealer Active", List.of("ROLE_DEALER")));
 
     verify(dealerRepository, times(1)).save(any(Dealer.class));
     verify(accountRepository, never()).save(any(Account.class));
@@ -615,7 +522,7 @@ class AdminUserServiceTest {
 
     try {
       var response =
-          service.updateUser(305L, new UpdateUserRequest("Foreign User Updated", null, null, true));
+          service.updateUser(305L, new UpdateUserRequest("Foreign User Updated", null, true));
       assertThat(response.displayName()).isEqualTo("Foreign User Updated");
     } finally {
       SecurityContextHolder.clearContext();
@@ -642,7 +549,7 @@ class AdminUserServiceTest {
         .thenReturn(Optional.empty());
 
     var response =
-        service.updateUser(401L, new UpdateUserRequest("Same Enabled Updated", null, null, true));
+        service.updateUser(401L, new UpdateUserRequest("Same Enabled Updated", null, true));
 
     assertThat(response.enabled()).isTrue();
     verify(tokenBlacklistService, never()).revokeAllUserTokens(user.getPublicId().toString());
@@ -652,7 +559,7 @@ class AdminUserServiceTest {
   }
 
   @Test
-  void updateUser_reassignsScopedCompaniesAndRolesAndRevokesTokens() {
+  void updateUser_updatesRolesAndRevokesTokens() {
     UserAccount user = new UserAccount("update-user@example.com", "hash", "Update User");
     ReflectionTestUtils.setField(user, "id", 402L);
     user.setCompany(company);
@@ -667,143 +574,13 @@ class AdminUserServiceTest {
         .thenReturn(Optional.empty());
 
     var response =
-        service.updateUser(
-            402L, new UpdateUserRequest("Updated User", 1L, List.of("ROLE_SALES"), null));
+        service.updateUser(402L, new UpdateUserRequest("Updated User", List.of("ROLE_SALES"), null));
 
     assertThat(response.displayName()).isEqualTo("Updated User");
     assertThat(response.roles()).containsExactly("ROLE_SALES");
     assertThat(response.companyCode()).isEqualTo("TEST");
     verify(tokenBlacklistService).revokeAllUserTokens(user.getPublicId().toString());
     verify(refreshTokenService).revokeAllForUser(user.getPublicId());
-  }
-
-  @Test
-  void updateUser_superAdminCompanyTransferKeepsAuthScopeInSync() {
-    Company foreignCompany = new Company();
-    ReflectionTestUtils.setField(foreignCompany, "id", 21L);
-    foreignCompany.setCode("FOREIGN");
-
-    UserAccount user =
-        new UserAccount("transfer-user@example.com", "TEST", "hash", "Transfer User");
-    ReflectionTestUtils.setField(user, "id", 403L);
-    user.setCompany(company);
-
-    when(userRepository.findById(403L)).thenReturn(Optional.of(user));
-    when(companyRepository.findById(21L)).thenReturn(Optional.of(foreignCompany));
-    when(auditLogRepository
-            .findFirstByEventTypeAndCompanyIdAndUsernameIgnoreCaseOrderByTimestampDesc(
-                AuditEvent.LOGIN_SUCCESS, foreignCompany.getId(), "transfer-user@example.com"))
-        .thenReturn(Optional.empty());
-
-    SecurityContextHolder.getContext()
-        .setAuthentication(
-            new UsernamePasswordAuthenticationToken(
-                "super-admin@bbp.com",
-                "n/a",
-                List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
-
-    try {
-      var response =
-          service.updateUser(403L, new UpdateUserRequest("Transferred User", 21L, null, null));
-
-      assertThat(response.companyCode()).isEqualTo("FOREIGN");
-      assertThat(user.getCompany()).isEqualTo(foreignCompany);
-      assertThat(user.getAuthScopeCode()).isEqualTo("FOREIGN");
-    } finally {
-      SecurityContextHolder.clearContext();
-    }
-
-    verify(tokenBlacklistService).revokeAllUserTokens(user.getPublicId().toString());
-    verify(refreshTokenService).revokeAllForUser(user.getPublicId());
-    verify(tenantRuntimePolicyService)
-        .assertCanAddEnabledUser(foreignCompany, "ADMIN_USER_TRANSFER");
-  }
-
-  @Test
-  void updateUser_superAdminCompanyTransferRejectsScopedEmailCollisionBeforeTokenRevocation() {
-    Company foreignCompany = new Company();
-    ReflectionTestUtils.setField(foreignCompany, "id", 21L);
-    foreignCompany.setCode("FOREIGN");
-
-    UserAccount user =
-        new UserAccount("transfer-user@example.com", "TEST", "hash", "Transfer User");
-    ReflectionTestUtils.setField(user, "id", 404L);
-    user.setCompany(company);
-
-    when(userRepository.findById(404L)).thenReturn(Optional.of(user));
-    when(companyRepository.findById(21L)).thenReturn(Optional.of(foreignCompany));
-    when(userRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCaseAndIdNot(
-            "transfer-user@example.com", "FOREIGN", 404L))
-        .thenReturn(true);
-
-    SecurityContextHolder.getContext()
-        .setAuthentication(
-            new UsernamePasswordAuthenticationToken(
-                "super-admin@bbp.com",
-                "n/a",
-                List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
-
-    try {
-      assertThatThrownBy(
-              () ->
-                  service.updateUser(
-                      404L, new UpdateUserRequest("Transferred User", 21L, null, null)))
-          .isInstanceOf(ApplicationException.class)
-          .hasMessageContaining("Email already exists in target company scope");
-    } finally {
-      SecurityContextHolder.clearContext();
-    }
-
-    assertThat(user.getCompany()).isEqualTo(company);
-    assertThat(user.getAuthScopeCode()).isEqualTo("TEST");
-    verify(tokenBlacklistService, never()).revokeAllUserTokens(anyString());
-    verify(refreshTokenService, never()).revokeAllForUser(any());
-  }
-
-  @Test
-  void updateUser_superAdminCompanyTransferEnforcesQuotaBeforeMutationOrTokenRevocation() {
-    Company foreignCompany = new Company();
-    ReflectionTestUtils.setField(foreignCompany, "id", 21L);
-    foreignCompany.setCode("FOREIGN");
-
-    UserAccount user =
-        new UserAccount("quota-transfer@example.com", "TEST", "hash", "Quota Transfer");
-    ReflectionTestUtils.setField(user, "id", 405L);
-    user.setCompany(company);
-
-    when(userRepository.findById(405L)).thenReturn(Optional.of(user));
-    when(companyRepository.findById(21L)).thenReturn(Optional.of(foreignCompany));
-    doThrow(
-            new ApplicationException(
-                com.bigbrightpaints.erp.core.exception.ErrorCode.BUSINESS_LIMIT_EXCEEDED,
-                "Quota exceeded"))
-        .when(tenantRuntimePolicyService)
-        .assertCanAddEnabledUser(foreignCompany, "ADMIN_USER_TRANSFER");
-
-    SecurityContextHolder.getContext()
-        .setAuthentication(
-            new UsernamePasswordAuthenticationToken(
-                "super-admin@bbp.com",
-                "n/a",
-                List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))));
-
-    try {
-      assertThatThrownBy(
-              () ->
-                  service.updateUser(
-                      405L, new UpdateUserRequest("Quota Transfer", 21L, null, null)))
-          .isInstanceOf(ApplicationException.class)
-          .hasMessageContaining("Quota exceeded");
-    } finally {
-      SecurityContextHolder.clearContext();
-    }
-
-    assertThat(user.getCompany()).isEqualTo(company);
-    assertThat(user.getAuthScopeCode()).isEqualTo("TEST");
-    verify(userRepository, never())
-        .existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCaseAndIdNot(anyString(), anyString(), any());
-    verify(tokenBlacklistService, never()).revokeAllUserTokens(anyString());
-    verify(refreshTokenService, never()).revokeAllForUser(any());
   }
 
   @Test

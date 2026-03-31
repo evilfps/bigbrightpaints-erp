@@ -161,8 +161,8 @@ class CreditDebitNoteIT extends AbstractIntegrationTest {
   }
 
   @Test
-  @DisplayName("Credit note after settlement exposes negative outstanding balance in invoice API")
-  void creditNote_overCreditShowsNegativeOutstandingInApi() {
+  @DisplayName("Credit note after settlement caps to live outstanding in invoice API")
+  void creditNote_afterSettlementOnlyCreditsLiveOutstandingInApi() {
     Invoice invoice = createDispatchedInvoice(new BigDecimal("1"), new BigDecimal("1000.00"));
     BigDecimal appliedAmount = new BigDecimal("800.00");
     String settlementRef = "SET-CN-" + System.currentTimeMillis();
@@ -211,6 +211,14 @@ class CreditDebitNoteIT extends AbstractIntegrationTest {
             Map.class);
     assertThat(creditResp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
+    JournalEntry note =
+        journalEntryRepository.findByCompanyAndReferenceNumber(company, ref).orElseThrow();
+    BigDecimal noteCredits =
+        note.getLines().stream()
+            .map(line -> line.getCredit() != null ? line.getCredit() : BigDecimal.ZERO)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    assertThat(noteCredits).isEqualByComparingTo("200.00");
+
     ResponseEntity<Map> invoiceResp =
         rest.exchange(
             "/api/v1/invoices/" + invoice.getId(),
@@ -220,8 +228,8 @@ class CreditDebitNoteIT extends AbstractIntegrationTest {
     assertThat(invoiceResp.getStatusCode()).isEqualTo(HttpStatus.OK);
     Map<?, ?> data = (Map<?, ?>) invoiceResp.getBody().get("data");
     BigDecimal outstanding = new BigDecimal(data.get("outstandingAmount").toString());
-    assertThat(outstanding).isEqualByComparingTo(appliedAmount.negate());
-    assertThat(data.get("status")).isEqualTo("VOID");
+    assertThat(outstanding).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(data.get("status")).isEqualTo("PAID");
   }
 
   private Invoice createDispatchedInvoice(BigDecimal quantity, BigDecimal unitPrice) {

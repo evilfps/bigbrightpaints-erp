@@ -28,7 +28,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.DealerBalanceView;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierBalanceView;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
-import com.bigbrightpaints.erp.modules.reports.service.InventoryValuationService;
+import com.bigbrightpaints.erp.modules.reports.service.InventoryValuationQueryService;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 
 @Service
@@ -42,7 +42,7 @@ public class AccountingPeriodSnapshotService {
   private final SupplierRepository supplierRepository;
   private final DealerLedgerRepository dealerLedgerRepository;
   private final SupplierLedgerRepository supplierLedgerRepository;
-  private final InventoryValuationService inventoryValuationService;
+  private final InventoryValuationQueryService inventoryValuationService;
 
   public AccountingPeriodSnapshotService(
       AccountingPeriodSnapshotRepository snapshotRepository,
@@ -53,7 +53,7 @@ public class AccountingPeriodSnapshotService {
       SupplierRepository supplierRepository,
       DealerLedgerRepository dealerLedgerRepository,
       SupplierLedgerRepository supplierLedgerRepository,
-      InventoryValuationService inventoryValuationService) {
+      InventoryValuationQueryService inventoryValuationService) {
     this.snapshotRepository = snapshotRepository;
     this.lineRepository = lineRepository;
     this.accountRepository = accountRepository;
@@ -101,7 +101,7 @@ public class AccountingPeriodSnapshotService {
       lines.add(line);
     }
 
-    InventoryValuationService.InventorySnapshot inventorySnapshot =
+    InventoryValuationQueryService.InventorySnapshot inventorySnapshot =
         inventoryValuationService.snapshotAsOf(company, asOfDate);
     BigDecimal arTotal = sumDealerBalances(company, asOfDate);
     BigDecimal apTotal = sumSupplierBalances(company, asOfDate);

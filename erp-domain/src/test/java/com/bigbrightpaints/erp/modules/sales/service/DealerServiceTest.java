@@ -15,9 +15,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -50,8 +52,10 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerPaymentTerms;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
+import com.bigbrightpaints.erp.modules.sales.dto.DealerCreditExposureView;
 import com.bigbrightpaints.erp.modules.sales.dto.CreateDealerRequest;
 
+@Tag("critical")
 @ExtendWith(MockitoExtension.class)
 class DealerServiceTest {
 
@@ -251,18 +255,59 @@ class DealerServiceTest {
             java.util.Map.of(
                 1L, new BigDecimal("200"),
                 2L, new BigDecimal("850")));
-    when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(
-            eq(company), eq(within), any(), eq(null)))
-        .thenReturn(new BigDecimal("100"));
-    when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(
-            eq(company), eq(near), any(), eq(null)))
-        .thenReturn(new BigDecimal("0"));
+    when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealerIds(
+            eq(company), eq(List.of(1L, 2L)), any()))
+        .thenReturn(
+            List.of(
+                new DealerCreditExposureView(1L, new BigDecimal("100")),
+                new DealerCreditExposureView(2L, BigDecimal.ZERO)));
 
     var results = dealerService.search("", null, "north", "NEAR_LIMIT");
 
     assertThat(results).hasSize(1);
     assertThat(results.getFirst().code()).isEqualTo("D-NEAR");
     assertThat(results.getFirst().creditStatus()).isEqualTo("NEAR_LIMIT");
+  }
+
+  @Test
+  void listDealers_usesBatchPendingExposureMapForCreditStatus() {
+    Dealer within = dealer("D-WITHIN", new BigDecimal("1000"), "NORTH");
+    Dealer near = dealer("D-NEAR", new BigDecimal("1000"), "NORTH");
+    when(dealerRepository.findByCompanyAndStatusIgnoreCaseOrderByNameAsc(eq(company), eq("ACTIVE")))
+        .thenReturn(List.of(within, near));
+    when(dealerLedgerService.currentBalances(List.of(1L, 2L)))
+        .thenReturn(
+            java.util.Map.of(
+                1L, new BigDecimal("200"),
+                2L, new BigDecimal("850")));
+    when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealerIds(
+            eq(company), eq(List.of(1L, 2L)), any()))
+        .thenReturn(
+            List.of(
+                new DealerCreditExposureView(1L, new BigDecimal("100")),
+                new DealerCreditExposureView(2L, BigDecimal.ZERO)));
+
+    var results = dealerService.listDealers();
+
+    assertThat(results).hasSize(2);
+    assertThat(results)
+        .extracting(com.bigbrightpaints.erp.modules.sales.dto.DealerResponse::creditStatus)
+        .containsExactly("WITHIN_LIMIT", "NEAR_LIMIT");
+  }
+
+  @Test
+  void listDealers_defaultsMissingBalanceAndExposureToZero() {
+    Dealer dealer = dealer("D-ZERO", new BigDecimal("1000"), "NORTH");
+    when(dealerRepository.findByCompanyAndStatusIgnoreCaseOrderByNameAsc(eq(company), eq("ACTIVE")))
+        .thenReturn(List.of(dealer));
+    when(dealerLedgerService.currentBalances(List.of(99L))).thenReturn(Map.of());
+    when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealerIds(
+            eq(company), eq(List.of(99L)), any()))
+        .thenReturn(List.of());
+
+    var results = dealerService.listDealers();
+
+    assertThat(results).singleElement().satisfies(result -> assertThat(result.creditStatus()).isEqualTo("WITHIN_LIMIT"));
   }
 
   @Test
@@ -276,9 +321,150 @@ class DealerServiceTest {
 
     var payload = dealerService.creditUtilization(1L);
 
-    assertThat(payload.get("creditUsed")).isEqualTo(new BigDecimal("900"));
-    assertThat(payload.get("availableCredit")).isEqualTo(new BigDecimal("100"));
+    assertThat(payload)
+        .containsEntry("dealerId", 1L)
+        .containsEntry("dealerName", "D-CREDIT Name")
+        .doesNotContainKeys(
+            "creditLimit",
+            "outstandingAmount",
+            "pendingOrderExposure",
+            "creditUsed",
+            "availableCredit");
     assertThat(payload.get("creditStatus")).isEqualTo("NEAR_LIMIT");
+  }
+
+  @Test
+  void resolvePendingOrderExposureMap_returnsEmptyForMissingInputs() {
+    @SuppressWarnings("unchecked")
+    Map<Long, BigDecimal> noCompany =
+        (Map<Long, BigDecimal>)
+            ReflectionTestUtils.invokeMethod(
+                dealerService, "resolvePendingOrderExposureMap", null, List.of(1L));
+    @SuppressWarnings("unchecked")
+    Map<Long, BigDecimal> nullDealerIds =
+        (Map<Long, BigDecimal>)
+            ReflectionTestUtils.invokeMethod(
+                dealerService, "resolvePendingOrderExposureMap", company, null);
+    @SuppressWarnings("unchecked")
+    Map<Long, BigDecimal> noDealerIds =
+        (Map<Long, BigDecimal>)
+            ReflectionTestUtils.invokeMethod(
+                dealerService, "resolvePendingOrderExposureMap", company, List.<Long>of());
+
+    assertThat(noCompany).isEmpty();
+    assertThat(nullDealerIds).isEmpty();
+    assertThat(noDealerIds).isEmpty();
+  }
+
+  @Test
+  void resolvePendingOrderExposureMap_skipsNullRowsAndDefaultsNullExposure() {
+    when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealerIds(
+            eq(company), eq(List.of(1L, 2L)), any()))
+        .thenReturn(
+            Arrays.asList(
+                null,
+                new DealerCreditExposureView(null, new BigDecimal("50.00")),
+                new DealerCreditExposureView(1L, null),
+                new DealerCreditExposureView(2L, new BigDecimal("12.50"))));
+
+    @SuppressWarnings("unchecked")
+    Map<Long, BigDecimal> exposures =
+        (Map<Long, BigDecimal>)
+            ReflectionTestUtils.invokeMethod(
+                dealerService, "resolvePendingOrderExposureMap", company, List.of(1L, 2L));
+
+    assertThat(exposures)
+        .containsEntry(1L, BigDecimal.ZERO)
+        .containsEntry(2L, new BigDecimal("12.50"));
+  }
+
+  @Test
+  void search_normalizesFiltersAndDefaultsMissingExposureRows() {
+    Dealer dealer = dealer("D-MATCH", new BigDecimal("1000"), "NORTH");
+    when(dealerRepository.searchFiltered(eq(company), eq("dealer"), eq("ACTIVE"), eq("NORTH"), any()))
+        .thenReturn(List.of(dealer));
+    when(dealerLedgerService.currentBalances(List.of(99L)))
+        .thenReturn(Map.of(99L, new BigDecimal("50")));
+    when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealerIds(
+            eq(company), eq(List.of(99L)), any()))
+        .thenReturn(List.of());
+
+    var results = dealerService.search("  dealer  ", " active ", " north ", " within_limit ");
+
+    assertThat(results).singleElement().satisfies(result -> assertThat(result.creditStatus()).isEqualTo("WITHIN_LIMIT"));
+  }
+
+  @Test
+  void search_rejectsUnknownCreditStatus() {
+    assertThatThrownBy(() -> dealerService.search("", null, null, "not-real"))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+              assertThat(ex.getMessage())
+                  .isEqualTo("creditStatus must be one of WITHIN_LIMIT, NEAR_LIMIT, OVER_LIMIT");
+            });
+  }
+
+  @Test
+  void updateDealer_usesPortalEmailAndResolvedPendingExposureInResponse() {
+    Dealer dealer = dealer("D-UPDATE", new BigDecimal("1000"), "WEST");
+    UserAccount portalUser = new UserAccount("portal@example.com", "TEST", "hash", "Portal");
+    dealer.setPortalUser(portalUser);
+    Account receivableAccount = new Account();
+    ReflectionTestUtils.setField(receivableAccount, "id", 123L);
+    receivableAccount.setCode("AR-D-UPDATE");
+    dealer.setReceivableAccount(receivableAccount);
+    when(dealerRepository.findByCompanyAndId(company, 99L)).thenReturn(Optional.of(dealer));
+    when(dealerLedgerService.currentBalance(99L)).thenReturn(new BigDecimal("500"));
+    when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(
+            eq(company), eq(dealer), any(), eq(null)))
+        .thenReturn(new BigDecimal("400"));
+
+    var response =
+        dealerService.updateDealer(
+            99L,
+            new CreateDealerRequest(
+                "  Updated Dealer  ",
+                "  Updated Co  ",
+                "updated@example.com",
+                "8888888888",
+                null,
+                null,
+                "29ABCDE1234F1Z5",
+                "ka",
+                null,
+                null,
+                " south "));
+
+    assertThat(response.portalEmail()).isEqualTo("portal@example.com");
+    assertThat(response.creditStatus()).isEqualTo("NEAR_LIMIT");
+    assertThat(response.region()).isEqualTo("SOUTH");
+  }
+
+  @Test
+  void resolvePendingOrderExposure_returnsZeroWhenDealerContextIsIncompleteOrRepositoryReturnsNull() {
+    BigDecimal missingDealer =
+        (BigDecimal)
+            ReflectionTestUtils.invokeMethod(
+                dealerService, "resolvePendingOrderExposure", new Object[] {null});
+
+    Dealer dealerWithoutContext = new Dealer();
+    BigDecimal missingContext =
+        (BigDecimal)
+            ReflectionTestUtils.invokeMethod(
+                dealerService, "resolvePendingOrderExposure", dealerWithoutContext);
+
+    Dealer dealer = dealer("D-NULL-EXPOSURE", new BigDecimal("1000"), "WEST");
+    when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(
+            eq(company), eq(dealer), any(), eq(null)))
+        .thenReturn(null);
+    BigDecimal nullRepositoryExposure =
+        (BigDecimal) ReflectionTestUtils.invokeMethod(dealerService, "resolvePendingOrderExposure", dealer);
+
+    assertThat(missingDealer).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(missingContext).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(nullRepositoryExposure).isEqualByComparingTo(BigDecimal.ZERO);
   }
 
   @Test
@@ -292,15 +478,22 @@ class DealerServiceTest {
 
     var payload = dealerService.creditUtilization(99L);
 
-    assertThat(payload.get("creditLimit")).isEqualTo(BigDecimal.ZERO);
-    assertThat(payload.get("creditUsed")).isEqualTo(new BigDecimal("100"));
-    assertThat(payload.get("availableCredit")).isEqualTo(BigDecimal.ZERO);
+    assertThat(payload)
+        .containsEntry("dealerId", 99L)
+        .containsEntry("dealerName", "D-NO-LIMIT Name")
+        .doesNotContainKeys(
+            "creditLimit",
+            "outstandingAmount",
+            "pendingOrderExposure",
+            "creditUsed",
+            "availableCredit");
     assertThat(payload.get("creditStatus")).isEqualTo("OVER_LIMIT");
   }
 
   @Test
   void creditUtilizationClampsNegativeLedgerBalanceWhenDealerHasCredit() {
     Dealer dealer = dealer("D-CREDIT", new BigDecimal("1000"), "WEST");
+    ReflectionTestUtils.setField(dealer, "id", 109L);
     when(dealerRepository.findByCompanyAndId(company, 109L)).thenReturn(Optional.of(dealer));
     when(dealerLedgerService.currentBalance(109L)).thenReturn(new BigDecimal("-125"));
     when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(
@@ -309,9 +502,16 @@ class DealerServiceTest {
 
     var payload = dealerService.creditUtilization(109L);
 
-    assertThat(payload.get("outstandingAmount")).isEqualTo(new BigDecimal("-125"));
-    assertThat(payload.get("creditUsed")).isEqualTo(new BigDecimal("50"));
-    assertThat(payload.get("availableCredit")).isEqualTo(new BigDecimal("950"));
+    assertThat(payload)
+        .containsEntry("dealerId", 109L)
+        .containsEntry("dealerName", "D-CREDIT Name")
+        .doesNotContainKeys(
+            "creditLimit",
+            "outstandingAmount",
+            "pendingOrderExposure",
+            "creditUsed",
+            "availableCredit");
+    assertThat(payload.get("creditStatus")).isEqualTo("WITHIN_LIMIT");
   }
 
   @Test

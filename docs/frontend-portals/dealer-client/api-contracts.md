@@ -1,72 +1,64 @@
 # Dealer Client API Contracts
 
-This file defines which backend surfaces dealer-client can call directly and
-where the portal must stop.
+This file defines which backend surfaces dealer-client can call directly and where the portal must stop.
 
 ## Dealer Dashboard And Summary
 
 - `GET /api/v1/dealer-portal/dashboard`
 
-Returns dealer summary, order counts, credit exposure, payment status, and
-recent activity.
+Returns dealer summary, order counts, credit exposure, payment status, and recent activity for the authenticated dealer only.
 
-## Order Tracking
+The dealer portal should call only dealer-safe backend surfaces, typically under
+the dealer portal namespace.
 
-- `GET /api/v1/dealer-portal/orders`
-- `GET /api/v1/dealer-portal/orders/{id}`
+## Orders
 
-Returns order list and order detail for the authenticated dealer's company.
-The backend filters by `companyCode` to ensure dealer sees only their own
-orders.
-
-## Invoice Access
-
-- `GET /api/v1/dealer-portal/invoices`
-- `GET /api/v1/dealer-portal/invoices/{id}`
-
-Returns invoice list and detail for the dealer's company. Invoice PDF download
-is also served through the invoice detail endpoint.
+- dealer order list and detail endpoints under `/api/v1/dealer-portal/**`
 
 Rules:
 
-- Dealer cannot access invoices for other dealers.
-- Dealer cannot create, edit, or void invoices.
+- Orders are read-first in this portal.
+- If dealer self-service order creation is enabled, it must still remain within
+  dealer-safe constraints and never expose internal pricing or approval tools
+  beyond backend policy.
+
+## Invoices
+
+- dealer invoice list and detail endpoints under `/api/v1/dealer-portal/**`
+
+Rules:
+
+- Invoice status is visible here after internal dispatch and posting complete.
+- Dealer portal must not offer finance correction or manual settlement actions.
+- Dealer portal owns the external invoice list, detail, and PDF/download flow.
+- Internal sales may read invoice state for a current order, but that does not
+  create shared ownership of the dealer invoice inbox.
 
 ## Ledger And Aging
 
-- `GET /api/v1/dealer-portal/ledger`
-- `GET /api/v1/dealer-portal/aging`
-
-Returns the dealer's account ledger entries and receivable aging summary. The
-backend scopes to the dealer's `companyCode`.
-
-## Credit Self-Service
-
-- `GET /api/v1/dealer-portal/credit`
-- `POST /api/v1/dealer-portal/credit`
-- `GET /api/v1/dealer-portal/credit/{id}`
-
-Dealer can view existing credit requests and submit new self-service credit
-requests. Approval workflow remains internal to sales and accounting.
+- dealer ledger and aging reads under `/api/v1/dealer-portal/**`
 
 Rules:
 
-- Dealer can only submit credit requests for their own company.
-- Dealer cannot approve or override credit requests.
+- Ledger and aging are read-only.
+- The portal should explain overdue and current balance clearly without exposing
+  accounting internals such as journal identifiers unless backend explicitly
+  provides a dealer-safe reference.
 
-## Support Tickets
+## Support And Credit Request
 
-- `GET /api/v1/portal/support/tickets`
-- `POST /api/v1/portal/support/tickets`
-- `GET /api/v1/portal/support/tickets/{id}`
+- dealer support endpoints under `/api/v1/dealer-portal/**`
+- dealer credit request endpoints under `/api/v1/dealer-portal/**`
 
-Dealer can create and follow support tickets. Ticket assignment and resolution
-are internal to tenant-admin.
+Rules:
 
-## Forbidden From Dealer Client
+- Support requests are dealer-originated but resolved outside this portal.
+- Credit requests are self-service submissions only.
+- Approval, override, and final finance correction stay in internal portals.
 
-- Any write to `/api/v1/sales/orders`
-- Any write to `/api/v1/factory/**`
-- Any write to `/api/v1/accounting/journal-entries`
-- Any write to `/api/v1/admin/users`
-- Any read of other dealers' data via `/api/v1/dealers/**`
+## Forbidden From Dealer Portal
+
+- any internal `/api/v1/admin/**`
+- any `/api/v1/accounting/**` write action
+- `POST /api/v1/dispatch/confirm`
+- any factory production or packing write action

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -56,44 +57,45 @@ class AccountingExportGovernanceIT extends AbstractIntegrationTest {
   void exportEndpoints_areFailClosedToAdminRoleOnly() throws Exception {
     assertMethodIsAdminOnly("supplierStatementPdf", Long.class, String.class, String.class);
     assertMethodIsAdminOnly("supplierAgingPdf", Long.class, String.class, String.class);
-    assertMethodIsAdminOnly("auditDigestCsv", String.class, String.class);
   }
 
   @Test
-  void auditDigestCsv_requiresAdminAndLogsExport() throws Exception {
+  void supplierStatementPdf_requiresAdminAndLogsExport() throws Exception {
+    Long supplierId = createSupplier(authHeaders(ADMIN_EMAIL));
     HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL);
-    ResponseEntity<String> accountingResponse =
+    ResponseEntity<byte[]> accountingResponse =
         rest.exchange(
-            "/api/v1/accounting/audit/digest.csv?from=2026-01-01&to=2026-01-31",
+            "/api/v1/accounting/statements/suppliers/" + supplierId + "/pdf?from=2026-01-01&to=2026-01-31",
             HttpMethod.GET,
             new HttpEntity<>(accountingHeaders),
-            String.class);
+            byte[].class);
     assertThat(accountingResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
     HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL);
-    ResponseEntity<String> adminResponse =
+    ResponseEntity<byte[]> adminResponse =
         rest.exchange(
-            "/api/v1/accounting/audit/digest.csv?from=2026-01-01&to=2026-01-31",
+            "/api/v1/accounting/statements/suppliers/" + supplierId + "/pdf?from=2026-01-01&to=2026-01-31",
             HttpMethod.GET,
             new HttpEntity<>(adminHeaders),
-            String.class);
+            byte[].class);
     assertThat(adminResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(adminResponse.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
-        .contains("audit-digest.csv");
+        .contains("supplier-statement.pdf");
 
-    assertExportAuditMetadata(ADMIN_EMAIL, "ACCOUNTING_AUDIT_DIGEST", "EXPORT", "csv");
+    assertExportAuditMetadata(ADMIN_EMAIL, "ACCOUNTING_SUPPLIER_STATEMENT", "EXPORT", "pdf");
   }
 
   @Test
-  void auditDigestCsv_blocksSuperAdminFromTenantAccountingExport() {
+  void supplierStatementPdf_blocksSuperAdminFromTenantAccountingExport() {
+    Long supplierId = createSupplier(authHeaders(ADMIN_EMAIL));
     HttpHeaders superAdminHeaders = authHeaders(SUPER_ADMIN_EMAIL);
 
-    ResponseEntity<String> response =
+    ResponseEntity<byte[]> response =
         rest.exchange(
-            "/api/v1/accounting/audit/digest.csv?from=2026-01-01&to=2026-01-31",
+            "/api/v1/accounting/statements/suppliers/" + supplierId + "/pdf?from=2026-01-01&to=2026-01-31",
             HttpMethod.GET,
             new HttpEntity<>(superAdminHeaders),
-            String.class);
+            byte[].class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
   }
@@ -120,6 +122,41 @@ class AccountingExportGovernanceIT extends AbstractIntegrationTest {
     headers.setBearerAuth((String) login.getBody().get("accessToken"));
     headers.set("X-Company-Code", COMPANY_CODE);
     return headers;
+  }
+
+  @SuppressWarnings("unchecked")
+  private Long createSupplier(HttpHeaders headers) {
+    Map<String, Object> request =
+        Map.of(
+            "name", "Export Governance Supplier",
+            "code", "SUP-" + System.nanoTime(),
+            "contactEmail", "acc-export-supplier@bbp.com",
+            "stateCode", "27",
+            "creditLimit", new BigDecimal("10000.00"));
+
+    ResponseEntity<Map> createResponse =
+        rest.exchange("/api/v1/suppliers", HttpMethod.POST, new HttpEntity<>(request, headers), Map.class);
+    assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<String, Object> createBody = createResponse.getBody();
+    assertThat(createBody).isNotNull();
+    Long supplierId = ((Number) ((Map<String, Object>) createBody.get("data")).get("id")).longValue();
+
+    ResponseEntity<Map> approveResponse =
+        rest.exchange(
+            "/api/v1/suppliers/" + supplierId + "/approve",
+            HttpMethod.POST,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(approveResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    ResponseEntity<Map> activateResponse =
+        rest.exchange(
+            "/api/v1/suppliers/" + supplierId + "/activate",
+            HttpMethod.POST,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(activateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    return supplierId;
   }
 
   private void assertExportAuditMetadata(

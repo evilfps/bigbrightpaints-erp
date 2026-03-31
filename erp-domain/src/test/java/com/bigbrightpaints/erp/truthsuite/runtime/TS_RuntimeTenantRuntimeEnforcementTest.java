@@ -120,16 +120,11 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
   }
 
   @Test
-  void allowsReadRequestWhenTenantLifecycleIsSuspended_andBeginsRuntimeAdmission()
+  void rejectsReadRequestWhenTenantLifecycleIsSuspended_beforeRuntimeAdmission()
       throws Exception {
     authenticateForCompany("actor@bbp.com", "ACME", "ROLE_ADMIN");
     when(companyService.resolveLifecycleStateByCode("ACME"))
         .thenReturn(CompanyLifecycleState.SUSPENDED);
-    TenantRuntimeEnforcementService.TenantRequestAdmission admission =
-        admission(true, "ACME", 200, null);
-    when(tenantRuntimeRequestAdmissionService.beginRequest(
-            "ACME", "/api/v1/private", "GET", "actor@bbp.com", false))
-        .thenReturn(admission);
 
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/private");
     request.setAttribute("jwtClaims", claims("ACME", null));
@@ -137,10 +132,9 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
 
     filter.doFilter(request, response, new MockFilterChain());
 
-    assertThat(response.getStatus()).isEqualTo(200);
-    verify(tenantRuntimeRequestAdmissionService)
-        .beginRequest("ACME", "/api/v1/private", "GET", "actor@bbp.com", false);
-    verify(tenantRuntimeRequestAdmissionService).completeRequest(admission, 200);
+    assertThat(response.getStatus()).isEqualTo(403);
+    verify(tenantRuntimeRequestAdmissionService, never())
+        .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
   }
 
   @Test

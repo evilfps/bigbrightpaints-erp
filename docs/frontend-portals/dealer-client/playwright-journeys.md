@@ -1,42 +1,30 @@
 # Dealer Client Playwright Journeys
 
-## 1. Order Tracking
+## 1. Order To Invoice Tracking
 
 1. Log in as a dealer user.
-2. Open `/dealer/dashboard` and assert summary shows order count and credit
-   exposure.
-3. Open `/dealer/orders` and filter by status.
-4. Open an order detail and assert timeline shows dispatch status.
-5. Assert the UI does not expose factory dispatch-confirm controls.
+2. Open `/dealer/orders`.
+3. Select an order that has already moved through internal dispatch.
+4. Assert order detail shows shipment status and invoice readiness.
+5. Open the linked invoice and verify amount and payment state.
 
-## 2. Invoice Review
+## 2. Ledger And Aging Read
 
-1. Log in as a dealer.
-2. Open `/dealer/invoices` and assert invoice list is scoped to the dealer's
-   company.
-3. Open an invoice detail and assert line items and tax breakdown are visible.
-4. Click PDF download and assert the file downloads.
+1. Open `/dealer/ledger`.
+2. Assert ledger lines render only for the authenticated dealer.
+3. Open `/dealer/aging`.
+4. Assert aging buckets and overdue totals align with dealer account state.
 
-## 3. Ledger And Aging
+## 3. Support Request Submission
 
-1. Log in as a dealer.
-2. Open `/dealer/ledger` and assert ledger entries are scoped to the dealer's
-   company.
-3. Open `/dealer/aging` and assert aging buckets are visible.
-4. Assert no accounting correction controls are visible.
+1. Open `/dealer/support`.
+2. Start a new request tied to an order or invoice.
+3. Submit the request.
+4. Assert the new ticket appears in support history.
 
-## 4. Credit Request Self-Service
+## 4. Self-Service Credit Request
 
-1. Log in as a dealer.
-2. Open `/dealer/credit` and assert existing requests are visible.
-3. Submit a new credit request with required fields.
-4. Assert the request appears in the list with `PENDING` status.
-5. Assert internal sales override controls are not visible.
-
-## 5. Support Ticket
-
-1. Log in as a dealer.
-2. Open `/dealer/support` and create a new ticket.
-3. Assert the ticket appears in the list.
-4. Open the ticket detail and assert conversation thread is visible.
-5. Assert internal admin resolution controls are not visible.
+1. Open `/dealer/credit-requests/new`.
+2. Submit a credit request with justification.
+3. Assert request status returns as pending.
+4. Assert no internal approval UI or settlement controls are visible.

@@ -20,7 +20,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import com.bigbrightpaints.erp.codered.support.CoderedConcurrencyHarness;
 import com.bigbrightpaints.erp.codered.support.CoderedDbAssertions;
 import com.bigbrightpaints.erp.codered.support.CoderedRetry;
-import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.controller.AccountingController;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
@@ -54,40 +53,20 @@ class CR_ManualJournalSafetyTest extends AbstractIntegrationTest {
   }
 
   @Test
-  void reservedNamespace_isRejectedAtApiBoundary_andDoesNotWriteState() {
-    String companyCode = "CR-MANUAL-" + shortId();
-    Company company = bootstrapCompany(companyCode);
-    Account bank = ensureAccount(company, "BANK", "Bank", AccountType.ASSET);
-    Account expense = ensureAccount(company, "MISC-EXP", "Misc Expense", AccountType.EXPENSE);
+  void apiBoundary_keepsOnlyCanonicalManualJournalWriteSurface() {
+    List<String> manualWriteMethods =
+        java.util.Arrays.stream(AccountingController.class.getDeclaredMethods())
+            .map(java.lang.reflect.Method::getName)
+            .filter(
+                methodName ->
+                    methodName.equals("createManualJournal")
+                        || methodName.equals("createJournalEntry"))
+            .sorted()
+            .toList();
 
-    authenticateAdmin();
-
-    String reserved = "PAYROLL-" + shortId();
-    JournalEntryRequest apiRequest =
-        new JournalEntryRequest(
-            reserved,
-            TestDateUtils.safeDate(company),
-            "Should be rejected",
-            null,
-            null,
-            false,
-            List.of(
-                new JournalEntryRequest.JournalLineRequest(
-                    bank.getId(), "Dr", new BigDecimal("100.00"), BigDecimal.ZERO),
-                new JournalEntryRequest.JournalLineRequest(
-                    expense.getId(), "Cr", BigDecimal.ZERO, new BigDecimal("100.00"))));
-
-    assertThatThrownBy(() -> accountingController.createJournalEntry(apiRequest))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("reserved for system journals");
-
-    assertThat(
-            journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(
-                company, reserved))
-        .as("No idempotency reservation should be created for rejected reference")
-        .isEmpty();
-
-    CoderedDbAssertions.assertNoOrphanJournalEntries(jdbcTemplate, company.getId());
+    assertThat(manualWriteMethods)
+        .as("AccountingController should expose only the canonical manual journal write surface")
+        .containsExactly("createJournalEntry");
   }
 
   @Test

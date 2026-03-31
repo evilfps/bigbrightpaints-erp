@@ -19,7 +19,6 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccrualRequest;
-import com.bigbrightpaints.erp.modules.accounting.dto.AuditDigestResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.BadDebtWriteOffRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.CreditNoteRequest;
@@ -36,6 +35,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalListItemDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.LandedCostRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.ManualJournalRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
+import com.bigbrightpaints.erp.modules.accounting.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.WipAdjustmentRequest;
@@ -51,6 +51,7 @@ import com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 import jakarta.persistence.EntityManager;
 
@@ -188,9 +189,24 @@ public class AccountingService extends AccountingCoreService {
   }
 
   @Override
-  public List<JournalListItemDto> listJournals(
-      LocalDate fromDate, LocalDate toDate, String journalType, String sourceModule) {
-    return journalEntryService.listJournals(fromDate, toDate, journalType, sourceModule);
+  public PageResponse<JournalListItemDto> listJournals(
+      LocalDate fromDate,
+      LocalDate toDate,
+      String journalType,
+      String sourceModule,
+      int page,
+      int size) {
+    return journalEntryService.listJournals(fromDate, toDate, journalType, sourceModule, page, size);
+  }
+
+  @Override
+  public JournalEntryDto postPayrollRun(
+      String runNumber,
+      Long runId,
+      LocalDate postingDate,
+      String memo,
+      List<JournalEntryRequest.JournalLineRequest> lines) {
+    return super.postPayrollRun(runNumber, runId, postingDate, memo, lines);
   }
 
   @Override
@@ -229,6 +245,11 @@ public class AccountingService extends AccountingCoreService {
   @Override
   public JournalEntryDto recordSupplierPayment(SupplierPaymentRequest request) {
     return settlementService.recordSupplierPayment(request);
+  }
+
+  @Override
+  public JournalEntryDto recordPayrollPayment(PayrollPaymentRequest request) {
+    return super.recordPayrollPayment(request);
   }
 
   @Override
@@ -285,16 +306,6 @@ public class AccountingService extends AccountingCoreService {
   @Override
   public JournalEntryDto adjustWip(WipAdjustmentRequest request) {
     return inventoryAccountingService.adjustWip(request);
-  }
-
-  @Override
-  public AuditDigestResponse auditDigest(java.time.LocalDate from, java.time.LocalDate to) {
-    return accountingAuditService.auditDigest(from, to);
-  }
-
-  @Override
-  public String auditDigestCsv(java.time.LocalDate from, java.time.LocalDate to) {
-    return accountingAuditService.auditDigestCsv(from, to);
   }
 
   private AccountingFacade resolveAccountingFacade() {
