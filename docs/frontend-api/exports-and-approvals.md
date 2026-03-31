@@ -9,10 +9,12 @@ Exports are asynchronous operations that return a file (CSV, Excel, PDF) after p
 ### Export Request Flow
 
 1. **Request export** — Submit an export request with parameters.
-2. **Get status** — Poll for export completion status.
+2. **Check status** — Retry the download endpoint until the file becomes available.
 3. **Download** — When ready, download the generated file.
 
 ### Create Export Request
+
+> **Note**: The `parameters` field is typed as a `string` in the OpenAPI schema (not a native object). Pass parameters as a stringified JSON object.
 
 ```
 POST /api/v1/exports/request
@@ -23,11 +25,7 @@ POST /api/v1/exports/request
 ```json
 {
   "reportType": "JOURNAL_ENTRY",
-  "parameters": {
-    "startDate": "2026-01-01",
-    "endDate": "2026-03-31",
-    "accountCodes": ["1000", "2000"]
-  }
+  "parameters": "{\"startDate\": \"2026-01-01\", \"endDate\": \"2026-03-31\", \"accountCodes\": [\"1000\", \"2000\"]}"
 }
 ```
 
@@ -51,7 +49,7 @@ POST /api/v1/exports/request
 ### Download Export
 
 ```
-GET /api/v1/exports/download/{requestId}
+GET /api/v1/exports/{requestId}/download
 ```
 
 **Status Values:**
@@ -85,27 +83,7 @@ Approvals are requests that require an authorized user (typically tenant-admin) 
 
 ### Submit Approval Request
 
-Some operations automatically create approval requests:
-
-```
-POST /api/v1/sales/orders/{orderId}/request-approval
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "approvalId": "approval-001",
-    "status": "PENDING",
-    "requestedBy": "user@example.com",
-    "requestedAt": "2026-03-31T10:00:00Z"
-  },
-  "message": "Approval request created",
-  "timestamp": "2026-03-31T10:00:00Z"
-}
-```
+> **Note**: Sales order approval requests are not currently exposed as a dedicated REST endpoint. Approval requests are created automatically for credit limit requests, export requests, payroll runs, and period close requests. The `GET /api/v1/admin/approvals` endpoint returns pending approvals with `actionType` and `actionLabel` fields that indicate the required action.
 
 ### List Pending Approvals
 
@@ -134,7 +112,7 @@ GET /api/v1/admin/approvals?filter.status=PENDING
 }
 ```
 
-> **Note**: The approve/reject actions are not currently exposed as separate REST endpoints. The approval workflow is managed internally based on the approval request type (credit requests, export requests, payroll runs, period close requests). The `GET /api/v1/admin/approvals` endpoint returns pending approvals with `actionType` and `actionLabel` fields that indicate the required action, but the actual approve/reject operations are triggered through module-specific endpoints (e.g., `POST /api/v1/credit/limit-requests/{id}/approve`, `POST /api/v1/payroll/runs/{id}/approve`, etc.).
+> **Note**: The approve/reject actions are not currently exposed as separate REST endpoints. The approval workflow is managed internally based on the approval request type (credit requests, export requests, payroll runs, period close requests). The `GET /api/v1/admin/approvals` endpoint returns pending approvals with `actionType` and `actionLabel` fields that indicate the required action, but the actual approve/reject operations are triggered through module-specific endpoints (e.g., `POST /api/v1/credit/limit-requests/{id}/approve`, `POST /api/v1/payroll/runs/{id}/approve`, `PUT /api/v1/admin/exports/{requestId}/approve`, etc.).
 
 ## Approval Ownership
 

@@ -122,32 +122,7 @@ GET /api/v1/dealers?filter.status=ACTIVE&sort=name,asc
 }
 ```
 
-### Dealer Detail
-
-```json
-GET /api/v1/dealers/101
-{
-  "success": true,
-  "data": {
-    "dealerId": 101,
-    "dealerCode": "ACME01",
-    "name": "Acme Corporation",
-    "status": "ACTIVE",
-    "creditLimit": 50000.00,
-    "currentBalance": 12500.00,
-    "contactName": "John Smith",
-    "contactEmail": "john@acme.com",
-    "contactPhone": "+1234567890",
-    "billingAddress": {
-      "street": "123 Main St",
-      "city": "New York",
-      "state": "NY",
-      "postalCode": "10001",
-      "country": "USA"
-    }
-  }
-}
-```
+> **Note**: There is no `GET /api/v1/dealers/{dealerId}` endpoint for fetching a single dealer by ID. Dealer details are available through the list endpoint with filters, or via search endpoints.
 
 ## Invoices
 
@@ -157,6 +132,7 @@ GET /api/v1/dealers/101
 
 ```json
 GET /api/v1/invoices
+```
 
 ### Invoice Response
 
@@ -270,7 +246,7 @@ GET /api/v1/admin/approvals?filter.status=PENDING
 > - Credit limit requests: `POST /api/v1/credit/limit-requests/{id}/approve`
 > - Credit limit overrides: `POST /api/v1/credit/override-requests/{id}/approve`
 > - Payroll runs: `POST /api/v1/payroll/runs/{id}/approve`
-> - Export requests: `POST /api/v1/admin/exports/{requestId}/approve`
+> - Export requests: `PUT /api/v1/admin/exports/{requestId}/approve`
 > - Period close: `POST /api/v1/accounting/periods/{periodId}/approve-close`
 > - Purchase orders: `POST /api/v1/purchasing/purchase-orders/{id}/approve`
 
@@ -293,14 +269,13 @@ GET /api/v1/admin/approvals?filter.status=PENDING
 
 ### Request Export
 
+> **Note**: The `parameters` field is typed as a `string` in the OpenAPI schema (not a native object). Pass parameters as a stringified JSON object, e.g., `"parameters": "{\"startDate\": \"2026-01-01\", \"endDate\": \"2026-03-31\"}"`.
+
 ```json
 POST /api/v1/exports/request
 {
   "reportType": "JOURNAL_ENTRY",
-  "parameters": {
-    "startDate": "2026-01-01",
-    "endDate": "2026-03-31"
-  }
+  "parameters": "{\"startDate\": \"2026-01-01\", \"endDate\": \"2026-03-31\"}"
 }
 ```
 
