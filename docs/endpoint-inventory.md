@@ -69,8 +69,8 @@ Portal scope guardrail:
 - `GET` `/api/v1/accounting/aging/suppliers/{supplierId}`
 - `GET` `/api/v1/accounting/aging/suppliers/{supplierId}/pdf`
 - `GET` `/api/v1/accounting/audit-trail`
-- `GET` `/api/v1/accounting/audit/digest`
-- `GET` `/api/v1/accounting/audit/digest.csv`
+- ⚠️ `GET` `/api/v1/accounting/audit/digest` **(deprecated — use `/api/v1/accounting/audit/transactions` for audit queries)**
+- ⚠️ `GET` `/api/v1/accounting/audit/digest.csv` **(deprecated — use standard export workflow)**
 - `GET` `/api/v1/accounting/audit/transactions`
 - `GET` `/api/v1/accounting/audit/transactions/{journalEntryId}`
 - `POST` `/api/v1/accounting/bad-debts/write-off`

@@ -303,6 +303,7 @@ Login and refresh both require a `companyCode` parameter. The user must exist wi
 4. **Must-change-password is a flag, not a policy**: there is no automatic expiration that sets this flag. It must be set explicitly by admin actions or provisioning flows.
 5. **MFA disable requires a valid code**: if a user loses access to their authenticator and exhausts all recovery codes, they need an admin intervention to reset MFA.
 6. **Access tokens cannot be reliably revoked before expiration** for requests already in flight: the blacklist check happens per-request, but a very fast request might pass the filter before the blacklist is written. This is a standard JWT trade-off mitigated by short access-token TTL (15 minutes).
+7. **Profile changes do not emit audit events**: User profile mutations (PUT `/api/v1/auth/profile`) persist changes but do not create audit trail entries. This is a compliance gap — see the [Authoritative Recommendations Register](../RECOMMENDATIONS.md) for the "Bug to Fix Now" classification.
 
 ## Cross-References
 
