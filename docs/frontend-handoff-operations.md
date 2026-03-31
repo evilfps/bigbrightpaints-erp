@@ -1,5 +1,13 @@
 # Frontend Handoff — Operational Surfaces
 
+> **⚠️ NON-CANONICAL / REFERENCE ONLY**
+> 
+> This document is **not** the canonical source for frontend contracts. The authoritative frontend documentation is now at:
+> - **[docs/frontend-portals/README.md](../frontend-portals/README.md)** — portal ownership map
+> - **[docs/frontend-api/README.md](../frontend-api/README.md)** — shared API contracts
+> 
+> This file is retained for reference only. If it disagrees with `docs/frontend-portals/` or `docs/frontend-api/`, the canonical docs win.
+
 Last reviewed: 2026-03-30
 
 This packet documents the frontend contract for **operational surfaces** — catalog/setup, inventory, and factory/manufacturing. It explains canonical hosts, payload families, RBAC assumptions, and read/write boundaries.

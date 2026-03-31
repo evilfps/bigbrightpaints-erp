@@ -69,17 +69,37 @@ ADRs explain accepted current decisions already embodied by the backend — why 
 
 The seeded ADR set covers multi-tenant auth scoping (ADR-002), outbox/idempotency strategy (ADR-003), audit layering (ADR-004), migration posture (ADR-005), and portal/host boundaries (ADR-006).
 
-## Frontend Handoff
+## Canonical Frontend Documentation
 
-Frontend handoff packets explain canonical hosts, payload families, RBAC assumptions, and read/write boundaries for each major surface. They link back to canonical module and flow docs instead of duplicating truth.
+> **This is the canonical source for frontend contracts.** The new mainline docs structure replaces the older frontend-handoff model.
 
 | Document | Purpose |
 | --- | --- |
-| [docs/frontend-handoff-platform.md](frontend-handoff-platform.md) | Platform surfaces: auth/session, company lifecycle/runtime gating, admin/control-plane ownership, shared support-ticket DTOs, portal RBAC splits |
-| [docs/frontend-handoff-operations.md](frontend-handoff-operations.md) | Operational surfaces: catalog/setup, inventory, factory — hosts, payloads, RBAC, read/write boundaries |
-| [docs/frontend-handoff-commercial.md](frontend-handoff-commercial.md) | Commercial surfaces: sales/O2C, purchasing/P2P, invoices, dealer finance — hosts, payloads, RBAC, internal vs self-service parity |
-| [docs/frontend-handoff-finance.md](frontend-handoff-finance.md) | Finance/reporting/HR surfaces: accounting journals, period close, payroll, financial reports — hosts, payloads, RBAC, read/write boundaries |
-| [docs/accounting-portal-frontend-engineer-handoff.md](accounting-portal-frontend-engineer-handoff.md) | Accounting portal deep handoff: endpoint maps, API inventory, route map with permissions (curated accounting-portal scope) |
+| [docs/frontend-portals/README.md](frontend-portals/README.md) | **Canonical portal ownership map** — six portal shells (superadmin, tenant-admin, accounting, sales, factory, dealer-client), each with routes, API contracts, workflows, role-boundaries, states-and-errors, and playwright-journeys |
+| [docs/frontend-api/README.md](frontend-api/README.md) | **Canonical shared API contracts** — bootstrap rules (`GET /api/v1/auth/me` as sole entry), tenant scoping (`companyCode`), retired-route warnings, and shared topic files (auth/company-scope, pagination/filters, exports/approvals, idempotency/errors, accounting-reference-chains, dto-examples) |
+
+### Portal Details
+
+| Portal | Folder | Contents |
+| --- | --- | --- |
+| Superadmin | [docs/frontend-portals/superadmin/](frontend-portals/superadmin/) | Control-plane ownership, cross-tenant operations |
+| Tenant Admin | [docs/frontend-portals/tenant-admin/](frontend-portals/tenant-admin/) | Tenant-scoped admin, export approvals, reporting |
+| Accounting | [docs/frontend-portals/accounting/](frontend-portals/accounting/) | Financial reports, period controls, journal access |
+| Sales | [docs/frontend-portals/sales/](frontend-portals/sales/) | Order management, dealer management, credit controls |
+| Factory | [docs/frontend-portals/factory/](frontend-portals/factory/) | Production logs, packing, dispatch execution |
+| Dealer Client | [docs/frontend-portals/dealer-client/](frontend-portals/dealer-client/) | Self-service portal, own orders/invoices/ledger |
+
+## Legacy Frontend Handoff (Reference Only)
+
+> **⚠️ These documents are NON-CANONICAL / REFERENCE ONLY.** The canonical frontend documentation is now at `docs/frontend-portals/` and `docs/frontend-api/` above. These older handoff files are retained for reference but should not be used as the source of truth.
+
+| Document | Status |
+| --- | --- |
+| [docs/frontend-handoff-platform.md](frontend-handoff-platform.md) | Reference only — superseded by `docs/frontend-portals/` and `docs/frontend-api/` |
+| [docs/frontend-handoff-operations.md](frontend-handoff-operations.md) | Reference only — superseded by `docs/frontend-portals/` and `docs/frontend-api/` |
+| [docs/frontend-handoff-commercial.md](frontend-handoff-commercial.md) | Reference only — superseded by `docs/frontend-portals/` and `docs/frontend-api/` |
+| [docs/frontend-handoff-finance.md](frontend-handoff-finance.md) | Reference only — superseded by `docs/frontend-portals/` and `docs/frontend-api/` |
+| [docs/accounting-portal-frontend-engineer-handoff.md](accounting-portal-frontend-engineer-handoff.md) | Reference only — superseded by `docs/frontend-portals/accounting/` |
 
 ## Deprecated and Incomplete Surfaces
 
