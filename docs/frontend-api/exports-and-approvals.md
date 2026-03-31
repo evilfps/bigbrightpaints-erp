@@ -22,14 +22,12 @@ POST /api/v1/exports/request
 
 ```json
 {
-  "exportType": "JOURNAL_ENTRY",
-  "format": "CSV",
+  "reportType": "JOURNAL_ENTRY",
   "parameters": {
     "startDate": "2026-01-01",
     "endDate": "2026-03-31",
     "accountCodes": ["1000", "2000"]
-  },
-  "idempotencyKey": "550e8400-e29b-41d4-a716-446655440000"
+  }
 }
 ```
 
@@ -48,26 +46,7 @@ POST /api/v1/exports/request
 }
 ```
 
-### Check Export Status
-
-```
-GET /api/v1/exports/status/{requestId}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "data": {
-    "requestId": "export-req-001",
-    "status": "COMPLETED",
-    "fileUrl": "/api/v1/exports/download/export-req-001",
-    "expiresAt": "2026-04-01T10:00:00Z"
-  },
-  "timestamp": "2026-03-31T10:05:00Z"
-}
-```
+> **Note**: There is no dedicated status polling endpoint. After creating an export request via `POST /api/v1/exports/request`, the client should retry the download endpoint (`GET /api/v1/exports/{requestId}/download`) until the file becomes available. The download endpoint returns the current request status in its response.
 
 ### Download Export
 
@@ -83,9 +62,9 @@ GET /api/v1/exports/download/{requestId}
 | `COMPLETED` | File is ready for download |
 | `FAILED` | Export failed — check error details |
 
-### Export Types
+### Export Types (reportType values)
 
-| Export Type | Module | Description |
+| reportType | Module | Description |
 |---|---|---|
 | `JOURNAL_ENTRY` | accounting | Journal entries for a date range |
 | `LEDGER` | accounting | General ledger report |
@@ -155,33 +134,7 @@ GET /api/v1/admin/approvals?filter.status=PENDING
 }
 ```
 
-### Approve Request
-
-```
-POST /api/v1/admin/approvals/{approvalId}/approve
-```
-
-**Request:**
-
-```json
-{
-  "note": "Approved based on credit history review"
-}
-```
-
-### Reject Request
-
-```
-POST /api/v1/admin/approvals/{approvalId}/reject
-```
-
-**Request:**
-
-```json
-{
-  "note": "Insufficient credit history - please provide more details"
-}
-```
+> **Note**: The approve/reject actions are not currently exposed as separate REST endpoints. The approval workflow is managed internally based on the approval request type (credit requests, export requests, payroll runs, period close requests). The `GET /api/v1/admin/approvals` endpoint returns pending approvals with `actionType` and `actionLabel` fields that indicate the required action, but the actual approve/reject operations are triggered through module-specific endpoints (e.g., `POST /api/v1/credit/limit-requests/{id}/approve`, `POST /api/v1/payroll/runs/{id}/approve`, etc.).
 
 ## Approval Ownership
 

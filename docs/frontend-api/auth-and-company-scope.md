@@ -41,20 +41,20 @@ This endpoint returns a claim/context-derived payload containing:
 }
 ```
 
-## Retired Bootstrap Endpoints
+## Non-Canonical Identity Endpoints
 
-The following endpoints are **no longer wired** into the current frontend contract:
+The following endpoints exist in the API but are **not the canonical bootstrap surface**:
 
 | Endpoint | Status | Replacement |
 |---|---|---|
-| `GET /api/v1/auth/profile` | **Retired** — do not use | Use `GET /api/v1/auth/me` for all identity data |
+| `GET /api/v1/auth/profile` | Exists but **not recommended** for frontend use | Use `GET /api/v1/auth/me` for all identity data |
 
-### Why `/api/v1/auth/profile` is Retired
+### Why `/api/v1/auth/profile` is Not Recommended
 
 - `/api/v1/auth/me` is claim/context-derived and returns the authoritative identity for the current session.
 - `/api/v1/auth/profile` is a thin CRUD wrapper over the `app_users` table and does not reflect session state, roles, or permissions.
 - Frontend code that calls `/api/v1/auth/profile` may reflect stale or inconsistent user state.
-- **Action:** Update any existing frontend code to use `GET /api/v1/auth/me` instead.
+- **Recommendation:** Use `GET /api/v1/auth/me` as the sole identity bootstrap surface.
 
 ## Auth Corridor
 

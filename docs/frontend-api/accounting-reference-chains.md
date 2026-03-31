@@ -159,12 +159,13 @@ The current canonical audit read surfaces are:
 
 | Surface | Endpoint | Description |
 |---|---|---|
-| Accounting audit | `/api/v1/accounting/audit/*` | All accounting transaction audit |
-| Admin audit | `/api/v1/admin/audit/events` | Admin-level audit events |
-| Platform audit | `/api/v1/superadmin/audit/platform-events` | Superadmin platform events |
+| Accounting audit trail | `/api/v1/accounting/audit-trail` | Full accounting audit trail with all transaction events |
+| Accounting audit transactions | `/api/v1/accounting/audit/transactions` | Paginated list of accounting transactions with filters |
+| Accounting audit digest | `/api/v1/accounting/audit/digest` | Summary/digest view of accounting audit data |
+| Business events audit | `/api/v1/audit/business-events` | Business-level audit events across modules |
+| ML events audit | `/api/v1/audit/ml-events` | Machine learning/analytics audit events |
 
-**Retired surfaces (do not use):**
-- Legacy accounting business-audit read paths — use `/api/v1/accounting/audit/*`
+> **Note**: The paths `/api/v1/admin/audit/events` and `/api/v1/superadmin/audit/platform-events` do not exist in the current API contract. Use the accounting audit endpoints listed above for audit queries.
 
 ## Cross-Module Reference Types
 

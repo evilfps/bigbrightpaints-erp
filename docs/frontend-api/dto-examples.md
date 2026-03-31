@@ -151,25 +151,12 @@ GET /api/v1/dealers/101
 
 ## Invoices
 
-### Create Invoice
+> **Note**: Invoice endpoints are **read-only** in the current API. There is no `POST /api/v1/invoices` endpoint for creating invoices. Invoice creation happens through other workflows (e.g., sales order fulfillment).
+
+### List Invoices
 
 ```json
-POST /api/v1/invoices
-{
-  "dealerId": 101,
-  "invoiceDate": "2026-03-31",
-  "dueDate": "2026-04-30",
-  "lines": [
-    {
-      "productId": 1001,
-      "quantity": 10,
-      "unitPrice": 150.00,
-      "taxRate": 10.0
-    }
-  ],
-  "idempotencyKey": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
+GET /api/v1/invoices
 
 ### Invoice Response
 
@@ -209,11 +196,10 @@ POST /api/v1/invoices
 ### Create Journal Entry
 
 ```json
-POST /api/v1/accounting/journal
+POST /api/v1/accounting/journal-entries
 {
   "entryDate": "2026-03-31",
   "memo": "Rent payment for March",
-  "idempotencyKey": "660e8400-e29b-41d4-a716-446655440001",
   "lines": [
     {
       "accountCode": "2000",
@@ -280,12 +266,13 @@ GET /api/v1/admin/approvals?filter.status=PENDING
 
 ### Approve Request
 
-```json
-POST /api/v1/admin/approvals/approval-001/approve
-{
-  "note": "Approved after credit review"
-}
-```
+> **Note**: Approve/reject actions are not exposed as separate REST endpoints on `/api/v1/admin/approvals`. Instead, approvals are handled through module-specific endpoints:
+> - Credit limit requests: `POST /api/v1/credit/limit-requests/{id}/approve`
+> - Credit limit overrides: `POST /api/v1/credit/override-requests/{id}/approve`
+> - Payroll runs: `POST /api/v1/payroll/runs/{id}/approve`
+> - Export requests: `POST /api/v1/admin/exports/{requestId}/approve`
+> - Period close: `POST /api/v1/accounting/periods/{periodId}/approve-close`
+> - Purchase orders: `POST /api/v1/purchasing/purchase-orders/{id}/approve`
 
 ### Approve Response
 
@@ -309,13 +296,11 @@ POST /api/v1/admin/approvals/approval-001/approve
 ```json
 POST /api/v1/exports/request
 {
-  "exportType": "JOURNAL_ENTRY",
-  "format": "CSV",
+  "reportType": "JOURNAL_ENTRY",
   "parameters": {
     "startDate": "2026-01-01",
     "endDate": "2026-03-31"
-  },
-  "idempotencyKey": "770e8400-e29b-41d4-a716-446655440002"
+  }
 }
 ```
 

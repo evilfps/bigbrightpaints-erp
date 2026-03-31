@@ -23,16 +23,17 @@ Idempotency-Key: {{uuid}}
 
 | Endpoint | Idempotency Support |
 |---|---|
-| `POST /api/v1/accounting/journal` | Yes — use `idempotencyKey` in request body |
-| `POST /api/v1/invoices` | Yes — use `idempotencyKey` in request body |
+| `POST /api/v1/accounting/journal-entries` | Yes — use `idempotencyKey` in request body |
 | `POST /api/v1/payroll/run` | Yes — use `idempotencyKey` in request body |
 | `POST /api/v1/exports/request` | Yes — use `idempotencyKey` in request body |
+
+> **Note**: The invoice endpoints (`GET /api/v1/invoices`, `GET /api/v1/invoices/{id}`) are read-only. There is no `POST /api/v1/invoices` endpoint for creating invoices in the current API.
 
 ### Request Example
 
 ```json
+POST /api/v1/accounting/journal-entries
 {
-  "idempotencyKey": "550e8400-e29b-41d4-a716-446655440000",
   "entryDate": "2026-03-31",
   "memo": "March rent payment",
   "lines": [
