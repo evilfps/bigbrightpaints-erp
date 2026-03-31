@@ -159,9 +159,9 @@ The current canonical audit read surfaces are:
 
 | Surface | Endpoint | Description |
 |---|---|---|
-| Accounting audit trail | `/api/v1/accounting/audit-trail` | Full accounting audit trail with all transaction events |
-| Accounting audit transactions | `/api/v1/accounting/audit/transactions` | Paginated list of accounting transactions with filters |
-| Accounting audit transactions (detail) | `/api/v1/accounting/audit/transactions/{journalEntryId}` | Single transaction audit detail by journal entry ID |
+| Accounting audit trail | `/api/v1/accounting/audit-trail` | Full accounting audit trail with all transaction events (requires ROLE_ADMIN or ROLE_ACCOUNTING) |
+| Accounting audit transactions | `/api/v1/accounting/audit/transactions` | Paginated list of accounting transactions with filters (requires ROLE_ADMIN or ROLE_ACCOUNTING) |
+| Accounting audit transactions (detail) | `/api/v1/accounting/audit/transactions/{journalEntryId}` | Single transaction audit detail by journal entry ID (requires ROLE_ADMIN or ROLE_ACCOUNTING) |
 | Business events audit | `/api/v1/audit/business-events` | Business-level audit events across modules (requires ROLE_ADMIN or ROLE_ACCOUNTING) |
 | ML events audit | `/api/v1/audit/ml-events` | Machine learning/analytics audit events (requires ROLE_ADMIN) |
 
