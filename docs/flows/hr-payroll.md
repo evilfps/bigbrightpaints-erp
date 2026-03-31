@@ -301,11 +301,13 @@ The payroll flow itself does not publish events that trigger downstream listener
 
 ---
 
-## 11. Open Decisions
+## 11. Known Limitations
 
-| Decision | Status | Notes |
-| --- | --- | --- |
-| HR module default enabled | Paused by default | ERP-33, requires super-admin enable |
-| Non-Indian payroll | Not supported | PF/ESI/TDS are India-specific |
-| Employee self-service | Not implemented | Admin-only leave requests |
-| Multi-currency payroll | Not supported | Single currency |
+> **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.
+
+| Decision | Notes |
+| --- | --- |
+| HR module default enabled | Paused by default. ERP-33 requires super-admin enable after completion. |
+| Non-Indian payroll | Not supported. PF/ESI/TDS are India-specific. |
+| Employee self-service | Not implemented. Leave requests are admin-only. |
+| Multi-currency payroll | Not supported. Single currency only. |

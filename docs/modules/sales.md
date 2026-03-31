@@ -494,7 +494,9 @@ The statuses `BOOKED`, `SHIPPED`, `FULFILLED`, and `COMPLETED` are accepted by s
 
 ---
 
-## Current Limitations and Open Decisions
+## Current Limitations
+
+> **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.
 
 1. **No automated settlement**: Payment receipt and allocation against invoices happens through accounting workflows, not the sales module. Orders move to `SETTLED` externally.
 2. **No automated order closure**: After settlement, orders must be manually closed via the status endpoint.

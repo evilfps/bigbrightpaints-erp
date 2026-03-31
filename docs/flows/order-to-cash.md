@@ -299,12 +299,14 @@ The O2C flow publishes domain events that can trigger downstream processing:
 
 ---
 
-## 11. Open Decisions
+## 11. Known Limitations
 
-| Decision | Status | Notes |
-| --- | --- | --- |
-| Automated settlement | Not implemented | Manual settlement via accounting |
-| Automated order closure | Not implemented | Manual closure required |
-| Shipment tracking integration | Not implemented | Transport metadata only |
-| Event-driven order confirmation | Not implemented | Direct service call pattern |
-| Partial fulfillment | Not default | Requires explicit flag |
+> **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.
+
+| Decision | Notes |
+| --- | --- |
+| Automated settlement | Payment receipt and allocation against invoices happens through accounting workflows, not automatically. |
+| Automated order closure | Orders must be manually closed via the status endpoint after settlement. |
+| Shipment tracking integration | Transport metadata is captured at dispatch but not integrated with carrier systems. |
+| Event-driven order confirmation | Only `SalesOrderCreatedEvent` is published. Order confirmation, dispatch, and cancellation do not emit domain events. |
+| Partial fulfillment | Not supported by default. Orders with stock shortages fail unless `allowPartialFulfillment` is explicitly enabled. |

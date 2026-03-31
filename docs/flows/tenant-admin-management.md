@@ -243,10 +243,12 @@ The flow is complete when:
 
 ---
 
-## 10. Open Decisions
+## 10. Known Limitations
 
-| Decision | Status | Notes |
-| --- | --- | --- |
-| Company deletion | Blocked | No deletion path, hard delete not supported |
-| Auto-limit enforcement | Partial | Limits stored but not all auto-enforced |
-| Changelog approval | None | No review workflow for changelog |
+> **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.
+
+| Decision | Notes |
+| --- | --- |
+| Company deletion | No deletion path exists. Hard delete is not supported. |
+| Auto-limit enforcement | Credit limits are stored but not all are automatically enforced. Some require manual intervention. |
+| Changelog approval | No review workflow exists for changelog entries. |

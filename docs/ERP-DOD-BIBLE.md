@@ -1,5 +1,13 @@
 # ERP Definition of Done Bible
 
+> **⚠️ NON-CANONICAL**: This document is a legacy reference and is no longer maintained. The canonical documentation is now distributed across:
+> - [docs/INDEX.md](INDEX.md) — canonical docs entrypoint
+> - [docs/RECOMMENDATIONS.md](RECOMMENDATIONS.md) — authoritative recommendations register
+> - [docs/flows/](flows/) — flow packets with current definitions of done
+> - [docs/modules/](modules/) — module truth packets
+>
+> This file is retained for reference only and may be stale.
+
 > **Version:** 1.0
 > **Last Updated:** 2026-03-28
 > **Purpose:** Authoritative reference for all 14 P0 flows. Every claim is verified against source code.

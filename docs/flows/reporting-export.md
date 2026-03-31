@@ -268,12 +268,14 @@ The reporting/export flow consumes data from upstream modules and enforces an ap
 
 ---
 
-## 11. Open Decisions
+## 11. Known Limitations
 
-| Decision | Status | Notes |
-| --- | --- | --- |
-| P&L snapshot branch | Not implemented | Always live data |
-| Cash flow date filtering | Not implemented | Returns all-time data |
-| Cash flow explicit tagging | Not implemented | Heuristic classification only |
-| Unified aging source | Not implemented | Split ownership remains |
-| Historical reconciliation | Not implemented | Current session only |
+> **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.
+
+| Decision | Notes |
+| --- | --- |
+| P&L snapshot branch | Not implemented. Always returns live data. |
+| Cash flow date filtering | Not implemented. Returns all-time data. |
+| Cash flow explicit tagging | Not implemented. Uses heuristic classification only. |
+| Unified aging source | Not implemented. Split ownership remains. |
+| Historical reconciliation | Not implemented. Current session only. |

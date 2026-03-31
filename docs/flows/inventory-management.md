@@ -292,11 +292,13 @@ See [orchestrator.md](../modules/orchestrator.md) for the full event bridge map 
 
 ---
 
-## 11. Open Decisions
+## 11. Known Limitations
 
-| Decision | Status | Notes |
-| --- | --- | --- |
-| Batch merge | Not implemented | No merge capability |
-| Stock transfer | Not implemented | No inter-location/company transfer |
-| Zero-cost dispatch | Blocked | Fails hard to prevent silent COGS |
-| Intake toggle | Configurable | Can be disabled via `erp.raw-material.intake.enabled` |
+> **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.
+
+| Decision | Notes |
+| --- | --- |
+| Batch merge | Not implemented. No merge capability for duplicate batches. |
+| Stock transfer | Not implemented. No inter-location or inter-company transfer capability. |
+| Zero-cost dispatch | Blocked. Fails hard to prevent silent COGS loss. |
+| Intake toggle | Configurable. Can be disabled via `erp.raw-material.intake.enabled`. |

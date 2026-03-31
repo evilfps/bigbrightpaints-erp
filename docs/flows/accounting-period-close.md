@@ -318,11 +318,13 @@ The accounting/period-close flow is materially affected by internal event bridge
 
 ---
 
-## 11. Open Decisions
+## 11. Known Limitations
 
-| Decision | Status | Notes |
-| --- | --- | --- |
-| Automatic journal posting | Not implemented | Manual posting required |
-| Scheduled reconciliation | Not implemented | Manual run required |
-| Automatic GST filing | Not implemented | Reconciliation only |
-| Edit posted journals | Not supported | Reversal required |
+> **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.
+
+| Decision | Notes |
+| --- | --- |
+| Automatic journal posting | Not implemented. Manual posting required. |
+| Scheduled reconciliation | Not implemented. Manual run required. |
+| Automatic GST filing | Not implemented. Reconciliation only. |
+| Edit posted journals | Not supported. Reversal required to correct posted entries. |

@@ -243,10 +243,12 @@ The manufacturing/packing flow intersects with inventory events that trigger acc
 
 ---
 
-## 11. Open Decisions
+## 11. Known Limitations
 
-| Decision | Status | Notes |
-| --- | --- | --- |
-| Production plan usage | Optional | Not enforced before production log |
-| Cost integration | Not automated | Manual entry required for cost allocation |
-| Packing idempotency fallback | None | Key required, no graceful degradation |
+> **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.
+
+| Decision | Notes |
+| --- | --- |
+| Production plan usage | Optional. Production plans are not enforced before creating production logs. |
+| Cost integration | Not automated. Manual entry is required for cost allocation. |
+| Packing idempotency fallback | Idempotency key is required with no graceful degradation if omitted. |

@@ -219,10 +219,12 @@ The flow is complete when:
 
 ---
 
-## 10. Open Decisions
+## 10. Known Limitations
 
-| Decision | Status | Notes |
-| --- | --- | --- |
-| MFA recovery code table unused | Known | Live service uses column, not relational table |
-| Profile audit gap | Known | Not currently emitting audit events |
-| Brute-force monitoring | Unused | No production callers for monitoring service |
+> **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.
+
+| Decision | Notes |
+| --- | --- |
+| MFA recovery code table unused | Live service uses column, not relational table. Table exists for potential future enhancement. |
+| Profile audit gap | User profile changes do not currently emit audit events. |
+| Brute-force monitoring | Service exists but has no production callers. |

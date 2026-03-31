@@ -228,10 +228,12 @@ The flow is complete when:
 
 ---
 
-## 10. Open Decisions
+## 10. Known Limitations
 
-| Decision | Status | Notes |
-| --- | --- | --- |
-| Bulk variant dry-run | Supported | Pass `dryRun=true` to preview without committing |
-| Deactivation cascade | Not implemented | Brand and item deactivation don't cascade |
-| Readiness caching | Not implemented | Computed on-demand |
+> **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.
+
+| Decision | Notes |
+| --- | --- |
+| Bulk variant dry-run | Supported. Pass `dryRun=true` to preview without committing changes. |
+| Deactivation cascade | Brand and item deactivation do not cascade to related entities. Manual cleanup required. |
+| Readiness caching | Not implemented. Values are computed on-demand. |

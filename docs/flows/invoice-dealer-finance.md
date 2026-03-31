@@ -233,11 +233,13 @@ The flow is complete when:
 
 ---
 
-## 10. Open Decisions
+## 10. Known Limitations
 
-| Decision | Status | Notes |
-| --- | --- | --- |
-| Automatic payment reconciliation | Not implemented | Manual settlement only |
-| Invoice approval workflow | Not implemented | Auto-issued during dispatch |
-| Credit notes | Limited | Not fully implemented |
-| Custom aging buckets | Not supported | Hardcoded buckets |
+> **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.
+
+| Decision | Notes |
+| --- | --- |
+| Automatic payment reconciliation | Not implemented. Manual settlement required. |
+| Invoice approval workflow | Not implemented. Invoices are auto-issued during dispatch with no approval flow. |
+| Credit notes | Limited. Not fully implemented. |
+| Custom aging buckets | Not supported. Hardcoded buckets only. |

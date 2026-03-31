@@ -300,11 +300,13 @@ The P2P flow intersects with the inventory→accounting event bridge at the GRN 
 
 ---
 
-## 11. Open Decisions
+## 11. Known Limitations
 
-| Decision | Status | Notes |
-| --- | --- | --- |
-| PO idempotency | Not implemented | Order number uniqueness |
-| Invoice idempotency | Not implemented | Invoice number uniqueness |
-| Supplier dunning | Not implemented | Manual aging review |
-| Partial GRN per line | Not supported | One GRN line per PO line |
+> **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.
+
+| Decision | Notes |
+| --- | --- |
+| PO idempotency | Relies on order number uniqueness only. No additional idempotency protection. |
+| Invoice idempotency | Relies on invoice number uniqueness only. No additional idempotency protection. |
+| Supplier dunning | Not implemented. Manual aging review required. |
+| Partial GRN per line | Not supported. One GRN line per PO line. |
