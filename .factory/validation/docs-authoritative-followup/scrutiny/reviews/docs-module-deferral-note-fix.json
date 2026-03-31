@@ -1,0 +1,15 @@
+{
+  "featureId": "docs-module-deferral-note-fix",
+  "reviewedAt": "2026-03-31T04:50:00.000Z",
+  "commitId": "99bba4143",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix correctly addresses the round 3 non-blocking observation by replacing the module-specific deferral notes in inventory.md and purchasing.md with the canonical deferral language already used by their corresponding flow packets (inventory-management.md and procure-to-pay.md). The commit touches exactly 2 files with exactly 2 line changes (one per file), making this a properly narrow fix.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS — The fix is correct, narrow, and well-executed. Both docs/modules/inventory.md and docs/modules/purchasing.md now use the exact same deferral note as their corresponding flow packets: '> **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.' The commit (99bba4143) modifies exactly 2 files with 2 insertions and 2 deletions — no unrelated changes. The docs validator (ci/lint-knowledgebase.sh) passes. The prior round 3 non-blocking observation is fully resolved: the module-level Known Limitations sections now have unambiguous, consistent deferral language pointing to docs/RECOMMENDATIONS.md."
+}
