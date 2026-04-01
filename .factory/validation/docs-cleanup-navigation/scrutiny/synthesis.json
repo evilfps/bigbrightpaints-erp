@@ -1,0 +1,46 @@
+{
+  "milestone": "docs-cleanup-navigation",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": { "passed": true, "command": "bash ci/lint-knowledgebase.sh", "exitCode": 0 },
+    "architecture": { "passed": true, "command": "bash ci/check-architecture.sh", "exitCode": 0 },
+    "enterprise-policy": { "passed": true, "command": "bash ci/check-enterprise-policy.sh", "exitCode": 0 },
+    "orchestrator-layer": { "passed": true, "command": "bash ci/check-orchestrator-layer.sh", "exitCode": 0 }
+  },
+  "reviewsSummary": {
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-consolidation-bidirectional-crosslinks",
+      "severity": "non_blocking",
+      "description": "reports.md Known Gaps section still says 'No dedicated flow packet for Reporting/Export' but a link to reporting-export.md was just added on line 308. Stale gap note contradicts the new link."
+    },
+    {
+      "featureId": "docs-consolidation-host-path-consistency",
+      "severity": "non_blocking",
+      "description": "orchestrator.md deprecation block says dispatch is 'owned by the sales module' without the nuanced two-layer-seam language (inventory owns controller, sales owns commercial logic) used in inventory.md, factory.md, and frontend-handoff-commercial.md. Pre-existing, not a regression."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Codify the bidirectional cross-link convention as a required practice: every major module packet must link to its canonical flow packets in Related Documentation, and every flow packet must link back to its owning module packet(s). This convention is now established across all 11 module packets but not explicitly documented as a rule.",
+      "evidence": "All 11 module packets now have canonical flow packet links. The pattern is consistent but not documented as a convention in AGENTS.md or CONVENTIONS.md.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Dispatch ownership nuance between orchestrator.md and inventory.md/factory.md",
+      "reason": "Pre-existing inconsistency not introduced by this milestone. Both descriptions are contextually accurate for their respective audiences. Low risk of confusion and not a regression."
+    }
+  ],
+  "previousRound": null
+}

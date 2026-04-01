@@ -1,4 +1,6 @@
-# Idempotency And Errors
+# Idempotency and Errors
+
+Last reviewed: 2026-03-31
 
 ## Idempotency rules
 

@@ -1,0 +1,57 @@
+{
+  "featureId": "docs-commercial-invoice-lifecycle-finance-hosts",
+  "reviewedAt": "2026-03-30T12:30:00Z",
+  "commitId": "f857f02a4c09eecf9007efb29260131e1abc5200",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The documentation packet at docs/modules/invoice.md is well-structured, discoverable from INDEX.md and MODULE-INVENTORY.md, and covers host ownership, self-service isolation, ledger/aging/statement surfaces, and frontend contract boundaries accurately. However, there is a significant truth-first accuracy issue in the Invoice Lifecycle section: the document lists lifecycle states as DRAFT → ISSUED → PAID → SETTLED → CLOSED, but the actual InvoiceSettlementPolicy.InvoiceStatus enum in code is {DRAFT, ISSUED, PARTIAL, PAID, VOID, REVERSED}. The statuses SETTLED and CLOSED do not exist in code, while PARTIAL, VOID, and REVERSED are missing from the docs. Additionally, two claims about cross-module seams cannot be verified in source code: (1) there is no postPaymentJournal method on AccountingFacade, and (2) the InvoiceService does not directly reference AccountingFacade or DunningService. These inaccuracies violate the truth-first writing convention in docs/CONVENTIONS.md §1.1-1.2.",
+    "issues": [
+      {
+        "file": "docs/modules/invoice.md",
+        "line": 81,
+        "severity": "blocking",
+        "description": "Invoice Lifecycle States table is inaccurate. Docs list: DRAFT, ISSUED, PAID, SETTLED, CLOSED. Actual InvoiceSettlementPolicy.InvoiceStatus enum (line 20-25) contains: DRAFT, ISSUED, PARTIAL, PAID, VOID, REVERSED. SETTLED and CLOSED do not exist in code. PARTIAL (partial payment status, line 175), VOID (voided invoices, line 202), and REVERSED (reversed invoices, line 213) are all missing from the documentation. Per CONVENTIONS.md §1.2: 'Do not invent behavior' — the documented statuses should match the code enum exactly."
+      },
+      {
+        "file": "docs/modules/invoice.md",
+        "line": 107,
+        "severity": "blocking",
+        "description": "Settlement Behavior section claims: 'Settlement triggers accounting entries via AccountingFacade.postPaymentJournal() (AR reduction, bank/cash increase).' However, no postPaymentJournal method exists anywhere in the codebase. The AccountingFacade has postSalesJournal and postPurchaseJournal but no postPaymentJournal. The InvoiceService does not import or reference AccountingFacade at all — it only imports PartnerSettlementAllocation from the accounting module. This is a fabricated cross-module seam claim."
+      },
+      {
+        "file": "docs/modules/invoice.md",
+        "line": 93,
+        "severity": "blocking",
+        "description": "Key Services table lists 'SettlementApprovalDecision, SettlementApprovalReasonCode' as separate services. These are actually records/enums used within InvoiceSettlementPolicy, not independent services. The table should clarify these are value types within the settlement policy, not standalone services."
+      },
+      {
+        "file": "docs/modules/invoice.md",
+        "line": 105,
+        "severity": "blocking",
+        "description": "Settlement Behavior claim: 'An admin or accounting user records a payment against an invoice via InvoiceService.settleInvoice().' No method named settleInvoice exists on InvoiceService. The actual settlement flow uses InvoiceSettlementPolicy.applyPayment() and InvoiceSettlementPolicy.applySettlement(). The InvoiceService.issueInvoiceForOrder() is the only invoice-issuing method. The settlement is handled by the policy component, not InvoiceService directly."
+      },
+      {
+        "file": "docs/modules/invoice.md",
+        "line": 201,
+        "severity": "non_blocking",
+        "description": "Cross-Module Seams table claims 'InvoiceService calls AccountingFacade.postSalesJournal() for revenue/AR'. In reality, the SalesFulfillmentService calls accountingFacade.postSalesJournal(), and it explicitly disables postSalesJournal when issueInvoice=true (line 209). The invoice module itself does not call AccountingFacade at all. The seam should correctly attribute postSalesJournal to SalesFulfillmentService, not InvoiceService."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The invoice module's status enum (DRAFT, ISSUED, PARTIAL, PAID, VOID, REVERSED) differs significantly from the sales order lifecycle statuses (DRAFT, RESERVED, PENDING_PRODUCTION, CONFIRMED, DISPATCHED, INVOICED, SETTLED, CLOSED, etc.). The worker may have confused invoice statuses with sales order statuses — the sales module does use SETTLED and CLOSED. The docs library (.factory/library/) does not contain a reference for invoice-specific enum values, which could have helped the worker avoid this error.",
+      "evidence": "Compare InvoiceSettlementPolicy.InvoiceStatus enum (6 values) vs SalesCoreEngine order statuses (12+ values). The sales.md packet correctly documents sales order statuses. The invoice.md packet incorrectly uses sales-style status names (SETTLED, CLOSED) instead of the actual invoice statuses (PARTIAL, VOID, REVERSED)."
+    },
+    {
+      "area": "conventions",
+      "observation": "The CONVENTIONS.md §1.1 establishes a clear evidence hierarchy (controller annotations → service/facade → events → tests → existing docs). The worker claimed to have compared the new invoice packet against InvoiceService, but the transcript skeleton shows limited exploration of InvoiceService methods — it primarily inspected InvoiceSettlementPolicy. The InvoiceService was not read in full, which would have revealed the absence of a settleInvoice method and the lack of AccountingFacade references.",
+      "evidence": "Transcript skeleton shows InvoiceSettlementPolicy was read but InvoiceService.java was not fully explored. The handoff claims 'Compared new invoice packet against InvoiceController, InvoiceService...' but the transcript shows InvoiceService was not read in full during the documentation session."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "The invoice.md documentation packet is well-structured and covers the required topic areas (host ownership, self-service isolation, ledger/aging/statement surfaces, frontend contracts). However, it contains multiple truth-first inaccuracies that violate CONVENTIONS.md: (1) the invoice lifecycle status table lists fictitious statuses (SETTLED, CLOSED) while omitting real ones (PARTIAL, VOID, REVERSED); (2) the settlement behavior section references a non-existent InvoiceService.settleInvoice() method and a non-existent AccountingFacade.postPaymentJournal() method; (3) the cross-module seams table incorrectly attributes postSalesJournal to InvoiceService when it's actually called by SalesFulfillmentService. These are blocking issues because they represent fabricated behavior that would mislead readers about how the system actually works. The host ownership, isolation boundary, route map, and frontend contract sections are accurate and code-grounded."
+}

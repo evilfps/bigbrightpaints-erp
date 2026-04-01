@@ -1,0 +1,59 @@
+{
+  "featureId": "docs-frontend-handoff-operations-commercial",
+  "reviewedAt": "2026-03-30T13:30:00.000Z",
+  "commitId": "df62a384e",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Both frontend handoff packets (operations and commercial) are well-structured, thorough, and accurately grounded in the codebase. Route tables, RBAC matrices, payload families, read/write boundaries, and cross-module seam descriptions were verified against actual controller code, DTOs, and PortalRoleActionMatrix constants. The documentation is discoverable from docs/INDEX.md with clear descriptions. All cross-referenced module docs and flow docs exist. Minor simplifications in payload descriptions (omitting non-essential fields) are acceptable for a handoff-oriented document.",
+    "issues": [
+      {
+        "file": "docs/frontend-handoff-commercial.md",
+        "line": 63,
+        "severity": "non_blocking",
+        "description": "SalesOrderRequest payload description omits `totalAmount`, `currency`, and `gstInclusive` fields that exist in the actual DTO. While these are secondary fields for a frontend handoff summary, `totalAmount` is @NotNull and might be important for frontend developers to know about. Consider noting that additional required fields exist."
+      },
+      {
+        "file": "docs/frontend-handoff-operations.md",
+        "line": 99,
+        "severity": "non_blocking",
+        "description": "InventoryAdjustmentRequest payload description omits `adjustmentAccountId` (which is @NotNull in the DTO) and `adminOverride`. The `adjustmentAccountId` is a required field that frontend developers would need to supply."
+      },
+      {
+        "file": "docs/frontend-handoff-commercial.md",
+        "line": 141,
+        "severity": "non_blocking",
+        "description": "CreditLimitOverrideRequestCreateRequest is described as needing `packagingSlipId` or `salesOrderId` but the actual DTO also accepts `dealerId`, `overrideAmount`, and `reason`. The description says `overrideAmount` and `reason` which matches, but `dealerId` is also present in the record and not mentioned."
+      },
+      {
+        "file": "docs/frontend-handoff-operations.md",
+        "line": 162,
+        "severity": "non_blocking",
+        "description": "Section 5.1 Read/Write Boundaries says 'SALES/FACTORY can update but limited fields' for brand update, but the CatalogController's updateBrand method has no narrower role restriction (it's at class-level ADMIN, ACCOUNTING, SALES, FACTORY). The handoff RBAC summary table (Section 3.1) correctly shows ACCOUNTING has 'Full (read) / Brand-item (write)' but the boundary note is slightly misleading — the code doesn't enforce field-level restrictions at the controller level for SALES/FACTORY on brand update."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "reviewerVerdict": "pass",
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "file": "docs/frontend-handoff-commercial.md",
+      "location": "SalesOrderRequest payload (Section 4.1)",
+      "description": "SalesOrderRequest omits required `totalAmount` field and other fields (`currency`, `gstInclusive`) that exist in the actual DTO. Frontend developers may miss a required field."
+    },
+    {
+      "file": "docs/frontend-handoff-operations.md",
+      "location": "InventoryAdjustmentRequest payload (Section 4.2)",
+      "description": "InventoryAdjustmentRequest omits required `adjustmentAccountId` field and `adminOverride`. The adjustmentAccountId is @NotNull in the DTO."
+    },
+    {
+      "file": "docs/frontend-handoff-operations.md",
+      "location": "Section 5.1 boundary note for brand update",
+      "description": "Claims SALES/FACTORY have 'limited fields' for brand update, but controller-level RBAC doesn't enforce field-level restrictions — the note may be aspirational or derive from service-layer validation not visible at the controller level."
+    }
+  ],
+  "summary": "PASS. Both frontend handoff packets (operations and commercial) are comprehensive, well-organized, and accurately grounded in the codebase. All route tables were cross-checked against actual controllers and match. RBAC roles were verified against @PreAuthorize annotations and PortalRoleActionMatrix constants — all accurate. Payload families are described at a useful summary level with minor omissions of non-obvious required fields (totalAmount in SalesOrderRequest, adjustmentAccountId in InventoryAdjustmentRequest). Cross-references to all 6 module docs and 3 flow docs were verified to exist. INDEX.md correctly links to both new packets plus the pre-existing accounting portal handoff. The documentation is discoverable, truthful, and useful for frontend developers. Three non-blocking issues noted around payload field completeness and one boundary-note accuracy concern — none block the feature."
+}

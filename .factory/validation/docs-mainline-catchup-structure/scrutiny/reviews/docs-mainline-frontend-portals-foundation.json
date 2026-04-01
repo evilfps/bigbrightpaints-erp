@@ -1,0 +1,28 @@
+{
+  "featureId": "docs-mainline-frontend-portals-foundation",
+  "reviewedAt": "2026-03-31T00:45:00.000Z",
+  "commitId": "3b97a6f74",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The feature successfully creates the canonical docs/frontend-portals/ tree with all six portal folders (superadmin, tenant-admin, accounting, sales, factory, dealer-client) each containing the standard seven-file packet set (README.md, routes.md, api-contracts.md, workflows.md, role-boundaries.md, states-and-errors.md, playwright-journeys.md). The portal README.md and portal-matrix.md are well-structured with clear ownership rules, shell-split placement guidance, and explicit must-not-own boundaries. The dealer-client folder was newly created with appropriate content scoped to dealer self-service only. The factory folder's missing playwright-journeys.md was filled in with relevant test scenarios. Content quality across all files is consistent, with correct API route references, proper role boundary declarations, and useful playwright journey definitions.",
+    "issues": [
+      {
+        "file": "docs/INDEX.md",
+        "line": 76,
+        "severity": "non_blocking",
+        "description": "INDEX.md still lists the old frontend-handoff-*.md files under '## Frontend Handoff' as canonical references (lines 78-81) with no mention of docs/frontend-portals/. This creates a silent duplication where two competing frontend handoff models exist in the docs tree. The new frontend-portals/README.md correctly identifies frontend-update-v2/ as historical, but does not address the frontend-handoff-*.md files. Multiple flow and module docs (e.g., flows/order-to-cash.md, modules/sales.md, modules/inventory.md) still cross-link to the old handoff files. This is out of scope for this feature (which was about creating the portal tree), but the duplication should be resolved in a follow-up to prevent confusion about which model is authoritative."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The docs tree now has two competing frontend handoff models: (1) the single-file model (frontend-handoff-platform.md, frontend-handoff-operations.md, frontend-handoff-commercial.md, frontend-handoff-finance.md) and (2) the new portal-folder model (docs/frontend-portals/). INDEX.md indexes only the old model. The new portal README.md mentions frontend-update-v2/ as historical but does not address the frontend-handoff files. AGENTS.md does not document which model is authoritative or how to migrate between them.",
+      "evidence": "docs/INDEX.md lines 76-81 list frontend-handoff-*.md as canonical. docs/frontend-portals/README.md lines 4-5 and 57-58 mention only frontend-update-v2/ as historical. Cross-links in docs/flows/order-to-cash.md:296, docs/modules/sales.md:520, docs/modules/inventory.md:445 all point to old handoff files."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The feature correctly creates the canonical docs/frontend-portals/ tree with all six portal folders and the complete seven-file packet set. The portal README.md and portal-matrix.md are well-structured with clear ownership rules. Content quality across all files is consistent and accurate. One non-blocking issue noted: docs/INDEX.md still references the old frontend-handoff-*.md model as canonical with no mention of the new portal tree, creating a silent duplication that should be resolved in a follow-up. Both validators (lint-knowledgebase.sh and check-enterprise-policy.sh) pass."
+}

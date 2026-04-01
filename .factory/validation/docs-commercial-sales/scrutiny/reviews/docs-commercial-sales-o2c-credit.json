@@ -1,0 +1,81 @@
+{
+  "featureId": "docs-commercial-sales-o2c-credit",
+  "milestone": "docs-commercial-sales",
+  "reviewedAt": "2026-03-30T05:50:00.000Z",
+  "commitId": "ffe8991a",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The sales/O2C module packet (docs/modules/sales.md) is comprehensive, well-structured, and code-grounded. All six controllers, their routes, HTTP methods, and RBAC roles were verified against source code and match. The 15 canonical + 4 legacy order statuses are accurately documented. Credit controls (enforcement, increase requests, per-dispatch overrides, dunning) are accurately described with correct thresholds, roles, and lifecycle states. The dispatch two-layer seam is correctly documented. Cross-references to related packets all resolve. Freshness marker is present. Minor issues noted below are non-blocking.",
+    "issues": [
+      {
+        "file": "docs/modules/sales.md",
+        "line": 0,
+        "severity": "non_blocking",
+        "description": "The Key Entities table describes SalesOrderItem as '(embedded in order)'. In reality, SalesOrderItem is a separate @Entity with its own table (sales_order_items) and a @ManyToOne back to SalesOrder, not a JPA @Embedded or @ElementCollection. While it is cascade-managed as part of the order aggregate (CascadeType.ALL + orphanRemoval), describing it as 'embedded' could mislead readers about the persistence model.",
+        "suggestedFix": "Change '(embedded in order)' to '(cascade-managed child of SalesOrder aggregate, table: sales_order_items)'"
+      },
+      {
+        "file": "docs/modules/sales.md",
+        "line": 0,
+        "severity": "non_blocking",
+        "description": "The DTO Families section lists CancelRequest and StatusRequest as DTOs, but they are actually inner records declared inside SalesController.java (SalesController.CancelRequest and SalesController.StatusRequest), not standalone DTOs in the dto package. This is a minor organizational note.",
+        "suggestedFix": "Add a parenthetical note: '(inner record of SalesController)' next to CancelRequest and StatusRequest in the Order DTOs table"
+      },
+      {
+        "file": "docs/modules/sales.md",
+        "line": 0,
+        "severity": "suggestion",
+        "description": "The Key Entities table uses placeholder table names like '(credit requests)' and '(credit limit override requests)' for CreditRequest and CreditLimitOverrideRequest. The actual table names could be confirmed from the @Table annotations for precision.",
+        "suggestedFix": "Resolve the actual table names from entity annotations and update the table"
+      },
+      {
+        "file": "docs/modules/sales.md",
+        "line": 0,
+        "severity": "suggestion",
+        "description": "The 'Events' section says 'SalesOrderCreatedEvent' is published via Spring ApplicationEventPublisher. This is accurate, but the section could briefly note that the event carries orderId, companyCode, and totalAmount (visible from the constructor call at line 781 of SalesCoreEngine) for completeness.",
+        "suggestedFix": "Add a brief note about the event payload fields"
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The dto/ directory contains DealerPortalCreditRequestCreateRequest.java (a record DTO) that is not imported or used anywhere in the codebase. It appears to be a dead/unused DTO (possibly a predecessor to DealerPortalCreditLimitRequestCreateRequest). This is not a documentation concern since neither the doc nor any code references it, but it represents dead code in the source tree.",
+      "evidence": "Grep for 'DealerPortalCreditRequestCreateRequest' only returns the file itself; no imports found"
+    },
+    {
+      "area": "knowledge",
+      "observation": "DealerRequest.java (a record with name/code/email/phone/creditLimit/gstNumber/stateCode/gstRegistrationType) is used by SalesDealerCrudService and SalesService internally but is not a controller-facing DTO (controllers use CreateDealerRequest instead). This is a legitimate internal DTO but worth noting for anyone tracing the dealer CRUD path.",
+      "evidence": "DealerRequest imported in SalesDealerCrudService.java:8 and SalesService.java:40; DealerController uses CreateDealerRequest"
+    },
+    {
+      "area": "conventions",
+      "observation": "The documentation conventions (CONVENTIONS.md) are well-followed by this packet: freshness marker present, cross-references to related packets, deprecated surfaces flagged, implemented-vs-planned language correct. No convention gaps observed.",
+      "evidence": "sales.md has 'Last reviewed: 2026-03-30', cross-references section at bottom, 'Deprecated and Non-Canonical Surfaces' section, 'Current Limitations and Open Decisions' section"
+    }
+  ],
+  "addressesFailureFrom": null,
+  "issues": [
+    {
+      "severity": "non_blocking",
+      "description": "SalesOrderItem described as '(embedded in order)' when it's actually a separate @Entity with @ManyToOne to SalesOrder. Functionally accurate (cascade-managed aggregate child) but imprecise persistence terminology.",
+      "file": "docs/modules/sales.md",
+      "suggestedFix": "Change to '(cascade-managed child of SalesOrder aggregate, table: sales_order_items)'"
+    },
+    {
+      "severity": "non_blocking",
+      "description": "CancelRequest and StatusRequest listed as DTOs but are inner records of SalesController, not standalone DTOs in the dto package.",
+      "file": "docs/modules/sales.md",
+      "suggestedFix": "Note '(inner record of SalesController)' for these entries"
+    },
+    {
+      "severity": "suggestion",
+      "description": "Placeholder table names in Key Entities table for CreditRequest and CreditLimitOverrideRequest.",
+      "file": "docs/modules/sales.md",
+      "suggestedFix": "Resolve actual @Table names from entity annotations"
+    }
+  ],
+  "summary": "PASS. The sales/O2C module packet is comprehensive, accurate, and code-grounded. All controller routes, roles, and HTTP methods verified correct against source. The 15 canonical + 4 legacy order statuses are accurately classified. Credit controls (enforcement, increase, override, dunning) are correctly documented with accurate thresholds, roles, and lifecycle states. The dispatch two-layer seam is correctly described. Dealer portal isolation boundaries are accurately documented. Cross-references all resolve. Conventions (freshness marker, cross-links, deprecated surface flagging, truth-first writing) are followed. Three minor non-blocking/suggestion issues: SalesOrderItem persistence description is slightly imprecise, CancelRequest/StatusRequest are controller inner records not standalone DTOs, and two entity table names are placeholders."
+}

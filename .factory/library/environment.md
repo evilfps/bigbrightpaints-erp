@@ -56,3 +56,9 @@ Environment variables, external dependencies, and setup notes.
 - Use the seeded actors documented in `.factory/library/user-testing.md` for runtime probes.
 - `bash scripts/gate_release.sh` expects a local `harness-engineering-orchestrator` ref. If it fails with `canonical base ref 'harness-engineering-orchestrator' was not found`, bootstrap it with `git fetch origin harness-engineering-orchestrator:harness-engineering-orchestrator` before rerunning.
 - Failed `gate-fast` / `gate-release` / `gate-reconciliation` runs can leave disposable generated outputs under `artifacts/gate-release/` or `artifacts/gate-reconciliation/`; clean those before handoff so only intentional source changes remain in `git status`.
+
+## Docs-Only Mission Notes
+
+- The backend truth-library mission does not require starting services.
+- Prefer the docs validators documented in `.factory/library/docs-validation.md`.
+- `openapi.json` is the public API snapshot to use for route/payload inventories during docs work.

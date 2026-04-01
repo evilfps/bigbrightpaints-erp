@@ -1,0 +1,22 @@
+{
+  "featureId": "docs-commercial-p2p-enum-lifecycle-fix",
+  "reviewedAt": "2026-03-30T07:15:00.000Z",
+  "commitId": "afded296",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix correctly addresses all four blocking issues from the original review and both non-blocking issues. All enum values now match source code exactly: SupplierStatus (PENDING, APPROVED, ACTIVE, SUSPENDED), PurchaseOrderStatus (DRAFT, APPROVED, PARTIALLY_RECEIVED, FULLY_RECEIVED, INVOICED, CLOSED, VOID), GoodsReceiptStatus (PARTIAL, RECEIVED, INVOICED). The PO transition model matches PurchaseOrderService.isValidTransition exactly. The SUSPENDED→ACTIVE reactivation path is documented. The payable-account code suffix collision auto-resolution is documented. The GRN flow diagram implies a strictly sequential PARTIAL→RECEIVED→INVOICED progression, but GoodsReceiptService actually sets PARTIAL or RECEIVED independently based on fulfillment level at creation time — this is a minor descriptive simplification, not a factual error.",
+    "issues": [
+      {
+        "file": "docs/modules/purchasing.md",
+        "line": 219,
+        "severity": "non_blocking",
+        "description": "GRN Status Flow diagram shows 'PARTIAL → RECEIVED → INVOICED' as a strictly sequential flow, but GoodsReceiptService.createGoodsReceiptInternal sets PARTIAL (if not all PO lines fulfilled) or RECEIVED (if fully fulfilled) at creation time — PARTIAL does not transition to RECEIVED for the same GRN. The table description for PARTIAL says 'Initial state on GRN creation' which is partially misleading since the entity default is RECEIVED and PARTIAL is only set by the service when partial receipt is detected. Consider clarifying that PARTIAL and RECEIVED are set at creation based on fulfillment level, not sequentially."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": ".factory/validation/docs-commercial-p2p/scrutiny/reviews/docs-commercial-purchasing-p2p.json",
+  "summary": "PASS. The fix adequately addresses all four blocking issues from the original review. Cross-verified against source code: (1) SupplierStatus now correctly lists PENDING, APPROVED, ACTIVE, SUSPENDED — matches SupplierStatus.java exactly. (2) PurchaseOrderStatus now correctly lists DRAFT, APPROVED, PARTIALLY_RECEIVED, FULLY_RECEIVED, INVOICED, CLOSED, VOID — matches PurchaseOrderStatus.java exactly. (3) GoodsReceiptStatus now correctly lists PARTIAL, RECEIVED, INVOICED — matches GoodsReceiptStatus.java exactly. (4) PO transition model in the flow diagram now matches PurchaseOrderService.isValidTransition: DRAFT→APPROVED|VOID, APPROVED→PARTIALLY_RECEIVED|FULLY_RECEIVED|VOID, PARTIALLY_RECEIVED→FULLY_RECEIVED, FULLY_RECEIVED→INVOICED, INVOICED→CLOSED, CLOSED/VOID terminal. Non-blocking fixes also applied: supplier activation section mentions SUSPENDED→ACTIVE reactivation path (verified against SupplierService.activateSupplier), and payable account code collision auto-resolution is documented (verified against SupplierService.createPayableAccount). One non-blocking observation: the GRN status flow diagram implies sequential progression PARTIAL→RECEIVED→INVOICED, but GoodsReceiptService actually sets PARTIAL or RECEIVED independently at creation based on fulfillment level. The fix is well-scoped, the diff is limited to docs/modules/purchasing.md (28 additions, 18 deletions), and lint-knowledgebase.sh passes."
+}

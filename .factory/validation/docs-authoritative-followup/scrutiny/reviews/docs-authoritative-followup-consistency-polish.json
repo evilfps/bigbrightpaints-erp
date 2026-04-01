@@ -1,0 +1,22 @@
+{
+  "featureId": "docs-authoritative-followup-consistency-polish",
+  "reviewedAt": "2026-03-31T04:30:00.000Z",
+  "commitId": "38e8baaed",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix commit (38e8baaed) adds 4 lines total: explicit deferral notes to inventory.md (line 435) and purchasing.md (line 447) Known Limitations sections, each referencing the Authoritative Recommendations Register with specific classification details. The worker also verified (but did not need to change) three other items: endpoint-inventory.md already has ⚠️ deprecated markers on audit/digest endpoints (lines 72-73), the profile-audit gap is cross-linked across all three locations (core-audit-runtime-settings.md, RECOMMENDATIONS.md, auth.md), and ERP-DOD-BIBLE.md's internal Open Decisions headings remain but are covered by the file-level NON-CANONICAL banner. However, one of the 5 original non-blocking issues is only partially addressed: the accounting audit endpoints (audit-trail, audit/transactions, audit/transactions/{journalEntryId}) still lack explicit role annotations, while the enterprise audit endpoints (business-events, ml-events) document ROLE_ADMIN/ROLE_ACCOUNTING. The worker's handoff claims 'audit role annotations consistent across canonical docs' but the asymmetry remains. This is still non-blocking because the accounting endpoints are tagged ACCOUNTING in openapi.json (which implies role requirements), but explicit documentation would improve consistency.",
+    "issues": [
+      {
+        "file": "docs/frontend-api/accounting-reference-chains.md",
+        "line": 162,
+        "severity": "non_blocking",
+        "description": "Accounting audit endpoints (audit-trail, audit/transactions, audit/transactions/{journalEntryId}) in the Canonical Audit Surfaces table still lack explicit role annotations. Enterprise audit endpoints (business-events, ml-events) document 'requires ROLE_ADMIN or ROLE_ACCOUNTING' and 'requires ROLE_ADMIN' respectively. The original non-blocking issue #4 asked for consistent role annotations across all audit endpoints. The worker verified but did not fix this gap, and the handoff claims consistency that isn't fully present. Minor — the ACCOUNTING tag in openapi.json implies access control, but explicit documentation would be more consistent."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS — The fix commit successfully addresses 4 of the 5 original non-blocking issues: (1) inventory.md and purchasing.md now have explicit deferral notes with specific classification details referencing RECOMMENDATIONS.md, (2) ERP-DOD-BIBLE.md internal Open Decisions headings remain acceptable per the NON-CANONICAL banner, (3) endpoint-inventory.md already has ⚠️ deprecated markers on audit/digest endpoints (confirmed at lines 72-73), and (5) profile-audit gap is well cross-linked across core-audit-runtime-settings.md, RECOMMENDATIONS.md, and auth.md with bidirectional references. Issue #4 (role annotation asymmetry for accounting audit endpoints) remains partially unaddressed — the accounting audit endpoints still lack explicit role annotations while enterprise audit endpoints have them. This is downgraded to a carry-forward non-blocking observation since the accounting endpoints' access control is implied by the ACCOUNTING tag in openapi.json. The worker correctly scoped the changes narrowly (2 files, 4 lines) and all lint/enterprise policy checks pass."
+}

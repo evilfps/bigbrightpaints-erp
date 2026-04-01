@@ -1,0 +1,47 @@
+{
+  "milestone": "docs-commercial-p2p",
+  "round": 2,
+  "status": "pass",
+  "validatorsRun": {
+    "lint-knowledgebase": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh",
+      "exitCode": 0
+    },
+    "check-architecture": {
+      "passed": true,
+      "command": "bash ci/check-architecture.sh",
+      "exitCode": 0
+    },
+    "check-enterprise-policy": {
+      "passed": true,
+      "command": "bash ci/check-enterprise-policy.sh",
+      "exitCode": 0
+    },
+    "check-orchestrator-layer": {
+      "passed": true,
+      "command": "bash ci/check-orchestrator-layer.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-commercial-p2p-enum-lifecycle-fix",
+      "severity": "non_blocking",
+      "description": "GRN Status Flow diagram shows PARTIAL → RECEIVED → INVOICED as strictly sequential, but GoodsReceiptService sets PARTIAL or RECEIVED independently at creation time based on fulfillment level — PARTIAL does not transition to RECEIVED for the same GRN entry",
+      "file": "docs/modules/purchasing.md",
+      "suggestedFix": "Clarify that PARTIAL and RECEIVED are set at creation based on fulfillment level, not as a sequential transition"
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/docs-commercial-p2p/scrutiny/synthesis.json.round1"
+}

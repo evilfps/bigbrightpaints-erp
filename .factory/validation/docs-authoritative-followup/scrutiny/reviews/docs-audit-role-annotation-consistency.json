@@ -1,0 +1,15 @@
+{
+  "featureId": "docs-audit-role-annotation-consistency",
+  "reviewedAt": "2026-03-31T04:45:00.000Z",
+  "commitId": "a83142ea367e9cf38021352e169708aab05d2516",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix commit (a83142ea3) modifies a single file — docs/frontend-api/accounting-reference-chains.md — adding '(requires ROLE_ADMIN or ROLE_ACCOUNTING)' annotations to all three accounting audit endpoints in the Canonical Audit Surfaces table (lines 162-164). The role annotations match exactly what the @PreAuthorize annotations require in the source controllers: AccountingAuditTrailController line 29 and AccountingController lines 1008 and 1030 all use hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING'). The documentation style is now fully consistent with the enterprise audit endpoints (business-events at line 165 uses identical ROLE_ADMIN or ROLE_ACCOUNTING text; ml-events at line 166 uses ROLE_ADMIN). The fix directly and completely addresses the non-blocking observation from the prior consistency-polish review about missing role annotations on accounting audit endpoints.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": ".factory/validation/docs-authoritative-followup/scrutiny/reviews/docs-authoritative-followup-consistency-polish.json",
+  "summary": "PASS — The fix directly and completely addresses the prior non-blocking observation (from docs-authoritative-followup-consistency-polish review) about missing explicit role annotations on accounting audit endpoints. The worker correctly identified the role requirements by checking the @PreAuthorize annotations in AccountingAuditTrailController (ROLE_ADMIN, ROLE_ACCOUNTING) and AccountingController (same), then added matching '(requires ROLE_ADMIN or ROLE_ACCOUNTING)' annotations to all three accounting audit entries in the Canonical Audit Surfaces table. The documentation style is now consistent across all five audit endpoints (3 accounting + business-events use identical role text; ml-events correctly shows ROLE_ADMIN only, matching its controller's hasAuthority('ROLE_ADMIN') annotation). Change is minimal (1 file, 3 insertions, 3 deletions) and all lint/policy checks pass. No issues found."
+}

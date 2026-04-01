@@ -1,0 +1,50 @@
+{
+  "milestone": "docs-platform-auth",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "docs-lint": { "passed": true, "command": "bash ci/lint-knowledgebase.sh", "exitCode": 0 },
+    "check-enterprise-policy": { "passed": true, "command": "bash ci/check-enterprise-policy.sh", "exitCode": 0 },
+    "check-architecture": { "passed": true, "command": "bash ci/check-architecture.sh", "exitCode": 0 },
+    "check-orchestrator-layer": { "passed": true, "command": "bash ci/check-orchestrator-layer.sh", "exitCode": 0 }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-platform-auth-company-runtime",
+      "severity": "non_blocking",
+      "description": "company.md cross-references ADR-006-portal-host-boundaries.md but the actual file is ADR-006-portal-and-host-boundary-separation.md (broken link).",
+      "file": "docs/modules/company.md",
+      "suggestedFix": "Update the ADR-006 cross-reference to match the actual filename."
+    },
+    {
+      "featureId": "docs-platform-auth-company-runtime",
+      "severity": "non_blocking",
+      "description": "company.md tenant lifecycle state diagram omits ACTIVE → DEACTIVATED transition (text list includes it).",
+      "file": "docs/modules/company.md",
+      "suggestedFix": "Add ACTIVE → DEACTIVATED arrow to the ASCII state diagram."
+    },
+    {
+      "featureId": "docs-platform-auth-company-runtime",
+      "severity": "suggestion",
+      "description": "auth.md could mention blacklisted token cleanup frequency more explicitly.",
+      "file": "docs/modules/auth.md",
+      "suggestedFix": "Add a brief note about blacklisted token cleanup scheduling in the Token and Session Revocation section."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [
+    {
+      "observation": "ADR filename reference mismatch — worker suggests adding ADR filenames to library to prevent future mismatches.",
+      "reason": "The actual fix is to correct the broken link in company.md (a non-blocking content fix), not to create a library entry enumerating ADR filenames. The ADR index already serves as the authoritative source for ADR names."
+    }
+  ],
+  "previousRound": null
+}

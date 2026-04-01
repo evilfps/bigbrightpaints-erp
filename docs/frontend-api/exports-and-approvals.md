@@ -1,4 +1,6 @@
-# Exports And Approvals
+# Exports and Approvals
+
+Last reviewed: 2026-03-31
 
 ## Ownership split
 
@@ -94,3 +96,7 @@ Example download contract:
   }
 }
 ```
+
+## Create Response and Polling
+
+`POST /api/v1/exports/request` creates the export request record. There is no separate status endpoint in the current contract; frontend should keep the returned request id and poll `GET /api/v1/exports/{requestId}/download` for readiness.

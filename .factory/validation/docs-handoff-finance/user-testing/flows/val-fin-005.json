@@ -1,0 +1,29 @@
+{
+  "assertionId": "VAL-FIN-005",
+  "status": "pass",
+  "checks": [
+    {
+      "name": "discoverable",
+      "status": "pass",
+      "evidence": "docs/INDEX.md contains a 'Frontend Handoff' section with a table listing docs/frontend-handoff-finance.md as: 'Finance/reporting/HR surfaces: accounting journals, period close, payroll, financial reports — hosts, payloads, RBAC, read/write boundaries'. The link is present and correctly resolves to docs/frontend-handoff-finance.md."
+    },
+    {
+      "name": "payload-families",
+      "status": "pass",
+      "evidence": "docs/frontend-handoff-finance.md covers payload families across all three surfaces via detailed route tables with Method, Actor, and Read/Write columns: (1) Accounting — Section 3 documents journal entry routes (GET/POST/PUT/DELETE), period management routes (GET/POST/lock/unlock/close-*), reconciliation routes (sessions, match/unmatch, adjustments, dealers, suppliers, GST), and accounting support routes (ledgers, accounts, opening balance, tally import). (2) HR/Payroll — Section 4 documents employee management routes, leave management routes (approve/reject), attendance routes, salary structure routes, and payroll run routes (create/calculate/approve/post/mark-paid). (3) Reporting/Export — Section 5 documents financial report routes (trial balance, P&L, balance sheet, cash flow, GST), operational report routes (aged debtors, receivables, inventory, wastage, production), export workflow routes (request/approve/reject/download), and statement export routes. Each route table includes the full path, HTTP method, actor roles, and read/write classification."
+    },
+    {
+      "name": "approval-gates",
+      "status": "pass",
+      "evidence": "docs/frontend-handoff-finance.md documents approval gates across all three surfaces: (1) Period close approval — Section 6.2 key RBAC boundary #1: 'Admin owns period close — Only ROLE_ADMIN can lock/unlock periods, approve and finalize period close. ROLE_ACCOUNTING can request close but needs admin approval.' Close workflow in Section 7.1: 'ACCOUNTING requests → ADMIN approves → ADMIN finalizes.' Routes: close-request (ACCOUNTING), close-approve (ADMIN), close-finalize (ADMIN). (2) Journal approval — Section 3.1 routes include /approve (ADMIN) and /reject (ADMIN) endpoints. (3) Payroll approve/post — Section 4.4 routes include /approve (ADMIN, ACCOUNTING) and /post (ADMIN, ACCOUNTING). Section 7.2: 'ADMIN or ACCOUNTING can create/calculate/approve. Posting to accounting and marking as paid completes the lifecycle.' (4) Export approval — Section 5.3 routes include /approve (ADMIN) and /reject (ADMIN). Section 6.2 boundary #4: 'Only ROLE_ADMIN can approve or reject export requests.' (5) Leave approval — Section 4.2 routes include /approve and /reject (ADMIN). All approval gates are grounded in flow docs: accounting-period-close.md confirms maker-checker period close workflow (request/approve/finalize), hr-payroll.md confirms payroll lifecycle (DRAFT→CALCULATED→APPROVED→POSTED→PAID), reporting-export.md confirms export approval gate with PENDING_APPROVAL→APPROVED/REJECTED lifecycle."
+    },
+    {
+      "name": "read-write-boundaries",
+      "status": "pass",
+      "evidence": "docs/frontend-handoff-finance.md Section 7 'Read/Write Boundaries' explicitly documents read vs mutation boundaries for all three surfaces: (1) Accounting (Section 7.1): Journals created as DRAFT then POSTED to become immutable. Posted journals can be reversed but not edited. Period must be OPEN to create/post. Lock prevents new entries. Close workflow separates requester (ACCOUNTING) from approver (ADMIN). Reconciliation sessions lock state on completion. (2) HR/Payroll (Section 7.2): Employees admin-only CRUD, accounting read-only. Leave admin-only approval. Attendance admin-only marking, accounting views summaries. Payroll lifecycle with distinct approve/post/mark-paid phases. Module gating returns MODULE_DISABLED if HR disabled. (3) Reporting (Section 7.3): 'All report endpoints are GET only. No mutation.' Export workflow: request → optional approval → generate → download. Source-of-truth variations documented (snapshot vs live for closed/open periods). Additionally, every route table in Sections 3-5 has a Read/Write column classifying each endpoint as Read or Write with context (e.g., 'Write (create draft)', 'Write (approve)', 'Write (post to ledger)')."
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "toolsUsed": ["Read", "Grep"]
+}

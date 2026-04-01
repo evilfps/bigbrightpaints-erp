@@ -1,0 +1,22 @@
+{
+  "featureId": "docs-consolidation-bidirectional-crosslinks",
+  "reviewedAt": "2026-03-30T15:45:00.000Z",
+  "commitId": "860b35c5ac3c402560a3f4fcc1c5c1c72fa44a72",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The commit adds canonical flow packet links to all 11 module packets (sales, factory, catalog-setup, inventory, hr, purchasing, invoice, company, admin-portal-rbac, auth, reports) in their Related Documentation sections, completing the bidirectional navigation between structural (module) and behavioral (flow) entrypoints. It also replaces the demo module's source-directory placeholder in MODULE-INVENTORY.md with an explicit no-replacement note pointing to the deprecated registry, and fixes a stale link in reports.md (docs/workflows/FLOW-INVENTORY.md → docs/flows/FLOW-INVENTORY.md). All linked target files exist. Every flow packet already contained reciprocal links back to its owning module packet(s).",
+    "issues": [
+      {
+        "file": "docs/modules/reports.md",
+        "line": 319,
+        "severity": "non_blocking",
+        "description": "The 'Known Gaps and Incomplete Areas' section still says 'No dedicated flow packet for Reporting/Export (tracked in flow inventory as packet pending)', but the commit just added a link to docs/flows/reporting-export.md on line 308 and that file exists. This gap note is now stale and contradicts the newly added link. Should be removed in a follow-up."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS with one non-blocking issue. The commit correctly implements bidirectional crosslinks between all 11 module packets and their canonical flow packets. The demo module source-directory placeholder was properly replaced with an explicit no-replacement note linking to the deprecated registry. A stale broken link in reports.md (docs/workflows/FLOW-INVENTORY.md) was also fixed. All link targets verified to exist. One non-blocking issue: the Known Gaps section in reports.md still claims no Reporting/Export flow packet exists, contradicting the link just added on line 308."
+}

@@ -1,0 +1,69 @@
+{
+  "milestone": "docs-authoritative-followup",
+  "round": 4,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": { "passed": true, "command": "bash ci/lint-knowledgebase.sh", "exitCode": 0, "observation": "[knowledgebase-lint] OK" },
+    "docs-governance": { "passed": true, "command": "bash ci/check-enterprise-policy.sh", "exitCode": 0, "observation": "[enterprise-policy] OK — high-risk paths changed; enforcing R2 enterprise controls" },
+    "architecture": { "passed": true, "command": "bash ci/check-architecture.sh", "exitCode": 0, "observation": "[architecture-check] OK — allowlist evidence contract verified" },
+    "orchestrator-layer": { "passed": true, "command": "bash ci/check-orchestrator-layer.sh", "exitCode": 0, "observation": "[orchestrator-layer] OK" }
+  },
+  "reviewsSummary": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-audit-trail-authority-refresh",
+      "severity": "non_blocking",
+      "description": "The deprecated /audit/digest endpoint is correctly marked deprecated in docs but still exists in the OpenAPI contract. A future task should track actual endpoint removal or @Deprecated annotation in the controller."
+    },
+    {
+      "featureId": "docs-open-decision-authority-cleanup",
+      "severity": "non_blocking",
+      "description": "ERP-DOD-BIBLE.md still contains 'Open Decisions' headings internally (lines 695, 1296, 1676), but the file-level NON-CANONICAL banner makes this acceptable."
+    }
+  ],
+  "resolvedIssues": [
+    {
+      "priorRound": 3,
+      "featureId": "docs-authoritative-recommendations-register",
+      "description": "purchasing.md and inventory.md module-level Known Limitations sections lack deferral notes to RECOMMENDATIONS.md",
+      "resolvedBy": "docs-module-deferral-note-fix (commit 99bba4143)",
+      "evidence": "Both files now carry identical canonical deferral language matching their corresponding flow packets"
+    },
+    {
+      "priorRound": 3,
+      "featureId": "docs-authoritative-followup-consistency-polish",
+      "description": "Accounting audit endpoints lack explicit role annotations while enterprise audit endpoints have them",
+      "resolvedBy": "docs-audit-role-annotation-consistency (commit a83142ea3)",
+      "evidence": "All 3 accounting audit endpoints now document '(requires ROLE_ADMIN or ROLE_ACCOUNTING)' matching @PreAuthorize annotations in source"
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [
+    {
+      "observation": "endpoint-inventory.md should mark /audit/digest as deprecated",
+      "reason": "Already fixed in round 2 — docs-authoritative-followup-consistency-polish confirmed endpoint-inventory.md already has ⚠️ deprecated markers on audit/digest endpoints at lines 72-73"
+    },
+    {
+      "observation": "Profile audit gap documented in three places risks drift",
+      "reason": "Redundancy is acceptable — each document serves a different audience and the bidirectional references provide cross-checking. Not a systemic concern."
+    },
+    {
+      "observation": "Inconsistent deferral notes between flow packets and module packets",
+      "reason": "Fully resolved in round 4 by docs-module-deferral-note-fix — both inventory.md and purchasing.md now carry canonical deferral language"
+    }
+  ],
+  "roundHistory": [
+    { "round": 1, "status": "pass", "reviews": 4, "failedFeatures": [] },
+    { "round": 2, "status": "pass", "reviews": 4, "failedFeatures": [], "nonBlockingFixFeatures": ["docs-authoritative-followup-consistency-polish"] },
+    { "round": 3, "status": "pass", "reviews": 5, "failedFeatures": [], "newFixFeatures": ["docs-audit-role-annotation-consistency"] },
+    { "round": 4, "status": "pass", "reviews": 6, "failedFeatures": [], "newFixFeatures": ["docs-module-deferral-note-fix"], "resolvedIssues": 2 }
+  ],
+  "previousRound": ".factory/validation/docs-authoritative-followup/scrutiny/synthesis.json (round 3)"
+}

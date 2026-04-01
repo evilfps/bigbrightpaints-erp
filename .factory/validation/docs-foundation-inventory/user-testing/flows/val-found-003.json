@@ -1,0 +1,26 @@
+{
+  "assertionId": "VAL-FOUND-003",
+  "status": "pass",
+  "evidence": [
+    {
+      "step": "Read FLOW-INVENTORY.md",
+      "observation": "docs/flows/FLOW-INVENTORY.md contains a numbered inventory table with 11 major backend flow families"
+    },
+    {
+      "step": "Verify required flow families present",
+      "observation": "All 10 required flow families from the validation contract are present, plus 1 additional (Invoice/Dealer Finance listed as separate flow #8):\n1. Auth / Identity (flow #1)\n2. Tenant / Admin Management (flow #2)\n3. Catalog / Setup Readiness (flow #3)\n4. Manufacturing / Packing (flow #4)\n5. Inventory Management (flow #5)\n6. Order-to-Cash (O2C) (flow #6)\n7. Procure-to-Pay (P2P) (flow #7)\n8. Invoice / Dealer Finance (flow #8)\n9. Accounting / Period Close (flow #9)\n10. HR / Payroll (flow #10)\n11. Reporting / Export (flow #11)"
+    },
+    {
+      "step": "Verify each entry has summary, owning module, cross-module participants, and canonical packet link",
+      "observation": "All 11 entries have: Summary column (lifecycle description), Owning Module(s) column, Key Cross-Module Participants column, and Canonical Packet column with links to individual flow .md files (all marked 'packet pending' as expected for this milestone)"
+    },
+    {
+      "step": "Verify discoverability without grepping source",
+      "observation": "The inventory includes: (1) numbered flow table with complete lifecycle summaries, (2) 'Key Route Prefixes by Flow Family' section mapping flows to API routes, (3) 'Supporting Workflow Guides (Historical)' cross-reference table, (4) coverage notes explaining alignment with docs/ARCHITECTURE.md, (5) cross-references to INDEX.md, MODULE-INVENTORY.md, ARCHITECTURE.md, CONVENTIONS.md. A reader can discover the full flow landscape from this document alone."
+    }
+  ],
+  "issues": [],
+  "frictions": [],
+  "blockers": [],
+  "toolsUsed": ["Read", "Grep"]
+}

@@ -1,5 +1,7 @@
 # Manufacturing and Packaging Workflow
 
+> ⚠️ **NON-CANONICAL**: This document is superseded by the canonical flow packets in [docs/flows/](flows/). The current manufacturing and packaging behavior is documented in [docs/flows/manufacturing-packing.md](../flows/manufacturing-packing.md).
+
 **Audience:** Production planner, plant supervisor, packing team, costing/accounting
 
 This guide explains the flow from planning to dispatch-ready finished stock.

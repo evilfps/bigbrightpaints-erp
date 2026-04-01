@@ -1,0 +1,78 @@
+{
+  "milestone": "docs-flows-integration",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": { "passed": true, "command": "bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh", "exitCode": 0 },
+    "typecheck": { "passed": true, "command": "N/A — docs-only milestone", "exitCode": 0 },
+    "test": { "passed": true, "command": "N/A — docs-only milestone", "exitCode": 0 }
+  },
+  "reviewsSummary": {
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-flows-library-coverage",
+      "severity": "non_blocking",
+      "description": "FLOW-INVENTORY.md Coverage Notes still says 'packet pending' and 'will be created in later milestones' but all 11 packets now exist",
+      "file": "docs/flows/FLOW-INVENTORY.md"
+    },
+    {
+      "featureId": "docs-flows-library-coverage",
+      "severity": "non_blocking",
+      "description": "INDEX.md Flows section says 'Five flow packets (flows 1–5) are now available; the remaining six will be added in later milestones' but all 11 now exist",
+      "file": "docs/INDEX.md"
+    },
+    {
+      "featureId": "docs-flows-library-coverage",
+      "severity": "non_blocking",
+      "description": "Duplicate section numbering — two '## 10.' headings (Related Documentation and Open Decisions). Open Decisions should be '## 11.'",
+      "file": "docs/flows/hr-payroll.md"
+    },
+    {
+      "featureId": "docs-flows-library-canonical-seams",
+      "severity": "non_blocking",
+      "description": "Duplicate section numbering — two '## 10.' headings (Related Documentation and Open Decisions). Open Decisions should be '## 11.'",
+      "file": "docs/flows/reporting-export.md"
+    },
+    {
+      "featureId": "docs-flows-library-canonical-seams",
+      "severity": "suggestion",
+      "description": "Access-control boundaries in Event/Listener section duplicate some points from Security Considerations section — consider consolidating to avoid drift",
+      "file": "docs/flows/inventory-management.md"
+    },
+    {
+      "featureId": "docs-flows-library-canonical-seams",
+      "severity": "suggestion",
+      "description": "Non-Canonical path entry 'Legacy intake endpoints' has status 'Partially disabled' but no explicit replacement or no-replacement note",
+      "file": "docs/flows/inventory-management.md"
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention: flow packet section numbering must be sequential 1–11. When inserting a new section, all subsequent sections must be renumbered. This prevents the duplicate section number issue seen in hr-payroll.md and reporting-export.md.",
+      "evidence": "Two flow packets (hr-payroll.md, reporting-export.md) have duplicate '## 10.' headings after Event/Listener sections were added without renumbering subsequent sections.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add convention: when all flow packets for a milestone are complete, workers must update INDEX.md and FLOW-INVENTORY.md prose to remove 'packet pending' and 'coming in later milestones' language.",
+      "evidence": "INDEX.md and FLOW-INVENTORY.md still contain stale prose claiming only 5 of 11 packets exist when all 11 are complete.",
+      "isSystemic": true
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Clarify threshold for when Event/Listener Boundaries section is required vs optional in flow packets. Currently 4 of 11 packets lack this section (auth-identity, tenant-admin-management, catalog-setup-readiness, invoice-dealer-finance) with no explicit guidance on when to include it.",
+      "evidence": "docs-flows-library-canonical-seams feature scoped the section to 'where they materially affect a major flow' but no written convention defines the materiality threshold.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}

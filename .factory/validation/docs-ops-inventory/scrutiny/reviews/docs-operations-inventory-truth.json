@@ -1,0 +1,26 @@
+{
+  "featureId": "docs-operations-inventory-truth",
+  "reviewedAt": "2026-03-30T03:30:00.000Z",
+  "commitId": "f27914c6",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The inventory module documentation packet at docs/modules/inventory.md is a thorough, code-grounded 444-line document covering all required areas: stock summaries (§3), batches and traceability (§4), adjustments (§5), valuation (§6), opening stock import (§7), reservations and dispatch (§8), inventory movements (§9), DTO families (§10), cross-module boundaries (§11), fail-closed blockers and caveats (§12), and known limitations (§13). Route paths, enum values, entity fields, RBAC roles, feature toggle property names, and event listener configuration were all verified against source code and match exactly. The packet is discoverable from docs/INDEX.md and docs/modules/MODULE-INVENTORY.md. Freshness marker (Last reviewed: 2026-03-30) is present. The document distinguishes implemented behavior from limitations (e.g., no warehouse tracking, no serial numbers, no transfer workflow, accounting event listener is fire-and-forget). No bugs or factual errors found.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The docs-worker skill file (.factory/skills/docs-worker/SKILL.md) is located under the project .factory directory, not under the user's personal ~/.factory path. When the scrutiny system prompt says to 'cat .factory/skills/<skillName>/SKILL.md', it resolves correctly only from the repo root. This is fine but worth noting as a convention clarity point.",
+      "evidence": "Skill found at /Users/anas/Documents/Factory/bigbrightpaints-erp/.factory/skills/docs-worker/SKILL.md, not at ~/.factory/skills/docs-worker/SKILL.md"
+    },
+    {
+      "area": "conventions",
+      "observation": "The inventory module's DispatchController.confirm endpoint uses PortalRoleActionMatrix.OPERATIONAL_DISPATCH for RBAC, which is a composite role constant rather than a simple role name like ADMIN or FACTORY. The documentation correctly describes this as 'OPERATIONAL_DISPATCH role' in the route table, which is accurate enough for documentation purposes but the underlying constant is a composite expression in PortalRoleActionMatrix.java.",
+      "evidence": "DispatchController.java:115 — @PreAuthorize(PortalRoleActionMatrix.OPERATIONAL_DISPATCH), docs/modules/inventory.md route table says 'OPERATIONAL_DISPATCH role'"
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The inventory documentation packet is comprehensive, accurate, and well-structured. All six required topic areas (stock summaries, batches, adjustments, opening stock, valuation, traceability) are covered in dedicated sections with code-grounded details. Fail-closed blockers and caveats are documented explicitly in §12 with specific configuration gates, reliability gaps (AFTER_COMMIT + REQUIRES_NEW fire-and-forget), and operational risks. The packet is discoverable from docs/INDEX.md and MODULE-INVENTORY.md. Freshness markers are present. Truth-first discipline is maintained throughout — limitations like no warehouse tracking, no serial numbers, no transfer workflow, and fire-and-forget accounting events are surfaced clearly rather than hidden. All route paths, enum values, RBAC roles, feature flag names, and event listener behavior verified against source code with zero discrepancies. The worker followed the docs-worker skill procedure completely with no deviations."
+}

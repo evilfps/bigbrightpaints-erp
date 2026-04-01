@@ -1,0 +1,22 @@
+{
+  "featureId": "docs-platform-health-gating-readiness",
+  "reviewedAt": "2026-03-30T02:15:00.000Z",
+  "commitId": "d5db2a26",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The health-readiness-gating packet is a comprehensive, well-structured documentation of operator-facing health endpoints, module gating, and runtime admission surfaces. The packet covers four distinct health endpoint surfaces with accurate URLs, auth requirements, and caveats; a complete module classification table matching the CompanyModule enum; a three-layer runtime admission architecture; eight operator-facing caveats; a gate evaluation order summary; and seven cross-references. One minor logical inversion found in §2.1 step 3 (isCore() description), but it does not undermine the document's operational value.",
+    "issues": [
+      {
+        "file": "docs/platform/health-readiness-gating.md",
+        "line": 122,
+        "severity": "non_blocking",
+        "description": "§2.1 step 3 states 'If the module is `null` or `isCore()` returns `false` (i.e., the module is a core module...)' — this is logically inverted. In CompanyModule, core modules (AUTH, ACCOUNTING, SALES, INVENTORY) have gatable=false, so isCore() returns true for them. The condition for bypassing module gating should read 'isCore() returns true', not false. The subsequent logic in ModuleGatingService.isEnabled() correctly checks `if (module == null || module.isCore()) return true`, so the operational understanding is correct despite the textual inversion."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS — The docs/platform/health-readiness-gating.md packet thoroughly documents operator-facing health, readiness, module-gating, and runtime-admission surfaces, fulfilling VAL-PLAT-008. Code verification confirms all endpoint paths, auth requirements, module classifications, runtime states, default quotas, and config property names match the source code exactly. All 7 cross-referenced documents exist. The INDEX.md entry is present and correctly describes the packet. The freshness date (2026-03-30) is valid. One non-blocking issue: §2.1 step 3 contains a logical inversion describing `isCore()` returning `false` for core modules when it actually returns `true`. This does not affect the operational usefulness of the document."
+}

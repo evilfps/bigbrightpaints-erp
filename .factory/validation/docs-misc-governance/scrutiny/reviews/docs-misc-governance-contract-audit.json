@@ -1,0 +1,28 @@
+{
+  "featureId": "docs-misc-governance-contract-audit",
+  "reviewedAt": "2026-03-30T16:35:00.000Z",
+  "commitId": "53ce99612151720b85bc36f905085dce9d19fbbc",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The commit cleanly removes 3 untrustworthy/accidentally bundled artifacts: .factory/library/dod-bible-approach.md (a corrupted garbled document mixing skill content with hallucinated JSON and incomplete fragments), .factory/skills/dod-flow-documenter/SKILL.md, and .factory/droids/dod-flow-documenter.md. All 3 files were deleted with 333 total lines removed and no additions. The commit is purely deletions of governance collateral — no runtime behavior changes. The worker also verified all 9 new allowlist edges against real Java imports (company->rbac, portal->admin, production->factory, production->purchasing, production->sales, reports->admin, reports->production, reports->purchasing, sales->admin), and confirmed each is backed by actual import statements in the codebase. CI validators (check-architecture.sh, lint-knowledgebase.sh) both pass.",
+    "issues": [
+      {
+        "file": ".factory/skills/dod-flow-documenter",
+        "line": 0,
+        "severity": "non_blocking",
+        "description": "The empty directory .factory/skills/dod-flow-documenter/ remains after the SKILL.md was deleted. While harmless (git doesn't track empty directories), it's a minor cleanup artifact. Not blocking since it has no functional impact."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The prior scrutiny review of docs-foundation-full-contract-lint-pass.json (commit that originally introduced the dod-bible-approach.md and dod-flow-documenter artifacts) correctly flagged these as problematic, and this feature's cleanup directly addresses those findings. The validation evidence trail is intact and references remain in .factory/validation/ even though the artifacts are removed, which is appropriate since validation evidence is historical and should not be edited per mission AGENTS.md.",
+      "evidence": "Prior review at .factory/validation/docs-foundation-full-contract-lint/scrutiny/reviews/docs-foundation-full-contract-lint-pass.json lines 24-33 document the original non-blocking findings that motivated this cleanup feature."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS: The contract audit feature successfully completed all three objectives. (1) All 9 new architecture allowlist edges (company->rbac, portal->admin, production->factory/purchasing/sales, reports->admin/production/purchasing, sales->admin) are verified against real Java imports in the codebase. (2) .factory/library/dod-bible-approach.md was removed — it was a corrupted document mixing skill content, hallucinated JSON fragments, and incomplete sections, not a trustworthy worker reference. (3) The dod-flow-documenter skill/droid infrastructure (SKILL.md + droid config) was removed — these were accidentally bundled during the foundation lint milestone without feature-scoped justification. The commit is purely deletions (333 lines removed, 3 files deleted, 0 additions), limited to .factory/ governance collateral with no runtime behavior changes. Both CI validators pass. One minor non-blocking note: the empty directory .factory/skills/dod-flow-documenter/ remains after file deletion, which is harmless but could be cleaned up."
+}

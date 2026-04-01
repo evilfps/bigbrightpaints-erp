@@ -1,0 +1,33 @@
+{
+  "featureId": "docs-consolidation-host-path-consistency",
+  "reviewedAt": "2026-03-30T21:30:00.000Z",
+  "commitId": "860b35c5a",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The commit adds bidirectional cross-links from module packets to their canonical flow packets and fixes a stale demo module entry in MODULE-INVENTORY.md. The changes are clean, consistent, and correctly implement the feature's scope. A minor bug fix is also included: reports.md had an incorrect reference to `docs/workflows/FLOW-INVENTORY.md` (wrong directory) which was corrected to `docs/flows/FLOW-INVENTORY.md`. No contradictory host/path ownership claims were found across the reviewed boundary surfaces.",
+    "issues": [
+      {
+        "file": "docs/modules/orchestrator.md",
+        "line": 214,
+        "severity": "non_blocking",
+        "description": "The orchestrator module doc says '/api/v1/dispatch/confirm, owned by the sales module' while inventory.md, factory.md, and frontend-handoff-commercial.md all correctly describe dispatch as a two-layer seam: inventory owns the controller/transport, sales owns the commercial/accounting logic. The orchestrator doc's phrasing is slightly misleading — it suggests full sales ownership rather than shared ownership — but this is contextual to the deprecation block and not introduced by this commit. Not a regression; the worker correctly noted no changes were needed."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The bidirectional cross-link convention (module packet → flow packet, flow packet → module packet) is now well-established across all 11 major module packets. This convention is implicitly documented through the pattern itself but is not explicitly called out in AGENTS.md or CONVENTIONS.md as a required practice. Future docs workers will benefit from having this convention codified.",
+      "evidence": "All 11 module packets now have 'canonical X flow (behavioral entrypoint)' links in their Related Documentation sections. The pattern is consistent but not explicitly documented as a rule."
+    },
+    {
+      "area": "knowledge",
+      "observation": "The dispatch ownership model is nuanced — inventory module owns the controller/transport layer, sales module owns the commercial/accounting logic — and this is correctly documented across inventory.md (section 8), factory.md (section 9.1), and frontend-handoff-commercial.md (section 6). However, the orchestrator.md deprecation block says 'owned by the sales module' without the nuance. This is a pre-existing inconsistency not introduced by this feature.",
+      "evidence": "orchestrator.md:214 says 'owned by the sales module' while inventory.md:326 says 'DispatchController lives in the inventory module package... commercial and accounting side effects [delegated to sales]'. Both are contextually accurate but could confuse a reader comparing only orchestrator.md vs inventory.md."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The commit correctly implements the host/path ownership consistency pass for VAL-CROSS-005. The primary changes are: (1) adding bidirectional flow packet links to all 11 major module packets, (2) fixing the demo module entry to point to the deprecated registry with an explicit no-replacement note, (3) correcting a path bug in reports.md (workflows/ → flows/), and (4) updating MODULE-INVENTORY.md coverage notes. Cross-referencing host/path ownership across all major boundary surfaces — portal/admin vs dealer, catalog/setup, invoice/dealer-finance, purchasing/GRN, payroll, and dispatch — reveals consistent ownership claims across module docs, flow docs, and frontend handoff docs. No contradictions found. One pre-existing non-blocking observation: the orchestrator.md deprecation block describes dispatch as 'owned by the sales module' without the nuanced two-layer-seam language used elsewhere."
+}

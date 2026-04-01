@@ -1,0 +1,45 @@
+{
+  "milestone": "docs-platform-runtime",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh",
+      "exitCode": 0
+    },
+    "enterprisePolicy": {
+      "passed": true,
+      "command": "bash ci/check-enterprise-policy.sh",
+      "exitCode": 0
+    },
+    "architecture": {
+      "passed": true,
+      "command": "bash ci/check-architecture.sh",
+      "exitCode": 0
+    },
+    "orchestratorLayer": {
+      "passed": true,
+      "command": "bash ci/check-orchestrator-layer.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-platform-health-gating-readiness",
+      "severity": "non_blocking",
+      "description": "§2.1 step 3 in health-readiness-gating.md states 'isCore() returns false' for core modules — logically inverted, should say 'returns true'. Does not affect operational correctness."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [],
+  "previousRound": null
+}

@@ -1,0 +1,58 @@
+{
+  "milestone": "docs-finance-hr",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": { "passed": true, "command": "bash ci/lint-knowledgebase.sh", "exitCode": 0, "output": "[ticket-parity] OK: no ticket.yaml present; skipping parity check\n[knowledgebase-lint] OK" },
+    "docs-governance-enterprise": { "passed": true, "command": "bash ci/check-enterprise-policy.sh", "exitCode": 0, "output": "[enterprise-policy] OK" },
+    "docs-governance-architecture": { "passed": true, "command": "bash ci/check-architecture.sh", "exitCode": 0, "output": "[architecture-check] OK" },
+    "docs-governance-orchestrator": { "passed": true, "command": "bash ci/check-orchestrator-layer.sh", "exitCode": 0, "output": "[orchestrator-layer] OK" }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-finance-hr-payroll",
+      "severity": "non_blocking",
+      "description": "docs/INDEX.md line 39 still links HR module to source AGENTS.md instead of the new canonical docs/modules/hr.md. MODULE-INVENTORY.md was correctly updated but the root index was not. Reader navigating from INDEX.md reaches the old source file.",
+      "file": "docs/INDEX.md",
+      "suggestedFix": "Update the HR row in INDEX.md Modules table to link to 'modules/hr.md' instead of '../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md'"
+    },
+    {
+      "featureId": "docs-finance-hr-payroll",
+      "severity": "non_blocking",
+      "description": "PayrollStatus lifecycle table in docs/modules/hr.md omits CANCELLED status which exists in the PayrollStatus enum. Should be mentioned as a terminal status outside the standard progression.",
+      "file": "docs/modules/hr.md",
+      "suggestedFix": "Add a note about the CANCELLED terminal status to the payroll lifecycle section"
+    },
+    {
+      "featureId": "docs-finance-hr-payroll",
+      "severity": "non_blocking",
+      "description": "Cross-reference in docs/modules/hr.md points to non-existent docs/modules/accounting.md. The accounting documentation actually lives at erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md.",
+      "file": "docs/modules/hr.md",
+      "suggestedFix": "Update the accounting cross-reference link to point to the actual accounting packet location at erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md"
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add a reminder to the docs-worker guidance: when creating or updating a module packet at docs/modules/<name>.md, always update BOTH docs/modules/MODULE-INVENTORY.md AND the corresponding row in docs/INDEX.md Modules table. The current guidance may only mention MODULE-INVENTORY.md, leading to discoverability gaps where INDEX.md (the canonical entrypoint) still points to the old source AGENTS.md.",
+      "evidence": "docs-finance-hr-payroll updated MODULE-INVENTORY.md correctly but missed the INDEX.md HR row (line 39), which still links to source AGENTS.md. This appears to be an oversight specific to this feature rather than a systemic pattern, since previous module packets link correctly from INDEX.md.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "LeaveRequest status field is stored as a plain String rather than an enum, unlike other HR domain entities. The documentation accurately describes this behavior.",
+      "reason": "rejected",
+      "rejectionReason": "This is an implementation detail in the codebase, not something that needs to be captured in factory library or governance docs at this time. The documentation already correctly describes the behavior. A library entry about enum-vs-String patterns would add maintenance burden without clear worker benefit."
+    }
+  ],
+  "previousRound": null
+}

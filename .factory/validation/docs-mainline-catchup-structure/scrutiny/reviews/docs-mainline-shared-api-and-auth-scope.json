@@ -1,0 +1,75 @@
+{
+  "featureId": "docs-mainline-shared-api-and-auth-scope",
+  "reviewedAt": "2026-03-31T01:30:00Z",
+  "commitId": "2178c812a",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The docs/frontend-api/ contract pack is well-structured with all seven required files present and properly cross-linked. The auth/me bootstrap guidance, companyCode tenant-scope rules, and retired route warnings in auth-and-company-scope.md are accurate and consistent with the OpenAPI spec. However, several topic files document endpoint paths, request/response schemas, and HTTP methods that do not match the actual OpenAPI spec. These inaccuracies would mislead frontend engineers implementing against the contract.",
+    "issues": [
+      {
+        "file": "docs/frontend-api/exports-and-approvals.md",
+        "line": 35,
+        "severity": "blocking",
+        "description": "The export status check endpoint `GET /api/v1/exports/status/{requestId}` does not exist in the OpenAPI spec. The actual export paths are `POST /api/v1/exports/request` and `GET /api/v1/exports/{requestId}/download`. There is no status polling endpoint. The `ExportRequestCreateRequest` schema also lacks the `format` and `idempotencyKey` fields documented — it only has `reportType` (required) and `parameters` (string)."
+      },
+      {
+        "file": "docs/frontend-api/exports-and-approvals.md",
+        "line": 77,
+        "severity": "blocking",
+        "description": "Approval approve/reject paths documented as `POST /api/v1/admin/approvals/{approvalId}/approve` and `POST /api/v1/admin/approvals/{approvalId}/reject` do not exist in the OpenAPI spec. The actual approval paths are type-specific: `PUT /api/v1/admin/exports/{requestId}/approve`, `POST /api/v1/credit/limit-requests/{id}/approve`, `POST /api/v1/payroll/runs/{id}/approve`, etc. The `AdminApprovalItemDto` provides `approveEndpoint` and `rejectEndpoint` fields for dynamic resolution."
+      },
+      {
+        "file": "docs/frontend-api/idempotency-and-errors.md",
+        "line": 23,
+        "severity": "blocking",
+        "description": "The journal creation endpoint is documented as `POST /api/v1/accounting/journal` but the actual OpenAPI path is `POST /api/v1/accounting/journals/manual`. The list/all journals endpoint is `GET /api/v1/accounting/journals`. Similarly, `POST /api/v1/invoices` does not exist in the OpenAPI spec — invoice creation is not exposed as a direct POST (invoices are read-only at `/api/v1/invoices`)."
+      },
+      {
+        "file": "docs/frontend-api/accounting-reference-chains.md",
+        "line": 153,
+        "severity": "blocking",
+        "description": "The documented audit surfaces include `GET /api/v1/admin/audit/events` and `GET /api/v1/superadmin/audit/platform-events` which do not exist in the OpenAPI spec. The actual accounting audit paths are `/api/v1/accounting/audit-trail`, `/api/v1/accounting/audit/digest`, `/api/v1/accounting/audit/transactions`, and `/api/v1/accounting/audit/transactions/{journalEntryId}`."
+      },
+      {
+        "file": "docs/frontend-api/dto-examples.md",
+        "line": 109,
+        "severity": "blocking",
+        "description": "The `POST /api/v1/invoices` endpoint documented in the DTO examples does not exist in the OpenAPI spec. The invoice endpoints are GET-only (`/api/v1/invoices`, `/api/v1/invoices/{id}`, `/api/v1/invoices/{id}/pdf`). Also the dealer detail endpoint uses `/api/v1/dealers/101` but the actual path pattern is `/api/v1/dealers/{dealerId}` with PUT only (GET list is at `/api/v1/dealers`)."
+      },
+      {
+        "file": "docs/frontend-api/exports-and-approvals.md",
+        "line": 48,
+        "severity": "blocking",
+        "description": "The export request example shows `exportType` and `format` fields, but the actual `ExportRequestCreateRequest` schema only has `reportType` (required) and `parameters` (string). The documented `exportType: \"JOURNAL_ENTRY\"`, `format: \"CSV\"`, `idempotencyKey` do not match the actual API contract."
+      },
+      {
+        "file": "docs/frontend-api/auth-and-company-scope.md",
+        "line": 88,
+        "severity": "non_blocking",
+        "description": "The justification for `/api/v1/auth/profile` being retired says it's 'no longer wired into the current frontend contract', but this endpoint still exists in the OpenAPI spec with both GET and PUT methods (tagged under `user-profile-controller`). The retirement note is correct in intent but the explanation should note the endpoint still exists in the backend — it's just not the authoritative identity surface for frontend bootstrapping."
+      },
+      {
+        "file": "docs/frontend-api/pagination-and-filters.md",
+        "line": 10,
+        "severity": "non_blocking",
+        "description": "The filter syntax documented (e.g., `filter.field.in=value1,value2`, `filter.field.like=%value%`) is presented as fact but there is no evidence in the OpenAPI spec that the backend supports this filter syntax. The spec shows only generic query parameters. This should be qualified as a proposed convention rather than a documented mainline behavior, or verified against the actual controller implementation."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The docs worker documented detailed API paths, request/response payloads, and filter syntax without verifying against the actual OpenAPI spec. Several documented endpoints don't exist in the spec (e.g., `/api/v1/exports/status/{requestId}`, `POST /api/v1/invoices`, `/api/v1/admin/audit/events`). The docs-worker skill should emphasize that all API paths and schemas must be verified against openapi.json before documenting them as mainline behavior.",
+      "evidence": "The transcript shows the worker searched openapi.json for auth-related paths but did not systematically verify the export, approval, journal, invoice, or audit paths against the spec before writing documentation for them."
+    },
+    {
+      "area": "knowledge",
+      "observation": "The actual OpenAPI export workflow is simpler than documented: there is no status polling endpoint. Exports go through `POST /api/v1/exports/request` → admin approval at `PUT /api/v1/admin/exports/{requestId}/approve` → `GET /api/v1/exports/{requestId}/download`. The approval flow is driven by `approveEndpoint`/`rejectEndpoint` fields on `AdminApprovalItemDto`, not by a generic `/api/v1/admin/approvals/{id}/approve` path.",
+      "evidence": "OpenAPI paths: /api/v1/exports/request (POST), /api/v1/exports/{requestId}/download (GET), /api/v1/admin/exports/{requestId}/approve (PUT), /api/v1/admin/exports/{requestId}/reject (PUT). AdminApprovalItemDto has approveEndpoint and rejectEndpoint nullable fields."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "The docs/frontend-api/ directory structure is complete with all 7 required files properly created and linked from README.md. The core auth/me bootstrap guidance and companyCode tenant-scope rules are accurate and match both the OpenAPI spec and the frontend-portals/README.md canonical rules. However, the implementation has significant factual inaccuracies: multiple endpoint paths documented in exports-and-approvals.md, idempotency-and-errors.md, accounting-reference-chains.md, and dto-examples.md do not match the actual OpenAPI spec. The export workflow, approval paths, journal creation paths, and audit surfaces are all documented with paths/schemas that either don't exist or have different shapes than what the OpenAPI spec defines. These blocking issues would mislead frontend engineers and must be corrected by reconciling every documented endpoint against the actual OpenAPI spec."
+}

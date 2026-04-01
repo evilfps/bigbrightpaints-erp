@@ -1,0 +1,40 @@
+{
+  "milestone": "docs-commercial-p2p",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": ["VAL-COMM-002"],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null,
+  "evidence": {
+    "VAL-COMM-002": {
+      "tool": "Read + Grep (docs-only validation)",
+      "summary": "docs/modules/purchasing.md (463 lines, Last reviewed: 2026-03-30) comprehensively covers all required P2P surfaces. Verified against source code:",
+      "checks": [
+        "3 controllers verified: SupplierController (/api/v1/suppliers/**), PurchasingWorkflowController (/api/v1/purchasing/**), RawMaterialPurchaseController (/api/v1/purchasing/raw-material-purchases/**) — all routes, methods, and role annotations match",
+        "6 services verified: SupplierService, PurchasingService, GoodsReceiptService, PurchaseInvoiceEngine, PurchaseReturnService, SupplierApprovalPolicy",
+        "8 domain entities verified: Supplier, PurchaseOrder, PurchaseOrderLine, GoodsReceipt, GoodsReceiptLine, RawMaterialPurchase, RawMaterialPurchaseLine, PurchaseOrderStatusHistory",
+        "5 repositories verified: SupplierRepository, PurchaseOrderRepository, GoodsReceiptRepository, RawMaterialPurchaseRepository, PurchaseOrderStatusHistoryRepository",
+        "3 enum values verified: SupplierStatus (PENDING/APPROVED/ACTIVE/SUSPENDED), PurchaseOrderStatus (DRAFT/APPROVED/PARTIALLY_RECEIVED/FULLY_RECEIVED/INVOICED/CLOSED/VOID), GoodsReceiptStatus (PARTIAL/RECEIVED/INVOICED) — all match source code exactly",
+        "Supplier lifecycle (PENDING→APPROVED→ACTIVE, ACTIVE→SUSPENDED→reactivation) documented with correct transition endpoints",
+        "PO lifecycle (DRAFT→APPROVED→PARTIALLY_RECEIVED/FULLY_RECEIVED→INVOICED→CLOSED, with VOID from DRAFT/APPROVED) documented with correct transitions",
+        "GRN status determination (PARTIAL vs RECEIVED set at creation time based on fulfillment level, INVOICED applied later) matches GoodsReceiptService behavior",
+        "GRN idempotency (required Idempotency-Key, X-Idempotency-Key rejected, IdempotencyHeaderUtils.resolveBodyOrHeaderKey) verified in PurchasingWorkflowController.applyIdempotencyKey()",
+        "Accounting period validation (AccountingPeriodService.requireOpenPeriod) verified in GoodsReceiptService",
+        "Cross-module boundaries verified: AccountingFacade.postPurchaseJournal (inventory/RawMaterialService), AccountingFacade.postPurchaseReturn (purchasing/PurchaseReturnService), RawMaterialBatch creation from GRN",
+        "11 known limitations documented explicitly (no PO idempotency, no invoice idempotency, line-level-only quantity limits, etc.)",
+        "Idempotency expectations documented for GRN (required), PO (not supported), Purchase Invoice (not supported), Auto-Settle (standard pattern)",
+        "Cross-references to inventory.md, core-idempotency.md, MODULE-INVENTORY.md, INDEX.md, workflows/purchase-to-pay.md verified",
+        "Document discoverable from docs/INDEX.md (Modules section), MODULE-INVENTORY.md (purchasing row), FLOW-INVENTORY.md (flow #7 Procure-to-Pay)",
+        "ci/lint-knowledgebase.sh passes in full-contract mode"
+      ]
+    }
+  }
+}

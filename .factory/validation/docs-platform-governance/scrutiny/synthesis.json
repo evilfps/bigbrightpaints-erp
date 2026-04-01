@@ -1,0 +1,70 @@
+{
+  "milestone": "docs-platform-governance",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "lint-knowledgebase": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh",
+      "exitCode": 0,
+      "observation": "[ticket-parity] OK: no ticket.yaml present; skipping parity check\n[knowledgebase-lint] OK"
+    },
+    "enterprise-policy": {
+      "passed": true,
+      "command": "bash ci/check-enterprise-policy.sh",
+      "exitCode": 0,
+      "observation": "[enterprise-policy] canonical workflow decision contract guard\n[guard_workflow_canonical_paths] verified canonical dispatch source path\n[guard_workflow_canonical_paths] OK\n[enterprise-policy] high-risk paths changed; enforcing R2 enterprise controls\n[enterprise-policy] OK"
+    },
+    "architecture": {
+      "passed": true,
+      "command": "bash ci/check-architecture.sh",
+      "exitCode": 0,
+      "observation": "[architecture-check] allowlist evidence contract\n[allowlist-evidence] OK\n[architecture-check] OK"
+    },
+    "orchestrator-layer": {
+      "passed": true,
+      "command": "bash ci/check-orchestrator-layer.sh",
+      "exitCode": 0,
+      "observation": "[orchestrator-layer] OK"
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-platform-admin-portal-rbac",
+      "file": "docs/modules/admin-portal-rbac.md",
+      "line": 63,
+      "severity": "non_blocking",
+      "description": "PortalRoleActionMatrix Predicates table lists 10 of 11 actual constants. Missing ADMIN_SALES_FACTORY_ACCOUNTING (hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_FACTORY','ROLE_ACCOUNTING')), used by SalesController for dealer management endpoints."
+    },
+    {
+      "featureId": "docs-platform-admin-portal-rbac",
+      "file": "docs/modules/admin-portal-rbac.md",
+      "line": 29,
+      "severity": "non_blocking",
+      "description": "ROLE_ADMIN description says 'Platform administrator (tenant-scoped)' but the SystemRole enum says 'Platform administrator'. The parenthetical is editorially accurate but doesn't match the source verbatim."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "library",
+      "suggestion": "Add a concise PortalRoleActionMatrix predicate reference to .factory/library/ so future workers adding portal-facing endpoints can quickly discover the 11 canonical access-control predicates without reading the Java source file.",
+      "evidence": "The docs-platform-admin-portal-rbac worker had to read PortalRoleActionMatrix.java to enumerate all constants. A centralized reference would reduce redundant source exploration.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Worker correctly followed the docs-worker skill procedure with no deviations.",
+      "reason": "Normative statement about procedure compliance; not actionable knowledge for the library."
+    }
+  ],
+  "previousRound": null
+}

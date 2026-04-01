@@ -1,0 +1,22 @@
+{
+  "featureId": "docs-operations-factory-manufacturing",
+  "reviewedAt": "2026-03-30T05:15:00.000Z",
+  "commitId": "053e606b",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The factory/manufacturing module packet (docs/modules/factory.md) is a thorough, well-structured 16-section document that covers production logs, packing, packaging mappings, batch registration, cost allocation, dispatch handoff, deprecated surfaces, and critical replay/config caveats. The worker rescued an existing untracked draft, verified it against source code (correcting one error code from VALIDATION_UNSUPPORTED_HEADER to VALIDATION_INVALID_INPUT), and updated INDEX.md and MODULE-INVENTORY.md for discoverability. Cross-checking against the Java source confirms high accuracy across controllers, services, domain entities, DTO families, RBAC annotations, and idempotency patterns. One non-blocking discrepancy found in the RBAC section.",
+    "issues": [
+      {
+        "file": "docs/modules/factory.md",
+        "line": 28,
+        "severity": "non_blocking",
+        "description": "Section 2 header states 'All factory endpoints live under /api/v1/factory/** and require ROLE_ADMIN or ROLE_FACTORY.' However, PackingController's class-level @PreAuthorize is 'hasAnyAuthority(ROLE_FACTORY,ROLE_ACCOUNTING,ROLE_ADMIN)', meaning ROLE_ACCOUNTING also has access to all PackingController endpoints (packing-records, unpacked-batches, packing-history, bulk-batches). The Section 13 RBAC table (line 334) shows ROLE_ACCOUNTING with '—' (no access) for Factory Access and Packing Access, which contradicts the actual controller annotation. Additionally, the Packing route table (lines 75-87) only lists 'ADMIN, FACTORY' as actors but should include ACCOUNTING."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS with one non-blocking issue. The factory/manufacturing module packet is comprehensive, accurate, and well-organized. All three validation assertions (VAL-OPS-003, VAL-OPS-004, VAL-OPS-006) are fully satisfied. The packet covers production logs, packing, packaging mappings, batch registration, cost allocation, and dispatch handoff (VAL-OPS-003). It identifies five deprecated/non-canonical surfaces with explicit replacement or no-replacement notes (VAL-OPS-004). It documents nine critical replay/config caveats (VAL-OPS-006). Freshness marker is present (2026-03-30), all cross-references resolve to existing files, and the packet is discoverable from both INDEX.md and MODULE-INVENTORY.md. The worker corrected an error code inaccuracy during implementation. One non-blocking accuracy issue: the RBAC coverage understates ROLE_ACCOUNTING's access to packing endpoints — the PackingController's class-level annotation grants ROLE_ACCOUNTING access, but Section 2's header and Section 13's RBAC table only show ROLE_ADMIN and ROLE_FACTORY for those routes."
+}

@@ -1,0 +1,106 @@
+{
+  "groupId": "portal-api-structure",
+  "testedAt": "2026-03-31T07:00:00Z",
+  "credentials": {
+    "account": "docs-read-only",
+    "namespace": "docs-mainline-catchup-structure"
+  },
+  "toolsUsed": ["Read", "Grep", "Glob", "LS"],
+  "assertions": [
+    {
+      "id": "VAL-MAIN-001",
+      "title": "Canonical frontend portal docs tree exists and is navigable",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read docs/frontend-portals/README.md",
+          "expected": "Entrypoint exists with portal matrix listing six exact portals and standard file set requirement",
+          "observed": "README.md present (3922 bytes). Lists exactly six portal folders: superadmin, tenant-admin, accounting, sales, factory, dealer-client. Documents the 7-file standard set: README.md, routes.md, api-contracts.md, workflows.md, role-boundaries.md, states-and-errors.md, playwright-journeys.md"
+        },
+        {
+          "action": "LS docs/frontend-portals/ to verify six portal folders",
+          "expected": "Six portal directories present",
+          "observed": "All six directories confirmed: superadmin/, tenant-admin/, accounting/, sales/, factory/, dealer-client/. Also contains portal-matrix.md and README.md at root level."
+        },
+        {
+          "action": "LS each portal directory for standard file set",
+          "expected": "Each portal has exactly 7 standard files",
+          "observed": "superadmin: 7 files ✓ | tenant-admin: 7 files ✓ | accounting: 7 files ✓ | sales: 7 files ✓ | factory: 7 files ✓ | dealer-client: 7 files ✓. All portals have README.md, routes.md, api-contracts.md, workflows.md, role-boundaries.md, states-and-errors.md, playwright-journeys.md"
+        },
+        {
+          "action": "Grep portal README for bootstrap and tenant-scope rules",
+          "expected": "README references GET /api/v1/auth/me and companyCode",
+          "observed": "Line 29: 'Use GET /api/v1/auth/me as the only frontend identity bootstrap'. Lines 30, 64, 65: companyCode referenced for tenant scope."
+        }
+      ],
+      "evidence": {
+        "files": [
+          "docs/frontend-portals/README.md (3922 bytes, canonical entrypoint)",
+          "docs/frontend-portals/superadmin/ (7 standard files)",
+          "docs/frontend-portals/tenant-admin/ (7 standard files)",
+          "docs/frontend-portals/accounting/ (7 standard files)",
+          "docs/frontend-portals/sales/ (7 standard files)",
+          "docs/frontend-portals/factory/ (7 standard files)",
+          "docs/frontend-portals/dealer-client/ (7 standard files)",
+          "docs/frontend-portals/portal-matrix.md (supplementary)"
+        ],
+        "portalMatrixCoverage": "README.md contains folder ownership table with all 6 portals mapping owns/must-not-own boundaries",
+        "standardFileSetCoverage": "100% — all 6 portals × 7 files = 42 files present",
+        "bootstrapReference": "README.md line 29 explicitly states 'Use GET /api/v1/auth/me as the only frontend identity bootstrap'",
+        "tenantScopeReference": "README.md line 30 explicitly states 'Persist tenant scope as companyCode, never companyId'"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-MAIN-002",
+      "title": "Shared frontend API contract pack exists and documents current shared rules",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read docs/frontend-api/README.md",
+          "expected": "Index file present with links to shared topic files",
+          "observed": "README.md present (4205 bytes). Contains purpose section, current mainline rules, shared topic files table with 6 entries, retired routes table, validation section."
+        },
+        {
+          "action": "Grep for GET /api/v1/auth/me as sole bootstrap",
+          "expected": "Documented as only bootstrap endpoint",
+          "observed": "Line 21: 'Only bootstrap endpoint: GET /api/v1/auth/me is the sole supported frontend identity surface. This endpoint returns claim/context-derived data and requires a valid JWT bearer token.'"
+        },
+        {
+          "action": "Grep for companyCode as tenant scope",
+          "expected": "companyCode documented as the tenant scope identifier",
+          "observed": "Line 28: 'Tenant identifier: Use companyCode as the persisted tenant scope identifier in frontend state, localStorage, and API calls.' Also lines 61-62 in retired routes table showing companyId/X-Company-Id as retired."
+        },
+        {
+          "action": "Grep for retired-route warnings",
+          "expected": "Retired routes explicitly documented with replacements",
+          "observed": "Section '## Retired Routes' at line 54. Table lists: GET /api/v1/auth/profile → use /api/v1/auth/me; X-Company-Id header → use X-Company-Code; companyId in frontend state → use companyCode. Also line 22 explicitly warns 'Do not use: /api/v1/auth/profile — this endpoint is retired'."
+        },
+        {
+          "action": "Verify shared topic files exist and are linked",
+          "expected": "All 6 shared topic files present in directory and linked from README",
+          "observed": "README lines 47-52 link all 6 files: auth-and-company-scope.md, idempotency-and-errors.md, pagination-and-filters.md, exports-and-approvals.md, accounting-reference-chains.md, dto-examples.md. Directory listing confirms all 6 files present."
+        }
+      ],
+      "evidence": {
+        "files": [
+          "docs/frontend-api/README.md (4205 bytes, canonical index)",
+          "docs/frontend-api/auth-and-company-scope.md (5373 bytes)",
+          "docs/frontend-api/idempotency-and-errors.md (4755 bytes)",
+          "docs/frontend-api/pagination-and-filters.md (4200 bytes)",
+          "docs/frontend-api/exports-and-approvals.md (5228 bytes)",
+          "docs/frontend-api/accounting-reference-chains.md (4977 bytes)",
+          "docs/frontend-api/dto-examples.md (6955 bytes)"
+        ],
+        "bootstrapGuidance": "Line 21 explicitly documents GET /api/v1/auth/me as sole bootstrap endpoint",
+        "tenantScopeGuidance": "Line 28 explicitly documents companyCode as tenant scope; retired routes table (lines 60-62) shows companyId and X-Company-Id as retired",
+        "retiredRouteWarnings": "Section '## Retired Routes' (line 54+) with table listing retired route, header, and state identifier with their replacements. Also inline warnings at lines 22 and 29.",
+        "sharedTopicLinks": "README lines 47-52 provide markdown links to all 6 shared topic files. All 6 files confirmed present in directory."
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 2 assertions: 2 passed. VAL-MAIN-001: docs/frontend-portals/README.md is the canonical entrypoint with all 6 portal folders (superadmin, tenant-admin, accounting, sales, factory, dealer-client) each containing the full 7-file standard set (42/42 files). VAL-MAIN-002: docs/frontend-api/README.md is present and links all 6 shared topic files, documents GET /api/v1/auth/me as sole bootstrap, companyCode as tenant scope, and retired-route warnings with explicit replacements."
+}

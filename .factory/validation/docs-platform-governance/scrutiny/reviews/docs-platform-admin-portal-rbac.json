@@ -1,0 +1,91 @@
+{
+  "featureId": "docs-platform-admin-portal-rbac",
+  "milestone": "docs-platform-governance",
+  "reviewedAt": "2026-03-30T00:30:00.000Z",
+  "commitId": "7f4232ff",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The admin/portal/RBAC module packet is comprehensive and well-grounded in source code. All controller routes, HTTP methods, and @PreAuthorize predicates were verified against the actual source files. The documentation covers admin, portal, dealer self-service, superadmin, and RBAC surfaces thoroughly, with correct role-action boundaries, host ownership, approval flows, export gating, support paths, and role assignment restrictions. One predicate (ADMIN_SALES_FACTORY_ACCOUNTING) is missing from the PortalRoleActionMatrix table, though the handoff verification notes listed it — the table itself was simply missing a row. This is non-blocking because the packet's scope is admin/portal/RBAC/dealer-portal surfaces and ADMIN_SALES_FACTORY_ACCOUNTING is primarily used by SalesController (a sales module surface).",
+    "issues": [
+      {
+        "file": "docs/modules/admin-portal-rbac.md",
+        "line": 63,
+        "severity": "non_blocking",
+        "description": "The PortalRoleActionMatrix Predicates table lists 10 constants but the actual PortalRoleActionMatrix.java defines 11 constants. The missing constant is ADMIN_SALES_FACTORY_ACCOUNTING (`hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_FACTORY','ROLE_ACCOUNTING')`), which is used 4 times in SalesController.java. The handoff's interactive check correctly listed all 11 constants, but the documentation table dropped this one row."
+      },
+      {
+        "file": "docs/modules/admin-portal-rbac.md",
+        "line": 29,
+        "severity": "non_blocking",
+        "description": "The SystemRole table describes ROLE_ADMIN as 'Platform administrator (tenant-scoped)', but the actual SystemRole.java enum describes it as simply 'Platform administrator'. The '(tenant-scoped)' parenthetical is an accurate editorial clarification (admins are indeed tenant-scoped in the codebase), but it doesn't match the enum's exact wording."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The PortalRoleActionMatrix defines 11 access-control predicates used across controllers, but no centralized reference existed in .factory/library/ before this packet. The worker had to read the actual Java file to enumerate them. Future workers needing to add new portal-facing endpoints would benefit from a concise predicate reference in the library.",
+      "evidence": "Transcript shows worker reading PortalRoleActionMatrix.java to discover all constants and their predicates before writing the doc."
+    },
+    {
+      "area": "conventions",
+      "observation": "The worker correctly followed the docs-worker skill procedure: read mission context → gather source evidence → create packet → update INDEX.md and MODULE-INVENTORY.md → run ci/lint-knowledgebase.sh → commit. No deviations from the skill procedure were observed.",
+      "evidence": "Transcript skeleton shows the full workflow from Read(mission.md) through lint-knowledgebase.sh to commit, matching the docs-worker SKILL.md procedure."
+    }
+  ],
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "file": "docs/modules/admin-portal-rbac.md",
+      "line": 63,
+      "description": "PortalRoleActionMatrix Predicates table is missing the ADMIN_SALES_FACTORY_ACCOUNTING constant (`hasAnyAuthority('ROLE_ADMIN','ROLE_SALES','ROLE_FACTORY','ROLE_ACCOUNTING')`), which is used by SalesController for dealer management endpoints. The table lists 10 of 11 actual constants."
+    },
+    {
+      "file": "docs/modules/admin-portal-rbac.md",
+      "line": 29,
+      "description": "ROLE_ADMIN description says 'Platform administrator (tenant-scoped)' but the SystemRole enum says 'Platform administrator'. The parenthetical is editorially accurate but doesn't match the source verbatim."
+    }
+  ],
+  "observations": [
+    {
+      "type": "accuracy",
+      "description": "All controller routes verified against source: AdminUserController (9 endpoints), AdminSettingsController (6 endpoints), ChangelogController (2 endpoints), SuperAdminChangelogController (3 endpoints), RoleController (3 endpoints), PortalInsightsController (3 endpoints), PortalFinanceController (3 endpoints), PortalSupportTicketController (3 endpoints), DealerPortalController (7 endpoints), DealerPortalSupportTicketController (3 endpoints), CreditLimitRequestController (4 endpoints), CreditLimitOverrideController (4 endpoints). All match exactly."
+    },
+    {
+      "type": "accuracy",
+      "description": "All @PreAuthorize predicates on all 50 endpoints verified against source code. Every predicate matches the documentation exactly."
+    },
+    {
+      "type": "accuracy",
+      "description": "SystemRole enum values (6 roles), default permissions, and retired permissions all verified against SystemRole.java. 100% match."
+    },
+    {
+      "type": "accuracy",
+      "description": "Approval categories (5 domains), origin types, owner types, approve/reject endpoints all verified against AdminSettingsController.java. 100% match."
+    },
+    {
+      "type": "accuracy",
+      "description": "Role assignment restrictions (4 rules about super-admin enforcement) verified against RoleService.java methods: listRolesForCurrentActor(), persistRole(), ensureRoleExists(), canManageSharedRoleMutation(). All match."
+    },
+    {
+      "type": "completeness",
+      "description": "The packet comprehensively covers all five expected behavior items from features.json: (1) admin/internal, dealer/self-service, and superadmin boundaries are explicit; (2) role assignment restrictions and host ownership are discoverable; (3) approvals, exports, support, and credit-request actor boundaries are explained consistently."
+    },
+    {
+      "type": "cross_references",
+      "description": "All 8 cross-references verified as existing files: docs/modules/auth.md, docs/modules/company.md, docs/modules/MODULE-INVENTORY.md, docs/adrs/ADR-006-portal-and-host-boundary-separation.md, docs/adrs/ADR-002-multi-tenant-auth-scoping.md, docs/ARCHITECTURE.md (exists as docs/architecture.md), docs/SECURITY.md, docs/flows/FLOW-INVENTORY.md."
+    },
+    {
+      "type": "index_updates",
+      "description": "INDEX.md correctly updated: module count changed from 6 to 7, new admin/portal/rbac entry added in alphabetical order. MODULE-INVENTORY.md correctly updated: admin, portal, and rbac rows now point to admin-portal-rbac.md with 'per-module packet pending' markers removed. Coverage notes updated to reflect 3 additional modules sharing the combined packet."
+    },
+    {
+      "type": "deprecation",
+      "description": "The packet clearly calls out the retired SALES dispatch.confirm permission (Caveat 7) and explains its implications. Split-read/write settings boundary is called out (Caveat 4). Optional export approval controlled by system setting is documented (Caveat 5). Role creation limited to known SystemRole names is noted (Caveat 6)."
+    }
+  ],
+  "reviewerVerdict": "pass",
+  "summary": "The admin/portal/RBAC module packet is thorough, well-structured, and accurately grounded in source code. All 50 controller endpoints, 6 system roles with their permissions, 5 approval domains, 4 role-assignment restrictions, and host ownership boundaries are correctly documented and verified against the actual Java source files. Cross-references and index updates are correct. One non-blocking issue: the PortalRoleActionMatrix predicates table lists 10 of 11 actual constants, missing ADMIN_SALES_FACTORY_ACCOUNTING (used by SalesController). One minor wording discrepancy: ROLE_ADMIN description adds '(tenant-scoped)' not present in the enum. Neither issue blocks the feature's validation assertion (VAL-PLAT-002)."
+}

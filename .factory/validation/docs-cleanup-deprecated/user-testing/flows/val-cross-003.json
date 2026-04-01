@@ -1,0 +1,66 @@
+{
+  "groupId": "val-cross-003",
+  "testedAt": "2026-03-30T20:30:00Z",
+  "credentials": {
+    "account": "docs-only",
+    "namespace": "docs-only"
+  },
+  "toolsUsed": ["Read", "Grep", "Glob"],
+  "assertions": [
+    {
+      "id": "VAL-CROSS-003",
+      "title": "Deprecated/unmaintained/incomplete registry exists and is navigable",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Locate deprecated/incomplete registry file(s) in docs tree",
+          "expected": "Registry file exists under docs/ with entries for deprecated surfaces",
+          "observed": "Found docs/deprecated/INDEX.md (8482 bytes, Last reviewed: 2026-03-30) as the canonical deprecated/incomplete registry. Single file covering all deprecated surfaces."
+        },
+        {
+          "action": "Verify registry is discoverable from docs/INDEX.md",
+          "expected": "docs/INDEX.md links to the deprecated registry",
+          "observed": "docs/INDEX.md has a dedicated 'Deprecated and Incomplete Surfaces' section (between Frontend Handoff and Governance) with a clear table entry linking to docs/deprecated/INDEX.md with description 'Canonical registry of all deprecated, unmaintained, incomplete, or dead-end surfaces with replacement links or explicit no-replacement notes'"
+        },
+        {
+          "action": "Verify registry contains entries for deprecated, unmaintained, incomplete, or dead-end surfaces",
+          "expected": "Multiple entries across different surface categories",
+          "observed": "Registry contains 12 categorized sections with 30+ entries: Authentication and Identity (2 entries), Catalog and Production (3), Factory and Manufacturing (6), Inventory Management (2), Sales and Order-to-Cash (4), Purchasing and Procure-to-Pay (2), Invoices and Dealer Finance (2), HR and Payroll (3), Accounting and Reporting (3), Reporting and Export (2), Tenant and Admin Management (1), Historical Documentation (3)"
+        },
+        {
+          "action": "Verify each entry has either a replacement link or explicit no-replacement note",
+          "expected": "Every entry in the Replacement column is populated with a canonical path or explicit no-replacement statement",
+          "observed": "All 30+ entries in the registry have populated Replacement columns. Entries use one of three patterns: (a) explicit replacement path (e.g., 'Use POST /api/v1/catalog/items', 'Use /api/v1/payroll/runs'), (b) explicit status with no-replacement note (e.g., 'Not supported', 'No replacement', 'Disabled via...'), or (c) behavioral guidance (e.g., 'Use with explicit date range parameters'). Additionally, each section has a Module Reference row linking to the owning module and flow docs."
+        },
+        {
+          "action": "Verify 'No replacement' entries are explicit",
+          "expected": "Entries without a canonical replacement explicitly say so",
+          "observed": "Found explicit no-replacement entries: (1) Legacy raw-material intake endpoints — 'No replacement' with explanation that raw material stock intake now occurs through procure-to-pay flow via GRN; (2) PO creation idempotency — 'Not supported' with guidance to rely on order number uniqueness; (3) ProductionBatch entity — 'No replacement' with explanation that canonical path is ProductionPlan → ProductionLog; (4) Direct period reopen from CLOSED status — 'Not supported' with guidance to use adjustment journal entries; (5) Editing posted journals — 'Not supported' with guidance to reverse and re-create via correction entries; (6) POST /api/v1/sales/promotions — 'Not integrated' with note that sales targets only"
+        },
+        {
+          "action": "Sample replacement links and verify they resolve to existing files",
+          "expected": "All referenced module/flow docs and replacement paths point to existing files",
+          "observed": "Verified all 27 linked files exist on disk: 12 module docs (auth.md, catalog-setup.md, factory.md, inventory.md, sales.md, purchasing.md, hr.md, reports.md, admin-portal-rbac.md, invoice.md, MODULE-INVENTORY.md, orchestrator.md), 11 flow docs (auth-identity.md, catalog-setup-readiness.md, manufacturing-packing.md, inventory-management.md, order-to-cash.md, procure-to-pay.md, invoice-dealer-finance.md, hr-payroll.md, accounting-period-close.md, reporting-export.md, tenant-admin-management.md), ARCHITECTURE.md, CONVENTIONS.md, developer-guide.md, endpoint-inventory.md, FLOW-INVENTORY.md"
+        },
+        {
+          "action": "Cross-verify sampled registry entries against canonical module docs",
+          "expected": "Registry entries match what the module docs describe",
+          "observed": "Sampled 4 cross-verifications: (1) factory.md confirms X-Idempotency-Key and X-Request-Id are rejected with VALIDATION_INVALID_INPUT at lines 343-345; (2) factory.md confirms ProductionBatch is unused at lines 349-351 with 'No replacement' status; (3) hr.md confirms legacy payroll endpoints return 410 GONE at lines 187-189; (4) invoice.md confirms retired dealer ledger/invoices routes with replacement at lines 185-186"
+        }
+      ],
+      "evidence": {
+        "registryFile": "docs/deprecated/INDEX.md (8482 bytes, 12 sections, 30+ entries)",
+        "indexLink": "docs/INDEX.md 'Deprecated and Incomplete Surfaces' section with table entry linking to docs/deprecated/INDEX.md",
+        "allLinkedFilesExist": true,
+        "filesVerified": 27,
+        "crossVerificationSamples": 4,
+        "consoleErrors": "none (docs-only testing)",
+        "network": "n/a (docs-only testing)"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 1 assertion: VAL-CROSS-003 PASSED. The deprecated/incomplete registry at docs/deprecated/INDEX.md is the canonical registry containing 30+ entries across 12 categories (auth, catalog, factory, inventory, sales, purchasing, invoices, HR, accounting, reporting, tenant, historical docs). Every entry has either a canonical replacement link or an explicit no-replacement note. The registry is discoverable from docs/INDEX.md via a dedicated 'Deprecated and Incomplete Surfaces' section. All 27 cross-referenced files exist on disk, and 4 sampled entries cross-verified against their canonical module docs match correctly."
+}

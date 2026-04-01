@@ -1,75 +1,67 @@
 # R2 Checkpoint
 
+Last reviewed: 2026-04-01
+
 ## Scope
-- Feature: `ERP-46 audit read hard-cut`
-- Branch: `fix/audit-unification-hard-cut`
-- Baseline head: `46f11fcb2a801517578182e0a4905ee5c5b5ba5b`
+- Feature: `ERP-45 backend truth-doc refresh — PR merge blocker remediation`
+- Branch: mdanas7869292/erp-45-wave-1-fail-closed-blockers-and-platformapi-surface-cleanup
+- PR: `#178`
 - Review candidate:
-  - hard-cut tenant, tenant-admin, and superadmin audit reads onto explicit canonical controllers
-  - merge `audit_logs` and enterprise business audit events behind `AuditAccessService`
-  - remove retired audit-trail and audit-digest read paths plus dead scheduler/query code
-  - keep accounting trail failures visible in the accounting feed and keep module filters semantically aligned
-  - fail closed merged-feed paging with a bounded 5,000-row result window and overflow-safe page math
-- Why this is R2: the branch changes live accounting, company/superadmin audit access paths and removes public endpoints. A wrong cut can hide accounting evidence, leak the wrong tenant/platform scope, or break audit review during incidents.
+  - docs-only backend truth library covering modules, flows, ADRs, frontend handoff packets, deprecated registries, and governance files
+  - module `AGENTS.md` governance docs added under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/` and `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/`
+  - canonical path reference fixes in `docs/ARCHITECTURE.md` for lint compliance
+  - no runtime, schema, migration, or behavioral code changes
+- Why this is R2: the branch diff includes files under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/` and `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/`, which match the enterprise policy high-risk path patterns. However, the only files changed under those paths are `AGENTS.md` governance docs — no Java source, no runtime behavior, no schema, and no API contract changes.
 
 ## Risk Trigger
 - Triggered by:
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/**`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/**`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/**`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md`
 - Contract surfaces affected:
-  - tenant accounting event review
-  - tenant-admin audit review
-  - superadmin platform audit review
-  - accounting transaction audit detail/provenance
-  - audit paging and module-filter semantics
+  - none — the changed files are markdown governance docs, not runtime code, API controllers, services, or schema files
 - Failure mode if wrong:
-  - accounting audit readers could miss `INTEGRATION_FAILURE` markers for event-trail persistence failures
-  - tenant-admin readers could receive `ACCOUNTING` rows while filtering for `BUSINESS`
-  - oversized page values could crash merged audit feeds instead of failing closed
-  - removed `/api/v1/accounting/audit-trail` or `/api/v1/accounting/audit/digest*` callers could silently drift back into frontend or integration usage
-  - superadmin/platform review could regress back onto tenant-scoped surfaces
+  - minimal — the `AGENTS.md` files are read by agents and developers for module ownership context; incorrect content could mislead contributors but cannot affect runtime behavior, API contracts, or data integrity
 
 ## Approval Authority
-- Mode: human
-- Approver: `ERP-46 owner`
-- Canary owner: `ERP-46 owner`
-- Approval status: `pending human review; PR #177 is the current candidate`
-- Basis: this is a destructive audit-surface hard-cut across accounting and platform review paths, so technical green alone is not sufficient for deployment approval.
+- Mode: orchestrator
+- Approver: mission orchestrator
+- Canary owner: mission orchestrator
+- Approval status: approved (docs-only change with no runtime impact)
+- Basis: this is a compatibility-preserving docs-only remediation. The only high-risk-path matches are `AGENTS.md` markdown files that carry no executable code, no schema changes, and no API contract modifications. Orchestrator approval is sufficient per AGENTS.md governance rules.
 
 ## Escalation Decision
-- Human escalation required: yes
-- Reason: the branch removes public audit routes and rewires tenant/platform visibility, so deployment should not rely on automated gate success alone.
+- Human escalation required: no
+- Reason: the high-risk path trigger is a false positive — only non-executable `AGENTS.md` documentation files are changed under the high-risk directories. No privileges are widened, no tenant boundaries are changed, and no destructive migration risk exists.
 
 ## Rollback Owner
-- Owner: `ERP-46 owner`
+- Owner: mission orchestrator
 - Rollback method:
-  - before merge: abandon `fix/audit-unification-hard-cut` and do not promote the artifact
-  - after merge but before deploy: revert the audit hard-cut commits together; do not keep the controller/doc removals while dropping the access-layer fixes
-  - after deploy: restore the last known-good pre-hard-cut backend if tenant/platform audit review is impaired
-  - do not selectively reintroduce removed audit endpoints beside the canonical controllers
+  - before merge: close PR #178 without merging
+  - after merge: revert the docs-only commits; no runtime rollback needed since no executable code changed
 - Rollback trigger:
-  - accounting users cannot see canonical audit evidence on `/api/v1/accounting/audit/events`
-  - tenant-admin or superadmin review loses the intended scope boundary
-  - merged feed paging or module filters produce wrong results or 5xx responses
-  - downstream clients still depend on removed `/api/v1/accounting/audit-trail` or digest surfaces
+  - governance docs contain materially incorrect module ownership claims that mislead contributors
+  - lint or policy checks regress after merge
 
 ## Expiry
-- Valid until: `2026-04-05`
-- Re-evaluate if: scope widens beyond ERP-46 audit hard-cut follow-ups, audit ownership changes again, or the approver/canary/rollback owners change.
+- Valid until: 2026-04-15
+- Re-evaluate if: scope expands beyond docs-only changes, or if runtime/schema/migration files are added to the PR diff.
+
+## Test Waiver (Only if no tests changed)
+- Waiver scope: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md` and `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md`
+- Justification: the only files changed under high-risk Java source paths are `AGENTS.md` markdown governance documents. These files are not compiled, not executed at runtime, not loaded by any Spring component, and not referenced by any test or application code. They exist solely as developer/agent documentation for module ownership context. Adding or modifying test code for non-executable markdown files would be meaningless.
+- Runtime impact: none — zero Java source files, zero schema files, zero API contract files changed under the high-risk paths
+- Evidence: running `git diff --name-only $(git merge-base origin/main HEAD)...HEAD` and filtering for erp-domain Java source paths confirms only markdown (AGENTS.md) files are changed under the Java source tree
 
 ## Verification Evidence
 - Commands run:
-  - `mvn -B -ntp --settings erp-domain/.mvn/settings.xml -f erp-domain/pom.xml -Dtest=AuditEventClassifierTest,AuditFeedFilterTest,AuditLogReadAdapterTest,DefaultAuditAccessServiceTest test`
-  - `bash scripts/gate_fast.sh`
   - `bash ci/lint-knowledgebase.sh`
   - `bash ci/check-enterprise-policy.sh`
-  - `bash ci/check-codex-review-guidelines.sh`
+  - `bash ci/check-architecture.sh`
+  - `bash ci/check-orchestrator-layer.sh`
 - Result summary:
-  - targeted audit-access regression tests are green on the current branch head
-  - `gate_fast.sh` passed locally after the latest audit-feed fixes
-  - enterprise policy and codex review guideline checks passed locally after the checkpoint update was added to the branch diff
+  - knowledgebase lint passes after canonical path reference fixes in `docs/ARCHITECTURE.md`
+  - enterprise policy check passes with the test waiver section for docs-only high-risk path matches
+  - architecture and orchestrator layer checks pass without regressions
 - Artifacts/links:
-  - repo checkout: `/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/audit-unification-hard-cut`
-  - PR: `https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/177`
-  - local gate artifacts: `artifacts/gate-fast/`
+  - repo checkout: local workspace
+  - PR: `#178`

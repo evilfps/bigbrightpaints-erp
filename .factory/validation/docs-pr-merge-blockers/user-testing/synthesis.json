@@ -1,0 +1,64 @@
+{
+  "milestone": "docs-pr-merge-blockers",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "notes": "Docs-only PR merge-blocker milestone. The three completed implementation features in this milestone all have empty fulfills arrays, and validation-state.json has no pending assertions left to test. No runtime setup, seeded data, or flow-validator subagents were required; validation focused on the documentation/governance surface and the changed-files coverage repro tied to the merge blockers.",
+  "verificationEvidence": {
+    "fulfillsScan": {
+      "command": "jq --arg m \"docs-pr-merge-blockers\" '.features | map(select(.milestone == $m and (.skillName|test(\"^scrutiny-|^user-testing-\")|not))) | map({id,description,verificationSteps,expectedBehavior,fulfills})' /Users/anas/.factory/missions/1e7c4a33-6fe0-46f1-8915-04b41d473137/features.json",
+      "exitCode": 0,
+      "observation": "All three completed implementation features for docs-pr-merge-blockers (`docs-pr-merge-blockers-governance-fix`, `docs-pr-merge-blockers-changed-coverage-fix`, and `docs-pr-merge-blockers-canonical-architecture-path-fix`) have empty `fulfills` arrays."
+    },
+    "pendingAssertions": {
+      "command": "jq '.assertions | to_entries | map(select(.value.status == \"pending\")) | map(.key)' /Users/anas/.factory/missions/1e7c4a33-6fe0-46f1-8915-04b41d473137/validation-state.json",
+      "exitCode": 0,
+      "observation": "Returned `[]`; there are no pending validation-contract assertions remaining in validation-state.json."
+    },
+    "lintKnowledgebase": {
+      "command": "bash ci/lint-knowledgebase.sh",
+      "exitCode": 0,
+      "observation": "[ticket-parity] OK: no ticket.yaml present; skipping parity check; [knowledgebase-lint] OK"
+    },
+    "codexReviewPolicy": {
+      "command": "bash scripts/enforce_codex_review_policy.sh",
+      "exitCode": 0,
+      "observation": "Strict review checks ran because the branch still contains non-doc paths in scope history, then completed successfully with `[knowledgebase-lint] OK`, `[architecture-check] OK`, `[enterprise-policy] OK`, `[orchestrator-layer] OK`, and `[codex-review-guidelines] OK`."
+    },
+    "enterprisePolicy": {
+      "command": "bash ci/check-enterprise-policy.sh",
+      "exitCode": 0,
+      "observation": "Passed with the high-risk-path R2 controls active: `[guard_workflow_canonical_paths] OK` and `[enterprise-policy] OK`."
+    },
+    "changedFilesCoverage": {
+      "command": "python3 scripts/changed_files_coverage.py --jacoco artifacts/pr-jacoco-local/jacoco-unit.xml --jacoco artifacts/pr-jacoco-local/jacoco-codered-access.xml --diff-base \"$(git merge-base origin/main HEAD)\" --src-root erp-domain/src/main/java --threshold-line 0.95 --threshold-branch 0.90 --fail-on-vacuous",
+      "exitCode": 0,
+      "observation": "Passed with `changed_source_files: 0`, `files_considered: 0`, and `vacuous_reason: no_changed_source_files`, confirming non-executable module `AGENTS.md` docs are no longer treated as JaCoCo-covered runtime sources."
+    },
+    "architecturePathCheck": {
+      "command": "Glob docs/{ARCHITECTURE.md,architecture.md}",
+      "exitCode": 0,
+      "observation": "Only `docs/ARCHITECTURE.md` exists in the docs tree; there is no lowercase `docs/architecture.md` path left competing with the canonical Linux-safe path."
+    },
+    "r2CheckpointReview": {
+      "command": "Read docs/approvals/R2-CHECKPOINT.md",
+      "exitCode": 0,
+      "observation": "The checkpoint now references PR `#178`, narrows scope to docs-only merge remediation, explains why `erp-domain/.../AGENTS.md` matches are false-positive high-risk paths, and includes an explicit `Test Waiver` section for the non-executable markdown files."
+    },
+    "concurrencyDecision": {
+      "command": "vm_stat && sysctl -n hw.memsize && ps -Ao pid,%mem,%cpu,comm | sort -k2 -nr | head -10",
+      "exitCode": 0,
+      "observation": "Host has 25.8 GiB RAM and sufficient free memory for lightweight docs validation. `.factory/library/user-testing.md` sets `docs-tree` max concurrency to 2, but zero assertion groups were produced for this milestone, so no flow-validator subagents were spawned."
+    }
+  },
+  "appliedUpdates": [],
+  "previousRound": null
+}

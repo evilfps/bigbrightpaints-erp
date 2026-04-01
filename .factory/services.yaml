@@ -53,6 +53,14 @@ commands:
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -T8 package -DskipTests
   lint: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh
+  docs-lint: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/lint-knowledgebase.sh
+  codex-review-policy: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/enforce_codex_review_policy.sh
+  docs-governance: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/check-enterprise-policy.sh && bash ci/check-architecture.sh && bash ci/check-orchestrator-layer.sh
+  docs-contract-guards: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash ci/lint-knowledgebase.sh && bash ci/check-enterprise-policy.sh && bash ci/check-architecture.sh && bash ci/check-orchestrator-layer.sh && bash scripts/guard_openapi_contract_drift.sh
   milestone-shareout: >-
     ROOT=$(git rev-parse --show-toplevel) && git -C "$ROOT" status --short --branch && echo '---' && git -C "$ROOT" log --oneline --decorate origin/main..HEAD && echo '---' && git -C "$ROOT" diff --stat origin/main...HEAD
   packet-review: >-

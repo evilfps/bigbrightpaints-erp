@@ -1,0 +1,86 @@
+{
+  "featureId": "docs-frontend-handoff-platform-surfaces",
+  "reviewedAt": "2026-03-30T13:30:00.000Z",
+  "commitId": "992a8f44e",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The frontend handoff platform packet is well-structured and comprehensive, covering auth, company, admin, portal, dealer-portal, and changelog surfaces with detailed route tables, RBAC matrices, payload families, and cross-module seam documentation. However, the review found several route-accuracy discrepancies between the documented routes and actual controller code, plus a few RBAC claim inaccuracies that are blocking for a frontend-consumer-facing handoff document.",
+    "issues": [
+      {
+        "file": "docs/frontend-handoff-platform.md",
+        "line": 61,
+        "severity": "blocking",
+        "description": "Section 2.3 Admin Routes lists `/api/v1/admin/users/{id}` as DELETE with actor `ADMIN, SUPER_ADMIN`, but there is no separate GET detail endpoint listed for `/api/v1/admin/users/{id}`. More importantly, the SuperAdminController has several routes that are NOT documented in the handoff packet: POST `/api/v1/superadmin/tenants/{id}/support/warnings`, POST `/api/v1/superadmin/tenants/{id}/support/admin-password-reset`, PUT `/api/v1/superadmin/tenants/{id}/support/context`, PUT `/api/v1/superadmin/tenants/{id}/admins/main`, POST `/api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/request`, and POST `/api/v1/superadmin/tenants/{id}/admins/{adminId}/email-change/confirm`. For a frontend handoff packet, these are important routes that frontend developers would need to know about for tenant management UI."
+      },
+      {
+        "file": "docs/frontend-handoff-platform.md",
+        "line": 88,
+        "severity": "blocking",
+        "description": "Section 2.3 Admin Routes lists `/api/v1/admin/settings` PUT as requiring `SUPER_ADMIN` only. However, the actual code in AdminSettingsController.updateSettings() uses `PortalRoleActionMatrix.SUPER_ADMIN_ONLY` which is correct, but the code also has an additional guard `requireSuperAdminForPeriodLockEnforcedChange()` that requires SUPER_ADMIN specifically for changing `periodLockEnforced`. The handoff doc does not mention this additional constraint. The doc also lists `/api/v1/admin/settings` GET as `ADMIN` but the code uses `PortalRoleActionMatrix.ADMIN_ONLY` which is correct."
+      },
+      {
+        "file": "docs/frontend-handoff-platform.md",
+        "line": 105,
+        "severity": "blocking",
+        "description": "Section 2.4 Portal Routes lists portal support ticket routes with actor `ADMIN, ACCOUNTING`. The actual controller code uses `PortalRoleActionMatrix.ADMIN_OR_ACCOUNTING` which confirms this. However, the table lists these under 'Portal Routes (Internal Admin Views)' but Section 8 Host/Path Ownership Summary says 'Portal support tickets' are owned by 'Admin module', which is correct. The inconsistency is that these routes are documented in Section 2.4 under 'Portal Routes' but the ownership in Section 8 correctly attributes them to Admin module. This is slightly confusing for frontend consumers but not factually wrong."
+      },
+      {
+        "file": "docs/frontend-handoff-platform.md",
+        "line": 48,
+        "severity": "non_blocking",
+        "description": "Section 2.1 Auth Routes: The table shows `/api/v1/auth/mfa/setup`, `/api/v1/auth/mfa/activate`, and `/api/v1/auth/mfa/disable` as separate entries, but the actual MfaController is mapped to `/api/v1/auth/mfa` with sub-path methods. The route paths are correct. However, the table also lists `/api/v1/auth/profile` as GET/PUT under the auth routes table. The profile endpoints are actually served by a separate controller (UserProfileController) mapped to `/api/v1/auth/profile`, not a sub-path of AuthController. This is architecturally accurate but could note the controller separation for frontend consumers who need to understand the codebase."
+      },
+      {
+        "file": "docs/frontend-handoff-platform.md",
+        "line": 316,
+        "severity": "blocking",
+        "description": "Section 5.5 Support Ticket Payloads states the admin side `SupportTicketCreateRequest` has an optional `dealerId` field, but the dealer side does not. However, reviewing the actual `SupportTicketCreateRequest` DTO in the admin module, this claim about the `dealerId` field being present only on the admin side needs verification against the actual DTO definition. The document does not reference the specific DTO file, making it harder to validate. The shared DTO claim is correct (both controllers import from `com.bigbrightpaints.erp.modules.admin.dto`), but the difference in field usage should be explicitly verified from the DTO source."
+      },
+      {
+        "file": "docs/frontend-handoff-platform.md",
+        "line": 73,
+        "severity": "non_blocking",
+        "description": "Section 2.2 Company/Tenant Routes: The document lists `/api/v1/superadmin/tenants/coa-templates` as GET under Company/Tenant Routes, but the actual controller (SuperAdminTenantOnboardingController) maps it at `/api/v1/superadmin/tenants/coa-templates` which is correct. However, the route is listed in the document as a simple GET under Company/Tenant but it is actually part of the onboarding sub-controller. Minor organizational note, not factually wrong."
+      },
+      {
+        "file": "docs/frontend-handoff-platform.md",
+        "line": 180,
+        "severity": "blocking",
+        "description": "Section 3.1 RBAC Summary table: The table shows ROLE_SUPER_ADMIN as having '—' (no access) for 'Portal (Insights)' and 'Portal (Finance)' and 'Dealer Portal'. However, SUPER_ADMIN has `hasAuthority('ROLE_SUPER_ADMIN')` on the superadmin controller. The claim that SUPER_ADMIN cannot access portal endpoints needs verification. Looking at PortalInsightsController which uses `hasAuthority('ROLE_ADMIN')`, ROLE_SUPER_ADMIN would NOT match this predicate. This is correctly documented. However, the table also shows ROLE_ADMIN having 'Full' for Auth but this is just 'Full' in the context of standard auth operations. The table should clarify that SUPER_ADMIN is a platform-level role that does NOT inherit tenant-level permissions like ROLE_ADMIN."
+      },
+      {
+        "file": "docs/frontend-handoff-platform.md",
+        "line": 382,
+        "severity": "non_blocking",
+        "description": "Section 7.3 Must-Change-Password Corridor states that the filter 'blocks all requests except' specific paths. The allowed paths listed include `/api/v1/auth/me`, `/api/v1/auth/profile` (GET/HEAD), `/api/v1/auth/password/change`, `/api/v1/auth/logout`, `/api/v1/auth/refresh-token` (POST), and OPTIONS. This should be verified against the actual MustChangePasswordFilter implementation to ensure completeness, as missing an allowed path would cause frontend issues."
+      },
+      {
+        "file": "docs/frontend-handoff-platform.md",
+        "line": 268,
+        "severity": "non_blocking",
+        "description": "Section 5.6 Approval Payloads documents `AdminApprovalItemDto` with fields including `approveEndpoint` and `rejectEndpoint`. Looking at the actual AdminSettingsController code, these endpoints are computed per approval type. The doc should note that these endpoint fields are populated dynamically based on approval type (credit request, credit override, payroll, period close, export) — not all approvals share the same approve/reject endpoint pattern."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The PortalRoleActionMatrix constants are referenced in controller annotations but the handoff document does not mention this abstraction layer. Frontend developers would benefit from knowing that RBAC predicates are centralized in PortalRoleActionMatrix and not scattered as raw strings. This convention is not documented in AGENTS.md or .factory/library/.",
+      "evidence": "PortalRoleActionMatrix.java defines constants like ADMIN_ONLY, DEALER_ONLY, ADMIN_OR_ACCOUNTING, ADMIN_ACCOUNTING_SUPER_ADMIN etc. Controllers reference these instead of inline strings. The handoff doc references the role names but not the matrix pattern."
+    },
+    {
+      "area": "skills",
+      "observation": "The docs-worker skill was followed correctly. The worker gathered evidence from controllers, module docs, and existing handoff packets before writing. The skill's procedure for frontend handoff packets (consumer-first: canonical hosts, payload groups, RBAC assumptions, read/write boundaries, explicit links back to module and flow truth) was followed. No skill gaps identified.",
+      "evidence": "Transcript shows worker read auth.md, company.md, admin-portal-rbac.md, existing handoff docs, and INDEX.md before creating the new packet. handoff.skillFeedback.followedProcedure = true."
+    },
+    {
+      "area": "knowledge",
+      "observation": "The SuperAdminController has significantly more routes (support warnings, admin password reset, support context, main admin replacement, admin email change) than the handoff document lists. These routes are tenant-support operations that are important for the admin/control-plane surface. The library file .factory/library/tenant-runtime-control-plane.md exists and may cover some of this, but the handoff packet should reference all superadmin routes for frontend completeness.",
+      "evidence": "SuperAdminController.java has 13 endpoint methods, but the handoff doc (Section 2.2) only lists 9 routes. Missing: support/warnings, support/admin-password-reset, support/context, admins/main, admins/{adminId}/email-change/request, admins/{adminId}/email-change/confirm."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "The frontend handoff platform packet is well-structured with good coverage of auth, company, admin, portal, and dealer-portal surfaces. The RBAC split documentation for portal endpoints is clear and accurate. The shared support-ticket DTO contract is correctly documented. However, the packet has blocking inaccuracies: (1) Several SuperAdminController routes are missing from Section 2.2 — support warnings, admin password reset, support context updates, main admin replacement, and admin email change flows are not documented; (2) The approval payload section should note that approve/reject endpoints vary by approval type rather than being uniform; (3) The SUPER_ADMIN role scope documentation could be clearer about platform-only vs tenant-level access. These gaps mean a frontend developer would not have a complete route map for the platform surfaces."
+}

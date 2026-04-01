@@ -1,0 +1,89 @@
+{
+  "milestone": "docs-mainline-catchup-structure",
+  "round": 2,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh && bash ci/check-enterprise-policy.sh && bash ci/check-architecture.sh && bash ci/check-orchestrator-layer.sh",
+      "exitCode": 0,
+      "observation": "All four docs/governance validators passed: knowledgebase-lint OK, enterprise-policy OK, architecture-check OK, orchestrator-layer OK"
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0,
+      "observation": "Maven compile succeeded with exit code 0"
+    },
+    "test": {
+      "passed": true,
+      "command": "N/A - docs-only milestone, no runtime tests needed",
+      "exitCode": 0,
+      "observation": "Docs-only milestone, test suite not required for validation"
+    }
+  },
+  "reviewsSummary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "failedFeatures": [],
+    "round1FailedFeatures": ["docs-mainline-shared-api-and-auth-scope"],
+    "fixFeature": "docs-mainline-shared-api-contract-reconciliation",
+    "fixStatus": "pass"
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-mainline-shared-api-contract-reconciliation",
+      "severity": "non_blocking",
+      "description": "exports-and-approvals.md: Export download path documented as GET /api/v1/exports/download/{requestId} but actual OpenAPI path is GET /api/v1/exports/{requestId}/download (segment order differs). Pre-existing inaccuracy not caught by the fix."
+    },
+    {
+      "featureId": "docs-mainline-shared-api-contract-reconciliation",
+      "severity": "non_blocking",
+      "description": "exports-and-approvals.md: Export request flow summary still references 'Poll for export completion status' but there is no status polling endpoint. Flow summary should reflect the actual workflow (request → retry download)."
+    },
+    {
+      "featureId": "docs-mainline-shared-api-contract-reconciliation",
+      "severity": "non_blocking",
+      "description": "exports-and-approvals.md and dto-examples.md: ExportRequestCreateRequest.parameters typed as string in OpenAPI but shown as JSON object in docs examples. Should be documented as a stringified JSON or the actual behavior clarified."
+    },
+    {
+      "featureId": "docs-mainline-shared-api-contract-reconciliation",
+      "severity": "non_blocking",
+      "description": "exports-and-approvals.md: POST /api/v1/sales/orders/{orderId}/request-approval does not exist in OpenAPI spec. Pre-existing inaccuracy not part of original blocking issues."
+    },
+    {
+      "featureId": "docs-mainline-shared-api-contract-reconciliation",
+      "severity": "non_blocking",
+      "description": "dto-examples.md: Markdown code block for 'List Invoices' at line 158 is never closed — formatting artifact introduced by the fix when POST /api/v1/invoices section was removed."
+    },
+    {
+      "featureId": "docs-mainline-shared-api-contract-reconciliation",
+      "severity": "non_blocking",
+      "description": "dto-examples.md: GET /api/v1/dealers/101 shown as example but OpenAPI only has PUT on /api/v1/dealers/{dealerId} — no GET method on individual dealer path. Pre-existing inaccuracy."
+    },
+    {
+      "featureId": "docs-mainline-shared-api-contract-reconciliation",
+      "severity": "non_blocking",
+      "description": "dto-examples.md line 273: Approval endpoint listed as POST but actual OpenAPI method is PUT for export approval. Minor HTTP method inaccuracy."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add guidance that docs-worker must verify ALL documented API endpoint paths and request/response schemas against openapi.json before writing them as canonical mainline behavior — not just the paths flagged in review.",
+      "evidence": "The fix feature correctly addressed the 4 flagged blocking issues but left 7 non-blocking residual inaccuracies in the same files. The worker only fixed the specific issues raised rather than doing a comprehensive openapi.json reconciliation pass across all endpoints in each file.",
+      "isSystemic": false
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add guidance that when creating new canonical docs that supersede earlier models, the worker should also update docs/INDEX.md and cross-links to prevent silent duplication between old and new models.",
+      "evidence": "Features docs-mainline-frontend-portals-foundation and docs-mainline-shared-api-and-auth-scope both created new canonical docs structures without updating docs/INDEX.md. The old frontend-handoff-*.md files still appear as the canonical handoff model. This was flagged as non-blocking in round 1.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/docs-mainline-catchup-structure/scrutiny/synthesis.json (round 1)"
+}

@@ -1,5 +1,9 @@
 # BigBright ERP Architecture (Code-Grounded)
 
+> ⚠️ **NON-CANONICAL**: This document is superseded by the canonical documentation in the new docs tree. See [docs/INDEX.md](INDEX.md) as the primary entry point, [docs/modules/MODULE-INVENTORY.md](modules/MODULE-INVENTORY.md) for the module inventory, and [docs/BACKEND-FEATURE-CATALOG.md](BACKEND-FEATURE-CATALOG.md) for the exhaustive feature catalog.
+
+Last reviewed: 2026-03-29
+
 This document captures the runtime architecture implemented in `erp-domain` and is intended as an engineering reference for cross-module behavior, invariants, and dependency boundaries.
 
 ## 1) Runtime topology and module map
@@ -303,7 +307,7 @@ Primary files:
 The repository still contains the frozen historical `db/migration/*` tree, but
 the current operational contract is `db/migration_v2/*` only.
 
-Runtime profile grouping in `application.yml` binds production to `flyway-v2`
+Runtime profile grouping in `erp-domain/src/main/resources/application.yml` binds production to `flyway-v2`
 (`spring.profiles.group.prod: [flyway-v2]`), making `migration_v2` the only
 supported prod-like runtime path. Tooling and deployment docs should not point
 new work back at the legacy chain.
@@ -439,14 +443,16 @@ Observed result at documentation time: `Tests run: 394, Failures: 0, Errors: 0, 
 
 ## 10) Source index (quick jump)
 
-- Sales/O2C: `modules/sales/{controller,service}`
-- Inventory dispatch/reservation/slips: `modules/inventory/service/*`
-- Invoice linkage: `modules/invoice/service/InvoiceService.java`
-- Accounting core/period/reconciliation: `modules/accounting/internal/*`, `modules/accounting/service/*`
-- Purchasing/P2P: `modules/purchasing/{controller,service}`
-- Factory/M2S: `modules/factory/service/*`
-- Payroll: `modules/hr/{controller,service}`
-- Tenant/runtime security: `core/security/CompanyContextFilter.java`, `modules/company/service/*`
-- Migration/import: `modules/accounting/service/{OpeningBalanceImportService,TallyImportService}.java`, `modules/inventory/service/OpeningStockImportService.java`
-- Support tickets: `modules/admin/{controller,service,domain}`
-- Runtime config + migrations: `src/main/resources/application.yml`, `src/main/resources/db/migration_v2/*`
+All paths below are relative to `erp-domain/src/main/java/com/bigbrightpaints/erp/` unless otherwise noted.
+
+- Sales/O2C: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/controller/`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/`
+- Inventory dispatch/reservation/slips: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/*`
+- Invoice linkage: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/service/InvoiceService.java`
+- Accounting core/period/reconciliation: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/*`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/*`
+- Purchasing/P2P: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/controller/`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/`
+- Factory/M2S: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/factory/service/*`
+- Payroll: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/controller/`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/`
+- Tenant/runtime security: `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/company/service/*`
+- Migration/import: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/OpeningBalanceImportService.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/TallyImportService.java`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/OpeningStockImportService.java`
+- Support tickets: `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/controller/`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/service/`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/admin/domain/`
+- Runtime config + migrations: `erp-domain/src/main/resources/application.yml`, `erp-domain/src/main/resources/db/migration_v2/*`

@@ -1,0 +1,49 @@
+{
+  "milestone": "docs-handoff-platform",
+  "round": 3,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh",
+      "exitCode": 0,
+      "observation": "[ticket-parity] OK: no ticket.yaml present; skipping parity check\n[knowledgebase-lint] OK"
+    },
+    "check-enterprise-policy": {
+      "passed": true,
+      "command": "bash ci/check-enterprise-policy.sh",
+      "exitCode": 0,
+      "observation": "[enterprise-policy] canonical workflow decision contract guard\n[guard_workflow_canonical_paths] verified canonical dispatch source path\n[guard_workflow_canonical_paths] OK\n[enterprise-policy] high-risk paths changed; enforcing R2 enterprise controls\n[enterprise-policy] OK"
+    },
+    "check-architecture": {
+      "passed": true,
+      "command": "bash ci/check-architecture.sh",
+      "exitCode": 0,
+      "observation": "[architecture-check] allowlist evidence contract\n[allowlist-evidence] OK\n[architecture-check] OK"
+    },
+    "check-orchestrator-layer": {
+      "passed": true,
+      "command": "bash ci/check-orchestrator-layer.sh",
+      "exitCode": 0,
+      "observation": "[orchestrator-layer] OK"
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-handoff-platform-support-ticket-fix",
+      "severity": "non_blocking",
+      "description": "The SupportTicketResponse Detail payload in the handoff doc lists fields (assignedTo, comments[]) that don't exist in the actual DTO. This is a simplified frontend-facing view, which is reasonable for a handoff doc, but the fields assignedTo and comments[] are not in the DTO at all. Pre-existing and outside the fix scope."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/docs-handoff-platform/scrutiny/synthesis.json"
+}

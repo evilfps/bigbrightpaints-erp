@@ -1,0 +1,66 @@
+{
+  "milestone": "docs-cleanup-deprecated",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh",
+      "exitCode": 0,
+      "observation": "[ticket-parity] OK: no ticket.yaml present; skipping parity check\n[knowledgebase-lint] OK"
+    },
+    "architecture": {
+      "passed": true,
+      "command": "bash ci/check-architecture.sh",
+      "exitCode": 0,
+      "observation": "[allowlist-evidence] OK\n[architecture-check] OK"
+    },
+    "enterprisePolicy": {
+      "passed": true,
+      "command": "bash ci/check-enterprise-policy.sh",
+      "exitCode": 0,
+      "observation": "[guard_workflow_canonical_paths] OK\n[enterprise-policy] OK"
+    },
+    "orchestratorLayer": {
+      "passed": true,
+      "command": "bash ci/check-orchestrator-layer.sh",
+      "exitCode": 0,
+      "observation": "[orchestrator-layer] OK"
+    }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "docs/CONVENTIONS.md",
+      "suggestion": "Add the exact NON-CANONICAL / REFERENCE ONLY banner markdown template to CONVENTIONS.md §6 so future workers have a canonical format to follow rather than inventing their own banner style.",
+      "evidence": "Feature docs-consolidation-legacy-redirects established a consistent banner pattern (blockquote with ⚠️ icon, bold label, relative replacement links) across 12 legacy docs, but the exact template is not codified in CONVENTIONS.md. CONVENTIONS.md §6.2 describes the policy (redirect, archive, mark non-canonical) but does not show the markdown template. This could lead to drift if future workers invent their own banner style.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "ERP-DOD-BIBLE.md and migration-guide.md remain without top-level NON-CANONICAL banners despite mentioning live endpoints/behavior.",
+      "reason": "ambiguous — ERP-DOD-BIBLE.md claims to be authoritative and has inline [NON-CANONICAL] annotations on specific sections. Whether these need top-level banners depends on scoping decisions that are the orchestrator's to make, not the scrutiny validator's."
+    }
+  ],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-consolidation-deprecated-registry",
+      "severity": "non_blocking",
+      "description": "The 'Accounting and Reporting' section in docs/deprecated/INDEX.md references 'accounting-period-close flow' but entries like 'Audit digest CSV export' arguably relate more to the reporting-export flow. The reporting-export flow link is already present in the next section. Consider updating to reference both flows or reorganizing."
+    },
+    {
+      "featureId": "docs-consolidation-legacy-redirects",
+      "severity": "non_blocking",
+      "description": "The exact NON-CANONICAL/REFERENCE ONLY banner markdown template is not codified in docs/CONVENTIONS.md. CONVENTIONS.md §6.2 describes the policy but not the template format."
+    }
+  ],
+  "previousRound": null
+}

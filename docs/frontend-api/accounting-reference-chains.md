@@ -1,5 +1,7 @@
 # Accounting Reference Chains
 
+This file captures the canonical document and reference chains frontend uses across onboarding, stock bootstrap, accounting workflows, and audit/provenance reads.
+
 Reference chains define which upstream business event the frontend should use
 when linking screens, toasts, audits, and support traces.
 
@@ -219,3 +221,129 @@ UI implication:
 - Do not invent a separate export-history backend list. Keep request status on
   the originating accounting report screen unless the backend grows a dedicated
   request history surface.
+
+## Audit Trail
+
+All accounting transactions are recorded in the audit trail with provenance fields.
+
+### Query Audit Trail
+
+```
+GET /api/v1/accounting/audit/transactions?filter.journalEntryId=1001
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "journalEntryId": 1001,
+        "eventType": "POST",
+        "actorEmail": "user@example.com",
+        "timestamp": "2026-03-31T10:00:00Z",
+        "drivingDocument": {
+          "type": "INVOICE",
+          "id": 42,
+          "reference": "INV-2026-0042"
+        },
+        "linkedDocuments": [
+          {
+            "type": "SALES_ORDER",
+            "id": 2001,
+            "reference": "SO-2026-0156"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+## Provenance Fields
+
+### drivingDocument
+
+The primary document that triggered the transaction.
+
+```json
+{
+  "drivingDocument": {
+    "type": "INVOICE",
+    "id": 42,
+    "reference": "INV-2026-0042"
+  }
+}
+```
+
+### linkedDocuments
+
+All related documents in the transaction chain.
+
+```json
+{
+  "linkedDocuments": [
+    { "type": "SALES_ORDER", "id": 2001, "reference": "SO-2026-0156" },
+    { "type": "DEALER", "id": 101, "reference": "ACME01" }
+  ]
+}
+```
+
+### eventTrail
+
+Complete history of the transaction lifecycle.
+
+```json
+{
+  "eventTrail": [
+    { "event": "CREATED", "timestamp": "2026-03-30T14:00:00Z", "actor": "user@example.com" },
+    { "event": "POSTED", "timestamp": "2026-03-31T10:00:00Z", "actor": "user@example.com" }
+  ]
+}
+```
+
+## Canonical Audit Surfaces
+
+The current canonical audit read surfaces are:
+
+| Surface | Endpoint | Description |
+|---|---|---|
+| Accounting audit trail | `/api/v1/accounting/audit-trail` | Full accounting audit trail with all transaction events (requires ROLE_ADMIN or ROLE_ACCOUNTING) |
+| Accounting audit transactions | `/api/v1/accounting/audit/transactions` | Paginated list of accounting transactions with filters (requires ROLE_ADMIN or ROLE_ACCOUNTING) |
+| Accounting audit transactions (detail) | `/api/v1/accounting/audit/transactions/{journalEntryId}` | Single transaction audit detail by journal entry ID (requires ROLE_ADMIN or ROLE_ACCOUNTING) |
+| Business events audit | `/api/v1/audit/business-events` | Business-level audit events across modules (requires ROLE_ADMIN or ROLE_ACCOUNTING) |
+| ML events audit | `/api/v1/audit/ml-events` | Machine learning/analytics audit events (requires ROLE_ADMIN) |
+
+> **Deprecated**: `/api/v1/accounting/audit/digest` is deprecated and should not be used for new integrations. Use `/api/v1/accounting/audit/transactions` with filters instead.
+
+> **Note**: The paths `/api/v1/admin/audit/events` and `/api/v1/superadmin/audit/platform-events` do not exist in the current API contract. Use the accounting audit endpoints listed above for audit queries.
+
+For more details on audit-surface ownership, see [core-audit-runtime-settings.md](../modules/core-audit-runtime-settings.md) and [AUDIT_TRAIL_OWNERSHIP.md](../AUDIT_TRAIL_OWNERSHIP.md).
+
+## Cross-Module Reference Types
+
+| Type | Module | Description |
+|---|---|---|
+| `SALES_ORDER` | sales | Sales order documents |
+| `INVOICE` | invoice | Invoice documents |
+| `PURCHASE_ORDER` | purchasing | Purchase order documents |
+| `GOODS_RECEIPT` | purchasing | Goods receipt notes |
+| `PAYMENT` | accounting | Payment transactions |
+| `JOURNAL_ENTRY` | accounting | Journal entries |
+| `DEALER` | sales | Dealer/customer records |
+| `SUPPLIER` | purchasing | Supplier records |
+| `EMPLOYEE` | hr | Employee records |
+
+## Frontend Display Guidance
+
+1. **Navigation** — Allow users to click references to navigate to the related document.
+2. **Breadcrumbs** — Show the full reference chain (e.g., "SO-2026-0156 → INV-2026-0042 → JE-1001").
+3. **Audit trail** — Display the event trail to show who did what and when.
+4. **Driven by** — Always show the `drivingDocument` as the primary source.
+
+## Links
+
+- See [`docs/frontend-portals/accounting/api-contracts.md`](../frontend-portals/accounting/api-contracts.md) for accounting-specific contracts.
+- See [exports-and-approvals.md](./exports-and-approvals.md) for export and approval workflows.

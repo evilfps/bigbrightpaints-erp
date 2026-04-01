@@ -1,0 +1,21 @@
+{
+  "milestone": "docs-authoritative-followup",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": ["VAL-MAIN-007", "VAL-MAIN-008", "VAL-MAIN-009"],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null,
+  "evidence": {
+    "VAL-MAIN-007": "docs/RECOMMENDATIONS.md is the canonical recommendations register, discoverable from docs/INDEX.md line 31 with explicit description 'Canonical recommendations register — single authoritative surface for user-approved verdicts'. Contains 24 classified items across 12 sections (Auth, Tenant/Admin, Catalog, Manufacturing, Inventory, O2C, P2P, Invoice/Dealer Finance, Accounting Period Close, HR/Payroll, Reporting/Export) using three-tier classification (Bug to Fix Now, Future Work with priority levels, Accepted Product Decision). Header explicitly states 'All other recommendation or open-decision sections in flow packets, module packets, and handoff documents should defer to this register for authoritative verdicts.' Includes contributor guidance section forbidding creation of competing recommendation sections. Last reviewed: 2026-03-31. ci/lint-knowledgebase.sh passes in full-contract mode.",
+    "VAL-MAIN-008": "All 11 flow packets and 5 module packets with open-decision sections explicitly defer to RECOMMENDATIONS.md. Verified deferral language in: all 11 flow packets (auth-identity.md, tenant-admin-management.md, catalog-setup-readiness.md, manufacturing-packing.md, inventory-management.md, order-to-cash.md, procure-to-pay.md, invoice-dealer-finance.md, accounting-period-close.md, hr-payroll.md, reporting-export.md) and 4 module packets (sales.md, auth.md, inventory.md, purchasing.md). Each uses the pattern 'The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.' No competing recommendation sections found — all open-decision sections contain factual implementation status only and defer to the register for classification.",
+    "VAL-MAIN-009": "Audit-trail docs are refreshed and aligned with the canonical audit register and current audit decisions. (1) docs/modules/core-audit-runtime-settings.md §5.4 documents the profile audit gap and explicitly defers to RECOMMENDATIONS.md with classification 'Bug to Fix Now'. (2) docs/modules/auth.md §7 documents the profile audit gap and defers to RECOMMENDATIONS.md. (3) docs/AUDIT_TRAIL_OWNERSHIP.md documents the canonical audit surfaces (audit_logs, audit_action_events, accounting_events) with de-dup policy and change-control rule. (4) docs/frontend-api/accounting-reference-chains.md documents all 5 canonical audit read surfaces (/api/v1/accounting/audit-trail, /api/v1/accounting/audit/transactions, /api/v1/audit/business-events, /api/v1/audit/ml-events) with explicit retirement notes for non-canonical paths. (5) ADR-004-layered-audit-surfaces.md documents the three-audit-surface architecture. No competing or superseded audit guidance found — all audit docs reference each other and defer to RECOMMENDATIONS.md for gap classifications."
+  }
+}

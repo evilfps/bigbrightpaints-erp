@@ -1,0 +1,15 @@
+{
+  "featureId": "docs-commercial-finance-invoice-truth-fix",
+  "reviewedAt": "2026-03-30T08:30:00Z",
+  "commitId": "7e7e1c8d1",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix feature adequately addresses all 5 blocking issues from the prior review. The worker read the actual source files (InvoiceSettlementPolicy.java, InvoiceService.java, SalesFulfillmentService.java, AccountingFacade.java), identified the truth discrepancies, and made targeted corrections to docs/modules/invoice.md without broadening the packet scope. All changes are accurate against the source code.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": ".factory/validation/docs-commercial-finance/scrutiny/reviews/docs-commercial-invoice-lifecycle-finance-hosts.json",
+  "summary": "PASS — All 5 original blocking issues have been correctly resolved. (1) Invoice lifecycle table now lists DRAFT, ISSUED, PARTIAL, PAID, VOID, REVERSED matching InvoiceSettlementPolicy.InvoiceStatus exactly. (2) Fabricated InvoiceService.settleInvoice() replaced with real InvoiceSettlementPolicy.applyPayment()/applySettlement(). (3) Fabricated AccountingFacade.postPaymentJournal() removed; replaced with accurate statement about internal settlement services. (4) SettlementApprovalDecision and SettlementApprovalReasonCode correctly reclassified as value types inside InvoiceSettlementPolicy (confirmed: they are a record and enum in the same package, used exclusively by InvoiceSettlementPolicy). (5) postSalesJournal correctly attributed to SalesFulfillmentService with accurate note about issueInvoice=true disabling it. The worker also fixed the invoice status list in the Invoice List section to use the correct enum values. The fix is narrow and truth-aligned — no scope broadening, no new inaccuracies introduced. Lint passed."
+}

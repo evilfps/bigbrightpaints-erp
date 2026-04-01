@@ -1,0 +1,17 @@
+{
+  "milestone": "docs-foundation-lint",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": ["VAL-FOUND-006"],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null,
+  "notes": "Docs-only milestone. No runtime services needed. VAL-FOUND-006 validated by running ci/lint-knowledgebase.sh which exited 0 in full-contract mode (not compatibility fallback). All 22 required files present, freshness markers valid, internal links resolve, ticket-parity guard passes."
+}

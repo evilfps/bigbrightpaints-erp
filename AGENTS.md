@@ -1,6 +1,6 @@
 # Repository Agent Governance
 
-Last reviewed: 2026-03-07
+Last reviewed: 2026-03-29
 
 ## Code Style & Formatting
 
@@ -28,7 +28,7 @@ Last reviewed: 2026-03-07
 - Use `Factory-droid` as the integration base for remediation packet review unless a packet explicitly states a narrower stacked-review base.
 - Treat docs-only governance changes as docs-only packets: run `bash ci/lint-knowledgebase.sh`, keep the diff limited to docs/governance files, and skip Codex review/subagent review for that packet.
 - Any runtime, config, schema, or test-impacting packet must pass `bash ci/check-codex-review-guidelines.sh` before it is considered review-ready.
-- High-risk auth, company, RBAC, HR, accounting, orchestrator, or `db/migration_v2` changes must update `docs/approvals/R2-CHECKPOINT.md` in the same packet with scope-specific evidence.
+- High-risk auth, company, RBAC, HR, accounting, orchestrator, or `erp-domain/src/main/resources/db/migration_v2/` changes must update `docs/approvals/R2-CHECKPOINT.md` in the same packet with scope-specific evidence.
 - Review workers may prepare packet/release-gate evidence and commit docs-only governance fixes, but they must never push, merge, or rewrite history.
 
 ## R2 Escalation Checkpoint

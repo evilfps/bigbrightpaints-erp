@@ -1,0 +1,127 @@
+{
+  "featureId": "docs-commercial-purchasing-p2p",
+  "milestone": "docs-commercial-p2p",
+  "reviewedAt": "2026-03-30T06:45:00.000Z",
+  "commitId": "ef44c6ad",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The purchasing documentation packet provides excellent structural coverage of all VAL-COMM-002 required areas (supplier lifecycle, PO, GRN, purchase invoices, returns, settlements, approvals, idempotency) and includes strong cross-references and a clear stock-truth vs AP-truth boundary section. However, cross-verification against the source code reveals several inaccurate enum/status value names, an incomplete PO lifecycle model (missing INVOICED status), and an incorrect GRN status flow. These inaccuracies would mislead developers relying on the packet as canonical truth.",
+    "issues": [
+      {
+        "file": "docs/modules/purchasing.md",
+        "line": null,
+        "severity": "blocking",
+        "description": "SupplierStatus enum values are incorrect. Docs list 'PENDING_APPROVAL' but the actual enum is SupplierStatus.PENDING. This affects Section 1 (Domain enums table) and Section 3 (Supplier Status Flow table). Code reference: SupplierStatus.java defines PENDING, APPROVED, ACTIVE, SUSPENDED."
+      },
+      {
+        "file": "docs/modules/purchasing.md",
+        "line": null,
+        "severity": "blocking",
+        "description": "PurchaseOrderStatus enum values are incorrect. Docs list 'VOIDED' but the actual enum is PurchaseOrderStatus.VOID. Docs also miss the INVOICED status entirely. This affects Section 1 (Domain enums table) and Section 4 (PO Status Flow). Code reference: PurchaseOrderStatus.java defines DRAFT, APPROVED, PARTIALLY_RECEIVED, FULLY_RECEIVED, INVOICED, CLOSED, VOID."
+      },
+      {
+        "file": "docs/modules/purchasing.md",
+        "line": null,
+        "severity": "blocking",
+        "description": "GoodsReceiptStatus values are completely wrong. Docs say 'PENDING → POSTED' but the actual enum has PARTIAL, RECEIVED, INVOICED. The default status in GoodsReceipt.java is RECEIVED, not PENDING. This affects Section 1 and Section 5. Code reference: GoodsReceiptStatus.java."
+      },
+      {
+        "file": "docs/modules/purchasing.md",
+        "line": null,
+        "severity": "blocking",
+        "description": "PO status transition model is significantly wrong. Docs show DRAFT→APPROVED→PARTIALLY_RECEIVED→FULLY_RECEIVED→CLOSED with VOIDED from APPROVED and PARTIALLY_RECEIVED. Actual code (PurchaseOrderService.isValidTransition) shows: DRAFT→APPROVED|VOID, APPROVED→PARTIALLY_RECEIVED|FULLY_RECEIVED|VOID, PARTIALLY_RECEIVED→FULLY_RECEIVED, FULLY_RECEIVED→INVOICED, INVOICED→CLOSED. The INVOICED intermediate step is entirely missing. VOID is only allowed from DRAFT and APPROVED (not from PARTIALLY_RECEIVED as the docs flow diagram suggests). PO close is only allowed from INVOICED, not from PARTIALLY_RECEIVED or FULLY_RECEIVED as docs claim."
+      },
+      {
+        "file": "docs/modules/purchasing.md",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "Section 3 (Supplier Activation) says activate transitions from APPROVED → ACTIVE only, but SupplierService.activateSupplier() also allows SUSPENDED → ACTIVE. The docs mention this in the Suspension section ('can reactivate via /activate') but the activation section and status flow diagram should reflect both paths for completeness."
+      },
+      {
+        "file": "docs/modules/purchasing.md",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "Section 3 (Supplier Creation) says payable account code is 'AP-{SUPPLIER_CODE}' with a uniqueness prerequisite. The actual code in SupplierService.createPayableAccount() uses suffix logic: if AP-{CODE} exists, tries AP-{CODE}-1, AP-{CODE}-2, etc. The docs' 'must not already exist' constraint is inaccurate — the code auto-resolves collisions."
+      },
+      {
+        "file": "docs/modules/purchasing.md",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "Section 4 (PO Void) says 'Can only void POs in DRAFT or APPROVED status (not after GRN creation)'. The parenthetical is correct per code, but the PO flow diagram in the same section shows VOIDED from PARTIALLY_RECEIVED which contradicts the text and the code."
+      },
+      {
+        "file": "docs/modules/purchasing.md",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "Section 4 (PO Close) says 'Can only close POs in PARTIALLY_RECEIVED or FULLY_RECEIVED status'. Code only allows close from INVOICED status. Since docs miss INVOICED entirely, the close constraint is also wrong."
+      },
+      {
+        "file": "docs/modules/purchasing.md",
+        "line": null,
+        "severity": "suggestion",
+        "description": "Section 1 (Module Ownership) lists 'SupplierApprovalPolicy' as a primary service, but it's actually a @Component with only two validation methods — it's not a service in the conventional sense. Consider labeling it as a 'policy component' or 'helper' to avoid confusion."
+      },
+      {
+        "file": "docs/modules/purchasing.md",
+        "line": null,
+        "severity": "suggestion",
+        "description": "Section 1 lists DTO families as 'PurchaseReturnRequest' but there is no PurchaseReturnResponse — returns return JournalEntryDto or PurchaseReturnPreviewDto. The DTO family naming in the table is slightly misleading."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "issues": [
+    {
+      "severity": "blocking",
+      "description": "SupplierStatus enum values wrong: docs say PENDING_APPROVAL, code is PENDING (SupplierStatus.java)",
+      "file": "docs/modules/purchasing.md",
+      "suggestedFix": "Change PENDING_APPROVAL to PENDING in Section 1 enum table and Section 3 status flow table/diagram"
+    },
+    {
+      "severity": "blocking",
+      "description": "PurchaseOrderStatus enum values wrong: docs say VOIDED, code is VOID; docs miss INVOICED status entirely (PurchaseOrderStatus.java)",
+      "file": "docs/modules/purchasing.md",
+      "suggestedFix": "Change VOIDED to VOID in Section 1 enum table. Add INVOICED status. Update Section 4 flow diagram and status table to include INVOICED between FULLY_RECEIVED and CLOSED."
+    },
+    {
+      "severity": "blocking",
+      "description": "GoodsReceiptStatus values completely wrong: docs say PENDING→POSTED, code has PARTIAL/RECEIVED/INVOICED (GoodsReceiptStatus.java)",
+      "file": "docs/modules/purchasing.md",
+      "suggestedFix": "Replace PENDING→POSTED flow in Section 5 with actual values PARTIAL, RECEIVED, INVOICED. Update Section 1 enum table."
+    },
+    {
+      "severity": "blocking",
+      "description": "PO status transition model significantly wrong: misses INVOICED step, VOID allowed only from DRAFT/APPROVED not PARTIALLY_RECEIVED, close only from INVOICED not FULLY_RECEIVED (PurchaseOrderService.isValidTransition)",
+      "file": "docs/modules/purchasing.md",
+      "suggestedFix": "Update Section 4 flow diagram to: DRAFT→APPROVED→PARTIALLY_RECEIVED→FULLY_RECEIVED→INVOICED→CLOSED, with VOID from DRAFT and APPROVED only. Update close constraint to 'Can only close POs in INVOICED status'."
+    },
+    {
+      "severity": "non-blocking",
+      "description": "Supplier activation path incomplete: docs only show APPROVED→ACTIVE, code also allows SUSPENDED→ACTIVE (SupplierService.activateSupplier)",
+      "file": "docs/modules/purchasing.md",
+      "suggestedFix": "Update activation section and status flow diagram to show both APPROVED→ACTIVE and SUSPENDED→ACTIVE transitions"
+    },
+    {
+      "severity": "non-blocking",
+      "description": "Payable account code suffix collision logic not documented. Docs say 'must not already exist' but code auto-resolves with suffix (SupplierService.createPayableAccount)",
+      "file": "docs/modules/purchasing.md",
+      "suggestedFix": "Update Section 3 supplier creation to note that payable account code auto-resolves collisions by appending suffix (-1, -2, etc.)"
+    },
+    {
+      "severity": "non-blocking",
+      "description": "PO void and close constraints in Section 4 text contradict the flow diagram and actual code. Void diagram shows arrow from PARTIALLY_RECEIVED, but code doesn't allow it.",
+      "file": "docs/modules/purchasing.md",
+      "suggestedFix": "Remove VOIDED arrow from PARTIALLY_RECEIVED in the flow diagram. Update close constraint text."
+    },
+    {
+      "severity": "suggestion",
+      "description": "SupplierApprovalPolicy listed as primary service but is actually a @Component helper with two validation methods",
+      "file": "docs/modules/purchasing.md",
+      "suggestedFix": "Consider reclassifying SupplierApprovalPolicy as 'Policy components' or 'Helpers' rather than 'Primary services'"
+    }
+  ],
+  "summary": "The purchasing P2P documentation packet has strong structural coverage of all VAL-COMM-002 required areas (supplier lifecycle, PO, GRN, purchase invoices, returns, settlements, approvals, idempotency) and includes excellent cross-references and a clear stock-truth vs AP-truth boundary. However, cross-verification against source code reveals four blocking inaccuracies: (1) SupplierStatus enum says PENDING_APPROVAL but code is PENDING, (2) PurchaseOrderStatus says VOIDED but code is VOID and misses the INVOICED status entirely, (3) GoodsReceiptStatus is completely wrong (docs: PENDING→POSTED, code: PARTIAL/RECEIVED/INVOICED), and (4) the PO lifecycle transition model is significantly wrong — missing INVOICED, allowing VOID from PARTIALLY_RECEIVED when code doesn't, and wrong close constraints. These blocking issues must be fixed for the packet to be reliable as canonical documentation."
+}

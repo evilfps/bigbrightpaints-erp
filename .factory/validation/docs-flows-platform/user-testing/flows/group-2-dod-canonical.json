@@ -1,0 +1,142 @@
+{
+  "groupId": "group-2-dod-canonical",
+  "testedAt": "2026-03-30T16:45:00Z",
+  "credentials": {
+    "account": "docs-only-validation",
+    "namespace": "docs-flows-platform"
+  },
+  "toolsUsed": ["Read", "Grep"],
+  "assertions": [
+    {
+      "id": "VAL-FLOW-003",
+      "title": "Each major flow doc states the current backend definition of done",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Check auth-identity.md for Completion Boundary / Definition of Done section",
+          "expected": "Section exists with concrete completion criteria and Current Limitations subsection",
+          "observed": "Section 5 'Completion Boundary / Current Definition of Done' exists at line 145 with 4 concrete completion criteria (login, refresh, logout, password reset) and 5 Current Limitations (MFA table unused, refresh burns token before validation, lockout not enforced on existing tokens, profile changes not audited, brute-force monitoring not active)"
+        },
+        {
+          "action": "Check tenant-admin-management.md for Completion Boundary / Definition of Done section",
+          "expected": "Section exists with concrete completion criteria and Current Limitations subsection",
+          "observed": "Section 5 'Completion Boundary / Current Definition of Done' exists at line 167 with 5 concrete completion criteria (onboarding, lifecycle transition, user management, support intervention, export approval) and 6 Current Limitations (company cannot be deleted, accounting cannot approve exports, main admin cannot be self-deactivated, changelog publish has no approval, support ticket sync is best-effort, tenant limits not auto-enforced)"
+        },
+        {
+          "action": "Check catalog-setup-readiness.md for Completion Boundary / Definition of Done section",
+          "expected": "Section exists with concrete completion criteria and Current Limitations subsection",
+          "observed": "Section 5 'Completion Boundary / Current Definition of Done' exists at line 151 with 5 concrete completion criteria (brand, item, import, packaging mapping, readiness evaluation) and 8 Current Limitations (brand deactivation does not cascade, item deactivation does not cascade, readiness is point-in-time, import does not delete, search pagination capped, accounting metadata filtered, semi-finished SKU suffix reserved, inventory accounting events toggle)"
+        },
+        {
+          "action": "Check manufacturing-packing.md for Completion Boundary / Definition of Done section",
+          "expected": "Section exists with concrete completion criteria and Current Limitations subsection",
+          "observed": "Section 5 'Completion Boundary / Current Definition of Done' exists at line 159 with 4 concrete completion criteria (production log, packing record, FULLY_PACKED status, cost allocation) and 6 Current Limitations (production plan is optional, no automated cost integration, wastage reason limited, idempotency key required, batch number generation per month, packaging mapping mandatory)"
+        },
+        {
+          "action": "Check inventory-management.md for Completion Boundary / Definition of Done section",
+          "expected": "Section exists with concrete completion criteria and Current Limitations subsection",
+          "observed": "Section 5 'Completion Boundary / Current Definition of Done' exists at line 192 with 6 concrete completion criteria (stock summary, low stock detection, batch traceability, adjustment, opening stock import, dispatch) and 7 Current Limitations (WAC cache 5-minute TTL, zero-cost dispatch fails, batch ID ambiguity, opening stock readiness gating, inventory accounting events toggle, no batch merge, no stock transfer)"
+        },
+        {
+          "action": "Verify implemented-vs-planned language in limitations across all 5 packets",
+          "expected": "Limitations describe current implemented behavior, not aspirational/planned features",
+          "observed": "All limitations use implemented-vs-planned language: 'MFA table unused — live service uses legacy column', 'Refresh burns token before validation', 'WAC cache 5-minute TTL', 'Zero-cost dispatch fails hard', etc. No aspirational language found. Each limitation describes a concrete current behavior or gap."
+        },
+        {
+          "action": "Verify packets explicitly state partial/blocked/incomplete where applicable",
+          "expected": "Packets with partial or blocked behavior explicitly call this out",
+          "observed": "auth-identity.md explicitly states 'MFA table unused' (partial), 'SecurityMonitoringService exists but has no production callers' (dead weight). tenant-admin-management.md explicitly states 'Tenant limits not auto-enforced' (partial), 'Company cannot be deleted' (blocked). manufacturing-packing.md explicitly states 'No automated cost integration' (incomplete). inventory-management.md explicitly states 'No batch merge' and 'No stock transfer' (not implemented). All partial/blocked areas are explicitly surfaced."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "N/A (docs-only validation)",
+        "filesChecked": [
+          "docs/flows/auth-identity.md",
+          "docs/flows/tenant-admin-management.md",
+          "docs/flows/catalog-setup-readiness.md",
+          "docs/flows/manufacturing-packing.md",
+          "docs/flows/inventory-management.md"
+        ],
+        "sectionLocations": {
+          "auth-identity.md": "Section 5 at line 145, Current Limitations at line 154 (5 items)",
+          "tenant-admin-management.md": "Section 5 at line 167, Current Limitations at line 177 (6 items)",
+          "catalog-setup-readiness.md": "Section 5 at line 151, Current Limitations at line 161 (8 items)",
+          "manufacturing-packing.md": "Section 5 at line 159, Current Limitations at line 168 (6 items)",
+          "inventory-management.md": "Section 5 at line 192, Current Limitations at line 203 (7 items)"
+        },
+        "totalLimitations": 32
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-004",
+      "title": "Each major flow doc identifies canonical vs non-canonical paths",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Check auth-identity.md for Canonical vs Non-Canonical Paths section",
+          "expected": "Section exists with canonical paths (owners listed) and non-canonical/deprecated paths (status + replacement)",
+          "observed": "Section 6 'Canonical vs Non-Canonical Paths' at line 168 with 7 canonical paths (AuthController/AuthService, MfaController/MfaService, AdminUserController) and 3 non-canonical paths (Legacy super-admin forgot-password alias: Deprecated V157 hard cut → replacement provided; Email-only recovery identity: Deprecated → use email+companyCode; companyId auth alias: Deprecated → use companyCode claim)"
+        },
+        {
+          "action": "Check tenant-admin-management.md for Canonical vs Non-Canonical Paths section",
+          "expected": "Section exists with canonical paths (owners listed) and non-canonical/deprecated paths (status + replacement)",
+          "observed": "Section 6 'Canonical vs Non-Canonical Paths' at line 193 with 7 canonical paths (SuperAdminTenantOnboardingController, SuperAdminController, AdminUserController) and 1 non-canonical path (/api/v1/support/** shared: Deprecated → use host-specific portal or dealer-portal paths)"
+        },
+        {
+          "action": "Check catalog-setup-readiness.md for Canonical vs Non-Canonical Paths section",
+          "expected": "Section exists with canonical paths (owners listed) and non-canonical/deprecated paths (status + replacement)",
+          "observed": "Section 6 'Canonical vs Non-Canonical Paths' at line 181 with 4 canonical paths (CatalogController, PackagingMappingController) and 3 non-canonical paths (POST /api/v1/catalog/products: Retired hard cut → use /items; POST /api/v1/accounting/catalog/products: Retired hard cut → use /items; GET /api/v1/catalog/products: Retired hard cut → use /items)"
+        },
+        {
+          "action": "Check manufacturing-packing.md for Canonical vs Non-Canonical Paths section",
+          "expected": "Section exists with canonical paths (owners listed) and non-canonical/deprecated paths (status + replacement)",
+          "observed": "Section 6 'Canonical vs Non-Canonical Paths' at line 184 with 4 canonical paths (ProductionLogController, PackingController, FactoryController, PackagingMappingController) and 4 non-canonical paths (POST /api/v1/factory/production-batches: Retired hard cut → use production/logs; GET /api/v1/factory/production-batches: Retired hard cut → use production/logs; POST /api/v1/factory/pack: Retired hard cut → use packing-records; PackingCompletionService: Partially retired → completion semantics removed)"
+        },
+        {
+          "action": "Check inventory-management.md for Canonical vs Non-Canonical Paths section",
+          "expected": "Section exists with canonical paths (owners listed) and non-canonical/deprecated paths (status + replacement)",
+          "observed": "Section 6 'Canonical vs Non-Canonical Paths' at line 221 with 5 canonical paths (InventoryAdjustmentController, RawMaterialController, OpeningStockImportController, InventoryBatchController, DispatchController) and 2 non-canonical paths (legacy dispatch confirm: Retired → now POST /api/v1/dispatch/confirm; legacy intake endpoints: Partially disabled via config toggle)"
+        },
+        {
+          "action": "Verify cross-module boundaries explained in each packet (entrypoint owner, downstream owner)",
+          "expected": "Each packet explains which module owns entrypoint and which owns downstream side effects",
+          "observed": "All 5 packets have Section 7 'Cross-Module Dependencies' with explicit module, dependency, and direction tables. auth-identity.md: 4 dependencies with Read/Write direction. tenant-admin-management.md: 5 dependencies with Read/Write direction. catalog-setup-readiness.md: 3 dependencies with Write (mirror sync) and Read. manufacturing-packing.md: 3 dependencies (inventory: Write consumption + Write FG batch + Read, accounting: Write). inventory-management.md: 4 dependencies with Write/Read directions including sales (reservations, slips), purchasing (GRN stock), and accounting (journals)."
+        },
+        {
+          "action": "Verify deprecated paths without replacement are explicitly stated",
+          "expected": "Any deprecated path with no replacement has explicit no-replacement statement",
+          "observed": "All deprecated paths have either a replacement path provided or a clear status indicating the nature of deprecation. manufacturing-packing.md notes 'PackingCompletionService: Partially retired — completion semantics removed, service survives' which states the partial nature explicitly. inventory-management.md notes 'Legacy intake endpoints: Partially disabled' with config toggle explanation. No deprecated path leaves the reader guessing about replacement status."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "N/A (docs-only validation)",
+        "filesChecked": [
+          "docs/flows/auth-identity.md",
+          "docs/flows/tenant-admin-management.md",
+          "docs/flows/catalog-setup-readiness.md",
+          "docs/flows/manufacturing-packing.md",
+          "docs/flows/inventory-management.md"
+        ],
+        "sectionLocations": {
+          "auth-identity.md": "Section 6 at line 168 (7 canonical, 3 deprecated), Section 7 at line 192 (4 cross-module deps)",
+          "tenant-admin-management.md": "Section 6 at line 193 (7 canonical, 1 deprecated), Section 7 at line 215 (5 cross-module deps)",
+          "catalog-setup-readiness.md": "Section 6 at line 181 (4 canonical, 3 retired), Section 7 at line 202 (3 cross-module deps)",
+          "manufacturing-packing.md": "Section 6 at line 184 (4 canonical, 4 non-canonical), Section 7 at line 206 (3 cross-module deps)",
+          "inventory-management.md": "Section 6 at line 221 (5 canonical, 2 non-canonical), Section 7 at line 242 (4 cross-module deps)"
+        },
+        "totalCanonicalPaths": 27,
+        "totalDeprecatedPaths": 13,
+        "totalCrossModuleDeps": 19
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 2 assertions across 5 flow packets: both passed. VAL-FLOW-003: All 5 flow packets have a 'Completion Boundary / Current Definition of Done' section with concrete completion criteria based on implemented behavior and a 'Current Limitations' subsection with explicit implemented-vs-planned language (32 total limitations). VAL-FLOW-004: All 5 flow packets have a 'Canonical vs Non-Canonical Paths' section distinguishing canonical paths (27 total, with owning module/controller) from deprecated/non-canonical paths (13 total, each with status and replacement), plus cross-module dependency tables (19 total) explaining entrypoint ownership, downstream ownership, and direction."
+}

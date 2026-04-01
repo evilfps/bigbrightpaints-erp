@@ -1,0 +1,49 @@
+{
+  "milestone": "docs-ops-setup",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": { "passed": true, "command": "bash ci/lint-knowledgebase.sh", "exitCode": 0 },
+    "enterprisePolicy": { "passed": true, "command": "bash ci/check-enterprise-policy.sh", "exitCode": 0 },
+    "architecture": { "passed": true, "command": "bash ci/check-architecture.sh", "exitCode": 0 },
+    "orchestratorLayer": { "passed": true, "command": "bash ci/check-orchestrator-layer.sh", "exitCode": 0 }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "fixedIssues": [
+    {
+      "featureId": "docs-operations-catalog-setup",
+      "severity": "blocking",
+      "description": "CatalogItemRequest listed unitOfMeasure, hsnCode, and gstRate as (optional) but source code shows @NotBlank/@NotNull — they are required. Fixed: updated field optionality to (required) with validation annotation notes."
+    },
+    {
+      "featureId": "docs-operations-catalog-setup",
+      "severity": "blocking",
+      "description": "CatalogItemDto response field names were wrong (productName→name, skuCode→code, defaultColour→color, sizeLabel→size). Fixed: updated to match actual record field names."
+    },
+    {
+      "featureId": "docs-operations-catalog-setup",
+      "severity": "blocking",
+      "description": "Readiness blocker table used wildcard *_ACCOUNT_MISSING instead of listing the four specific FINISHED_GOOD account blocker codes. Fixed: replaced wildcard with explicit enumeration of FINISHED_GOOD_VALUATION_ACCOUNT_MISSING, FINISHED_GOOD_COGS_ACCOUNT_MISSING, FINISHED_GOOD_REVENUE_ACCOUNT_MISSING, FINISHED_GOOD_TAX_ACCOUNT_MISSING plus RAW_MATERIAL_INVENTORY_ACCOUNT_MISSING, RAW_MATERIAL_CATEGORY_REQUIRED, FINISHED_GOOD_CATEGORY_REQUIRED."
+    },
+    {
+      "featureId": "docs-operations-catalog-setup",
+      "severity": "non_blocking",
+      "description": "skuCode immutability description was imprecise — implied runtime guard but actual immutability is structural (field absent from update DTO). Fixed: clarified that skuCode is structurally immutable by omission."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [
+    {
+      "observation": "Worker transcript showed garbled/corrupted assistant text in ~20+ tool calls before session recovered.",
+      "reason": "Transcript quality observation with no impact on deliverable quality. No actionable fix needed for docs/governance."
+    }
+  ],
+  "previousRound": null
+}

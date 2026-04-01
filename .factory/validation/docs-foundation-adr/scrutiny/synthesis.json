@@ -1,0 +1,46 @@
+{
+  "milestone": "docs-foundation-adr",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "cd erp-domain && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "test": {
+      "passed": true,
+      "command": "bash scripts/gate_fast.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add explicit convention that ADR files live in docs/adrs/ (plural). ADR-001 was originally created in docs/adr/ (singular) and had to be migrated. Stating this convention explicitly would prevent future workers from repeating the singular/plural confusion.",
+      "evidence": "Feature docs-foundation-adr-seed: ADR-001 was created in docs/adr/, later copied to docs/adrs/. CI script was patched to accept both paths. No explicit AGENTS.md convention states the canonical directory.",
+      "isSystemic": false
+    },
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Document the allowlist-specific ADR section extensions. When an ADR is created to support an allowlist edge baseline (via check-allowlist-change-evidence.sh), it must include '## Why Needed' and '## Boundary Preserved' sections in addition to the standard template. The INDEX.md ADR template guidance should mention this variant.",
+      "evidence": "Feature docs-foundation-adr-seed: ADR-001 includes extra sections ('Why Needed', 'Boundary Preserved') required by the allowlist evidence checker, but these are not documented in the INDEX.md template section that other ADR authors will follow.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}

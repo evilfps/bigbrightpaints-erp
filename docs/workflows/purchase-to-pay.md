@@ -1,5 +1,7 @@
 # Purchase to Pay (P2P) Workflow
 
+> ⚠️ **NON-CANONICAL**: This document is superseded by the canonical flow packets in [docs/flows/](flows/). The current purchasing and procure-to-pay behavior is documented in [docs/flows/procure-to-pay.md](../flows/procure-to-pay.md).
+
 **Audience:** Procurement, stores/warehouse, accounts payable team
 
 This guide covers supplier onboarding through final supplier settlement.

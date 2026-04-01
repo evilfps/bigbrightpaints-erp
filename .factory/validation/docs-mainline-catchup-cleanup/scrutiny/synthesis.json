@@ -1,0 +1,38 @@
+{
+  "milestone": "docs-mainline-catchup-cleanup",
+  "round": 2,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": { "passed": true, "command": "bash ci/lint-knowledgebase.sh", "exitCode": 0 },
+    "governance": { "passed": true, "command": "bash ci/check-enterprise-policy.sh", "exitCode": 0 },
+    "architecture": { "passed": true, "command": "bash ci/check-architecture.sh", "exitCode": 0 },
+    "orchestrator": { "passed": true, "command": "bash ci/check-orchestrator-layer.sh", "exitCode": 0 }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add a convention note that legacy docs listed in INDEX.md as 'Reference Only' should carry inline NON-CANONICAL banners in their file bodies for consistency. The three bannered files (platform, operations, commercial handoffs) show the pattern; the two un-bannered files (finance handoff, accounting-portal handoff) were fixed in round 2 but the convention should be codified.",
+      "evidence": "Round 1 review of docs-mainline-legacy-doc-reconciliation found docs/frontend-handoff-finance.md and docs/accounting-portal-frontend-engineer-handoff.md listed as reference-only in INDEX.md but lacking inline NON-CANONICAL banners. docs/CONVENTIONS.md already documents the banner template at lines 137-149.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "docs/workflows/ and docs/code-review/ directories are orphaned doc trees not reachable from INDEX.md",
+      "reason": "The feature scope was explicitly about reconciling legacy frontend-handoff and docs/adr/ trees to the new mainline canonical model. While these directories are indeed orphaned, adding them to INDEX.md would expand beyond the reviewed scope. The reviewer noted them for awareness but they are out of scope for this milestone's cleanup pass."
+    },
+    {
+      "observation": "Minor relative path formatting inconsistency in NON-CANONICAL banners (some use ../ prefix, some don't)",
+      "reason": "Both formats resolve correctly on GitHub. The inconsistency is cosmetic only and does not affect navigation or correctness. Not worth a separate fix cycle."
+    }
+  ],
+  "previousRound": ".factory/validation/docs-mainline-catchup-cleanup/scrutiny/synthesis.json (round 1)"
+}

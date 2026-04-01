@@ -1,0 +1,26 @@
+{
+  "featureId": "docs-consolidation-legacy-redirects",
+  "reviewedAt": "2026-03-30T15:30:00.000Z",
+  "commitId": "7b6f3ba69",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The commit adds NON-CANONICAL or REFERENCE ONLY banners to 12 legacy docs (8 from original task scope + 4 additional discovered during sweep). All banners are placed at line 3 (after the H1 heading) using consistent blockquote format with ⚠️ icon. Each banner includes specific relative-path links to the canonical replacement. The commit also fixes a broken redirect in docs/architecture.md that pointed to non-existent ARCHITECTURE.md, now correctly pointing to INDEX.md, MODULE-INVENTORY.md, and BACKEND-FEATURE-CATALOG.md. No code runtime changes were introduced (12 markdown files, 24 insertions, 0 deletions of non-banner content). All relative link targets verified to exist in the repo.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The NON-CANONICAL banner pattern is well-established by this feature (block quote with ⚠️ icon, bold label, replacement links) but is not formally codified in docs/CONVENTIONS.md as a template. CONVENTIONS.md mentions redirect/deprecation markers at lines 123-131 but doesn't show the exact banner format. This could lead to drift if future workers invent their own banner style.",
+      "evidence": "docs/CONVENTIONS.md lines 123-131 describe the policy but not the exact markdown template. All 12 banners in the commit use a consistent format: '> ⚠️ **NON-CANONICAL**: ...' or '> ⚠️ **REFERENCE ONLY**: ...'"
+    },
+    {
+      "area": "conventions",
+      "observation": "docs/ERP-DOD-BIBLE.md and docs/migration-guide.md are legacy-ish top-level docs that were NOT included in this feature's banner sweep. ERP-DOD-BIBLE.md has inline [NON-CANONICAL] annotations on specific sections but no top-level banner. migration-guide.md has no banner. Whether these need banners depends on whether they're considered 'legacy docs that mention live endpoints or behavior' — both do. However, this may be intentional scoping (ERP-DOD-BIBLE claims to be 'authoritative') or may belong to a different feature's scope.",
+      "evidence": "docs/ERP-DOD-BIBLE.md line 6: 'Authoritative reference for all 14 P0 flows. Every claim is verified against source code.' — no top-level NON-CANONICAL banner. docs/migration-guide.md — no banner. Neither was in the 12-file commit."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The feature correctly adds NON-CANONICAL/REFERENCE ONLY banners to all 12 legacy docs in scope, with accurate relative-path links to existing canonical replacements. No runtime code changes. No broken links. Lint passes. The worker followed the docs-worker skill procedure. Two non-blocking observations noted: (1) the exact banner template format could be codified in CONVENTIONS.md for consistency, and (2) ERP-DOD-BIBLE.md and migration-guide.md remain without top-level banners, which may warrant a follow-up depending on scoping decisions."
+}

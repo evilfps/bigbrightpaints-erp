@@ -1,0 +1,38 @@
+{
+  "milestone": "docs-handoff-platform",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 0,
+    "passed": 0,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "surfaceValidation": {
+    "tool": "Read + Grep + docs-lint validators",
+    "checksPerformed": [
+      "ci/lint-knowledgebase.sh — full-contract mode OK",
+      "ci/check-enterprise-policy.sh — OK",
+      "ci/check-architecture.sh — OK",
+      "ci/check-orchestrator-layer.sh — OK",
+      "All 10 cross-referenced files verified to exist on disk",
+      "Route accuracy verified against source controllers: auth (7 routes), company (2 routes), superadmin (15 routes + 2 onboarding routes), admin (15 routes), portal insights (3 routes), portal finance (3 routes), portal support (3 routes), dealer portal (7 routes + 1 PDF), dealer support tickets (3 routes), changelog (2 routes), superadmin changelog (3 routes), roles (3 routes) — all match documentation",
+      "RBAC predicates verified against @PreAuthorize annotations: portal insights = ROLE_ADMIN, portal finance = ADMIN_OR_ACCOUNTING, portal support = ADMIN_OR_ACCOUNTING, dealer portal = DEALER_ONLY, admin settings read = ADMIN_ONLY, admin settings write = SUPER_ADMIN_ONLY, export approve/reject = ADMIN+SUPER_ADMIN, admin notify = ADMIN_ONLY, admin approvals = ADMIN_ACCOUNTING_SUPER_ADMIN, roles = ADMIN+SUPER_ADMIN, superadmin = SUPER_ADMIN, changelog = authenticated",
+      "Payload families documented: auth (LoginRequest, LoginResponse, RefreshTokenRequest, RefreshTokenResponse, ForgotPasswordRequest, ResetPasswordRequest, MfaSetupResponse, MfaActivateRequest, MfaDisableRequest, UserProfileResponse), company (TenantSummaryDto, TenantDetailDto, TenantLifecycleRequest, TenantLimitsRequest, TenantModulesRequest, TenantOnboardingRequest), admin (CreateUserRequest, UpdateUserRequest, UserDto, UpdateUserStatusRequest, ForceResetPasswordResponse, SystemSettingsDto, SystemSettingsUpdateRequest), support tickets (SupportTicketCreateRequest, SupportTicketResponse, SupportTicketListResponse), approvals (AdminApprovalsResponse, AdminApprovalItemDto, ExportDecisionRequest), changelog (ChangelogEntryResponse, ChangelogEntryRequest)",
+      "Read/write boundaries documented for all surfaces: auth/session, company/tenant, admin user management, portal insights, portal finance, dealer portal",
+      "Host/path ownership documented for all 12 surface families",
+      "Cross-module seams documented: auth→company, company→auth, portal→sales, admin→RBAC",
+      "Safety gaps documented: 6 items (password reset email, security monitoring in-memory, runtime counters reset, policy cache TTL, MFA disable, must-change-password non-expiring)",
+      "Deprecation notes documented: 4 items (X-Company-Id header, X-Idempotency-Key, SALES dispatch permission, custom role creation)",
+      "Freshness marker present: Last reviewed: 2026-03-30",
+      "Discoverable from docs/INDEX.md Frontend Handoff section",
+      "Packet explicitly defers to canonical module and flow docs"
+    ],
+    "findings": []
+  },
+  "appliedUpdates": [],
+  "previousRound": null
+}

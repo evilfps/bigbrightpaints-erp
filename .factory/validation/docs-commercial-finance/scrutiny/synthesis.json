@@ -1,0 +1,45 @@
+{
+  "milestone": "docs-commercial-finance",
+  "round": 2,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh && bash ci/check-enterprise-policy.sh && bash ci/check-architecture.sh && bash ci/check-orchestrator-layer.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "N/A (docs-only milestone)",
+      "exitCode": 0
+    },
+    "test": {
+      "passed": true,
+      "command": "N/A (docs-only milestone)",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 3,
+    "passed": 3,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "AGENTS.md",
+      "suggestion": "Add guidance: docs-worker must read the full service class (not just policy/helper classes) before documenting lifecycle methods and cross-module seams. The invoice.md packet's inaccuracies stem from reading InvoiceSettlementPolicy but not InvoiceService in full.",
+      "evidence": "Feature docs-commercial-invoice-lifecycle-finance-hosts fabricated InvoiceService.settleInvoice() and AccountingFacade.postPaymentJournal() because InvoiceService.java was not read in full during the documentation session.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "Add invoice-specific enum values to .factory/library/ to help workers avoid confusing sales vs invoice statuses",
+      "reason": "This would create a maintenance burden — the canonical packet (docs/modules/invoice.md) should itself be the truth source once fixed. Adding library entries for every enum is not scalable."
+    }
+  ],
+  "previousRound": ".factory/validation/docs-commercial-finance/scrutiny/synthesis.json (round 1)"
+}

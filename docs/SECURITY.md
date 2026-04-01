@@ -1,6 +1,6 @@
 # Security Review Policy
 
-Last reviewed: 2026-03-07
+Last reviewed: 2026-03-29
 
 ## High-Risk Change Classes
 

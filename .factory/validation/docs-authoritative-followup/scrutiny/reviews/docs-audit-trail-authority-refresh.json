@@ -1,0 +1,39 @@
+{
+  "featureId": "docs-audit-trail-authority-refresh",
+  "reviewedAt": "2026-03-31T04:30:00.000Z",
+  "commitId": "f81911137",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The commit correctly refreshes two canonical audit docs to align with the authoritative recommendations model. In accounting-reference-chains.md: the deprecated /audit/digest endpoint is properly marked as deprecated with a clear migration path to /audit/transactions, the transactions detail endpoint is added, role requirements are annotated on business/ML audit routes, and cross-references to audit ownership docs are added. In core-audit-runtime-settings.md: the profile-audit gap is classified as a Bug to Fix Now referencing RECOMMENDATIONS.md, and item numbering in the limitations section is correctly resequenced. All endpoint claims verified against openapi.json — every listed canonical surface exists in the API contract.",
+    "issues": [
+      {
+        "file": "docs/frontend-api/accounting-reference-chains.md",
+        "line": 170,
+        "severity": "non_blocking",
+        "description": "The deprecated note says '/api/v1/accounting/audit/digest is deprecated and should not be used for new integrations. Use /api/v1/accounting/audit/transactions with filters instead.' This is accurate guidance, but the digest endpoint still exists in the OpenAPI contract (GET /api/v1/accounting/audit/digest and GET /api/v1/accounting/audit/digest.csv). The docs correctly mark it deprecated, which is the right doc-level action, but a future task should track actual endpoint removal or @Deprecated annotation in the controller."
+      },
+      {
+        "file": "docs/frontend-api/accounting-reference-chains.md",
+        "line": 164,
+        "severity": "non_blocking",
+        "description": "Role annotations (ROLE_ADMIN or ROLE_ACCOUNTING, ROLE_ADMIN) are documented for business-events and ml-events endpoints but not for the accounting audit endpoints. This is a minor gap — the accounting endpoints are tagged ACCOUNTING in openapi.json which implies role requirements, but explicit documentation would improve consistency with the pattern established for the enterprise audit endpoints."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The docs/frontend-api/endpoint-inventory.md still lists /api/v1/accounting/audit/digest without a deprecated marker. It was not updated in this commit. The accounting-portal-endpoint-map.md does mention the digest endpoints should be treated as deprecated, so the signal is there but the endpoint-inventory.md itself lacks the deprecation callout.",
+      "evidence": "docs/frontend-api/endpoint-inventory.md:72-73 lists 'GET /api/v1/accounting/audit/digest' and 'GET /api/v1/accounting/audit/digest.csv' without any deprecated annotation. docs/frontend-api/accounting-portal-endpoint-map.md:26 does note they should be treated as deprecated."
+    },
+    {
+      "area": "conventions",
+      "observation": "The profile-audit gap is now documented in three places: core-audit-runtime-settings.md limitations section, RECOMMENDATIONS.md Auth and Identity table, and auth-identity.md flow packet. This redundancy is fine as each document serves a different audience, but it could drift if only one is updated in the future.",
+      "evidence": "Grep for 'Profile audit gap' shows hits in docs/modules/core-audit-runtime-settings.md (limitation item 4), docs/RECOMMENDATIONS.md (Auth and Identity table), and docs/flows/auth-identity.md (gap table)."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS — The audit-trail authority refresh is thorough and accurate. The canonical audit surfaces table in accounting-reference-chains.md correctly lists the surviving endpoints (verified against openapi.json), properly marks /audit/digest as deprecated with migration guidance, adds the detail endpoint, annotates role requirements on enterprise audit routes, and adds cross-references to ownership docs. The profile-audit gap is correctly classified under the authoritative recommendations model in core-audit-runtime-settings.md with proper reference to RECOMMENDATIONS.md. The numbering fix in the limitations section is correct. Two minor non-blocking observations: endpoint-inventory.md was not updated to mark digest as deprecated, and role annotations are asymmetric between accounting vs enterprise audit endpoints. Neither blocks this feature."
+}

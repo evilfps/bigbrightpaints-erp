@@ -1,0 +1,19 @@
+{
+  "featureId": "docs-flows-library-dod-limitations",
+  "milestone": "docs-flows-integration",
+  "reviewedAt": "2026-03-30T12:00:00Z",
+  "commitId": "b7163c2da",
+  "transcriptSkeletonReviewed": false,
+  "diffReviewed": true,
+  "status": "pass",
+  "issues": [
+    {
+      "severity": "non_blocking",
+      "description": "FLOW-INVENTORY.md Coverage Notes section still says 'Individual flow packets are listed as (packet pending). They will be created in later milestones.' This is stale — all 11 flow packets are now created with full content. The inventory should be updated to reflect completion.",
+      "file": "docs/flows/FLOW-INVENTORY.md",
+      "suggestedFix": "Update the Coverage Notes section to remove the '(packet pending)' language and reflect that all 11 flow packets are now complete."
+    }
+  ],
+  "sharedStateObservations": [],
+  "summary": "PASS — All 11 major flow packets contain complete 'Completion Boundary / Current Definition of Done' sections (§5 in each packet) and 'Current Limitations' subsections with concrete, specific, implementation-grounded entries. Each packet also has an 'Open Decisions' section (§10 or §11) with a structured table. Limitations use implemented-vs-planned language consistently (e.g., 'Not implemented', 'Not supported', 'Known', 'Configurable') — no aspirational or future-tense language found. Cross-references to modules, ADRs, and the flow inventory are all valid (all referenced files exist). The flow inventory correctly lists all 11 packets with live links. One non-blocking issue: the FLOW-INVENTORY.md Coverage Notes section contains stale '(packet pending)' language that should be cleaned up now that all packets exist."
+}

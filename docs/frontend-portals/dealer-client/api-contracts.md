@@ -1,5 +1,13 @@
 # Dealer Client API Contracts
 
+This file defines which backend surfaces dealer-client can call directly and where the portal must stop.
+
+## Dealer Dashboard And Summary
+
+- `GET /api/v1/dealer-portal/dashboard`
+
+Returns dealer summary, order counts, credit exposure, payment status, and recent activity for the authenticated dealer only.
+
 The dealer portal should call only dealer-safe backend surfaces, typically under
 the dealer portal namespace.
 

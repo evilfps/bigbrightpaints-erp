@@ -13,3 +13,4 @@ UI rules:
 - Never mix internal action menus into dealer detail screens.
 - Any escalation from the dealer portal should create a request, not reveal the
   internal approval or correction UI.
+- All data access is scoped to the dealer's own `companyCode`.

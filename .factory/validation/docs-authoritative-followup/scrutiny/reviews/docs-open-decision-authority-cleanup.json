@@ -1,0 +1,22 @@
+{
+  "featureId": "docs-open-decision-authority-cleanup",
+  "reviewedAt": "2026-03-31T09:30:00.000Z",
+  "commitId": "dbac7bfbcd2dcd4a9b33eb23a94bf87b4f5b4764",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The worker correctly updated all 11 flow packets and docs/modules/sales.md to rename 'Open Decisions' to 'Known Limitations', added a deferral note pointing to the Authoritative Recommendations Register (RECOMMENDATIONS.md), and removed the 'Status' column that implied competing verdicts. Factual implementation notes were preserved and in many cases expanded for clarity. The legacy ERP-DOD-BIBLE.md received a NON-CANONICAL banner pointing to the canonical docs tree. Lint and enterprise policy checks pass. The implementation fully covers the feature's requirements.",
+    "issues": [
+      {
+        "file": "docs/ERP-DOD-BIBLE.md",
+        "line": 695,
+        "severity": "non_blocking",
+        "description": "The ERP-DOD-BIBLE.md still contains 'Open Decisions' sections at lines 695, 1296, and 1676. While the NON-CANONICAL banner at the top of the file addresses this by marking the entire document as legacy/reference-only, the internal sections retain the old 'Open Decisions' heading and status language. This is acceptable because the banner makes the document's non-canonical status clear, but a future cleanup could rename these sections for consistency."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The worker correctly cleaned up all 11 flow packets and docs/modules/sales.md by: (1) renaming 'Open Decisions' sections to 'Known Limitations', (2) adding a deferral note to RECOMMENDATIONS.md in each section, (3) removing the competing 'Status' column from decision tables, (4) preserving and enriching factual implementation notes, and (5) marking the legacy ERP-DOD-BIBLE.md as NON-CANONICAL with appropriate canonical doc pointers. The one non-blocking note is that ERP-DOD-BIBLE.md's internal 'Open Decisions' headings remain unchanged, which is acceptable given the file-level NON-CANONICAL banner. All lints pass."
+}

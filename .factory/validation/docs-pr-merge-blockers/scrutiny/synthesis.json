@@ -1,0 +1,86 @@
+{
+  "milestone": "docs-pr-merge-blockers",
+  "round": 2,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh",
+      "exitCode": 0,
+      "observation": "[knowledgebase-lint] OK"
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "bash scripts/enforce_codex_review_policy.sh && bash ci/check-enterprise-policy.sh",
+      "exitCode": 0,
+      "observation": "[codex-review-guidelines] OK and [enterprise-policy] OK after strict review checks for the docs/governance packet"
+    },
+    "lint": {
+      "passed": true,
+      "command": "bash ci/check-architecture.sh && bash ci/check-orchestrator-layer.sh",
+      "exitCode": 0,
+      "observation": "[architecture-check] OK and [orchestrator-layer] OK"
+    }
+  },
+  "supplementalChecks": {
+    "changedFilesCoverage": {
+      "passed": true,
+      "command": "python3 scripts/changed_files_coverage.py --jacoco artifacts/pr-jacoco-local/jacoco-unit.xml --jacoco artifacts/pr-jacoco-local/jacoco-codered-access.xml --diff-base \"$(git merge-base origin/main HEAD)\" --src-root erp-domain/src/main/java --threshold-line 0.95 --threshold-branch 0.90 --fail-on-vacuous",
+      "exitCode": 0,
+      "observation": "Passes with changed_source_files=0 and vacuous_reason=no_changed_source_files, confirming non-executable module AGENTS.md docs are no longer treated as JaCoCo-covered runtime sources"
+    }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "resolvedIssues": [
+    {
+      "priorRound": 1,
+      "featureId": "docs-pr-merge-blockers-governance-fix",
+      "description": "The original governance fix still left the architecture document tracked only as lowercase `docs/architecture.md`, which could pass on macOS while failing the canonical Linux-safe docs contract.",
+      "resolvedBy": "docs-pr-merge-blockers-canonical-architecture-path-fix (commit 7771b5e221086fa29530a1e34c77e4eaa3acd389)",
+      "evidence": "The follow-up review confirmed `git ls-tree HEAD -- docs/` now shows a real tracked `docs/ARCHITECTURE.md` path, the affected links were updated to the uppercase canonical path, and the docs/governance validators all passed."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "services.yaml",
+      "description": "Added an additive `codex-review-policy` command so scrutiny/docs workers can run `bash scripts/enforce_codex_review_policy.sh` from `.factory/services.yaml` instead of invoking it ad hoc.",
+      "sourceFeature": "docs-pr-merge-blockers-governance-fix"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "backend-worker skill",
+      "suggestion": "Document a narrow exception for CI/helper-script packets where reproducing the failing script and rerunning the helper is the correct verification instead of a TDD-first Java-test workflow.",
+      "evidence": "The `docs-pr-merge-blockers-changed-coverage-fix` review passed a script-only change in `scripts/changed_files_coverage.py`, and the reviewer noted the current backend-worker procedure assumes Maven/Java test creation even when the fix is a small CI-helper change.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [],
+  "roundHistory": [
+    {
+      "round": 1,
+      "status": "fail",
+      "reviews": 2,
+      "failedFeatures": [
+        "docs-pr-merge-blockers-governance-fix"
+      ]
+    },
+    {
+      "round": 2,
+      "status": "pass",
+      "reviews": 2,
+      "failedFeatures": [],
+      "newFixFeatures": [
+        "docs-pr-merge-blockers-canonical-architecture-path-fix"
+      ],
+      "resolvedIssues": 1
+    }
+  ],
+  "previousRound": ".factory/validation/docs-pr-merge-blockers/scrutiny/synthesis.json (round 1)"
+}

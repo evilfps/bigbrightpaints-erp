@@ -1,0 +1,39 @@
+{
+  "assertionId": "VAL-CROSS-002",
+  "status": "pass",
+  "checks": [
+    {
+      "name": "defers-to-canonical",
+      "status": "pass",
+      "evidence": "Frontend-handoff-finance.md paragraph 1 explicitly states: 'This packet defers to the canonical module and flow docs for implementation truth and is not a second source of truth.' This deference statement is unambiguous and prominently placed at the top of the document."
+    },
+    {
+      "name": "links-to-module-docs",
+      "status": "pass",
+      "evidence": "Section 1 (Scope Overview) table links to docs/modules/hr.md and docs/modules/reports.md. Section 10 (Related Documentation) also lists docs/modules/hr.md and docs/modules/reports.md. Both canonical module docs are directly referenced with relative path links."
+    },
+    {
+      "name": "links-to-flow-docs",
+      "status": "pass",
+      "evidence": "Section 1 (Scope Overview) table links to docs/flows/accounting-period-close.md, docs/flows/hr-payroll.md, and docs/flows/reporting-export.md. Section 10 (Related Documentation) also lists all three canonical flow docs. All three canonical flow packets are referenced with relative path links."
+    },
+    {
+      "name": "route-consistency",
+      "status": "pass",
+      "evidence": "Cross-comparison of all routes in handoff vs canonical docs:\n\nACCOUNTING PERIOD CLOSE routes: All 9 routes in handoff Section 3.1 (journal CRUD + post + reverse) match accounting-period-close.md Section 2 entrypoints. The handoff additionally lists PUT /journals/{id} and DELETE /journals/{id} (draft management) plus /approve and /reject journal endpoints not in the period-close flow — these are standard CRUD extensions documented at the controller level and consistent with the DRAFT lifecycle. All 8 period management routes (Section 3.2) match exactly. All 12 reconciliation routes (Section 3.3) match exactly. All 6 accounting support routes (Section 3.4: ledgers, accounts, migration) match the period-close flow.\n\nHR/PAYROLL routes: All 5 employee routes (Section 4.1) match hr.md and hr-payroll.md Section 2. All 7 leave routes (Section 4.2) match. All 7 attendance/salary-structure routes (Section 4.3) match. All 11 payroll run routes (Section 4.4) match exactly.\n\nREPORTING/EXPORT routes: All 6 financial report routes (Section 5.1) match reporting-export.md Section 2. All 9 operational report routes (Section 5.2) match. All 5 export workflow routes (Section 5.3) match. All 4 statement export routes (Section 5.4) match.\n\nNo route, method, or path discrepancies found between handoff and canonical docs."
+    },
+    {
+      "name": "rbac-consistency",
+      "status": "pass",
+      "evidence": "Cross-comparison of actor/role assignments:\n\nAccounting: Handoff assigns ADMIN+ACCOUNTING to journal and reconciliation routes; ADMIN-only to period management routes (lock/unlock/close-approve/close-finalize). This matches accounting-period-close.md Section 1 actors and Section 2 entrypoints exactly.\n\nHR: Handoff assigns ADMIN-only to employee write operations, ADMIN+ACCOUNTING to read operations. This matches hr-payroll.md Section 2 entrypoints exactly.\n\nPayroll: Handoff assigns ADMIN+ACCOUNTING to all payroll run operations. This matches hr-payroll.md Section 2 (all payroll entrypoints list ADMIN, ACCOUNTING).\n\nReports: Handoff assigns ADMIN+ACCOUNTING to financial reports, ADMIN+FACTORY to production reports. This matches reporting-export.md Sections 1-2 exactly.\n\nExport approval: Handoff assigns ADMIN-only to approve/reject, ADMIN+ACCOUNTING to request/download. This matches reporting-export.md Section 2 export workflow entrypoints exactly.\n\nStatement exports: Handoff assigns ADMIN-only. This matches reporting-export.md Section 2 statement export entrypoints exactly.\n\nNo RBAC discrepancies found."
+    },
+    {
+      "name": "lifecycle-consistency",
+      "status": "pass",
+      "evidence": "Cross-comparison of lifecycle/status progressions:\n\nPayroll run lifecycle: Handoff Section 7.2 states 'DRAFT → CALCULATED → APPROVED → POSTED → PAID' which matches exactly the status table in hr.md (Payroll Run Lifecycle section) and hr-payroll.md Section 4.4 lifecycle: DRAFT → CALCULATED → APPROVED → POSTED → PAID. CANCELLED as terminal state also consistent.\n\nPeriod lifecycle: Handoff Section 7.1 describes periods as OPEN → LOCKED → CLOSED with close workflow ACCOUNTING requests → ADMIN approves → ADMIN finalizes. This matches accounting-period-close.md Section 4.2: OPEN → LOCKED → CLOSED and the maker-checker workflow exactly.\n\nJournal lifecycle: Handoff Section 7.1 states journals created as DRAFT, then POSTED (immutable), reversed but not edited. This matches accounting-period-close.md Section 4.1: DRAFT → POSTED lifecycle.\n\nLeave lifecycle: Handoff does not detail leave lifecycle separately but mentions admin-only approval. hr-payroll.md Section 4.2: PENDING → APPROVED/REJECTED. Consistent.\n\nExport lifecycle: Handoff Section 7.3 describes export request → optional approval → generate → download with approval gate behavior. This matches reporting-export.md Section 4.3: PENDING_APPROVAL → APPROVED/REJECTED → READY.\n\nNo lifecycle discrepancies found."
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "toolsUsed": ["Read", "Grep"]
+}

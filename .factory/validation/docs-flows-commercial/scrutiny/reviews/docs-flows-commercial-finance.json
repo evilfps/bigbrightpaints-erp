@@ -1,0 +1,62 @@
+{
+  "featureId": "docs-flows-commercial-finance",
+  "reviewedAt": "2026-03-30T11:15:00.000Z",
+  "commitId": "13c26fbb4",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Six comprehensive flow packets (order-to-cash, procure-to-pay, invoice-dealer-finance, accounting-period-close, hr-payroll, reporting-export) created following a consistent behavior-first, code-grounded template. Each packet covers actors, entrypoints, preconditions, lifecycle/status progression, completion boundary, current limitations, canonical vs non-canonical paths, cross-module dependencies, security considerations, and open decisions. The FLOW-INVENTORY.md was updated to link all six new packets. All cross-referenced module docs, workflow guides, and developer docs exist. Minor issues noted below are non-blocking.",
+    "issues": [
+      {
+        "file": "docs/flows/procure-to-pay.md",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "P2P flow does not mention any domain events. Unlike O2C which explicitly documents SalesOrderCreatedEvent as the only published event and notes the gap, P2P does not discuss whether PO confirmation, GRN creation, or purchase invoice capture emit domain events. This is an event/listener boundary gap per VAL-FLOW-007."
+      },
+      {
+        "file": "docs/flows/accounting-period-close.md",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "Accounting flow does not discuss event/listener boundaries. Journal posting triggers from sales, purchasing, inventory, factory, and HR are described as direct service calls, but whether any module-to-accounting communication uses events (e.g., outbox per ADR-003) is not addressed. ADR-003 exists and is relevant but is not cross-linked."
+      },
+      {
+        "file": "docs/flows/hr-payroll.md",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "HR flow does not discuss event/listener boundaries. The payroll posting seam via AccountingFacade is described as a direct call, but whether this uses synchronous or asynchronous communication is not stated."
+      },
+      {
+        "file": "docs/flows/order-to-cash.md",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "O2C packet mentions 'SalesDispatchReconciliationService' in the dispatch lifecycle but the dispatch entrypoint table references 'DispatchController'. The relationship between these two could be made more explicit (i.e., DispatchController delegates to SalesDispatchReconciliationService)."
+      },
+      {
+        "file": "docs/flows/invoice-dealer-finance.md",
+        "line": null,
+        "severity": "non_blocking",
+        "description": "Invoice packet references 'SalesFulfillmentService → InvoiceService' in canonical paths but 'SalesDispatchReconciliationService → InvoiceService.issueInvoice()' in the lifecycle section. The naming inconsistency between SalesFulfillmentService and SalesDispatchReconciliationService should be clarified."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "No flow packets cross-link to ADRs even when directly relevant. ADR-003 (outbox pattern for cross-module events) is directly relevant to the accounting flow's cross-module journal posting, and ADR-006 (portal/host boundary) is directly relevant to invoice-dealer-finance. VAL-FLOW-006 requires cross-linking to ADRs but the flow packets do not do so.",
+      "evidence": "Grep for 'ADR' across docs/flows/ returns zero matches. docs/adrs/ contains 6 ADRs including ADR-003 and ADR-006."
+    },
+    {
+      "area": "conventions",
+      "observation": "No flow packets cross-link to frontend handoff docs (VAL-FLOW-006). However, no frontend-handoff directory or docs exist yet, so this is expected at this milestone.",
+      "evidence": "Glob for docs/frontend-handoff/** returns no results. No 'frontend-handoff' references found in docs/flows/."
+    },
+    {
+      "area": "skills",
+      "observation": "The docs-worker skill was followed successfully. Worker created all 6 packets, ran lint-knowledgebase.sh (exit 0), ran check-enterprise-policy.sh (exit 0), and updated FLOW-INVENTORY.md. No deviations from the skill procedure detected.",
+      "evidence": "Handoff shows successState=success, two verification commands with exit code 0, and all expected files created."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. Six well-structured commercial/finance flow packets created with consistent behavior-first documentation covering actors, entrypoints, preconditions, lifecycle, completion boundary, canonical paths, limitations, and open decisions. All packets are linked from FLOW-INVENTORY.md and cross-reference existing module docs. Minor non-blocking issues: (1) event/listener boundaries not consistently documented across P2P, accounting, and HR flows (O2C correctly documents the single-event gap); (2) no cross-links to ADRs despite ADR-003 and ADR-006 being directly relevant; (3) minor naming inconsistency between SalesFulfillmentService and SalesDispatchReconciliationService in the invoice packet. These are all non-blocking and can be addressed in the integration pass (docs-flows-library-integration milestone)."
+}

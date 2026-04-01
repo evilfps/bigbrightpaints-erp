@@ -1,5 +1,7 @@
 # Data Migration Workflow (Business Operations View)
 
+> ⚠️ **NON-CANONICAL**: This document references `docs/migration-guide.md` which may be outdated. Current migration documentation is available in [docs/runbooks/migrations.md](../runbooks/migrations.md).
+
 **Audience:** Finance onboarding lead, warehouse lead, implementation manager
 
 This guide complements **`docs/migration-guide.md`** by translating migration into business execution steps and ownership.

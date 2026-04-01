@@ -1,0 +1,34 @@
+{
+  "featureId": "docs-finance-reporting-truth",
+  "reviewedAt": "2026-03-30T14:30:00Z",
+  "commitId": "9e964232a",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The reports.md documentation packet is thorough, well-structured, and well-grounded in actual source code. All 7 required report types (trial balance, P&L, balance sheet, cash flow, GST, aging, dashboards) are covered with explicit snapshot-vs-live and classification limitations. Cross-references are valid and the document is discoverable from MODULE-INVENTORY.md and INDEX.md. Three minor issues noted below (one undocumented endpoint, one incorrect cross-reference, one unverified claim about hierarchical P&L), none of which are blocking for VAL-FIN-002 compliance.",
+    "issues": [
+      {
+        "file": "docs/modules/reports.md",
+        "line": 65,
+        "severity": "non_blocking",
+        "description": "Undocumented endpoint: `GET /api/v1/reports/inventory-reconciliation` exists in ReportController.java (line 131) but is not mentioned anywhere in the reports.md documentation packet."
+      },
+      {
+        "file": "docs/modules/reports.md",
+        "line": 237,
+        "severity": "non_blocking",
+        "description": "Broken cross-reference: The 'Related Documentation' section links to `docs/workflows/accounting-and-period-close.md`, but this file does not exist. The `docs/workflows/` directory contains only `FLOW-INVENTORY.md`. The period close workflow is likely covered in `docs/developer/accounting-flows/08-period-close-reconciliation.md` or `docs/flows/FLOW-INVENTORY.md`."
+      },
+      {
+        "file": "docs/modules/reports.md",
+        "line": 253,
+        "severity": "non_blocking",
+        "description": "Known Gaps section states 'No hierarchical P&L variant' but `ReportController.java` line 205 exposes `GET /api/v1/reports/income-statement/hierarchy` which appears to be exactly that. Either the endpoint is functional and should be documented, or it should be listed as a deprecated/dead surface."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The docs-finance-reporting-truth feature produces a comprehensive, well-grounded reports module packet at docs/modules/reports.md. All seven report categories required by VAL-FIN-002 (trial balance, P&L, balance sheet, cash flow, GST, aging, dashboards) are documented with explicit source-of-truth behavior and snapshot-vs-live/classification limitations. The documentation references real controllers, services, DTOs, and repositories that all exist in the codebase. Freshness marker (Last reviewed: 2026-03-30) is present. The document is discoverable from both MODULE-INVENTORY.md and INDEX.md. Three non-blocking issues were found: (1) the inventory-reconciliation endpoint is undocumented, (2) a cross-reference to a non-existent workflows file, and (3) a claim about no hierarchical P&L despite an existing endpoint. None of these affect VAL-FIN-002 compliance."
+}

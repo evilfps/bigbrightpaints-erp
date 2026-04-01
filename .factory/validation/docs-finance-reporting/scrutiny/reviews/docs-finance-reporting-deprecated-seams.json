@@ -1,0 +1,57 @@
+{
+  "featureId": "docs-finance-reporting-deprecated-seams",
+  "reviewedAt": "2026-03-30T09:10:00.000Z",
+  "commitId": "badb6fa19",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature produces a well-structured deprecated-seams section across three files (accounting/AGENTS.md, hr/AGENTS.md, reports.md). Most code references are grounded in actual source. However, there are two blocking inaccuracies: (1) accounting/AGENTS.md references incorrect endpoint paths for both TallyImportController and OpeningBalanceImportController, and (2) reports.md references nonexistent portal/finance endpoint paths as canonical replacements. Non-blocking issues include HR AGENTS.md referencing AccountCoreEngineCore.postPayrollRun() directly when the actual call chain goes through AccountingFacade, and speculative language around legacy HR endpoints that may not exist.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md",
+        "line": 88,
+        "severity": "blocking",
+        "description": "Incorrect endpoint path for TallyImportController. Documentation says '/api/v1/migration/tally/import' but the actual controller is @RequestMapping(\"/api/v1/migration\") with @PostMapping(\"/tally-import\"), making the full path '/api/v1/migration/tally-import' (hyphen, not slash). Confirmed by openapi.json which lists '/api/v1/migration/tally-import'."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md",
+        "line": 91,
+        "severity": "blocking",
+        "description": "Incorrect endpoint path for OpeningBalanceImportController. Documentation says '/api/v1/migration/opening-balance/import' but the actual controller is @RequestMapping(\"/api/v1/accounting\") with @PostMapping(\"/opening-balances\"), making the full path '/api/v1/accounting/opening-balances'. Confirmed by openapi.json which lists '/api/v1/accounting/opening-balances'. The documented path references a non-existent endpoint."
+      },
+      {
+        "file": "docs/modules/reports.md",
+        "line": 268,
+        "severity": "blocking",
+        "description": "References non-existent portal/finance endpoints as canonical replacements. The doc says 'For dealer statements, use /api/v1/portal/finance/statements. For supplier statements, use /api/v1/portal/finance/supplier-statements'. However, openapi.json shows only three portal/finance endpoints exist: /api/v1/portal/finance/aging, /api/v1/portal/finance/invoices, and /api/v1/portal/finance/ledger. Neither '/api/v1/portal/finance/statements' nor '/api/v1/portal/finance/supplier-statements' exist. This violates CONVENTIONS.md rule 1.1 ('code is primary truth source') and rule 1.2 ('do not invent behavior')."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md",
+        "line": 86,
+        "severity": "non_blocking",
+        "description": "Accounting-Host Payment Seam section references 'PayrollPostingService → AccountingCoreEngineCore.postPayrollRun()' but the actual call chain is PayrollPostingService → AccountingFacade (interface) → AccountingFacadeCore → AccountingCoreEngineCore. The class users would see in the PayrollPostingService code is 'AccountingFacade', not 'AccountingCoreEngineCore'. The description is technically correct at the deepest level but misleading about what a reader would find in code."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md",
+        "line": 71,
+        "severity": "non_blocking",
+        "description": "Legacy Payroll Endpoints section uses speculative language: 'Some legacy payroll endpoints may exist as compatibility aliases' and 'Any /api/v1/hr/** endpoints (non-standard) that may exist'. No /api/v1/hr/** endpoints were found in openapi.json or the controller source tree. The documentation should either identify specific legacy endpoints or note that none were found in the current codebase."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The worker produced endpoint paths without verifying them against openapi.json or actual controller @RequestMapping annotations. The docs worker skill or AGENTS.md should emphasize that all endpoint paths must be verified against openapi.json or controller source before documenting.",
+      "evidence": "Three of the endpoint paths in the commit are inaccurate: '/api/v1/migration/tally/import' (should be tally-import), '/api/v1/migration/opening-balance/import' (should be /api/v1/accounting/opening-balances), and '/api/v1/portal/finance/statements' (does not exist)."
+    },
+    {
+      "area": "knowledge",
+      "observation": "The reports.md module is listed in MODULE-INVENTORY.md but not in the main docs/INDEX.md module table. Other newly created module packets (purchasing, sales, etc.) are also missing from INDEX.md. This is not a defect introduced by this feature but a gap in the docs index that affects discoverability.",
+      "evidence": "docs/INDEX.md module table lists 14 modules but does not include reports, purchasing, or invoice — all of which have canonical packets in docs/modules/. MODULE-INVENTORY.md correctly lists all 15 modules including reports."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "FAIL — Three blocking issues with inaccurate endpoint paths. (1) accounting/AGENTS.md documents TallyImportController at '/api/v1/migration/tally/import' but the actual path is '/api/v1/migration/tally-import'. (2) accounting/AGENTS.md documents OpeningBalanceImportController at '/api/v1/migration/opening-balance/import' but the actual path is '/api/v1/accounting/opening-balances'. (3) reports.md recommends '/api/v1/portal/finance/statements' and '/api/v1/portal/finance/supplier-statements' as replacements but these endpoints do not exist in openapi.json. These violations of CONVENTIONS.md §1.1/§1.2 must be fixed before pass. Non-blocking: HR AGENTS.md could be more precise about the payroll posting call chain and less speculative about legacy HR endpoints."
+}

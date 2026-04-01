@@ -1,0 +1,71 @@
+{
+  "groupId": "val-found-009",
+  "testedAt": "2026-03-30T19:30:00Z",
+  "credentials": {
+    "account": "N/A (docs-only validation)",
+    "namespace": "N/A (docs-only validation)"
+  },
+  "toolsUsed": ["Read", "Grep", "LS"],
+  "assertions": [
+    {
+      "id": "VAL-FOUND-009",
+      "title": "Final docs set includes an exhaustive backend feature catalog",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Check docs/INDEX.md for link to backend feature catalog",
+          "expected": "INDEX.md links to BACKEND-FEATURE-CATALOG.md",
+          "observed": "INDEX.md contains a 'Quick Reference: Backend Feature Catalog' section with a link to docs/BACKEND-FEATURE-CATALOG.md describing it as 'Reader-friendly summary of the complete backend feature landscape — exhaustive coverage of platform, operations, commercial, and finance/reporting features with links to deeper module/flow/ADR packets and explicit deprecated/non-canonical surface flags'"
+        },
+        {
+          "action": "Verify exhaustive coverage of all 15 live backend modules",
+          "expected": "All modules from MODULE-INVENTORY.md are covered: accounting, admin, auth, company, demo, factory, hr, inventory, invoice, portal, production, purchasing, rbac, reports, sales",
+          "observed": "BACKEND-FEATURE-CATALOG.md covers all 15 modules. The 'Module Directory' table explicitly lists all 15: accounting, admin, auth, company, demo, factory, hr, inventory, invoice, portal, production, purchasing, rbac, reports, sales — all marked 'Live' with documentation links. Additionally, 4 cross-cutting infrastructure packets (core security/error, core audit/runtime/settings, core idempotency, orchestrator) are covered in the Platform section."
+        },
+        {
+          "action": "Verify navigable grouping of related capabilities",
+          "expected": "Feature families grouped in navigable sections (e.g., platform, operations, commercial, finance)",
+          "observed": "Catalog organized into 4 navigable sections: (1) 'Platform and Cross-Cutting Features' — 10 feature families covering auth, tenant, admin/RBAC, core security, audit, idempotency, orchestration, database, config, health; (2) 'Operations Features' — 3 families covering catalog/setup, inventory, factory; (3) 'Commercial Features' — 3 families covering sales/O2C, purchasing/P2P, invoice/dealer-finance; (4) 'Finance and Reporting Features' — 3 families covering accounting, HR/payroll, reporting. Plus a 'Cross-Module Flow Summary' table with 11 flow entries."
+        },
+        {
+          "action": "Verify links to deeper canonical packets (modules, flows, ADRs)",
+          "expected": "Feature entries link to module docs, flow docs, and ADRs where appropriate",
+          "observed": "Every feature family row includes a 'Deeper Docs' column with links to module packets and flow packets. Verified all 15 module doc links exist on filesystem (auth.md, company.md, admin-portal-rbac.md, catalog-setup.md, inventory.md, factory.md, sales.md, purchasing.md, invoice.md, hr.md, reports.md, core-security-error.md, core-audit-runtime-settings.md, core-idempotency.md, orchestrator.md). All 11 flow doc links verified on filesystem (auth-identity.md, tenant-admin-management.md, catalog-setup-readiness.md, manufacturing-packing.md, inventory-management.md, order-to-cash.md, procure-to-pay.md, invoice-dealer-finance.md, accounting-period-close.md, hr-payroll.md, reporting-export.md). ADR links verified (ADR-003, ADR-004, ADR-005). Cross-references section at bottom links to INDEX.md, MODULE-INVENTORY.md, FLOW-INVENTORY.md, deprecated/INDEX.md, adrs/INDEX.md, CONVENTIONS.md."
+        },
+        {
+          "action": "Verify gap/deprecated/no-replacement notes",
+          "expected": "Catalog includes explicit deprecated/non-canonical surface callouts and gaps",
+          "observed": "Each of the 4 sections has a 'Deprecated/Non-Canonical Surfaces' table. Platform section: 3 deprecated entries with replacement links. Operations section: 8 entries including retired endpoints (POST /api/v1/catalog/products, production-batches paths), non-canonical internal methods, unmaintained entities, rejected headers, and a 'No replacement' entry (legacy raw-material intake endpoints disabled). Commercial section: 7 entries including deprecated aliases, legacy statuses, not-integrated features (promotions), rejected headers, not-supported features (PO idempotency), and retired 410 Gone endpoints. Finance section: 6 entries including deprecated 410 Gone HR paths, deprecated audit CSV export, not-supported operations (direct period reopen, editing posted journals), non-canonical report paths, and split-ownership notes."
+        },
+        {
+          "action": "Verify reader-friendly quality — one-place understanding of backend contents",
+          "expected": "A human can read this catalog and understand the complete backend landscape without reading multiple separate docs first",
+          "observed": "The catalog has a 'How to Use This Catalog' section explaining quick orientation, deep dive, deprecated surface discovery, and boundary understanding. Each feature family table row includes: description of capabilities, owning module, key API entrypoints, and deeper docs links. The Module Directory provides a quick-reference status table. The Cross-Module Flow Summary connects all 11 major flows to their participating modules. The catalog provides comprehensive context without requiring readers to open other docs first, while linking to deeper packets for detailed exploration."
+        }
+      ],
+      "evidence": {
+        "catalogDoc": "docs/BACKEND-FEATURE-CATALOG.md (exists, 199 lines, last reviewed 2026-03-30)",
+        "indexLink": "docs/INDEX.md contains 'Quick Reference: Backend Feature Catalog' section with link to BACKEND-FEATURE-CATALOG.md",
+        "modulesCovered": "All 15 live modules listed in Module Directory table: accounting, admin, auth, company, demo, factory, hr, inventory, invoice, portal, production, purchasing, rbac, reports, sales",
+        "crossCuttingCovered": "4 cross-cutting packets: core-security-error, core-audit-runtime-settings, core-idempotency, orchestrator",
+        "sections": ["Platform and Cross-Cutting Features (10 families)", "Operations Features (3 families)", "Commercial Features (3 families)", "Finance and Reporting Features (3 families)", "Cross-Module Flow Summary (11 flows)"],
+        "deeperLinksVerified": {
+          "moduleDocs": 15 links, all verified on filesystem,
+          "flowDocs": 11 links, all verified on filesystem,
+          "adrLinks": 3 links (ADR-003, ADR-004, ADR-005), all verified on filesystem,
+          "crossReferences": ["INDEX.md", "MODULE-INVENTORY.md", "FLOW-INVENTORY.md", "deprecated/INDEX.md", "adrs/INDEX.md", "CONVENTIONS.md"]
+        },
+        "deprecatedNotes": {
+          "platform": 3 entries with replacements,
+          "operations": 8 entries (7 with replacements/notes, 1 explicit 'No replacement' - legacy raw-material intake disabled),
+          "commercial": 7 entries with replacements/notes",
+          "finance": 6 entries with replacements/notes"
+        }
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 1 assertion: VAL-FOUND-009 PASSED. The backend feature catalog (docs/BACKEND-FEATURE-CATALOG.md) is discoverable from docs/INDEX.md, covers all 15 live backend modules plus 4 cross-cutting infrastructure areas, groups capabilities into 4 navigable sections (platform, operations, commercial, finance), links to all 15 module docs, 11 flow docs, and 3 ADRs (all verified on filesystem), includes 24 deprecated/non-canonical surface entries across 4 section-specific tables with explicit replacement links and no-replacement notes, and provides reader-friendly one-place context with API entrypoints, module ownership, and a cross-module flow summary."
+}

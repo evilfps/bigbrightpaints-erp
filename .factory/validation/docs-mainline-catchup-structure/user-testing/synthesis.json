@@ -1,0 +1,23 @@
+{
+  "milestone": "docs-mainline-catchup-structure",
+  "round": 2,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-MAIN-001",
+    "VAL-MAIN-002",
+    "VAL-MAIN-003",
+    "VAL-MAIN-004",
+    "VAL-MAIN-005",
+    "VAL-MAIN-006"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": ".factory/validation/docs-mainline-catchup-structure/user-testing/synthesis.json (round 1)"
+}

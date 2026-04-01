@@ -1,0 +1,28 @@
+{
+  "featureId": "docs-foundation-flow-inventory",
+  "reviewedAt": "2026-03-29T18:30:00.000Z",
+  "commitId": "e1d2f17f",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The flow inventory at docs/flows/FLOW-INVENTORY.md comprehensively covers all 11 major backend flow families required by VAL-FOUND-003 and correctly maps them to owning modules, cross-module participants, key route prefixes, and historical workflow guides. The document is well-structured with a clear inventory table, coverage notes, supporting workflow guide cross-references, key route prefixes table, and cross-references to related canonical docs. The docs/INDEX.md was updated to replace the placeholder Flows section with an active link to the flow inventory. The implementation is docs-only as required by the mission boundaries.",
+    "issues": [
+      {
+        "file": "docs/flows/FLOW-INVENTORY.md",
+        "line": 8,
+        "severity": "non_blocking",
+        "description": "Minor wording: The inventory description says 'summarises' (British spelling) while most of the document uses American English conventions. This is consistent with AGENTS.md not prescribing a locale, so it's not a defect, but worth noting for future consistency passes."
+      },
+      {
+        "file": "docs/flows/FLOW-INVENTORY.md",
+        "line": 43,
+        "severity": "non_blocking",
+        "description": "The O2C flow entry mentions 'dunning' in the summary but there are no dunning-specific controller routes or services visible in the codebase. The historical sales-order-to-cash.md workflow guide does not explicitly cover dunning either. If dunning is not yet implemented, the summary should use 'implemented vs planned' language per CONVENTIONS.md rules. This is a minor accuracy concern, not blocking since dunning is a reasonable O2C sub-flow even if currently partial."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS — The canonical flow inventory comprehensively covers all 11 required backend flow families (auth/identity, tenant/admin, catalog/setup, manufacturing/packing, inventory, O2C, P2P, invoice/dealer-finance, accounting/period close, HR/payroll, reporting/export) with accurate owning modules, correct route prefixes verified against actual @RequestMapping annotations, proper cross-module dependency edges, and links to historical workflow guides. The invoice/dealer-finance flow is included as an 11th entry beyond the minimum 10 required by VAL-FOUND-003, which is appropriate given it maps to distinct code modules (invoice + portal). The document is reachable from docs/INDEX.md via the updated Flows section. Two minor non-blocking observations noted: inconsistent British/American spelling in one word, and the O2C entry mentioning 'dunning' without a clear implemented-vs-planned qualifier. Route prefixes verified against actual controller annotations — all route prefix claims are accurate. The `ci/lint-knowledgebase.sh` validator passed. The worker followed the docs-worker procedure correctly with no deviations."
+}

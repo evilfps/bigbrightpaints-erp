@@ -1,0 +1,22 @@
+{
+  "featureId": "docs-mainline-reference-banner-alignment",
+  "reviewedAt": "2026-03-31T08:15:00.000Z",
+  "commitId": "1728a46af",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "This fix feature correctly addresses the two non-blocking issues from the prior round 1 scrutiny of docs-mainline-legacy-doc-reconciliation. Inline NON-CANONICAL / REFERENCE ONLY banners were added to both docs/frontend-handoff-finance.md and docs/accounting-portal-frontend-engineer-handoff.md. The banners point to the correct canonical replacements: frontend-handoff-finance.md points to docs/frontend-portals/ and docs/frontend-api/ (matching INDEX.md line 101), and accounting-portal-frontend-engineer-handoff.md points to docs/frontend-portals/accounting/ (matching INDEX.md line 102). All canonical target files exist and are populated. The diff is minimal and surgical — only 15 lines added across 2 files, no deletions or modifications to existing content. Both ci/lint-knowledgebase.sh and ci/check-enterprise-policy.sh passed.",
+    "issues": [
+      {
+        "file": "docs/frontend-handoff-finance.md",
+        "line": 4,
+        "severity": "non_blocking",
+        "description": "Banner links use relative paths without the ../ prefix (e.g., 'frontend-portals/README.md' instead of '../frontend-portals/README.md'). This works because GitHub renders these correctly from the docs/ directory context, and the prior art in frontend-handoff-platform.md uses '../frontend-portals/README.md' format. Both approaches resolve correctly on GitHub, but the inconsistency in relative path style between the new banners (no ../) and the original banners (with ../) is a minor cosmetic difference."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": ".factory/validation/docs-mainline-catchup-cleanup/scrutiny/reviews/docs-mainline-legacy-doc-reconciliation.json",
+  "summary": "PASS. The fix correctly addresses both non-blocking issues from the prior scrutiny round. Both docs/frontend-handoff-finance.md and docs/accounting-portal-frontend-engineer-handoff.md now carry inline NON-CANONICAL / REFERENCE ONLY banners that match their declared legacy status in docs/INDEX.md. The banners point to the correct canonical replacements (docs/frontend-portals/ and docs/frontend-api/ for finance; docs/frontend-portals/accounting/ for accounting-portal), and all target files exist. This closes the consistency gap identified in the round 1 synthesis. One minor non-blocking note: the new banners use slightly different relative path formatting (no ../ prefix) compared to the banners in the other legacy handoff files, but both resolve correctly."
+}

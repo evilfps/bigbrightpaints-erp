@@ -41,16 +41,18 @@ if ! printf '%s\n' "$changed_files" | grep -Fxq "$ALLOWLIST"; then
 fi
 
 # Require docs/ARCHITECTURE.md change alongside allowlist update.
-if ! printf '%s\n' "$changed_files" | grep -Fxq "docs/ARCHITECTURE.md"; then
+# Match case-insensitively because git may track the file as architecture.md or ARCHITECTURE.md
+# depending on platform history.
+if ! printf '%s\n' "$changed_files" | grep -Fixq "docs/ARCHITECTURE.md"; then
   echo "[allowlist-evidence] FAIL: allowlist changed without docs/ARCHITECTURE.md update." >&2
   echo "[allowlist-evidence] remediation: update docs/ARCHITECTURE.md with the new boundary decision." >&2
   exit 1
 fi
 
-adr_candidates="$(printf '%s\n' "$changed_files" | grep -E '^docs/adr/ADR-.*allowlist.*\.md$' || true)"
+adr_candidates="$(printf '%s\n' "$changed_files" | grep -E '^docs/adr[s]?/ADR-.*allowlist.*\.md$' || true)"
 if [[ -z "$adr_candidates" ]]; then
   echo "[allowlist-evidence] FAIL: allowlist changed without ADR evidence file." >&2
-  echo "[allowlist-evidence] remediation: add docs/adr/ADR-*-allowlist-*.md including Why Needed / Alternatives Rejected / Boundary Preserved." >&2
+  echo "[allowlist-evidence] remediation: add docs/adr/ADR-*-allowlist-*.md (or docs/adrs/ADR-*-allowlist-*.md) including Why Needed / Alternatives Rejected / Boundary Preserved." >&2
   exit 1
 fi
 

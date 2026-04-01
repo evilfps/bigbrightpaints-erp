@@ -1,0 +1,64 @@
+# Orchestrator Layer Governance
+# Last reviewed: 2026-03-29
+
+orchestrator_id: orchestrator
+
+description: >
+  The orchestrator layer handles background coordination, outbox-based
+  command publishing, and cross-module event dispatch. Changes to this
+  layer trigger enterprise-mode controls.
+
+boundaries:
+  - The orchestrator coordinates but does not own business logic.
+  - Module services own their domain logic; the orchestrator dispatches commands and tracks outcomes.
+  - Event listeners bridge modules without creating direct service dependencies at the orchestrator layer.
+
+high_risk_paths:
+  - "erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/"
+
+routing_rules:
+  - Packet-governance workers handle docs/governance artifacts only.
+  - Implementation workers handle in-scope code/test changes.
+  - Review-only validators audit diffs and report findings without committing product-code changes.
+  - Security auditors review auth, RBAC, and tenant isolation changes.
+
+review_pipeline:
+  - Pre-commit validation runs Spotless format, Checkstyle, compile, and lint hooks.
+  - gate-fast runs on push; gate-release runs before merge.
+  - Orchestrator assigns reviewers based on change class.
+  - R2 escalation applies for high-risk changes (auth, company, RBAC, HR, accounting, orchestrator, migration_v2).
+  - Merge proceeds only after CI green plus reviewer approval.
+
+commit_policy:
+  rules:
+    - review-only agents do not commit code
+    - Implementation workers commit only within their assigned feature scope.
+    - Docs-only governance packets may skip Codex review after lint-knowledgebase passes.
+    - High-risk packets must update docs/approvals/R2-CHECKPOINT.md before merge.
+  minimum_review_agents_per_slice: 1
+  require_orchestrator_premerge_review: true
+  block_on_cross_slice_overlaps: true
+  block_on_scope_violations: true
+  require_codex_review_guidelines_check: true
+
+completion_contract:
+  - All assigned feature tests pass.
+  - All validators relevant to the packet succeed.
+  - Working tree is clean with no uncommitted changes.
+  - Handoff includes exact files edited, evidence sources, and validator transcripts.
+
+validators:
+  - "bash ci/check-orchestrator-layer.sh"
+  - "bash ci/lint-knowledgebase.sh"
+  - "bash ci/check-enterprise-policy.sh"
+
+cross_references:
+  - "docs/agents/ORCHESTRATION_LAYER.md"
+  - "docs/ARCHITECTURE.md"
+  - "docs/RELIABILITY.md"
+  - "agents/catalog.yaml"
+
+agent_references:
+  - packet-governance-worker
+  - implementation-worker
+  - review-validator

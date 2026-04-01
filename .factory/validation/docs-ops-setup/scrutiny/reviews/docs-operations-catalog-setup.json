@@ -1,0 +1,70 @@
+{
+  "featureId": "docs-operations-catalog-setup",
+  "reviewedAt": "2026-03-30T03:15:00.000Z",
+  "commitId": "79a9915e",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The catalog-setup.md packet is thorough and well-structured, covering 12 sections of catalog/setup/readiness documentation. The document correctly identifies the canonical controller, services, domain entities, and cross-module boundaries. Route maps, readiness stages, blocker codes, import mechanics, and prerequisites are largely accurate. However, there are several accuracy issues in the payload family section (Section 3) where field optionality and DTO field names are incorrect relative to the source code. These are blocking issues because the document is meant as a canonical reference for frontend and downstream consumers.",
+    "issues": [
+      {
+        "file": "docs/modules/catalog-setup.md",
+        "line": 69,
+        "severity": "blocking",
+        "description": "Section 3.2 CatalogItemRequest lists `unitOfMeasure` as `(optional)` but the source code has `@NotBlank(message = \"unitOfMeasure is required\")` on this field — it is REQUIRED, not optional."
+      },
+      {
+        "file": "docs/modules/catalog-setup.md",
+        "line": 71,
+        "severity": "blocking",
+        "description": "Section 3.2 CatalogItemRequest lists `hsnCode` as `(optional)` but the source code has `@NotBlank(message = \"hsnCode is required\")` — it is REQUIRED, not optional."
+      },
+      {
+        "file": "docs/modules/catalog-setup.md",
+        "line": 73,
+        "severity": "blocking",
+        "description": "Section 3.2 CatalogItemRequest lists `gstRate` as `(optional)` but the source code has `@NotNull(message = \"gstRate is required\")` — it is REQUIRED, not optional."
+      },
+      {
+        "file": "docs/modules/catalog-setup.md",
+        "line": 85,
+        "severity": "blocking",
+        "description": "Section 3.2 CatalogItemDto lists `productName` as a field name, but the actual `CatalogItemDto` record uses `name`. Similarly, `skuCode` should be `code`, `defaultColour` should be `color`, and `sizeLabel` should be `size`. These are the actual JSON field names consumers will see in API responses and must match the DTO record definition exactly."
+      },
+      {
+        "file": "docs/modules/catalog-setup.md",
+        "line": 121,
+        "severity": "blocking",
+        "description": "Section 5.2 Readiness by Item Class table lists inventory blockers for FINISHED_GOOD as `*_ACCOUNT_MISSING` (wildcard), but the actual code generates four separate blocker codes: `FINISHED_GOOD_VALUATION_ACCOUNT_MISSING`, `FINISHED_GOOD_COGS_ACCOUNT_MISSING`, `FINISHED_GOOD_REVENUE_ACCOUNT_MISSING`, and `FINISHED_GOOD_TAX_ACCOUNT_MISSING`. The doc should list these explicitly since downstream consumers need to handle each individually."
+      },
+      {
+        "file": "docs/modules/catalog-setup.md",
+        "line": 121,
+        "severity": "non_blocking",
+        "description": "Section 5.2 Readiness by Item Class table does not mention two inventory-stage blocker codes that exist in the source: `RAW_MATERIAL_CATEGORY_REQUIRED` (when an RM/PKG product's category is not recognized as a raw material category) and `FINISHED_GOOD_CATEGORY_REQUIRED` (when a FG product's category IS a raw material category). These are edge-case blockers but they exist in the code and consumers may encounter them."
+      },
+      {
+        "file": "docs/modules/catalog-setup.md",
+        "line": 253,
+        "severity": "non_blocking",
+        "description": "Section 10 Immutability table says `skuCode` changes raise `BUSINESS_INVALID_STATE`, but the actual behavior is that `skuCode` simply isn't present in the `CatalogItemUpdateCommand` — it's immutable by omission, not by an explicit guard. The error for immutable fields like `brandId`, `itemClass`, `color`, `size`, `unitOfMeasure` is `BUSINESS_INVALID_STATE` via `ValidationUtils.invalidInput()`, which is correct. But `skuCode` immutability is structural (auto-generated, never in the update DTO), not enforced by a runtime check. The documentation should clarify this distinction."
+      },
+      {
+        "file": "docs/modules/catalog-setup.md",
+        "line": 39,
+        "severity": "non_blocking",
+        "description": "Section 2 Route Map: The doc lists brand PUT and DELETE as restricted to all four roles (`ROLE_ADMIN`, `ROLE_ACCOUNTING`, `ROLE_SALES`, `ROLE_FACTORY`). This is correct — there is no method-level `@PreAuthorize` override on those endpoints, so they inherit the class-level guard. However, it's worth noting this is a permissive setup: any authenticated role can update or deactivate brands, which may be unexpected for a write operation. The doc doesn't flag this as a potential concern, though it accurately describes the current behavior."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The worker's transcript shows a significantly garbled assistant output section (multiple transcript turns are incoherent/corrupted text). This didn't affect the output quality — the actual edits were correct and the handoff was clean — but the transcript skeleton may indicate a model context degradation episode during the session. No action needed for this review, but noting for awareness.",
+      "evidence": "Transcript skeleton: approximately 20+ tool calls after 'TodoWrite' update show increasingly garbled assistant text before the session recovered with a clean lint run and commit."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "The catalog-setup.md documentation packet is comprehensive and well-structured, covering brands, items, import, readiness evaluation, SKU code generation, prerequisites, cross-module boundaries, and caveats. It is discoverable from INDEX.md and MODULE-INVENTORY.md. All cross-references point to existing files. The lint validator passes cleanly. However, the review found 5 blocking accuracy issues in the payload families section (Section 3): (1-3) three CatalogItemRequest fields listed as optional are actually required (`unitOfMeasure`, `hsnCode`, `gstRate`), (4) four CatalogItemDto response field names are wrong (`productName`→`name`, `skuCode`→`code`, `defaultColour`→`color`, `sizeLabel`→`size`), and (5) the readiness blocker table uses a wildcard instead of listing the four specific FINISHED_GOOD account blocker codes. There are also 3 non-blocking issues: missing two edge-case blocker codes, an imprecise description of skuCode immutability enforcement, and unremarked-permissive brand write access. These issues should be fixed before the packet is considered fully accurate as a canonical reference."
+}

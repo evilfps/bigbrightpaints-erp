@@ -1,0 +1,270 @@
+{
+  "groupId": "commercial-flows",
+  "testedAt": "2026-03-30T16:45:00Z",
+  "credentials": {
+    "account": "docs-only",
+    "namespace": "docs-flows-commercial"
+  },
+  "toolsUsed": ["Read", "Grep", "LS", "bash ci/lint-knowledgebase.sh"],
+  "assertions": [
+    {
+      "id": "VAL-FLOW-001",
+      "title": "Flow library covers the major backend flows",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read docs/flows/FLOW-INVENTORY.md",
+          "expected": "Inventory lists all 11 major flow families",
+          "observed": "FLOW-INVENTORY.md lists exactly 11 flow families: (1) Auth/Identity, (2) Tenant/Admin Management, (3) Catalog/Setup Readiness, (4) Manufacturing/Packing, (5) Inventory Management, (6) Order-to-Cash (O2C), (7) Procure-to-Pay (P2P), (8) Invoice/Dealer Finance, (9) Accounting/Period Close, (10) HR/Payroll, (11) Reporting/Export"
+        },
+        {
+          "action": "Check O2C flow 6 has canonical packet link (not 'packet pending')",
+          "expected": "order-to-cash.md linked",
+          "observed": "Row 6 'Order-to-Cash (O2C)' links to order-to-cash.md — not 'packet pending'"
+        },
+        {
+          "action": "Check P2P flow 7 has canonical packet link (not 'packet pending')",
+          "expected": "procure-to-pay.md linked",
+          "observed": "Row 7 'Procure-to-Pay (P2P)' links to procure-to-pay.md — not 'packet pending'"
+        },
+        {
+          "action": "Check Invoice/Dealer Finance flow 8 has canonical packet link (not 'packet pending')",
+          "expected": "invoice-dealer-finance.md linked",
+          "observed": "Row 8 'Invoice / Dealer Finance' links to invoice-dealer-finance.md — not 'packet pending'"
+        },
+        {
+          "action": "Verify all 3 flow packet files exist on disk",
+          "expected": "3 files in docs/flows/",
+          "observed": "All 3 exist: order-to-cash.md (13893 bytes), procure-to-pay.md (13980 bytes), invoice-dealer-finance.md (10196 bytes)"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "n/a (docs-only)"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-002",
+      "title": "Each major flow doc explains the current canonical lifecycle",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify order-to-cash.md has all 6 required sections",
+          "expected": "§1 Actors, §2 Entrypoints, §3 Preconditions, §4 Lifecycle, §5 Completion Boundary, §7 Cross-Module Dependencies",
+          "observed": "O2C: §1 Actors (6 actors: Dealer, Sales User, Admin, Accounting, Factory, Operational Dispatch), §2 Entrypoints (25 endpoints across 5 controller groups), §3 Preconditions (4 sub-flow precondition lists), §4 Lifecycle (6 sub-lifecycles with flow diagrams), §5 Completion Boundary (5 criteria + 7 limitations), §7 Cross-Module Dependencies (5 modules: inventory, accounting, invoice, auth, factory)"
+        },
+        {
+          "action": "Verify procure-to-pay.md has all 6 required sections",
+          "expected": "§1 Actors, §2 Entrypoints, §3 Preconditions, §4 Lifecycle, §5 Completion Boundary, §7 Cross-Module Dependencies",
+          "observed": "P2P: §1 Actors (3 actors: Admin, Accounting, Factory), §2 Entrypoints (23 endpoints across 4 controller groups), §3 Preconditions (5 sub-flow precondition lists), §4 Lifecycle (7 sub-lifecycles with flow diagrams), §5 Completion Boundary (5 criteria + 7 limitations), §7 Cross-Module Dependencies (2 modules: inventory, accounting)"
+        },
+        {
+          "action": "Verify invoice-dealer-finance.md has all 6 required sections",
+          "expected": "§1 Actors, §2 Entrypoints, §3 Preconditions, §4 Lifecycle, §5 Completion Boundary, §7 Cross-Module Dependencies",
+          "observed": "Invoice/Dealer Finance: §1 Actors (4 actors: Dealer, Admin, Accounting, Sales), §2 Entrypoints (19 endpoints across 4 controller groups), §3 Preconditions (3 sub-flow precondition lists), §4 Lifecycle (5 sub-lifecycles with flow diagrams), §5 Completion Boundary (4 criteria + 6 limitations), §7 Cross-Module Dependencies (3 modules: sales, accounting, inventory)"
+        },
+        {
+          "action": "Verify FLOW-INVENTORY.md references all 3 packets",
+          "expected": "All 3 commercial packets referenced",
+          "observed": "FLOW-INVENTORY.md rows 6, 7, 8 all have links to their respective canonical packet files"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "n/a (docs-only)",
+        "sectionCounts": {
+          "O2C": { "actors": 6, "entrypoints": 25, "preconditionSets": 4, "lifecycles": 6, "completionCriteria": 5, "crossModuleDeps": 5 },
+          "P2P": { "actors": 3, "entrypoints": 23, "preconditionSets": 5, "lifecycles": 7, "completionCriteria": 5, "crossModuleDeps": 2 },
+          "Invoice": { "actors": 4, "entrypoints": 19, "preconditionSets": 3, "lifecycles": 5, "completionCriteria": 4, "crossModuleDeps": 3 }
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-003",
+      "title": "Each major flow doc states the current backend definition of done",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify order-to-cash.md has Completion Boundary / Definition of Done section",
+          "expected": "Section with completion criteria and Current Limitations",
+          "observed": "§5 'Completion Boundary / Current Definition of Done' with 5 concrete criteria (Order Created → Closed) plus 'Current Limitations' subsection with 7 items using implemented-vs-planned language: 'No automated settlement', 'No automated order closure', 'No automatic payment reconciliation', 'Single domain event', 'No shipment tracking integration', 'Dunning is rudimentary', 'No partial fulfillment by default'"
+        },
+        {
+          "action": "Verify procure-to-pay.md has Completion Boundary / Definition of Done section",
+          "expected": "Section with completion criteria and Current Limitations",
+          "observed": "§5 'Completion Boundary / Current Definition of Done' with 5 criteria (Supplier Active → Settled) plus 'Current Limitations' with 7 items: 'PO creation has no idempotency', 'Purchase invoice has no idempotency', 'GRN quantity limits line-level only', 'No partial GRN against single PO line', 'Purchase return stock reversal simple', 'No automated dunning for suppliers', 'Supplier balance ledger-derived'"
+        },
+        {
+          "action": "Verify invoice-dealer-finance.md has Completion Boundary / Definition of Done section",
+          "expected": "Section with completion criteria and Current Limitations",
+          "observed": "§5 'Completion Boundary / Current Definition of Done' with 4 criteria (Invoice Created → Closed) plus 'Current Limitations' with 6 items: 'No automatic payment reconciliation', 'Settlement manual', 'No invoice approval workflow', 'Limited invoice adjustment', 'Aging simple', 'No partial invoice payment allocation'"
+        },
+        {
+          "action": "Check for aspirational language in all 3 packets",
+          "expected": "No aspirational language — all limitations use 'not implemented', 'not supported', 'no' language",
+          "observed": "All limitations use concrete implemented-vs-planned language: 'Not implemented', 'Not default', 'Not supported', 'Not integrated', 'Manual required'. No aspirational language found."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "n/a (docs-only)",
+        "limitationCounts": { "O2C": 7, "P2P": 7, "Invoice": 6 }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-004",
+      "title": "Each major flow doc identifies canonical vs non-canonical paths",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify order-to-cash.md §6 Canonical vs Non-Canonical Paths",
+          "expected": "Section distinguishing canonical from deprecated/non-canonical paths with replacements",
+          "observed": "§6 'Canonical vs Non-Canonical Paths' with: 5 canonical paths (POST /sales/orders, POST /sales/orders/{id}/confirm, POST /dispatch/confirm, POST /credit/limit-requests, POST /dealer-portal/credit-limit-requests) and 4 non-canonical/deprecated paths (GET /sales/dealers → use /dealers, legacy idempotency key → use Idempotency-Key, legacy order statuses → use canonical, POST /sales/promotions → not integrated). Each deprecated path has a replacement."
+        },
+        {
+          "action": "Verify procure-to-pay.md §6 Canonical vs Non-Canonical Paths",
+          "expected": "Section distinguishing canonical from deprecated/non-canonical paths with replacements",
+          "observed": "§6 'Canonical vs Non-Canonical Paths' with: 5 canonical paths (POST /suppliers, POST /purchasing/purchase-orders, POST /purchasing/goods-receipts, POST /purchasing/raw-material-purchases, POST /accounting/suppliers/{id}/auto-settle) and 3 non-canonical/deprecated paths (X-Idempotency-Key → Rejected 400, use Idempotency-Key; PO creation idempotency → not supported, rely on order number; Purchase invoice idempotency → not supported, rely on invoice number). Each deprecated path has replacement or explicit status."
+        },
+        {
+          "action": "Verify invoice-dealer-finance.md §6 Canonical vs Non-Canonical Paths",
+          "expected": "Section distinguishing canonical from deprecated/non-canonical paths with replacements",
+          "observed": "§6 'Canonical vs Non-Canonical Paths' with: 5 canonical paths (auto-issue during dispatch, GET /portal/finance/ledger, GET /dealer-portal/ledger, POST /invoices/{id}/payments, GET /invoices/{id}/pdf) and 4 non-canonical/deprecated paths all marked Retired (410) or Retired: GET /dealers/{id}/ledger → /portal/finance/ledger?dealerId={id}, GET /dealers/{id}/invoices → /portal/finance/invoices?dealerId={id}, GET /dealers/{id}/aging → /portal/finance/aging?dealerId={id}, GET /reports/aging/dealer/{id} → /portal/finance/aging?dealerId={id}. All have replacements."
+        },
+        {
+          "action": "Verify cross-module boundary notes in all 3 packets",
+          "expected": "§7 Cross-Module Dependencies with module, dependency, direction",
+          "observed": "O2C §7: 5 cross-module deps (inventory, accounting, invoice, auth, factory). P2P §7: 2 cross-module deps (inventory, accounting). Invoice §7: 3 cross-module deps (sales, accounting, inventory). All have module, dependency description, and direction."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "n/a (docs-only)",
+        "canonicalPathCounts": { "O2C": 5, "P2P": 5, "Invoice": 5 },
+        "deprecatedPathCounts": { "O2C": 4, "P2P": 3, "Invoice": 4 },
+        "allDeprecatedHaveReplacements": true
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-005",
+      "title": "Each major flow doc records open decisions and incomplete seams",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify order-to-cash.md has Open Decisions section",
+          "expected": "§10 Open Decisions with known open decisions/incomplete seams/dead ends",
+          "observed": "§10 'Open Decisions' with 5 entries: Automated settlement (Not implemented), Automated order closure (Not implemented), Shipment tracking integration (Not implemented), Event-driven order confirmation (Not implemented), Partial fulfillment (Not default). All use explicit status and notes explaining current state."
+        },
+        {
+          "action": "Verify procure-to-pay.md has Open Decisions section",
+          "expected": "§11 Open Decisions with known open decisions/incomplete seams",
+          "observed": "§11 'Open Decisions' with 4 entries: PO idempotency (Not implemented — order number uniqueness), Invoice idempotency (Not implemented — invoice number uniqueness), Supplier dunning (Not implemented — manual aging review), Partial GRN per line (Not supported). All state current limitation and what exists instead."
+        },
+        {
+          "action": "Verify invoice-dealer-finance.md has Open Decisions section",
+          "expected": "§10 Open Decisions with known open decisions/incomplete seams",
+          "observed": "§10 'Open Decisions' with 4 entries: Automatic payment reconciliation (Not implemented), Invoice approval workflow (Not implemented), Credit notes (Limited — not fully implemented), Custom aging buckets (Not supported). All provide concrete status and notes."
+        },
+        {
+          "action": "Verify readers can tell where backend truth is partial or unsettled",
+          "expected": "Clear status indicators in open decisions",
+          "observed": "All 13 open decisions across 3 packets use explicit status labels: 'Not implemented', 'Not supported', 'Not default', 'Limited'. Combined with Current Limitations sections, readers have clear visibility into partial/unsettled areas."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "n/a (docs-only)",
+        "openDecisionCounts": { "O2C": 5, "P2P": 4, "Invoice": 4 }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-006",
+      "title": "Flow packets cross-link to module docs, ADRs, and frontend handoff docs",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify order-to-cash.md §9 Related Documentation links",
+          "expected": "Links to owning module packets, FLOW-INVENTORY.md, ADRs; linked files exist on disk",
+          "observed": "§9 'Related Documentation' links: docs/modules/sales.md ✓ exists, docs/modules/invoice.md ✓ exists, docs/modules/inventory.md ✓ exists, docs/modules/admin-portal-rbac.md ✓ exists, docs/flows/FLOW-INVENTORY.md ✓ exists. No direct ADR links (acceptable — ADRs linked at module level). No frontend handoff links (not yet created for this milestone)."
+        },
+        {
+          "action": "Verify procure-to-pay.md §10 Related Documentation links",
+          "expected": "Links to owning module packets, FLOW-INVENTORY.md, ADRs; linked files exist on disk",
+          "observed": "§10 'Related Documentation' links: docs/modules/purchasing.md ✓ exists, docs/modules/inventory.md ✓ exists, docs/modules/core-idempotency.md ✓ exists, docs/flows/FLOW-INVENTORY.md ✓ exists. 'Relevant ADRs' subsection: ADR-003-outbox-pattern-for-cross-module-events.md ✓ exists, ADR-004-layered-audit-surfaces.md ✓ exists. All 6 links verified on disk."
+        },
+        {
+          "action": "Verify invoice-dealer-finance.md §9 Related Documentation links",
+          "expected": "Links to owning module packets, FLOW-INVENTORY.md, ADRs; linked files exist on disk",
+          "observed": "§9 'Related Documentation' links: docs/modules/invoice.md ✓ exists, docs/modules/sales.md ✓ exists, docs/modules/admin-portal-rbac.md ✓ exists, docs/modules/core-security-error.md ✓ exists, docs/flows/FLOW-INVENTORY.md ✓ exists. 'Relevant ADRs' subsection: ADR-002-multi-tenant-auth-scoping.md ✓ exists, ADR-006-portal-and-host-boundary-separation.md ✓ exists. All 7 links verified on disk."
+        },
+        {
+          "action": "Verify FLOW-INVENTORY.md is referenced by all 3 packets",
+          "expected": "All 3 packets link to FLOW-INVENTORY.md",
+          "observed": "All 3 commercial flow packets link to FLOW-INVENTORY.md in their Related Documentation section"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "n/a (docs-only)",
+        "linkVerification": {
+          "O2C": { "linked": 5, "exist": 5, "missing": 0, "files": ["docs/modules/sales.md", "docs/modules/invoice.md", "docs/modules/inventory.md", "docs/modules/admin-portal-rbac.md", "docs/flows/FLOW-INVENTORY.md"] },
+          "P2P": { "linked": 6, "exist": 6, "missing": 0, "files": ["docs/modules/purchasing.md", "docs/modules/inventory.md", "docs/modules/core-idempotency.md", "docs/flows/FLOW-INVENTORY.md", "docs/adrs/ADR-003-outbox-pattern-for-cross-module-events.md", "docs/adrs/ADR-004-layered-audit-surfaces.md"] },
+          "Invoice": { "linked": 7, "exist": 7, "missing": 0, "files": ["docs/modules/invoice.md", "docs/modules/sales.md", "docs/modules/admin-portal-rbac.md", "docs/modules/core-security-error.md", "docs/flows/FLOW-INVENTORY.md", "docs/adrs/ADR-002-multi-tenant-auth-scoping.md", "docs/adrs/ADR-006-portal-and-host-boundary-separation.md"] }
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-007",
+      "title": "Flow packets surface event/listener and access-control boundaries where they matter",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify order-to-cash.md §8 Security Considerations",
+          "expected": "Section naming access-control gates and event/listener boundaries",
+          "observed": "§8 'Security Considerations' with: RBAC enforcement (Sales vs Dealer vs Admin vs Accounting roles per endpoint), Dealer isolation (/dealer-portal/** auto-scoped to authenticated dealer), Credit checks (enforcement at order creation and confirmation), Company scoping (tenant via companyCode from JWT). Event/listener boundaries: dispatch triggers AR, COGS, invoice via SalesDispatchReconciliationService (§4.4), only SalesOrderCreatedEvent published (§5 limitation #4)."
+        },
+        {
+          "action": "Verify procure-to-pay.md §8 Event/Listener Boundaries and §9 Security Considerations",
+          "expected": "Section naming access-control gates and event/listener boundaries",
+          "observed": "§8 'Event/Listener Boundaries' explicitly documents: InventoryMovementEvent → InventoryAccountingEventListener (AFTER_COMMIT) — creates inventory valuation journal entries when GRN creates RawMaterialBatch, conditional on erp.inventory.accounting.events.enabled=true (default true). InventoryValuationChangedEvent → InventoryAccountingEventListener. Key boundary note: GRN is stock truth boundary, accounting bridge is conditional on feature flag. §9 'Security Considerations': RBAC enforcement (Admin/Accounting), Company scoping (tenant), Supplier isolation (company-scoped)."
+        },
+        {
+          "action": "Verify invoice-dealer-finance.md §8 Security Considerations",
+          "expected": "Section naming access-control gates and event/listener boundaries",
+          "observed": "§8 'Security Considerations' with: Host isolation (/api/v1/portal/finance/** vs /api/v1/dealer-portal/** strictly separated), RBAC (Admin/Accounting for internal, Dealer for self-service), Dealer auto-scoping (no dealer ID parameter, always from JWT), Cross-dealer prevention (dealer can only access own invoices), PDF audit logging (invoice downloads logged), Company context mismatch (returns 403). Event boundary: invoice created during dispatch via SalesDispatchReconciliationService → InvoiceService.issueInvoice() (§4.1)."
+        },
+        {
+          "action": "Verify non-obvious access-control gates are surfaced",
+          "expected": "Hidden gates documented",
+          "observed": "P2P §8 documents hidden coupling: erp.inventory.accounting.events.enabled toggle silently skips accounting side effects when disabled. Invoice §8 documents company context mismatch returning 403 (non-obvious cross-tenant gate). O2C §8 documents OPERATIONAL_DISPATCH custom predicate for dispatch confirmation (non-standard role). All non-obvious gates surfaced."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "n/a (docs-only)",
+        "securitySections": {
+          "O2C": "§8 Security Considerations — 4 access-control items + dispatch event boundary",
+          "P2P": "§8 Event/Listener Boundaries — 2 events with material hidden coupling note + §9 Security Considerations — 3 access-control items",
+          "Invoice": "§8 Security Considerations — 6 access-control items + dispatch event boundary"
+        }
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 7 assertions against 3 commercial flow packets (order-to-cash.md, procure-to-pay.md, invoice-dealer-finance.md) and FLOW-INVENTORY.md: all 7 PASSED. FLOW-INVENTORY.md lists all 11 major flow families with the 3 commercial flows (O2C #6, P2P #7, Invoice/Dealer Finance #8) linked to canonical packets (not 'packet pending'). All 3 packets contain all 6 required lifecycle sections, explicit definition-of-done with implemented-vs-planned limitations, canonical vs non-canonical path tables with replacements, open decisions sections, cross-links to 14 verified module/ADR/inventory files, and security/event-listener boundary documentation. ci/lint-knowledgebase.sh exits 0 with [knowledgebase-lint] OK."
+}

@@ -1,0 +1,47 @@
+{
+  "assertionId": "VAL-PLAT-004",
+  "milestone": "docs-platform-orchestrator",
+  "status": "pass",
+  "evidence": {
+    "orchestratorLandscape": {
+      "found": true,
+      "details": "Section 'Module Location and Scope' (lines 15-68) fully documents the orchestrator module. Includes: package (com.bigbrightpaints.erp.orchestrator), 5 database tables (orchestrator_outbox, orchestrator_commands, orchestrator_audit, scheduled_jobs, order_auto_approval_state), 2 controllers with host paths and purposes, 11 key services with descriptions, 5 key entities with table mappings, and 5 DTOs. The owning principle explicitly states 'coordinator, not business owner'. A separate section 'Orchestration vs. Canonical Module Ownership' (lines 254-269) maps each surface to its orchestrator role and canonical module owner."
+    },
+    "canonicalOutboxPath": {
+      "found": true,
+      "details": "Section 'Outbox Path (Canonical Event Publishing)' (lines 70-101) documents the full lifecycle. Status table (lines 79-83) defines PENDING, PUBLISHING, PUBLISHED, FAILED with precise meanings. Publishing flow (lines 86-92) covers all 6 steps: (1) Enqueue via EventPublisherService.enqueue() within business transaction, (2) Scheduled polling via OutboxPublisherJob on configurable cron (default 30s) with ShedLock, (3) Claim with fencing using pessimistic write lock + optimistic locking via version field with configurable lease (120s), (4) Publish to RabbitMQ bbp.orchestrator.events exchange, (5) Finalize in new transaction, (6) Handle failures as deterministic-retryable or ambiguous. Configuration table (lines 96-101) lists 5 key properties with defaults and purposes. Cross-references to ADR-003 and RELIABILITY.md are present and verified to exist."
+    },
+    "internalSpringEventBridges": {
+      "found": true,
+      "details": "Section 'Internal Spring Event Bridges' (lines 147-173) contains a complete Event Bridge Map table (lines 155-161) with 5 event bridges: (1) InventoryMovementEvent→InventoryAccountingEventListener, phase AFTER_COMMIT/REQUIRES_NEW, target Accounting journal entries, guard erp.inventory.accounting.events.enabled; (2) InventoryValuationChangedEvent→InventoryAccountingEventListener with same config; (3) PackagingSlipEvent→FactorySlipEventListener, synchronous @EventListener, log only; (4) SalesOrderCreatedEvent→OrderAutoApprovalListener, AFTER_COMMIT, guard SystemSettingsService.isAutoApprovalEnabled(); (5) JournalEntryPostedEvent→JournalEntryPostedAuditListener, AFTER_COMMIT with fallbackExecution=true. Important notes sections (lines 163-173) detail hidden coupling risks for the inventory-accounting bridge and the cascade effects of the order auto-approval bridge."
+    },
+    "retryDeadLetterBehavior": {
+      "found": true,
+      "details": "Section 'Retry and Dead-Letter Behavior' (lines 104-145) covers all required aspects. Deterministic retryable failures (lines 108-118): AmqpConnectException, AmqpAuthenticationException, MessageConversionException. Backoff strategy: 30s × 2^retryCount capped at exponent 10. Max attempts: 5. After 5 failures → dead-lettered (FAILED, deadLetter=true). Ambiguous/fail-closed states (lines 120-129): AMBIGUOUS_PUBLISH, FINALIZE_FAILURE, STALE_LEASE_UNCERTAIN prefixes, NOT automatically retried, held for configurable recheck delay (300s default), requires manual operator inspection. Dead-lettered events (lines 131-133): preserved for investigation, not silently dropped. Health and metrics (lines 135-145): 6 Micrometer gauges + health endpoint (GET /api/v1/orchestrator/health/events) covering pending, retrying, publishing, stale_publishing, ambiguous_publishing, and deadletters."
+    },
+    "featureFlags": {
+      "found": true,
+      "details": "Section 'Feature Flags' (lines 200-206) documents 4 flags in a table: (1) orchestrator.payroll.enabled (default false) - controls payroll run command, throws OrchestratorFeatureDisabledException when disabled; (2) orchestrator.factory-dispatch.enabled (default false) - controls factory-dispatch command, rejected with OrchestratorFeatureDisabledException; (3) erp.inventory.accounting.events.enabled (default true) - controls inventory→accounting event bridge; (4) SystemSettingsService.isAutoApprovalEnabled() (dynamic) - controls OrderAutoApprovalListener firing. Each flag documents its fail-closed behavior and impact. Additionally, the 'Configuration-Guarded Safety Risks' table (lines 238-247) provides risk analysis for each flag."
+    },
+    "deprecatedSeams": {
+      "found": true,
+      "details": "Section 'Deprecated, Dead, and No-Op Orchestration Seams' (lines 210-235) explicitly identifies 6 deprecated/dead/no-op surfaces: (1) Orchestrator Batch Dispatch - HARD BLOCK, dispatchBatch() throws OrchestratorFeatureDisabledException, replaced by POST /api/v1/dispatch/confirm (sales module); (2) Orchestrator Payroll Run - HARD BLOCK, generatePayroll() throws ApplicationException, replaced by POST /api/v1/payroll/runs (HR module); (3) ExternalSyncService - No-Op/Stub, @Retryable methods that only log, placeholder for future; (4) WorkflowService State Machine Definitions - No-Op, ConcurrentHashMap of step definitions that don't actually execute workflow steps; (5) PolicyEnforcer - No-Op, only null checks, real RBAC is in @PreAuthorize annotations; (6) FactorySlipEventListener - Weak, synchronous @EventListener that only logs. Each entry clearly states what replaced it or notes that no replacement exists."
+    }
+  },
+  "crossReferences": {
+    "allExist": true,
+    "verified": [
+      { "path": "docs/adrs/ADR-003-outbox-pattern-for-cross-module-events.md", "exists": true },
+      { "path": "docs/RELIABILITY.md", "exists": true },
+      { "path": "docs/modules/core-idempotency.md", "exists": true },
+      { "path": "docs/INDEX.md", "exists": true },
+      { "path": "docs/ARCHITECTURE.md", "exists": true },
+      { "path": "docs/agents/ORCHESTRATION_LAYER.md", "exists": true },
+      { "path": "docs/modules/core-audit-runtime-settings.md", "exists": true }
+    ]
+  },
+  "issues": [],
+  "toolsUsed": ["Read", "Grep"],
+  "testedAt": "2026-03-30T00:00:00Z",
+  "summary": "All 6 sub-requirements of VAL-PLAT-004 are fully satisfied. The orchestrator documentation packet at docs/modules/orchestrator.md is comprehensive, specific, and substantive — it covers the module landscape, full outbox lifecycle with configuration, Spring event bridges with phase/target/guard details, retry/dead-letter behavior with backoff strategy and ambiguous fail-closed handling, feature flags with safety analysis, and explicitly identifies all deprecated/no-op/incomplete seams with replacement paths. All 7 cross-referenced files exist on disk."
+}

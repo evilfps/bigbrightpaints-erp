@@ -1,0 +1,15 @@
+{
+  "featureId": "docs-commercial-finance-deprecated-seams",
+  "reviewedAt": "2026-03-30T08:00:00.000Z",
+  "commitId": "f857f02a4",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The deprecated-seams documentation in docs/modules/invoice.md comprehensively catalogs 8 retired dealer finance paths, each with a canonical replacement. The documentation is code-grounded (confirmed by DealerControllerSecurityIT tests proving these paths return 404, and by openapi.json not containing any of the retired paths). Canonical replacement paths (/api/v1/portal/finance/* and /api/v1/dealer-portal/*) are confirmed to exist in both source code (PortalFinanceController, DealerPortalController) and openapi.json. The documentation is discoverable from docs/INDEX.md → docs/modules/MODULE-INVENTORY.md → docs/modules/invoice.md. Freshness marker is present (Last reviewed: 2026-03-30). Cross-references to admin-portal-rbac.md are consistent on host ownership.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The deprecated/non-canonical paths section in docs/modules/invoice.md (lines 179-196) catalogs 8 retired commercial finance paths, each with a specific canonical replacement. All 8 retired paths are confirmed absent from openapi.json and return 404 in integration tests (DealerControllerSecurityIT). All 3 canonical portal finance endpoints and 7 dealer-portal endpoints are verified present in source code. The documentation is discoverable from the root index and MODULE-INVENTORY.md, carries a freshness marker, and cross-references are consistent with admin-portal-rbac.md. No blocking or non-blocking issues found."
+}

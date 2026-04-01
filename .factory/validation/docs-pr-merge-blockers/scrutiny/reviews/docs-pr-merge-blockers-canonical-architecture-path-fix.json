@@ -1,0 +1,15 @@
+{
+  "featureId": "docs-pr-merge-blockers-canonical-architecture-path-fix",
+  "reviewedAt": "2026-04-01T03:09:39Z",
+  "commitId": "7771b5e221086fa29530a1e34c77e4eaa3acd389",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Reviewed the fix feature handoff, transcript skeleton, prior failed review, scrutiny synthesis, and commits `61eef17fd722480c6d9d48a4daaae975d8204969` and `7771b5e221086fa29530a1e34c77e4eaa3acd389`. The original blocker was real: the earlier governance fix left the architecture document tracked only as lowercase `docs/architecture.md`, which could pass on macOS while still failing the canonical Linux-safe contract. This fix stays narrowly scoped and resolves that defect by renaming the tracked file to `docs/ARCHITECTURE.md` and updating the small set of affected historical-doc links in `docs/INDEX.md` and `docs/deprecated/INDEX.md` to the uppercase canonical path. `ci/lint-knowledgebase.sh` requires `docs/ARCHITECTURE.md`, `ci/check-architecture.sh` prefers that uppercase path, and `git ls-tree HEAD -- docs/` now shows only `docs/ARCHITECTURE.md`, so the prior case-sensitive CI blocker is adequately addressed.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": "/Users/anas/Documents/Factory/bigbrightpaints-erp/.factory/validation/docs-pr-merge-blockers/scrutiny/reviews/docs-pr-merge-blockers-governance-fix.json",
+  "summary": "Pass. Commit `7771b5e221086fa29530a1e34c77e4eaa3acd389` adequately fixes the prior blocking failure by making `docs/ARCHITECTURE.md` a real tracked path and keeping the affected links consistent, so the docs/governance merge blockers are now Linux-safe with respect to the canonical architecture-doc path."
+}

@@ -1,0 +1,271 @@
+{
+  "groupId": "finance-flows",
+  "testedAt": "2026-03-30T17:00:00Z",
+  "credentials": {
+    "account": "docs-only",
+    "namespace": "docs-flows-commercial"
+  },
+  "toolsUsed": ["Read", "Grep", "LS", "bash"],
+  "assertions": [
+    {
+      "id": "VAL-FLOW-001",
+      "title": "Flow library covers major flows",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read FLOW-INVENTORY.md and count major flow families",
+          "expected": "11 major flow families listed in inventory table",
+          "observed": "FLOW-INVENTORY.md lists exactly 11 flow families numbered 1-11 in the inventory table: Auth/Identity, Tenant/Admin Management, Catalog/Setup Readiness, Manufacturing/Packing, Inventory Management, Order-to-Cash, Procure-to-Pay, Invoice/Dealer Finance, Accounting/Period Close, HR/Payroll, Reporting/Export"
+        },
+        {
+          "action": "Check flow 9 (Accounting/Period Close) canonical packet link",
+          "expected": "Linked to accounting-period-close.md, not 'packet pending'",
+          "observed": "Row 9 links to [accounting-period-close.md](accounting-period-close.md) — confirmed on disk at docs/flows/accounting-period-close.md (14765 bytes)"
+        },
+        {
+          "action": "Check flow 10 (HR/Payroll) canonical packet link",
+          "expected": "Linked to hr-payroll.md, not 'packet pending'",
+          "observed": "Row 10 links to [hr-payroll.md](hr-payroll.md) — confirmed on disk at docs/flows/hr-payroll.md (13255 bytes)"
+        },
+        {
+          "action": "Check flow 11 (Reporting/Export) canonical packet link",
+          "expected": "Linked to reporting-export.md, not 'packet pending'",
+          "observed": "Row 11 links to [reporting-export.md](reporting-export.md) — confirmed on disk at docs/flows/reporting-export.md (10888 bytes)"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "N/A (docs-only validation)",
+        "filesVerified": [
+          "docs/flows/FLOW-INVENTORY.md",
+          "docs/flows/accounting-period-close.md",
+          "docs/flows/hr-payroll.md",
+          "docs/flows/reporting-export.md"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-002",
+      "title": "Each major flow doc explains canonical lifecycle",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify accounting-period-close.md contains all 6 required sections",
+          "expected": "Has §1 Actors, §2 Entrypoints, §3 Preconditions, §4 Lifecycle, §5 Completion Boundary, §7 Cross-Module Dependencies",
+          "observed": "All 6 sections present: §1 Actors (4 actors: Admin, Accounting, Sales, Factory), §2 Entrypoints (28 endpoints across Journal Entry, Period Management, Period Close Request, Bank Reconciliation, Sub-Ledger Reconciliation, GST Reconciliation, Opening Balance Import, Tally Import), §3 Preconditions (5 preconditions groups), §4 Lifecycle (6 sub-lifecycles: Journal Entry, Period, Bank Reconciliation, Sub-Ledger Reconciliation, Opening Balance Import, Tally Import), §5 Completion Boundary / Current Definition of Done, §7 Cross-Module Dependencies (5 modules: sales, purchasing, inventory, factory, hr)"
+        },
+        {
+          "action": "Verify hr-payroll.md contains all 6 required sections",
+          "expected": "Has §1 Actors, §2 Entrypoints, §3 Preconditions, §4 Lifecycle, §5 Completion Boundary, §7 Cross-Module Dependencies",
+          "observed": "All 6 sections present: §1 Actors (3 actors: Admin, Accounting, Employee via Admin), §2 Entrypoints (27 endpoints across Employee Management, Leave Management, Attendance, Salary Structures, Payroll Run), §3 Preconditions (6 preconditions groups), §4 Lifecycle (6 sub-lifecycles: Employee, Leave Request, Attendance, Payroll Run, Payroll Posting Seam, Payroll Payment Seam), §5 Completion Boundary / Current Definition of Done, §7 Cross-Module Dependencies (2 modules: accounting, company)"
+        },
+        {
+          "action": "Verify reporting-export.md contains all 6 required sections",
+          "expected": "Has §1 Actors, §2 Entrypoints, §3 Preconditions, §4 Lifecycle, §5 Completion Boundary, §7 Cross-Module Dependencies",
+          "observed": "All 6 sections present: §1 Actors (4 actors: Admin, Accounting, Sales, Factory), §2 Entrypoints (24 endpoints across Financial Reports, Operational Reports, Dashboard Reports, Export Workflow, Statement Exports), §3 Preconditions (4 preconditions groups), §4 Lifecycle (4 sub-lifecycles: Financial Report, Operational Report, Export Request, GST Return), §5 Completion Boundary / Current Definition of Done, §7 Cross-Module Dependencies (5 modules: accounting, inventory, factory, sales, admin)"
+        },
+        {
+          "action": "Verify FLOW-INVENTORY.md references all 3 packets",
+          "expected": "FLOW-INVENTORY.md rows 9, 10, 11 link to the 3 finance flow packets",
+          "observed": "Rows 9, 10, 11 in FLOW-INVENTORY.md inventory table link to accounting-period-close.md, hr-payroll.md, and reporting-export.md respectively"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "N/A (docs-only validation)",
+        "sectionCounts": {
+          "accounting-period-close.md": { "actors": 4, "entrypoints": 28, "preconditionGroups": 5, "lifecycles": 6, "crossModuleDeps": 5 },
+          "hr-payroll.md": { "actors": 3, "entrypoints": 27, "preconditionGroups": 6, "lifecycles": 6, "crossModuleDeps": 2 },
+          "reporting-export.md": { "actors": 4, "entrypoints": 24, "preconditionGroups": 4, "lifecycles": 4, "crossModuleDeps": 5 }
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-003",
+      "title": "Each major flow doc states current definition of done",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify accounting-period-close.md has Completion Boundary / Definition of Done section",
+          "expected": "Has §5 Completion Boundary / Current Definition of Done with completion criteria and Current Limitations subsection",
+          "observed": "§5 titled 'Completion Boundary / Current Definition of Done' with 6 concrete completion criteria (Journal Posted, Period Locked, Period Closed, Bank Reconciliation Complete, Sub-Ledger Reconciled, GST Reconciled). 'Current Limitations' subsection lists 7 limitations using implemented-vs-planned language (e.g., 'No automatic journal posting', 'Period close manual', 'Correction via reversal only')"
+        },
+        {
+          "action": "Verify hr-payroll.md has Completion Boundary / Definition of Done section",
+          "expected": "Has §5 Completion Boundary / Current Definition of Done with completion criteria and Current Limitations subsection",
+          "observed": "§5 titled 'Completion Boundary / Current Definition of Done' with 6 concrete completion criteria (Employee Created, Attendance Recorded, Payroll Calculated, Payroll Approved, Payroll Posted, Payroll Paid). 'Current Limitations' subsection lists 6 limitations using implemented-vs-planned language (e.g., 'HR module paused by default', 'Indian regulatory context only', 'No employee self-service')"
+        },
+        {
+          "action": "Verify reporting-export.md has Completion Boundary / Definition of Done section",
+          "expected": "Has §5 Completion Boundary / Current Definition of Done with completion criteria and Current Limitations subsection",
+          "observed": "§5 titled 'Completion Boundary / Current Definition of Done' with 4 concrete completion criteria (Report Generated, Export Requested, Export Approved, Export Ready). 'Current Limitations' subsection lists 8 limitations using implemented-vs-planned language (e.g., 'P&L has no snapshot branch', 'Cash flow has no date filtering', 'Aging has split ownership')"
+        },
+        {
+          "action": "Check for aspirational language across all 3 packets",
+          "expected": "No aspirational language (will/should/plan/future/roadmap) in limitation sections",
+          "observed": "Grep for aspirational terms found zero matches in accounting-period-close.md and reporting-export.md. In hr-payroll.md only contextual usage ('date not in future' preconditions, 'workforce planning' as domain term) — no aspirational promises found"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "N/A (docs-only validation)",
+        "limitationCounts": {
+          "accounting-period-close.md": 7,
+          "hr-payroll.md": 6,
+          "reporting-export.md": 8
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-004",
+      "title": "Each major flow doc identifies canonical vs non-canonical paths",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify accounting-period-close.md has Canonical vs Non-Canonical Paths section",
+          "expected": "Has §6 with canonical paths, deprecated/non-canonical paths, replacement info, and cross-module boundary notes",
+          "observed": "§6 'Canonical vs Non-Canonical Paths' present. Canonical paths table lists 5 paths (POST journals, POST post, POST close-*, POST sessions, GET reconciliation/*) with Owner column. Non-Canonical/Deprecated paths table lists 3 entries: Direct period reopen (Not supported), Editing posted journals (Not supported), Automatic journal posting (Not implemented). Each has explicit status. Cross-module boundary notes in §7 with 5 dependency entries including direction"
+        },
+        {
+          "action": "Verify hr-payroll.md has Canonical vs Non-Canonical Paths section",
+          "expected": "Has §6 with canonical paths, deprecated/non-canonical paths, replacement info, and cross-module boundary notes",
+          "observed": "§6 'Canonical vs Non-Canonical Paths' present. Canonical paths table lists 5 paths (POST runs, POST calculate, POST post, POST mark-paid, GET employees) with Owner column. Non-Canonical/Deprecated paths table lists 3 entries: GET /api/v1/hr/payroll-runs (Deprecated 410, replacement: /api/v1/payroll/runs), POST /api/v1/hr/payroll-runs (Deprecated 410, replacement: /api/v1/payroll/runs), Legacy HR payroll endpoints (Deprecated, replacement: /api/v1/payroll/**). All have replacement paths. Cross-module boundary notes in §7 with 2 dependency entries including direction"
+        },
+        {
+          "action": "Verify reporting-export.md has Canonical vs Non-Canonical Paths section",
+          "expected": "Has §6 with canonical paths, deprecated/non-canonical paths, replacement info, and cross-module boundary notes",
+          "observed": "§6 'Canonical vs Non-Canonical Paths' present. Canonical paths table lists 5 paths (GET trial-balance, GET balance-sheet, GET gst-return, POST exports/request, GET exports/{id}/download) with Owner column. Non-Canonical/Deprecated paths table lists 4 entries: GET cash-flow (Non-canonical, no date filtering), aged-debtors vs aging/receivables (Split ownership), account-statement (Non-canonical, dealer-only rollup), Audit digest CSV export (Deprecated, replacement: standard export workflow). All have explicit status and notes. Cross-module boundary notes in §7 with 5 dependency entries including direction"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "N/A (docs-only validation)",
+        "canonicalPaths": {
+          "accounting-period-close.md": 5,
+          "hr-payroll.md": 5,
+          "reporting-export.md": 5
+        },
+        "deprecatedPaths": {
+          "accounting-period-close.md": 3,
+          "hr-payroll.md": 3,
+          "reporting-export.md": 4
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-005",
+      "title": "Each major flow doc records open decisions and incomplete seams",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify accounting-period-close.md has Open Decisions section",
+          "expected": "Has Open Decisions section with known open decisions, incomplete seams, dead ends, or non-maintained behavior",
+          "observed": "§11 'Open Decisions' present with 4 entries in table format: Automatic journal posting (Not implemented), Scheduled reconciliation (Not implemented), Automatic GST filing (Not implemented), Edit posted journals (Not supported). Each entry has Status and Notes columns. Readers can identify where backend truth is partial (manual-only operations) or unsettled (no automation planned)"
+        },
+        {
+          "action": "Verify hr-payroll.md has Open Decisions section",
+          "expected": "Has Open Decisions section with known open decisions, incomplete seams, dead ends, or non-maintained behavior",
+          "observed": "Section labeled 'Open Decisions' (after §10 Related Documentation) present with 4 entries in table format: HR module default enabled (Paused by default, ERP-33), Non-Indian payroll (Not supported), Employee self-service (Not implemented), Multi-currency payroll (Not supported). Each entry has Status and Notes columns. Readers can identify where backend truth is partial (India-only, admin-only) or blocked (module paused)"
+        },
+        {
+          "action": "Verify reporting-export.md has Open Decisions section",
+          "expected": "Has Open Decisions section with known open decisions, incomplete seams, dead ends, or non-maintained behavior",
+          "observed": "§10 'Open Decisions' present with 5 entries in table format: P&L snapshot branch (Not implemented), Cash flow date filtering (Not implemented), Cash flow explicit tagging (Not implemented), Unified aging source (Not implemented), Historical reconciliation (Not implemented). Each entry has Status and Notes columns. Readers can identify where backend truth is partial (live-only data, heuristic classification, split ownership)"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "N/A (docs-only validation)",
+        "openDecisionCounts": {
+          "accounting-period-close.md": 4,
+          "hr-payroll.md": 4,
+          "reporting-export.md": 5
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-006",
+      "title": "Flow packets cross-link to module docs, ADRs, and frontend handoff docs",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify accounting-period-close.md has Related Documentation section with links",
+          "expected": "Has Related Documentation section linking to module docs, ADRs, FLOW-INVENTORY.md. All linked files exist on disk.",
+          "observed": "§10 'Related Documentation' present. Links: docs/modules/MODULE-INVENTORY.md (EXISTS), docs/modules/reports.md (EXISTS), docs/flows/FLOW-INVENTORY.md (EXISTS), docs/developer/accounting-flows/ (EXISTS, directory with 18 files). ADR links: ADR-004-layered-audit-surfaces.md (EXISTS), ADR-005-flyway-v2-hard-cut-migration-posture.md (EXISTS). No frontend handoff links (not yet created for this milestone)."
+        },
+        {
+          "action": "Verify hr-payroll.md has Related Documentation section with links",
+          "expected": "Has Related Documentation section linking to module docs, ADRs, FLOW-INVENTORY.md. All linked files exist on disk.",
+          "observed": "§10 'Related Documentation' present. Links: docs/modules/hr.md (EXISTS), docs/modules/MODULE-INVENTORY.md (EXISTS), docs/flows/FLOW-INVENTORY.md (EXISTS), docs/workflows/payroll.md (EXISTS). ADR links: ADR-002-multi-tenant-auth-scoping.md (EXISTS), ADR-004-layered-audit-surfaces.md (EXISTS). No frontend handoff links (not yet created for this milestone)."
+        },
+        {
+          "action": "Verify reporting-export.md has Related Documentation section with links",
+          "expected": "Has Related Documentation section linking to module docs, ADRs, FLOW-INVENTORY.md. All linked files exist on disk.",
+          "observed": "§9 'Related Documentation' present. Links: docs/modules/reports.md (EXISTS), docs/modules/inventory.md (EXISTS), docs/modules/factory.md (EXISTS), docs/flows/FLOW-INVENTORY.md (EXISTS), docs/developer/accounting-flows/07-reports-truth-sources.md (EXISTS). No ADR links directly from this packet. No frontend handoff links (not yet created for this milestone)."
+        },
+        {
+          "action": "Verify all linked files exist on disk",
+          "expected": "All cross-referenced files exist",
+          "observed": "13 unique file references verified across all 3 packets. All 13 exist on disk: docs/modules/MODULE-INVENTORY.md, docs/modules/reports.md, docs/modules/hr.md, docs/modules/inventory.md, docs/modules/factory.md, docs/flows/FLOW-INVENTORY.md, docs/adrs/ADR-002-multi-tenant-auth-scoping.md, docs/adrs/ADR-004-layered-audit-surfaces.md, docs/adrs/ADR-005-flyway-v2-hard-cut-migration-posture.md, docs/developer/accounting-flows/, docs/workflows/payroll.md, docs/developer/accounting-flows/07-reports-truth-sources.md"
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "N/A (docs-only validation)",
+        "crossReferenceSummary": {
+          "accounting-period-close.md": { "moduleDocs": 2, "flowInventory": 1, "adrs": 2, "developerDocs": 1, "frontendHandoff": 0 },
+          "hr-payroll.md": { "moduleDocs": 2, "flowInventory": 1, "adrs": 2, "workflows": 1, "frontendHandoff": 0 },
+          "reporting-export.md": { "moduleDocs": 3, "flowInventory": 1, "adrs": 0, "developerDocs": 1, "frontendHandoff": 0 }
+        }
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-007",
+      "title": "Flow packets surface event/listener and access-control boundaries",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify accounting-period-close.md has Security Considerations section",
+          "expected": "Has Security Considerations section naming event/listener boundaries and access-control gates",
+          "observed": "§9 'Security Considerations' present with RBAC, company scoping, period state enforcement, maker-checker requirements. §8 'Event/Listener Boundaries' documents 3 events: InventoryMovementEvent → InventoryAccountingEventListener (AFTER_COMMIT, REQUIRES_NEW), InventoryValuationChangedEvent → InventoryAccountingEventListener (AFTER_COMMIT), JournalEntryPostedEvent → JournalEntryPostedAuditListener (AFTER_COMMIT, fallbackExecution=true). Key boundary notes document config dependency (erp.inventory.accounting.events.enabled), transaction isolation, and reference to orchestrator.md for full event bridge map."
+        },
+        {
+          "action": "Verify hr-payroll.md has Security Considerations section",
+          "expected": "Has Security Considerations section naming event/listener boundaries and access-control gates",
+          "observed": "§9 'Security Considerations' present with RBAC, company scoping, module gating (HR endpoints return MODULE_DISABLED if disabled), period context. §8 'Event/Listener Boundaries' documents SalesOrderCreatedEvent → OrderAutoApprovalListener (AFTER_COMMIT) as a cross-module coordination point affecting workforce planning. Key boundary note documents SystemSettingsService.isAutoApprovalEnabled() conditionality. Explicitly notes that payroll flow itself does not publish events — it is a consumer of accounting services."
+        },
+        {
+          "action": "Verify reporting-export.md has Security Considerations section",
+          "expected": "Has Security Considerations section naming event/listener boundaries and access-control gates",
+          "observed": "§8 'Security Considerations' present with RBAC, company scoping, export audit logging, export approval gate (configurable). Note: reporting-export.md does not have a dedicated Event/Listener Boundaries section (§8 is Security Considerations). This is acceptable because the reporting/export flow is primarily read-only and does not materially depend on internal events/listeners — it consumes data from other modules rather than triggering event-driven behavior."
+        }
+      ],
+      "evidence": {
+        "screenshots": [],
+        "consoleErrors": "none",
+        "network": "N/A (docs-only validation)",
+        "securityCoverage": {
+          "accounting-period-close.md": { "securitySection": "§9 Security Considerations", "eventListenerSection": "§8 Event/Listener Boundaries (3 events documented)", "accessControlGates": ["RBAC (Admin/Accounting)", "Company scoping", "Period state enforcement", "Maker-checker for period close"] },
+          "hr-payroll.md": { "securitySection": "§9 Security Considerations", "eventListenerSection": "§8 Event/Listener Boundaries (1 event documented + payroll-no-events note)", "accessControlGates": ["RBAC (Admin/Accounting)", "Company scoping", "Module gating (HR_PAYROLL)", "Period context"] },
+          "reporting-export.md": { "securitySection": "§8 Security Considerations", "eventListenerSection": "None (read-only flow, acceptable)", "accessControlGates": ["RBAC (Admin/Accounting/Sales/Factory)", "Company scoping", "Export audit logging", "Export approval gate"] }
+        }
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 7 assertions against 3 finance flow packets (accounting-period-close.md, hr-payroll.md, reporting-export.md): all 7 passed. FLOW-INVENTORY.md lists all 11 major flow families with the 3 new finance flows (flows 9, 10, 11) having their canonical packets linked (not 'packet pending'). All 3 packets contain all 6 required lifecycle sections (§1 Actors, §2 Entrypoints, §3 Preconditions, §4 Lifecycle, §5 Completion Boundary, §7 Cross-Module Dependencies). All packets have Current Limitations subsections using implemented-vs-planned language with no aspirational language. All packets distinguish canonical from non-canonical paths with replacement info. All packets have Open Decisions sections recording incomplete seams. All cross-referenced files (13 unique paths) verified to exist on disk. Security Considerations and Event/Listener Boundaries sections are present in all packets (reporting-export.md omits Event/Listener section acceptably since it is a read-only flow)."
+}

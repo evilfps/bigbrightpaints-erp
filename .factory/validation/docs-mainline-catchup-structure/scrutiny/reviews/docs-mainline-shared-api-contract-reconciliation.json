@@ -1,0 +1,74 @@
+{
+  "featureId": "docs-mainline-shared-api-contract-reconciliation",
+  "reviewedAt": "2026-03-31T02:15:00Z",
+  "commitId": "fad05d22dea68a61414cb66d51e51162d829b6b7",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix feature adequately addresses all four blocking issues from the original scrutiny review. The worker correctly: (1) removed the non-existent GET /api/v1/exports/status/{requestId} and fixed export schema from exportType/format/idempotencyKey to reportType/parameters; (2) fixed journal path from POST /api/v1/accounting/journal to POST /api/v1/accounting/journal-entries and noted POST /api/v1/invoices doesn't exist; (3) replaced non-existent admin/superadmin audit paths with actual accounting audit endpoints; (4) removed POST /api/v1/invoices from dto-examples.md and fixed journal/approval paths. The auth/profile clarification was correctly changed from 'retired' to 'not recommended'. Both validators (lint-knowledgebase.sh, guard_openapi_contract_drift.sh) pass. A few minor residual issues remain (detailed below) but none are blocking — they are pre-existing inaccuracies in the export download path naming and the approval request section that were not part of the original blocking issues.",
+    "issues": [
+      {
+        "file": "docs/frontend-api/exports-and-approvals.md",
+        "line": 10,
+        "severity": "non_blocking",
+        "description": "The 'Export Request Flow' summary at lines 10-13 still says '2. Get status — Poll for export completion status' which contradicts the note at line 49 that says there is no dedicated status polling endpoint. The flow summary should be updated to reflect the actual workflow (request → retry download). This is a minor inconsistency introduced by the fix — the old polling section was correctly removed but the flow summary was not updated to match."
+      },
+      {
+        "file": "docs/frontend-api/exports-and-approvals.md",
+        "line": 54,
+        "severity": "non_blocking",
+        "description": "The download endpoint is documented as `GET /api/v1/exports/download/{requestId}` but the actual OpenAPI path is `GET /api/v1/exports/{requestId}/download`. The path segment order differs (download is a suffix, not a prefix). This was a pre-existing inaccuracy not caught by the fix."
+      },
+      {
+        "file": "docs/frontend-api/exports-and-approvals.md",
+        "line": 88,
+        "severity": "non_blocking",
+        "description": "The 'Submit Approval Request' section documents `POST /api/v1/sales/orders/{orderId}/request-approval` but this endpoint does not exist in the OpenAPI spec. The actual sales order endpoints are `/api/v1/sales/orders/{id}/confirm`, `/api/v1/sales/orders/{id}/cancel`, etc. This was a pre-existing inaccuracy not part of the original blocking issues."
+      },
+      {
+        "file": "docs/frontend-api/exports-and-approvals.md",
+        "line": 26,
+        "severity": "non_blocking",
+        "description": "The `parameters` field in the export request example is shown as a JSON object with nested fields (startDate, endDate, accountCodes) but the OpenAPI schema defines `parameters` as type `string`. The same issue exists in dto-examples.md line 300. This was a pre-existing inaccuracy not part of the original blocking issues."
+      },
+      {
+        "file": "docs/frontend-api/dto-examples.md",
+        "line": 158,
+        "severity": "non_blocking",
+        "description": "Markdown formatting issue: the code block opened with triple backticks at line 158 for 'List Invoices' is never closed — the `GET /api/v1/invoices` line has no closing triple backticks before the '### Invoice Response' heading. This appears to be a formatting artifact introduced by the fix when the POST /api/v1/invoices section was removed."
+      },
+      {
+        "file": "docs/frontend-api/dto-examples.md",
+        "line": 128,
+        "severity": "non_blocking",
+        "description": "The dealer detail example shows `GET /api/v1/dealers/101` but the OpenAPI spec only exposes `PUT /api/v1/dealers/{dealerId}` — there is no GET method on the individual dealer path. This was a pre-existing inaccuracy not part of the original blocking issues."
+      },
+      {
+        "file": "docs/frontend-api/dto-examples.md",
+        "line": 273,
+        "severity": "non_blocking",
+        "description": "The approval note lists `POST /api/v1/admin/exports/{requestId}/approve` but the actual OpenAPI method is `PUT`, not `POST`. This is a minor HTTP method inaccuracy in the fix's newly added content."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The export download path in docs uses `/api/v1/exports/download/{requestId}` but the OpenAPI spec has `/api/v1/exports/{requestId}/download`. The docs-worker skill or AGENTS.md should note that path segment order matters — workers should copy exact paths from openapi.json rather than approximating.",
+      "evidence": "exports-and-approvals.md line 54 uses `GET /api/v1/exports/download/{requestId}` but openapi.json has `/api/v1/exports/{requestId}/download`"
+    },
+    {
+      "area": "knowledge",
+      "observation": "The ExportRequestCreateRequest schema has `parameters` as type `string` (not an object), but both exports-and-approvals.md and dto-examples.md show it as a JSON object. If the actual API accepts a JSON stringified object, this should be documented; otherwise the examples are misleading.",
+      "evidence": "openapi.json ExportRequestCreateRequest: parameters.type = 'string'. exports-and-approvals.md line 26 shows parameters as a JSON object."
+    },
+    {
+      "area": "conventions",
+      "observation": "The approval section in exports-and-approvals.md documents `POST /api/v1/sales/orders/{orderId}/request-approval` which does not exist in openapi.json. The worker did not verify this pre-existing path against the spec. The docs-worker skill should require that ALL endpoint paths in a file being edited are verified, not just the ones flagged in the review.",
+      "evidence": "exports-and-approvals.md line 91 has POST /api/v1/sales/orders/{orderId}/request-approval which is not in openapi.json. Actual sales order paths only have confirm, cancel, status, timeline sub-paths."
+    }
+  ],
+  "addressesFailureFrom": ".factory/validation/docs-mainline-catchup-structure/scrutiny/reviews/docs-mainline-shared-api-and-auth-scope.json",
+  "summary": "The fix adequately addresses all four blocking issues from the original scrutiny review: (1) removed non-existent export status endpoint and fixed export schema to reportType/parameters; (2) fixed journal path to /api/v1/accounting/journal-entries and noted invoices are read-only; (3) replaced non-existent admin/superadmin audit paths with actual accounting audit endpoints; (4) removed POST /api/v1/invoices from dto-examples.md. The auth/profile clarification was correctly changed from 'retired' to 'not recommended'. Both automated validators pass. Several non-blocking residual issues remain: the export download path has incorrect segment order, the export request flow summary still references polling, parameters is typed as string in OpenAPI but shown as object in docs, the approval request section references a non-existent sales order path, a markdown code block is unclosed, and one HTTP method is wrong (POST vs PUT for export approval). These are minor and do not block the fix from passing scrutiny."
+}

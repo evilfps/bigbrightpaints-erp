@@ -1,0 +1,46 @@
+{
+  "featureId": "docs-foundation-adr-seed",
+  "milestone": "docs-foundation-adr",
+  "reviewedAt": "2026-03-30T00:30:00.000Z",
+  "commitId": "80b9e1c5",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "issues": [
+    {
+      "severity": "non_blocking",
+      "description": "ADR-001 uses two extra sections ('Why Needed' and 'Boundary Preserved') beyond the standard template (Status/Context/Decision/Alternatives Rejected/Consequences/Cross-references). While these extra sections are functionally useful and required by the allowlist evidence checker (check-allowlist-change-evidence.sh), the INDEX.md template section only documents the six standard sections. This could confuse future ADR authors who follow the template strictly.",
+      "file": "docs/adrs/ADR-001-allowlist-cross-module-imports-baseline.md"
+    },
+    {
+      "severity": "non_blocking",
+      "description": "ADR-001 lacks the standard 'Context' section header content that the other ADRs have. It uses 'Context' but then also adds 'Why Needed' as a separate section, which partially overlaps in purpose with the standard Context section. A future cleanup could merge 'Why Needed' into 'Context' while keeping the extra 'Boundary Preserved' section as an allowlist-specific addition documented in the INDEX.md template.",
+      "file": "docs/adrs/ADR-001-allowlist-cross-module-imports-baseline.md"
+    }
+  ],
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "ADR-001 has a slightly different section structure than ADRs 002-006 because it must satisfy the allowlist evidence checker (check-allowlist-change-evidence.sh) which requires '## Why Needed', '## Alternatives Rejected', and '## Boundary Preserved' headings. The INDEX.md ADR template only lists the six standard sections and does not mention allowlist-specific extensions. Future workers creating allowlist ADRs may not know they need the extra sections unless they read the shell script.",
+      "evidence": "INDEX.md template section lists Status/Context/Decision/Alternatives Rejected/Consequences/Cross-references. check-allowlist-change-evidence.sh (line ~59) requires '## Why Needed', '## Alternatives Rejected', '## Boundary Preserved'. ADR-001 includes both the standard and extra sections."
+    },
+    {
+      "area": "conventions",
+      "observation": "The ADR directory was originally docs/adr/ (singular) for ADR-001, then docs/adrs/ (plural) for ADRs 002-006. The worker fixed this by copying ADR-001 into docs/adrs/ and updating the CI script to accept both paths. However, the original docs/adr/ directory may still exist as a source of confusion. The convention is now docs/adrs/ (plural) but this is not explicitly stated in AGENTS.md.",
+      "evidence": "ci/architecture/check-allowlist-change-evidence.sh was updated (commit 80b9e1c5) to match 'docs/adr[s]?/' — accepting both singular and plural. ADR-001 was copied to docs/adrs/ to unify."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "codeReview": {
+    "summary": "The feature successfully seeds the ADR index and six accepted ADRs covering all five required platform decisions (multi-tenant auth scoping, outbox/idempotency, audit layering, migration posture, portal/host boundaries) plus a bonus ADR for cross-module import edges. All ADRs are grounded in actual codebase evidence, reference real classes and services, and explain current architecture rather than future aspirations. The docs/INDEX.md is properly updated with an ADR section linking to the ADR index.",
+    "issues": [
+      {
+        "file": "docs/adrs/ADR-001-allowlist-cross-module-imports-baseline.md",
+        "line": 23,
+        "severity": "non_blocking",
+        "description": "Contains extra sections ('Why Needed', 'Boundary Preserved') beyond the standard template documented in INDEX.md. These are required by the allowlist evidence checker but not documented in the ADR template guidance."
+      }
+    ]
+  },
+  "summary": "PASS — The docs-foundation-adr-seed feature delivers a complete, well-structured ADR index and six accepted ADRs covering all required platform decisions. Each ADR follows a consistent Status/Context/Decision/Alternatives Rejected/Consequences/Cross-references format, contains evidence grounded in real codebase classes and services, and explains current rather than aspirational architecture. Coverage is complete: multi-tenant auth scoping (ADR-002), outbox/idempotency (ADR-003), audit layering (ADR-004), migration posture (ADR-005), and portal/host boundaries (ADR-006). ADR-001 is a bonus covering cross-module import edges. Minor non-blocking issues: ADR-001 has extra sections required by the allowlist checker but not documented in the INDEX.md template, and the singular/plural directory split (docs/adr/ vs docs/adrs/) was resolved but the convention isn't documented in AGENTS.md."
+}

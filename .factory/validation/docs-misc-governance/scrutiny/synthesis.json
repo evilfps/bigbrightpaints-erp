@@ -1,0 +1,30 @@
+{
+  "milestone": "docs-misc-governance",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": { "passed": true, "command": "bash ci/lint-knowledgebase.sh", "exitCode": 0 },
+    "typecheck": { "passed": true, "command": "bash ci/check-architecture.sh", "exitCode": 0 },
+    "lint": { "passed": true, "command": "bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh", "exitCode": 0 }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [
+    {
+      "observation": "The prior scrutiny review of docs-foundation-full-contract-lint-pass.json correctly flagged dod-bible-approach.md and dod-flow-documenter as problematic, and this feature's cleanup directly addresses those findings. The validation evidence trail is intact.",
+      "reason": "already-documented — the prior review and the feature itself document this chain of evidence"
+    },
+    {
+      "observation": "The ticket parity script was originally introduced in commit 38d61346f and later refined during the foundation lint milestone. Its no-op behavior when ticket.yaml is absent is intentional and well-documented.",
+      "reason": "already-documented — the script's own docstring and the lint integration document this clearly"
+    }
+  ],
+  "previousRound": null
+}

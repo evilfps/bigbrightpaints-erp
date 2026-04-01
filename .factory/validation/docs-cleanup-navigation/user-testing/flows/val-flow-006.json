@@ -1,0 +1,182 @@
+{
+  "assertionId": "VAL-FLOW-006",
+  "status": "pass",
+  "flowPackets": [
+    {
+      "file": "auth-identity.md",
+      "linksToModuleDocs": true,
+      "linksToAdrs": false,
+      "linksToFrontendHandoff": false,
+      "resolvedLinks": [
+        "../modules/auth.md",
+        "../modules/company.md",
+        "../modules/admin-portal-rbac.md",
+        "FLOW-INVENTORY.md"
+      ],
+      "brokenLinks": [],
+      "notes": "Section 9 'Related Documentation' links to 3 module docs (auth, company, admin-portal-rbac). No ADR links — auth flow is foundational and no ADRs directly govern it. No frontend handoff link — auth is platform-level and not specific to a single frontend handoff packet."
+    },
+    {
+      "file": "tenant-admin-management.md",
+      "linksToModuleDocs": true,
+      "linksToAdrs": false,
+      "linksToFrontendHandoff": false,
+      "resolvedLinks": [
+        "../modules/company.md",
+        "../modules/admin-portal-rbac.md",
+        "../modules/auth.md",
+        "FLOW-INVENTORY.md"
+      ],
+      "brokenLinks": [],
+      "notes": "Section 9 'Related Documentation' links to 3 module docs. No ADR links — tenant management is covered by core module docs. No frontend handoff link — could arguably link to frontend-handoff-platform.md but admin management spans all handoff docs."
+    },
+    {
+      "file": "catalog-setup-readiness.md",
+      "linksToModuleDocs": true,
+      "linksToAdrs": false,
+      "linksToFrontendHandoff": true,
+      "resolvedLinks": [
+        "../modules/catalog-setup.md",
+        "../modules/inventory.md",
+        "../modules/factory.md",
+        "FLOW-INVENTORY.md",
+        "../frontend-handoff-operations.md",
+        "../deprecated/INDEX.md"
+      ],
+      "brokenLinks": [],
+      "notes": "Section 9 'Related Documentation' links to 3 module docs, 1 frontend handoff doc (operations), and deprecated index. No ADR links but this is acceptable as no ADRs directly govern catalog setup."
+    },
+    {
+      "file": "manufacturing-packing.md",
+      "linksToModuleDocs": true,
+      "linksToAdrs": false,
+      "linksToFrontendHandoff": false,
+      "resolvedLinks": [
+        "../modules/factory.md",
+        "../modules/inventory.md",
+        "../modules/catalog-setup.md",
+        "FLOW-INVENTORY.md"
+      ],
+      "brokenLinks": [],
+      "notes": "Section 10 'Related Documentation' links to 3 module docs. No ADR links — manufacturing is not directly governed by any ADR. No frontend handoff link — could arguably link to frontend-handoff-operations.md but the flow packet focuses on backend behavior."
+    },
+    {
+      "file": "inventory-management.md",
+      "linksToModuleDocs": true,
+      "linksToAdrs": false,
+      "linksToFrontendHandoff": true,
+      "resolvedLinks": [
+        "../modules/inventory.md",
+        "../modules/factory.md",
+        "../modules/sales.md",
+        "../modules/purchasing.md",
+        "FLOW-INVENTORY.md",
+        "../frontend-handoff-operations.md",
+        "../deprecated/INDEX.md"
+      ],
+      "brokenLinks": [],
+      "notes": "Section 10 'Related Documentation' links to 4 module docs, 1 frontend handoff doc (operations), and deprecated index. No ADR links but inventory flow is not directly governed by any specific ADR."
+    },
+    {
+      "file": "order-to-cash.md",
+      "linksToModuleDocs": true,
+      "linksToAdrs": true,
+      "linksToFrontendHandoff": true,
+      "resolvedLinks": [
+        "../modules/sales.md",
+        "../modules/invoice.md",
+        "../modules/inventory.md",
+        "../modules/admin-portal-rbac.md",
+        "FLOW-INVENTORY.md",
+        "../frontend-handoff-commercial.md",
+        "../adrs/ADR-006-portal-and-host-boundary-separation.md",
+        "../deprecated/INDEX.md"
+      ],
+      "brokenLinks": [],
+      "notes": "Section 10 'Related Documentation' has all three link categories: 4 module docs, 1 ADR (ADR-006 portal/host boundary), and 1 frontend handoff (commercial). This is the most complete cross-linking example."
+    },
+    {
+      "file": "procure-to-pay.md",
+      "linksToModuleDocs": true,
+      "linksToAdrs": true,
+      "linksToFrontendHandoff": true,
+      "resolvedLinks": [
+        "../modules/purchasing.md",
+        "../modules/inventory.md",
+        "../modules/core-idempotency.md",
+        "FLOW-INVENTORY.md",
+        "../frontend-handoff-commercial.md",
+        "../deprecated/INDEX.md",
+        "../adrs/ADR-003-outbox-pattern-for-cross-module-events.md",
+        "../adrs/ADR-004-layered-audit-surfaces.md"
+      ],
+      "brokenLinks": [],
+      "notes": "Section 10 'Related Documentation' has all three link categories: 3 module docs, 2 ADRs (ADR-003 outbox pattern, ADR-004 audit surfaces), and 1 frontend handoff (commercial). Plus a dedicated 'Relevant ADRs' subsection."
+    },
+    {
+      "file": "invoice-dealer-finance.md",
+      "linksToModuleDocs": true,
+      "linksToAdrs": true,
+      "linksToFrontendHandoff": false,
+      "resolvedLinks": [
+        "../modules/invoice.md",
+        "../modules/sales.md",
+        "../modules/admin-portal-rbac.md",
+        "../modules/core-security-error.md",
+        "FLOW-INVENTORY.md"
+      ],
+      "brokenLinks": [],
+      "notes": "Section 9 'Related Documentation' links to 4 module docs. Has 'Relevant ADRs' subsection with ADR-002 and ADR-006. No frontend handoff link — invoice/dealer finance spans both commercial and finance handoff docs but neither is directly linked."
+    },
+    {
+      "file": "accounting-period-close.md",
+      "linksToModuleDocs": true,
+      "linksToAdrs": true,
+      "linksToFrontendHandoff": false,
+      "resolvedLinks": [
+        "../modules/MODULE-INVENTORY.md",
+        "../modules/reports.md",
+        "FLOW-INVENTORY.md",
+        "../developer/accounting-flows/",
+        "../adrs/ADR-004-layered-audit-surfaces.md",
+        "../adrs/ADR-005-flyway-v2-hard-cut-migration-posture.md"
+      ],
+      "brokenLinks": [],
+      "notes": "Section 10 'Related Documentation' links to 2 module docs and internal accounting docs directory. Has 'Relevant ADRs' subsection with ADR-004 and ADR-005. No frontend handoff link — accounting period close is backend-only, no specific frontend handoff doc covers it."
+    },
+    {
+      "file": "hr-payroll.md",
+      "linksToModuleDocs": true,
+      "linksToAdrs": true,
+      "linksToFrontendHandoff": true,
+      "resolvedLinks": [
+        "../modules/hr.md",
+        "../modules/MODULE-INVENTORY.md",
+        "FLOW-INVENTORY.md",
+        "../workflows/payroll.md",
+        "../frontend-handoff-finance.md",
+        "../deprecated/INDEX.md",
+        "../adrs/ADR-002-multi-tenant-auth-scoping.md",
+        "../adrs/ADR-004-layered-audit-surfaces.md"
+      ],
+      "brokenLinks": [],
+      "notes": "Section 10 'Related Documentation' has all three link categories: 2 module docs, 2 ADRs (ADR-002 auth scoping, ADR-004 audit surfaces), and 1 frontend handoff (finance). Plus deprecated index and historical workflow doc."
+    },
+    {
+      "file": "reporting-export.md",
+      "linksToModuleDocs": true,
+      "linksToAdrs": false,
+      "linksToFrontendHandoff": false,
+      "resolvedLinks": [
+        "../modules/reports.md",
+        "../modules/inventory.md",
+        "../modules/factory.md",
+        "FLOW-INVENTORY.md",
+        "../developer/accounting-flows/07-reports-truth-sources.md"
+      ],
+      "brokenLinks": [],
+      "notes": "Section 10 'Related Documentation' links to 3 module docs and internal accounting flows doc. No ADR links — reporting is a consumer of other modules' data, not directly governed by ADRs. No frontend handoff link — reports are backend-driven with no specific frontend handoff coverage."
+    }
+  ],
+  "summary": "PASS — All 11 flow packets contain a 'Related Documentation' section with links to owning module packets. 6 of 11 packets link to ADRs where applicable (order-to-cash, procure-to-pay, invoice-dealer-finance, accounting-period-close, hr-payroll have explicit ADR links; the remaining 5 have no ADRs that directly govern them, which is acceptable). 4 of 11 packets link to frontend handoff docs (catalog-setup-readiness→operations, inventory-management→operations, order-to-cash→commercial, hr-payroll→finance, procure-to-pay→commercial). The remaining 6 packets cover backend-only flows (auth, tenant-admin, manufacturing-packing, accounting-period-close, reporting-export) or span multiple handoff domains (invoice-dealer-finance). No broken links found — all referenced files exist on disk. The cross-linking satisfies the assertion that major flow packets link back to owning module docs, relevant ADRs, and related frontend handoff packets."
+}

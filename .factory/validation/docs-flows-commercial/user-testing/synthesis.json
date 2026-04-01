@@ -1,0 +1,57 @@
+{
+  "milestone": "docs-flows-commercial",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 7,
+    "passed": 7,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-FLOW-001",
+    "VAL-FLOW-002",
+    "VAL-FLOW-003",
+    "VAL-FLOW-004",
+    "VAL-FLOW-005",
+    "VAL-FLOW-006",
+    "VAL-FLOW-007"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null,
+  "testedFlowPackets": [
+    "docs/flows/order-to-cash.md",
+    "docs/flows/procure-to-pay.md",
+    "docs/flows/invoice-dealer-finance.md",
+    "docs/flows/accounting-period-close.md",
+    "docs/flows/hr-payroll.md",
+    "docs/flows/reporting-export.md"
+  ],
+  "validationType": "docs-only",
+  "toolsUsed": ["Read", "Grep", "LS", "bash ci/lint-knowledgebase.sh"],
+  "subagents": [
+    {
+      "groupId": "commercial-flows",
+      "assertions": ["VAL-FLOW-001", "VAL-FLOW-002", "VAL-FLOW-003", "VAL-FLOW-004", "VAL-FLOW-005", "VAL-FLOW-006", "VAL-FLOW-007"],
+      "packets": ["order-to-cash.md", "procure-to-pay.md", "invoice-dealer-finance.md"],
+      "result": "pass"
+    },
+    {
+      "groupId": "finance-flows",
+      "assertions": ["VAL-FLOW-001", "VAL-FLOW-002", "VAL-FLOW-003", "VAL-FLOW-004", "VAL-FLOW-005", "VAL-FLOW-006", "VAL-FLOW-007"],
+      "packets": ["accounting-period-close.md", "hr-payroll.md", "reporting-export.md"],
+      "result": "pass"
+    }
+  ],
+  "evidence": {
+    "VAL-FLOW-001": "FLOW-INVENTORY.md lists all 11 major flow families. All 6 commercial/finance flows (O2C #6, P2P #7, Invoice/Dealer Finance #8, Accounting/Period Close #9, HR/Payroll #10, Reporting/Export #11) have canonical packets linked (not 'packet pending'). All 6 packet files verified to exist on disk.",
+    "VAL-FLOW-002": "All 6 commercial/finance flow packets contain all 6 required sections: §1 Actors (24 total actors), §2 Entrypoints (146 total endpoints), §3 Preconditions (27 precondition sets), §4 Lifecycle (34 sub-lifecycles), §5 Completion Boundary (30 completion criteria), §7 Cross-Module Dependencies (22 cross-module deps). FLOW-INVENTORY.md references all 6 packets.",
+    "VAL-FLOW-003": "All 6 packets have 'Completion Boundary / Current Definition of Done' section with concrete criteria. Current Limitations: O2C (7), P2P (7), Invoice (6), Accounting (7), HR (6), Reporting (8) — 41 total. All use implemented-vs-planned language. No aspirational language found.",
+    "VAL-FLOW-004": "All 6 packets have canonical vs non-canonical paths sections. Canonical: 30 paths. Deprecated: 21 paths. All deprecated paths have replacement or explicit status. Cross-module boundary notes present in all packets.",
+    "VAL-FLOW-005": "All 6 packets have Open Decisions sections: O2C (5), P2P (4), Invoice (4), Accounting (4), HR (4), Reporting (5) — 26 total. All use explicit status labels.",
+    "VAL-FLOW-006": "All 6 packets have Related Documentation sections with 35 unique cross-references. All verified to exist on disk. Links include module docs, FLOW-INVENTORY.md, and ADRs where applicable.",
+    "VAL-FLOW-007": "All 6 packets have Security Considerations sections. P2P and Accounting have dedicated Event/Listener Boundaries sections. Reporting/Export acceptably omits Event/Listener section (read-only flow). Non-obvious gates surfaced: erp.inventory.accounting.events.enabled toggle, OPERATIONAL_DISPATCH predicate, host isolation, module gating."
+  }
+}

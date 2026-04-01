@@ -1,0 +1,76 @@
+{
+  "groupId": "val-plat-002",
+  "testedAt": "2026-03-30T00:00:00Z",
+  "credentials": {
+    "account": "docs-only",
+    "namespace": "docs-platform-governance"
+  },
+  "toolsUsed": ["Read", "Grep"],
+  "assertions": {
+    "VAL-PLAT-002": {
+      "status": "pass",
+      "title": "Admin, portal, and RBAC docs explain role-action boundaries",
+      "checks": [
+        {
+          "check": "1. Verify the docs library contains a packet (file) that covers admin, portal, and RBAC surfaces",
+          "status": "pass",
+          "evidence": "File docs/modules/admin-portal-rbac.md exists and documents admin, portal, rbac, and sales dealer-portal surfaces. Line 5: 'This packet documents the admin, portal, rbac, and sales dealer-portal surfaces that together define the platform's role-action boundaries, host ownership, and access-control model.'"
+        },
+        {
+          "check": "2. Verify the packet explains admin, portal, dealer, and superadmin actor boundaries",
+          "status": "pass",
+          "evidence": "Lines 19-36 contain the 'Actor Boundaries' section with the SystemRole enum table listing ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_ACCOUNTING, ROLE_FACTORY, ROLE_SALES, and ROLE_DEALER, plus 5 actor boundary rules. Rule 1 covers super-admin as control-plane only, Rule 2 covers admin/accounting shared surfaces, Rules 3-4 cover sales and factory roles, Rule 5 covers dealer as self-service only."
+        },
+        {
+          "check": "3. Verify the packet explains approvals (credit-limit requests, credit-limit overrides, payroll, period-close, export requests)",
+          "status": "pass",
+          "evidence": "Lines 205-231 contain the 'Approval Surfaces' section with an 'Approval Categories' table listing all 5 approval categories: Credit-limit request, Credit-limit override, Payroll run, Period-close request, and Export request. Each entry specifies origin, who can request, who can approve/reject, and the approval endpoint."
+        },
+        {
+          "check": "4. Verify the packet explains export workflow and approval gating",
+          "status": "pass",
+          "evidence": "Lines 236-243 contain the 'Export Approval Workflow' section explaining the exportApprovalRequired system setting, the PENDING status flow when enabled, and the approve/reject endpoints at /api/v1/admin/exports/{id}/approve and /reject."
+        },
+        {
+          "check": "5. Verify the packet explains support paths (admin-side and dealer-side, with isolation)",
+          "status": "pass",
+          "evidence": "Lines 245-261 contain the 'Support Ticket Surfaces' section. Two separate host spaces are documented: Internal support tickets at /api/v1/portal/support/tickets (Admin, Accounting) and Dealer support tickets at /api/v1/dealer-portal/support/tickets (Dealer only). Isolation is enforced by separate controllers and services (PortalSupportTicketController/Service and DealerPortalSupportTicketController/Service). Dealer tickets are auto-scoped to authenticated dealer's company and user ID."
+        },
+        {
+          "check": "6. Verify the packet explains role assignment restrictions (super-admin enforcement)",
+          "status": "pass",
+          "evidence": "Lines 301-322 contain the 'Role Assignment Restrictions' section with 4 super-admin restriction rules: (1) Viewing SUPER_ADMIN role filtered unless caller has SUPER_ADMIN, (2) Mutating system roles requires SUPER_ADMIN authority, (3) Ensuring ROLE_ADMIN/ROLE_SUPER_ADMIN requires SUPER_ADMIN, (4) Shared role permission management returns false with audit denial for non-super-admin. Also documents role synchronization at startup and role hierarchy ROLE_SUPER_ADMIN > ROLE_ADMIN."
+        },
+        {
+          "check": "7. Verify the packet explains dealer self-service versus admin approval surfaces",
+          "status": "pass",
+          "evidence": "Lines 263-293 contain the 'Dealer Self-Service versus Admin Approval Flows' section with two diagramed flows: Credit-Limit Request Flow (dealer submits via /dealer-portal/credit-limit-requests, approved by Admin/Accounting via /credit/limit-requests/{id}/approve) and Credit-Limit Override Flow (Factory/Sales creates override, Admin/Accounting approves). Dealer path uses dealer-scoped endpoint, Sales/Admin path specifies dealerId explicitly."
+        },
+        {
+          "check": "8. Verify the packet explains host ownership between admin/internal and dealer/self-service surfaces",
+          "status": "pass",
+          "evidence": "Lines 38-61 contain the 'Host Ownership Map' table with 14 host-prefix entries mapping each to owning module, primary actors, and access predicate. Admin/internal hosts (/api/v1/admin/*, /api/v1/portal/*, /api/v1/superadmin/*) are clearly separated from dealer/self-service hosts (/api/v1/dealer-portal/*). Lines 380-389 'Cross-Module Boundaries' table further documents dependencies between modules."
+        },
+        {
+          "check": "9. Verify the packet has a role matrix or equivalent host-ownership section",
+          "status": "pass",
+          "evidence": "Lines 63-83 contain the 'PortalRoleActionMatrix Predicates' table with 11 role-predicate constants (DEALER_ONLY, ADMIN_ONLY, SUPER_ADMIN_ONLY, ADMIN_OR_ACCOUNTING, ADMIN_SALES_ACCOUNTING, ADMIN_SALES_FACTORY_ACCOUNTING, ADMIN_FACTORY_SALES, ADMIN_FACTORY, ADMIN_ACCOUNTING_SUPER_ADMIN, FINANCIAL_DISPATCH, OPERATIONAL_DISPATCH), each showing the predicate expression and which controllers use it."
+        },
+        {
+          "check": "10. Verify the packet is discoverable from docs/INDEX.md",
+          "status": "pass",
+          "evidence": "docs/INDEX.md line 29 contains a link to the packet: '| [admin/portal/rbac](modules/admin-portal-rbac.md) | Admin user management, system settings, changelog, export approvals, support tickets, portal insights/finance, dealer self-service host ownership, role-action matrices, and RBAC enforcement |'"
+        },
+        {
+          "check": "11. Verify the packet carries a valid freshness marker (Last reviewed: YYYY-MM-DD)",
+          "status": "pass",
+          "evidence": "Line 3 of docs/modules/admin-portal-rbac.md: 'Last reviewed: 2026-03-30' — valid date in YYYY-MM-DD format."
+        }
+      ],
+      "evidence": "docs/modules/admin-portal-rbac.md is a comprehensive 415-line packet covering admin, portal, RBAC, and dealer-portal surfaces. It includes: Actor Boundaries (6 roles with descriptions and permissions), Host Ownership Map (14 host-prefix entries), PortalRoleActionMatrix Predicates (11 constants), 13 controller route tables, Approval Surfaces (5 categories with origin/requestor/approver details), Export Approval Workflow (conditional gating), Support Ticket Surfaces (admin-side and dealer-side with isolation), Dealer Self-Service versus Admin Approval Flows (2 diagramed flows), Role Assignment Restrictions (4 super-admin enforcement rules + startup synchronization + hierarchy), Domain Entities, Key Services, Cross-Module Boundaries, Known Caveats, and Cross-References. The packet is discoverable from docs/INDEX.md line 29 and carries freshness marker 'Last reviewed: 2026-03-30'."
+    }
+  },
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested VAL-PLAT-002 with 11 checks: all 11 passed. The docs library contains a comprehensive admin-portal-rbac.md packet that covers all required role-action boundaries, actor boundaries, approval surfaces, export workflow, support paths with isolation, role assignment restrictions, dealer self-service vs admin approval flows, host ownership, and role matrix. The packet is discoverable from docs/INDEX.md and carries a valid freshness marker."
+}

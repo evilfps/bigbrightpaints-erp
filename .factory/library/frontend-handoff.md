@@ -5,6 +5,17 @@ API contracts, flow documentation, and design guidance for frontend developers.
 **What belongs here:** Endpoint maps per module, request/response schemas, user flow descriptions, state machines, error codes, and UI hints.
 **Updated by:** Backend workers after implementing/refactoring each module.
 
+## Mainline Catch-Up Override
+
+This file reflects the earlier branch-era handoff model. During catch-up to `origin/main`, workers should treat it as **legacy reference material**, not the final canonical target by itself.
+
+The mainline canonical frontend-facing docs model is now:
+
+- `docs/frontend-portals/` for per-portal ownership docs
+- `docs/frontend-api/` for shared cross-portal API rules
+
+If information from this file is reused, it must be migrated into that mainline structure or clearly marked as non-canonical/reference-only so both models do not compete silently.
+
 ---
 
 ## Documentation Format Per Module

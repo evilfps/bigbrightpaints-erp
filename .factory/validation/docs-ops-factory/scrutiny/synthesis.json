@@ -1,0 +1,33 @@
+{
+  "milestone": "docs-ops-factory",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh && bash ci/check-enterprise-policy.sh && bash ci/check-architecture.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "skipped — docs-only milestone, no runtime code changes",
+      "exitCode": 0
+    },
+    "test": {
+      "passed": true,
+      "command": "skipped — docs-only milestone, no runtime code changes",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [],
+  "previousRound": null
+}

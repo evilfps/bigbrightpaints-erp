@@ -1,0 +1,15 @@
+{
+  "featureId": "docs-mainline-audit-and-ownership-hardcuts",
+  "reviewedAt": "2026-03-31T00:50:00.000Z",
+  "commitId": "a4c1f3081",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The commit updates promotions endpoint classification from 'Not integrated' to 'Planned foundation' across three docs files (BACKEND-FEATURE-CATALOG.md, deprecated/INDEX.md, flows/order-to-cash.md). The worker correctly identified that the canonical audit surfaces and portal ownership documentation were already in place from prior features (frontend-portals/README.md, frontend-api/accounting-reference-chains.md, frontend-api/exports-and-approvals.md) and only needed to preserve and commit the pending promotions reclassification edits. All requirements are met: (1) three canonical audit surfaces documented, (2) old business-audit read paths retired, (3) portal ownership aligned, (4) promotions as planned foundation, (5) correctness/replay gaps framed as bugs.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The commit correctly reclassifies the promotions endpoint from 'Not integrated' to 'Planned foundation' in three documentation files. The worker verified that all other requirements were already satisfied by prior features: (1) canonical audit surfaces (/api/v1/accounting/audit/*, /api/v1/admin/audit/events, /api/v1/superadmin/audit/platform-events) are documented in docs/frontend-api/accounting-reference-chains.md with old business-audit paths retired, (2) portal ownership is consistently documented across docs/frontend-portals/README.md, portal-matrix.md, and exports-and-approvals.md (tenant-admin owns export approvals, accounting owns report consumption via /api/v1/reports/**, factory owns dispatch confirmation, dealer-client is separate from internal shells), and (3) correctness/replay gaps in the codebase are already framed as known bugs/risk items in the code-review risk register and manufacturing flow docs. Both validation scripts (lint-knowledgebase.sh, guard_openapi_contract_drift.sh) passed. No issues found."
+}

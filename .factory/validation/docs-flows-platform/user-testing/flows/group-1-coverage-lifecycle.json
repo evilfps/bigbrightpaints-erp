@@ -1,0 +1,150 @@
+{
+  "groupId": "group-1-coverage-lifecycle",
+  "testedAt": "2026-03-30T16:30:00Z",
+  "credentials": {
+    "account": "docs-only-validation",
+    "namespace": "docs-flows-platform"
+  },
+  "toolsUsed": ["Read", "Grep"],
+  "assertions": [
+    {
+      "id": "VAL-FLOW-001",
+      "title": "Flow library covers the major backend flows",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read docs/flows/FLOW-INVENTORY.md",
+          "expected": "All 11 flow families listed in the inventory table",
+          "observed": "All 11 flow families present in inventory table: (1) Auth/Identity, (2) Tenant/Admin Management, (3) Catalog/Setup Readiness, (4) Manufacturing/Packing, (5) Inventory Management, (6) Order-to-Cash, (7) Procure-to-Pay, (8) Invoice/Dealer Finance, (9) Accounting/Period Close, (10) HR/Payroll, (11) Reporting/Export"
+        },
+        {
+          "action": "List docs/flows/ directory",
+          "expected": "Five flow packet files exist for flows 1-5",
+          "observed": "Five .md files found: auth-identity.md, tenant-admin-management.md, catalog-setup-readiness.md, manufacturing-packing.md, inventory-management.md"
+        },
+        {
+          "action": "Grep FLOW-INVENTORY.md for 'packet pending'",
+          "expected": "Remaining 6 flows (O2C, Invoice/Dealer Finance, Accounting/Period Close, HR/Payroll, Reporting/Export) marked as packet pending",
+          "observed": "Five flows explicitly marked '*(packet pending)*': order-to-cash.md (line 20), invoice-dealer-finance.md (line 22), accounting-period-close.md (line 23), hr-payroll.md (line 24), reporting-export.md (line 25). Flow 7 (P2P) links to purchasing.md module doc without pending marker — uses module packet as its flow reference instead of a dedicated flow packet. Coverage note on line 37 confirms pending convention."
+        },
+        {
+          "action": "Read docs/INDEX.md Flows section",
+          "expected": "INDEX.md references flow inventory and available flow packets",
+          "observed": "INDEX.md 'Flows' section links to docs/flows/FLOW-INVENTORY.md with description: 'Canonical inventory of the eleven major backend flow families'. Text states: 'Five flow packets (flows 1–5: auth/identity, tenant/admin management, catalog/setup readiness, manufacturing/packing, and inventory management) are now available; the remaining six will be added in later milestones.'"
+        },
+        {
+          "action": "Verify each available packet is discoverable from flow inventory",
+          "expected": "Each of the 5 flow packets linked from the inventory Canonical Packet column",
+          "observed": "Flow 1 links to auth-identity.md, Flow 2 links to tenant-admin-management.md, Flow 3 links to catalog-setup-readiness.md, Flow 4 links to manufacturing-packing.md, Flow 5 links to inventory-management.md — all without 'packet pending' marker"
+        }
+      ],
+      "evidence": {
+        "flowInventoryFile": "docs/flows/FLOW-INVENTORY.md (9578 bytes, 11 flow families in inventory table)",
+        "availablePackets": [
+          "docs/flows/auth-identity.md",
+          "docs/flows/tenant-admin-management.md",
+          "docs/flows/catalog-setup-readiness.md",
+          "docs/flows/manufacturing-packing.md",
+          "docs/flows/inventory-management.md"
+        ],
+        "pendingPackets": [
+          "order-to-cash.md (line 20, packet pending)",
+          "invoice-dealer-finance.md (line 22, packet pending)",
+          "accounting-period-close.md (line 23, packet pending)",
+          "hr-payroll.md (line 24, packet pending)",
+          "reporting-export.md (line 25, packet pending)"
+        ],
+        "p2pNote": "Flow 7 (P2P) links to docs/modules/purchasing.md module doc rather than a dedicated flow packet; no 'packet pending' marker. This is a minor inconsistency but not blocking since the inventory row still provides lifecycle summary and cross-module participants.",
+        "indexReference": "docs/INDEX.md Flows section references FLOW-INVENTORY.md and states 5 available + 6 pending"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-FLOW-002",
+      "title": "Each major flow doc explains the current canonical lifecycle",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read auth-identity.md and check for required sections",
+          "expected": "Actors, Entrypoints, Preconditions, Lifecycle, Completion/DoD, Cross-module dependencies",
+          "observed": "All 6 required sections present: §1 Actors (4 actors), §2 Entrypoints (14 entrypoints), §3 Preconditions (Login/Refresh/Reset preconditions with numbered lists), §4 Lifecycle (5 sub-lifecycles: Login, Refresh, Logout, Password Reset, MFA), §5 Completion Boundary / Current Definition of Done (4 completion criteria + 5 limitations), §7 Cross-Module Dependencies (4 modules: company, rbac, admin, accounting)"
+        },
+        {
+          "action": "Read tenant-admin-management.md and check for required sections",
+          "expected": "Actors, Entrypoints, Preconditions, Lifecycle, Completion/DoD, Cross-module dependencies",
+          "observed": "All 6 required sections present: §1 Actors (4 actors), §2 Entrypoints (23 entrypoints), §3 Preconditions (Onboarding/Lifecycle/User Management/Export Approval preconditions), §4 Lifecycle (5 sub-lifecycles: Onboarding, Lifecycle State Machine, Admin User Management, Support Intervention, Export Approval), §5 Completion Boundary / Current Definition of Done (5 completion criteria + 6 limitations), §7 Cross-Module Dependencies (5 modules: auth, rbac, accounting, sales, portal)"
+        },
+        {
+          "action": "Read catalog-setup-readiness.md and check for required sections",
+          "expected": "Actors, Entrypoints, Preconditions, Lifecycle, Completion/DoD, Cross-module dependencies",
+          "observed": "All 6 required sections present: §1 Actors (4 actors), §2 Entrypoints (16 entrypoints), §3 Preconditions (Brand/Item/Import/Packaging Mapping preconditions), §4 Lifecycle (5 sub-lifecycles: Brand, Item, Import, SKU Readiness Evaluation, Packaging Mapping), §5 Completion Boundary / Current Definition of Done (5 completion criteria + 8 limitations), §7 Cross-Module Dependencies (3 modules: inventory, factory, accounting)"
+        },
+        {
+          "action": "Read manufacturing-packing.md and check for required sections",
+          "expected": "Actors, Entrypoints, Preconditions, Lifecycle, Completion/DoD, Cross-module dependencies",
+          "observed": "All 6 required sections present: §1 Actors (3 actors), §2 Entrypoints (19 entrypoints), §3 Preconditions (Production Log/Packing/Cost Allocation preconditions), §4 Lifecycle (5 sub-lifecycles: Production Plan, Production Log, Packing, Wastage Closure, Cost Allocation with status progression READY_TO_PACK → PARTIAL_PACKED → FULLY_PACKED), §5 Completion Boundary / Current Definition of Done (4 completion criteria + 6 limitations), §7 Cross-Module Dependencies (3 modules: production/catalog, inventory, accounting)"
+        },
+        {
+          "action": "Read inventory-management.md and check for required sections",
+          "expected": "Actors, Entrypoints, Preconditions, Lifecycle, Completion/DoD, Cross-module dependencies",
+          "observed": "All 6 required sections present: §1 Actors (5 actors), §2 Entrypoints (22 entrypoints across FG, RM, Adjustments, Batches, Opening Stock, Dispatch), §3 Preconditions (FG Adjustment/RM Adjustment/Opening Stock/Dispatch preconditions), §4 Lifecycle (6 sub-lifecycles: Stock Summary, Low Stock Detection, Batch Traceability, FG Adjustment, Opening Stock Import, Dispatch), §5 Completion Boundary / Current Definition of Done (6 completion criteria + 7 limitations), §7 Cross-Module Dependencies (4 modules: factory, sales, purchasing, accounting)"
+        }
+      ],
+      "evidence": {
+        "packetsValidated": [
+          {
+            "file": "docs/flows/auth-identity.md",
+            "actorsSection": "§1 — 4 actors (Tenant user, Tenant admin, Super admin, Dealer user)",
+            "entrypointsSection": "§2 — 14 entrypoints with method/path/actor/purpose",
+            "preconditionsSection": "§3 — Login (7), Refresh (3), Password Reset (3) preconditions",
+            "lifecycleSection": "§4 — 5 sub-lifecycles with flow diagrams and key behaviors",
+            "completionSection": "§5 — 4 completion criteria + 5 current limitations",
+            "crossModuleSection": "§7 — 4 cross-module dependencies (company, rbac, admin, accounting)"
+          },
+          {
+            "file": "docs/flows/tenant-admin-management.md",
+            "actorsSection": "§1 — 4 actors (Super admin, Tenant admin, Tenant user, Accounting role)",
+            "entrypointsSection": "§2 — 23 entrypoints with method/path/actor/purpose",
+            "preconditionsSection": "§3 — Onboarding (5), Lifecycle (3), Admin User (3), Export (3) preconditions",
+            "lifecycleSection": "§4 — 5 sub-lifecycles including state machine diagram and runtime states table",
+            "completionSection": "§5 — 5 completion criteria + 6 current limitations",
+            "crossModuleSection": "§7 — 5 cross-module dependencies (auth, rbac, accounting, sales, portal)"
+          },
+          {
+            "file": "docs/flows/catalog-setup-readiness.md",
+            "actorsSection": "§1 — 4 actors (Admin, Accounting, Sales, Factory)",
+            "entrypointsSection": "§2 — 16 entrypoints with method/path/actor/purpose",
+            "preconditionsSection": "§3 — Brand (2), Item (5), Import (2), Packaging Mapping (2) preconditions",
+            "lifecycleSection": "§4 — 5 sub-lifecycles including SKU readiness 6-stage evaluation with blocker codes",
+            "completionSection": "§5 — 5 completion criteria + 8 current limitations",
+            "crossModuleSection": "§7 — 3 cross-module dependencies (inventory, factory, accounting)"
+          },
+          {
+            "file": "docs/flows/manufacturing-packing.md",
+            "actorsSection": "§1 — 3 actors (Factory operator, Admin, Accounting)",
+            "entrypointsSection": "§2 — 19 entrypoints with method/path/actor/purpose",
+            "preconditionsSection": "§3 — Production Log (5), Packing (5), Cost Allocation (3) preconditions",
+            "lifecycleSection": "§4 — 5 sub-lifecycles with status progression READY_TO_PACK → PARTIAL_PACKED → FULLY_PACKED",
+            "completionSection": "§5 — 4 completion criteria + 6 current limitations",
+            "crossModuleSection": "§7 — 3 cross-module dependencies (production/catalog, inventory, accounting)"
+          },
+          {
+            "file": "docs/flows/inventory-management.md",
+            "actorsSection": "§1 — 5 actors (Admin, Accounting, Factory, Sales, Operational dispatch)",
+            "entrypointsSection": "§2 — 22 entrypoints across 6 categories (FG, RM, Adjustments, Batches, Opening Stock, Dispatch)",
+            "preconditionsSection": "§3 — FG Adjustment (4), RM Adjustment (4), Opening Stock (3), Dispatch (4) preconditions",
+            "lifecycleSection": "§4 — 6 sub-lifecycles with flow descriptions and key behaviors",
+            "completionSection": "§5 — 6 completion criteria + 7 current limitations",
+            "crossModuleSection": "§7 — 4 cross-module dependencies (factory, sales, purchasing, accounting)"
+          }
+        ],
+        "consoleErrors": "not applicable (docs-only validation)",
+        "network": "not applicable (docs-only validation)"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 2 assertions: 2 passed. VAL-FLOW-001 confirmed — the flow inventory lists all 11 major backend flow families, 5 packets exist for flows 1-5, and 5 of the remaining 6 are explicitly marked 'packet pending' (P2P flow 7 links to its module doc instead). VAL-FLOW-002 confirmed — all 5 available flow packets contain all 6 required sections: Actors, Entrypoints, Preconditions, Lifecycle (with status progression), Completion Boundary / Definition of Done (with current limitations), and Cross-Module Dependencies."
+}

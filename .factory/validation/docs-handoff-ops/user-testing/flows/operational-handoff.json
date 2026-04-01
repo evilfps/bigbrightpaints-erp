@@ -1,0 +1,15 @@
+{
+  "groupId": "operational-handoff",
+  "assertionIds": ["VAL-OPS-005"],
+  "status": "pass",
+  "results": [
+    {
+      "assertionId": "VAL-OPS-005",
+      "status": "pass",
+      "evidence": "docs/frontend-handoff-operations.md is discoverable from docs/INDEX.md Frontend Handoff section. Contains 9 sections: scope overview, canonical host prefixes (3 route tables with 40 routes), RBAC summary (5 roles × 6 surfaces), payload families (3 categories), read/write boundaries (3 tables), host/path ownership summary, cross-module seams, safety gaps, deprecation notes, and cross-references to 7 canonical docs. Packet explicitly defers to canonical module and flow docs.",
+      "toolsUsed": ["Read", "Grep"],
+      "frictions": [],
+      "blockers": []
+    }
+  ]
+}

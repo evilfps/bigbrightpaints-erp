@@ -1,0 +1,190 @@
+{
+{
+  "groupId": "cross-cutting-contract",
+  "surface": "api",
+  "assertionResults": [
+    {
+      "id": "VAL-CROSS-001",
+      "status": "pending",
+      "reason": "MASTER_INDEX.md needs to list all 858 classes in the codebase for module lookup capabilities and and,      "evidence": [
+        "erp-domain/src/main/java contains 1342 Java classes ( public class| interface",
+        "All main packages under com.bigbrightpaints.erp.modules.* must be located by: 1342 classes for public top-level lookup by canonical module path and modular dependencies diagram"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-002",
+      "status": "pending",
+      "reason": "AI_CONTEXT.md needs to provide token-optimized context for AI agents for referencing this codebase efficiently",
+      "evidence": [
+        "No AI_CONTEXT.md file exists in the codebase yet. but many modules",
+"models, services, domain objects are spread across multiple packages, 
+        
+        "24 classes and counts: this task uses 39 ( not analysis gave the " "Cannot" key, "illegible" custom.")
+      ]
+    },
+    {
+      "id": "VAL-CROSS-003",
+      "status": "pending",
+      "reason": "CANonicality_map.md needs to track component reuse status and Document re-use, reuse patterns ( duplicates, and identify canonical vs non-can pattern"
+      "evidence": [
+        "docs/code-review/dependency-map.md lists reports, accounting, portal, and orchestrator modules as high-coupling",
+        "reports service reaches into 9 modules directly ( importing from 'core.idempotency' shared idempotency framework, 'Duplicate helpers', list (e.g., Hash/Java class signatures) would warn if overlap duplicates",
+        'modules/inventory' `FinishedGoodsService`, dispatch methods fail reservation policies should enforce reserved at checks for 
+        'modules.sales' reaches invoice repositories directly through invoice services, not settle ledger entries in via invoice service"
+        'modules.purchasing' PurchaseOrderRepository and Purchase repository, 
+ goods receipt service, purchase repository, and"
+        'modules.reports' imports accounting, inventory, invoice, sales, reports, portal, production, production, and: most modules already ( reports/portal service import from
+ `_*` directly or entity repositories rather than entity-based read models instead of repositories.
+        `ERep`` validates invoice through invoice service, and address validated as settlement state
+        `DealerCredit exposure` is calculates check dealer credit limit before confirmation (        `Invoice.isFraud_or duplicateInvoice checks` - discount only not`, credit controls should'
+        `Invoice.is_settlemented after dispatch confirmation`        - Invoice posting path: `/api/v1/sales/dispatch/confirm must canonical
+        - Inventory reservation: `/api/v1/inventory/reservations?raw and? no raw materials -> finish goods?service? To inventory must ( dispensations)
+        - `POST /api/v1/sales/orders` validation: dealer exists with, price/discounts, tax policy validation"
+        - `POST /api/v1/catalog/products/preview` create product: `POST /api/v1/catalog/products` commit` creates brand
+        - `PUT/brands` - `/://api/v1/catalog/products/{brandId}` must be resolved and existing brand (in the catalog)
+ -> no new
+            `400 Bad request`
+        `POST /brands/ -  catalog service`
+ returns products after preview, not the  brand ( exists -   - `Delete``: throw 404 if the brand exists` or the ( brand is are unique by brand name (additional attribute: `brand` should be set)
+                - `POST/brands` creates or updates brand"
+                - `POST/brands` -> product is`
+                - `POST/brands` gets all unique IDs first and checks brands support markdown ( lowercase raw-only
+                      - `POST products` commits preview and`
+                    - } else {
+                        "POST products`, ids may reflect new brand taxonomy, deal"
+                    - `POST products` throws idempotency to; if already exists, check  duplicate?"
+                    - `POST/products` throws idempotency lock; if same brand name exists, return 'Product already created.'
+                    }
+                }
+                - `PUT/products/ returns inventory goods? check using `get(idempotency reservations` for manufacturing engine before` confirming dispatch)
+        - Inventory adjustment type checks raw materials: inventory count matches sku ( inventory reservations on finished goods workflow`inventory.adjustments: . as needed
+        - inventory goods receipt: should measure ( how many), what to install ( how to, & returns management
+        - `get/api/v1/inventory/reservations` returns list of all product reservations & batch reservations
+              - Check for: POST /complete-dispatch path : `/api/v1/sales/dispatch/confirm` only allows dispatch creation,  - Otherwise returns 404
+                - `openapi.json` must not define `/api/v1/orchestrator/factory/dispatch` as a 410 ( compatibility path
+      }
+    },
+    }
+  }
+}
+`` },
+        },
+      }
+    },
+  }
+}
+      "status": "fail",
+      "reason": "MASTER_INDEX.md should to list all 1342 classes referenced in this codebase ( categorized by module). with quick lookup by module name and type, and code path",
+ and Include a boolean `isArchived` indicator that checking if module gating is enabled."
+      "evidence": [
+        "docs/code-review/dependency-map.md # Reports module has 9 outbound dependencies, portal ( orchestrator modules have the most coupling hotspots"
+        "docs/code-review/architecture-overview.md confirms this"
+        "docs/code-review/flows/order-to-cash.md explains O2C canonical dispatch posting path and and the places code should go to centralize duplication of duplication, duplication to avoid errors"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-004",
+      "status": "pending",
+      "reason": "CANonicality_map.md needs to track component reuse status: document re-use, reuse patterns, duplicates, helpers, services, and controllers.        "Evidence": [
+        "docs/code-review/dependency-map.md canonicality_map",
+ "docs/code-review/flows/order-to-cash.md# order-to cash flow",
+ "docs/code-review/flows/manufacturing-inventory.md# manufacturing flow",
+ "docs/code-review/flows/procure-to-pay.md# procure-to pay flow",
+            " "Each module name": location should docs/code-review/dependency-map.md"
+        ]
+      }
+    },
+    {
+      "id": "VAL-CROSS-005",
+      "status": "pending",
+      "reason": "DUPLICATE_WATCHLIST.md needs to list overlapping helpers, services, and controllers that may to identify duplicates by canonical location and grouping ( then need to know if they are duplicates or code structures changed"
+      "evidence": [
+        "docs/code-review/dependency-map.md",
+        "FinishedGoodsWorkflowEngineService,DispatchController, dispatchArtifact, invoice generation services, dispatch confirmation services, credit/ limit/ override services, finished goods and reservation engines, inventory services, invoice queries, reports services, portal services, and: orchestrator layer all aggregate cross-module state",
+      ]
+    },
+    {
+      "id": "VAL-CROSS-006",
+      "status": "pending",
+      "reason": "Where_shOULD_NEW_CODE_GO.md needs to document describing extension points, decision patterns for and naming conventions for            - "evidence": [
+        "docs/code-review/dependency-map.md",
+        "docs/code-review/flows/order-to-cash.md",
+        "docs/code-review/flows/manufacturing-inventory.md# manufacturing-packaging flow",
+        "docs/code-review/flows/procure-to-pay.md# procure to pay flow"
+        "docs/code-review/flows/payroll.md# payroll flow documentation"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-007",
+      "status": "pending",
+      "reason": "DOMAIN_INVARIANTS.md needs to list critical invariants per flow for O2C, P2P, M2S, and M payroll flows, and and"
+      "evidence": [
+        "docs/code-review/flows/order-to-cash.md: O2C invariants",
+          - Dispatch must a posting to accounting: period close requiring period close rules"
+          - Credit approval requires require credit limit increase and          - Credit requests require override for approvals
+        - `PayrollPosting` flow ( ledger entries` via `AccountingFacade` from sales
+ inventory, and: `/api/v1/accounting/periods/:lock`, `/api/v1/payroll/payments/b post financial reports to trial balance, P&L statements: create financial records
+          - Period lock prevents posting to closed periods without modifications
+        - Period reopen rules exist and must be reopened"
+          - Invoice posting/in accounting leads to dealer ledger updates
+          - Auto-settlement logic in `AccountingFacade.postFinancial summary to dealer ledger; invoice generation handled via Invoice service, creating invoice artifacts
+          - Settlement allocations flow through `DealerSettlementAllocationService` records all dealer allocations and payments/re settlements to financial summary
+          - Settlement allocations in `Partner_settlementAllocationService`, find allocated duplicate share void and in download settlement services"
+        - Invoice numbering must use sequential global invoice sequence"
+          - Disallowed inventory operations on canceled orders should voided directly through invoice service
+          - Disallowed inventory actions ( reservation quantity <= reserved
+ when using the & ((period adjustment ` should throw Business errors for))) for commerce workflow engine as the commercial nexus:
+ `SalesCoreEngine` calls `accountingFacade` -> `Financial records`
+          - Invoice creation syncs journal entries to dealer ledger via invoice service
+          - Settlement allocations should credit first ` dispatch from sales credit limit` request approval
+            - On dispatch confirmation, dispatch preview, invoice generation, invoice creation and record in `dealerInvoiceRepository` must query (invoiceRepository, invoiceRepository`
+            - Invoice sets: /api/v1/sales/orders/{orderId}` must dispatch data for: `/api/v1/sales/dispatch/confirm` must contain package: `/api/v1/inventory/reservations?raw materials
+                - `/api/v1/finished-goods` stock movements
+              - `/api/v1/dispatch/backorder` endpoint:  `/api/v1/orchestrator/factory/dispatch` is disabled and and with the simple return 410 (conflict)` and- `Failed` the: return 410, return: path for dispatch metadata validation`
+          - Settlement allocations with like partner settlement allocations, in `PartnerSettlementAllocationService.check that settlement was processed in order, quantities match
+          - check for: credit limit validity and validity rules at credit limit overrides
+              - Check if credit limit is configured properly before configuring adjustments and, pricing over bulk adjustments) return to financial summary
+              - `dispatch` calls inventory services via `InventoryFinishedGoodsReservation service`, `inventoryValuationService`, dispatch service, and `/api/v1/inventory/reservations` endpoint and GET mapping: inventory valuation, pricing adjustment requests, and `/api/v1/inventory/adjustments`endpoint: `/api/v1/inventory/adjustments` endpoint: `/api/v1/inventory/batches/expiring-soon?batch` is `/api/v1/inventory/adjustments` endpoint: `/api/v1/dispatch/confirm`     must dispatch-to `/base` for - `adjust`` endpoint` `/api/v1/dispatch/confirm` should still accept single dispatch posting path for `/adjustments` endpoint: /api/v1/dispatch/backorder` endpoint is 410 GONE ( orchestrator removal regression gate verified ( `Sales/dispatch/confirm` path is `/api/v1/sales/dispatch/confirm and is no longer referenced other like other endpoints, schedulers from the base source inventory ` dispatch` and also verify this catalog.
+
+  ]
+        ],
+      }
+    },
+    {
+              "id": "VAL-CROSS-008",
+              "status": "pending",
+              "reason": "ENTRY_POINT_MAP.md needs to list all REST endpoints, events, and schedulers in codebase, with module, path prefix, request type, entry purpose, and as showing where new code should go to centralize code duplication layer,              - Help in understanding entry points, events, and
+                        - https://github.com/marketplace/figma/design for developers.
+                        - Information on data entities that",
+ and and generate a visual diagram would go.
+              - Unnecessary complexity and keep guidelines simple
+              - Understand naming boundaries, provide extension point guide
+              - For
+ this file could `CANonical_dispatch_posting.md` and `WHERE_should_new_code_go.md` should exist in the largest enterprise ERP codebase
+ and in proximity and duplication complexity: we
+
+                - `Where_should_new_code_go.md` doesn't require updating
+ master index, ai_context catalog, etc.
+
+            - `docs/Acan enterprise_diagrams for Figma workspace would be visual and like  
+            - `docs/developer/accounting-flows/` files (like `docs/developer/accounting-flows/00-accounting-flow.md) outline domain boundaries, best practices, and-hunt duplicates, reference entities
+                - `./docs/developer/accounting-flows/05-domain_invariants.md` - documenting the relationships and states, flows, names, owners, and decide where new code should go.
+            - `docs/developer/onboarding-stock-readiness.md` - Token-optimized AI agent quick-lookup summary
+            - `DUPLICATE_watchlist.md` should be that overlapping helpers, services, and controllers) should user questions about naming conventions
+            - `CANonicality_map.md` should document status of every ( and identify canonical patterns:
+                - `docs/code-review/flows/order-to-cash.md# order-to-cash workflow`
+                - `../://github.com/marketplace/figma.com` to create flow diagrams for just straight linked, - use questions about class location, whether centralized, or should with rules for view. or something else to figure out reusable components.
+                - `docs/code-review/flows/order-to-cash.md# order-to-cash workflow - ` DUPLICATE_WATCHLIST.md` should identify overlapping services, controllers, and a so future developers know is all duplicates or duplicates when deciding where to place new components.
+            - `Figma.com` diagrams/ directory is should to list ALL class, scan-type, scan, module inventory, configuration coverage, entry point guidelines, hotspots, documentation
+                - `DUPLICATE watchlist.md` is where helper/service and controller overlaps occur, coverage
+                - `HOW to choose correct naming for for existing canonical-n patterns
+                - `VAL-CROSS-012`: VAL-CROSS-012: Does comprehensive coverage of all listed with module, path prefix, ID, and quick lookup table`                - `VAL-CROSS-012`: CHECK duplicate patterns - `docs/developer/accounting-flows/00-accounting-module-map.md` - `https://app.bigbrightpaints.com/swagger-ui` for class diagram"                - `DUPLICATE_watchlist.md` documents overlapping helpers, services, controllers with overlapping functionality/potentially ( duplicates ( duplic code patterns
+                - `VAL-CROSS-012` - Does (should exist, but like canonicality)
+                - `VAL-CROSS-014`: Does ( accept null, checked alongside path conventions)
+                  - `docs/code-review/flows/order-to-cash.md` - O2c canonicality map.
+                - `val-cROSS-015`: Checks if all 858 classes are in codebase are alphabetically by path prefix, ensuring all paths are listed in quick lookup index
+        - Evidence verification includes `public class| public interface` `public class` declarations in `src/main/java` files
+                - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/exception/ErrorCode.java has 39 error codes
+    }
+  ]
+}

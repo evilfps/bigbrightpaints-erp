@@ -1,0 +1,24 @@
+{
+  "milestone": "docs-flows-integration",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-FLOW-001",
+    "VAL-FLOW-002",
+    "VAL-FLOW-003",
+    "VAL-FLOW-004",
+    "VAL-FLOW-005",
+    "VAL-FLOW-007"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null,
+  "notes": "All 6 assertions were previously validated at the docs-flows-commercial milestone and remain passed after the integration cleanup work. This round independently re-verified all assertions via 2 parallel flow validator subagents against the current docs tree. VAL-FLOW-001: FLOW-INVENTORY.md covers all 11 flow families with canonical packets and no 'packet pending' markers. VAL-FLOW-002: All 11 flow packets contain actors, entrypoints, preconditions, lifecycle/status progression, completion boundary, canonical vs non-canonical paths, and cross-module dependency sections (222 total endpoints, 56 sub-lifecycle descriptions). VAL-FLOW-003: All 11 packets have explicit 'Completion Boundary / Current Definition of Done' sections with 73 total current limitations using definitive language. VAL-FLOW-004: All 11 packets have Section 6 'Canonical vs Non-Canonical Paths' with owning controllers and replacement notes. VAL-FLOW-005: All 11 packets have 'Current Limitations' and 'Open Decisions' sections recording incomplete seams with explicit status labels. VAL-FLOW-007: 7 packets have dedicated 'Event/Listener Boundaries' sections naming specific events/listeners; 4 packets without material event dependencies document access-control gates in Security Considerations. 9 named access-control gates identified across all packets. Orchestrator override note: the validator worker crashed after committing these artifacts in commit 248398cee and before emitting its final handoff, so the feature was marked completed from the existing committed pass evidence without rerunning validation."
+}

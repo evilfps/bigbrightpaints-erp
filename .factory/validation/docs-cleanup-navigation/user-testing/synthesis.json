@@ -1,0 +1,39 @@
+{
+  "milestone": "docs-cleanup-navigation",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-FLOW-006",
+    "VAL-CROSS-001",
+    "VAL-CROSS-005",
+    "VAL-CROSS-006"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null,
+  "details": {
+    "VAL-FLOW-006": {
+      "status": "pass",
+      "evidence": "All 11 flow packets have Related Documentation sections linking to owning module docs (11/11), relevant ADRs (6/11 where applicable — the remaining 5 cover flows not directly governed by ADRs), and frontend handoff docs (5/11 where applicable — catalog-setup-readiness→operations, inventory-management→operations, order-to-cash→commercial, procure-to-pay→commercial, hr-payroll→finance). All 53+ cross-references verified to resolve to existing files on disk. Zero broken links found."
+    },
+    "VAL-CROSS-001": {
+      "status": "pass",
+      "evidence": "All 15 module packets (12 major + 3 cross-cutting core) have bidirectional links with their corresponding flow packets. All 11 flow packets link back to their owning module packets. Every module↔flow pair is bidirectional. ADR cross-references present where applicable (7 modules). Frontend handoff cross-references present for modules with frontend surfaces (inventory→operations, sales→commercial, purchasing→commercial, hr→finance). No gaps found."
+    },
+    "VAL-CROSS-005": {
+      "status": "pass",
+      "evidence": "Host and path ownership is consistent across module docs, flow docs, and frontend handoff docs for all 6 tested boundary surfaces: dispatch ownership (/api/v1/dispatch/** two-layer seam), portal/admin vs dealer hosts (three-tier isolation), catalog/setup hosts (/api/v1/catalog/**), invoice/dealer-finance hosts (three surfaces), purchasing/GRN hosts (/api/v1/purchasing/** + /api/v1/suppliers/**), payroll hosts (/api/v1/hr/** and /api/v1/payroll/**). Zero inconsistencies found."
+    },
+    "VAL-CROSS-006": {
+      "status": "pass",
+      "evidence": "Three complete end-to-end navigation chains verified: (1) Sales/Order-to-Cash: INDEX.md → sales.md → order-to-cash.md → ADR-006 → frontend-handoff-commercial.md → deprecated/INDEX.md. (2) Inventory: INDEX.md → inventory.md → inventory-management.md → ADR-003 → frontend-handoff-operations.md → deprecated/INDEX.md. (3) HR/Payroll: INDEX.md → hr.md → hr-payroll.md → ADR-004 → frontend-handoff-finance.md → deprecated/INDEX.md. All 15 links verified to resolve to existing files with expected content."
+    }
+  }
+}

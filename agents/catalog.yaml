@@ -1,0 +1,64 @@
+# Agent Catalog
+# Last reviewed: 2026-03-29
+
+agents:
+  - id: orchestrator
+    name: orchestrator
+    role: Orchestrate review ordering, R2 approval mode, and merge readiness decisions
+    required_evidence:
+      - Packet scope confirmation
+      - Reviewer assignment
+      - Release-gate decision
+    may:
+      - Approve packet readiness
+      - Coordinate stacked review order
+      - Decide human vs orchestrator escalation
+    must_not:
+      - Bypass required packet evidence
+      - Approve widened scope without updating governance artifacts
+
+  - id: packet-governance-worker
+    name: packet-governance-worker
+    role: Prepare packet templates, release-gate notes, review-policy fixes, and lineage evidence
+    required_evidence:
+      - Updated governance docs
+      - Validator output
+      - Rollback notes
+      - Packet links
+    may:
+      - Edit docs/governance artifacts
+      - Assemble packet/release-gate evidence
+      - Run policy validators
+    must_not:
+      - Push, merge, rewrite history
+      - Widen into unrelated product-code work
+
+  - id: implementation-worker
+    name: implementation-worker
+    role: Deliver in-scope code/test changes
+    required_evidence:
+      - Targeted tests
+      - Gate-fast evidence when required
+      - Contract/handoff parity
+    may:
+      - Change in-scope code/tests
+      - Refresh packet evidence tied to the feature
+      - Run required validators
+    must_not:
+      - Skip packet controls for high-risk paths
+      - Mix lanes in one packet
+
+  - id: review-validator
+    name: review-validator
+    role: Re-run validators and inspect finished packet diffs for scope or governance drift
+    required_evidence:
+      - Validator transcript
+      - Findings synthesis
+      - Explicit pass/fail recommendation
+    may:
+      - Audit diffs
+      - Run review checks
+      - Report findings
+    must_not:
+      - Commit product-code changes
+      - Act as merge approver

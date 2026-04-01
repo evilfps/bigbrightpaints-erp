@@ -1,0 +1,9 @@
+{
+  "groupId": "commercial-handoff",
+  "assertionIds": ["VAL-COMM-005"],
+  "status": "pass",
+  "evidence": "docs/frontend-handoff-commercial.md is discoverable from docs/INDEX.md Frontend Handoff section. Contains 9 sections: scope overview, canonical host prefixes (7 route tables with 80 routes), RBAC summary (5 roles × 6 surfaces with 7 boundary notes), payload families (5 categories), read/write boundaries (4 tables + internal-vs-self-service parity table), host/path ownership summary (9 families), cross-module seams (5), safety gaps (7), deprecation notes (4), and cross-references to 10 canonical docs. §5.4 provides explicit internal-vs-self-service parity table comparing portal finance vs dealer-portal for 6 surfaces with key parity notes on scoping, RBAC, and access differences. Packet explicitly defers to canonical module and flow docs.",
+  "toolsUsed": ["Read", "Grep"],
+  "frictions": [],
+  "blockers": []
+}

@@ -1,0 +1,35 @@
+{
+  "assertions": ["VAL-COMM-002"],
+  "tool": "Read + Grep (docs-only validation)",
+  "results": {
+    "VAL-COMM-002": {
+      "status": "pass",
+      "evidence": [
+        "docs/modules/purchasing.md exists at 463 lines with Last reviewed: 2026-03-30 freshness marker",
+        "Discoverable from docs/INDEX.md (purchasing/procure-to-pay row), MODULE-INVENTORY.md (purchasing row linking to purchasing.md), FLOW-INVENTORY.md (Procure-to-Pay row linking to purchasing.md)",
+        "3 controllers verified against source: SupplierController, PurchasingWorkflowController, RawMaterialPurchaseController — all routes, HTTP methods, and @PreAuthorize role annotations match documentation route tables exactly",
+        "6 services verified: SupplierService, PurchasingService, GoodsReceiptService, PurchaseInvoiceEngine, PurchaseReturnService, SupplierApprovalPolicy — all exist in purchasing/service/",
+        "8 domain entities verified: Supplier, PurchaseOrder, PurchaseOrderLine, GoodsReceipt, GoodsReceiptLine, RawMaterialPurchase, RawMaterialPurchaseLine, PurchaseOrderStatusHistory",
+        "5 repositories verified: SupplierRepository, PurchaseOrderRepository, GoodsReceiptRepository, RawMaterialPurchaseRepository, PurchaseOrderStatusHistoryRepository",
+        "12 DTO families verified: GoodsReceiptRequest, PurchaseOrderRequest, RawMaterialPurchaseRequest, PurchaseReturnRequest, SupplierRequest, SupplierResponse, PurchaseOrderResponse, GoodsReceiptResponse, PurchaseOrderStatusHistoryResponse, RawMaterialPurchaseResponse, PurchaseReturnPreviewDto, PurchaseOrderVoidRequest",
+        "SupplierStatus enum values match: PENDING, APPROVED, ACTIVE, SUSPENDED",
+        "PurchaseOrderStatus enum values match: DRAFT, APPROVED, PARTIALLY_RECEIVED, FULLY_RECEIVED, INVOICED, CLOSED, VOID",
+        "GoodsReceiptStatus enum values match: PARTIAL, RECEIVED, INVOICED",
+        "Supplier lifecycle documented: PENDING→APPROVED→ACTIVE with SUSPENDED from ACTIVE, reactivation path exists — all confirmed in SupplierController endpoint mappings",
+        "PO lifecycle documented: DRAFT→APPROVED→PARTIALLY_RECEIVED→FULLY_RECEIVED→INVOICED→CLOSED, VOID from DRAFT/APPROVED — all confirmed in PurchasingWorkflowController",
+        "GRN status determination at creation time confirmed: PARTIAL vs RECEIVED based on fullyReceived flag, INVOICED applied later when purchase invoice captured",
+        "GRN idempotency verified: Idempotency-Key header required, X-Idempotency-Key rejected with 400, IdempotencyHeaderUtils.resolveBodyOrHeaderKey() used — all confirmed in PurchasingWorkflowController.applyIdempotencyKey()",
+        "Accounting integration verified: AccountingFacade.postPurchaseJournal in RawMaterialService, AccountingFacade.postPurchaseReturn in PurchaseReturnService, AccountingPeriodService.requireOpenPeriod in GoodsReceiptService",
+        "Cross-module boundaries documented: Purchasing→Inventory (RawMaterialBatch creation), Purchasing→Accounting (AP journals, settlements), with explicit stock-truth vs AP-truth boundary table",
+        "Settlement routes documented under accounting controller at /api/v1/accounting/settlements/suppliers/** and auto-settle endpoint",
+        "Purchase returns with preview endpoint verified: POST /returns and POST /returns/preview in RawMaterialPurchaseController",
+        "11 known limitations explicitly documented including no PO idempotency, no purchase invoice idempotency, simple return stock reversal",
+        "Cross-references link to inventory.md, core-idempotency.md, MODULE-INVENTORY.md, ARCHITECTURE.md, workflows/purchase-to-pay.md (superseded note)",
+        "ci/lint-knowledgebase.sh passes in full-contract mode with exit code 0"
+      ]
+    }
+  },
+  "frictions": [],
+  "blockers": [],
+  "toolsUsed": ["Read", "Grep", "Execute(bash ci/lint-knowledgebase.sh)"]
+}

@@ -53,7 +53,10 @@ if ! git rev-parse --verify --quiet "${diff_base}^{commit}" >/dev/null; then
 fi
 
 compare_range="${diff_base}...HEAD"
-mapfile -t changed_files < <(git diff --name-only "$compare_range")
+changed_files=()
+while IFS= read -r line; do
+  [[ -n "$line" ]] && changed_files+=("$line")
+done < <(git diff --name-only "$compare_range")
 
 if [[ "${#changed_files[@]}" -eq 0 ]]; then
   echo "[codex-review-policy] no changed files in $compare_range; running strict review checks"

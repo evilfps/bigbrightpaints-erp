@@ -1,0 +1,22 @@
+{
+  "featureId": "docs-consolidation-deprecated-registry",
+  "reviewedAt": "2026-03-30T14:30:00.000Z",
+  "commitId": "10abb6579",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The deprecated/unmaintained/incomplete registry (docs/deprecated/INDEX.md) has been created with comprehensive coverage across 12 functional areas: auth/identity, catalog/production, factory/manufacturing, inventory, sales/O2C, purchasing/P2P, invoices/dealer-finance, HR/payroll, accounting/reporting, reporting/export, tenant/admin, and historical docs. All 31 entries have a surface name, status, and either a canonical replacement or an explicit no-replacement note. The registry is linked from the 'Deprecated and Incomplete Surfaces' section in docs/INDEX.md. All 22 module and flow cross-references resolve to existing files. All historical docs (architecture.md, developer-guide.md, endpoint-inventory.md) carry NON-CANONICAL banners. The diff is docs-only (2 files: docs/INDEX.md and docs/deprecated/INDEX.md). Freshness marker 'Last reviewed: 2026-03-30' is present.",
+    "issues": [
+      {
+        "file": "docs/deprecated/INDEX.md",
+        "line": 124,
+        "severity": "non_blocking",
+        "description": "The 'Accounting and Reporting' section references 'accounting-period-close flow' as its flow cross-reference, but the entries are about audit digest CSV export, period reopen, and posted journal editing — which span both accounting-period-close and reporting-export flows. The reporting-export flow link is already present in the next section (line 135). Consider updating this to reference both flows, or reorganize so the audit digest entry appears under 'Reporting and Export' instead."
+      }
+    ]
+  },
+  "sharedStateObservations": [],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The deprecated/unmaintained/incomplete registry is well-structured and comprehensive. It covers 12 functional areas with 31 entries, each having a surface, status, and replacement/no-replacement note. The registry is correctly linked from docs/INDEX.md. All 22 module/flow cross-references resolve to existing files. Historical docs carry NON-CANONICAL banners. The diff is docs-only. Freshness marker is present. One non-blocking observation: the 'Accounting and Reporting' section's flow cross-reference could be more precise, but this does not affect correctness. The feature fully satisfies VAL-CROSS-003 requirements."
+}

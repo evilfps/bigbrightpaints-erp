@@ -1,0 +1,101 @@
+{
+  "milestone": "docs-handoff-finance",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "lint-knowledgebase": { "passed": true, "command": "bash ci/lint-knowledgebase.sh", "exitCode": 0, "observation": "[ticket-parity] OK: no ticket.yaml present; skipping parity check\n[knowledgebase-lint] OK" },
+    "check-enterprise-policy": { "passed": true, "command": "bash ci/check-enterprise-policy.sh", "exitCode": 0, "observation": "[guard_workflow_canonical_paths] OK\n[enterprise-policy] OK" },
+    "check-architecture": { "passed": true, "command": "bash ci/check-architecture.sh", "exitCode": 0, "observation": "[allowlist-evidence] OK\n[architecture-check] OK" },
+    "check-orchestrator-layer": { "passed": true, "command": "bash ci/check-orchestrator-layer.sh", "exitCode": 0, "observation": "[orchestrator-layer] OK" }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-frontend-handoff-finance-crosslinks",
+      "severity": "non_blocking",
+      "description": "Journal entry routes in Section 3.1 are simplified/synthesized from the accounting-period-close flow doc rather than the actual AccountingController paths. The handoff doc lists GET/PUT/DELETE /journals/{id} and approve/reject sub-paths that don't exist on the controller. However, since the handoff doc defers to the canonical flow doc, this is internally consistent.",
+      "location": "docs/frontend-handoff-finance.md Section 3.1"
+    },
+    {
+      "featureId": "docs-frontend-handoff-finance-crosslinks",
+      "severity": "non_blocking",
+      "description": "Reconciliation routes in Section 3.3 conflate /reconciliation/bank/sessions/* and /reconciliation/subledger under simplified paths. The actual controller uses /reconciliation/bank/ for bank reconciliation and /reconciliation/subledger for sub-ledger reconciliation. Routes align with flow doc but diverge from actual controller paths.",
+      "location": "docs/frontend-handoff-finance.md Section 3.3"
+    },
+    {
+      "featureId": "docs-frontend-handoff-finance-crosslinks",
+      "severity": "non_blocking",
+      "description": "Section 3.2 lists /unlock for period unlock, but the actual controller has /reopen (SUPER_ADMIN only). This is a minor naming mismatch.",
+      "location": "docs/frontend-handoff-finance.md Section 3.2"
+    },
+    {
+      "featureId": "docs-frontend-handoff-finance-crosslinks",
+      "severity": "non_blocking",
+      "description": "Section 3.4 lists /api/v1/accounting/ledgers endpoints that don't exist in AccountingController. Ledgers are a conceptual view over journal entries, not a separate controller path.",
+      "location": "docs/frontend-handoff-finance.md Section 3.4"
+    },
+    {
+      "featureId": "docs-frontend-handoff-finance-crosslinks",
+      "severity": "non_blocking",
+      "description": "Leave management routes in Section 4.2 list approve/reject as separate POST endpoints, but the actual HrController uses a single PATCH /leave-requests/{id}/status endpoint. Also POST /leave-types doesn't exist. Routes align with flow doc.",
+      "location": "docs/frontend-handoff-finance.md Section 4.2"
+    },
+    {
+      "featureId": "docs-frontend-handoff-finance-crosslinks",
+      "severity": "non_blocking",
+      "description": "Attendance route Section 4.3 lists /attendance/date/{date} as POST for marking attendance, but the actual controller has POST /attendance/mark/{employeeId}. Aligns with flow doc.",
+      "location": "docs/frontend-handoff-finance.md Section 4.3"
+    },
+    {
+      "featureId": "docs-frontend-handoff-finance-crosslinks",
+      "severity": "non_blocking",
+      "description": "Employee management Section 4.1 lists GET /employees/{id} but HrController only has GET /employees (list all) without individual GET by ID.",
+      "location": "docs/frontend-handoff-finance.md Section 4.1"
+    },
+    {
+      "featureId": "docs-frontend-handoff-finance-crosslinks",
+      "severity": "non_blocking",
+      "description": "Missing dedicated 'Payload Families' section that exists in both operations and commercial handoff docs (Section 4 in both). The canonical module docs cover DTO families and the handoff doc correctly links to them.",
+      "location": "docs/frontend-handoff-finance.md (structural gap vs peer handoffs)"
+    },
+    {
+      "featureId": "docs-frontend-handoff-finance-crosslinks",
+      "severity": "suggestion",
+      "description": "Payroll run /lines endpoint (GET /api/v1/payroll/runs/{id}/lines) not documented. Frontend consumers need this for rendering individual payroll line items. Current-week/month summary shortcuts also missing.",
+      "location": "docs/frontend-handoff-finance.md Section 4.4"
+    },
+    {
+      "featureId": "docs-frontend-handoff-finance-crosslinks",
+      "severity": "suggestion",
+      "description": "RBAC matrix could clarify distinction between 'Export Request' and 'Export Approval' — ACCOUNTING can request but only ADMIN can approve/reject.",
+      "location": "docs/frontend-handoff-finance.md Section 6.1"
+    }
+  ],
+  "validationContractCoverage": {
+    "VAL-FIN-005": {
+      "satisfied": true,
+      "evidence": "docs/frontend-handoff-finance.md covers payload families (via canonical doc references), approval gates (journal approve/reject, period close, export approval), and read/write boundaries (Section 7 with accounting, HR/payroll, and reporting boundary descriptions). Discoverable from docs/INDEX.md."
+    },
+    "VAL-CROSS-002": {
+      "satisfied": true,
+      "evidence": "Handoff doc explicitly defers to canonical module and flow docs. Section 1 links to 5 canonical docs. Section 10 lists all related documentation. Cross-module handoff descriptions match canonical flow docs."
+    }
+  },
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "docs-worker skill",
+      "suggestion": "Clarify whether the handoff doc convention requires a dedicated 'Payload Families' section. The operations and commercial handoffs include one (Section 4), but the finance handoff omits it and defers to canonical module docs. Standardizing this convention would prevent ambiguity for future workers.",
+      "evidence": "docs/frontend-handoff-finance.md lacks a 'Payload Families' section that exists in docs/frontend-handoff-operations.md Section 4 and docs/frontend-handoff-commercial.md Section 4.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}

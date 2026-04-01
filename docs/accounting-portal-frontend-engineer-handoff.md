@@ -1,14 +1,12 @@
 # Accounting Portal Frontend Engineer Handoff (Deep)
 
-Status: historical deep-reference only.
-
-Canonical frontend handoff now lives in:
-
-- `docs/frontend-portals/accounting/`
-- `docs/frontend-api/`
-
-If this file disagrees with the six-portal frontend contract or the frontend API
-pack, the newer portal docs win.
+> ⚠️ **NON-CANONICAL / REFERENCE ONLY**
+>
+> This document is **superseded** by the canonical accounting portal documentation at:
+> - [docs/frontend-portals/accounting/](frontend-portals/accounting/README.md) — routes, API contracts, workflows, role boundaries
+> - [docs/frontend-api/](frontend-api/README.md) — shared auth, company scope, idempotency, pagination, approvals, and DTO guidance
+>
+> Status: historical deep-reference only. If this file disagrees with the six-portal frontend contract or the frontend API pack, the newer portal docs win.
 
 Source: `openapi.json` parsed via `map_openapi_frontend.py`.
 
@@ -43,7 +41,7 @@ Verified role behavior for accounting portal scope:
 - Most accounting, reports, purchasing, HR/payroll, and inventory-adjustment endpoints require `ROLE_ADMIN` or `ROLE_ACCOUNTING`.
 - Exceptions you must respect in UI:
   - Supplier `GET` endpoints allow `ROLE_FACTORY` too.
-  - Raw-material stock reads allow `ROLE_FACTORY`, but the old manual-intake route is a legacy backend surface outside the frontend contract.
+  - Raw-material endpoints allow `ROLE_FACTORY` too, but `retired raw-material intake endpoint` excludes `ROLE_FACTORY`.
   - Opening stock import `POST /api/v1/inventory/opening-stock` allows `ROLE_FACTORY` along with `ROLE_ADMIN|ROLE_ACCOUNTING`.
   - Finished-goods direct write aliases are retired; stock-bearing creation/update flows are canonicalized under `/api/v1/catalog/items`.
   - Finished-goods low-stock and batch-list reads exclude `ROLE_ACCOUNTING` (`ROLE_ADMIN|ROLE_FACTORY|ROLE_SALES` only).
@@ -52,11 +50,13 @@ Verified role behavior for accounting portal scope:
 
 ## Shared Foundation APIs (Used Across All Accounting Routes)
 
-These are cross-portal APIs reused in Accounting Portal for auth/session/company context.
+These are cross-portal APIs reused in Accounting Portal for auth/session/profile/company context.
 
 | Function | Method | Path | Purpose |
 |---|---|---|---|
 | `authGetMe` | GET | `/api/v1/auth/me` | Session + permission claims for route gating |
+| `profileGet` | GET | `/api/v1/auth/profile` | Load profile drawer/page |
+| `profileUpdate` | PUT | `/api/v1/auth/profile` | Save profile updates |
 | `authChangePassword` | POST | `/api/v1/auth/password/change` | Password update |
 | `companiesList` | GET | `/api/v1/companies` | Current-scope company metadata |
 | `authLogout` | POST | `/api/v1/auth/logout` | Sign out |
@@ -66,7 +66,7 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/company
 | Setup step | Screen owner | Primary APIs | Frontend must make explicit |
 |---|---|---|---|
 | Tenant bootstrap | Super-admin tenant onboarding | `GET /api/v1/superadmin/tenants/coa-templates`, `POST /api/v1/superadmin/tenants/onboard` | Tenant is created, chart is seeded, `OPEN-BAL` exists, first admin exists, and the next step is company-default completion |
-| Company-default completion | Company defaults/setup | `GET/PUT /api/v1/accounting/default-accounts`; super-admin correction paths under `/api/v1/superadmin/tenants/{id}/lifecycle`, `/limits`, `/modules`, and `/support/context` as needed | Default inventory/COGS/revenue/discount/tax accounts, plus timezone/state/default GST truth when relevant. In GST mode the default tax update also aligns GST output posting; when `defaultGstRate` is changed to `0`, retained GST input/output/payable bindings are cleared instead of silently persisting stale tax state. |
+| Company-default completion | Company defaults/setup | `GET/PUT /api/v1/accounting/default-accounts`; super-admin correction path `PUT /api/v1/companies/{id}` when company metadata is wrong | Default inventory/COGS/revenue/discount/tax accounts, plus timezone/state/default GST truth when relevant |
 | Stock-bearing product setup | `/accounting/inventory/sku-catalog` | `GET/POST /api/v1/catalog/brands`, `GET/POST /api/v1/catalog/items`, `GET/PUT/DELETE /api/v1/catalog/items/{itemId}` | Single-item catalog maintenance with explicit item class, stock/readiness toggles, and no legacy product-write aliases |
 | Opening-stock loading | `/accounting/inventory/opening-stock` | `POST /api/v1/inventory/opening-stock`, `GET /api/v1/inventory/opening-stock` | Explicit `Idempotency-Key` plus `openingStockBatchKey`, prepared SKUs only, and row-level readiness/errors with no hidden repair path |
 
@@ -84,11 +84,11 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/company
 ### M18-S9A Parity Closure (Do Not Drift)
 
 - M17-S1 canonical API contract source-of-truth is `openapi.json`; parity checks are non-mutating and fail on drift instead of rewriting docs.
-- M17-S2 handoff parity expectation is the curated **138**-row baseline from `docs/accounting-portal-endpoint-map.md`, with only the documented `+6` dependency rows and `+4` code-verified period-close workflow supplement rows allowed beyond that set.
+- M17-S2 handoff parity expectation is the curated **138**-row baseline from `docs/accounting-portal-endpoint-map.md`, with only the documented `+9` dependency rows and `+4` code-verified period-close workflow supplement rows allowed beyond that set.
 - Endpoint-map parity lock in this handoff is the same curated **138** baseline (it does not claim full accounting-portal OpenAPI coverage).
-- Current handoff inventory total is **148** unique `METHOD /api/v1/...` rows = `138` portal-owned parity rows + `6` intentional dependencies + `4` code-verified period-close workflow supplement rows.
-- Intentional dependency-only rows (`+6` vs endpoint map):
-  - Shared foundation APIs (4): `GET /api/v1/auth/me`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/auth/logout`
+- Current handoff inventory total is **151** unique `METHOD /api/v1/...` rows = `138` portal-owned parity rows + `9` intentional dependencies + `4` code-verified period-close workflow supplement rows.
+- Intentional dependency-only rows (`+9` vs endpoint map):
+  - Shared foundation APIs (7): `GET /api/v1/auth/me`, `GET /api/v1/auth/profile`, `PUT /api/v1/auth/profile`, `POST /api/v1/auth/password/change`, `GET /api/v1/companies`, `POST /api/v1/multi-company/companies/switch`, `POST /api/v1/auth/logout`
   - Dealer support APIs (2): `GET /api/v1/sales/dealers`, `GET /api/v1/sales/dealers/search`
 - Code-verified period-close workflow supplement rows (`+4` vs endpoint map parity lock):
   - `GET /api/v1/admin/approvals`
@@ -99,7 +99,7 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/company
   - `GET /api/v1/accounting/audit/transactions`
   - `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
   - `GET /api/v1/accounting/date-context`
-- Canonical audit reads are `GET /api/v1/accounting/audit/{events,transactions,transactions/{journalEntryId}}`; tenant-admin review stays on `GET /api/v1/admin/audit/events`, and platform review stays on `GET /api/v1/superadmin/audit/platform-events`.
+- Legacy digest endpoints (`GET /api/v1/accounting/audit/digest*`) remain in snapshot as admin-only deprecated exports and must not be treated as required APIs for new accountant-owned UI flows.
 
 ## Task 2: Frontend API Inventory (Grouped by Domain)
 
@@ -126,7 +126,8 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/company
 | `portalFinanceAging` | GET | `/api/v1/portal/finance/aging` | dealerId (query) | - | Yes | No | Yes |
 | `acctSupplierAging` | GET | `/api/v1/accounting/aging/suppliers/{supplierId}` | supplierId (path) | asOf (query), buckets (query) | Yes | No | Yes |
 | `acctSupplierAgingPdf` | GET | `/api/v1/accounting/aging/suppliers/{supplierId}/pdf` | supplierId (path) | asOf (query), buckets (query) | Yes | No | Yes |
-| `acctAuditEvents` | GET | `/api/v1/accounting/audit/events` | - | action (query), actor (query), entityType (query), from (query), module (query), page (query), reference (query), size (query), status (query), to (query) | Yes | No | Yes |
+| `acctAuditDigest` | GET | `/api/v1/accounting/audit/digest` | - | from (query), to (query) | Yes | No | Yes |
+| `acctAuditDigestCsv` | GET | `/api/v1/accounting/audit/digest.csv` | - | from (query), to (query) | Yes | No | Yes |
 | `acctWriteOffBadDebt` | POST | `/api/v1/accounting/bad-debts/write-off` | amount (body), expenseAccountId (body), invoiceId (body) | adminOverride (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
 | `acctPostCreditNote` | POST | `/api/v1/accounting/credit-notes` | invoiceId (body) | adminOverride (body), amount (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
 | `acctPostDebitNote` | POST | `/api/v1/accounting/debit-notes` | purchaseId (body) | adminOverride (body), amount (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
@@ -138,11 +139,14 @@ These are cross-portal APIs reused in Accounting Portal for auth/session/company
 | `acctAdjustWip` | POST | `/api/v1/accounting/inventory/wip-adjustment` | amount (body), direction (body), inventoryAccountId (body), productionLogId (body), wipAccountId (body) | adminOverride (body), entryDate (body), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
 | `acctJournalEntries` | GET | `/api/v1/accounting/journal-entries` | - | dealerId (query), page (query), size (query), supplierId (query) | Yes | No | Yes |
 | `acctCreateJournalEntry` | POST | `/api/v1/accounting/journal-entries` | entryDate (body), lines (body), lines[].accountId (body), lines[].credit (body), lines[].debit (body) | adminOverride (body), currency (body), dealerId (body), fxRate (body), lines[].description (body), lines[].foreignCurrencyAmount (body), memo (body), referenceNumber (body), supplierId (body) | No | No | No |
+| `acctCascadeReverseJournalEntry` | POST | `/api/v1/accounting/journal-entries/{entryId}/cascade-reverse` | entryId (path) | adminOverride (body), approvedBy (body), cascadeRelatedEntries (body), effectivePercentage (body), memo (body), partialReversal (body), reason (body), reasonCode (body), relatedEntryIds (body), reversalDate (body), reversalPercentage (body), supportingDocumentRef (body), voidOnly (body) | No | No | No |
 | `acctReverseJournalEntry` | POST | `/api/v1/accounting/journal-entries/{entryId}/reverse` | entryId (path) | adminOverride (body), approvedBy (body), cascadeRelatedEntries (body), effectivePercentage (body), memo (body), partialReversal (body), reason (body), reasonCode (body), relatedEntryIds (body), reversalDate (body), reversalPercentage (body), supportingDocumentRef (body), voidOnly (body) | No | No | No |
 | `acctChecklist` | GET | `/api/v1/accounting/month-end/checklist` | - | periodId (query) | Yes | No | Yes |
 | `acctUpdateChecklist` | POST | `/api/v1/accounting/month-end/checklist/{periodId}` | periodId (path) | bankReconciled (body), inventoryCounted (body), note (body) | No | No | No |
 | `acctRecordPayrollPayment` | POST | `/api/v1/accounting/payroll/payments` | amount (body), cashAccountId (body), expenseAccountId (body), payrollRunId (body) | memo (body), referenceNumber (body) | No | No | No |
 | `acctListPeriods` | GET | `/api/v1/accounting/periods` | - | - | Yes | No | Yes |
+| `acctClosePeriod` | POST | `/api/v1/accounting/periods/{periodId}/close` | periodId (path) | force (body), note (body) | No | No | Conditional |
+| `acctLockPeriod` | POST | `/api/v1/accounting/periods/{periodId}/lock` | periodId (path) | reason (body) | No | No | Conditional |
 | `acctReopenPeriod` | POST | `/api/v1/accounting/periods/{periodId}/reopen` | periodId (path) | reason (body) | No | No | Conditional |
 | `acctRecordDealerReceipt` | POST | `/api/v1/accounting/receipts/dealer` | allocations (body), allocations[].appliedAmount (body), amount (body), cashAccountId (body), dealerId (body) | Idempotency-Key (header), allocations[].discountAmount (body), allocations[].fxAdjustment (body), allocations[].invoiceId (body), allocations[].memo (body), allocations[].purchaseId (body), allocations[].writeOffAmount (body), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
 | `acctRecordDealerHybridReceipt` | POST | `/api/v1/accounting/receipts/dealer/hybrid` | dealerId (body), incomingLines (body), incomingLines[].accountId (body), incomingLines[].amount (body) | Idempotency-Key (header), idempotencyKey (body), memo (body), referenceNumber (body) | No | No | No |
@@ -161,7 +165,7 @@ Canonical `/api/v1/reports/**` accounting endpoints in the table above run throu
 
 ### Accounting Core Workflow Supplements (Code-Verified, Outside Parity Lock)
 
-These rows are required for the period-close maker-checker UX, but they live outside the curated 138-row endpoint-map parity lock.
+These rows are required for the period-close maker-checker UX, but they live outside the curated 143-row endpoint-map parity lock.
 
 | Function | Method | Path | Required params | Optional params | Cache | Debounce | Idempotent |
 |---|---|---|---|---|---|---|---|
@@ -218,7 +222,8 @@ These rows are required for the period-close maker-checker UX, but they live out
 | `rawMaterialCreateRawMaterial` | POST | `/api/v1/catalog/items` | brandId (body), gstRate (body), hsnCode (body), itemClass (body), name (body), unitOfMeasure (body) | active (body), basePrice (body), color (body), metadata (body), minDiscountPercent (body), minSellingPrice (body), size (body) | No | No | No |
 | `rawMaterialDeleteRawMaterial` | DELETE | `/api/v1/catalog/items/{itemId}` | itemId (path) | - | No | No | Yes |
 | `rawMaterialUpdateRawMaterial` | PUT | `/api/v1/catalog/items/{itemId}` | brandId (body), gstRate (body), hsnCode (body), itemClass (body), itemId (path), name (body), unitOfMeasure (body) | active (body), basePrice (body), color (body), metadata (body), minDiscountPercent (body), minSellingPrice (body), size (body) | No | No | Yes |
-| `rawMaterialCreateAdjustment` | POST | `/api/v1/inventory/raw-materials/adjustments` | adjustmentAccountId (body), direction (body), Idempotency-Key (header), lines (body), lines[].quantity (body), lines[].rawMaterialId (body) | adjustmentDate (body), adminOverride (body), idempotencyKey (body), lines[].unitCost (body), reason (body) | No | No | No |
+| `rawMaterialCreateAdjustment` | POST | `/api/v1/inventory/raw-materials/adjustments` | adjustmentAccountId (body), direction (body), Idempotency-Key (header), lines (body), lines[].quantity (body), lines[].rawMaterialId (body) | X-Idempotency-Key (header), adjustmentDate (body), adminOverride (body), idempotencyKey (body), lines[].unitCost (body), reason (body) | No | No | No |
+| `rawMaterialIntake` | POST | `/api/v1/raw-materials/intake` | costPerUnit (body), Idempotency-Key (header), quantity (body), rawMaterialId (body), supplierId (body), unit (body) | X-Idempotency-Key (header), batchCode (body), expiryDate (body), manufacturingDate (body), notes (body) | No | No | No |
 | `rawMaterialStockSummary` | GET | `/api/v1/raw-materials/stock` | - | - | Yes | No | Yes |
 | `rawMaterialInventory` | GET | `/api/v1/raw-materials/stock/inventory` | - | - | Yes | No | Yes |
 | `rawMaterialLowStock` | GET | `/api/v1/raw-materials/stock/low-stock` | - | - | Yes | No | Yes |
@@ -459,26 +464,26 @@ These rows are required for the period-close maker-checker UX, but they live out
 - Role/permission gate: `ROLE_ADMIN or ROLE_ACCOUNTING` (exact backend)
 
 ### `/accounting/gl/journals`
-- Purpose: Journal listing, posting, and correction from one canonical reverse route.
-- Required API calls: `acctJournalEntries`, `acctCreateJournalEntry`, `acctReverseJournalEntry`
+- Purpose: Journal listing, posting, reversing, cascade reversing.
+- Required API calls: `acctJournalEntries`, `acctCreateJournalEntry`, `acctReverseJournalEntry`, `acctCascadeReverseJournalEntry`
 - Loading state: table loading; empty no-journal state; high-risk action confirm modals; optimistic lock while posting/reversing.
 - Empty state: no rows / no open items / no period data for selected filters.
 - Error state: inline widget errors + page-level retry + action-level toast; preserve user filters and unsaved inputs.
 - Suggested table columns: From `JournalEntryDto`: entryId/reference, date, source module, status, debit total, credit total, createdBy.
-- Suggested form fields: From `JournalEntryRequest`: date, narration, sourceRef, lines[] (accountId, debit/credit, cost center, tax fields). Reversal UI must use one route and may include `cascadeRelatedEntries` plus `relatedEntryIds` in the reverse payload when the business case needs linked corrections.
+- Suggested form fields: From `JournalEntryRequest`: date, narration, sourceRef, lines[] (accountId, debit/credit, cost center, tax fields).
 - Role/permission gate: `ROLE_ADMIN or ROLE_ACCOUNTING` (exact backend)
 
 ### `/accounting/period-close`
 - Purpose: Period lifecycle controls with maker-checker close approval (checklist, request-close, approve/reject, lock, reopen).
-- Required API calls: `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, `requestPeriodClose`, `approvePeriodClose`, `rejectPeriodClose`, `acctReopenPeriod`
-- Backend workflow note: the legacy direct-close endpoint is retired. do not wire `acctClosePeriod` as a frontend action. Period finalization must flow through `request-close` and approval actions only.
+- Required API calls: `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, `acctLockPeriod`, `requestPeriodClose`, `approvePeriodClose`, `rejectPeriodClose`, `acctReopenPeriod`
+- Backend workflow note: do not wire `acctClosePeriod` as a frontend action. `AccountingPeriodService.closePeriod(...)` hard-fails direct close with `Direct close is disabled; submit /request-close and approve via maker-checker workflow`.
 - Approval queue dependency: `approvals` (`GET /api/v1/admin/approvals`) for pending close-request visibility. Queue visibility is `ROLE_ADMIN or ROLE_ACCOUNTING`; platform `ROLE_SUPER_ADMIN` is blocked from this queue by `CompanyContextFilter`.
 - Loading state: timeline loader; lock/request-close actions blocked until checklist passes; derived pending-review state after maker submission from `PeriodCloseRequestDto.status` / approval queue payload; warning banners for reject/reopen flows.
 - Empty state: no rows / no open items / no period data for selected filters.
 - Error state: inline widget errors + page-level retry + action-level toast; preserve user filters and unsaved inputs.
 - Suggested table columns: Period grid from `AccountingPeriodDto`: periodId, startDate, endDate, status(OPEN/CLOSED/LOCKED), closedAt, lockedAt. If product needs a pending-review badge or requester label, derive it by joining `PeriodCloseRequestDto` / `approvals` data instead of waiting for extra fields on `acctListPeriods`.
 - Suggested form fields: Checklist form items, maker note for `request-close`, checker approval/rejection note, reopen reason.
-- Role/permission gate: Mixed by endpoint. `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, and `requestPeriodClose` allow `ROLE_ADMIN or ROLE_ACCOUNTING`; `approvePeriodClose` and `rejectPeriodClose` are `ROLE_ADMIN` only; `approvals` visibility is `ROLE_ADMIN or ROLE_ACCOUNTING`; `acctReopenPeriod` is `ROLE_SUPER_ADMIN` only. Do not surface checker actions to accounting-only users, and do not surface reopen outside superadmin UX.
+- Role/permission gate: Mixed by endpoint. `acctListPeriods`, `acctChecklist`, `acctUpdateChecklist`, `acctLockPeriod`, and `requestPeriodClose` allow `ROLE_ADMIN or ROLE_ACCOUNTING`; `approvePeriodClose` and `rejectPeriodClose` are `ROLE_ADMIN` only; `approvals` visibility is `ROLE_ADMIN or ROLE_ACCOUNTING`; `acctReopenPeriod` is `ROLE_SUPER_ADMIN` only. Do not surface checker actions to accounting-only users, and do not surface reopen outside superadmin UX.
 
 ### `/accounting/ar/invoices`
 - Purpose: Invoice tracking, invoice PDF/email delivery, and dealer invoice drill-ins via portal finance.
@@ -528,15 +533,15 @@ These rows are required for the period-close maker-checker UX, but they live out
 - Role/permission gate: `ROLE_ADMIN or ROLE_ACCOUNTING` (exact backend).
 
 ### `/accounting/inventory/raw-materials`
-- Purpose: Raw material catalog masters, stock monitoring, and adjustment posting.
-- Required API calls: `rawMaterialListRawMaterials`, `rawMaterialCreateRawMaterial`, `rawMaterialUpdateRawMaterial`, `rawMaterialDeleteRawMaterial`, `rawMaterialCreateAdjustment`, `rawMaterialStockSummary`, `rawMaterialInventory`, `rawMaterialLowStock`
-- Loading state: inventory grid loader; low-stock alert empty/non-empty states; adjustment posting spinner with stock refresh.
+- Purpose: Raw material catalog masters, manual intake fallback, stock monitoring, and adjustment posting.
+- Required API calls: `rawMaterialListRawMaterials`, `rawMaterialCreateRawMaterial`, `rawMaterialUpdateRawMaterial`, `rawMaterialDeleteRawMaterial`, `rawMaterialCreateAdjustment`, `rawMaterialIntake`, `rawMaterialStockSummary`, `rawMaterialInventory`, `rawMaterialLowStock`
+- Loading state: inventory grid loader; low-stock alert empty/non-empty states; manual intake or adjustment posting spinner with stock refresh.
 - Empty state: no rows / no open items / no period data for selected filters.
 - Error state: inline widget errors + page-level retry + action-level toast; preserve user filters and unsaved inputs.
 - Suggested table columns: From `CatalogItemDto` + stock/readiness payloads: `rawMaterialId`, sku, name, itemClass, unitOfMeasure, onHandQty, stockStatus, readiness blockers.
-- Suggested form fields: create/update from `CatalogItemRequest`; stock corrections from `RawMaterialAdjustmentRequest`.
-- Current-state contract notes: raw-material masters live on `/api/v1/catalog/items`; purchasing screens should consume `rawMaterialId` from `CatalogItemDto` or catalog detail responses; stock entry should happen through opening stock import or downstream P2P receiving flows, not a manual intake shortcut in the frontend contract.
-- Role/permission gate: stock reads allow `ROLE_ADMIN|ROLE_ACCOUNTING|ROLE_FACTORY`; catalog create/update/delete and adjustments require `ROLE_ADMIN|ROLE_ACCOUNTING`.
+- Suggested form fields: create/update from `CatalogItemRequest`; stock corrections from `RawMaterialAdjustmentRequest`; legacy/manual intake from `RawMaterialIntakeRequest`.
+- Current-state contract notes: raw-material masters live on `/api/v1/catalog/items`; purchasing screens should consume `rawMaterialId` from `CatalogItemDto`/catalog detail responses; `/api/v1/raw-materials/intake` remains a legacy manual-receipt endpoint and is default-disabled unless `erp.raw-material.intake.enabled=true`.
+- Role/permission gate: stock reads allow `ROLE_ADMIN|ROLE_ACCOUNTING|ROLE_FACTORY`; catalog create/update/delete and adjustments require `ROLE_ADMIN|ROLE_ACCOUNTING`; intake is restricted to `ROLE_ADMIN|ROLE_ACCOUNTING`.
 
 ### `/accounting/inventory/opening-stock`
 - Purpose: One-time or controlled migration import of opening balances for raw materials and finished goods with linked accounting journal impact.
@@ -593,19 +598,20 @@ These rows are required for the period-close maker-checker UX, but they live out
 ### `/accounting/reports/financial`
 - Purpose: Trial balance, P&L, balance sheet, cash flow, inventory valuation/reconciliation, aged debtors, wastage.
 - Required API calls: `reportTrialBalance`, `acctGetTrialBalanceAsOf`, `reportProfitLoss`, `reportBalanceSheet`, `reportCashFlow`, `reportInventoryValuation`, `reportInventoryReconciliation`, `reportAgedDebtors`, `reportWastageReport`, `reportReconciliationDashboard`, `acctGenerateGstReturn`
-- Audit-trail route dependency: use `/accounting/audit-trail` with `acctAuditEvents`, `acctAuditTransactions`, and `acctAuditTransactionDetail`; tenant-admin escalations use `GET /api/v1/admin/audit/events`.
+- Admin-only legacy exports (do not treat as required for this route): `acctAuditDigest`, `acctAuditDigestCsv`
+- Audit-trail route dependency: use `/accounting/audit-trail` with `acctAuditTransactions` and `acctAuditTransactionDetail` for new transaction-audit UX.
 - Loading state: report loader with parameter panel; no-data period state; export/download progress + failure details.
 - Empty state: no rows / no open items / no period data for selected filters.
 - Error state: inline widget errors + page-level retry + action-level toast; preserve user filters and unsaved inputs.
 - Suggested table columns: Report dependent; enforce standard grid controls: sticky totals row, drill-through links, export columns metadata.
 - Suggested form fields: Filter controls: fromDate, toDate, asOfDate, dealer/supplier/account selectors, grouping granularity.
-- Role/permission gate: Mixed by endpoint: financial reports and GST return use `ROLE_ADMIN|ROLE_ACCOUNTING`; tenant-admin review feed is `ROLE_ADMIN`; platform audit feed is `ROLE_SUPER_ADMIN`.
+- Role/permission gate: Mixed by endpoint: financial reports and GST return use `ROLE_ADMIN|ROLE_ACCOUNTING`; deprecated digest exports are `ROLE_ADMIN` only.
 
 ## Accountant-Grade UX/Logic Controls (Must-Have)
 
 - Enforce posting invariants in UI: show debit total, credit total, and block submit unless balanced before creating journals.
 - Treat period status as first-class state: disable posting/edit actions when period is closed/locked, with explicit reason banners.
-- Use irreversible action confirmations for: period close/lock/reopen, journal reverse, payroll post/mark-paid, inventory revaluation, WIP adjustment.
+- Use irreversible action confirmations for: period close/lock/reopen, journal reverse/cascade reverse, payroll post/mark-paid, inventory revaluation, WIP adjustment.
 - Keep auditability visible: show source document reference, posting user, posting timestamp, and reversal links in detail drawers.
 - For settlement/payment screens, show unapplied balance and allocation residuals before submit.
 - For reports, preserve filter context and export exactly the filtered dataset to avoid reconciliation mismatches.
@@ -615,24 +621,19 @@ These rows are required for the period-close maker-checker UX, but they live out
 
 ### New Accounting Audit Trail APIs (Must Add In FE)
 
-- `GET /api/v1/accounting/audit/events`
-  - Query params: `from`, `to`, `module`, `action`, `status`, `actor`, `entityType`, `reference`, `page` (default `0`), `size` (default `50`).
-  - Returns paged `AuditFeedItemDto` rows for tenant-scoped accounting/business audit evidence.
 - `GET /api/v1/accounting/audit/transactions`
   - Query params: `from`, `to`, `module`, `status`, `reference`, `page` (default `0`), `size` (default `50`).
   - Returns paged `AccountingTransactionAuditListItemDto` rows.
 - `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
   - Returns `AccountingTransactionAuditDetailDto` with linked documents, settlement allocations, and event trail.
-- `GET /api/v1/admin/audit/events`
-  - Tenant-admin-only audit review feed; do not expose to attached superadmins or accountant-only flows.
-- `GET /api/v1/superadmin/audit/platform-events`
-  - Platform-only control-plane audit feed for `ROLE_SUPER_ADMIN`; do not mix with tenant business activity.
+- Legacy digest endpoints remain admin-only and are deprecated; keep them out of new accountant-owned routes:
+  - `GET /api/v1/accounting/audit/digest`
+  - `GET /api/v1/accounting/audit/digest.csv`
 
 Implementation note:
-- `/api/v1/accounting/audit/*`, `/api/v1/admin/audit/events`, and `/api/v1/superadmin/audit/platform-events` are code-verified canonical audit surfaces.
+- `/api/v1/accounting/audit/transactions*` is code-verified from `AccountingController`; if OpenAPI snapshot is stale, treat backend controller contract as authoritative until snapshot refresh.
 
 Frontend function-name additions:
-- `acctAuditEvents` -> `GET /api/v1/accounting/audit/events`
 - `acctAuditTransactions` -> `GET /api/v1/accounting/audit/transactions`
 - `acctAuditTransactionDetail` -> `GET /api/v1/accounting/audit/transactions/{journalEntryId}`
 
@@ -662,7 +663,7 @@ Costing views/actions must stay visible in accounting portal:
 - `GET /api/v1/reports/inventory-reconciliation`
 
 UX rule:
-- Any costing report/action with resulting journal reference must support drill-through into `/accounting/audit-trail` backed by `acctAuditEvents` plus transaction detail APIs.
+- Any costing report/action with resulting journal reference must support drill-through into `/accounting/audit-trail`.
 
 ### Approval Flow Contract For Accounting Approvers
 
@@ -690,4 +691,4 @@ Action semantics:
 - Credit request approvals: `/api/v1/credit/limit-requests/{id}/approve|reject`
 - Dispatch override approvals: `/api/v1/credit/override-requests/{id}/approve|reject`
 - Payroll approvals: `/api/v1/payroll/runs/{id}/approve` (no reject endpoint in queue payload)
-- Period close approvals: `/api/v1/accounting/periods/{id}/approve-close|reject-close`; this tenant-scoped queue is readable by `ROLE_ADMIN|ROLE_ACCOUNTING`, approve/reject actions are `ROLE_ADMIN` only, and platform `ROLE_SUPER_ADMIN` is not part of `/api/v1/admin/approvals`. Keep the UX tied to the approval-queue payload and maker-checker boundary, and do not surface checker actions to accounting-only users.
+- Period close approvals: `/api/v1/accounting/periods/{id}/approve-close|reject-close`; this tenant-scoped queue is readable by `ROLE_ADMIN|ROLE_ACCOUNTING`, the controller currently allows `ROLE_ADMIN` only for approve/reject, and platform `ROLE_SUPER_ADMIN` remains blocked from `/api/v1/admin/approvals` by `CompanyContextFilter`. Keep the UX tied to the approval-queue payload and maker-checker boundary, and do not surface checker actions to accounting-only users.

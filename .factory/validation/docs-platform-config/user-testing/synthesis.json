@@ -1,0 +1,27 @@
+{
+  "milestone": "docs-platform-config",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": ["VAL-PLAT-007"],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null,
+  "validationApproach": "Docs-only validation (no runtime services). Direct code-to-docs cross-reference using Read, Grep, and bash ci/lint-knowledgebase.sh. Every property, default, scope claim, path-prefix mapping, and module-gating entry in docs/platform/config-feature-toggles.md was verified against the corresponding Java source files.",
+  "featuresCovered": [
+    {
+      "featureId": "docs-platform-config-toggle-index",
+      "assertions": ["VAL-PLAT-007"]
+    },
+    {
+      "featureId": "docs-platform-config-toggle-followup",
+      "assertions": []
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "groupId": "val-ops-001",
+  "testedAt": "2026-03-30T00:00:00Z",
+  "credentials": {
+    "account": "docs-only",
+    "namespace": "docs-ops-setup"
+  },
+  "toolsUsed": ["Read", "Grep"],
+  "assertions": [
+    {
+      "id": "VAL-OPS-001",
+      "title": "Catalog and setup docs explain the surviving setup surface",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Verify catalog/setup/readiness documentation packet exists in docs tree",
+          "expected": "Packet discoverable from docs/INDEX.md and MODULE-INVENTORY.md",
+          "observed": "docs/modules/catalog-setup.md exists (483 lines). Linked from docs/INDEX.md line 42 as 'production/catalog' with description covering brands, items, SKU readiness evaluation, packaging-material definitions, payload families, and setup prerequisites. Linked from docs/modules/MODULE-INVENTORY.md line 25 for the production module entry. Linked from docs/flows/FLOW-INVENTORY.md line 17 as 'Catalog / Setup Readiness' flow family."
+        },
+        {
+          "action": "Verify brands coverage",
+          "expected": "Packet explains brand creation, listing, update, deactivation (soft delete), and auto-generated brand codes",
+          "observed": "§2 documents 5 brand endpoints: POST /api/v1/catalog/brands (create), GET /api/v1/catalog/brands (list with ?active filter), GET /api/v1/catalog/brands/{brandId} (get single), PUT /api/v1/catalog/brands/{brandId} (update), DELETE /api/v1/catalog/brands/{brandId} (deactivate/soft delete). §3.1 documents CatalogBrandRequest with name, logoUrl, description, active fields. CatalogBrandDto documents auto-generated 'code' field described as 'Auto-generated brand code (uppercase alphanumeric, max 12 chars, unique per company)'. Cross-verified against CatalogController.java: all 5 brand endpoints confirmed present with matching HTTP methods and paths."
+        },
+        {
+          "action": "Verify items coverage",
+          "expected": "Packet explains item creation, search/listing, update, deactivation, and key fields (brandId, name, itemClass, color, size, unitOfMeasure, hsnCode, basePrice, gstRate, metadata)",
+          "observed": "§2 documents 5 item endpoints: POST /api/v1/catalog/items (create), GET /api/v1/catalog/items (search with q/itemClass/includeStock/includeReadiness/page/pageSize params), GET /api/v1/catalog/items/{itemId} (get single), PUT /api/v1/catalog/items/{itemId} (update), DELETE /api/v1/catalog/items/{itemId} (deactivate/soft delete). §3.2 documents CatalogItemRequest with all required fields: brandId (@NotNull), name (@NotBlank), itemClass (@NotBlank), color, size, unitOfMeasure (@NotBlank), hsnCode (@NotBlank), basePrice, gstRate (@NotNull, @DecimalMin/Max), minDiscountPercent, minSellingPrice, metadata (Map), active. Cross-verified against CatalogItemRequest.java: all fields confirmed with matching validation annotations."
+        },
+        {
+          "action": "Verify readiness coverage",
+          "expected": "Packet explains SKU readiness evaluation across stages (catalog, inventory, production, packing, sales, accounting) with blocker codes and visibility rules per role",
+          "observed": "§5 documents readiness across 6 stages: Catalog (blockers: PRODUCT_MASTER_MISSING, PRODUCT_INACTIVE), Inventory (blockers: FINISHED_GOOD_MIRROR_MISSING, RAW_MATERIAL_MIRROR_MISSING, valuation/COGS/revenue/tax/inventory account missing, category required), Production (catalog+inventory+WIP/LABOR_APPLIED/OVERHEAD_APPLIED account missing), Packing (production blockers+PACKAGING_SIZE_MISSING/PACKAGING_MAPPING_MISSING for FG, inventory blockers for PKG), Sales (catalog+inventory+NO_FINISHED_GOOD_BATCH_STOCK+DISCOUNT_ACCOUNT_MISSING+GST_OUTPUT_ACCOUNT_MISSING/mismatch for FG, RAW_MATERIAL_SKU_NOT_SALES_ORDERABLE for RM/PKG), Accounting (aggregate of accounting-specific blockers from all stages). §5.4 documents visibility rules: ROLE_ADMIN/ROLE_ACCOUNTING see all blocker codes; other roles see sanitized view with ACCOUNTING_CONFIGURATION_REQUIRED replacement. §5.2 has per-item-class readiness matrix (FG, RM, PKG). §5.5 documents batch-level sales readiness check. Cross-verified against SkuReadinessService.java source: all blocker codes confirmed, 6 stages confirmed, ExpectedStockType enum with FINISHED_GOOD/RAW_MATERIAL/PACKAGING_RAW_MATERIAL confirmed, sanitizeStage() method with ACCOUNTING_CONFIGURATION_REQUIRED replacement confirmed, isAccountingBlocker() filtering logic confirmed."
+        },
+        {
+          "action": "Verify import coverage",
+          "expected": "Packet explains catalog CSV import surface including idempotency, file validation, row processing, auto-brand creation, and result counters",
+          "observed": "§7 documents import mechanics: (1) File validation accepts CSV only (text/csv, application/csv, application/vnd.ms-excel). (2) Idempotency via Idempotency-Key or X-Idempotency-Key header, falls back to SHA-256 hash of file content. (3) Row processing in separate REQUIRES_NEW transactions. (4) Retry once for optimistic lock/data integrity failures. (5) Outcome tracking via CatalogImport entity. §7.2 documents auto-creates brands by name, creates or updates products by SKU or (brand+name), auto-seeds RM inventory mirrors, reports per-row errors. §3.4 documents CatalogImportResponse with rowsProcessed, brandsCreated, productsCreated, productsUpdated, rawMaterialsSeeded, and per-row errors. Cross-verified against CatalogController.java: import endpoint at POST /api/v1/catalog/import with MultipartFile, Idempotency-Key and X-Idempotency-Key headers confirmed. ProductionCatalogService.java imports IdempotencyReservationService, IdempotencyUtils confirmed. CatalogImport.java entity with idempotency_key, idempotency_hash, file_hash, file_name, and all counter fields confirmed."
+        },
+        {
+          "action": "Verify variant/packaging coverage",
+          "expected": "Packet explains bulk variant generation (color×size matrix), SKU code patterns per item class, and variant-related endpoints",
+          "observed": "§6 documents SKU code generation patterns per item class: FINISHED_GOOD='FG-{brandCode}-{name}-{color}-{size}', RAW_MATERIAL='RM-{brandCode}-{name}-{spec}-{unit}', PACKAGING_RAW_MATERIAL='PKG-{brandCode}-{packType}-{size}-{unit}'. SKU rules documented: alphanumeric+hypen, max 128 chars, unique per company (case-insensitive), -BULK suffix reserved, brandId and itemClass immutable. §3.3 documents BulkVariantRequest (brandId/brandName/brandCode, baseProductName, category, colors, sizes, colorSizeMatrix, unitOfMeasure, skuPrefix, pricing defaults, metadata) and BulkVariantResponse (generated/conflicts/wouldCreate/created lists with VariantItem containing sku/reason/productName/color/size). Dry-run support via dryRun=true documented in §11.4. Cross-verified against ProductionCatalogService.java: ITEM_CLASS constants for FINISHED_GOOD/RAW_MATERIAL/PACKAGING_RAW_MATERIAL confirmed, SEMI_FINISHED_SUFFIX='-BULK' confirmed, NON_SKU_CHAR pattern confirmed."
+        },
+        {
+          "action": "Verify payload expectations",
+          "expected": "Packet documents key payload DTOs (request/response) with field-level details including types, optionality, constraints, and defaults",
+          "observed": "§3.1 documents CatalogBrandRequest (name: String required, logoUrl: String optional, description: String optional, active: Boolean optional defaults true) and CatalogBrandDto (id: Long, publicId: UUID, name: String, code: String auto-generated, logoUrl: String, description: String, active: boolean). §3.2 documents CatalogItemRequest with 14 fields including types, optionality (@NotNull/@NotBlank/@DecimalMin/@DecimalMax constraints), and CatalogItemDto with 20 fields including nullable annotations. §3.3 documents BulkVariantRequest and BulkVariantResponse with all fields. §3.4 documents CatalogImportResponse. §4 documents entity schemas (ProductionBrand, ProductionProduct, CatalogImport) with column types, constraints, and unique constraints. Cross-verified against source DTOs: CatalogBrandRequest.java has @NotBlank name + logoUrl + description + active — matches docs. CatalogItemRequest.java has @NotNull brandId, @NotBlank name/itemClass/unitOfMeasure/hsnCode, @NotNull gstRate with @DecimalMin/Max — matches docs. CatalogBrandDto.java has id, publicId, name, code, logoUrl, description, active — matches docs. CatalogItemDto.java has all 20 documented fields — matches docs. CatalogImportResponse.java has rowsProcessed, brandsCreated, productsCreated, productsUpdated, rawMaterialsSeeded, errors with ImportError(rowNumber, message) — matches docs. SkuReadinessDto.java has sku + 6 stages (masterReady/inventoryReady/productionReady/packingReady/salesReady/accountingReady) — matches docs. OpenAPI schemas confirmed: CatalogBrandDto has 7 properties (active/code/description/id/logoUrl/name/publicId), CatalogBrandRequest has 4 properties, CatalogItemDto has 20 properties, CatalogItemRequest has 14 properties, CatalogImportResponse has 6 properties, SkuReadinessDto has 7 properties (sku + 6 stages), CatalogItemStockDto has 4 properties (availableQuantity/onHandQuantity/reservedQuantity/unitOfMeasure). All match documentation claims."
+        },
+        {
+          "action": "Verify canonical setup hosts",
+          "expected": "Packet clearly identifies surviving canonical host/controller for all catalog/setup operations",
+          "observed": "§1 states: 'CatalogController at /api/v1/catalog/**'. §2 documents all 12 endpoints under /api/v1/catalog/** as the single host prefix. §12 states: 'All catalog operations are served through the single CatalogController at /api/v1/catalog/**'. No deprecated or non-canonical catalog/setup endpoints identified. Cross-verified against CatalogController.java: @RequestMapping(\"/api/v1/catalog\") confirmed, all endpoints share this single prefix."
+        },
+        {
+          "action": "Verify setup prerequisites",
+          "expected": "Packet explains what downstream flows depend on (manufacturing, packing, sales, inventory accounting events)",
+          "observed": "§8 documents setup prerequisites across 4 downstream areas: §8.1 Manufacturing/Production (product master active, SKU code, WIP/labor/overhead accounts in metadata), §8.2 Packing (all manufacturing prerequisites + packaging size label + packaging-size mapping from factory module), §8.3 Sales (product master active, FG inventory mirror, valuation/COGS/revenue/tax/discount/GST output accounts, batch with positive available stock, basePrice), §8.4 Inventory Accounting Events (erp.inventory.accounting.events.enabled toggle, FG accounts). Each prerequisite table documents: what must be set up, where it is set up, and the downstream effect of missing it."
+        },
+        {
+          "action": "Verify cross-module boundaries",
+          "expected": "Packet explains how catalog interacts with inventory, accounting, factory, and sales modules",
+          "observed": "§9 documents 5 cross-module boundaries: §9.1 Catalog→Inventory (syncInventoryTruth() creates/updates FG or RM mirrors synchronously, ensureFinishedGoodAccounts() for FG items), §9.2 Catalog→Accounting (CompanyDefaultAccountsService for default account IDs, product metadata for explicit account assignments), §9.3 Catalog→Factory/Read-Only (SkuReadinessService reads PackagingSizeMappingRepository, catalog does not create/modify packaging mappings), §9.4 Catalog→Sales/Read-Only (CatalogItemStockDto from FG/RM stock data, sales readiness checks batch availability, salesOrderItemRepository for referential integrity), §9.5 Catalog→Purchasing/Read-Only (reads PurchaseOrderRepository, GoodsReceiptRepository, RawMaterialPurchaseRepository for referential integrity during deactivation). Cross-verified against source: SkuReadinessService.java imports FinishedGoodRepository, RawMaterialRepository, FinishedGoodBatchRepository, PackagingSizeMappingRepository — all confirmed. ProductionCatalogService.java imports FinishedGoodRepository, RawMaterialRepository, CompanyDefaultAccountsService, SalesOrderItemRepository, PurchaseOrderRepository, GoodsReceiptRepository, RawMaterialPurchaseRepository — all confirmed."
+        }
+      ],
+      "evidence": {
+        "documentationPacket": "docs/modules/catalog-setup.md (483 lines, Last reviewed: 2026-03-30)",
+        "discoverability": [
+          "docs/INDEX.md line 42: production/catalog → catalog-setup.md",
+          "docs/modules/MODULE-INVENTORY.md line 25: production module → catalog-setup.md",
+          "docs/flows/FLOW-INVENTORY.md line 17: Catalog/Setup Readiness flow → catalog-setup-readiness.md (packet pending but module packet exists)"
+        ],
+        "sourceCodeCrossCheck": {
+          "CatalogController": "erp-domain/.../production/controller/CatalogController.java — @RequestMapping(\"/api/v1/catalog\"), all 12 endpoints match docs §2 route map",
+          "CatalogService": "erp-domain/.../production/service/CatalogService.java — owns brand CRUD and item CRUD",
+          "ProductionCatalogService": "erp-domain/.../production/service/ProductionCatalogService.java (2901 lines) — owns import, bulk variants, inventory sync, SKU generation",
+          "SkuReadinessService": "erp-domain/.../production/service/SkuReadinessService.java — 6 readiness stages, all blocker codes match docs §5",
+          "ProductionBrand": "erp-domain/.../production/domain/ProductionBrand.java — entity fields match docs §4.1 (id, publicId, company, name, code, logoUrl, description, is_active)",
+          "ProductionProduct": "erp-domain/.../production/domain/ProductionProduct.java — entity fields match docs §4.2 (id, publicId, company, brand, productName, category, defaultColour, sizeLabel, unitOfMeasure, skuCode, variantGroupId, productFamilyName, hsnCode, basePrice, gstRate, minDiscountPercent, minSellingPrice, metadata JSONB, colors/sizes/cartonSizes collections)",
+          "CatalogImport": "erp-domain/.../production/domain/CatalogImport.java — entity fields match docs §4.3 (id, company, idempotencyKey, idempotencyHash, fileHash, fileName, rowsProcessed, brandsCreated, productsCreated, productsUpdated, rawMaterialsSeeded, errorsJson)"
+        },
+        "openAPICrossCheck": {
+          "paths": "12 catalog paths in openapi.json match docs §2 route map exactly: POST/GET /brands, GET/PUT/DELETE /brands/{brandId}, POST/GET /items, GET/PUT/DELETE /items/{itemId}, POST /import",
+          "schemas": "CatalogBrandDto (7 props), CatalogBrandRequest (4 props), CatalogItemDto (20 props), CatalogItemRequest (14 props), CatalogImportResponse (6 props), SkuReadinessDto (7 props: sku + 6 stages), CatalogItemStockDto (4 props) — all match documented payload fields",
+          "queryParams": "Item search params (q, itemClass, includeStock, includeReadiness, page, pageSize) confirmed in openapi.json — match docs §2",
+          "headerParams": "Import endpoint Idempotency-Key and X-Idempotency-Key headers confirmed in openapi.json — match docs §7"
+        },
+        "consoleErrors": "n/a (docs-only validation)",
+        "network": "n/a (docs-only validation)"
+      },
+      "issues": []
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested VAL-OPS-001: 1 assertion, PASS. The docs/modules/catalog-setup.md packet comprehensively covers all 10 verification areas: packet existence and discoverability from INDEX.md/MODULE-INVENTORY.md/FLOW-INVENTORY.md, brands CRUD with auto-generated codes, items CRUD with all key fields, 6-stage SKU readiness evaluation with blocker codes and role-based visibility, CSV import with idempotency and auto-brand creation, bulk variant generation with color×size matrix and SKU patterns per item class, detailed payload DTOs with types/constraints/defaults, single canonical host at CatalogController /api/v1/catalog/**, setup prerequisites for manufacturing/packing/sales/inventory-accounting, and 5 cross-module boundaries (inventory/accounting/factory/sales/purchasing). All claims cross-verified against CatalogController.java, CatalogService.java, ProductionCatalogService.java, SkuReadinessService.java, ProductionBrand/ProductionProduct/CatalogImport entities, and openapi.json schemas — no discrepancies found."
+}

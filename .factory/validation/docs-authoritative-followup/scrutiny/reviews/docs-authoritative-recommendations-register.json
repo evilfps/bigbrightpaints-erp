@@ -1,0 +1,34 @@
+{
+  "featureId": "docs-authoritative-recommendations-register",
+  "reviewedAt": "2026-03-31T04:30:00.000Z",
+  "commitId": "45e9353a006c0fb5769c68eac2dc7181f5f0963d",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The worker created docs/RECOMMENDATIONS.md as a well-structured, authoritative recommendations register and linked it from docs/INDEX.md. The register covers formerly open items from all 11 flow packets and sales.md with clear emoji-based classifications (Bug to Fix Now, Future Work High/Medium/Low, Accepted Decision). Each section has proper tables with Item, Status, Classification, and Rationale columns. All 11 flow packets and the sales module already contain deferral notes pointing to the register. The document uses strong authoritative/source-of-truth wording throughout. Two minor non-blocking observations: (1) purchasing.md Known Limitations section (#11) mentions PO and invoice idempotency gaps but lacks a deferral note to RECOMMENDATIONS.md, and (2) inventory.md Known Limitations (#13) mentions stock transfer and batch merge gaps without deferral — these module-level Known Limitations sections should ideally carry the same deferral pattern that the flow packets already have.",
+    "issues": [
+      {
+        "file": "docs/modules/purchasing.md",
+        "line": 436,
+        "severity": "non_blocking",
+        "description": "Known Limitations section (#11) documents PO and invoice idempotency gaps (items 1-2) which are classified as Future Work — High in RECOMMENDATIONS.md, but lacks a deferral note to the authoritative register. All 11 flow packets and sales.md have such notes. For consistency, the purchasing module's Known Limitations section should include a note deferring classification to RECOMMENDATIONS.md."
+      },
+      {
+        "file": "docs/modules/inventory.md",
+        "line": 426,
+        "severity": "non_blocking",
+        "description": "Known Limitations section (#13) documents stock transfer gap (Future Work — Medium in RECOMMENDATIONS.md) but lacks a deferral note. The inventory flow packet (flows/inventory-management.md) already has the deferral, but the module packet should mirror the pattern for consistency."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "There is an inconsistent pattern for deferral notes between flow packets and module packets. All 11 flow packets include '> **Note**: The authoritative classification for these items is recorded in the [Authoritative Recommendations Register](../RECOMMENDATIONS.md). This section documents factual implementation status only.' but some module packets with Known Limitations sections (purchasing.md, inventory.md) that overlap with register items do not carry equivalent deferral notes. The mission AGENTS.md says 'earlier flow/module open-decision sections should summarize or explicitly defer to the authoritative recommendations register rather than restating a competing recommendation list' — this should apply to module Known Limitations too.",
+      "evidence": "Compare docs/flows/procure-to-pay.md:305 (has deferral note) vs docs/modules/purchasing.md:436 (Known Limitations, no deferral). Compare docs/flows/inventory-management.md:297 (has deferral note) vs docs/modules/inventory.md:426 (Known Limitations, no deferral)."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS — The authoritative recommendations register is well-implemented. It creates docs/RECOMMENDATIONS.md with comprehensive coverage of formerly open items from all 11 flow packets and sales.md, using user-approved verdict classifications. The document is discoverable from docs/INDEX.md under a dedicated Authoritative Recommendations section and from docs/ERP-DOD-BIBLE.md. All 11 flow packets and the sales module already carry deferral notes pointing to the register. The register uses strong canonical/source-of-truth language with clear classification legend and contributor guidance. Two non-blocking observations: purchasing.md and inventory.md module-level Known Limitations sections lack deferral notes that their corresponding flow packets already have, creating a minor consistency gap."
+}

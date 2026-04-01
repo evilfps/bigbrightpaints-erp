@@ -1,0 +1,57 @@
+{
+  "featureId": "docs-finance-accounting-core",
+  "reviewedAt": "2026-03-30T08:30:00.000Z",
+  "commitId": "523d9d2b2",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The accounting AGENTS.md packet exists and is properly linked from docs/INDEX.md and MODULE-INVENTORY.md. It covers journals, chart of accounts, settlements, corrections, period controls, reconciliation, data imports, and payroll posting seam. However, there are two blocking issues: (1) the document claims a non-existent controller 'AccountingPeriodController' — period endpoints are actually in AccountingController; (2) the cross-module boundary section misstates the HR→Accounting path as 'PayrollPostingService → AccountingCoreEngineCore' when the code shows PayrollPostingService actually uses AccountingFacade. Additionally, the posted-truth rules (reversal vs editing boundaries) required by VAL-FIN-001 are not explicit enough — the Known Limitations section only hints at this indirectly. The document also omits mention of ledgers (DealerLedger, SupplierLedger) as a first-class concept despite them being a core part of the accounting module.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md",
+        "line": 21,
+        "severity": "blocking",
+        "description": "Lists 'AccountingPeriodController' as a primary controller, but no such controller exists in the codebase. Period endpoints (list/create/update/close/reopen/request-close) are all in AccountingController (lines 659-712). This is a factual error in the documentation."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md",
+        "line": 43,
+        "severity": "blocking",
+        "description": "Cross-module boundary says 'PayrollPostingService → AccountingCoreEngineCore', but source code at hr/service/PayrollPostingService.java imports and uses AccountingFacade, not AccountingCoreEngineCore. The actual path is PayrollPostingService → AccountingFacade → AccountingCoreEngineCore. This is a code-grounding inaccuracy."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md",
+        "line": 50,
+        "severity": "blocking",
+        "description": "VAL-FIN-001 requires 'explicit posted-truth rules' about when posted entries can be reversed vs edited. The Known Limitations section only says 'Correction/reversal semantics differ slightly between modules' — this is too vague. The code shows explicit rules: (1) posted entries are never edited, only reversed (REVERSAL or VOID via JournalCorrectionType), (2) reversal requires OPEN period, (3) LOCKED period entries cannot be reversed, (4) CLOSED period entries require admin override. These rules should be stated explicitly."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md",
+        "line": 10,
+        "severity": "non_blocking",
+        "description": "The 'What This Module Owns' section mentions 'Chart of accounts' but does not explicitly list 'Ledgers' (DealerLedgerEntry, SupplierLedgerEntry) as a first-class concept despite these being core domain entities. VAL-FIN-001 requires coverage of 'ledgers'. The chart of accounts is the account hierarchy, but ledgers (partner ledgers, bank reconciliation) are a distinct concept in the codebase (DealerLedgerService, SupplierLedgerService, BankReconciliationSession). The document should explicitly mention partner ledgers and bank reconciliation sessions as part of the ledger surface."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md",
+        "line": 25,
+        "severity": "non_blocking",
+        "description": "Lists 'JournalCreationRequest' as a DTO but the actual DTO is a record with fields (amount, debitAccount, creditAccount, etc.), not 'debit/credit lines, source module, reference, period date' as described. The description more closely matches JournalEntryRequest which has JournalLineRequest sub-records. The two DTOs have distinct shapes and purposes."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The accounting AGENTS.md uses relative paths for cross-references (e.g., ../../../../../../../docs/ARCHITECTURE.md) that are extremely deep and brittle. Other module AGENTS.md files (e.g., hr/AGENTS.md) should follow the same convention if they exist, or the convention should be documented.",
+      "evidence": "accounting/AGENTS.md line 47-48 uses '../../../../../../../docs/ARCHITECTURE.md'"
+    },
+    {
+      "area": "skills",
+      "observation": "The worker's handoff indicates the accounting documentation 'already satisfies VAL-FIN-001 requirements' and states 'No additional work needed'. However, the document has factual inaccuracies (non-existent controller, wrong cross-module path) and missing explicit posted-truth rules. The docs-worker skill may not have sufficient verification steps for code-grounding accuracy.",
+      "evidence": "Handoff salientSummary: 'Verified accounting core documentation is complete and satisfies VAL-FIN-001'. But code review finds AccountingPeriodController doesn't exist and PayrollPostingService→AccountingCoreEngineCore is incorrect."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "The accounting AGENTS.md packet is properly linked from docs/INDEX.md and MODULE-INVENTORY.md and covers the major topic areas required by VAL-FIN-001 (journals, settlements, corrections, period controls, reconciliation). However, it fails code-grounding verification on two counts: (1) it lists a non-existent 'AccountingPeriodController' — period endpoints live in AccountingController; (2) the HR cross-module boundary misstates the dependency path (PayrollPostingService uses AccountingFacade, not AccountingCoreEngineCore directly). The posted-truth rules required by VAL-FIN-001 are only hinted at in Known Limitations rather than stated explicitly. The document also under-covers the ledger concept — partner ledgers (DealerLedgerEntry, SupplierLedgerEntry) and bank reconciliation sessions are first-class domain entities not explicitly named. These issues must be fixed to pass scrutiny."
+}

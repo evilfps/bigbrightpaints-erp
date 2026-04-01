@@ -1,0 +1,66 @@
+{
+  "milestone": "docs-platform-config",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "lint": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh",
+      "exitCode": 0
+    },
+    "enterprise-policy": {
+      "passed": true,
+      "command": "bash ci/check-enterprise-policy.sh",
+      "exitCode": 0
+    },
+    "architecture": {
+      "passed": true,
+      "command": "bash ci/check-architecture.sh",
+      "exitCode": 0
+    },
+    "orchestrator-layer": {
+      "passed": true,
+      "command": "bash ci/check-orchestrator-layer.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [
+    {
+      "featureId": "docs-platform-config-toggle-index",
+      "severity": "non_blocking",
+      "description": "SMTP validation description says SmtpPropertiesValidator 'logs a warning' but actual code throws IllegalStateException (crashing app) in production when SMTP config is incomplete. Only logs/skips when erp.mail.enabled=false."
+    },
+    {
+      "featureId": "docs-platform-config-toggle-index",
+      "severity": "non_blocking",
+      "description": "mail.enabled default discrepancy: EmailProperties class default is false, but @Value annotation default is true. Effective runtime default is true (Spring overrides), so doc is operationally correct, but the nuance could confuse maintainers reading source."
+    },
+    {
+      "featureId": "docs-platform-config-toggle-index",
+      "severity": "non_blocking",
+      "description": "SALES module path prefixes use glob notation '/api/v1/credit/*' but ModuleGatingInterceptor only checks '/api/v1/credit/override-requests' and '/api/v1/credit/limit-requests' specifically."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "library",
+      "description": "Added tenant-runtime-dual-property-names.md noting that TenantRuntimeAccessService uses dot-separated property names (erp.tenant.runtime.default.max-concurrent-requests, default 0) vs TenantRuntimeEnforcementService uses hyphenated names (erp.tenant.runtime.default-max-concurrent-requests, default 200) — a potential confusion source for maintainers.",
+      "sourceFeature": "docs-platform-config-toggle-index"
+    }
+  ],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [
+    {
+      "observation": "Convention observation about freshness markers and VAL-PLAT-007 reference pattern",
+      "reason": "already-documented — this is the established mission convention, not new knowledge"
+    }
+  ],
+  "previousRound": null
+}

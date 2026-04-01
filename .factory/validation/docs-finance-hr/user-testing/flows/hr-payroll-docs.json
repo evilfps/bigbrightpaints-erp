@@ -1,0 +1,103 @@
+{
+  "groupId": "hr-payroll-docs",
+  "testedAt": "2026-03-30T12:00:00Z",
+  "credentials": {
+    "account": "docs-only",
+    "namespace": "docs-tree"
+  },
+  "toolsUsed": ["Read", "Grep"],
+  "assertions": [
+    {
+      "id": "VAL-FIN-003",
+      "title": "HR and payroll docs explain lifecycle and posting/payment boundaries",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Check 1: Employee management documented",
+          "expected": "docs/modules/hr.md covers employee CRUD, types (STAFF/LABOUR), payment schedules (MONTHLY/WEEKLY)",
+          "observed": "PASS — hr.md documents Employee CRUD (creation, update, deletion, retrieval), employee types STAFF (monthly salary) and LABOUR (daily wage), payment schedules MONTHLY (staff) and WEEKLY (labour). Cross-check with Employee.java confirms enum EmployeeType { STAFF, LABOUR } and enum PaymentSchedule { MONTHLY, WEEKLY } match exactly."
+        },
+        {
+          "action": "Check 2: Leave management documented",
+          "expected": "Leave types, balances, request workflow (PENDING → APPROVED/REJECTED) documented",
+          "observed": "PASS — hr.md documents leave type policies (configurable categories with entitlement rules), leave balances (per-employee tracking per year), leave requests (submission, approval workflow, status updates), and status transitions PENDING → APPROVED/REJECTED. Cross-check with LeaveService.java confirms LeaveStatus enum { PENDING, APPROVED, REJECTED, CANCELLED } and the approval/rejection workflow with balance delta application."
+        },
+        {
+          "action": "Check 3: Attendance tracking documented",
+          "expected": "Daily attendance, bulk operations, attendance summary documented",
+          "observed": "PASS — hr.md documents daily attendance marking (single and bulk), attendance import from external systems, attendance summary (daily and monthly), and payroll linkage. Cross-check with HrController.java confirms endpoints: GET /attendance/date/{date}, GET /attendance/summary, POST /attendance/bulk-mark, POST /attendance/bulk-import, GET /attendance/summary/monthly."
+        },
+        {
+          "action": "Check 4: Payroll run lifecycle documented",
+          "expected": "DRAFT → CALCULATED → APPROVED → POSTED → PAID → CANCELLED status progression documented",
+          "observed": "PASS — hr.md includes a full lifecycle table with all six statuses: DRAFT, CALCULATED, APPROVED, POSTED, PAID, CANCELLED, with descriptions and next-status transitions. Cross-check with PayrollRun.java confirms enum PayrollStatus { DRAFT, CALCULATED, APPROVED, POSTED, PAID, CANCELLED } matches exactly."
+        },
+        {
+          "action": "Check 5: Payroll calculation documented",
+          "expected": "Earnings, deductions (PF, ESI, TDS, Professional Tax), statutory engine documented",
+          "observed": "PASS — hr.md documents earnings (gross pay based on salary/wage and attendance), deductions including PF, ESI, TDS, Professional Tax, loan/advance recovery, other deductions, and net pay calculation. References StatutoryDeductionEngine. Cross-check with StatutoryDeductionEngine.java confirms methods calculatePfDeduction(), calculateEsiDeduction(), calculateTdsDeduction(), calculateProfessionalTaxDeduction() all present with Indian rules."
+        },
+        {
+          "action": "Check 6: Payroll posting boundary documented",
+          "expected": "Docs explain AccountingFacade.postPayrollRun() seam",
+          "observed": "PASS — hr.md includes explicit 'HR → Accounting (Payroll Posting Seam)' section documenting PayrollPostingService.postPayrollToAccounting() → AccountingFacade.postPayrollRun() call chain, host mapping (/api/v1/payroll/runs/{id}/post → /api/v1/accounting/journals), and journal entry creation. Cross-check with PayrollPostingService.java confirms accountingFacade.postPayrollRun() is the canonical seam."
+        },
+        {
+          "action": "Check 7: Payroll payment boundary documented",
+          "expected": "Docs explain two-phase payment process (accounting-host payment, then mark-as-paid)",
+          "observed": "PASS — hr.md documents the two-phase payment process: (1) payment journal created at /api/v1/accounting/payroll/payments/batch, (2) HR module marks payroll as PAID via PayrollPostingService.markAsPaid(). Cross-check with PayrollPostingService.java confirms markAsPaid() requires paymentJournalEntryId, validates status is POSTED or PAID, and links canonical payment reference."
+        },
+        {
+          "action": "Check 8: Required accounts documented",
+          "expected": "Docs list required accounts: SALARY-EXP, WAGE-EXP, SALARY-PAYABLE, etc.",
+          "observed": "PASS — hr.md includes a full 'Required Accounts for Payroll Posting' table with 8 accounts: SALARY-EXP (EXPENSE), WAGE-EXP (EXPENSE), SALARY-PAYABLE (LIABILITY), EMP-ADV (ASSET), PF-PAYABLE (LIABILITY), ESI-PAYABLE (LIABILITY), TDS-PAYABLE (LIABILITY), PROFESSIONAL-TAX-PAYABLE (LIABILITY). Cross-check with PayrollPostingService.java REQUIRED_PAYROLL_ACCOUNT_TYPES map confirms exact match: all 8 account codes with correct AccountType values."
+        },
+        {
+          "action": "Check 9: Multi-tenant boundaries documented",
+          "expected": "Tenant isolation, module gating (HR_PAYROLL optional), CompanyContextService scoping",
+          "observed": "PASS — hr.md documents tenant isolation (CompanyContextService.requireCurrentCompany()), no cross-tenant access (company_id filtering), module gating (HR_PAYROLL optional module, MODULE_DISABLED error when disabled, paused by default for new tenants per ERP-33). Cross-check with hr/AGENTS.md confirms ModuleGatingService and HR_PAYROLL module gating."
+        },
+        {
+          "action": "Check 10: Idempotency/replay expectations documented",
+          "expected": "Period+type idempotency, idempotency key support, posting idempotency rules",
+          "observed": "PASS — hr.md documents: (a) payroll run idempotency — period+type uniqueness, duplicate detection returns existing run; (b) idempotency key support — Idempotency-Key header on /api/v1/payroll/** endpoints; (c) payroll calculation idempotency — recalculation updates lines; (d) payroll posting idempotency — re-posting validates existing journal link, status POSTED without journal link fails with BUSINESS_INVALID_STATE, journal mismatch fails with CONCURRENCY_CONFLICT; (e) payroll payment idempotency — mark-as-paid idempotent within POSTED or PAID. Cross-check with PayrollRunService.java confirms buildIdempotencyKey() uses PAYROLL:{type}:{start}:{end} pattern, and PayrollPostingService.java confirms all documented posting invariants."
+        },
+        {
+          "action": "Check 11: Deprecated paths documented",
+          "expected": "Legacy HR endpoints returning 410 GONE documented with canonical replacement",
+          "observed": "PASS — hr.md documents legacy HR endpoints: GET /api/v1/hr/payroll-runs → 410 GONE, POST /api/v1/hr/payroll-runs → 410 GONE, with canonical redirect to /api/v1/payroll/runs. Cross-check with HrController.java confirms legacyPayrollRunsGone() returns HttpStatus.GONE with ApiResponse.failure() and canonicalPath guidance."
+        },
+        {
+          "action": "Check 12: Discoverable from docs index",
+          "expected": "docs/INDEX.md links to docs/modules/hr.md",
+          "observed": "PASS — docs/INDEX.md line 39 contains: | [hr](modules/hr.md) | Employees, leave, attendance, payroll runs, and payroll posting/payment |. The hr module is listed in the Modules table with accurate description."
+        },
+        {
+          "action": "Check 13: Carries freshness marker",
+          "expected": "docs/modules/hr.md has valid 'Last reviewed: YYYY-MM-DD' marker",
+          "observed": "PASS — docs/modules/hr.md line 3 contains 'Last reviewed: 2026-03-30', which is a valid YYYY-MM-DD date matching today's date."
+        }
+      ],
+      "evidence": {
+        "docsPacket": "docs/modules/hr.md (full file read, 272 lines)",
+        "sourceCodeCrossChecks": {
+          "Employee.java": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/domain/Employee.java — confirmed EmployeeType {STAFF, LABOUR}, PaymentSchedule {MONTHLY, WEEKLY}",
+          "LeaveService.java": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/LeaveService.java — confirmed LeaveStatus {PENDING, APPROVED, REJECTED, CANCELLED}, balance tracking, approval workflow",
+          "HrController.java": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/controller/HrController.java — confirmed attendance endpoints, legacy payroll-runs 410 GONE",
+          "HrPayrollController.java": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/controller/HrPayrollController.java — confirmed canonical payroll endpoints",
+          "PayrollRun.java": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/domain/PayrollRun.java — confirmed PayrollStatus {DRAFT, CALCULATED, APPROVED, POSTED, PAID, CANCELLED}",
+          "StatutoryDeductionEngine.java": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/StatutoryDeductionEngine.java — confirmed PF, ESI, TDS, Professional Tax calculation methods",
+          "PayrollPostingService.java": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/PayrollPostingService.java — confirmed REQUIRED_PAYROLL_ACCOUNT_TYPES (8 entries), AccountingFacade seam, markAsPaid() two-phase, posting idempotency",
+          "PayrollRunService.java": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/PayrollRunService.java — confirmed period+type idempotency key pattern, signature validation",
+          "hr/AGENTS.md": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md — confirmed ModuleGatingService, HR_PAYROLL optional module"
+        },
+        "indexLink": "docs/INDEX.md line 39 — [hr](modules/hr.md) linked from Modules table",
+        "freshnessMarker": "docs/modules/hr.md line 3 — 'Last reviewed: 2026-03-30'"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested VAL-FIN-003 with 13 specific checks covering all required aspects. All 13 checks PASS. The HR/payroll docs packet at docs/modules/hr.md comprehensively documents employee management, leave management, attendance tracking, payroll run lifecycle, payroll calculation, posting/payment boundaries, required accounts, multi-tenant boundaries, idempotency/replay expectations, and deprecated paths. All claims are code-grounded and match source code enums, service methods, controller endpoints, and constants. The packet is discoverable from docs/INDEX.md and carries a valid freshness marker."
+}
