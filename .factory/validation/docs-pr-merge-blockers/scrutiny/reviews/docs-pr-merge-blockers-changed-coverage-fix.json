@@ -1,0 +1,21 @@
+{
+  "featureId": "docs-pr-merge-blockers-changed-coverage-fix",
+  "reviewedAt": "2026-04-01T02:42:37Z",
+  "commitId": "6edebacb2875369401ef5dff2f1f5871284bdb2d",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Reviewed the feature handoff, transcript skeleton, branch diff context, and commit `6edebacb2875369401ef5dff2f1f5871284bdb2d`. The implementation stays tightly scoped to `scripts/changed_files_coverage.py`: it filters the parsed changed-file set down to `.java` paths before `changed_source_files` is computed (`scripts/changed_files_coverage.py:308-311`) and keeps a redundant in-loop non-Java guard as a safety belt (`scripts/changed_files_coverage.py:325-330`). That matches the feature requirement exactly for the current repro, where the only changed paths under `erp-domain/src/main/java/**` are four module `AGENTS.md` docs, and it preserves all existing JaCoCo mapping, skipped-file detection, unmapped-line handling, and threshold enforcement for real Java files.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The `backend-worker` skill assumes a Java/TDD workflow, but this feature is a valid non-Java CI-helper/script fix whose correct proof is reproducing the changed-files coverage failure and rerunning the helper script. The skill should document a narrow exception for CI/helper-script packets so workers do not have to infer that script-level repro/verification is acceptable.",
+      "evidence": "`.factory/skills/backend-worker/SKILL.md:28-33` requires TDD-first test creation and `:52-60` assumes Maven compile/test verification, while the handoff `2026-04-01T02-37-36-866Z__docs-pr-merge-blockers-changed-coverage-fix__32283615-47a2-42f9-ad6f-525539596b72.json` records `skillFeedback.suggestedChanges` saying Step 2 does not perfectly fit CI helper script fixes and that the worker verified the change by rerunning `scripts/changed_files_coverage.py` against the local repro instead."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass. Commit `6edebacb2875369401ef5dff2f1f5871284bdb2d` makes the minimum safe changed-files coverage fix: only `.java` files remain coverage-required under `erp-domain/src/main/java`, so module `AGENTS.md` docs no longer register as missing JaCoCo sources while real Java coverage enforcement remains intact."
+}

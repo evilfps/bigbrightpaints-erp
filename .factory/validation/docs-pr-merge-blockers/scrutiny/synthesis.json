@@ -1,0 +1,61 @@
+{
+  "milestone": "docs-pr-merge-blockers",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "bash ci/lint-knowledgebase.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "bash scripts/enforce_codex_review_policy.sh && bash ci/check-enterprise-policy.sh",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "bash ci/check-architecture.sh && bash ci/check-orchestrator-layer.sh",
+      "exitCode": 0
+    }
+  },
+  "supplementalChecks": {
+    "changedFilesCoverage": {
+      "passed": true,
+      "command": "python3 scripts/changed_files_coverage.py --jacoco artifacts/pr-jacoco-local/jacoco-unit.xml --jacoco artifacts/pr-jacoco-local/jacoco-codered-access.xml --diff-base \"$(git merge-base origin/main HEAD)\" --src-root erp-domain/src/main/java --threshold-line 0.95 --threshold-branch 0.90 --fail-on-vacuous",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 1,
+    "failed": 1,
+    "failedFeatures": [
+      "docs-pr-merge-blockers-governance-fix"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "docs-pr-merge-blockers-governance-fix",
+      "severity": "blocking",
+      "description": "The feature updates `docs/architecture.md`, but the repo's canonical docs contract and lint references require `docs/ARCHITECTURE.md`. This passes on the current macOS workspace because the filesystem is case-insensitive, but it can still fail on Linux CI where the uppercase canonical path does not exist."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "services.yaml",
+      "description": "Added an additive `codex-review-policy` command so scrutiny/docs workers can run `bash scripts/enforce_codex_review_policy.sh` from `.factory/services.yaml` instead of invoking it ad hoc.",
+      "sourceFeature": "docs-pr-merge-blockers-governance-fix"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "backend-worker skill",
+      "suggestion": "Document a narrow exception for CI/helper-script packets where reproducing the failing script and rerunning the helper is the correct verification instead of a TDD-first Java-test workflow.",
+      "evidence": "The `docs-pr-merge-blockers-changed-coverage-fix` review passed a script-only change in `scripts/changed_files_coverage.py`, and the reviewer noted the current backend-worker procedure assumes Maven/Java test creation even when the fix is a small CI-helper change.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}
