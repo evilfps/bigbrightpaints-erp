@@ -305,6 +305,9 @@ def main() -> int:
 
     jacoco = build_jacoco_line_map(args.jacoco, args.src_root)
 
+    # Only count .java files as changed source files; non-Java docs (e.g.
+    # AGENTS.md) co-located under src/main/java are not executable sources.
+    changed = {f: lns for f, lns in changed.items() if f.endswith(".java")}
     changed_source_files = len(changed)
 
     line_cov = 0
@@ -321,6 +324,9 @@ def main() -> int:
 
     for file_path, changed_lines in changed.items():
         if not changed_lines:
+            continue
+        # Skip non-Java files (e.g. AGENTS.md docs co-located in src/main/java)
+        if not file_path.endswith(".java"):
             continue
         lines, is_interface_file, source_package = load_source_info(file_path, source_cache)
         line_map = resolve_jacoco_line_map(file_path, args.src_root, source_package, jacoco)
