@@ -145,6 +145,6 @@ The following historical docs remain in the repo for reference but are **not** t
 
 | Document | Status |
 | --- | --- |
-| [architecture.md](architecture.md) | Superseded by [docs/ARCHITECTURE.md](ARCHITECTURE.md) |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Canonical architecture doc (uppercase path required for Linux CI) |
 | [developer-guide.md](developer-guide.md) | Superseded by the module packets and flow packets in the new docs tree |
 | [endpoint-inventory.md](endpoint-inventory.md) | Reference only; use `openapi.json` and module packets as primary truth |

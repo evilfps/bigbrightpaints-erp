@@ -152,7 +152,7 @@ The following historical docs remain in the repo for reference but are **not** t
 
 | Document | Status | Replacement |
 | --- | --- | --- |
-| [docs/architecture.md](../architecture.md) | Superseded | Use [docs/ARCHITECTURE.md](../ARCHITECTURE.md) |
+| [docs/ARCHITECTURE.md](../ARCHITECTURE.md) | Superseded | Canonical path is now uppercase `docs/ARCHITECTURE.md` |
 | [docs/developer-guide.md](../developer-guide.md) | Superseded | Use module packets and flow packets in the new docs tree |
 | [docs/endpoint-inventory.md](../endpoint-inventory.md) | Reference only | Use `openapi.json` and module packets as primary truth |
 
