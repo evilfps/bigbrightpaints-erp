@@ -1,5 +1,7 @@
 package com.bigbrightpaints.erp.truthsuite.orchestrator;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -52,12 +54,17 @@ class TS_OrchestratorExactlyOnceOutboxTest {
   }
 
   @Test
-  void legacyBatchDispatchPathFailsClosedWhilePayrollStillUsesFeatureGuards() {
+  void retiredDispatchShortcutIsDeletedWhilePayrollStillUsesFeatureGuards() {
+    String source = TruthSuiteFileAssert.read(COMMAND_DISPATCHER);
+
+    assertFalse(
+        source.contains("dispatchBatch("),
+        "CommandDispatcher must not retain the retired orchestrator dispatch shortcut");
+    assertFalse(
+        source.contains("DispatchRequest"),
+        "CommandDispatcher must not reference the retired dispatch payload");
     TruthSuiteFileAssert.assertContains(
         COMMAND_DISPATCHER,
-        "private static final String CANONICAL_DISPATCH_PATH = \"/api/v1/dispatch/confirm\";",
-        "throw new OrchestratorFeatureDisabledException(",
-        "Orchestrator batch dispatch is deprecated; use ",
         "\"ORCH.PAYROLL.RUN\",",
         "featureFlags::isPayrollEnabled,",
         "recordDeniedCommand(",

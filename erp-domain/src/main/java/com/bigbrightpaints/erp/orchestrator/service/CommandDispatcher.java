@@ -15,7 +15,6 @@ import org.springframework.util.StringUtils;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryReservationResult;
 import com.bigbrightpaints.erp.orchestrator.config.OrchestratorFeatureFlags;
 import com.bigbrightpaints.erp.orchestrator.dto.ApproveOrderRequest;
-import com.bigbrightpaints.erp.orchestrator.dto.DispatchRequest;
 import com.bigbrightpaints.erp.orchestrator.dto.OrderFulfillmentRequest;
 import com.bigbrightpaints.erp.orchestrator.dto.PayrollRunRequest;
 import com.bigbrightpaints.erp.orchestrator.event.DomainEvent;
@@ -28,8 +27,6 @@ import com.bigbrightpaints.erp.orchestrator.workflow.WorkflowService;
 public class CommandDispatcher {
 
   private static final Logger log = LoggerFactory.getLogger(CommandDispatcher.class);
-  private static final String CANONICAL_DISPATCH_PATH = "/api/v1/dispatch/confirm";
-
   private final WorkflowService workflowService;
   private final IntegrationCoordinator integrationCoordinator;
   private final EventPublisherService eventPublisherService;
@@ -225,19 +222,6 @@ public class CommandDispatcher {
               canonicalIdempotencyKey);
           return traceId;
         });
-  }
-
-  @Transactional(noRollbackFor = OrchestratorFeatureDisabledException.class)
-  public String dispatchBatch(
-      DispatchRequest request,
-      String idempotencyKey,
-      String requestId,
-      String companyId,
-      String userId) {
-    policyEnforcer.checkDispatchPermissions(userId, companyId);
-    throw new OrchestratorFeatureDisabledException(
-        "Orchestrator batch dispatch is deprecated; use " + CANONICAL_DISPATCH_PATH,
-        CANONICAL_DISPATCH_PATH);
   }
 
   @Transactional(noRollbackFor = OrchestratorFeatureDisabledException.class)

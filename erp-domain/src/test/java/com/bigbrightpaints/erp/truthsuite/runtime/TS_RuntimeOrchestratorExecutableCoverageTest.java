@@ -41,7 +41,6 @@ import com.bigbrightpaints.erp.modules.sales.service.DealerService;
 import com.bigbrightpaints.erp.orchestrator.config.OrchestratorFeatureFlags;
 import com.bigbrightpaints.erp.orchestrator.controller.OrchestratorController;
 import com.bigbrightpaints.erp.orchestrator.dto.ApproveOrderRequest;
-import com.bigbrightpaints.erp.orchestrator.dto.DispatchRequest;
 import com.bigbrightpaints.erp.orchestrator.dto.OrderFulfillmentRequest;
 import com.bigbrightpaints.erp.orchestrator.dto.PayrollRunRequest;
 import com.bigbrightpaints.erp.orchestrator.exception.OrchestratorFeatureDisabledException;
@@ -151,16 +150,10 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
             "ops@bbp.com");
     assertThat(replayTrace).isEqualTo("trace-replay");
 
-    assertThatThrownBy(
-            () ->
-                dispatcher.dispatchBatch(
-                    new DispatchRequest("BATCH-1", "ops@bbp.com", new BigDecimal("50.00")),
-                    "idem-dispatch",
-                    "req-dispatch",
-                    "C1",
-                    "ops@bbp.com"))
-        .isInstanceOf(OrchestratorFeatureDisabledException.class)
-        .hasMessageContaining("/api/v1/dispatch/confirm");
+    assertThat(
+            java.util.Arrays.stream(CommandDispatcher.class.getDeclaredMethods())
+                .map(java.lang.reflect.Method::getName))
+        .doesNotContain("dispatchBatch");
 
     OrchestratorCommand payrollCommand =
         new OrchestratorCommand(1L, "ORCH.PAYROLL.RUN", "idem-payroll", "hash", "trace-payroll");
@@ -240,16 +233,10 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
           null,
           "req-fulfill",
           principal);
-      assertThatThrownBy(
-              () ->
-                  OrchestratorController.class.getDeclaredMethod(
-                      "dispatch",
-                      String.class,
-                      Class.forName("com.bigbrightpaints.erp.orchestrator.dto.DispatchRequest"),
-                      String.class,
-                      String.class,
-                      Principal.class))
-          .isInstanceOf(NoSuchMethodException.class);
+      assertThat(
+              java.util.Arrays.stream(CommandDispatcher.class.getDeclaredMethods())
+                  .map(java.lang.reflect.Method::getName))
+          .doesNotContain("dispatchBatch");
       assertThatThrownBy(
               () ->
                   OrchestratorController.class.getDeclaredMethod(
@@ -361,16 +348,10 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
         .hasMessageContaining("reserve failed");
     verify(idempotencyService).markFailed(eq(failingApprove), any(RuntimeException.class));
 
-    assertThatThrownBy(
-            () ->
-                dispatcher.dispatchBatch(
-                    new DispatchRequest("B-9", "ops@bbp.com", BigDecimal.ZERO),
-                    "idem-dispatch-zero",
-                    "req-dispatch-zero",
-                    "C1",
-                    "ops@bbp.com"))
-        .isInstanceOf(OrchestratorFeatureDisabledException.class)
-        .hasMessageContaining("/api/v1/dispatch/confirm");
+    assertThat(
+            java.util.Arrays.stream(CommandDispatcher.class.getDeclaredMethods())
+                .map(java.lang.reflect.Method::getName))
+        .doesNotContain("dispatchBatch");
     verifyNoInteractions(eventPublisherService, traceService);
   }
 
@@ -482,7 +463,7 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
   }
 
   @Test
-  void commandDispatcher_dispatch_fails_closed_while_payroll_replay_still_short_circuits() {
+  void commandDispatcher_retired_dispatch_shortcut_stays_deleted_while_payroll_replay_shortCircuits() {
     WorkflowService workflowService = mock(WorkflowService.class);
     IntegrationCoordinator integrationCoordinator = mock(IntegrationCoordinator.class);
     EventPublisherService eventPublisherService = mock(EventPublisherService.class);
@@ -501,17 +482,10 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
             idempotencyService,
             featureFlags);
 
-    assertThatThrownBy(
-            () ->
-                dispatcher.dispatchBatch(
-                    new DispatchRequest("B-R1", "ops@bbp.com", BigDecimal.ZERO),
-                    "idem-dispatch-replay",
-                    "req-dispatch-replay",
-                    "C1",
-                    "ops@bbp.com"))
-        .isInstanceOf(OrchestratorFeatureDisabledException.class)
-        .hasMessageContaining("/api/v1/dispatch/confirm");
-    verify(featureFlags, never()).isFactoryDispatchEnabled();
+    assertThat(
+            java.util.Arrays.stream(CommandDispatcher.class.getDeclaredMethods())
+                .map(java.lang.reflect.Method::getName))
+        .doesNotContain("dispatchBatch");
     verifyNoInteractions(idempotencyService);
 
     OrchestratorCommand replayPayroll =

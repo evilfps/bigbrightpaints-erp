@@ -142,8 +142,8 @@ require_literal "CorrelationIdentifierSanitizer.sanitizeOptionalIdempotencyKey(e
   "EventPublisherService does not sanitize idempotency keys before outbox persistence"
 
 # Regression tests must pin correlation propagation.
-require_literal "dispatchBatchFailsClosedToCanonicalDispatchPath" "$DISPATCHER_TEST" \
-  "CommandDispatcherTest missing fail-closed dispatch regression assertion"
+require_literal "retiredDispatchShortcutIsRemovedFromCommandDispatcher" "$DISPATCHER_TEST" \
+  "CommandDispatcherTest missing retired dispatch shortcut removal assertion"
 require_literal "updateOrderFulfillmentPropagatesTraceAndIdempotencyToCoordinator" "$DISPATCHER_TEST" \
   "CommandDispatcherTest missing fulfillment correlation propagation assertion"
 require_literal "reserveInventoryCorrelationAnnotatesProductionArtifactsAndAttachesTrace" "$COORDINATOR_TEST" \

@@ -19,6 +19,7 @@ SALES_CORE_ENGINE="$ERP_MAIN_DIR/modules/sales/service/SalesCoreEngine.java"
 COMMAND_DISPATCHER="$ERP_MAIN_DIR/orchestrator/service/CommandDispatcher.java"
 INTEGRATION_COORDINATOR="$ERP_MAIN_DIR/orchestrator/service/IntegrationCoordinator.java"
 ORCHESTRATOR_DIR="$ERP_MAIN_DIR/orchestrator"
+DISPATCH_REQUEST="$ERP_MAIN_DIR/orchestrator/dto/DispatchRequest.java"
 
 fail() {
   echo "[guard_workflow_canonical_paths] FAIL: $1" >&2
@@ -105,7 +106,7 @@ for path in \
   [[ -f "$path" ]] || fail "missing required source file: $path"
 done
 
-python3 - "$SALES_CORE_ENGINE" "$COMMAND_DISPATCHER" "$INTEGRATION_COORDINATOR" "$ORCHESTRATOR_DIR" <<'PY' || fail "canonical dispatch source checks failed"
+python3 - "$SALES_CORE_ENGINE" "$COMMAND_DISPATCHER" "$INTEGRATION_COORDINATOR" "$ORCHESTRATOR_DIR" "$DISPATCH_REQUEST" <<'PY' || fail "canonical dispatch source checks failed"
 from pathlib import Path
 import re
 import sys
@@ -114,6 +115,7 @@ sales_core_path = Path(sys.argv[1])
 command_dispatcher_path = Path(sys.argv[2])
 integration_coordinator_path = Path(sys.argv[3])
 orchestrator_dir = Path(sys.argv[4])
+dispatch_request_path = Path(sys.argv[5])
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
@@ -154,15 +156,12 @@ for required_call, label in [
         fail(f"missing {label}")
 
 command_dispatcher = read(command_dispatcher_path)
-dispatch_batch_body = extract_method_body(
-    command_dispatcher,
-    r"public\s+String\s+dispatchBatch\s*\([^)]*\)\s*\{",
-    "CommandDispatcher.dispatchBatch"
-)
-if "throw new OrchestratorFeatureDisabledException(" not in dispatch_batch_body:
-    fail("CommandDispatcher.dispatchBatch must fail closed instead of dispatching through an alternate posting path")
-if "/api/v1/dispatch/confirm" not in dispatch_batch_body and "CANONICAL_DISPATCH_PATH" not in dispatch_batch_body:
-    fail("CommandDispatcher.dispatchBatch must point callers to /api/v1/dispatch/confirm")
+if "dispatchBatch(" in command_dispatcher:
+    fail("CommandDispatcher must not keep the retired dispatchBatch shortcut")
+if "DispatchRequest" in command_dispatcher:
+    fail("CommandDispatcher must not reference the retired DispatchRequest payload")
+if dispatch_request_path.exists():
+    fail("DispatchRequest payload source must be deleted with the retired orchestrator dispatch shortcut")
 
 integration_coordinator = read(integration_coordinator_path)
 update_fulfillment_body = extract_method_body(

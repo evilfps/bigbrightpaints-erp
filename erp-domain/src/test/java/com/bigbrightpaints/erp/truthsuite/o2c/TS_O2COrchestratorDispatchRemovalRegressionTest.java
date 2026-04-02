@@ -1,7 +1,6 @@
 package com.bigbrightpaints.erp.truthsuite.o2c;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 
@@ -18,6 +17,8 @@ class TS_O2COrchestratorDispatchRemovalRegressionTest {
       "src/main/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinator.java";
   private static final String COMMAND_DISPATCHER =
       "src/main/java/com/bigbrightpaints/erp/orchestrator/service/CommandDispatcher.java";
+  private static final String DISPATCH_REQUEST =
+      "src/main/java/com/bigbrightpaints/erp/orchestrator/dto/DispatchRequest.java";
 
   @Test
   void integrationCoordinatorNoLongerContainsLegacyDispatchJournalMethodsOrHelpers() {
@@ -43,31 +44,34 @@ class TS_O2COrchestratorDispatchRemovalRegressionTest {
   }
 
   @Test
-  void commandDispatcherFailsClosedWithoutIndependentDispatchSideEffects() {
+  void commandDispatcherNoLongerExposesLegacyDispatchShortcut() {
     String source = TruthSuiteFileAssert.read(COMMAND_DISPATCHER);
 
-    assertTrue(
-        source.contains("throw new OrchestratorFeatureDisabledException("),
-        "CommandDispatcher.dispatchBatch should fail closed explicitly");
-    assertTrue(
-        source.contains("/api/v1/dispatch/confirm"),
-        "CommandDispatcher.dispatchBatch should point callers to the canonical dispatch endpoint");
+    assertFalse(
+        source.contains("dispatchBatch("),
+        "CommandDispatcher must not keep a legacy orchestrator dispatch shortcut");
+    assertFalse(
+        source.contains("DispatchRequest"),
+        "CommandDispatcher must not reference the retired dispatch request payload");
     assertFalse(
         source.contains("integrationCoordinator.updateProductionStatus("),
-        "dispatchBatch must not advance production status independently");
+        "Legacy dispatch shortcut must not advance production status independently");
     assertFalse(
         source.contains("integrationCoordinator.releaseInventory("),
-        "dispatchBatch must not release inventory independently");
+        "Legacy dispatch shortcut must not release inventory independently");
     assertFalse(
         source.contains("integrationCoordinator.postDispatchJournal("),
-        "dispatchBatch must not post orchestrator dispatch journals");
+        "Legacy dispatch shortcut must not post orchestrator dispatch journals");
     assertFalse(
         source.contains("workflowService.startWorkflow(\"dispatch\")"),
-        "dispatchBatch must not start a dispatch workflow after fail-closing");
+        "Legacy dispatch shortcut must not start a dispatch workflow");
   }
 
   @Test
   void staleOrchestratorDispatchArtifactsAreRemovedFromSourceTree() {
+    assertFalse(
+        Files.exists(TruthSuiteFileAssert.resolve(DISPATCH_REQUEST)),
+        "Legacy DispatchRequest payload should be deleted");
     assertFalse(
         Files.exists(
             TruthSuiteFileAssert.resolve(
