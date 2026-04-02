@@ -1,6 +1,12 @@
-# BigBright ERP Data Migration Guide
+# orchestrator-erp Data Migration Guide (Retired Reference)
 
-This guide covers end-to-end onboarding migration for a new company in BigBright ERP:
+> ⚠️ **RETIRED / REFERENCE ONLY**: This guide is retained as an archival snapshot of older onboarding migration notes. Current canonical migration rollout and rollback truth lives in [docs/runbooks/migrations.md](runbooks/migrations.md).
+>
+> There is **no maintained canonical replacement** for the legacy CSV/Tally appendix below. If you reuse any detail from this file, verify it directly against current source, `openapi.json`, and the runbook before treating it as current truth.
+
+Last reviewed: 2026-04-02
+
+This archival guide covers end-to-end onboarding migration for a new company in the older BigBright ERP framing:
 
 1. Prepare and import opening accounting balances from CSV
 2. Prepare and import opening inventory stock from CSV

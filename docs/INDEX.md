@@ -116,6 +116,21 @@ The seeded ADR set covers multi-tenant auth scoping (ADR-002), outbox/idempotenc
 | [docs/frontend-handoff-finance.md](frontend-handoff-finance.md) | Reference only — superseded by `docs/frontend-portals/` and `docs/frontend-api/` |
 | [docs/accounting-portal-frontend-engineer-handoff.md](accounting-portal-frontend-engineer-handoff.md) | Reference only — superseded by `docs/frontend-portals/accounting/` |
 
+## Historical Workflow Guides (Reference Only)
+
+> **⚠️ These workflow guides are NON-CANONICAL / REFERENCE ONLY.** Canonical lifecycle truth lives in `docs/flows/*`. The guides below are retained as historical step-by-step references and are also registered in `docs/deprecated/INDEX.md`.
+
+| Document | Status |
+| --- | --- |
+| [docs/workflows/admin-and-tenant-management.md](workflows/admin-and-tenant-management.md) | Reference only — superseded by `docs/flows/tenant-admin-management.md` |
+| [docs/workflows/manufacturing-and-packaging.md](workflows/manufacturing-and-packaging.md) | Reference only — superseded by `docs/flows/manufacturing-packing.md` |
+| [docs/workflows/inventory-management.md](workflows/inventory-management.md) | Reference only — superseded by `docs/flows/inventory-management.md` |
+| [docs/workflows/sales-order-to-cash.md](workflows/sales-order-to-cash.md) | Reference only — superseded by `docs/flows/order-to-cash.md` |
+| [docs/workflows/purchase-to-pay.md](workflows/purchase-to-pay.md) | Reference only — superseded by `docs/flows/procure-to-pay.md` |
+| [docs/workflows/accounting-and-period-close.md](workflows/accounting-and-period-close.md) | Reference only — superseded by `docs/flows/accounting-period-close.md` |
+| [docs/workflows/payroll.md](workflows/payroll.md) | Reference only — superseded by `docs/flows/hr-payroll.md` |
+| [docs/workflows/data-migration.md](workflows/data-migration.md) | Reference only — use `docs/runbooks/migrations.md` for current migration rollout truth |
+
 ## Deprecated and Incomplete Surfaces
 
 The deprecated/incomplete registry lists retired, partial, duplicated, or dead-end surfaces. Every entry points to a canonical replacement or explicitly states that no replacement exists.
@@ -156,3 +171,4 @@ The following docs remain in the repo for reference but are **not** part of the 
 | --- | --- |
 | [developer-guide.md](developer-guide.md) | Non-canonical — superseded by the module packets and flow packets in the docs tree |
 | [endpoint-inventory.md](endpoint-inventory.md) | Reference only; use `openapi.json` and module packets as primary truth |
+| [migration-guide.md](migration-guide.md) | Retired reference only — current migration rollout guidance lives in `docs/runbooks/migrations.md`; the legacy CSV/Tally appendix is archival |

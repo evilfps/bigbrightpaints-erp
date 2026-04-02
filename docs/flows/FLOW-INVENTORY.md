@@ -1,8 +1,8 @@
 # Backend Flow Inventory
 
-Last reviewed: 2026-03-30
+Last reviewed: 2026-04-02
 
-This document is the canonical inventory of major backend flows in BigBright ERP. Each entry names the flow family, summarises its lifecycle, identifies the owning module and key cross-module participants, and links to the canonical flow packet where the full behaviour is documented.
+This document is the canonical inventory of major backend flows in `orchestrator-erp`. Each entry names the flow family, summarises its lifecycle, identifies the owning module and key cross-module participants, and links to the canonical flow packet where the full behaviour is documented.
 
 A reader can discover the current flow landscape from this inventory without grepping source code.
 
@@ -35,11 +35,11 @@ A reader can discover the current flow landscape from this inventory without gre
   - **Commercial and finance:** Order-to-Cash, Procure-to-Pay, Invoice/Dealer Finance, Accounting/Period Close, HR/Payroll
   - **Reporting:** Reporting/Export
 - All eleven flow packets have been created and are linked from this inventory. Each packet contains behaviour-first documentation including current definitions of done, canonical vs non-canonical paths, and known limitations.
-- Historical workflow guides under [docs/workflows/](../workflows/) remain available as reference but are not the canonical flow packets. The new flow packets supersede them.
+- Historical workflow guides under [docs/workflows/](../workflows/) remain available as reference but are not the canonical flow packets. The replacement mapping is tracked in [docs/deprecated/INDEX.md](../deprecated/INDEX.md).
 
 ## Supporting Workflow Guides (Historical)
 
-The following historical workflow guides document operational step-by-step procedures for several flow families. They remain useful for day-to-day operations but will be superseded by the canonical flow packets as those are created:
+The following historical workflow guides document operational step-by-step procedures for several flow families. They remain useful as archival operational references, but the canonical flow packets already supersede them:
 
 | Guide | Flow Family |
 | --- | --- |
@@ -56,7 +56,7 @@ The following historical workflow guides document operational step-by-step proce
 
 | Flow Family | Primary Route Prefixes |
 | --- | --- |
-| Auth / Identity | `/api/v1/auth/**`, `/api/v1/auth/mfa/**`, `/api/v1/auth/profile/**` |
+| Auth / Identity | `/api/v1/auth/**`, `/api/v1/auth/mfa/**`, `GET /api/v1/auth/me` |
 | Tenant / Admin Management | `/api/v1/superadmin/**`, `/api/v1/companies/**`, `/api/v1/admin/**`, `/api/v1/changelog/**` |
 | Catalog / Setup Readiness | `/api/v1/catalog/**` |
 | Manufacturing / Packing | `/api/v1/factory/**` |
