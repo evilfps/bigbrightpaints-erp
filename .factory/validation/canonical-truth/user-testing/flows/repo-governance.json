@@ -2,55 +2,54 @@
   "surface": "repo-static",
   "group": "repo-governance",
   "groupId": "repo-governance",
-  "testedAt": "2026-04-02T15:58:49.703793Z",
+  "testedAt": "2026-04-02T16:27:05.465782Z",
   "toolsUsed": [
     "Read",
     "Grep",
-    "LS",
-    "Glob"
+    "LS"
   ],
   "assertions": [
     {
-      "id": "VAL-DOCS-005",
-      "title": "Repo surface has no unexplained junk or artifact ballast",
-      "status": "pass",
-      "reason": "The current repo surface keeps only still-referenced non-product areas: `artifacts/` is an active CI/gate output surface, `docs/CODE-RED/confidence-suite/TEST_CATALOG.json` is still consumed by gate scripts, `asyncloop` is absent, no root/docs worklog or report markdown files were found, and retained legacy docs/report surfaces are explicitly marked historical or non-canonical rather than posing as current product docs.",
-      "evidence": [
-        "/home/realnigga/Desktop/Mission-control/.github/workflows/ci.yml:713,758,824,869 \u2014 CI uploads `artifacts/gate-fast/**`, `artifacts/gate-core/**`, `artifacts/gate-release/**`, and `artifacts/gate-reconciliation/**`, so the repo-root `artifacts/` surface is still live.",
-        "/home/realnigga/Desktop/Mission-control/scripts/gate_fast.sh:5,297; scripts/gate_core.sh:5,120; scripts/gate_release.sh:6,227; scripts/gate_reconciliation.sh:5,114; scripts/validate_test_catalog.py:18 \u2014 active scripts still write/read under `artifacts/` and consume `docs/CODE-RED/confidence-suite/TEST_CATALOG.json`.",
-        "Glob over `/home/realnigga/Desktop/Mission-control/*report*.md`, `*worklog*.md`, `docs/*report*.md`, and `docs/*worklog*.md` returned no matches, so there are no stray repo-root/docs-root worklog or report markdown files in canonical-looking locations.",
-        "/home/realnigga/Desktop/Mission-control/docs/code-review/README.md:3 \u2014 the retained review-artifact tree is explicitly marked `NON-CANONICAL` and redirects readers to `docs/modules/`, `docs/flows/`, and `docs/INDEX.md`.",
-        "/home/realnigga/Desktop/Mission-control/docs/flows/FLOW-INVENTORY.md:38,46-53 \u2014 historical `docs/workflows/` guides are kept only as reference and are clearly separated from the canonical flow packets.",
-        "/home/realnigga/Desktop/Mission-control/docs/INDEX.md:107,151,157; docs/developer-guide.md:1-3; docs/endpoint-inventory.md:1-4; docs/frontend-handoff-finance.md:1-9; docs/accounting-portal-frontend-engineer-handoff.md:1-9 \u2014 retained legacy docs are explicitly labeled reference-only / non-canonical rather than presented as current product truth.",
-        "LS/Glob under `/home/realnigga/Desktop/Mission-control` found no `asyncloop` path, matching the milestone requirement to remove that ballast once unreferenced."
-      ]
-    },
-    {
       "id": "VAL-DOCS-006",
       "title": "Docs-only governance is narrow and consistent",
-      "status": "fail",
-      "reason": "The executable classifier and canonical governance docs agree on the same narrow docs-only lane and on running `bash ci/lint-knowledgebase.sh` as the only validator while skipping Codex/subagent/runtime checks, but `mission.md` still says docs-only changes should `skip scrutiny and validators`. That omits the required lint-only check, so the documented policy is not fully consistent across mission/root/script surfaces.",
-      "evidence": [
-        "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/mission.md:17 and 97-99 \u2014 docs-only changes are described as `skip scrutiny and validators`, with no lint-only exception.",
-        "/home/realnigga/Desktop/Mission-control/AGENTS.md:29-30 \u2014 repo governance narrows docs-only to the canonical docs/governance lane and says to run `bash ci/lint-knowledgebase.sh` only while skipping Codex review/subagent/runtime validators.",
-        "/home/realnigga/Desktop/Mission-control/docs/CONVENTIONS.md:163,167-169 \u2014 canonical docs conventions repeat the same lane and the same lint-only + skip review/runtime behavior.",
-        "/home/realnigga/Desktop/Mission-control/docs/agents/PERMISSIONS.md:17 \u2014 docs-only governance packets may skip Codex review/subagent review only when the lane stays inside the explicit allowlist and `bash ci/lint-knowledgebase.sh` passes.",
-        "/home/realnigga/Desktop/Mission-control/docs/agents/WORKFLOW.md:18-22 \u2014 workflow governance repeats the same narrow lane and `bash ci/lint-knowledgebase.sh`-only behavior.",
-        "/home/realnigga/Desktop/Mission-control/docs/SECURITY.md:23-24 \u2014 docs-only review-policy packets validate with `bash ci/lint-knowledgebase.sh`, while runtime/config/schema/test changes use strict review checks.",
-        "/home/realnigga/Desktop/Mission-control/scripts/enforce_codex_review_policy.sh:39,78,83 \u2014 the executable policy uses the same allowlist and emits `run knowledgebase lint only and skip Codex review/subagent/runtime validators`; non-doc paths fall back to strict review checks."
+      "status": "pass",
+      "reason": "The mission guidance no longer contradicts the executable policy: repo-root and canonical governance docs still define the same narrow docs-only allowlist, and the script routes that allowlist to `bash ci/lint-knowledgebase.sh` only while skipping Codex review/subagent/runtime validators.",
+      "steps": [
+        {
+          "action": "Inspect `/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/mission.md` docs-only guidance.",
+          "expected": "Mission guidance keeps the lint-only exception and does not claim docs-only work skips validators entirely.",
+          "observed": "`mission.md` now says docs-only packets still run `bash ci/lint-knowledgebase.sh` as the sole docs-only validator while skipping scrutiny and runtime/user-testing validators."
+        },
+        {
+          "action": "Inspect repo-root and canonical governance docs (`AGENTS.md`, `docs/CONVENTIONS.md`, `docs/agents/PERMISSIONS.md`, `docs/agents/WORKFLOW.md`, `docs/SECURITY.md`).",
+          "expected": "The same narrow docs/governance lane and the same skip-review/runtime expectations are documented consistently.",
+          "observed": "Those governance files all restate the canonical docs/governance allowlist and the same `bash ci/lint-knowledgebase.sh`-only validation behavior for docs-only packets."
+        },
+        {
+          "action": "Inspect `/home/realnigga/Desktop/Mission-control/scripts/enforce_codex_review_policy.sh`.",
+          "expected": "The executable classifier uses the same allowlist and routes only that lane through knowledgebase lint while sending everything else to strict review checks.",
+          "observed": "The script whitelist matches the documented lane and emits `docs-only change-set detected` plus `run knowledgebase lint only and skip Codex review/subagent/runtime validators`; non-allowlisted paths fall back to strict review checks."
+        },
+        {
+          "action": "Compare mission, root, canonical-doc, and script policy surfaces.",
+          "expected": "No remaining contradiction about docs-only scope or validator expectations.",
+          "observed": "The prior contradiction is resolved; all inspected policy surfaces now align on the narrow docs-only lane and lint-only validation path."
+        }
       ],
-      "issues": [
-        "Update mission-level docs-only guidance so it matches the executable policy: docs-only packets should be limited to the canonical allowlist and still run `bash ci/lint-knowledgebase.sh` rather than skipping validators entirely."
-      ]
+      "evidence": [
+        "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/canonical-truth/repo-governance/VAL-DOCS-006-evidence.json",
+        "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/mission.md:17,28,98",
+        "/home/realnigga/Desktop/Mission-control/AGENTS.md:29-30",
+        "/home/realnigga/Desktop/Mission-control/docs/CONVENTIONS.md:157,165,167-170",
+        "/home/realnigga/Desktop/Mission-control/docs/agents/PERMISSIONS.md:17",
+        "/home/realnigga/Desktop/Mission-control/docs/agents/WORKFLOW.md:18-22",
+        "/home/realnigga/Desktop/Mission-control/docs/SECURITY.md:23-24",
+        "/home/realnigga/Desktop/Mission-control/scripts/enforce_codex_review_policy.sh:36-39,77-83"
+      ],
+      "issues": null
     }
   ],
-  "frictions": [
-    {
-      "description": "Initial repo-wide `Grep` sweeps were truncated because the repository contains many historical validation artifacts.",
-      "resolved": true,
-      "resolution": "Narrowed searches to the specific governance files, scripts, and retained repo surfaces required by VAL-DOCS-005 and VAL-DOCS-006."
-    }
-  ],
+  "frictions": [],
   "blockers": [],
-  "summary": "Tested 2 assertions: 1 passed and 1 failed. VAL-DOCS-005 passes because the remaining repo-root/docs-root non-product surfaces are still governance- or script-linked and clearly labeled when non-canonical. VAL-DOCS-006 fails because `mission.md` still says docs-only changes skip validators, which conflicts with the executable/docs governance rule that requires `bash ci/lint-knowledgebase.sh` as the sole docs-only validator."
+  "summary": "Re-tested 1 assertion: 1 passed. VAL-DOCS-006 now passes because mission guidance, repo-root/canonical governance docs, and the executable review-policy script all agree on the same narrow docs-only lane and the same `bash ci/lint-knowledgebase.sh`-only validation behavior."
 }

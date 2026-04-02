@@ -2,101 +2,75 @@
   "surface": "repo-static",
   "groupId": "docs-spine",
   "group": "docs-spine",
-  "testedAt": "2026-04-02T15:58:25Z",
+  "testedAt": "2026-04-02T16:29:10Z",
   "toolsUsed": [
     "Read",
     "Grep",
-    "LS"
+    "LS",
+    "Execute"
   ],
   "assertions": [
-    {
-      "id": "VAL-DOCS-001",
-      "title": "Canonical entry points agree on current truth",
-      "status": "pass",
-      "reason": "The primary entry points consistently route readers into docs/ as the public truth surface, and .factory/library is called out only as internal worker guidance rather than active reader-facing documentation.",
-      "evidence": [
-        "README.md \u2014 'Documentation Spine' points to docs/INDEX.md, docs/ARCHITECTURE.md, docs/frontend-portals/README.md, docs/frontend-api/README.md, and docs/deprecated/INDEX.md; README also states '.factory/library/*' is internal worker guidance.",
-        "ARCHITECTURE.md \u2014 repo-root file self-describes as a signpost into the canonical docs spine and routes to docs/INDEX.md, docs/ARCHITECTURE.md, and docs/deprecated/INDEX.md.",
-        "docs/INDEX.md \u2014 states it is the canonical entrypoint and says public runtime/deployment truth lives under docs/ while '.factory/library/*' is internal guidance.",
-        "docs/ARCHITECTURE.md \u2014 self-describes as the canonical runtime architecture reference and points back to docs/INDEX.md and repo-root ARCHITECTURE.md as the signpost."
-      ]
-    },
     {
       "id": "VAL-DOCS-002",
       "title": "Current docs are reachable from the canonical spine",
       "status": "fail",
-      "reason": "docs/INDEX.md says packets not reachable through the index are not part of the canonical docs tree, but several retained docs outside that spine remain unlabeled and look current instead of being clearly marked as non-canonical/reference-only.",
+      "reason": "The docs spine still leaves some top-level docs outside docs/INDEX without any non-canonical/reference-only labeling, so a reader cannot reliably tell that those surfaces are outside the canonical tree.",
+      "evidencePaths": [
+        "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/canonical-truth/docs-spine/VAL-DOCS-002.md"
+      ],
       "evidence": [
-        "docs/INDEX.md \u2014 declares that every major docs section is linked from the index and that packets not reachable through it are not part of the canonical docs tree.",
-        "docs/migration-guide.md \u2014 present under docs/ with no non-canonical/reference banner and not listed in docs/INDEX.md.",
-        "docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md \u2014 present under docs/ with no non-canonical/reference banner and not listed in docs/INDEX.md.",
-        "docs/AUDIT_TRAIL_OWNERSHIP.md \u2014 present under docs/ with no non-canonical/reference banner and not listed in docs/INDEX.md.",
-        "docs/accounting-portal-endpoint-map.md \u2014 present under docs/ with no non-canonical/reference banner and not listed in docs/INDEX.md.",
-        "docs/ARCHITECTURE.md \u2014 links to docs/developer/onboarding-stock-readiness/06-stock-truth-decision.md, but docs/INDEX.md does not classify that developer packet."
+        "docs/INDEX.md says packets not reachable through the index are outside the canonical docs tree.",
+        "docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md is not indexed and opens with a plain title plus `Status: mandatory, do not remove.` rather than a non-canonical/reference banner.",
+        "docs/AUDIT_TRAIL_OWNERSHIP.md is not indexed and opens as a normal doc with `## Canonical Audit Surfaces` rather than a non-canonical/reference banner.",
+        "docs/accounting-portal-endpoint-map.md is not indexed and opens as a normal OpenAPI-driven doc without a non-canonical/reference banner."
       ]
     },
     {
       "id": "VAL-DOCS-003",
       "title": "Superseded docs are deleted or explicitly retired",
-      "status": "fail",
-      "reason": "At least one retained stale surface is not explicitly retired: docs/workflows/data-migration.md warns that docs/migration-guide.md may be outdated and points readers to docs/runbooks/migrations.md, but docs/migration-guide.md itself has no retirement banner and is absent from the retirement registry.",
+      "status": "pass",
+      "reason": "The previously stale retained docs sampled in this rerun now carry explicit top-of-file non-canonical/reference banners and point readers to their replacements or to an explicit no-replacement note.",
+      "evidencePaths": [
+        "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/canonical-truth/docs-spine/VAL-DOCS-003.md"
+      ],
       "evidence": [
-        "docs/CONVENTIONS.md \u2014 stale-doc policy requires legacy docs to be redirected, archived, or marked non-canonical/reference-only.",
-        "docs/workflows/data-migration.md \u2014 marked NON-CANONICAL and says docs/migration-guide.md 'may be outdated' while directing readers to docs/runbooks/migrations.md.",
-        "docs/migration-guide.md \u2014 still presents itself as a normal guide with no non-canonical/reference-only banner.",
-        "docs/deprecated/INDEX.md \u2014 contains no entry for docs/migration-guide.md."
+        "docs/developer-guide.md is bannered `NON-CANONICAL` and redirects to the indexed module/flow inventories.",
+        "docs/endpoint-inventory.md is bannered `REFERENCE ONLY` and redirects readers to `openapi.json` plus indexed canonical docs.",
+        "docs/migration-guide.md is bannered `RETIRED / REFERENCE ONLY` and explicitly states there is no maintained canonical replacement for the old CSV/Tally appendix.",
+        "Sample legacy frontend/workflow docs now carry matching non-canonical banners and replacement links, and docs/deprecated/INDEX.md registers them."
       ]
     },
     {
       "id": "VAL-DOCS-004",
       "title": "Retirement registry covers hard cuts",
-      "status": "fail",
-      "reason": "The retirement registry does not cover all retained hard-cut docs surfaces. It lists developer-guide and endpoint-inventory, but not the legacy frontend handoff docs or the historical workflow guides that the canonical index and flow inventory still surface as reference material.",
+      "status": "pass",
+      "reason": "The retirement registry now covers both sampled hard-cut routes and the retained reference-only docs surfaces, with either a replacement path or an explicit no-replacement statement.",
+      "evidencePaths": [
+        "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/canonical-truth/docs-spine/VAL-DOCS-004.md"
+      ],
       "evidence": [
-        "docs/deprecated/INDEX.md \u2014 'Historical Documentation' only registers docs/developer-guide.md and docs/endpoint-inventory.md.",
-        "docs/INDEX.md \u2014 still lists frontend-handoff-platform.md, frontend-handoff-operations.md, frontend-handoff-commercial.md, frontend-handoff-finance.md, and accounting-portal-frontend-engineer-handoff.md as retained reference-only docs.",
-        "docs/flows/FLOW-INVENTORY.md \u2014 still lists docs/workflows/admin-and-tenant-management.md, manufacturing-and-packaging.md, inventory-management.md, sales-order-to-cash.md, purchase-to-pay.md, accounting-and-period-close.md, payroll.md, and data-migration.md as historical workflow guides.",
-        "docs/frontend-handoff-platform.md and docs/workflows/payroll.md \u2014 retained legacy docs exist, but docs/deprecated/INDEX.md does not give readers a registry entry with their replacement path."
+        "docs/deprecated/INDEX.md states every entry points to a canonical replacement or explicitly says no replacement exists.",
+        "The registry maps `POST /api/v1/catalog/products` to `POST /api/v1/catalog/items` as a hard-cut replacement.",
+        "The registry marks legacy raw-material intake endpoints as `No replacement` and explains the surviving GRN path.",
+        "The registry now includes the retained legacy handoff/workflow/reference docs that were missing in the earlier failed synthesis."
       ]
     },
     {
       "id": "VAL-DOCS-007",
       "title": "Canonical naming matches the approved product identity",
       "status": "fail",
-      "reason": "The canonical docs spine uses mixed product identity. The entrypoints use orchestrator-erp, but multiple canonical docs still describe the current product as BigBright ERP.",
+      "reason": "The entrypoints use `orchestrator-erp`, but many active canonical docs still describe the current product as `BigBright ERP`, so the naming remediation is incomplete.",
+      "evidencePaths": [
+        "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/canonical-truth/docs-spine/VAL-DOCS-007.md"
+      ],
       "evidence": [
-        "README.md, ARCHITECTURE.md, docs/INDEX.md, and docs/ARCHITECTURE.md \u2014 use orchestrator-erp naming on their entrypoint titles/introductions.",
-        "docs/CONVENTIONS.md \u2014 still says 'BigBright ERP backend documentation library'.",
-        "docs/BACKEND-FEATURE-CATALOG.md \u2014 still says 'BigBright ERP backend feature landscape'.",
-        "docs/RECOMMENDATIONS.md \u2014 still says it is the canonical recommendations surface for the 'BigBright ERP backend'.",
-        "docs/RELIABILITY.md and docs/flows/FLOW-INVENTORY.md \u2014 still title/describe the product as BigBright ERP."
-      ]
-    },
-    {
-      "id": "VAL-DOCS-008",
-      "title": "Index and file-local canonical status agree",
-      "status": "pass",
-      "reason": "The sampled files inspected for index/registry status agree with their file-local banners or self-descriptions: canonical files describe themselves as canonical, while retained reference docs label themselves as non-canonical/reference-only in line with the index and retirement registry.",
-      "evidence": [
-        "docs/INDEX.md + docs/ARCHITECTURE.md \u2014 index presents docs/ARCHITECTURE.md as canonical runtime architecture, and docs/ARCHITECTURE.md self-describes as the canonical runtime architecture reference.",
-        "docs/INDEX.md + docs/deprecated/INDEX.md + docs/developer-guide.md \u2014 indexes call developer-guide non-canonical/superseded, and the file banner says NON-CANONICAL.",
-        "docs/INDEX.md + docs/deprecated/INDEX.md + docs/endpoint-inventory.md \u2014 indexes call endpoint-inventory reference-only, and the file banner says REFERENCE ONLY.",
-        "docs/INDEX.md + docs/frontend-handoff-platform.md \u2014 index marks legacy frontend handoffs reference-only, and the file banner says NON-CANONICAL / REFERENCE ONLY."
+        "README.md, ARCHITECTURE.md, and docs/INDEX.md now use `orchestrator-erp`.",
+        "docs/CONVENTIONS.md, docs/RELIABILITY.md, docs/RECOMMENDATIONS.md, and docs/BACKEND-FEATURE-CATALOG.md still use `BigBright ERP` in active canonical content.",
+        "Canonical docs under docs/agents/, docs/adrs/, and docs/modules/ still contain current-product `BigBright ERP` wording."
       ]
     }
   ],
-  "frictions": [
-    {
-      "description": "A broad grep over docs classification/naming text was truncated because the repo contains many markdown matches.",
-      "resolved": true,
-      "resolution": "Narrowed the search to specific canonical and retained doc surfaces, then confirmed results with direct file reads.",
-      "affectedAssertions": [
-        "VAL-DOCS-002",
-        "VAL-DOCS-007",
-        "VAL-DOCS-008"
-      ]
-    }
-  ],
+  "frictions": [],
   "blockers": [],
-  "summary": "Tested 6 docs-spine assertions via read-only repo inspection: 2 passed (VAL-DOCS-001, VAL-DOCS-008) and 4 failed (VAL-DOCS-002, VAL-DOCS-003, VAL-DOCS-004, VAL-DOCS-007)."
+  "summary": "Re-ran 4 repo-static docs-spine assertions: 2 passed (VAL-DOCS-003, VAL-DOCS-004) and 2 failed (VAL-DOCS-002, VAL-DOCS-007). The earlier migration-guide/retirement-registry gaps are fixed, but unlabeled out-of-spine docs and mixed product naming remain."
 }

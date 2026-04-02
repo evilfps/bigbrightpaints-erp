@@ -1,0 +1,47 @@
+{
+  "milestone": "canonical-truth",
+  "round": 1,
+  "status": "fail",
+  "assertionsSummary": {
+    "total": 8,
+    "passed": 3,
+    "failed": 5,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-DOCS-001",
+    "VAL-DOCS-005",
+    "VAL-DOCS-008"
+  ],
+  "failedAssertions": [
+    {
+      "id": "VAL-DOCS-002",
+      "reason": "docs/INDEX.md limits the canonical tree to indexed documents, but several retained docs still sit outside that spine without non-canonical/reference labeling."
+    },
+    {
+      "id": "VAL-DOCS-003",
+      "reason": "docs/migration-guide.md remains retained without explicit retirement even though docs/workflows/data-migration.md warns it may be outdated and points readers to docs/runbooks/migrations.md."
+    },
+    {
+      "id": "VAL-DOCS-004",
+      "reason": "docs/deprecated/INDEX.md does not yet cover all retained hard-cut/reference surfaces, including legacy frontend handoffs and historical workflow guides still surfaced elsewhere."
+    },
+    {
+      "id": "VAL-DOCS-006",
+      "reason": "mission.md still says docs-only work skips validators, which conflicts with the executable docs-only policy that still requires bash ci/lint-knowledgebase.sh."
+    },
+    {
+      "id": "VAL-DOCS-007",
+      "reason": "Canonical docs still mix orchestrator-erp naming with BigBright ERP naming in currently authoritative files."
+    }
+  ],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "user-testing.md",
+      "description": "Added repo-static docs/governance validation guidance, concurrency limits, and a dedicated flow-validator section so canonical-truth assertions can be tested without starting runtime services.",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null
+}
