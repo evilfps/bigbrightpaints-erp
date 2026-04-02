@@ -29,7 +29,7 @@ This surface proves the risky business seams the strict runtime smoke does not c
 ### 3. Docs-only packets
 
 - **Type:** no runtime/user-testing surface
-- **Rule:** docs-only changes in this mission skip scrutiny and skip validators
+- **Rule:** docs-only changes in this mission skip scrutiny and runtime/user-testing validators, but still require `bash ci/lint-knowledgebase.sh` as the sole docs-only check
 
 Docs-only packets are not user-testing targets unless a feature explicitly overrides this.
 
@@ -149,6 +149,7 @@ Rationale:
   3. `gate-release` and deploy-hardening proofs when release readiness is in scope
   4. contract/OpenAPI/docs alignment checks
 - If a feature only changes docs/governance, do not start services and do not run user-testing.
+- For docs-only packets, require `bash ci/lint-knowledgebase.sh` but do not escalate to runtime smoke or flow validation.
 - If a feature touches accounting, dispatch, runtime security, CI proof, or canonical contracts, explicitly re-run the dependent proof pack for that area.
 - When validating dispatch, the canonical public write is `POST /api/v1/dispatch/confirm`.
 - When validating auth bootstrap, the canonical surface is `GET /api/v1/auth/me`; `/api/v1/auth/profile` is retired.
