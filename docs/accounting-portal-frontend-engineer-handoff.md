@@ -599,7 +599,7 @@ These rows are required for the period-close maker-checker UX, but they live out
 - Purpose: Trial balance, P&L, balance sheet, cash flow, inventory valuation/reconciliation, aged debtors, wastage.
 - Required API calls: `reportTrialBalance`, `acctGetTrialBalanceAsOf`, `reportProfitLoss`, `reportBalanceSheet`, `reportCashFlow`, `reportInventoryValuation`, `reportInventoryReconciliation`, `reportAgedDebtors`, `reportWastageReport`, `reportReconciliationDashboard`, `acctGenerateGstReturn`
 - Admin-only legacy exports (do not treat as required for this route): `acctAuditDigest`, `acctAuditDigestCsv`
-- Audit-trail route dependency: use `/accounting/audit-trail` with `acctAuditTransactions` and `acctAuditTransactionDetail` for new transaction-audit UX.
+- Audit-trail route dependency: use `/accounting/audit-trail` with `acctAuditEvents`, `acctAuditTransactions`, and `acctAuditTransactionDetail`; tenant-admin escalations use `GET /api/v1/admin/audit/events`.
 - Loading state: report loader with parameter panel; no-data period state; export/download progress + failure details.
 - Empty state: no rows / no open items / no period data for selected filters.
 - Error state: inline widget errors + page-level retry + action-level toast; preserve user filters and unsaved inputs.
@@ -620,6 +620,8 @@ These rows are required for the period-close maker-checker UX, but they live out
 ## Delta Update (2026-02-13): Costing + Transaction Audit Trail + Approval Flows
 
 ### New Accounting Audit Trail APIs (Must Add In FE)
+
+Canonical audit reads are `GET /api/v1/accounting/audit/{events,transactions,transactions/{journalEntryId}}`; tenant-admin review stays on `GET /api/v1/admin/audit/events`, and platform review stays on `GET /api/v1/superadmin/audit/platform-events`.
 
 - `GET /api/v1/accounting/audit/transactions`
   - Query params: `from`, `to`, `module`, `status`, `reference`, `page` (default `0`), `size` (default `50`).
