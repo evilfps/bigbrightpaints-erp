@@ -2009,13 +2009,12 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 | `GET` | `/api/v1/dispatch/slip/{slipId}/challan/pdf` | `ROLE_ADMIN`/`ROLE_FACTORY` | — | `application/pdf` |
 | `POST` | `/api/v1/dispatch/confirm` | `ROLE_ADMIN`/`ROLE_FACTORY` + `dispatch.confirm` | `DispatchConfirmationRequest` | `DispatchConfirmationResponse` |
 | `POST` | `/api/v1/sales/dispatch/reconcile-order-markers` | `ROLE_SALES`/`ROLE_ADMIN` + `dispatch.confirm` | Query: `limit?` (default `200`) | `DispatchMarkerReconciliationResponse` |
-| `POST` | `/api/v1/orchestrator/factory/dispatch/{batchId}` | `ROLE_ADMIN` or `ROLE_FACTORY` + `factory.dispatch` | `DispatchRequest` | Deprecated compatibility path only; runtime returns `410 Gone` with `{ message, canonicalPath=/api/v1/dispatch/confirm }` and does not post or release anything |
 
 #### Portal boundary notes (2026-03-08)
 
 - `/api/v1/dispatch/**` is now the canonical dispatch workspace for factory/operator lookup, preview, slip detail, order lookup, challan download, and the single public dispatch-confirm write.
 - `/api/v1/dispatch/confirm` is the only surviving dispatch-confirm write surface. Factory/admin own the action; pure factory callers receive the redacted operational view, while admin/elevated callers keep only the permitted finance-linked fields.
-- `/api/v1/orchestrator/factory/dispatch/{batchId}` must not be used for shipment posting or inventory progression. It is retained only to fail closed with `410 Gone` and `canonicalPath=/api/v1/dispatch/confirm` so stale clients can be redirected safely.
+- Historical orchestrator dispatch shortcuts are retired from the active contract. Frontend shipment posting must use `/api/v1/dispatch/confirm` only.
 - `/api/v1/orchestrator/orders/{orderId}/fulfillment` still handles non-dispatch workflow states like `PROCESSING`, but dispatch-like target states (`SHIPPED`, `DISPATCHED`, `FULFILLED`, `COMPLETED`) now fail closed with `BUS_001` and instruct callers to use `/api/v1/dispatch/confirm`.
 - Credit override requests can still be created by sales/factory/admin on `/api/v1/credit/override-requests`, but approve/reject review is now limited to admin/accounting.
 - Dealer portal routes remain dealer-scoped for reads, but dealers can now submit permanent credit-limit requests on `/api/v1/dealer-portal/credit-limit-requests`. Do not surface dispatch-override actions in the dealer portal.

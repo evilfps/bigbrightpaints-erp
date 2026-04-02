@@ -51,7 +51,7 @@ Each entry follows this pattern:
 | `X-Idempotency-Key` header on packing requests | Rejected (400 error) | Use `Idempotency-Key` (canonical header) |
 | `X-Request-Id` header on packing requests | Rejected (400 error) | Use `Idempotency-Key` (canonical header) |
 | `ProductionBatch` entity | Unmaintained (unused) | Use `ProductionLog` entity for production tracking |
-| `DispatchRequest` command payload | Deprecated | Use direct dispatch execution via `DispatchController` |
+| Historical orchestrator dispatch shortcut (`POST /api/v1/orchestrator/factory/dispatch/{batchId}`) | Retired (hard cut) | No orchestrator replacement. Use `POST /api/v1/dispatch/confirm` for the canonical dispatch write |
 
 **Module Reference**: [factory.md](../modules/factory.md), [manufacturing-packing flow](../flows/manufacturing-packing.md)
 
