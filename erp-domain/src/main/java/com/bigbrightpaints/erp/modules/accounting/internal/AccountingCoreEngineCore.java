@@ -6895,6 +6895,15 @@ abstract class AccountingCoreEngineCore {
               "Debit note reference already used but journal entry is missing")
           .withDetail("reference", reference);
     }
+    if (StringUtils.hasText(reference)
+        && !Objects.equals(entry.getReferenceNumber(), reference)) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Debit note idempotency key already bound to a different reference")
+          .withDetail("reference", reference)
+          .withDetail("existingReferenceNumber", entry.getReferenceNumber())
+          .withDetail("requestedReferenceNumber", reference);
+    }
     if (purchase != null
         && purchase.getSupplier() != null
         && entry.getSupplier() != null

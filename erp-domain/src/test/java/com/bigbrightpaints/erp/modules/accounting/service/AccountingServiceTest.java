@@ -13874,6 +13874,69 @@ class AccountingServiceTest {
   }
 
   @Test
+  void postDebitNote_replayRejectsDifferentReferenceNumberForSameIdempotencyKey() {
+    Account payable = account(86055L, "AP-86055", AccountType.LIABILITY);
+    Account inventory = account(86056L, "RM-86056", AccountType.ASSET);
+    Supplier supplier = supplier(8615L, "Supplier Replay Ref Drift", payable);
+    RawMaterialPurchase purchase =
+        purchase(
+            96045L, "PUR-96045", supplier, new BigDecimal("100.00"), BigDecimal.ZERO, "VOID");
+
+    JournalEntry source = journalEntry(96046L, "PUR-96045-JE");
+    addJournalLine(
+        source, inventory, "Inventory received", new BigDecimal("100.00"), BigDecimal.ZERO);
+    addJournalLine(source, payable, "Supplier payable", BigDecimal.ZERO, new BigDecimal("100.00"));
+    purchase.setJournalEntry(source);
+
+    JournalEntry existing = journalEntry(96047L, "DN-REPLAY-ORIGINAL");
+    existing.setSupplier(supplier);
+    existing.setReversalOf(source);
+    existing.setCorrectionType(JournalCorrectionType.REVERSAL);
+    existing.setCorrectionReason("DEBIT_NOTE");
+    existing.setSourceModule("DEBIT_NOTE");
+    existing.setSourceReference("PUR-96045");
+    addJournalLine(
+        existing,
+        payable,
+        "Debit note reversal - Supplier payable",
+        new BigDecimal("100.00"),
+        BigDecimal.ZERO);
+    addJournalLine(
+        existing,
+        inventory,
+        "Debit note reversal - Inventory received",
+        BigDecimal.ZERO,
+        new BigDecimal("100.00"));
+
+    when(rawMaterialPurchaseRepository.lockByCompanyAndId(company, 96045L))
+        .thenReturn(Optional.of(purchase));
+    when(journalReferenceResolver.findExistingEntry(company, "DN-REPLAY-NEW"))
+        .thenReturn(Optional.empty());
+    when(journalReferenceResolver.findExistingEntry(company, "IDEMP-DN-REPLAY-REF"))
+        .thenReturn(Optional.of(existing));
+
+    assertThatThrownBy(
+            () ->
+                accountingService.postDebitNote(
+                    new DebitNoteRequest(
+                        96045L,
+                        null,
+                        null,
+                        "DN-REPLAY-NEW",
+                        "replay",
+                        "IDEMP-DN-REPLAY-REF",
+                        Boolean.TRUE)))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            ex ->
+                assertThat(((ApplicationException) ex).getErrorCode())
+                    .isEqualTo(ErrorCode.CONCURRENCY_CONFLICT));
+
+    verify(creditDebitNoteService, never()).createJournalEntry(any(JournalEntryRequest.class));
+    verify(journalEntryRepository, never()).save(existing);
+  }
+
+  @Test
   void postDebitNote_replayRejectsProvenanceLessExistingJournal() {
     Account payable = account(8606L, "AP-8606", AccountType.LIABILITY);
     Account inventory = account(8607L, "RM-8607", AccountType.ASSET);
