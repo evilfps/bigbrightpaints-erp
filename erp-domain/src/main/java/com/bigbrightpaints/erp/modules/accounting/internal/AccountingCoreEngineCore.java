@@ -4650,6 +4650,7 @@ abstract class AccountingCoreEngineCore {
   }
 
   private void validateCreditNoteIdempotency(
+      String reference,
       String idempotencyKey,
       Invoice invoice,
       JournalEntry source,
@@ -4661,6 +4662,14 @@ abstract class AccountingCoreEngineCore {
               ErrorCode.CONCURRENCY_CONFLICT,
               "Idempotency key already used but credit note journal is missing")
           .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey);
+    }
+    if (StringUtils.hasText(reference) && !Objects.equals(entry.getReferenceNumber(), reference)) {
+      throw new ApplicationException(
+              ErrorCode.CONCURRENCY_CONFLICT,
+              "Idempotency key already used with a different credit note reference")
+          .withDetail(IntegrationFailureMetadataSchema.KEY_IDEMPOTENCY_KEY, idempotencyKey)
+          .withDetail("existingReferenceNumber", entry.getReferenceNumber())
+          .withDetail("requestedReferenceNumber", reference);
     }
     if (invoice != null
         && invoice.getDealer() != null
@@ -6678,6 +6687,7 @@ abstract class AccountingCoreEngineCore {
       BigDecimal existingAmount = calculateCreditNoteAmount(existingEntry, invoice, source);
       BigDecimal totalCredited = totalCreditNoteAmount(company, source, invoice);
       validateCreditNoteIdempotency(
+          reference,
           idempotencyKey,
           invoice,
           source,
@@ -6722,7 +6732,13 @@ abstract class AccountingCoreEngineCore {
         BigDecimal existingAmount = calculateCreditNoteAmount(awaited, invoice, source);
         BigDecimal totalCredited = totalCreditNoteAmount(company, source, invoice);
         validateCreditNoteIdempotency(
-            idempotencyKey, invoice, source, awaited, request.amount(), invoice.getTotalAmount());
+            reference,
+            idempotencyKey,
+            invoice,
+            source,
+            awaited,
+            request.amount(),
+            invoice.getTotalAmount());
         applyCreditNoteToInvoice(
             invoice, existingAmount, totalCredited, awaited.getReferenceNumber(), entryDate);
         return toDto(awaited);

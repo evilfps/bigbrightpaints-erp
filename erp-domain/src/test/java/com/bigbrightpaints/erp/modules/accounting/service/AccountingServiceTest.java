@@ -13053,6 +13053,7 @@ class AccountingServiceTest {
                     accountingService,
                     "validateCreditNoteIdempotency",
                     "CN-KEY",
+                    "CN-KEY",
                     invoice,
                     source,
                     null,
@@ -13068,6 +13069,7 @@ class AccountingServiceTest {
                 ReflectionTestUtils.invokeMethod(
                     accountingService,
                     "validateCreditNoteIdempotency",
+                    "CN-OK",
                     "CN-KEY",
                     invoice,
                     source,
@@ -13091,6 +13093,7 @@ class AccountingServiceTest {
                 ReflectionTestUtils.invokeMethod(
                     accountingService,
                     "validateCreditNoteIdempotency",
+                    "CN-OK",
                     "CN-KEY",
                     invoice,
                     source,
@@ -13107,6 +13110,7 @@ class AccountingServiceTest {
                 ReflectionTestUtils.invokeMethod(
                     accountingService,
                     "validateCreditNoteIdempotency",
+                    "CN-WRONG",
                     "CN-KEY",
                     invoice,
                     source,
@@ -13123,6 +13127,7 @@ class AccountingServiceTest {
                 ReflectionTestUtils.invokeMethod(
                     accountingService,
                     "validateCreditNoteIdempotency",
+                    "CN-OK",
                     "CN-KEY",
                     invoice,
                     source,
@@ -13146,6 +13151,7 @@ class AccountingServiceTest {
                 ReflectionTestUtils.invokeMethod(
                     accountingService,
                     "validateCreditNoteIdempotency",
+                    "CN-OK",
                     "CN-KEY",
                     invoice,
                     source,
@@ -13160,6 +13166,7 @@ class AccountingServiceTest {
     ReflectionTestUtils.invokeMethod(
         accountingService,
         "validateCreditNoteIdempotency",
+        "CN-OK",
         "CN-KEY",
         invoice,
         source,
@@ -13696,6 +13703,78 @@ class AccountingServiceTest {
         .hasMessageContaining("exceeds remaining invoice amount");
 
     verify(creditDebitNoteService, never()).createJournalEntry(any(JournalEntryRequest.class));
+  }
+
+  @Test
+  @Tag("critical")
+  void postCreditNote_replayRejectsDifferentReferenceNumberForSameIdempotencyKey() {
+    Account receivable = account(8455L, "AR-8455", AccountType.ASSET);
+    Account revenue = account(8456L, "REV-8456", AccountType.REVENUE);
+    Dealer dealer = dealer(8457L, "Dealer Replay Ref Drift", receivable);
+
+    Invoice invoice = new Invoice();
+    ReflectionTestUtils.setField(invoice, "id", 8458L);
+    invoice.setCompany(company);
+    invoice.setDealer(dealer);
+    invoice.setInvoiceNumber("INV-8458");
+    invoice.setTotalAmount(new BigDecimal("100.00"));
+    invoice.setOutstandingAmount(BigDecimal.ZERO);
+    invoice.setStatus("CREDITED");
+
+    JournalEntry source = journalEntry(8459L, "INV-8458-JE");
+    addJournalLine(
+        source, receivable, "Invoice receivable", new BigDecimal("100.00"), BigDecimal.ZERO);
+    addJournalLine(source, revenue, "Invoice revenue", BigDecimal.ZERO, new BigDecimal("100.00"));
+    invoice.setJournalEntry(source);
+
+    JournalEntry existing = journalEntry(8460L, "CN-REPLAY-ORIGINAL");
+    existing.setDealer(dealer);
+    existing.setReversalOf(source);
+    existing.setCorrectionType(JournalCorrectionType.REVERSAL);
+    existing.setCorrectionReason("CREDIT_NOTE");
+    existing.setSourceModule("CREDIT_NOTE");
+    existing.setSourceReference("INV-8458");
+    addJournalLine(
+        existing,
+        revenue,
+        "Credit note reversal - Invoice revenue",
+        new BigDecimal("100.00"),
+        BigDecimal.ZERO);
+    addJournalLine(
+        existing,
+        receivable,
+        "Credit note reversal - Invoice receivable",
+        BigDecimal.ZERO,
+        new BigDecimal("100.00"));
+
+    when(invoiceRepository.lockByCompanyAndId(company, 8458L)).thenReturn(Optional.of(invoice));
+    when(journalReferenceResolver.findExistingEntry(company, "CN-REPLAY-NEW"))
+        .thenReturn(Optional.empty());
+    when(journalReferenceResolver.findExistingEntry(company, "IDEMP-CN-REPLAY-REF"))
+        .thenReturn(Optional.of(existing));
+    when(journalEntryRepository.findByCompanyAndReversalOfAndCorrectionReasonIgnoreCase(
+            company, source, "CREDIT_NOTE"))
+        .thenReturn(List.of(existing));
+
+    assertThatThrownBy(
+            () ->
+                accountingService.postCreditNote(
+                    new CreditNoteRequest(
+                        8458L,
+                        null,
+                        null,
+                        "CN-REPLAY-NEW",
+                        "replay",
+                        "IDEMP-CN-REPLAY-REF",
+                        Boolean.TRUE)))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            ex ->
+                assertThat(((ApplicationException) ex).getErrorCode())
+                    .isEqualTo(ErrorCode.CONCURRENCY_CONFLICT));
+
+    verify(creditDebitNoteService, never()).createJournalEntry(any(JournalEntryRequest.class));
+    verify(journalEntryRepository, never()).save(existing);
   }
 
   @Test
