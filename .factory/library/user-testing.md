@@ -1,166 +1,151 @@
 # User Testing
 
-Testing surface: tools, URLs, setup steps, isolation notes, and known quirks for active ERP validation packets, including ERP-21 and ERP-38.
+Validation surfaces, tools, setup rules, and concurrency guidance for the current `orchestrator-erp` cleanup mission.
 
-**What belongs here:** how to validate the surviving `batch -> pack -> dispatch` flow, which commands to run, and which runtime surfaces to trust.
+**What belongs here:** how to validate strict runtime smoke, targeted business-flow proof, docs-only exceptions, and the highest-signal regression suites for this mission.
 
 ---
 
-## Docs-Only Validation Surface
+## Validation Surfaces
 
-- **Type:** repository docs tree / docs-governance surface
-- **Base location:** repo root `docs/`, root governance files, `.factory/library/`, `openapi.json`
-- **Tools:** `Read`, `Grep`, `bash ci/lint-knowledgebase.sh`, `bash ci/check-enterprise-policy.sh`, `bash ci/check-architecture.sh`, `bash ci/check-orchestrator-layer.sh`, `bash scripts/guard_openapi_contract_drift.sh`
+### 1. Strict runtime smoke
 
-### Docs Validation Concurrency
-
-- **docs-tree:** max concurrent validators **2**
-
-Rationale: docs validation is lightweight and service-free, but whole-tree lint/link scans touch the same checkout and canonical files. Keep one full-tree lint at a time and use at most one additional read-only validator in parallel.
-
-### Docs Validation Guidance
-
-- Do not start services for docs-only validation.
-- Validate navigation, cross-links, inventories, ADR presence, frontend-handoff discoverability, and deprecated-registry behavior from the repository files themselves.
-- Use `openapi.json` plus controller/DTO code as the contract truth when checking host/path/payload claims.
-- Prefer canonical docs over historical review artifacts; if a historical doc remains, validate that it is redirected or explicitly marked non-canonical.
-- For mainline catch-up work, validate the newer `docs/frontend-portals/` and `docs/frontend-api/` trees directly, not just the older branch-era `docs/INDEX.md` / module / flow / frontend-handoff packet families.
-
-## Validation Surface
-
-- **Type:** REST API + Maven regression/integration suites
+- **Type:** strict compose-backed API/runtime smoke
 - **Base URL:** `http://localhost:8081`
 - **Actuator:** `http://localhost:9090/actuator/health`
 - **MailHog UI:** `http://localhost:8025`
+- **Services:** Postgres `5433`, RabbitMQ `5672`, MailHog `8025`, app `8081`, actuator `9090`
 
-## Testing Tools
+This surface proves bootability and runtime boundary correctness, not the full business workflow by itself.
 
-- `mvn` from `erp-domain/`
-- `curl`
-- Docker Compose through `.factory/services.yaml`
-- repo reset harness: `bash scripts/reset_final_validation_runtime.sh`
+### 2. Targeted business-flow proof
+
+- **Type:** Maven integration/regression/truthsuite proofs
+- **Working directory:** `erp-domain/`
+- **Primary tool:** `mvn`
+
+This surface proves the risky business seams the strict runtime smoke does not cover cleanly yet.
+
+### 3. Docs-only packets
+
+- **Type:** no runtime/user-testing surface
+- **Rule:** docs-only changes in this mission skip scrutiny and skip validators
+
+Docs-only packets are not user-testing targets unless a feature explicitly overrides this.
 
 ## Validation Concurrency
 
-- **api:** max concurrent validators **1**
+- **strict-runtime:** max concurrent validators **1**
 - **jvm-tests:** max concurrent validators **1**
+- **docs-only:** max concurrent validators **0** (skip)
 
-Rationale: the ERP-38 mission uses one shared checkout and one shared compose runtime on fixed ports, so validators must not compete for `erp-domain/target`, Surefire reports, or the seeded runtime state.
+Rationale:
+
+- the compose runtime uses fixed shared ports
+- Maven/Surefire writes to the same checkout and `target/` tree
+- using 70% of the observed resource headroom still leaves concurrency capped by shared-state contention rather than CPU/RAM
 
 ## Setup Steps
 
-1. From the repo root, run `bash .factory/init.sh`.
-2. For authenticated runtime validation, run `bash scripts/reset_final_validation_runtime.sh`.
-3. Wait for `http://localhost:9090/actuator/health` or, if actuator is degraded, probe `http://localhost:8081/api/v1/auth/me`.
-4. Use the seeded validation actors from the reset harness output.
-5. Run targeted ERP-38 commands from `.factory/services.yaml` instead of broad exploratory reruns.
-
-## Seeded Validation Actors
-
-- `validation.admin@example.com` - admin/accounting/sales on `MOCK`
-- `validation.sales@example.com` - sales on `MOCK`
-- `validation.factory@example.com` - factory on `MOCK`
-- `validation.accounting@example.com` - accounting on `MOCK`
-- `validation.dealer@example.com` - dealer portal user `VALID-DEALER` on `MOCK`
-- `validation.rival.dealer@example.com` - dealer portal user `RIVAL-DEALER` on `RIVAL`
-
-If you need a deterministic password, export `ERP_VALIDATION_SEED_PASSWORD` before running the reset harness.
-
-## ERP-38 Key Commands
-
-- `commands.erp38-targeted-setup`
-- `commands.erp38-targeted-batch-pack`
-- `commands.erp38-targeted-dispatch`
-- `commands.erp38-contract-guards`
-- `commands.gate-fast`
-- `commands.verify-local`
-- `commands.final-validation-reset`
-- `commands.final-validation-targeted-tests`
+1. Run `bash .factory/init.sh`.
+2. Ensure strict runtime env values are present for datasource, JWT, encryption, audit key, and mail settings.
+3. Start the approved compose boundary from `.factory/services.yaml`.
+4. Probe both:
+   - `http://localhost:9090/actuator/health`
+   - `GET http://localhost:8081/api/v1/auth/me`
+5. Treat `GET /api/v1/auth/me` returning `200`, `401`, or `403` as the acceptable strict-smoke application-boundary proof.
+6. Use targeted Maven suites for the touched risk area; do not rely on broad exploratory reruns unless a feature explicitly requires them.
 
 ## Runtime Probe Guidance
 
-- Use removed-route negative probes to confirm retired surfaces are actually absent.
-- Use `validation.factory@example.com` for factory-read redaction and pack-flow probes.
-- Use `validation.sales@example.com` for canonical dispatch-confirm probes.
-- For pack validation, prove that `Idempotency-Key` is the only accepted replay input.
-- For dispatch validation, prove that `/api/v1/dispatch/**` is read-only and that `POST /api/v1/sales/dispatch/confirm` is the only write owner.
-- For cross-flow validation, prove that packed sellable output is what becomes dispatchable; unpacked/semi-finished output must not dispatch.
+- Always pair the management-port probe with an app-boundary probe.
+- `9090` proves management/readiness visibility.
+- `8081/api/v1/auth/me` proves the app is actually serving requests.
+- If actuator is degraded but the app boundary is alive, record both facts explicitly; do not silently treat the runtime as healthy.
+- Do not use retired routes as bootstrap probes.
 
-## Flow Validator Guidance: api
+## High-Signal Proof Packs
 
-- Treat the validator-launched reset runtime on `http://localhost:8081` as the shared API surface; do not rerun Docker Compose or the reset harness from a subagent unless the parent validator explicitly instructs you to recover a broken session.
-- Stay inside repo-owned ports `5433`, `5672`, `8025`, `8081`, and `9090`, and do not touch other local services or the shared checkout outside this worktree.
-- Prefer deterministic proof in this order: targeted seeded runtime probes, OpenAPI/docs inspection, then targeted Maven suites listed in `.factory/services.yaml`.
-- If you must create runtime data, keep it namespaced for your assigned assertion group and avoid mutating global/shared settings that would affect later validators.
-- Record concrete request/response observations, exact docs/OpenAPI locations, and any friction or blocker details in the flow report so the parent validator can update synthesis without re-running your work.
-
-## High-Signal Proof By Milestone
-
-### setup-truth
-
-- `CatalogControllerCanonicalProductIT`
-- `CatalogServiceCanonicalCoverageTest`
-- `ProductionCatalogServiceCanonicalEntryTest`
-- `SkuReadinessServiceTest`
-- `PackagingMaterialServiceTest`
-
-### batch-pack-hard-cut
-
-- `ProductionLogWipPostingRegressionIT`
-- `ProductionLaborOverheadWipIT`
-- `ProductionLogListDetailLazyLoadRegressionIT`
-- `ProductionLogPackingStatusRegressionIT`
-- `PackingControllerTest`
-- `PackingServiceTest`
-- `FactoryPackagingCostingIT`
-- `TS_PackingIdempotencyAndFacadeBoundaryTest`
-
-### dispatch-contract-hard-cut
+### Dispatch and contract truth
 
 - `DispatchControllerTest`
 - `DispatchOperationalBoundaryIT`
 - `DispatchConfirmationIT`
 - `TS_O2CDispatchCanonicalPostingTest`
 - `TS_O2COrchestratorDispatchRemovalRegressionTest`
-- `ErpInvariantsSuiteIT`
 - `OrderFulfillmentE2ETest`
 
-## ERP-21 Validation Surface
+### Accounting and concurrency
 
-- **Type:** REST API + Maven regression/integration suites + contract/doc guards
-- **Base URL:** `http://localhost:8081`
-- **Canonical hosts to prove:**
-  - `/api/v1/dealer-portal/**`
-  - `/api/v1/portal/finance/**`
-  - `/api/v1/portal/support/tickets/**`
-  - `/api/v1/dealer-portal/support/tickets/**`
-- **Retired hosts to probe:** duplicate dealer-finance routes plus `/api/v1/support/**`
+- `JournalEntryE2ETest`
+- `AccountingControllerJournalEndpointsTest`
+- `AccountingControllerIdempotencyHeaderParityTest`
+- `CriticalAccountingAxesIT`
+- `TS_RuntimeAccountingReplayConflictExecutableCoverageTest`
+- `TS_RuntimeAccountingPayrollPostingExecutableCoverageTest`
+- `CR_ManualJournalSafetyTest`
+- `CR_PayrollIdempotencyConcurrencyTest`
+- `NumberSequenceServiceIntegrationTest`
+- `ReferenceNumberServiceTest`
+- `TS_RuntimeReferenceNumberServiceExecutableCoverageTest`
+- `OrderNumberServiceTest`
+- `InvoiceNumberServiceTest`
 
-## ERP-21 Key Commands
+### Security and tenant runtime
 
-- `commands.erp21-runtime-reset`
-- `commands.erp21-targeted-finance`
-- `commands.erp21-targeted-support`
-- `commands.erp21-contract-guards`
-- `commands.gate-fast`
+- `CompanyContextFilterControlPlaneBindingTest`
+- `AuthTenantAuthorityIT`
+- `TenantRuntimeEnforcementAuthIT`
+- `TS_RuntimeCompanyContextFilterExecutableCoverageTest`
+- `TS_RuntimeTenantRuntimeEnforcementTest`
+- `TS_RuntimeTenantControlPlaneEnforcementTest`
+- `CompanyControllerIT`
+- `OpenApiSnapshotIT`
+
+### Dependent-module accounting consumers
+
+- `ProcureToPayE2ETest`
+- `InventoryAccountingEventListenerIT`
+- `CreditDebitNoteIT`
+- `ReconciliationControlsIT`
+- `TS_PeriodCloseBoundaryCoverageTest`
+- `TS_PeriodCloseAtomicSnapshotTest`
+
+### Deployment and release hardening
+
+- `bash scripts/gate_release.sh`
+- `CR_ProductionMonitoringContractTest`
+- `CR_HealthEndpointProdHardeningIT`
+- `CR_ActuatorProdHardeningIT`
+- contract guards from `.factory/services.yaml`
+
+## Helpful Manifest Commands
+
+- `commands.strict-runtime-smoke-check`
+- `commands.contract-guards`
+- `commands.targeted-dispatch-proof`
+- `commands.targeted-accounting-proof`
+- `commands.targeted-security-proof`
+- `commands.targeted-dependent-proof`
+- `commands.targeted-deploy-hardening`
 - `commands.gate-release`
-- `commands.gate-reconciliation`
 
-## ERP-21 Probe Guidance
+## Validator Guidance
 
-- Use the reset runtime on `8081` for authenticated probes.
-- Use `validation.dealer@example.com` for canonical dealer-portal finance/support probes and `validation.rival.dealer@example.com` for cross-dealer or cross-tenant denial probes.
-- Prove canonical host success first, then prove retired host absence.
-- Probe retired finance routes with the actor that used to be allowed on them (`admin`, `accounting`, or `sales` as applicable); a dealer-only `403` is not enough retirement proof.
-- Treat actuator degradation as non-blocking only if the target `8081` endpoints for ERP-21 still succeed.
-- Runtime validation may be skipped only for docs-only changes.
+- Prefer this order of proof:
+  1. strict runtime smoke
+  2. targeted Maven suites for the touched risk area
+  3. `gate-release` and deploy-hardening proofs when release readiness is in scope
+  4. contract/OpenAPI/docs alignment checks
+- If a feature only changes docs/governance, do not start services and do not run user-testing.
+- If a feature touches accounting, dispatch, runtime security, CI proof, or canonical contracts, explicitly re-run the dependent proof pack for that area.
+- When validating dispatch, the canonical public write is `POST /api/v1/dispatch/confirm`.
+- When validating auth bootstrap, the canonical surface is `GET /api/v1/auth/me`; `/api/v1/auth/profile` is retired.
+- When validating runtime policy mutation, the canonical public write surfaces are the superadmin tenant lifecycle/limits routes.
 
-## Known Issues
+## Known Constraints
 
-- Plain `prod,flyway-v2` compose boot can come up with an empty DB. Use the reset harness before authenticated runtime validation.
-- The ERP-21 validation seed now includes deterministic dealer invoices for both seeded dealer actors. Use `GET /api/v1/dealer-portal/invoices` to discover `VAL-MOCK-INV-001` and `VAL-RIVAL-INV-001` before proving own invoice PDF `200` and cross-dealer invoice PDF `404` behavior.
-- The current `validation-seed` runtime starts with raw materials `RM-RESIN`, `RM-PIG`, and `RM-CAN` only; `RM-CAN` is not typed as `PACKAGING`, and there are no seeded size variants. Positive `POST /api/v1/factory/packing-records` runtime proof therefore needs extra fixtures beyond the default seed. Use the targeted batch-pack Maven suites for positive pack completion/costing/status assertions unless you explicitly seed packaging-grade fixtures first.
-- Running Maven outside `erp-domain/` can break `.mvn/settings.xml` resolution.
-- Direct `docker compose up -d db rabbitmq mailhog` still needs `JWT_SECRET` and `ERP_SECURITY_ENCRYPTION_KEY` in the environment because the compose file parses the app service too.
-- If actuator reports DOWN but the app answers `8081`, verify the target API endpoints directly before treating the runtime as unavailable.
-- If runtime validation is temporarily unavailable, continue with deterministic Maven evidence and record the limitation explicitly in synthesis.
+- The current strict compose path is a smoke surface only; authenticated business-flow proof still depends on targeted Maven suites unless a later feature introduces a clean bootstrap/auth fixture path.
+- Direct `docker compose up` still parses the app service, so missing env values can break even dependency-only starts.
+- Old library/docs guidance may still reference retired routes until the mission cleans them; prefer `validation-contract.md`, `openapi.json`, and current controller annotations if guidance disagrees.
+- Running Maven outside `erp-domain/` can break `.mvn` resolution.

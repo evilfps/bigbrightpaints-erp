@@ -21,6 +21,20 @@ commands:
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_release.sh
   gate-reconciliation: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_reconciliation.sh
+  strict-runtime-smoke-check: >-
+    health=$(curl -s -o /tmp/factory-strict-health.out -w '%{http_code}' http://localhost:9090/actuator/health || true) && auth=$(curl -s -o /tmp/factory-strict-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true) && { [ "$health" = "200" ] && { [ "$auth" = "200" ] || [ "$auth" = "401" ] || [ "$auth" = "403" ]; }; }
+  contract-guards: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_workflow_canonical_paths.sh
+  targeted-dispatch-proof: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='DispatchControllerTest,DispatchOperationalBoundaryIT,DispatchConfirmationIT,TS_O2CDispatchCanonicalPostingTest,TS_O2COrchestratorDispatchRemovalRegressionTest,OrderFulfillmentE2ETest' test
+  targeted-accounting-proof: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='JournalEntryE2ETest,AccountingControllerJournalEndpointsTest,AccountingControllerIdempotencyHeaderParityTest,CriticalAccountingAxesIT,TS_RuntimeAccountingReplayConflictExecutableCoverageTest,TS_RuntimeAccountingPayrollPostingExecutableCoverageTest,CR_ManualJournalSafetyTest,CR_PayrollIdempotencyConcurrencyTest,NumberSequenceServiceIntegrationTest,ReferenceNumberServiceTest,TS_RuntimeReferenceNumberServiceExecutableCoverageTest,OrderNumberServiceTest,InvoiceNumberServiceTest' test
+  targeted-security-proof: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CompanyContextFilterControlPlaneBindingTest,AuthTenantAuthorityIT,TenantRuntimeEnforcementAuthIT,TS_RuntimeCompanyContextFilterExecutableCoverageTest,TS_RuntimeTenantRuntimeEnforcementTest,TS_RuntimeTenantControlPlaneEnforcementTest,CompanyControllerIT,OpenApiSnapshotIT' test
+  targeted-dependent-proof: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='OrderFulfillmentE2ETest,ProcureToPayE2ETest,InventoryAccountingEventListenerIT,CreditDebitNoteIT,ReconciliationControlsIT,TS_PeriodCloseBoundaryCoverageTest,TS_PeriodCloseAtomicSnapshotTest' test
+  targeted-deploy-hardening: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CR_ProductionMonitoringContractTest,CR_HealthEndpointProdHardeningIT,CR_ActuatorProdHardeningIT' test
   verify-local: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && MIGRATION_SET=v2 bash scripts/verify_local.sh
   erp21-runtime-reset: >-
@@ -103,6 +117,6 @@ services:
     stop: >-
       ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && JWT_SECRET='validation-jwt-secret-validation-jwt-secret' ERP_SECURITY_ENCRYPTION_KEY='validation-encryption-key-32-bytes!!' DB_PORT=5433 docker compose stop app
     healthcheck: >-
-      curl -sf http://localhost:9090/actuator/health >/tmp/factory-backend-health.out || { status=$(curl -s -o /tmp/factory-backend-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true) && { [ "$status" = "200" ] || [ "$status" = "401" ] || [ "$status" = "403" ]; }; }
+      curl -sf http://localhost:9090/actuator/health >/tmp/factory-backend-health.out && { status=$(curl -s -o /tmp/factory-backend-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true) && { [ "$status" = "200" ] || [ "$status" = "401" ] || [ "$status" = "403" ]; }; }
     port: 8081
     depends_on: [postgres-v2, rabbitmq, mailhog]

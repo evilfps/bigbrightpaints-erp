@@ -51,16 +51,17 @@ None.
 ### Step 4: Verify accuracy
 1. Re-read every edited doc against the feature description and code evidence.
 2. Docs-only features do **not** require repo-wide compile or runtime tests unless the feature explicitly says otherwise.
-3. Run the docs validators relevant to the packet:
+3. If the mission `AGENTS.md` or feature description says docs-only packets skip validators, follow that instruction and record the skip explicitly in the handoff instead of running lint/check scripts.
+4. Otherwise run the docs validators relevant to the packet:
    - `bash ci/lint-knowledgebase.sh`
    - `bash ci/check-enterprise-policy.sh`
    - `bash ci/check-architecture.sh`
    - `bash ci/check-orchestrator-layer.sh`
    Use the narrowest set that proves the packet, but run the packet's required commands from the feature verification steps.
-4. Do not start services or mutate runtime state for this mission unless a feature explicitly requires non-doc evidence.
-5. Verify links, route/host names, role names, DTO names, and deprecated markers against source and `openapi.json`.
-6. When documenting endpoint paths, confirm each path string against controller annotations and `openapi.json` before writing it into a packet; do not rely on memory or inferred naming.
-7. If a validator fails on a clearly unrelated pre-existing issue, record it precisely but still complete the packet if the scoped docs checks are otherwise valid.
+5. Do not start services or mutate runtime state for this mission unless a feature explicitly requires non-doc evidence.
+6. Verify links, route/host names, role names, DTO names, and deprecated markers against source and `openapi.json`.
+7. When documenting endpoint paths, confirm each path string against controller annotations and `openapi.json` before writing it into a packet; do not rely on memory or inferred naming.
+8. If a validator fails on a clearly unrelated pre-existing issue, record it precisely but still complete the packet if the scoped docs checks are otherwise valid.
 
 ### Step 5: Produce a precise handoff
 Include:

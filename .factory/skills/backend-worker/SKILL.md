@@ -16,6 +16,10 @@ Use for any backend Java/Spring feature in the BigBright ERP, including:
 - Shared infrastructure extraction (utilities, frameworks)
 - Performance optimization (query fixes, batch operations)
 
+## Required Skills
+
+None.
+
 ## Work Procedure
 
 ### Step 1: Understand the Feature
@@ -40,14 +44,16 @@ Use for any backend Java/Spring feature in the BigBright ERP, including:
    - Single responsibility per service
    - Company-scoped queries
    - Event-driven cross-module communication
+   - No fallbacks or duplicate helper paths unless the feature explicitly says otherwise
 3. While touching O2C/P2P hotspots, remove dead code, unused branches, stale helpers, and retired duplicate-truth paths that are made obsolete by your feature. Do not leave known dead logic behind in the touched area.
-4. For service decomposition:
+4. If the feature touches accounting, preserve dependent-module behavior across sales, inventory, purchasing, invoice, and reporting. Do not relocate duplicate accounting logic into new classes.
+5. For service decomposition:
    - Create new focused service classes
    - Move methods from the god service to appropriate new services
    - Update the god service to delegate to new services (keep it as a facade initially if needed)
    - Update all controllers and other services that call the moved methods
    - Update all test imports and references
-5. For new Flyway migrations: continue from the highest existing version number in `migration_v2` only.
+6. For new Flyway migrations: continue from the highest existing version number in `migration_v2` only.
 
 ### Step 4: Verify
 1. Run compilation check: `cd erp-domain && mvn compile -q`
@@ -58,7 +64,8 @@ Use for any backend Java/Spring feature in the BigBright ERP, including:
    - For refactoring: confirm all callers are updated and tests pass
    - For bug fixes: confirm the specific bug is fixed via the test you wrote
 5. Check for any regressions in related modules.
-6. If your change exposed stale adjacent tests in the touched control surface, either fix them in the same feature or return a clearly tracked discovered issue tied to a pending feature.
+6. If the feature touches accounting or another shared seam, run the dependent proof packs from `.factory/services.yaml` that cover downstream consumers.
+7. If your change exposed stale adjacent tests in the touched control surface, either fix them in the same feature or return a clearly tracked discovered issue tied to a pending feature.
 
 ### Step 5: Document Frontend Handoff
 If your feature adds or changes frontend-facing API endpoints or contracts, you MUST update `.factory/library/frontend-handoff.md` with:
