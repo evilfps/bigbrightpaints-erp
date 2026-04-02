@@ -250,16 +250,22 @@ public class CriticalFixtureService {
       String productName,
       BigDecimal basePrice,
       BigDecimal gstRate) {
-    ProductionProduct product =
-        productRepository.findByCompanyAndSkuCode(company, sku).orElseGet(ProductionProduct::new);
+    Optional<ProductionProduct> existingProduct = productRepository.findByCompanyAndSkuCode(company, sku);
+    ProductionProduct product = existingProduct.orElseGet(ProductionProduct::new);
     product.setCompany(company);
     product.setBrand(brand);
     product.setSkuCode(sku);
-    product.setProductName(productName);
     product.setCategory("FINISHED_GOOD");
     product.setUnitOfMeasure("UNIT");
-    product.setBasePrice(basePrice);
-    product.setGstRate(gstRate);
+    if (product.getProductName() == null || product.getProductName().isBlank()) {
+      product.setProductName(productName);
+    }
+    if (existingProduct.isEmpty() || product.getBasePrice() == null) {
+      product.setBasePrice(basePrice);
+    }
+    if (existingProduct.isEmpty() || product.getGstRate() == null) {
+      product.setGstRate(gstRate);
+    }
 
     Map<String, Object> metadata =
         Optional.ofNullable(product.getMetadata()).orElse(new HashMap<>());

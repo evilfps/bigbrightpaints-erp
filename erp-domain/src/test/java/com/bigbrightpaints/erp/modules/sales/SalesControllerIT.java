@@ -12,12 +12,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.context.ApplicationContext;
-import org.springframework.http.*;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.fixture.E2eFixtureCatalog;
@@ -46,7 +45,6 @@ public class SalesControllerIT extends AbstractIntegrationTest {
   private static final String FACTORY_DISPATCH_PASSWORD = "factorydispatch123";
 
   @Autowired private TestRestTemplate rest;
-  @Autowired private ApplicationContext applicationContext;
   @Autowired private CompanyRepository companyRepository;
   @Autowired private DealerRepository dealerRepository;
   @Autowired private SalesOrderRepository salesOrderRepository;
@@ -191,14 +189,6 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     return (Map<?, ?>) orderResponse.getBody().get("data");
   }
 
-  private SalesOrder updateOrder(Map<?, ?> orderData, String orderNumber, String status) {
-    Long orderId = ((Number) orderData.get("id")).longValue();
-    SalesOrder order = salesOrderRepository.findById(orderId).orElseThrow();
-    order.setOrderNumber(orderNumber);
-    order.setStatus(status);
-    return salesOrderRepository.saveAndFlush(order);
-  }
-
   private SalesOrder createPersistedOrder(
       Company company, Dealer dealer, String orderNumber, String status, Instant createdAt) {
     SalesOrder order = new SalesOrder();
@@ -288,8 +278,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void sales_order_search_repository_supports_alias_filters_escaping_and_unpaged_queries()
-      throws Exception {
+  void sales_order_search_repository_supports_alias_filters_escaping_and_unpaged_queries() {
     Long primaryDealerId = createPersistedDealer("ALIAS-A" + System.nanoTime(), new BigDecimal("50000"));
     Long secondaryDealerId =
         createPersistedDealer("ALIAS-B" + System.nanoTime(), new BigDecimal("50000"));
@@ -388,24 +377,73 @@ public class SalesControllerIT extends AbstractIntegrationTest {
             dispatchedAliasOrder.getId(),
             draftAliasOrder.getId());
 
-    Object searchRepositoryImpl = applicationContext.getBean("salesOrderSearchRepositoryImpl");
-    Class<?> repositoryType = searchRepositoryImpl.getClass();
-    java.lang.reflect.Method containsPattern = null;
-    while (repositoryType != null && containsPattern == null) {
-      try {
-        containsPattern = repositoryType.getDeclaredMethod("containsPattern", String.class);
-      } catch (NoSuchMethodException ignored) {
-        repositoryType = repositoryType.getSuperclass();
-      }
-    }
-    assertThat(containsPattern).isNotNull();
-    containsPattern.setAccessible(true);
-    assertThat(containsPattern.invoke(searchRepositoryImpl, "SO%ALIAS"))
-        .isEqualTo("%SO\\%ALIAS%");
-    assertThat(containsPattern.invoke(searchRepositoryImpl, "SO_ALIAS"))
-        .isEqualTo("%SO\\_ALIAS%");
-    assertThat(containsPattern.invoke(searchRepositoryImpl, "SO\\ALIAS"))
-        .isEqualTo("%SO\\\\ALIAS%");
+    String percentSuffix = "PCT" + System.nanoTime();
+    String literalPercentOrderNumber = "SO%" + percentSuffix;
+    String percentDistractorOrderNumber = "SOX" + percentSuffix;
+    SalesOrder literalPercentOrder =
+        createPersistedOrder(
+            company,
+            primaryDealer,
+            literalPercentOrderNumber,
+            "BOOKED",
+            Instant.parse("2026-02-05T00:00:00Z"));
+    SalesOrder percentDistractorOrder =
+        createPersistedOrder(
+            company,
+            primaryDealer,
+            percentDistractorOrderNumber,
+            "BOOKED",
+            Instant.parse("2026-02-05T00:00:01Z"));
+    Page<Long> literalPercentResults =
+        salesOrderRepository.searchIdsByCompany(
+            company, null, primaryDealer, literalPercentOrderNumber, null, null, PageRequest.of(0, 10));
+    assertThat(literalPercentResults.getContent())
+        .contains(literalPercentOrder.getId())
+        .doesNotContain(percentDistractorOrder.getId());
+
+    String underscoreSuffix = "UND" + System.nanoTime();
+    String literalUnderscoreOrderNumber = "SO_" + underscoreSuffix;
+    String underscoreDistractorOrderNumber = "SOX" + underscoreSuffix;
+    SalesOrder literalUnderscoreOrder =
+        createPersistedOrder(
+            company,
+            secondaryDealer,
+            literalUnderscoreOrderNumber,
+            "BOOKED",
+            Instant.parse("2026-02-05T00:00:02Z"));
+    SalesOrder underscoreDistractorOrder =
+        createPersistedOrder(
+            company,
+            secondaryDealer,
+            underscoreDistractorOrderNumber,
+            "BOOKED",
+            Instant.parse("2026-02-05T00:00:03Z"));
+    Page<Long> literalUnderscoreResults =
+        salesOrderRepository.searchIdsByCompany(
+            company,
+            null,
+            secondaryDealer,
+            literalUnderscoreOrderNumber,
+            null,
+            null,
+            PageRequest.of(0, 10));
+    assertThat(literalUnderscoreResults.getContent())
+        .contains(literalUnderscoreOrder.getId())
+        .doesNotContain(underscoreDistractorOrder.getId());
+
+    String backslashSuffix = "BSL" + System.nanoTime();
+    String backslashOrderNumber = "SO\\" + backslashSuffix;
+    SalesOrder backslashOrder =
+        createPersistedOrder(
+            company,
+            primaryDealer,
+            backslashOrderNumber,
+            "BOOKED",
+            Instant.parse("2026-02-05T00:00:04Z"));
+    Page<Long> backslashResults =
+        salesOrderRepository.searchIdsByCompany(
+            company, null, primaryDealer, backslashOrderNumber, null, null, PageRequest.of(0, 10));
+    assertThat(backslashResults.getContent()).contains(backslashOrder.getId());
   }
 
   @Test
