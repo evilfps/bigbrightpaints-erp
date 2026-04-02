@@ -15,6 +15,7 @@ Use for any backend Java/Spring feature in the BigBright ERP, including:
 - New feature implementation (endpoints, services, entities, migrations)
 - Shared infrastructure extraction (utilities, frameworks)
 - Performance optimization (query fixes, batch operations)
+- Backend-adjacent governance, CI, manifest, or enforcement-script cleanup when the feature changes deployability or contract guards without touching application code
 
 ## Required Skills
 
@@ -29,12 +30,16 @@ None.
 4. Read `.factory/library/architecture.md` for codebase patterns.
 5. Identify all files that need to change. For refactoring features, trace all callers/importers of the classes being modified.
 
-### Step 2: Write Tests First (TDD)
-1. For bug fixes: write a test that reproduces the bug (should fail).
-2. For new features: write tests covering happy path, error cases, and edge cases (should fail).
-3. For refactoring: ensure existing tests pass first, then write any missing tests for the code being refactored.
-4. If the feature changes behavior in an already-covered area, update or replace the stale policy/contract/regression tests in that area as part of the same packet; do not leave drift behind.
-5. Run tests to confirm they fail as expected: `cd erp-domain && mvn test -Djacoco.skip=true -pl . -Dtest=YourTestClass`
+### Step 2: Write Tests or Guards First
+1. If the feature changes Java production code:
+   - For bug fixes: write a test that reproduces the bug (should fail).
+   - For new features: write tests covering happy path, error cases, and edge cases (should fail).
+   - For refactoring: ensure existing tests pass first, then write any missing tests for the code being refactored.
+2. If the feature is limited to scripts, manifests, policy classifiers, or governance enforcement, update or add the narrowest failing guard/probe first using the authoritative script or contract surface for that feature.
+3. If the feature changes behavior in an already-covered area, update or replace the stale policy/contract/regression tests in that area as part of the same packet; do not leave drift behind.
+4. Run the focused proof that should fail first:
+   - Java code: `cd erp-domain && mvn test -Djacoco.skip=true -pl . -Dtest=YourTestClass`
+   - Script/governance features: the guard/probe command named in the feature verification steps or `.factory/services.yaml`
 
 ### Step 3: Implement
 1. Make the minimal changes needed to satisfy the feature requirements.
@@ -56,16 +61,18 @@ None.
 6. For new Flyway migrations: continue from the highest existing version number in `migration_v2` only.
 
 ### Step 4: Verify
-1. Run compilation check: `cd erp-domain && mvn compile -q`
-2. Run the baseline test suite: `cd erp-domain && mvn test -Pgate-fast -Djacoco.skip=true`
-3. For broader validation (optional, takes ~2.5min): `cd erp-domain && mvn test -Djacoco.skip=true '-Dtest=!*IT,!*ITCase,!*codered*' -pl .`
-4. Manually verify key behaviors using the approach appropriate for the feature:
+1. Run the feature's required proof commands from `verificationSteps` and `.factory/services.yaml`.
+2. If Java code changed, run compilation check: `cd erp-domain && mvn compile -q`
+3. If Java code changed or the feature explicitly requires it, run the baseline test suite: `cd erp-domain && mvn test -Pgate-fast -Djacoco.skip=true`
+4. For broader validation when useful (optional, takes ~2.5min): `cd erp-domain && mvn test -Djacoco.skip=true '-Dtest=!*IT,!*ITCase,!*codered*' -pl .`
+5. Manually verify key behaviors using the approach appropriate for the feature:
    - For new endpoints: document curl commands that demonstrate the endpoint works
    - For refactoring: confirm all callers are updated and tests pass
    - For bug fixes: confirm the specific bug is fixed via the test you wrote
-5. Check for any regressions in related modules.
-6. If the feature touches accounting or another shared seam, run the dependent proof packs from `.factory/services.yaml` that cover downstream consumers.
-7. If your change exposed stale adjacent tests in the touched control surface, either fix them in the same feature or return a clearly tracked discovered issue tied to a pending feature.
+   - For script/governance features: document the exact guard/policy probes that now enforce the intended lane
+6. Check for any regressions in related modules.
+7. If the feature touches accounting or another shared seam, run the dependent proof packs from `.factory/services.yaml` that cover downstream consumers.
+8. If your change exposed stale adjacent tests in the touched control surface, either fix them in the same feature or return a clearly tracked discovered issue tied to a pending feature.
 
 ### Step 5: Document Frontend Handoff
 If your feature adds or changes frontend-facing API endpoints or contracts, you MUST update `.factory/library/frontend-handoff.md` with:
