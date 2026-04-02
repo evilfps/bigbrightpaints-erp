@@ -14,7 +14,7 @@ Any scope change must be applied in one atomic change set with explicit evidence
 
 1. Updated portal endpoint map and frontend handoff docs for every affected portal.
 2. Updated `docs/endpoint-inventory.md` module mapping and examples.
-3. Added `asyncloop` evidence covering rationale, impact, and verification plan.
+3. Added packet evidence covering rationale, impact, and verification plan.
 
 ## Required References
 

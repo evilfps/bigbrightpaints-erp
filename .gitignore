@@ -71,6 +71,10 @@ docs/dealer-portal-endpoint-map.md
 docs/manufacturing-portal-endpoint-map.md
 docs/sales-portal-endpoint-map.md
 docs/iam-diagram.md
+artifacts/*-domain-map.md
+artifacts/workflow-doc-gap-analysis.md
+artifacts/security/
+artifacts/pr-jacoco-local/
 
 # Large generated files
 

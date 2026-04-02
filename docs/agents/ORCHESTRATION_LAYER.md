@@ -1,6 +1,6 @@
 # Orchestration Layer Governance
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-04-02
 
 ## Orchestration Architecture
 
@@ -38,7 +38,6 @@ The BigBright ERP uses an internal orchestrator for background coordination, out
 - `bash ci/check-orchestrator-layer.sh` validates orchestrator layer boundaries.
 - Changes to `erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/` trigger enterprise mode controls.
 - The orchestrator layer contract is codified in [agents/orchestrator-layer.yaml](../../agents/orchestrator-layer.yaml).
-- Coordination evidence and async decision provenance are recorded in the [asyncloop](../../asyncloop) evidence ledger.
 
 ## Cross-references
 

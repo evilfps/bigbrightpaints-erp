@@ -1,6 +1,6 @@
 # Workflow Governance
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-04-02
 
 ## Canonical Workflow Paths
 
@@ -15,8 +15,9 @@ Last reviewed: 2026-03-29
 
 ### Docs-only workflow
 
-- Docs-only governance changes validate with `bash ci/lint-knowledgebase.sh`.
-- Keep the diff limited to docs/governance files.
+- Docs-only packets are limited to the canonical docs/governance lane: `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `CHANGELOG.md`, `docs/INDEX.md`, `docs/ARCHITECTURE.md`, `docs/CONVENTIONS.md`, `docs/SECURITY.md`, `docs/RELIABILITY.md`, `docs/BACKEND-FEATURE-CATALOG.md`, `docs/RECOMMENDATIONS.md`, `docs/adrs/**`, `docs/agents/**`, `docs/approvals/**`, `docs/deprecated/**`, `docs/modules/**`, `docs/flows/**`, `docs/frontend-api/**`, `docs/frontend-portals/**`.
+- Markdown outside that lane — including `docs/platform/**`, `docs/runbooks/**`, `docs/design/**`, `docs/code-review/**`, `docs/developer/**`, `docs/frontend-update-v2/**`, root worklogs/reports, or mixed markdown-plus-code/config/test/script/OpenAPI changes — is not docs-only.
+- Docs-only packets run `bash ci/lint-knowledgebase.sh` only.
 - Skip Codex review/subagent review for docs-only packets.
 - Must not change backend runtime behavior.
 
