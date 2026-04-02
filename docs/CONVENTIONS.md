@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-04-02
 
-This document defines the writing conventions, cross-link expectations, and stale-doc handling policy for the BigBright ERP backend documentation library.
+This document defines the writing conventions, cross-link expectations, and stale-doc handling policy for the orchestrator-erp backend documentation library.
 
 ---
 

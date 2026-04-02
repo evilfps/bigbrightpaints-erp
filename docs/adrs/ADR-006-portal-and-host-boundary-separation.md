@@ -1,6 +1,6 @@
 # ADR-006: Portal and Host Boundary Separation
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-04-02
 
 ## Status
 
@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-BigBright ERP serves three distinct actor categories through different API host prefixes. Before this decision was formalized, endpoint ownership between admin/internal and dealer/self-service surfaces was inconsistent — some dealer-facing operations were mixed into admin controllers, and some admin-only endpoints lived under shared prefixes.
+The orchestrator-erp backend serves three distinct actor categories through different API host prefixes. Before this decision was formalized, endpoint ownership between admin/internal and dealer/self-service surfaces was inconsistent — some dealer-facing operations were mixed into admin controllers, and some admin-only endpoints lived under shared prefixes.
 
 The system currently exposes these major host prefixes:
 

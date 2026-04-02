@@ -1,8 +1,8 @@
 # Architecture Decision Records
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-04-02
 
-This index lists accepted architectural and product decisions already embodied by the BigBright ERP backend. Each ADR explains **why** a decision was made, not just **what** was decided. ADRs are written against current implemented behavior, not future aspirations.
+This index lists accepted architectural and product decisions already embodied by the orchestrator-erp backend. Each ADR explains **why** a decision was made, not just **what** was decided. ADRs are written against current implemented behavior, not future aspirations.
 
 ## ADR Template
 

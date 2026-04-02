@@ -1,6 +1,6 @@
 # ADR-004: Layered Audit Surfaces
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-04-02
 
 ## Status
 
@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-BigBright ERP has three distinct audit needs that serve different audiences and carry different integrity and retention requirements:
+The orchestrator-erp backend has three distinct audit needs that serve different audiences and carry different integrity and retention requirements:
 
 1. **Platform audit** — operational audit trail for security events, authentication successes/failures, data access, and administrative actions. Consumed by tenant admins and security reviewers. Stored in the `audit_log` table via `AuditService`.
 2. **Enterprise audit trail** — signed, tamper-evident business audit trail for regulatory and compliance purposes. Records financial and operational business events (journal postings, dispatch confirmations, payroll runs) with HMAC-signed actor identity. Stored in the `audit_action_event` table via `EnterpriseAuditTrailService`.

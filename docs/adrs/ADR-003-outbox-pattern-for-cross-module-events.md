@@ -1,6 +1,6 @@
 # ADR-003: Outbox Pattern for Cross-Module Event Publishing
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-04-02
 
 ## Status
 
@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-The BigBright ERP orchestrator publishes cross-module domain events (inventory movements, accounting integration commands, dispatch triggers, etc.) via RabbitMQ. Without a write-ahead log, events could be lost if the broker is unavailable at the moment a transaction commits, leading to silent data inconsistencies — for example, inventory stock could be deducted without the corresponding accounting journal entry ever being created.
+The orchestrator-erp backend publishes cross-module domain events (inventory movements, accounting integration commands, dispatch triggers, etc.) via its internal orchestrator and RabbitMQ. Without a write-ahead log, events could be lost if the broker is unavailable at the moment a transaction commits, leading to silent data inconsistencies — for example, inventory stock could be deducted without the corresponding accounting journal entry ever being created.
 
 The system already uses RabbitMQ as the message broker, Spring `@Transactional` for database transactions, and ShedLock for distributed scheduler coordination.
 

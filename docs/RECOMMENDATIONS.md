@@ -1,8 +1,8 @@
 # Authoritative Recommendations Register
 
-Last reviewed: 2026-03-31
+Last reviewed: 2026-04-02
 
-> **⚠️ This is the canonical recommendations surface for the BigBright ERP backend.** All other recommendation or open-decision sections in flow packets, module packets, and handoff documents should defer to this register for authoritative verdicts. This document records the user-approved classifications for all formerly open items from the flow library and `docs/modules/sales.md`.
+> **⚠️ This is the canonical recommendations surface for the orchestrator-erp backend.** All other recommendation or open-decision sections in flow packets, module packets, and handoff documents should defer to this register for authoritative verdicts. This document records the user-approved classifications for all formerly open items from the flow library and `docs/modules/sales.md`.
 
 ---
 

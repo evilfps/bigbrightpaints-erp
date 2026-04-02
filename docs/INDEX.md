@@ -170,5 +170,8 @@ The following docs remain in the repo for reference but are **not** part of the 
 | Document | Status |
 | --- | --- |
 | [developer-guide.md](developer-guide.md) | Non-canonical — superseded by the module packets and flow packets in the docs tree |
+| [ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md](ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md) | Reference only — retained accounting-portal scope lock; use `docs/frontend-portals/accounting/README.md` and `docs/frontend-api/README.md` for current portal truth |
+| [AUDIT_TRAIL_OWNERSHIP.md](AUDIT_TRAIL_OWNERSHIP.md) | Reference only — retained audit de-dup/change-control contract; use `docs/modules/core-audit-runtime-settings.md` for the canonical audit ownership overview |
+| [accounting-portal-endpoint-map.md](accounting-portal-endpoint-map.md) | Reference only — curated parity snapshot; use `docs/frontend-portals/accounting/README.md`, `docs/frontend-api/README.md`, and `openapi.json` for current contract truth |
 | [endpoint-inventory.md](endpoint-inventory.md) | Reference only; use `openapi.json` and module packets as primary truth |
 | [migration-guide.md](migration-guide.md) | Retired reference only — current migration rollout guidance lives in `docs/runbooks/migrations.md`; the legacy CSV/Tally appendix is archival |

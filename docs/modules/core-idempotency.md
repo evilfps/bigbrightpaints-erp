@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-04-02
 
-This packet documents the **shared idempotency infrastructure** and the **module-local idempotency implementations** that together govern safe write-path replay behavior across the BigBright ERP backend. It is the integrating slice of the core platform contracts packet: it explains shared-vs-module-local ownership, reconciles the full platform contract, and surfaces known pre-existing contract inconsistencies as explicit caveats rather than silently normalizing them away.
+This packet documents the **shared idempotency infrastructure** and the **module-local idempotency implementations** that together govern safe write-path replay behavior across the orchestrator-erp backend. It is the integrating slice of the core platform contracts packet: it explains shared-vs-module-local ownership, reconciles the full platform contract, and surfaces known pre-existing contract inconsistencies as explicit caveats rather than silently normalizing them away.
 
 > **Scope note:** This is the third and integrating slice of the core platform contracts packet. The first slice covers the [security filter chain and exception/error contract](core-security-error.md). The second slice covers [audit-surface ownership, runtime-gating, and settings risk](core-audit-runtime-settings.md). This slice adds idempotency and reconciles all three into one coherent canonical reference. Readers who need the complete picture should start with the [reconciled contract table in §5](#5-reconciled-core-platform-contract) and then read individual slices for detail.
 

@@ -1,6 +1,6 @@
 # ADR-002: Multi-Tenant Auth Scoping via JWT Company Claims
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-04-02
 
 ## Status
 
@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-BigBright ERP is a multi-tenant SaaS platform. Every authenticated request must be scoped to exactly one company (tenant) so that data isolation, access control, and lifecycle enforcement all operate within the correct tenant boundary.
+The orchestrator-erp backend is a multi-tenant SaaS platform. Every authenticated request must be scoped to exactly one company (tenant) so that data isolation, access control, and lifecycle enforcement all operate within the correct tenant boundary.
 
 The system serves three actor categories:
 

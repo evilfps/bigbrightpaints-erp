@@ -1,6 +1,6 @@
 # ADR-005: Flyway V2 Hard-Cut Migration Posture
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-04-02
 
 ## Status
 
@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-BigBright ERP migrated from an earlier Flyway migration track to a v2 track. The v2 migrations include significant schema changes: auth-v2 scoped accounts, superadmin control-plane tables, opening stock batch-key alignment, HR/Payroll module pause scaffolding, and password reset delivery tracking.
+The orchestrator-erp backend migrated from an earlier Flyway migration track to a v2 track. The v2 migrations include significant schema changes: auth-v2 scoped accounts, superadmin control-plane tables, opening stock batch-key alignment, HR/Payroll module pause scaffolding, and password reset delivery tracking.
 
 Many of these migrations are **forward-only**: they alter data in ways that cannot be reversed with a simple SQL `ALTER TABLE ... DROP COLUMN` or `UPDATE ... SET` rollback. For example, V168/V169 rewrite auth accounts to be company-scoped, and V167 introduces the superadmin control-plane schema that downstream code depends on.
 

@@ -4,7 +4,7 @@ Last reviewed: 2026-04-02
 
 ## Orchestration Architecture
 
-The BigBright ERP uses an internal orchestrator for background coordination, outbox-based command publishing, and cross-module event dispatch.
+The orchestrator-erp backend uses an internal orchestrator for background coordination, outbox-based command publishing, and cross-module event dispatch.
 
 ### Key Components
 
