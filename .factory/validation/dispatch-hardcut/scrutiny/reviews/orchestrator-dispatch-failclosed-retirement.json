@@ -1,0 +1,26 @@
+{
+  "featureId": "orchestrator-dispatch-failclosed-retirement",
+  "reviewedAt": "2026-04-02T17:52:02Z",
+  "commitId": "843663004d23cdc003e7909aff2528ccbaa9da35",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The reviewed commit hard-cuts the retired orchestrator dispatch shortcut correctly: `DispatchRequest` is deleted, `CommandDispatcher` no longer exposes `dispatchBatch`, `IntegrationCoordinator.updateFulfillment` still rejects dispatch-like statuses with a canonical `/api/v1/dispatch/confirm` pointer, and the updated integration/truth/guard coverage preserves both retired-route absence proof and positive proof for the surviving dispatch path. I did not find a blocking correctness issue in this packet.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "services",
+      "observation": "The mission service catalog does not expose a named proof command for the orchestrator misuse regression pack (`OrchestratorControllerIT,IntegrationCoordinatorTest`), so the worker had to run an ad-hoc Maven command outside `.factory/services.yaml` to verify the fail-closed behavior.",
+      "evidence": "The handoff records `cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='OrchestratorControllerIT,IntegrationCoordinatorTest' test` (`/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/handoffs/2026-04-02T17-33-39-712Z__orchestrator-dispatch-failclosed-retirement__579340d0-355c-4919-93e4-93bbead58f36.json:26`), while `/home/realnigga/Desktop/Mission-control/.factory/services.yaml` only exposes `targeted-dispatch-proof` and `contract-guards` for this seam and has no `OrchestratorControllerIT`/`IntegrationCoordinatorTest` entry."
+    },
+    {
+      "area": "knowledge",
+      "observation": "At the time of this packet, shared-truth docs/library still referenced the retired `DispatchRequest`/`dispatchBatch` seam even after the code hard-cut, so the worker had to carry that as discovered follow-up knowledge instead of relying on already-aligned shared guidance.",
+      "evidence": "The feature handoff explicitly flags `docs/modules/orchestrator.md`, `docs/deprecated/INDEX.md`, and `.factory/library/frontend-handoff.md` as still mentioning the retired seam (`/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/handoffs/2026-04-02T17-33-39-712Z__orchestrator-dispatch-failclosed-retirement__579340d0-355c-4919-93e4-93bbead58f36.json:72`)."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Review passed: the commit correctly removes the last orchestrator dispatch shortcut, keeps dispatch-like orchestrator misuse fail-closed with no-mutation proof, and preserves canonical dispatch proof. I found no blocking implementation bug in the reviewed packet; the follow-ups are shared-state/catalog gaps rather than code defects."
+}

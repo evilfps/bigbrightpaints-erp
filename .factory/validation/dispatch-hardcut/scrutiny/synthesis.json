@@ -1,0 +1,74 @@
+{
+  "milestone": "dispatch-hardcut",
+  "round": 1,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "ROOT=\"/home/realnigga/Desktop/Mission-control\" && cd \"$ROOT\" && bash scripts/gate_fast.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "ROOT=\"/home/realnigga/Desktop/Mission-control\" && cd \"$ROOT/erp-domain\" && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "ROOT=\"/home/realnigga/Desktop/Mission-control\" && cd \"$ROOT\" && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 3,
+    "passed": 2,
+    "failed": 1,
+    "failedFeatures": [
+      "dispatch-surface-hardcut-and-flow-alignment"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "dispatch-surface-hardcut-and-flow-alignment",
+      "severity": "blocking",
+      "description": "`.factory/library/frontend-handoff.md` still documents nonexistent `POST /api/v1/dispatch/confirm` response fields (`packingSlipId`, `salesOrderId`, `finalInvoiceId`, `arJournalEntryId`) instead of the live `DispatchConfirmationResponse`/OpenAPI shape, so docs/library/OpenAPI do not yet teach one consistent dispatch contract."
+    },
+    {
+      "featureId": "dispatch-surface-hardcut-and-flow-alignment",
+      "severity": "blocking",
+      "description": "The O2C handoff flow still tells consumers to read `finalInvoiceId` from `POST /api/v1/dispatch/confirm`, but that field is not returned by the endpoint, leaving the onboarding-to-dispatch guidance inconsistent with runtime/OpenAPI truth."
+    }
+  ],
+  "appliedUpdates": [
+    {
+      "target": "services.yaml",
+      "description": "Added `commands.targeted-orchestrator-dispatch-proof` so workers have a named proof pack for the orchestrator fail-closed dispatch regression suite (`OrchestratorControllerIT`, `IntegrationCoordinatorTest`, `CommandDispatcherTest`, and related truthsuite coverage).",
+      "sourceFeature": "orchestrator-dispatch-failclosed-retirement"
+    }
+  ],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "contract guard guidance",
+      "suggestion": "Add a dispatch DTO parity guard or equivalent review rule for shared handoff/library docs that enumerate `DispatchConfirmationResponse` fields, because route-literal-only guards are not enough to keep the canonical dispatch response story aligned.",
+      "evidence": "The review for `dispatch-surface-hardcut-and-flow-alignment` found `.factory/library/frontend-handoff.md` still promised nonexistent `finalInvoiceId`/`arJournalEntryId` fields even though `scripts/guard_workflow_canonical_paths.sh` passed and the runtime/OpenAPI contract disagreed.",
+      "isSystemic": false
+    },
+    {
+      "target": "docs-worker skill",
+      "suggestion": "Clarify how `.factory/library/*`-only docs packets should be validated so workers do not escalate them to `gate_fast.sh` when the intended proof lane is docs lint plus seam-specific contract guards.",
+      "evidence": "The review for `dispatch-retired-seam-docs-alignment` found mission/docs-worker guidance ambiguity around `.factory/library/*` packets, which led the worker to run `gate_fast.sh` even though the feature-specific proof was docs lint plus dispatch contract guards.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "At the time of `orchestrator-dispatch-failclosed-retirement`, shared docs/library still referenced `DispatchRequest`/`dispatchBatch`.",
+      "reason": "already-resolved-by-later-feature"
+    },
+    {
+      "observation": "An older validation artifact under `.factory/validation/remove-noncanonical-dispatch-path/user-testing/flows/orchestrator-cleanup.json` still mentions the retired dispatch shortcut.",
+      "reason": "historical-validation-artifact-not-authoritative-shared-state"
+    }
+  ],
+  "previousRound": null
+}

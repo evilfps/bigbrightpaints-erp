@@ -1,0 +1,34 @@
+{
+  "featureId": "dispatch-surface-hardcut-and-flow-alignment",
+  "reviewedAt": "2026-04-02T17:51:09.863338+00:00",
+  "commitId": "b6073950a14cc7562b98811953ebd1b9eb8d10d5",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The commit correctly hard-cuts most route guidance to `POST /api/v1/dispatch/confirm` and updates the guard script, but the packet still leaves blocking contract drift in `.factory/library/frontend-handoff.md`: it documents dispatch-confirm response fields that do not exist in the live DTO/OpenAPI contract.",
+    "issues": [
+      {
+        "file": ".factory/library/frontend-handoff.md",
+        "line": 2164,
+        "severity": "blocking",
+        "description": "The DTO section says `DispatchConfirmationResponse` includes `packingSlipId`, `salesOrderId`, `finalInvoiceId`, and `arJournalEntryId`, but the actual contract does not. `DispatchConfirmationResponse` only exposes `packagingSlipId`, totals, `journalEntryId`, `cogsJournalEntryId`, logistics metadata, challan fields, and `backorderSlipId` (`erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/dto/DispatchConfirmationResponse.java:7-25`; `openapi.json` `/api/v1/dispatch/confirm` schema). This leaves docs/library guidance out of sync with the canonical dispatch contract the feature was supposed to align."
+      },
+      {
+        "file": ".factory/library/frontend-handoff.md",
+        "line": 3313,
+        "severity": "blocking",
+        "description": "The O2C flow tells frontend consumers to use the `finalInvoiceId` returned by `POST /api/v1/dispatch/confirm`, but that field is not returned by the endpoint. Following this handoff would send implementers to a non-existent response field, so the onboarding-to-dispatch guidance is still not teaching the same dispatch truth as the runtime/OpenAPI contract."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The new `scripts/guard_workflow_canonical_paths.sh` checks route literals and a few ownership phrases, but it does not validate field-level dispatch DTO parity in canonical handoff docs. As a result, stale `finalInvoiceId`/`arJournalEntryId` claims in `.factory/library/frontend-handoff.md` passed the new guard even though the DTO/OpenAPI contract disagrees.",
+      "evidence": "`scripts/guard_workflow_canonical_paths.sh:61-87` only requires `/api/v1/dispatch/confirm` literals and forbids retired aliases/phrases; compare with `.factory/library/frontend-handoff.md:2164,3313`, `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/dto/DispatchConfirmationResponse.java:7-25`, and the `/api/v1/dispatch/confirm` schema in `openapi.json`."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Review failed: the route/ownership hard-cut is mostly aligned, but the feature still leaves blocking frontend-handoff contract drift by documenting nonexistent `/api/v1/dispatch/confirm` response fields (`finalInvoiceId`, `arJournalEntryId`, etc.), so docs/library/OpenAPI do not yet teach one consistent dispatch truth."
+}
