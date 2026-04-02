@@ -1,6 +1,6 @@
 # Order-to-Cash (O2C) Flow
 
-Last reviewed: 2026-03-30
+Last reviewed: 2026-04-02
 
 This packet documents the **order-to-cash flow**: the canonical commercial lifecycle from dealer onboarding through sales order creation, confirmation, dispatch, invoicing, and settlement. It covers credit management, inventory reservation, dispatch execution, invoice generation, and the accounting boundary for AR (accounts receivable).
 
@@ -42,7 +42,7 @@ This flow is **behavior-first** and **code-grounded**. Where the backend is inco
 | --- | --- | --- | --- | --- |
 | Create Order | POST | `/api/v1/sales/orders` | SALES, ADMIN | Create sales order (idempotent) |
 | List Orders | GET | `/api/v1/sales/orders` | ADMIN, SALES, FACTORY, ACCOUNTING | List orders (paginated) |
-| Search Orders | GET | `/api/v1/sales/orders/search` | ADMIN, SALES, FACTORY, ACCOUNTING | Search with filters |
+| Search Orders | GET | `/api/v1/sales/orders/search` | ADMIN, SALES, FACTORY, ACCOUNTING | Search with filters (`orderNumber` contains match; canonical status filters normalize legacy stored statuses) |
 | Update Order | PUT | `/api/v1/sales/orders/{id}` | SALES, ADMIN | Update draft order |
 | Delete Order | DELETE | `/api/v1/sales/orders/{id}` | SALES, ADMIN | Delete draft order |
 | Confirm Order | POST | `/api/v1/sales/orders/{id}/confirm` | SALES, ADMIN | Confirm order (credit check + stock validation) |
@@ -55,9 +55,16 @@ This flow is **behavior-first** and **code-grounded**. Where the backend is inco
 | Entrypoint | Method | Path | Actor | Purpose |
 | --- | --- | --- | --- | --- |
 | Create Dealer | POST | `/api/v1/dealers` | ADMIN, SALES, ACCOUNTING | Create dealer |
-| List Dealers | GET | `/api/v1/dealers` | ADMIN, SALES, ACCOUNTING | List dealers |
+| List Dealers | GET | `/api/v1/dealers` | ADMIN, SALES, ACCOUNTING | List dealers (default active-only; optional `status`, `page`, `size`) |
 | Update Dealer | PUT | `/api/v1/dealers/{dealerId}` | ADMIN, SALES, ACCOUNTING | Update dealer |
 | Dunning Hold | POST | `/api/v1/dealers/{dealerId}/dunning/hold` | ADMIN, SALES, ACCOUNTING | Evaluate dunning hold |
+
+Dealer-directory compatibility rules:
+
+- omit `page` and `size` for the full active-only directory
+- send `status=ALL` to include non-active dealers
+- when `page` and/or `size` is supplied, the backend still returns a sliced
+  list with no total-count metadata
 
 ### Credit Management — `CreditLimitRequestController`, `CreditLimitOverrideController`
 

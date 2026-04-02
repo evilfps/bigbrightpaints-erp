@@ -1,6 +1,6 @@
 # DTO Examples
 
-Last reviewed: 2026-03-31
+Last reviewed: 2026-04-02
 
 ## Overview
 
@@ -97,30 +97,59 @@ POST /api/v1/admin/users
 ### List Dealers
 
 ```json
-GET /api/v1/dealers?filter.status=ACTIVE&sort=name,asc
+GET /api/v1/dealers?status=ALL&page=0&size=50
 {
   "success": true,
-  "data": {
-    "content": [
-      {
-        "dealerId": 101,
-        "dealerCode": "ACME01",
-        "name": "Acme Corporation",
-        "status": "ACTIVE",
-        "creditLimit": 50000.00,
-        "currentBalance": 12500.00,
-        "agingBuckets": {
-          "current": 5000.00,
-          "days1to30": 3000.00,
-          "days31to60": 2500.00,
-          "days61to90": 1000.00,
-          "over90": 1000.00
-        }
-      }
-    ]
-  }
+  "data": [
+    {
+      "id": 101,
+      "publicId": "11111111-2222-3333-4444-555555555555",
+      "code": "ACME01",
+      "name": "Acme Corporation",
+      "companyName": "Acme Corporation Pvt Ltd",
+      "email": "ops@acme.example",
+      "phone": "9999999999",
+      "address": "Industrial Road",
+      "receivableAccountId": 7001,
+      "receivableAccountCode": "AR-ACME01",
+      "portalEmail": "dealer@acme.example",
+      "gstNumber": "27ABCDE1234F1Z5",
+      "stateCode": "MH",
+      "gstRegistrationType": "REGULAR",
+      "paymentTerms": "NET_30",
+      "region": "WEST",
+      "creditStatus": "WITHIN_LIMIT"
+    },
+    {
+      "id": 102,
+      "publicId": "66666666-7777-8888-9999-000000000000",
+      "code": "BETA02",
+      "name": "Beta Retail",
+      "companyName": "Beta Retail LLP",
+      "email": "owner@beta.example",
+      "phone": "8888888888",
+      "address": null,
+      "receivableAccountId": 7002,
+      "receivableAccountCode": "AR-BETA02",
+      "portalEmail": null,
+      "gstNumber": null,
+      "stateCode": "KA",
+      "gstRegistrationType": "UNREGISTERED",
+      "paymentTerms": "NET_15",
+      "region": "SOUTH",
+      "creditStatus": "NEAR_LIMIT"
+    }
+  ]
 }
 ```
+
+> **Dealer directory contract notes**
+>
+> - Omitting `page` and `size` returns the full active-only directory.
+> - `status=ALL` lifts the active-only default.
+> - Supplying `page` and/or `size` windows the returned list, but the response
+>   still stays `data: DealerResponse[]` without `content`, `totalPages`, or
+>   `totalElements`.
 
 > **Note**: There is no `GET /api/v1/dealers/{dealerId}` endpoint for fetching a single dealer by ID. Dealer details are available through the list endpoint with filters, or via search endpoints.
 

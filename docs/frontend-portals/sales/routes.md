@@ -1,5 +1,7 @@
 # Sales Routes
 
+Last reviewed: 2026-04-02
+
 Every route below belongs to the sales shell. Do not duplicate these screens in
 factory, accounting, tenant-admin, or dealer-client.
 
@@ -18,6 +20,10 @@ factory, accounting, tenant-admin, or dealer-client.
 
 Route rules:
 
+- `/sales/dealers` defaults to the full active dealer directory. Use
+  `status=ALL` only when the UI intentionally needs non-active dealers.
+- Dealer-directory calls may pass `page` and `size` for windowing, but the
+  backend still returns a plain list with no total-count metadata.
 - Sales can render dispatch status reads, but dispatch confirmation stays in the
   factory portal.
 - Sales can render invoice status reads and an order-linked invoice summary, but

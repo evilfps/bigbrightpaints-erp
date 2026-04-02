@@ -1,20 +1,34 @@
 # Sales API Contracts
 
+Last reviewed: 2026-04-02
+
 This file defines which backend surfaces sales can call directly and where the
 portal must stop.
 
 ## Dealer Master
 
-- `GET /api/v1/dealers`
+- `GET /api/v1/dealers?status=&page=&size=`
+- alias: `GET /api/v1/sales/dealers?status=&page=&size=`
 - `POST /api/v1/dealers`
-- dealer detail and update endpoints under `/api/v1/dealers/**`
+- dealer search and update endpoints under `/api/v1/dealers/**`
 
 Dealer screens own commercial identity, contacts, GST-visible business data,
 addresses, credit policy reads, and dealer readiness for order creation.
 
+Rules:
+
+- Omitting `page` and `size` returns the full active-only directory.
+- Send `status=ALL` to include non-active dealers in the directory.
+- When `page` and/or `size` are sent, the backend still returns a plain
+  `DealerResponse[]` slice without total-count metadata.
+- There is no dedicated `GET /api/v1/dealers/{dealerId}` read endpoint today;
+  dealer detail screens must hydrate from directory/search payloads and update
+  responses.
+
 ## Order Lifecycle
 
 - `GET /api/v1/sales/orders`
+- `GET /api/v1/sales/orders/search?status=&dealerId=&orderNumber=&fromDate=&toDate=&page=&size=`
 - `POST /api/v1/sales/orders`
 - `POST /api/v1/sales/orders/{id}/confirm`
 - `GET /api/v1/sales/orders/{id}`
@@ -23,6 +37,11 @@ addresses, credit policy reads, and dealer readiness for order creation.
 Rules:
 
 - Order create and confirm happen in sales.
+- Order search treats `orderNumber` as a case-insensitive contains filter.
+- Order search normalizes legacy stored statuses:
+  - `DRAFT` also matches `BOOKED`
+  - `DISPATCHED` also matches `SHIPPED` and `FULFILLED`
+  - `SETTLED` also matches `COMPLETED`
 - Confirm should be treated as commercial confirmation and reservation intent.
 - Do not infer invoice generation from order confirmation alone.
 

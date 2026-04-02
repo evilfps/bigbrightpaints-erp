@@ -1,18 +1,25 @@
 # Sales Workflows
 
+Last reviewed: 2026-04-02
+
 ## 1. Dealer Setup To Order Readiness
 
-1. Create or update the dealer record.
-2. Validate commercial profile, GST fields, credit policy, and selling context.
-3. If dealer readiness fails, stop before order creation and show the exact
+1. Start from the active dealer directory; switch to `status=ALL` only when the
+   workflow explicitly needs held or suspended dealers.
+2. Create or update the dealer record.
+3. Validate commercial profile, GST fields, credit policy, and selling context.
+4. If dealer readiness fails, stop before order creation and show the exact
    issue.
 
 ## 2. Order Draft To Commercial Confirmation
 
 1. Create the order against a valid dealer and ready SKU set.
 2. Review quantities, pricing, discounts, taxes, and delivery intent.
-3. Confirm the order to lock the commercial intent and reservation request.
-4. Surface reservation outcome without pretending the dispatch has happened.
+3. Use order search for follow-up by partial order number or canonical status;
+   the backend also matches legacy stored statuses for the same commercial
+   bucket.
+4. Confirm the order to lock the commercial intent and reservation request.
+5. Surface reservation outcome without pretending the dispatch has happened.
 
 ## 3. Reservation To Factory Handoff
 

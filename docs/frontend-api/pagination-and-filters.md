@@ -1,6 +1,6 @@
 # Pagination and Filters
 
-Last reviewed: 2026-03-31
+Last reviewed: 2026-04-02
 
 ## List behavior
 
@@ -19,6 +19,13 @@ Last reviewed: 2026-03-31
   `type`, `sourceModule`
 - Approvals: status, request type, created-by, requested date
 - Catalog and stock: `itemClass`, readiness, stock visibility, search text
+- Dealer directory:
+  `GET /api/v1/dealers?status={status}&page={page}&size={size}` and
+  `GET /api/v1/sales/dealers?status={status}&page={page}&size={size}`
+  - omit `page` and `size` for the full active-only directory
+  - send `status=ALL` to include non-active dealers
+  - when `page` and/or `size` are sent, the backend still returns a plain
+    `DealerResponse[]` slice with no total-count metadata
 - Bank reconciliation sessions:
   `GET /api/v1/accounting/reconciliation/bank/sessions?page={page}&size={size}`
 - Reconciliation discrepancies:
@@ -69,6 +76,9 @@ Practical rules:
   what the operator saw.
 - Distinguish server-backed filtering from local UI-only search chips. The
   canonical totals and export scope come from the backend query only.
+- Do not assume every endpoint with `page` and `size` returns a paginated
+  envelope. Dealer-directory endpoints keep a compatibility `data: []` list
+  shape even when windowing is requested.
 
 ## Empty-state rules
 

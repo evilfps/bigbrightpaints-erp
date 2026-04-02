@@ -1,5 +1,7 @@
 # Sales Portal Frontend Engineer Handoff
 
+Last reviewed: 2026-04-02
+
 This document is the backend-to-frontend contract for the **Sales Portal**.
 
 ## Portal role
@@ -224,13 +226,26 @@ type CreateDealerRequest = {
 
 ### Dealer list
 
-- `GET /api/v1/dealers`
-- alias: `GET /api/v1/sales/dealers`
+- `GET /api/v1/dealers?status=&page=&size=`
+- alias: `GET /api/v1/sales/dealers?status=&page=&size=`
+
+Important:
+
+- Omit `page` and `size` for the full active-only directory.
+- Send `status=ALL` if the UI intentionally needs non-active dealers.
+- When `page` and/or `size` are supplied, the backend still returns a plain
+  `DealerResponse[]` list slice without total-count metadata.
 
 ### Dealer search
 
 - `GET /api/v1/dealers/search?query=&status=&region=&creditStatus=`
 - alias: `GET /api/v1/sales/dealers/search?...`
+
+Important:
+
+- There is no dedicated `GET /api/v1/dealers/{dealerId}` fetch route today.
+  Dealer detail screens should hydrate from directory/search payloads and the
+  latest update response.
 
 ### Create dealer
 
@@ -341,7 +356,13 @@ type SalesOrderRequest = {
 
 Important:
 
+- `orderNumber` is a case-insensitive contains filter
+- canonical filters also match legacy stored statuses:
+  - `DRAFT` includes `BOOKED`
+  - `DISPATCHED` includes `SHIPPED` and `FULFILLED`
+  - `SETTLED` includes `COMPLETED`
 - `fromDate` and `toDate` must be ISO-8601 instants if sent
+- no-match searches return `data.content = []` instead of an error
 
 ### Create order
 

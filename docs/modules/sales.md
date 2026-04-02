@@ -1,6 +1,6 @@
 # Sales / Order-to-Cash Module Packet
 
-Last reviewed: 2026-03-30
+Last reviewed: 2026-04-02
 
 This packet documents the sales module, which owns **commercial lifecycle truth** for the ERP. It covers dealer/customer management, order lifecycle, credit controls, dispatch coordination, dealer self-service, and the canonical order-to-cash path through dispatch and settlement boundaries.
 
@@ -36,14 +36,14 @@ Stock and dispatch execution truth is documented separately in [inventory.md](in
 | --- | --- | --- | --- |
 | `/api/v1/sales/orders` | POST | SALES, ADMIN | Create sales order (idempotent) |
 | `/api/v1/sales/orders` | GET | ADMIN, SALES, FACTORY, ACCOUNTING | List orders (paginated) |
-| `/api/v1/sales/orders/search` | GET | ADMIN, SALES, FACTORY, ACCOUNTING | Search orders with filters |
+| `/api/v1/sales/orders/search` | GET | ADMIN, SALES, FACTORY, ACCOUNTING | Search orders with filters (`orderNumber` contains match; canonical status filters normalize legacy stored statuses) |
 | `/api/v1/sales/orders/{id}` | PUT | SALES, ADMIN | Update draft order |
 | `/api/v1/sales/orders/{id}` | DELETE | SALES, ADMIN | Delete draft order |
 | `/api/v1/sales/orders/{id}/confirm` | POST | SALES, ADMIN | Confirm order (triggers credit check + stock validation) |
 | `/api/v1/sales/orders/{id}/cancel` | POST | SALES, ADMIN | Cancel order (requires reason code) |
 | `/api/v1/sales/orders/{id}/status` | PATCH | SALES, ADMIN | Manual status update (ON_HOLD, REJECTED, CLOSED only) |
 | `/api/v1/sales/orders/{id}/timeline` | GET | ADMIN, SALES, FACTORY, ACCOUNTING | Order status history timeline |
-| `/api/v1/sales/dealers` | GET | ADMIN, SALES, ACCOUNTING | List dealers (alias for `/api/v1/dealers`) |
+| `/api/v1/sales/dealers` | GET | ADMIN, SALES, ACCOUNTING | List dealers (alias for `/api/v1/dealers`; optional `status`, `page`, `size`) |
 | `/api/v1/sales/dealers/search` | GET | ADMIN, SALES, ACCOUNTING | Search dealers (alias) |
 | `/api/v1/sales/dashboard` | GET | ADMIN, SALES, FACTORY, ACCOUNTING | Sales dashboard |
 | `/api/v1/sales/promotions` | GET/POST | ADMIN, SALES | List/create promotions |
@@ -58,7 +58,7 @@ Stock and dispatch execution truth is documented separately in [inventory.md](in
 | Route | Method | Roles | Purpose |
 | --- | --- | --- | --- |
 | `/api/v1/dealers` | POST | ADMIN, SALES, ACCOUNTING | Create dealer |
-| `/api/v1/dealers` | GET | ADMIN, SALES, ACCOUNTING | List dealers |
+| `/api/v1/dealers` | GET | ADMIN, SALES, ACCOUNTING | List dealers (default active-only; optional `status`, `page`, `size`) |
 | `/api/v1/dealers/search` | GET | ADMIN, SALES, ACCOUNTING | Search dealers with filters |
 | `/api/v1/dealers/{dealerId}` | PUT | ADMIN, SALES, ACCOUNTING | Update dealer |
 | `/api/v1/dealers/{dealerId}/dunning/hold` | POST | ADMIN, SALES, ACCOUNTING | Evaluate dunning hold |
@@ -150,6 +150,11 @@ Handles sales returns: goods return to inventory, reversal journal entries, and 
 Dealer management service handling:
 
 - Dealer CRUD with auto-provisioning of portal user accounts (`ScopedAccountBootstrapService`)
+- Dealer-directory reads with optional `status`, `page`, and `size`; omitting
+  pagination returns the full active-only directory, while `status=ALL` lifts
+  the default status filter
+- Stable dealer-directory windowing order when `page`/`size` is supplied:
+  `name ASC, id ASC`
 - Auto-generation of dealer codes and receivable accounts
 - Credit utilization calculation (outstanding + pending order exposure vs credit limit)
 - Credit status classification: `WITHIN_LIMIT`, `NEAR_LIMIT` (≥80%), `OVER_LIMIT`
@@ -468,7 +473,16 @@ The sales module currently publishes only one domain event. Other coordination h
 
 ### Dealer Alias Routes
 
-`GET /api/v1/sales/dealers` and `GET /api/v1/sales/dealers/search` are **frontend convenience aliases** that delegate to `DealerService`. The canonical dealer routes are at `/api/v1/dealers`. The alias routes exist because the frontend currently calls the `/sales/dealers` path. Both sets of routes produce identical results.
+`GET /api/v1/sales/dealers` and `GET /api/v1/sales/dealers/search` are
+**frontend convenience aliases** that delegate to `DealerService`. The canonical
+dealer routes are at `/api/v1/dealers`. The alias routes exist because the
+frontend currently calls the `/sales/dealers` path. Both sets of routes produce
+identical results, including the dealer-directory compatibility rules:
+
+- omit `page` and `size` to return the full active-only directory
+- pass `status=ALL` to include non-active dealers
+- if `page` and/or `size` is supplied, the backend returns a sliced
+  `DealerResponse[]` list without total-count metadata
 
 ### Legacy Payment Mode Idempotency
 
@@ -487,6 +501,10 @@ The statuses `BOOKED`, `SHIPPED`, `FULFILLED`, and `COMPLETED` are accepted by s
 - `BOOKED` → `in_progress`
 - `SHIPPED`, `FULFILLED` → `dispatched`
 - `COMPLETED` → `completed`
+
+The same normalization is used by `GET /api/v1/sales/orders/search`, so
+canonical search filters continue to find older rows stored under legacy status
+names.
 
 ### Credit Request Nullable Requester Fields
 
