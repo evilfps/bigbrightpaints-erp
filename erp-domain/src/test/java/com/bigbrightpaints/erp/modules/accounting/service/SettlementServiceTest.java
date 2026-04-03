@@ -2,8 +2,10 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -26,68 +28,71 @@ import com.bigbrightpaints.erp.modules.accounting.dto.SupplierSettlementRequest;
 @ExtendWith(MockitoExtension.class)
 class SettlementServiceTest {
 
-  @Mock private AccountingIdempotencyService accountingIdempotencyService;
+  @Mock private JournalEntryService journalEntryService;
+  @Mock private DealerReceiptService dealerReceiptService;
 
   private SettlementService settlementService;
 
   @BeforeEach
   void setUp() {
     settlementService =
-        new SettlementService(
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.company.service.CompanyContextService.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.accounting.service.SupplierLedgerService.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService.class),
-            org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class),
-            org.mockito.Mockito.mock(com.bigbrightpaints.erp.core.util.CompanyClock.class),
-            org.mockito.Mockito.mock(com.bigbrightpaints.erp.core.util.CompanyEntityLookup.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.accounting.domain
-                    .PartnerSettlementAllocationRepository.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository
-                    .class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository
-                    .class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.sales.domain.DealerRepository.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.accounting.service.JournalReferenceResolver.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository
-                    .class),
-            org.mockito.Mockito.mock(jakarta.persistence.EntityManager.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.core.config.SystemSettingsService.class),
-            org.mockito.Mockito.mock(com.bigbrightpaints.erp.core.audit.AuditService.class),
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore.class),
-            accountingIdempotencyService);
+        org.mockito.Mockito.spy(
+            new SettlementService(
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.company.service.CompanyContextService.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.accounting.service.SupplierLedgerService.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService.class),
+                org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.core.util.CompanyClock.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.core.util.CompanyEntityLookup.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.accounting.domain
+                        .PartnerSettlementAllocationRepository.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository
+                        .class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository
+                        .class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.sales.domain.DealerRepository.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.accounting.service.JournalReferenceResolver.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository
+                        .class),
+                org.mockito.Mockito.mock(jakarta.persistence.EntityManager.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.core.config.SystemSettingsService.class),
+                org.mockito.Mockito.mock(com.bigbrightpaints.erp.core.audit.AuditService.class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore.class),
+                journalEntryService,
+                dealerReceiptService));
   }
 
   @Test
@@ -102,8 +107,7 @@ class SettlementServiceTest {
             BigDecimal.ZERO,
             SettlementAllocationApplication.DOCUMENT,
             " memo ");
-    when(accountingIdempotencyService.recordSupplierPayment(org.mockito.ArgumentMatchers.any()))
-        .thenReturn(null);
+    doReturn(null).when(settlementService).recordSupplierPaymentInternal(any());
 
     settlementService.recordSupplierPayment(
         new SupplierPaymentRequest(
@@ -117,7 +121,7 @@ class SettlementServiceTest {
 
     ArgumentCaptor<SupplierPaymentRequest> captor =
         ArgumentCaptor.forClass(SupplierPaymentRequest.class);
-    verify(accountingIdempotencyService).recordSupplierPayment(captor.capture());
+    verify(settlementService).recordSupplierPaymentInternal(captor.capture());
     assertThat(captor.getValue().referenceNumber()).isEqualTo("SUP-REF-1");
     assertThat(captor.getValue().memo()).isEqualTo("supplier memo");
     assertThat(captor.getValue().idempotencyKey()).isEqualTo("supplier-key");
@@ -126,10 +130,8 @@ class SettlementServiceTest {
 
   @Test
   void settlementRequests_normalizeAmountFlagsAndUnappliedApplication() {
-    when(accountingIdempotencyService.settleDealerInvoices(org.mockito.ArgumentMatchers.any()))
-        .thenReturn(null);
-    when(accountingIdempotencyService.settleSupplierInvoices(org.mockito.ArgumentMatchers.any()))
-        .thenReturn(null);
+    doReturn(null).when(settlementService).settleDealerInvoicesInternal(any());
+    doReturn(null).when(settlementService).settleSupplierInvoicesInternal(any());
 
     settlementService.settleDealerInvoices(
         new DealerSettlementRequest(
@@ -169,8 +171,8 @@ class SettlementServiceTest {
         ArgumentCaptor.forClass(DealerSettlementRequest.class);
     ArgumentCaptor<SupplierSettlementRequest> supplierCaptor =
         ArgumentCaptor.forClass(SupplierSettlementRequest.class);
-    verify(accountingIdempotencyService).settleDealerInvoices(dealerCaptor.capture());
-    verify(accountingIdempotencyService).settleSupplierInvoices(supplierCaptor.capture());
+    verify(settlementService).settleDealerInvoicesInternal(dealerCaptor.capture());
+    verify(settlementService).settleSupplierInvoicesInternal(supplierCaptor.capture());
 
     assertThat(dealerCaptor.getValue().amount()).isEqualByComparingTo("25.00");
     assertThat(dealerCaptor.getValue().unappliedAmountApplication())
@@ -185,10 +187,8 @@ class SettlementServiceTest {
 
   @Test
   void settlementRequests_allowNullAmountAndNullUnappliedApplication() {
-    when(accountingIdempotencyService.settleDealerInvoices(org.mockito.ArgumentMatchers.any()))
-        .thenReturn(null);
-    when(accountingIdempotencyService.settleSupplierInvoices(org.mockito.ArgumentMatchers.any()))
-        .thenReturn(null);
+    doReturn(null).when(settlementService).settleDealerInvoicesInternal(any());
+    doReturn(null).when(settlementService).settleSupplierInvoicesInternal(any());
 
     settlementService.settleDealerInvoices(
         new DealerSettlementRequest(
@@ -228,8 +228,8 @@ class SettlementServiceTest {
         ArgumentCaptor.forClass(DealerSettlementRequest.class);
     ArgumentCaptor<SupplierSettlementRequest> supplierCaptor =
         ArgumentCaptor.forClass(SupplierSettlementRequest.class);
-    verify(accountingIdempotencyService).settleDealerInvoices(dealerCaptor.capture());
-    verify(accountingIdempotencyService).settleSupplierInvoices(supplierCaptor.capture());
+    verify(settlementService).settleDealerInvoicesInternal(dealerCaptor.capture());
+    verify(settlementService).settleSupplierInvoicesInternal(supplierCaptor.capture());
 
     DealerSettlementRequest dealerRequest = dealerCaptor.getValue();
     SupplierSettlementRequest supplierRequest = supplierCaptor.getValue();
@@ -268,12 +268,8 @@ class SettlementServiceTest {
 
   @Test
   void autoSettlement_generatesDeterministicReferencesAndNormalizesExplicitValues() {
-    when(accountingIdempotencyService.autoSettleDealer(
-            org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any()))
-        .thenReturn(null);
-    when(accountingIdempotencyService.autoSettleSupplier(
-            org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any()))
-        .thenReturn(null);
+    doReturn(null).when(settlementService).autoSettleDealerInternal(anyLong(), any());
+    doReturn(null).when(settlementService).autoSettleSupplierInternal(anyLong(), any());
 
     settlementService.autoSettleDealer(
         91L,
@@ -291,10 +287,8 @@ class SettlementServiceTest {
         ArgumentCaptor.forClass(AutoSettlementRequest.class);
     ArgumentCaptor<AutoSettlementRequest> supplierCaptor =
         ArgumentCaptor.forClass(AutoSettlementRequest.class);
-    verify(accountingIdempotencyService)
-        .autoSettleDealer(org.mockito.ArgumentMatchers.eq(91L), dealerCaptor.capture());
-    verify(accountingIdempotencyService)
-        .autoSettleSupplier(org.mockito.ArgumentMatchers.eq(92L), supplierCaptor.capture());
+    verify(settlementService).autoSettleDealerInternal(org.mockito.ArgumentMatchers.eq(91L), dealerCaptor.capture());
+    verify(settlementService).autoSettleSupplierInternal(org.mockito.ArgumentMatchers.eq(92L), supplierCaptor.capture());
 
     assertThat(dealerCaptor.getValue().referenceNumber()).isNull();
     assertThat(dealerCaptor.getValue().idempotencyKey()).isNull();

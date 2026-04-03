@@ -85,7 +85,7 @@ import jakarta.persistence.EntityManager;
 
 abstract class AccountingCoreEngineCore {
 
-  private static final Logger log = LoggerFactory.getLogger(AccountingCoreEngineCore.class);
+  protected static final Logger log = LoggerFactory.getLogger(AccountingCoreEngineCore.class);
 
   // Exact zero tolerance enforced for double-entry accounting integrity.
   // All amounts must be properly rounded before posting to ensure perfect balance.
@@ -93,7 +93,7 @@ abstract class AccountingCoreEngineCore {
   private static final BigDecimal FX_RATE_MIN = new BigDecimal("0.0001");
   private static final BigDecimal FX_RATE_MAX = new BigDecimal("100000");
   private static final BigDecimal FX_ROUNDING_TOLERANCE = new BigDecimal("0.05");
-  private static final BigDecimal ALLOCATION_TOLERANCE = new BigDecimal("0.01");
+  protected static final BigDecimal ALLOCATION_TOLERANCE = new BigDecimal("0.01");
   private static final Duration IDEMPOTENCY_WAIT_TIMEOUT = Duration.ofSeconds(8);
   private static final long IDEMPOTENCY_WAIT_SLEEP_MS = 50L;
   private static final ThreadLocal<Boolean> SYSTEM_ENTRY_DATE_OVERRIDE =
@@ -103,9 +103,9 @@ abstract class AccountingCoreEngineCore {
   private static final int ACCOUNTING_EVENT_DESCRIPTION_MAX_LENGTH = 500;
   private static final String ENTITY_TYPE_DEALER_RECEIPT = "DEALER_RECEIPT";
   private static final String ENTITY_TYPE_DEALER_RECEIPT_SPLIT = "DEALER_RECEIPT_SPLIT";
-  private static final String ENTITY_TYPE_DEALER_SETTLEMENT = "DEALER_SETTLEMENT";
-  private static final String ENTITY_TYPE_SUPPLIER_PAYMENT = "SUPPLIER_PAYMENT";
-  private static final String ENTITY_TYPE_SUPPLIER_SETTLEMENT = "SUPPLIER_SETTLEMENT";
+  protected static final String ENTITY_TYPE_DEALER_SETTLEMENT = "DEALER_SETTLEMENT";
+  protected static final String ENTITY_TYPE_SUPPLIER_PAYMENT = "SUPPLIER_PAYMENT";
+  protected static final String ENTITY_TYPE_SUPPLIER_SETTLEMENT = "SUPPLIER_SETTLEMENT";
   private static final String ENTITY_TYPE_CREDIT_NOTE = "CREDIT_NOTE";
   private static final String ENTITY_TYPE_DEBIT_NOTE = "DEBIT_NOTE";
   private static final String SETTLEMENT_DISCOUNT_LINE_DESCRIPTION = "settlement discount";
@@ -115,33 +115,33 @@ abstract class AccountingCoreEngineCore {
   private static final String INPUT_TAX_LINE_DESCRIPTION_PREFIX = "input tax for ";
   private static final int IDEMPOTENCY_LOG_HASH_LENGTH = 12;
 
-  private final CompanyContextService companyContextService;
-  private final AccountRepository accountRepository;
-  private final JournalEntryRepository journalEntryRepository;
-  private final DealerLedgerService dealerLedgerService;
-  private final SupplierLedgerService supplierLedgerService;
-  private final PayrollRunRepository payrollRunRepository;
-  private final PayrollRunLineRepository payrollRunLineRepository;
-  private final AccountingPeriodService accountingPeriodService;
-  private final ReferenceNumberService referenceNumberService;
-  private final ApplicationEventPublisher eventPublisher;
-  private final CompanyClock companyClock;
-  private final CompanyEntityLookup companyEntityLookup;
-  private final PartnerSettlementAllocationRepository settlementAllocationRepository;
-  private final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
-  private final InvoiceRepository invoiceRepository;
-  private final RawMaterialMovementRepository rawMaterialMovementRepository;
-  private final RawMaterialBatchRepository rawMaterialBatchRepository;
-  private final FinishedGoodBatchRepository finishedGoodBatchRepository;
-  private final DealerRepository dealerRepository;
-  private final SupplierRepository supplierRepository;
-  private final InvoiceSettlementPolicy invoiceSettlementPolicy;
-  private final JournalReferenceResolver journalReferenceResolver;
-  private final JournalReferenceMappingRepository journalReferenceMappingRepository;
-  private final EntityManager entityManager;
-  private final SystemSettingsService systemSettingsService;
-  private final AuditService auditService;
-  private final AccountingEventStore accountingEventStore;
+  protected final CompanyContextService companyContextService;
+  protected final AccountRepository accountRepository;
+  protected final JournalEntryRepository journalEntryRepository;
+  protected final DealerLedgerService dealerLedgerService;
+  protected final SupplierLedgerService supplierLedgerService;
+  protected final PayrollRunRepository payrollRunRepository;
+  protected final PayrollRunLineRepository payrollRunLineRepository;
+  protected final AccountingPeriodService accountingPeriodService;
+  protected final ReferenceNumberService referenceNumberService;
+  protected final ApplicationEventPublisher eventPublisher;
+  protected final CompanyClock companyClock;
+  protected final CompanyEntityLookup companyEntityLookup;
+  protected final PartnerSettlementAllocationRepository settlementAllocationRepository;
+  protected final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
+  protected final InvoiceRepository invoiceRepository;
+  protected final RawMaterialMovementRepository rawMaterialMovementRepository;
+  protected final RawMaterialBatchRepository rawMaterialBatchRepository;
+  protected final FinishedGoodBatchRepository finishedGoodBatchRepository;
+  protected final DealerRepository dealerRepository;
+  protected final SupplierRepository supplierRepository;
+  protected final InvoiceSettlementPolicy invoiceSettlementPolicy;
+  protected final JournalReferenceResolver journalReferenceResolver;
+  protected final JournalReferenceMappingRepository journalReferenceMappingRepository;
+  protected final EntityManager entityManager;
+  protected final SystemSettingsService systemSettingsService;
+  protected final AuditService auditService;
+  protected final AccountingEventStore accountingEventStore;
 
   @Autowired(required = false)
   private Environment environment;
@@ -150,10 +150,10 @@ abstract class AccountingCoreEngineCore {
       new IdempotencyReservationService();
 
   @Autowired(required = false)
-  private AccountingComplianceAuditService accountingComplianceAuditService;
+  protected AccountingComplianceAuditService accountingComplianceAuditService;
 
   @Autowired(required = false)
-  private ClosedPeriodPostingExceptionService closedPeriodPostingExceptionService;
+  protected ClosedPeriodPostingExceptionService closedPeriodPostingExceptionService;
 
   /**
    * When true, disables date validation for benchmark mode.
@@ -1853,7 +1853,7 @@ abstract class AccountingCoreEngineCore {
     return entry;
   }
 
-  private String resolvePayrollPaymentReference(
+  protected String resolvePayrollPaymentReference(
       PayrollRun run, PayrollPaymentRequest request, Company company) {
     if (StringUtils.hasText(request.referenceNumber())) {
       return request.referenceNumber().trim();
@@ -1865,7 +1865,7 @@ abstract class AccountingCoreEngineCore {
     return "PAYROLL-PAY-" + runToken;
   }
 
-  private String resolvePayrollRunToken(String runNumber, Long runId) {
+  protected String resolvePayrollRunToken(String runNumber, Long runId) {
     if (StringUtils.hasText(runNumber)) {
       String normalizedRunNumber = runNumber.trim();
       if (runId == null
@@ -1878,7 +1878,7 @@ abstract class AccountingCoreEngineCore {
     return runId != null ? "LEGACY-" + runId : null;
   }
 
-  private void validatePayrollPaymentIdempotency(
+  protected void validatePayrollPaymentIdempotency(
       PayrollPaymentRequest request,
       JournalEntry existing,
       Account salaryPayableAccount,
@@ -3088,7 +3088,7 @@ abstract class AccountingCoreEngineCore {
     return resolved.abs();
   }
 
-  private JournalEntryType resolveJournalEntryType(String journalType) {
+  protected JournalEntryType resolveJournalEntryType(String journalType) {
     if (!StringUtils.hasText(journalType)) {
       return JournalEntryType.AUTOMATED;
     }
@@ -3107,14 +3107,14 @@ abstract class AccountingCoreEngineCore {
     return resolveJournalEntryType(journalType);
   }
 
-  private String normalizeSourceModule(String sourceModule) {
+  protected String normalizeSourceModule(String sourceModule) {
     if (!StringUtils.hasText(sourceModule)) {
       return null;
     }
     return sourceModule.trim().toUpperCase(Locale.ROOT);
   }
 
-  private String normalizeSourceReference(String sourceReference) {
+  protected String normalizeSourceReference(String sourceReference) {
     if (!StringUtils.hasText(sourceReference)) {
       return null;
     }
@@ -3156,11 +3156,11 @@ abstract class AccountingCoreEngineCore {
         account.getBalance());
   }
 
-  private JournalEntryDto toDto(JournalEntry entry) {
+  protected JournalEntryDto toDto(JournalEntry entry) {
     return toDto(entry, entry.getReferenceNumber());
   }
 
-  private JournalEntryDto toDto(JournalEntry entry, String displayReferenceNumber) {
+  protected JournalEntryDto toDto(JournalEntry entry, String displayReferenceNumber) {
     List<JournalLineDto> lines =
         entry.getLines().stream()
             .map(
@@ -3237,11 +3237,11 @@ abstract class AccountingCoreEngineCore {
         .orElse(canonicalReference);
   }
 
-  private Dealer requireDealer(Company company, Long dealerId) {
+  protected Dealer requireDealer(Company company, Long dealerId) {
     return companyEntityLookup.requireDealer(company, dealerId);
   }
 
-  private Supplier requireSupplier(Company company, Long supplierId) {
+  protected Supplier requireSupplier(Company company, Long supplierId) {
     return companyEntityLookup.requireSupplier(company, supplierId);
   }
 
@@ -3249,12 +3249,12 @@ abstract class AccountingCoreEngineCore {
     return companyEntityLookup.requireAccount(company, accountId);
   }
 
-  private Account requireCashAccountForSettlement(
+  protected Account requireCashAccountForSettlement(
       Company company, Long accountId, String operation) {
     return requireCashAccountForSettlement(company, accountId, operation, true);
   }
 
-  private Account requireCashAccountForSettlement(
+  protected Account requireCashAccountForSettlement(
       Company company, Long accountId, String operation, boolean requireActive) {
     Account account = requireAccount(company, accountId);
     if (requireActive && !account.isActive()) {
@@ -3287,7 +3287,7 @@ abstract class AccountingCoreEngineCore {
     return account;
   }
 
-  private Long resolveAutoSettlementCashAccountId(
+  protected Long resolveAutoSettlementCashAccountId(
       Company company, Long requestedCashAccountId, String operation) {
     if (requestedCashAccountId != null) {
       return requestedCashAccountId;
@@ -3319,7 +3319,7 @@ abstract class AccountingCoreEngineCore {
                         + operation));
   }
 
-  private List<SettlementAllocationRequest> resolveDealerSettlementAllocations(
+  protected List<SettlementAllocationRequest> resolveDealerSettlementAllocations(
       Company company, Dealer dealer, DealerSettlementRequest request) {
     return resolveDealerSettlementAllocations(
         company,
@@ -3332,7 +3332,7 @@ abstract class AccountingCoreEngineCore {
                 : null);
   }
 
-  private List<SettlementAllocationRequest> resolveDealerSettlementAllocations(
+  protected List<SettlementAllocationRequest> resolveDealerSettlementAllocations(
       Company company,
       Dealer dealer,
       DealerSettlementRequest request,
@@ -3464,12 +3464,12 @@ abstract class AccountingCoreEngineCore {
     return allocations;
   }
 
-  private List<SettlementAllocationRequest> buildDealerAutoSettlementAllocations(
+  protected List<SettlementAllocationRequest> buildDealerAutoSettlementAllocations(
       Company company, Dealer dealer, BigDecimal amount) {
     return buildDealerHeaderSettlementAllocations(company, dealer, amount, null);
   }
 
-  private List<SettlementAllocationRequest> resolveSupplierSettlementAllocations(
+  protected List<SettlementAllocationRequest> resolveSupplierSettlementAllocations(
       Company company, Supplier supplier, SupplierSettlementRequest request) {
     return resolveSupplierSettlementAllocations(
         company,
@@ -3482,7 +3482,7 @@ abstract class AccountingCoreEngineCore {
                 : null);
   }
 
-  private List<SettlementAllocationRequest> resolveSupplierSettlementAllocations(
+  protected List<SettlementAllocationRequest> resolveSupplierSettlementAllocations(
       Company company,
       Supplier supplier,
       SupplierSettlementRequest request,
@@ -3584,7 +3584,7 @@ abstract class AccountingCoreEngineCore {
     return allocations;
   }
 
-  private List<SettlementAllocationRequest> buildSupplierAutoSettlementAllocations(
+  protected List<SettlementAllocationRequest> buildSupplierAutoSettlementAllocations(
       Company company, Supplier supplier, BigDecimal amount) {
     return buildSupplierHeaderSettlementAllocations(company, supplier, amount, null);
   }
@@ -3628,7 +3628,7 @@ abstract class AccountingCoreEngineCore {
     return "Header-level on-account carry";
   }
 
-  private PartnerSettlementResponse buildAutoSettlementResponse(
+  protected PartnerSettlementResponse buildAutoSettlementResponse(
       Company company, JournalEntryDto journalEntry) {
     JournalEntry persistedEntry =
         companyEntityLookup.requireJournalEntry(company, journalEntry.id());
@@ -3651,7 +3651,7 @@ abstract class AccountingCoreEngineCore {
         toSettlementAllocationSummaries(allocations));
   }
 
-  private BigDecimal normalizeNonNegative(BigDecimal value, String field) {
+  protected BigDecimal normalizeNonNegative(BigDecimal value, String field) {
     BigDecimal normalized = MoneyUtils.zeroIfNull(value);
     if (normalized.compareTo(BigDecimal.ZERO) < 0) {
       throw new ApplicationException(
@@ -3660,7 +3660,7 @@ abstract class AccountingCoreEngineCore {
     return normalized;
   }
 
-  private void validatePaymentAllocations(
+  protected void validatePaymentAllocations(
       List<SettlementAllocationRequest> allocations,
       BigDecimal amount,
       String label,
@@ -3807,7 +3807,7 @@ abstract class AccountingCoreEngineCore {
     return created;
   }
 
-  private String reservedManualReference(String idempotencyKey) {
+  protected String reservedManualReference(String idempotencyKey) {
     if (!StringUtils.hasText(idempotencyKey)) {
       return "RESERVED";
     }
@@ -3817,7 +3817,7 @@ abstract class AccountingCoreEngineCore {
     return "RESERVED-" + hash;
   }
 
-  private boolean isRetryableManualConcurrencyFailure(Throwable throwable) {
+  protected boolean isRetryableManualConcurrencyFailure(Throwable throwable) {
     Throwable current = throwable;
     while (current != null) {
       if (current instanceof DataIntegrityViolationException
@@ -3829,14 +3829,14 @@ abstract class AccountingCoreEngineCore {
     return false;
   }
 
-  private boolean isReservedReference(String reference) {
+  protected boolean isReservedReference(String reference) {
     if (!StringUtils.hasText(reference)) {
       return false;
     }
     return reference.trim().toUpperCase(Locale.ROOT).startsWith("RESERVED-");
   }
 
-  private String resolveReceiptIdempotencyKey(String provided, String reference, String label) {
+  protected String resolveReceiptIdempotencyKey(String provided, String reference, String label) {
     if (StringUtils.hasText(provided)) {
       return provided.trim();
     }
@@ -3848,7 +3848,7 @@ abstract class AccountingCoreEngineCore {
         "Idempotency key or reference number is required for " + label);
   }
 
-  private String resolveSupplierSettlementIdempotencyKey(SupplierSettlementRequest request) {
+  protected String resolveSupplierSettlementIdempotencyKey(SupplierSettlementRequest request) {
     if (request == null) {
       return "";
     }
@@ -3861,7 +3861,7 @@ abstract class AccountingCoreEngineCore {
     return buildSupplierSettlementIdempotencyKey(request);
   }
 
-  private SettlementAllocationApplication resolveSettlementApplicationType(
+  protected SettlementAllocationApplication resolveSettlementApplicationType(
       SettlementAllocationRequest allocation) {
     if (allocation == null) {
       return SettlementAllocationApplication.DOCUMENT;
@@ -3875,7 +3875,7 @@ abstract class AccountingCoreEngineCore {
     return SettlementAllocationApplication.DOCUMENT;
   }
 
-  private SettlementAllocationApplication resolveSettlementApplicationType(
+  protected SettlementAllocationApplication resolveSettlementApplicationType(
       PartnerSettlementAllocation allocation) {
     if (allocation == null) {
       return SettlementAllocationApplication.DOCUMENT;
@@ -3886,7 +3886,7 @@ abstract class AccountingCoreEngineCore {
     return decodeSettlementAllocationMemo(allocation.getMemo()).applicationType();
   }
 
-  private String encodeSettlementAllocationMemo(
+  protected String encodeSettlementAllocationMemo(
       SettlementAllocationApplication applicationType, String memo) {
     SettlementAllocationApplication resolved =
         applicationType != null ? applicationType : SettlementAllocationApplication.DOCUMENT;
@@ -3955,7 +3955,7 @@ abstract class AccountingCoreEngineCore {
         .toList();
   }
 
-  private String resolveDealerSettlementIdempotencyKey(
+  protected String resolveDealerSettlementIdempotencyKey(
       Company company, DealerSettlementRequest request) {
     if (request == null) {
       return "";
@@ -4112,7 +4112,7 @@ abstract class AccountingCoreEngineCore {
         .equals(requestPaymentSignatures);
   }
 
-  private String normalizeIdempotencyMappingKey(String idempotencyKey) {
+  protected String normalizeIdempotencyMappingKey(String idempotencyKey) {
     String key = idempotencyReservationService.normalizeKey(idempotencyKey);
     if (!StringUtils.hasText(key)) {
       return "";
@@ -4120,14 +4120,14 @@ abstract class AccountingCoreEngineCore {
     return key.toLowerCase(Locale.ROOT);
   }
 
-  private String sanitizeIdempotencyLogValue(String idempotencyKey) {
+  protected String sanitizeIdempotencyLogValue(String idempotencyKey) {
     if (!StringUtils.hasText(idempotencyKey)) {
       return "<empty>";
     }
     return IdempotencyUtils.sha256Hex(idempotencyKey, IDEMPOTENCY_LOG_HASH_LENGTH);
   }
 
-  private Optional<JournalReferenceMapping> findLatestLegacyReferenceMapping(
+  protected Optional<JournalReferenceMapping> findLatestLegacyReferenceMapping(
       Company company, String idempotencyKey) {
     if (company == null || !StringUtils.hasText(idempotencyKey)) {
       return Optional.empty();
@@ -4155,7 +4155,7 @@ abstract class AccountingCoreEngineCore {
     return mappings.stream().max(ranking);
   }
 
-  private String resolveDealerSettlementReference(
+  protected String resolveDealerSettlementReference(
       Company company, Dealer dealer, DealerSettlementRequest request, String idempotencyKey) {
     if (request != null && StringUtils.hasText(request.referenceNumber())) {
       return request.referenceNumber().trim();
@@ -4171,7 +4171,7 @@ abstract class AccountingCoreEngineCore {
     return referenceNumberService.dealerReceiptReference(company, dealer);
   }
 
-  private String resolveSupplierPaymentReference(
+  protected String resolveSupplierPaymentReference(
       Company company, Supplier supplier, String providedReference, String idempotencyKey) {
     if (StringUtils.hasText(providedReference)) {
       return providedReference.trim();
@@ -4186,7 +4186,7 @@ abstract class AccountingCoreEngineCore {
     return referenceNumberService.supplierPaymentReference(company, supplier);
   }
 
-  private String resolveSupplierSettlementReference(
+  protected String resolveSupplierSettlementReference(
       Company company,
       Supplier supplier,
       SupplierSettlementRequest request,
@@ -4204,7 +4204,7 @@ abstract class AccountingCoreEngineCore {
     return referenceNumberService.supplierPaymentReference(company, supplier);
   }
 
-  private boolean hasExistingIdempotencyMapping(Company company, String idempotencyKey) {
+  protected boolean hasExistingIdempotencyMapping(Company company, String idempotencyKey) {
     if (company == null || !StringUtils.hasText(idempotencyKey)) {
       return false;
     }
@@ -4212,14 +4212,14 @@ abstract class AccountingCoreEngineCore {
     return findLatestLegacyReferenceMapping(company, key).isPresent();
   }
 
-  private boolean hasExistingSettlementAllocations(Company company, String idempotencyKey) {
+  protected boolean hasExistingSettlementAllocations(Company company, String idempotencyKey) {
     if (company == null || !StringUtils.hasText(idempotencyKey)) {
       return false;
     }
     return !findAllocationsByIdempotencyKey(company, idempotencyKey).isEmpty();
   }
 
-  private IdempotencyReservation reserveReferenceMapping(
+  protected IdempotencyReservation reserveReferenceMapping(
       Company company, String idempotencyKey, String canonicalReference, String entityType) {
     if (company == null
         || !StringUtils.hasText(idempotencyKey)
@@ -4267,7 +4267,7 @@ abstract class AccountingCoreEngineCore {
     return new IdempotencyReservation(false, canonical);
   }
 
-  private void linkReferenceMapping(
+  protected void linkReferenceMapping(
       Company company, String idempotencyKey, JournalEntry entry, String entityType) {
     if (company == null || !StringUtils.hasText(idempotencyKey) || entry == null) {
       return;
@@ -4310,7 +4310,7 @@ abstract class AccountingCoreEngineCore {
     journalReferenceMappingRepository.save(mapping);
   }
 
-  private JournalEntry awaitJournalEntry(Company company, String reference, String idempotencyKey) {
+  protected JournalEntry awaitJournalEntry(Company company, String reference, String idempotencyKey) {
     JournalEntry existing = findExistingEntry(company, reference, idempotencyKey);
     if (existing != null) {
       return existing;
@@ -4349,7 +4349,7 @@ abstract class AccountingCoreEngineCore {
     return null;
   }
 
-  private List<PartnerSettlementAllocation> awaitAllocations(
+  protected List<PartnerSettlementAllocation> awaitAllocations(
       Company company, String idempotencyKey) {
     if (company == null || !StringUtils.hasText(idempotencyKey)) {
       return List.of();
@@ -4370,7 +4370,7 @@ abstract class AccountingCoreEngineCore {
     return existing;
   }
 
-  private List<PartnerSettlementAllocation> findAllocationsByIdempotencyKey(
+  protected List<PartnerSettlementAllocation> findAllocationsByIdempotencyKey(
       Company company, String idempotencyKey) {
     if (company == null || !StringUtils.hasText(idempotencyKey)) {
       return List.of();
@@ -4406,7 +4406,7 @@ abstract class AccountingCoreEngineCore {
         company, existingEntry);
   }
 
-  private JournalEntry resolveReplayJournalEntry(
+  protected JournalEntry resolveReplayJournalEntry(
       String idempotencyKey,
       JournalEntry mappingEntry,
       List<PartnerSettlementAllocation> allocations) {
@@ -4429,7 +4429,7 @@ abstract class AccountingCoreEngineCore {
     return allocationEntry != null ? allocationEntry : mappingEntry;
   }
 
-  private JournalEntry resolveReplayJournalEntryFromExistingAllocations(
+  protected JournalEntry resolveReplayJournalEntryFromExistingAllocations(
       Company company,
       String reference,
       String idempotencyKey,
@@ -4492,7 +4492,7 @@ abstract class AccountingCoreEngineCore {
         "Idempotency key already used for a different receipt payload");
   }
 
-  private void validateSupplierPaymentIdempotency(
+  protected void validateSupplierPaymentIdempotency(
       String idempotencyKey,
       Supplier supplier,
       Account cashAccount,
@@ -4520,7 +4520,7 @@ abstract class AccountingCoreEngineCore {
         "Idempotency key already used for a different supplier payment payload");
   }
 
-  private void validatePartnerSettlementJournalLines(
+  protected void validatePartnerSettlementJournalLines(
       String idempotencyKey,
       PartnerType partnerType,
       Long partnerId,
@@ -4562,7 +4562,7 @@ abstract class AccountingCoreEngineCore {
         .withDetail("requestedSettlementDate", requestedEffectiveSettlementDate);
   }
 
-  private ApplicationException missingReservedPartnerAllocation(
+  protected ApplicationException missingReservedPartnerAllocation(
       String subject, String idempotencyKey, PartnerType partnerType, Long partnerId) {
     ApplicationException exception =
         new ApplicationException(
@@ -4725,7 +4725,7 @@ abstract class AccountingCoreEngineCore {
     }
   }
 
-  private void validateDealerSettlementAllocations(List<SettlementAllocationRequest> allocations) {
+  protected void validateDealerSettlementAllocations(List<SettlementAllocationRequest> allocations) {
     if (allocations == null) {
       return;
     }
@@ -4787,7 +4787,7 @@ abstract class AccountingCoreEngineCore {
     }
   }
 
-  private void validateSupplierSettlementAllocations(
+  protected void validateSupplierSettlementAllocations(
       List<SettlementAllocationRequest> allocations) {
     if (allocations == null) {
       return;
@@ -4847,7 +4847,7 @@ abstract class AccountingCoreEngineCore {
     }
   }
 
-  private SettlementTotals computeSettlementTotals(List<SettlementAllocationRequest> allocations) {
+  protected SettlementTotals computeSettlementTotals(List<SettlementAllocationRequest> allocations) {
     BigDecimal totalApplied = BigDecimal.ZERO;
     BigDecimal totalDiscount = BigDecimal.ZERO;
     BigDecimal totalWriteOff = BigDecimal.ZERO;
@@ -4948,7 +4948,7 @@ abstract class AccountingCoreEngineCore {
     }
   }
 
-  private SettlementLineDraft buildDealerSettlementLines(
+  protected SettlementLineDraft buildDealerSettlementLines(
       Company company,
       DealerSettlementRequest request,
       Account receivableAccount,
@@ -5093,7 +5093,7 @@ abstract class AccountingCoreEngineCore {
     return new SettlementLineDraft(lines, cashAmount);
   }
 
-  private SettlementLineDraft buildSupplierSettlementLines(
+  protected SettlementLineDraft buildSupplierSettlementLines(
       Company company,
       SupplierSettlementRequest request,
       Account payableAccount,
@@ -5207,7 +5207,7 @@ abstract class AccountingCoreEngineCore {
     return new SettlementLineDraft(lines, cashAmount);
   }
 
-  private PartnerSettlementResponse buildDealerSettlementResponse(
+  protected PartnerSettlementResponse buildDealerSettlementResponse(
       List<PartnerSettlementAllocation> existing) {
     if (existing == null || existing.isEmpty()) {
       throw new ApplicationException(
@@ -5256,7 +5256,7 @@ abstract class AccountingCoreEngineCore {
         toSettlementAllocationSummaries(existing));
   }
 
-  private PartnerSettlementResponse buildSupplierSettlementResponse(
+  protected PartnerSettlementResponse buildSupplierSettlementResponse(
       List<PartnerSettlementAllocation> existing) {
     if (existing == null || existing.isEmpty()) {
       throw new ApplicationException(
@@ -5301,7 +5301,7 @@ abstract class AccountingCoreEngineCore {
         toSettlementAllocationSummaries(existing));
   }
 
-  private List<PartnerSettlementResponse.Allocation> toSettlementAllocationSummaries(
+  protected List<PartnerSettlementResponse.Allocation> toSettlementAllocationSummaries(
       List<PartnerSettlementAllocation> allocations) {
     return allocations.stream()
         .map(
@@ -5325,7 +5325,7 @@ abstract class AccountingCoreEngineCore {
         .toList();
   }
 
-  private void logSettlementAuditSuccess(
+  protected void logSettlementAuditSuccess(
       PartnerType partnerType,
       Long partnerId,
       JournalEntryDto journalEntryDto,
@@ -5431,22 +5431,22 @@ abstract class AccountingCoreEngineCore {
     return counts;
   }
 
-  private record IdempotencyReservation(boolean leader, String canonicalReference) {}
+  protected record IdempotencyReservation(boolean leader, String canonicalReference) {}
 
-  private record SettlementTotals(
+  protected record SettlementTotals(
       BigDecimal totalApplied,
       BigDecimal totalDiscount,
       BigDecimal totalWriteOff,
       BigDecimal totalFxGain,
       BigDecimal totalFxLoss) {}
 
-  private record SettlementLineDraft(
+  protected record SettlementLineDraft(
       List<JournalEntryRequest.JournalLineRequest> lines, BigDecimal cashAmount) {}
 
   private record SettlementMemoParts(
       SettlementAllocationApplication applicationType, String memo) {}
 
-  private void enforceSettlementCurrency(Company company, Invoice invoice) {
+  protected void enforceSettlementCurrency(Company company, Invoice invoice) {
     if (company == null || invoice == null) {
       return;
     }
@@ -5462,7 +5462,7 @@ abstract class AccountingCoreEngineCore {
     }
   }
 
-  private void validateEntryDate(
+  protected void validateEntryDate(
       Company company, LocalDate entryDate, boolean overrideRequested, boolean overrideAuthorized) {
     if (entryDate == null) {
       throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Entry date is required");
@@ -5510,7 +5510,7 @@ abstract class AccountingCoreEngineCore {
     }
   }
 
-  private boolean hasEntryDateOverrideAuthority() {
+  protected boolean hasEntryDateOverrideAuthority() {
     if (Boolean.TRUE.equals(SYSTEM_ENTRY_DATE_OVERRIDE.get())) {
       return true;
     }
@@ -5527,7 +5527,7 @@ abstract class AccountingCoreEngineCore {
     return false;
   }
 
-  private String joinAttachmentReferences(List<String> attachmentReferences) {
+  protected String joinAttachmentReferences(List<String> attachmentReferences) {
     if (attachmentReferences == null || attachmentReferences.isEmpty()) {
       return null;
     }
@@ -5540,14 +5540,14 @@ abstract class AccountingCoreEngineCore {
     return normalized.isEmpty() ? null : String.join("\n", normalized);
   }
 
-  private String resolvePostingDocumentType(JournalEntry entry) {
+  protected String resolvePostingDocumentType(JournalEntry entry) {
     if (entry == null || !StringUtils.hasText(entry.getSourceModule())) {
       return "JOURNAL_ENTRY";
     }
     return entry.getSourceModule().trim().toUpperCase(Locale.ROOT);
   }
 
-  private String resolvePostingDocumentReference(JournalEntry entry) {
+  protected String resolvePostingDocumentReference(JournalEntry entry) {
     if (entry == null) {
       return null;
     }
@@ -5560,7 +5560,7 @@ abstract class AccountingCoreEngineCore {
     return null;
   }
 
-  private LocalDate currentDate(Company company) {
+  protected LocalDate currentDate(Company company) {
     return companyClock.today(company);
   }
 
@@ -5568,7 +5568,7 @@ abstract class AccountingCoreEngineCore {
     return environment != null && environment.acceptsProfiles(Profiles.of("prod"));
   }
 
-  private void logAuditSuccessAfterCommit(AuditEvent event, Map<String, String> metadata) {
+  protected void logAuditSuccessAfterCommit(AuditEvent event, Map<String, String> metadata) {
     if (event == null || !shouldEmitAuditServiceSuccessEvent(event)) {
       return;
     }
@@ -5734,18 +5734,18 @@ abstract class AccountingCoreEngineCore {
     return reversedEntries;
   }
 
-  private String resolveCurrentUsername() {
+  protected String resolveCurrentUsername() {
     return SecurityActorResolver.resolveActorWithSystemProcessFallback();
   }
 
-  private void publishAccountCacheInvalidated(Long companyId) {
+  protected void publishAccountCacheInvalidated(Long companyId) {
     if (companyId == null) {
       return;
     }
     eventPublisher.publishEvent(new AccountCacheInvalidatedEvent(companyId));
   }
 
-  private boolean recordJournalEntryPostedEventSafe(
+  protected boolean recordJournalEntryPostedEventSafe(
       JournalEntry journalEntry, Map<Long, BigDecimal> balancesBefore) {
     if (journalEntry == null) {
       return true;
@@ -5926,7 +5926,7 @@ abstract class AccountingCoreEngineCore {
     };
   }
 
-  private void ensureDuplicateMatchesExisting(
+  protected void ensureDuplicateMatchesExisting(
       JournalEntry existing, JournalEntry candidate, List<JournalLine> candidateLines) {
     List<String> mismatches = new ArrayList<>();
     List<String> partnerMismatchTypes = new ArrayList<>();
@@ -6023,7 +6023,7 @@ abstract class AccountingCoreEngineCore {
 
   private record SettlementAdjustmentSignature(String normalizedDescription, BigDecimal amount) {}
 
-  private Account requireDealerReceivable(Dealer dealer) {
+  protected Account requireDealerReceivable(Dealer dealer) {
     if (dealer == null || dealer.getReceivableAccount() == null) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_REFERENCE,
@@ -6034,7 +6034,7 @@ abstract class AccountingCoreEngineCore {
     return dealer.getReceivableAccount();
   }
 
-  private Account requireSupplierPayable(Supplier supplier) {
+  protected Account requireSupplierPayable(Supplier supplier) {
     if (supplier == null || supplier.getPayableAccount() == null) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_REFERENCE,
@@ -6045,7 +6045,7 @@ abstract class AccountingCoreEngineCore {
     return supplier.getPayableAccount();
   }
 
-  private boolean settlementOverrideRequested(SettlementTotals totals) {
+  protected boolean settlementOverrideRequested(SettlementTotals totals) {
     if (totals == null) {
       return false;
     }
@@ -6055,7 +6055,7 @@ abstract class AccountingCoreEngineCore {
         || totals.totalFxLoss().compareTo(BigDecimal.ZERO) > 0;
   }
 
-  private String requireAdminExceptionReason(
+  protected String requireAdminExceptionReason(
       String operation, Boolean adminOverride, String reason) {
     if (!Boolean.TRUE.equals(adminOverride)) {
       throw new ApplicationException(
@@ -6074,7 +6074,7 @@ abstract class AccountingCoreEngineCore {
         .withDetail("field", "memo");
   }
 
-  private boolean isReceivableAccount(Account account) {
+  protected boolean isReceivableAccount(Account account) {
     if (account == null || account.getType() != AccountType.ASSET) {
       return false;
     }
@@ -6083,7 +6083,7 @@ abstract class AccountingCoreEngineCore {
     return isTokenMatch(code, "AR") || name.contains("ACCOUNTS RECEIVABLE");
   }
 
-  private boolean isPayableAccount(Account account) {
+  protected boolean isPayableAccount(Account account) {
     if (account == null || account.getType() != AccountType.LIABILITY) {
       return false;
     }
@@ -6249,7 +6249,7 @@ abstract class AccountingCoreEngineCore {
     return "RCPT-%s-%s".formatted(dealerToken, hash);
   }
 
-  private String buildSupplierAutoSettlementReference(
+  protected String buildSupplierAutoSettlementReference(
       Company company,
       Supplier supplier,
       Long cashAccountId,
@@ -6416,7 +6416,7 @@ abstract class AccountingCoreEngineCore {
     return "DEALER-SETTLEMENT-" + hash;
   }
 
-  private String buildSupplierSettlementIdempotencyKey(SupplierSettlementRequest request) {
+  protected String buildSupplierSettlementIdempotencyKey(SupplierSettlementRequest request) {
     if (request == null) {
       return UUID.randomUUID().toString();
     }
@@ -6490,14 +6490,14 @@ abstract class AccountingCoreEngineCore {
     return normalized.length() > 16 ? normalized.substring(0, 16) : normalized;
   }
 
-  private String resolveJournalReference(Company company, String provided) {
+  protected String resolveJournalReference(Company company, String provided) {
     if (StringUtils.hasText(provided)) {
       return provided.trim();
     }
     return referenceNumberService.nextJournalReference(company);
   }
 
-  private String resolveCurrency(String requested, Company company) {
+  protected String resolveCurrency(String requested, Company company) {
     String base =
         company != null && StringUtils.hasText(company.getBaseCurrency())
             ? company.getBaseCurrency().trim().toUpperCase()
@@ -6508,7 +6508,7 @@ abstract class AccountingCoreEngineCore {
     return requested.trim().toUpperCase();
   }
 
-  private BigDecimal resolveFxRate(String currency, Company company, BigDecimal requestedRate) {
+  protected BigDecimal resolveFxRate(String currency, Company company, BigDecimal requestedRate) {
     String base =
         company != null && StringUtils.hasText(company.getBaseCurrency())
             ? company.getBaseCurrency().trim().toUpperCase()
@@ -6534,7 +6534,7 @@ abstract class AccountingCoreEngineCore {
     return rate.setScale(6, RoundingMode.HALF_UP);
   }
 
-  private BigDecimal toBaseCurrency(BigDecimal amount, BigDecimal fxRate) {
+  protected BigDecimal toBaseCurrency(BigDecimal amount, BigDecimal fxRate) {
     if (amount == null) {
       return BigDecimal.ZERO;
     }
@@ -7325,7 +7325,7 @@ abstract class AccountingCoreEngineCore {
             List.of(line1, line2)));
   }
 
-  private void validateSettlementIdempotencyKey(
+  protected void validateSettlementIdempotencyKey(
       String idempotencyKey,
       PartnerType partnerType,
       Long partnerId,
@@ -7358,7 +7358,7 @@ abstract class AccountingCoreEngineCore {
     }
   }
 
-  private void enforceSupplierSettlementPostingParity(
+  protected void enforceSupplierSettlementPostingParity(
       Company company, Long supplierId, RawMaterialPurchase purchase, String idempotencyKey) {
     if (purchase == null || purchase.getId() == null) {
       return;

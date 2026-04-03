@@ -107,6 +107,11 @@ public class DealerReceiptService extends AccountingCoreEngineCore {
     return accountingIdempotencyService.recordDealerReceipt(normalized);
   }
 
+  JournalEntryDto recordDealerReceiptNormalized(DealerReceiptRequest request) {
+    ValidationUtils.requireNotNull(request, "request");
+    return accountingIdempotencyService.recordDealerReceipt(request);
+  }
+
   public JournalEntryDto recordDealerReceiptSplit(DealerReceiptSplitRequest request) {
     DealerReceiptSplitRequest normalized = normalizeDealerReceiptSplitRequest(request);
     return accountingIdempotencyService.recordDealerReceiptSplit(normalized);

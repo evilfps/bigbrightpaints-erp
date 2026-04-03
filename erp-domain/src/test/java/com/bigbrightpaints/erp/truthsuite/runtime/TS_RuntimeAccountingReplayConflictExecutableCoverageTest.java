@@ -1273,7 +1273,8 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
                 systemSettingsService,
                 auditService,
                 accountingEventStore,
-                settlementIdempotencyService));
+                journalEntryService,
+                dealerReceiptService));
     return new AccountingService(
         companyContextService,
         accountRepository,
