@@ -67,12 +67,6 @@ public class NumberSequenceService {
             company != null ? company.getId() : null,
             attempt,
             MAX_RETRIES);
-        try {
-          Thread.sleep(10L * attempt);
-        } catch (InterruptedException ignored) {
-          Thread.currentThread().interrupt();
-          break;
-        }
       }
     }
     if (lastError != null) {

@@ -63,12 +63,6 @@ public class OrderNumberService {
         }
       } catch (DataIntegrityViolationException | OptimisticLockingFailureException ex) {
         lastError = ex;
-        try {
-          Thread.sleep(10L * attempt);
-        } catch (InterruptedException ignored) {
-          Thread.currentThread().interrupt();
-          break;
-        }
       }
     }
     if (lastError != null) {

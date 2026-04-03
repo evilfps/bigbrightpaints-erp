@@ -29,6 +29,7 @@ import com.bigbrightpaints.erp.core.idempotency.IdempotencySignatureBuilder;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
@@ -177,11 +178,11 @@ class AccountingFacadeCore {
    * @param referenceNumber  optional alias reference (mapped to canonical INV-<orderNumber>)
    * @return the created journal entry DTO
    */
-  @Transactional(isolation = Isolation.REPEATABLE_READ)
+  @Transactional(isolation = Isolation.READ_COMMITTED)
   @Retryable(
       value = {OptimisticLockingFailureException.class, CannotAcquireLockException.class},
-      maxAttempts = 3,
-      backoff = @Backoff(delay = 100))
+      maxAttempts = 5,
+      backoff = @Backoff(delay = 50, maxDelay = 400, multiplier = 2.0))
   public JournalEntryDto postSalesJournal(
       Long dealerId,
       String orderNumber,
@@ -218,11 +219,11 @@ class AccountingFacadeCore {
    * @param referenceNumber  optional alias reference (mapped to canonical INV-<orderNumber>)
    * @return the created journal entry DTO
    */
-  @Transactional(isolation = Isolation.REPEATABLE_READ)
+  @Transactional(isolation = Isolation.READ_COMMITTED)
   @Retryable(
       value = {OptimisticLockingFailureException.class, CannotAcquireLockException.class},
-      maxAttempts = 3,
-      backoff = @Backoff(delay = 100))
+      maxAttempts = 5,
+      backoff = @Backoff(delay = 50, maxDelay = 400, multiplier = 2.0))
   public JournalEntryDto postSalesJournal(
       Long dealerId,
       String orderNumber,
@@ -259,6 +260,18 @@ class AccountingFacadeCore {
         journalReferenceResolver.findExistingEntry(company, canonicalReference);
     if (existing.isEmpty() && StringUtils.hasText(aliasReference)) {
       existing = journalReferenceResolver.findExistingEntry(company, aliasReference);
+    }
+    if (existing.isEmpty()) {
+      boolean reservationLeader = reserveSalesJournalReference(company, canonicalReference);
+      if (!reservationLeader) {
+        existing = resolveReservedSalesJournalEntry(company, canonicalReference);
+        if (existing.isEmpty()) {
+          throw new ApplicationException(
+                  ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+                  "Sales journal reference is reserved but journal entry not found")
+              .withDetail("referenceNumber", canonicalReference);
+        }
+      }
     }
 
     // Build journal lines
@@ -358,11 +371,11 @@ class AccountingFacadeCore {
     return created;
   }
 
-  @Transactional(isolation = Isolation.REPEATABLE_READ)
+  @Transactional(isolation = Isolation.READ_COMMITTED)
   @Retryable(
       value = {OptimisticLockingFailureException.class, CannotAcquireLockException.class},
-      maxAttempts = 3,
-      backoff = @Backoff(delay = 100))
+      maxAttempts = 5,
+      backoff = @Backoff(delay = 50, maxDelay = 400, multiplier = 2.0))
   public JournalEntryDto postSalesJournal(
       Long dealerId,
       String orderNumber,
@@ -2023,6 +2036,7 @@ class AccountingFacadeCore {
       return;
     }
     String canonical = canonicalReference.trim();
+    upsertJournalReferenceMapping(company, canonical, canonical, entry);
     if (StringUtils.hasText(aliasReference) && !aliasReference.equalsIgnoreCase(canonical)) {
       upsertJournalReferenceMapping(company, aliasReference, canonical, entry);
     }
@@ -2041,9 +2055,19 @@ class AccountingFacadeCore {
       return;
     }
     String normalizedLegacy = legacyReference.trim();
-    if (journalReferenceMappingRepository
-        .findByCompanyAndLegacyReferenceIgnoreCase(company, normalizedLegacy)
-        .isPresent()) {
+    Optional<JournalReferenceMapping> existing =
+        journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(
+            company, normalizedLegacy);
+    if (existing.isPresent()) {
+      JournalReferenceMapping mapping = existing.get();
+      if (mapping.getEntityId() == null
+          || !StringUtils.hasText(mapping.getCanonicalReference())
+          || mapping.getCanonicalReference().equalsIgnoreCase(canonicalReference.trim())) {
+        mapping.setCanonicalReference(canonicalReference.trim());
+        mapping.setEntityType("JOURNAL_ENTRY");
+        mapping.setEntityId(entry.getId());
+        journalReferenceMappingRepository.save(mapping);
+      }
       return;
     }
     JournalReferenceMapping mapping = new JournalReferenceMapping();
@@ -2057,6 +2081,63 @@ class AccountingFacadeCore {
     } catch (DataIntegrityViolationException ex) {
       // Ignore concurrent insert attempts for the same legacy reference
     }
+  }
+
+  private boolean reserveSalesJournalReference(Company company, String canonicalReference) {
+    if (company == null || company.getId() == null || !StringUtils.hasText(canonicalReference)) {
+      return true;
+    }
+    String canonical = canonicalReference.trim();
+    Optional<JournalReferenceMapping> existing =
+        journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(
+            company, canonical);
+    if (existing.isPresent()) {
+      return false;
+    }
+    int reserved =
+        journalReferenceMappingRepository.reserveReferenceMapping(
+            company.getId(), canonical, canonical, "SALES_JOURNAL", CompanyTime.now(company));
+    if (reserved == 1) {
+      return true;
+    }
+    if (journalReferenceMappingRepository
+        .findByCompanyAndLegacyReferenceIgnoreCase(company, canonical)
+        .isPresent()) {
+      return false;
+    }
+    throw new ApplicationException(
+            ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+            "Sales journal reference already reserved but mapping not found")
+        .withDetail("referenceNumber", canonical);
+  }
+
+  private Optional<JournalEntry> resolveReservedSalesJournalEntry(
+      Company company, String canonicalReference) {
+    if (company == null || !StringUtils.hasText(canonicalReference)) {
+      return Optional.empty();
+    }
+    String canonical = canonicalReference.trim();
+    Optional<JournalEntry> existing = journalReferenceResolver.findExistingEntry(company, canonical);
+    if (existing.isPresent()) {
+      return existing;
+    }
+    Optional<JournalReferenceMapping> mapping =
+        journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(
+            company, canonical);
+    if (mapping.isEmpty()) {
+      return Optional.empty();
+    }
+    if (mapping.get().getEntityId() != null) {
+      Optional<JournalEntry> byId =
+          journalEntryRepository.findByCompanyAndId(company, mapping.get().getEntityId());
+      if (byId.isPresent()) {
+        return byId;
+      }
+    }
+    if (StringUtils.hasText(mapping.get().getCanonicalReference())) {
+      return journalReferenceResolver.findExistingEntry(company, mapping.get().getCanonicalReference());
+    }
+    return Optional.empty();
   }
 
   private void ensurePurchaseReferenceMapping(
