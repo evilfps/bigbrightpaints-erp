@@ -1,0 +1,37 @@
+{
+  "milestone": "dispatch-hardcut",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 9,
+    "passed": 9,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-CONTRACT-001",
+    "VAL-CONTRACT-002",
+    "VAL-CONTRACT-003",
+    "VAL-CONTRACT-004",
+    "VAL-CONTRACT-005",
+    "VAL-CONTRACT-006",
+    "VAL-CONTRACT-007",
+    "VAL-CROSS-001",
+    "VAL-CROSS-002"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": ".factory/services.yaml",
+      "description": "Added explicit audit-key and compose datasource env to validation service commands so dependency-only compose starts no longer fail on missing ERP_SECURITY_AUDIT_PRIVATE_KEY or container-local database resolution.",
+      "source": "setup"
+    },
+    {
+      "target": ".factory/library/user-testing.md",
+      "description": "Documented the compose audit-key/datasource requirements and added strict-runtime/jvm-tests flow-validator guidance discovered during dispatch-hardcut setup.",
+      "source": "setup"
+    }
+  ],
+  "previousRound": null
+}

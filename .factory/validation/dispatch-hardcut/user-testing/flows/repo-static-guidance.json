@@ -1,0 +1,52 @@
+{
+  "groupId": "repo-static-guidance",
+  "surface": [
+    "repo-static"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-CONTRACT-005",
+      "status": "pass",
+      "summary": "OpenAPI, endpoint inventory, portal docs, and worker/library guidance all point to the same canonical dispatch write path and actor split.",
+      "evidence": [
+        "openapi.json + scripts/guard_openapi_contract_drift.sh: POST /api/v1/dispatch/confirm is present; /api/v1/sales/dispatch/confirm is absent; guard report matched 271 paths and 322 operations",
+        "docs/endpoint-inventory.md: dispatch module inventory lists POST /api/v1/dispatch/confirm and the dispatch route set (8 operations) with retired routes excluded",
+        "docs/frontend-portals/factory/api-contracts.md and docs/frontend-portals/sales/api-contracts.md: factory is the only frontend owner of POST /api/v1/dispatch/confirm; sales must not call it",
+        ".factory/library/frontend-v2.md and .factory/library/factory-canonical-flow.md: canonical public dispatch posting surface is POST /api/v1/dispatch/confirm; inventory owns transport/controller and sales owns downstream commercial/accounting side effects",
+        ".factory/library/user-testing.md: repo-static guidance says the canonical public write is POST /api/v1/dispatch/confirm"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-001",
+      "status": "pass",
+      "summary": "Canonical docs and operator guidance converge on one public dispatch write path, with the retired sales-prefixed alias kept out of current surfaces.",
+      "evidence": [
+        "README.md + docs/INDEX.md: the canonical docs spine routes readers into docs/frontend-portals/README.md and docs/frontend-api/README.md; .factory/library is internal guidance only",
+        "docs/frontend-portals/README.md, docs/frontend-portals/factory/routes.md, and docs/frontend-portals/factory/api-contracts.md: factory owns dispatch confirm and the only write action is POST /api/v1/dispatch/confirm",
+        "docs/frontend-portals/sales/api-contracts.md: POST /api/v1/dispatch/confirm is factory-owned and must not be called from sales",
+        ".factory/library/frontend-v2.md, .factory/library/factory-canonical-flow.md, and .factory/library/user-testing.md: all describe POST /api/v1/dispatch/confirm as the canonical write",
+        "openapi.json + scripts/guard_openapi_contract_drift.sh: canonical route exists, retired /api/v1/sales/dispatch/confirm does not"
+      ]
+    },
+    {
+      "id": "VAL-CROSS-002",
+      "status": "pass",
+      "summary": "The surviving setup-to-dispatch story remains singular from tenant onboarding through catalog setup, opening stock, production, packing, and dispatch confirm.",
+      "evidence": [
+        "docs/flows/tenant-admin-management.md and docs/modules/company.md: tenant onboarding creates the company, admin user, seeded CoA, and default period",
+        "docs/flows/catalog-setup-readiness.md and docs/modules/catalog-setup.md: item setup and readiness live on /api/v1/catalog/items with includeReadiness support",
+        "docs/flows/inventory-management.md and docs/modules/inventory.md: opening stock import lives on POST /api/v1/inventory/opening-stock with no alternate setup alias documented",
+        "docs/flows/manufacturing-packing.md and docs/modules/factory.md: the execution chain uses POST /api/v1/factory/production/logs then POST /api/v1/factory/packing-records",
+        "docs/flows/order-to-cash.md, docs/modules/sales.md, and docs/frontend-portals/factory/workflows.md: the final step is POST /api/v1/dispatch/confirm, owned by the factory flow"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "read",
+    "grep",
+    "execute"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "notes": "Canonical docs and portal guidance are internally consistent. The repo-static validation also confirmed the OpenAPI contract drift guard matches the current snapshot and that the current docs/frontend-portals layer keeps dispatch ownership on the factory/inventory seam, while frontend-api remains focused on auth bootstrap and tenant-scoping rather than dispatch posting."
+}

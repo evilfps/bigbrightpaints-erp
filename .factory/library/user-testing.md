@@ -58,7 +58,7 @@ Rationale:
 ## Setup Steps
 
 1. Run `bash .factory/init.sh`.
-2. Ensure strict runtime env values are present for datasource, JWT, encryption, audit key, and mail settings.
+2. Ensure strict runtime env values are present for datasource, JWT, encryption, audit key, and mail settings. For compose-backed validation, set the datasource explicitly to `jdbc:postgresql://db:5432/erp_domain` with the compose credentials so the app container does not fall back to the host-only `localhost:5432` value from `.env`.
 3. Start the approved compose boundary from `.factory/services.yaml`.
 4. Probe both:
    - `http://localhost:9090/actuator/health`
@@ -158,9 +158,23 @@ Rationale:
 ## Known Constraints
 
 - The current strict compose path is a smoke surface only; authenticated business-flow proof still depends on targeted Maven suites unless a later feature introduces a clean bootstrap/auth fixture path.
-- Direct `docker compose up` still parses the app service, so missing env values can break even dependency-only starts.
+- Direct `docker compose up` still parses the app service, so missing env values can break even dependency-only starts; export `ERP_SECURITY_AUDIT_PRIVATE_KEY` even when starting only `db`, `rabbitmq`, or `mailhog`.
 - Old library/docs guidance may still reference retired routes until the mission cleans them; prefer `validation-contract.md`, `openapi.json`, and current controller annotations if guidance disagrees.
 - Running Maven outside `erp-domain/` can break `.mvn` resolution.
+
+## Flow Validator Guidance: strict-runtime
+
+- Use the already-started compose boundary on `localhost:8081` and `localhost:9090`; do not restart, rebuild, or stop shared services from inside the flow validator.
+- Restrict probes to canonical validation endpoints and absence checks needed for the assigned assertions. Record the exact HTTP status and any response body snippets needed to explain the result.
+- Treat auth-required responses (`401`/`403`) as valid boundary evidence only for the bootstrap probe defined in this mission. Do not use retired routes as liveness checks.
+- Stay within the approved runtime boundary (`5433`, `5672`, `8025`, `8081`, `9090`) and write only flow reports/evidence files.
+
+## Flow Validator Guidance: jvm-tests
+
+- Run only targeted Maven proof packs that map to the assigned assertions; for dispatch hard-cut validation, prefer `commands.targeted-dispatch-proof`, `commands.targeted-orchestrator-dispatch-proof`, and `commands.contract-guards`.
+- Execute Maven from `erp-domain/` and do not run `mvn clean`, broad exploratory suites, or snapshot-refresh commands.
+- Treat the checkout and `target/` trees as shared mutable state: keep JVM-test validators serialized and do not edit source files during validation.
+- Record the exact test classes exercised and the specific behaviors they proved for each assigned assertion.
 
 ## Flow Validator Guidance: repo-static
 

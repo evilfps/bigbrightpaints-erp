@@ -1,0 +1,86 @@
+{
+  "groupId": "runtime-contracts",
+  "surface": [
+    "strict-runtime",
+    "jvm-tests"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-CONTRACT-001",
+      "status": "pass",
+      "summary": "OpenAPI and endpoint inventory show exactly one public dispatch-posting host at POST /api/v1/dispatch/confirm; the retired sales-prefixed dispatch-confirm alias is absent.",
+      "evidence": [
+        "openapi.json route check: /api/v1/dispatch/confirm present; /api/v1/sales/dispatch/confirm absent; /api/v1/orchestrator/factory/dispatch/{batchId} absent",
+        "erp-domain/docs/endpoint_inventory.tsv:94 lists DispatchController#confirmDispatch at POST /api/v1/dispatch/confirm",
+        "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/controller/DispatchController.java @RequestMapping(\"/api/v1/dispatch\") and @PostMapping(\"/confirm\")",
+        "bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_workflow_canonical_paths.sh -> OK"
+      ]
+    },
+    {
+      "id": "VAL-CONTRACT-002",
+      "status": "pass",
+      "summary": "Ownership stays split: factory/admin own canonical dispatch confirm, while sales/accounting only own the downstream reconciliation repair surface.",
+      "evidence": [
+        "erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/PortalRoleActionMatrix.java defines OPERATIONAL_DISPATCH for ROLE_ADMIN/ROLE_FACTORY and FINANCIAL_DISPATCH for ROLE_ADMIN/ROLE_ACCOUNTING",
+        "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/controller/SalesController.java:303 exposes POST /api/v1/sales/dispatch/reconcile-order-markers",
+        "docs/frontend-portals/sales/api-contracts.md states POST /api/v1/dispatch/confirm is factory-owned and sales must not call it",
+        "docs/frontend-portals/portal-matrix.md marks dispatch confirm as factory-owned and excluded from sales/accounting portal ownership"
+      ]
+    },
+    {
+      "id": "VAL-CONTRACT-003",
+      "status": "pass",
+      "summary": "Retired dispatch aliases are absent in OpenAPI and the removal regression suite keeps the retired orchestrator path from creating side effects.",
+      "evidence": [
+        "openapi.json route check: /api/v1/sales/dispatch/confirm absent; /api/v1/orchestrator/factory/dispatch/{batchId} absent",
+        "TS_O2COrchestratorDispatchRemovalRegressionTest asserts DispatchRequest, dispatchBatch, and legacy dispatch journal helpers are removed",
+        "OrchestratorControllerIT rejects dispatch-like fulfillment with BUS_001 and a /api/v1/dispatch/confirm pointer while keeping invoice/journal/inventory counts unchanged",
+        "Live POST probes to retired routes on localhost:8081 returned 403 under auth gate, so absence proof came from OpenAPI plus regression coverage"
+      ]
+    },
+    {
+      "id": "VAL-CONTRACT-004",
+      "status": "pass",
+      "summary": "Orchestrator dispatch misuse fails closed to the canonical path and does not mutate shipment, invoice, journal, or inventory state.",
+      "evidence": [
+        "OrchestratorControllerIT: POST /api/v1/orchestrator/orders/{orderId}/fulfillment returns 409 CONFLICT with BUS_001 and /api/v1/dispatch/confirm",
+        "OrchestratorControllerIT keeps outbox, audit, invoice, journal, and inventory counts unchanged after dispatch-like fulfillment attempts",
+        "TS_O2COrchestratorDispatchRemovalRegressionTest confirms the legacy orchestrator dispatch shortcut and retired payload are removed",
+        "commands.targeted-orchestrator-dispatch-proof passed: 85 tests, 0 failures"
+      ]
+    },
+    {
+      "id": "VAL-CONTRACT-006",
+      "status": "pass",
+      "summary": "The branch keeps positive proof for the surviving canonical dispatch path and explicit removal proof for retired seams.",
+      "evidence": [
+        "commands.targeted-dispatch-proof passed: DispatchControllerTest, DispatchConfirmationIT, TS_O2CDispatchCanonicalPostingTest, TS_O2COrchestratorDispatchRemovalRegressionTest, OrderFulfillmentE2ETest; 46 tests, 0 failures",
+        "commands.targeted-orchestrator-dispatch-proof passed: OrchestratorControllerIT, IntegrationCoordinatorTest, CommandDispatcherTest, TS_O2COrchestratorDispatchRemovalRegressionTest, TS_RuntimeOrchestratorExecutableCoverageTest, TS_OrchestratorExactlyOnceOutboxTest; 85 tests, 0 failures",
+        "TS_O2COrchestratorDispatchRemovalRegressionTest removes retired orchestrator dispatch truth, while TS_O2CDispatchCanonicalPostingTest keeps the surviving path under proof"
+      ]
+    },
+    {
+      "id": "VAL-CONTRACT-007",
+      "status": "pass",
+      "summary": "Dispatch responses stay redacted for factory views and replay the same canonical result without alternate sales-owned shapes.",
+      "evidence": [
+        "DispatchControllerTest asserts the redacted response has null journalEntryId, null cogsJournalEntryId, and null totalShippedAmount while keeping deliveryChallanPdfPath",
+        "DispatchOperationalBoundaryIT replay of POST /api/v1/dispatch/confirm returns OK and preserves invoice/journal ids plus dispatch movement count",
+        "openapi.json includes POST /api/v1/dispatch/confirm and the DispatchConfirmationResponse schema; docs/frontend-handoff.md and docs/frontend-portals/factory/workflows.md describe the same canonical path",
+        "frontend-handoff and frontend-v2 guidance state pure factory callers receive the operationally redacted response while elevated callers keep only permitted finance-linked fields"
+      ]
+    }
+  ],
+  "toolsUsed": [
+    "curl",
+    "mvn",
+    "grep",
+    "read"
+  ],
+  "frictions": [
+    "Strict runtime health stayed degraded at 9090/actuator/health = 503 (DOWN), but 8081/api/v1/auth/me still returned 403 so the app boundary remained testable.",
+    "Unauthenticated live POST probes to dispatch/orchestrator routes were gated with 403, so route-ownership and absence evidence relied on OpenAPI scans plus Maven regression suites."
+  ],
+  "blockers": [],
+  "notes": "Runtime smoke observed health=503 and auth=403. Targeted dispatch/orchestrator proof packs and contract guards all passed, and no product code or docs were edited."
+}
