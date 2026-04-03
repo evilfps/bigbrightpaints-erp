@@ -1,0 +1,26 @@
+{
+  "featureId": "accounting-split-receipt-replay-contention-proof",
+  "reviewedAt": "2026-04-03T16:55:00Z",
+  "commitId": "177cad0c100a7030967d7b98df076f709126cfe7",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The prior failed feature `accounting-sequence-and-alias-concurrency-hardening` (commit `bee7f023b021ed052eb8ae9c28564d35e597ecae`) removed the old polling-based replay behavior but left the repaired `recordDealerReceiptSplit` path without a direct leader/follower contention probe in the targeted accounting lane. This follow-up commit closes that gap: it adds `dealerReceiptSplit_isIdempotent_underConcurrency_andWritesAuditTrail` to `CR_DealerReceiptSettlementAuditTrailTest`, directly races two duplicate `accountingService.recordDealerReceiptSplit(...)` calls on the same idempotency key, and asserts both callers converge on one canonical journal/allocation while preserving audit, ledger, and reconciliation invariants. The same commit also wires `CR_DealerReceiptSettlementAuditTrailTest` into `.factory/services.yaml`'s `targeted-accounting-proof` command, so the missing split-receipt proof now runs in the accounting proof pack alongside the other replay-fixed flows.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The worker's handoff shows a justified deviation from the base validation procedure because repo-wide Spotless drift is already known and mission guidance tells workers to validate formatting only for touched files. The shared worker guidance should explicitly document the `spotlessFiles` fallback so future packets do not have to record this as an ad hoc deviation.",
+      "evidence": "Mission AGENTS.md says repo-wide Spotless drift is pre-existing and workers should validate formatting only for touched files; the handoff `2026-04-03T10-59-13-598Z__accounting-split-receipt-replay-contention-proof__1dd15fa1-343c-4f72-8c21-86cee7d8b654.json` records `skillFeedback.deviations[0]` rerunning Spotless with `-DspotlessFiles='src/test/java/com/bigbrightpaints/erp/codered/CR_DealerReceiptSettlementAuditTrailTest.java'`."
+    },
+    {
+      "area": "skills",
+      "observation": "The worker's handoff also shows a justified deviation for clean-status verification when the root checkout already had unrelated dirty files that mission boundaries forbade touching. Shared worker guidance should explicitly bless detached-worktree verification in that situation.",
+      "evidence": "Mission AGENTS.md forbids touching unrelated dirty `.factory/droids/*.md` files; the same handoff records `skillFeedback.deviations[1]` using `git worktree add --detach /tmp/accounting-split-proof-clean 177cad0c100a7030967d7b98df076f709126cfe7 && git -C /tmp/accounting-split-proof-clean status --short` to prove the feature commit was clean without modifying the root worktree."
+    }
+  ],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/accounting-core/scrutiny/reviews/accounting-sequence-and-alias-concurrency-hardening.json",
+  "summary": "PASS: the rerun follow-up fully addresses the prior blocking finding by adding direct concurrent split-receipt replay proof and wiring that proof into `targeted-accounting-proof`; no new code-review issues were found in the scoped fix."
+}

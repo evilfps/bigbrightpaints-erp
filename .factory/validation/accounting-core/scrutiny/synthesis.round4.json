@@ -1,0 +1,86 @@
+{
+  "milestone": "accounting-core",
+  "round": 4,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "ROOT=/home/realnigga/Desktop/Mission-control && cd \"$ROOT\" && bash scripts/gate_fast.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "ROOT=/home/realnigga/Desktop/Mission-control && cd \"$ROOT/erp-domain\" && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "ROOT=/home/realnigga/Desktop/Mission-control && cd \"$ROOT\" && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 4,
+    "passed": 2,
+    "failed": 2,
+    "failedFeatures": [
+      "accounting-core-decomposition-foundation",
+      "accounting-sequence-and-alias-concurrency-hardening"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "accounting-core-decomposition-foundation",
+      "severity": "blocking",
+      "description": "AccountingCoreEngineCore still centralizes canonical accounting behavior as an ~8100-line monolith, including createStandardJournal/createJournalEntry, payroll posting/payment, and dealer/supplier settlement flows, so decomposition into focused canonical owners was not achieved."
+    },
+    {
+      "featureId": "accounting-core-decomposition-foundation",
+      "severity": "blocking",
+      "description": "SettlementService and AccountingIdempotencyService still preserve the prior delegation chain into inherited AccountingCoreEngineCore settlement implementations, so focused settlement ownership remains unresolved."
+    },
+    {
+      "featureId": "accounting-core-decomposition-foundation",
+      "severity": "blocking",
+      "description": "PayrollAccountingService is still a thin wrapper over inherited monolith methods (`super.postPayrollRun` / `super.recordPayrollPayment`) instead of owning migrated payroll behavior."
+    },
+    {
+      "featureId": "accounting-sequence-and-alias-concurrency-hardening",
+      "severity": "blocking",
+      "description": "Manual-journal replay now performs a single immediate reserved-row lookup after reservation collision, so concurrent duplicate submissions can fail with INTERNAL_CONCURRENCY_FAILURE before the leader transaction commits instead of replaying the canonical journal result."
+    },
+    {
+      "featureId": "accounting-sequence-and-alias-concurrency-hardening",
+      "severity": "blocking",
+      "description": "The same single-read replay regression affects reservation-first receipt/payment/settlement/correction paths, where follower requests can throw missing-reservation failures before the leader writes journal/allocation rows."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "backend-worker skill",
+      "suggestion": "Add an explicit decomposition verification checkpoint that rejects wrapper-only refactors: focused services must own migrated business logic rather than inheriting or delegating back to AccountingCoreEngineCore/super methods.",
+      "evidence": "The accounting-core-decomposition-foundation review found wrapper shells deleted but core methods still centralized in AccountingCoreEngineCore, with SettlementService and PayrollAccountingService forwarding through inheritance/dependency hops instead of becoming canonical owners.",
+      "isSystemic": true
+    },
+    {
+      "target": "backend-worker skill",
+      "suggestion": "Adjust or conditionalize Step 6 remediation-log requirements so workers are not instructed to update `.factory/library/remediation-log.md` when higher-priority packet rules explicitly forbid docs/library edits.",
+      "evidence": "The accounting-core-decomposition-foundation handoff recorded a justified procedure deviation because the skill required a remediation-log append while the packet instructions prohibited doc updates unless explicitly requested.",
+      "isSystemic": true
+    },
+    {
+      "target": "mission-worker-base skill",
+      "suggestion": "Document the clean-worktree fallback for shared dirty workspaces, including when to use isolated worktrees and how to complete/hand off a clean feature commit without touching unrelated local edits.",
+      "evidence": "Both accounting-write-contract-and-replay-hardening and accounting-consumer-proof-and-duplicate-seam-cleanup reported procedure ambiguity around pre-existing dirty files; one worker created an isolated worktree to keep its commit clean, and another explicitly flagged worker-base guidance as underspecified for successful completion with unrelated `.factory/droids/*.md` edits present.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "The canonical `targeted-accounting-proof` pack still lacks a direct duplicate-replay contention probe for the reserved-row accounting write paths changed in bee7f023.",
+      "reason": "not-applied: this would require new contention tests or a new proof command first, so it cannot be safely handled as an additive services.yaml/library update from review evidence alone."
+    }
+  ],
+  "previousRound": ".factory/validation/accounting-core/scrutiny/synthesis.round3.json"
+}
