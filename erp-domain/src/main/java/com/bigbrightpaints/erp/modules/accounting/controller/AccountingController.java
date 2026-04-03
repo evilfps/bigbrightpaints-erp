@@ -154,6 +154,9 @@ public class AccountingController {
   @ExceptionHandler(ApplicationException.class)
   public ResponseEntity<ApiResponse<Map<String, Object>>> handleApplicationException(
       ApplicationException ex, HttpServletRequest request) {
+    if (ex != null && ex.getErrorCode() == ErrorCode.CONCURRENCY_CONFLICT) {
+      return AccountingApplicationExceptionResponses.mappedStatus(ex, request);
+    }
     return AccountingApplicationExceptionResponses.badRequest(ex, request);
   }
 
@@ -549,13 +552,18 @@ public class AccountingController {
       String canonicalPath) {
     IdempotencyHeaderUtils.rejectLegacyHeader(
         legacyIdempotencyKeyHeader, "accounting write requests", canonicalPath);
-    String resolvedKey =
-        IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
-            bodyIdempotencyKey, idempotencyKeyHeader, null);
-    if (!StringUtils.hasText(resolvedKey) || StringUtils.hasText(bodyIdempotencyKey)) {
-      return null;
+    String normalizedBodyIdempotencyKey =
+        StringUtils.hasText(bodyIdempotencyKey) ? bodyIdempotencyKey.trim() : null;
+    if (normalizedBodyIdempotencyKey != null) {
+      throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT,
+              "Accounting write requests accept idempotency only via the Idempotency-Key header")
+          .withDetail("bodyField", "idempotencyKey")
+          .withDetail("bodyKey", normalizedBodyIdempotencyKey)
+          .withDetail("canonicalHeader", "Idempotency-Key")
+          .withDetail("canonicalPath", canonicalPath);
     }
-    return resolvedKey;
+    return StringUtils.hasText(idempotencyKeyHeader) ? idempotencyKeyHeader.trim() : null;
   }
 
   private ReconciliationDiscrepancyStatus parseDiscrepancyStatus(String rawStatus) {

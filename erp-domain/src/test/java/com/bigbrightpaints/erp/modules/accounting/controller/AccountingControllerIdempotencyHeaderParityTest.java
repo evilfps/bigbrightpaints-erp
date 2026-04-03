@@ -46,13 +46,14 @@ class AccountingControllerIdempotencyHeaderParityTest {
   }
 
   @Test
-  void recordDealerReceipt_rejectsBodyHeaderMismatch() {
+  void recordDealerReceipt_rejectsBodyIdempotencyKeyWhenHeaderMatches() {
     AccountingController controller = controller();
 
     assertThatThrownBy(
-            () -> controller.recordDealerReceipt(dealerReceiptRequest("body-001"), "hdr-001", null))
+            () ->
+                controller.recordDealerReceipt(dealerReceiptRequest("body-001"), "body-001", null))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Idempotency key mismatch");
+        .hasMessageContaining("Idempotency-Key header");
   }
 
   @Test
@@ -83,15 +84,15 @@ class AccountingControllerIdempotencyHeaderParityTest {
   }
 
   @Test
-  void recordDealerHybridReceipt_rejectsBodyHeaderMismatch() {
+  void recordDealerHybridReceipt_rejectsBodyIdempotencyKeyWhenHeaderMatches() {
     AccountingController controller = controller();
 
     assertThatThrownBy(
             () ->
                 controller.recordDealerHybridReceipt(
-                    dealerReceiptSplitRequest("body-001"), "hdr-001", null))
+                    dealerReceiptSplitRequest("body-001"), "body-001", null))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Idempotency key mismatch");
+        .hasMessageContaining("Idempotency-Key header");
   }
 
   @Test
@@ -121,13 +122,15 @@ class AccountingControllerIdempotencyHeaderParityTest {
   }
 
   @Test
-  void settleSupplier_rejectsBodyHeaderMismatch() {
+  void settleSupplier_rejectsBodyIdempotencyKeyWhenHeaderMatches() {
     AccountingController controller = controller();
 
     assertThatThrownBy(
-            () -> controller.settleSupplier(supplierSettlementRequest("body-001"), "hdr-001", null))
+            () ->
+                controller.settleSupplier(
+                    supplierSettlementRequest("body-001"), "body-001", null))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Idempotency key mismatch");
+        .hasMessageContaining("Idempotency-Key header");
   }
 
   @Test
@@ -168,13 +171,13 @@ class AccountingControllerIdempotencyHeaderParityTest {
   }
 
   @Test
-  void settleDealer_rejectsBodyHeaderMismatch() {
+  void settleDealer_rejectsBodyIdempotencyKeyWhenHeaderMatches() {
     AccountingController controller = controller();
 
     assertThatThrownBy(
-            () -> controller.settleDealer(dealerSettlementRequest("body-001"), "hdr-001", null))
+            () -> controller.settleDealer(dealerSettlementRequest("body-001"), "body-001", null))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Idempotency key mismatch");
+        .hasMessageContaining("Idempotency-Key header");
   }
 
   @Test
@@ -218,6 +221,18 @@ class AccountingControllerIdempotencyHeaderParityTest {
   }
 
   @Test
+  void autoSettleDealer_rejectsBodyIdempotencyKeyWhenHeaderMatches() {
+    AccountingController controller = controller();
+
+    assertThatThrownBy(
+            () ->
+                controller.autoSettleDealer(
+                    1001L, autoSettlementRequest("body-001"), "body-001", null))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Idempotency-Key header");
+  }
+
+  @Test
   void autoSettleSupplier_rejectsLegacyHeader() {
     AccountingController controller = controller();
     assertThatThrownBy(
@@ -229,6 +244,18 @@ class AccountingControllerIdempotencyHeaderParityTest {
             ex ->
                 assertLegacyHeaderContract(
                     ex, "legacy-001", "/api/v1/accounting/suppliers/{supplierId}/auto-settle"));
+  }
+
+  @Test
+  void autoSettleSupplier_rejectsBodyIdempotencyKeyWhenHeaderMatches() {
+    AccountingController controller = controller();
+
+    assertThatThrownBy(
+            () ->
+                controller.autoSettleSupplier(
+                    3001L, autoSettlementRequest("body-001"), "body-001", null))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Idempotency-Key header");
   }
 
   private AccountingController controller() {

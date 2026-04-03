@@ -635,43 +635,40 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
   }
 
   @Test
-  void controllerIdempotencyResolution_bodyKeyWinsAcrossEndpoints() {
+  void controllerIdempotencyResolution_rejectsBodyKeysAcrossEndpoints() {
     AccountingService service = org.mockito.Mockito.mock(AccountingService.class);
     DealerReceiptService dealerReceiptService =
         org.mockito.Mockito.mock(DealerReceiptService.class);
     SettlementService settlementService = org.mockito.Mockito.mock(SettlementService.class);
     AccountingController controller =
         accountingController(service, null, dealerReceiptService, settlementService);
-    when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
-    when(dealerReceiptService.recordDealerReceiptSplit(any())).thenReturn(null);
-    when(settlementService.settleDealerInvoices(any())).thenReturn(null);
-    when(settlementService.settleSupplierInvoices(any())).thenReturn(null);
 
-    controller.recordDealerReceipt(controllerDealerReceiptRequest("BODY-DR"), "BODY-DR", null);
-    controller.recordDealerHybridReceipt(
-        controllerDealerReceiptSplitRequest("BODY-DRS"), "BODY-DRS", null);
-    controller.settleDealer(controllerDealerSettlementRequest("BODY-ADS"), "BODY-ADS", null);
-    controller.settleSupplier(controllerSupplierSettlementRequest("BODY-APS"), "BODY-APS", null);
+    assertThatThrownBy(
+            () ->
+                controller.recordDealerReceipt(
+                    controllerDealerReceiptRequest("BODY-DR"), "BODY-DR", null))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Idempotency-Key header");
+    assertThatThrownBy(
+            () ->
+                controller.recordDealerHybridReceipt(
+                    controllerDealerReceiptSplitRequest("BODY-DRS"), "BODY-DRS", null))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Idempotency-Key header");
+    assertThatThrownBy(
+            () ->
+                controller.settleDealer(
+                    controllerDealerSettlementRequest("BODY-ADS"), "BODY-ADS", null))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Idempotency-Key header");
+    assertThatThrownBy(
+            () ->
+                controller.settleSupplier(
+                    controllerSupplierSettlementRequest("BODY-APS"), "BODY-APS", null))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Idempotency-Key header");
 
-    ArgumentCaptor<DealerReceiptRequest> dealerCaptor =
-        ArgumentCaptor.forClass(DealerReceiptRequest.class);
-    verify(dealerReceiptService).recordDealerReceipt(dealerCaptor.capture());
-    assertThat(dealerCaptor.getValue().idempotencyKey()).isEqualTo("BODY-DR");
-
-    ArgumentCaptor<DealerReceiptSplitRequest> dealerSplitCaptor =
-        ArgumentCaptor.forClass(DealerReceiptSplitRequest.class);
-    verify(dealerReceiptService).recordDealerReceiptSplit(dealerSplitCaptor.capture());
-    assertThat(dealerSplitCaptor.getValue().idempotencyKey()).isEqualTo("BODY-DRS");
-
-    ArgumentCaptor<DealerSettlementRequest> dealerSettlementCaptor =
-        ArgumentCaptor.forClass(DealerSettlementRequest.class);
-    verify(settlementService).settleDealerInvoices(dealerSettlementCaptor.capture());
-    assertThat(dealerSettlementCaptor.getValue().idempotencyKey()).isEqualTo("BODY-ADS");
-
-    ArgumentCaptor<SupplierSettlementRequest> supplierSettlementCaptor =
-        ArgumentCaptor.forClass(SupplierSettlementRequest.class);
-    verify(settlementService).settleSupplierInvoices(supplierSettlementCaptor.capture());
-    assertThat(supplierSettlementCaptor.getValue().idempotencyKey()).isEqualTo("BODY-APS");
+    org.mockito.Mockito.verifyNoInteractions(dealerReceiptService, settlementService);
   }
 
   @Test

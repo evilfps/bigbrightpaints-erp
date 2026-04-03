@@ -27,6 +27,7 @@ public record DealerSettlementRequest(
     LocalDate settlementDate,
     String referenceNumber,
     String memo,
+    @Schema(hidden = true)
     String idempotencyKey,
     Boolean adminOverride,
     List<@Valid SettlementAllocationRequest> allocations,

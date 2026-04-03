@@ -108,7 +108,7 @@ class AccountingControllerExceptionHandlerTest {
     ApiResponse<Map<String, Object>> body =
         assertReplayErrorEnvelope(
             response,
-            HttpStatus.BAD_REQUEST,
+            HttpStatus.CONFLICT,
             ErrorCode.CONCURRENCY_CONFLICT,
             REPLAY_REASON_SUPPLIER,
             "/api/v1/accounting/settlements/suppliers");
@@ -134,7 +134,7 @@ class AccountingControllerExceptionHandlerTest {
     ApiResponse<Map<String, Object>> body =
         assertReplayErrorEnvelope(
             response,
-            HttpStatus.BAD_REQUEST,
+            HttpStatus.CONFLICT,
             ErrorCode.CONCURRENCY_CONFLICT,
             REPLAY_REASON_DEALER,
             "/api/v1/accounting/settlements/dealers");
@@ -156,7 +156,7 @@ class AccountingControllerExceptionHandlerTest {
     ApiResponse<Map<String, Object>> body =
         assertReplayErrorEnvelope(
             response,
-            HttpStatus.BAD_REQUEST,
+            HttpStatus.CONFLICT,
             ErrorCode.CONCURRENCY_CONFLICT,
             REPLAY_REASON_PARTNER_TYPE,
             "/api/v1/accounting/settlements/partners");
@@ -177,7 +177,7 @@ class AccountingControllerExceptionHandlerTest {
     ApiResponse<Map<String, Object>> body =
         assertReplayErrorEnvelope(
             response,
-            HttpStatus.BAD_REQUEST,
+            HttpStatus.CONFLICT,
             ErrorCode.CONCURRENCY_CONFLICT,
             REPLAY_REASON_SUPPLIER,
             "/api/v1/accounting/settlements/suppliers");

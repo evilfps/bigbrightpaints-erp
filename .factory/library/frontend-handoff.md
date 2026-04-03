@@ -699,7 +699,6 @@ Catalog note (2026-03-21): accounting-facing stock-bearing setup now uses the ca
 | `POST` | `/api/v1/accounting/journal-entries/{entryId}/cascade-reverse` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `JournalEntryReversalRequest` | `List<JournalEntryDto>` |
 | `POST` | `/api/v1/accounting/journal-entries/{entryId}/reverse` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `JournalEntryReversalRequest` | `JournalEntryDto` |
 | `GET` | `/api/v1/accounting/journals` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `List<JournalListItemDto>` |
-| `POST` | `/api/v1/accounting/journals/manual` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `ManualJournalRequest` | `JournalEntryDto` |
 | `POST` | `/api/v1/accounting/journals/{entryId}/reverse` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `JournalEntryReversalRequest` | `JournalEntryDto` |
 | `GET` | `/api/v1/accounting/month-end/checklist` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `MonthEndChecklistDto` |
 | `POST` | `/api/v1/accounting/month-end/checklist/{periodId}` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `MonthEndChecklistUpdateRequest` | `MonthEndChecklistDto` |
@@ -737,7 +736,7 @@ Catalog note (2026-03-21): accounting-facing stock-bearing setup now uses the ca
 | `POST` | `/api/v1/accounting/suppliers/{supplierId}/auto-settle` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `AutoSettlementRequest` | `PartnerSettlementResponse` |
 | `GET` | `/api/v1/accounting/trial-balance/as-of` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `TemporalBalanceService.TrialBalanceSnapshot` |
 
-_Total documented accounting endpoints: **82**._
+_Total documented accounting endpoints: **81**._
 
 #### Required User Flows (API call sequences)
 
@@ -750,7 +749,7 @@ _Total documented accounting endpoints: **82**._
 
 2. **Manual journal entry**
    1. Dropdown preload: `GET /api/v1/accounting/accounts`, `GET /api/v1/dealers`, `GET /api/v1/suppliers`
-   2. Create manual journal: `POST /api/v1/accounting/journals/manual` (preferred multi-line path)
+   2. Create manual journal: `POST /api/v1/accounting/journal-entries` (canonical manual write path)
    3. List and filter: `GET /api/v1/accounting/journals?fromDate&toDate&type&sourceModule`
    4. Reverse (single): `POST /api/v1/accounting/journals/{entryId}/reverse` or `/journal-entries/{entryId}/reverse`
    5. Reverse (cascade): `POST /api/v1/accounting/journal-entries/{entryId}/cascade-reverse`
@@ -896,7 +895,7 @@ _Total documented accounting endpoints: **82**._
   - `amount`: `BigDecimal` — validation `@NotNull; @DecimalMin(value = "0.01")`
   - `referenceNumber`: `String` — validation `—`
   - `memo`: `String` — validation `—`
-  - `idempotencyKey`: `String` — validation `—`
+  - Replay protection is header-only: send optional `Idempotency-Key`; body `idempotencyKey` is rejected.
 - **`DebitNoteRequest`**
   - `purchaseId`: `Long` — validation `@NotNull`
   - `amount`: `BigDecimal` — validation `@DecimalMin(value = "0.01")`
@@ -1017,14 +1016,14 @@ _Total documented accounting endpoints: **82**._
   - `amount`: `BigDecimal` — validation `@NotNull; @DecimalMin(value = "0.01")`
   - `referenceNumber`: `String` — validation `—`
   - `memo`: `String` — validation `—`
-  - `idempotencyKey`: `String` — validation `—`
+  - Replay protection is header-only: send optional `Idempotency-Key`; body `idempotencyKey` is rejected.
   - `allocations`: `List<SettlementAllocationRequest>` — validation `@NotEmpty(message = "Allocations are required for dealer receipts; use settlement endpoints or include allocations"); @Valid`
 - **`DealerReceiptSplitRequest`**
   - `dealerId`: `Long` — validation `@NotNull`
   - `incomingLines`: `List<IncomingLine>` — validation `@NotEmpty; @Valid`
   - `referenceNumber`: `String` — validation `—`
   - `memo`: `String` — validation `—`
-  - `idempotencyKey`: `String` — validation `—`
+  - Replay protection is header-only: send optional `Idempotency-Key`; body `idempotencyKey` is rejected.
 - **`BankReconciliationRequest`**
   - `bankAccountId`: `Long` — validation `@NotNull`
   - `statementDate`: `LocalDate` — validation `@NotNull`
@@ -1068,7 +1067,7 @@ _Total documented accounting endpoints: **82**._
   - `settlementDate`: `LocalDate` — validation `—`
   - `referenceNumber`: `String` — validation `—`
   - `memo`: `String` — validation `—`
-  - `idempotencyKey`: `String` — validation `—`
+  - Replay protection is header-only: send optional `Idempotency-Key`; body `idempotencyKey` is rejected.
   - `adminOverride`: `Boolean` — validation `—`
   - `allocations`: `List<SettlementAllocationRequest>` — validation `@NotEmpty; @Valid`
   - `payments`: `List<SettlementPaymentRequest>` — validation `@Valid`
@@ -1082,7 +1081,7 @@ _Total documented accounting endpoints: **82**._
   - `settlementDate`: `LocalDate` — validation `—`
   - `referenceNumber`: `String` — validation `—`
   - `memo`: `String` — validation `—`
-  - `idempotencyKey`: `String` — validation `—`
+  - Replay protection is header-only: send optional `Idempotency-Key`; body `idempotencyKey` is rejected.
   - `adminOverride`: `Boolean` — validation `—`
   - `allocations`: `List<SettlementAllocationRequest>` — validation `@NotEmpty; @Valid`
 - **`multipart/form-data` (`POST /api/v1/accounting/opening-balances`)**
@@ -1615,7 +1614,7 @@ _Total documented accounting endpoints: **82**._
   - Treat `BUS_001` on update as immutable-completed-session signal; disable line selection and show read-only completed snapshot.
   - Use `GET /reconciliation/bank/sessions` for history drawer/table and show `status`, `createdAt`, `completedAt`, and `clearedItemCount` badges.
 - **Idempotency**
-  - For mutation endpoints supporting replay protection, send `Idempotency-Key` (preferred). Legacy `X-Idempotency-Key` is accepted; mismatches are rejected.
+  - For accounting receipt/settlement/auto-settle mutations, send only `Idempotency-Key` when providing a replay key. `X-Idempotency-Key` and body `idempotencyKey` are rejected, and replay drift returns `409 CONCURRENCY_CONFLICT` with partner/idempotency metadata.
   - Opening balance import uses file-content hash idempotency internally; frontend does **not** need to send idempotency header, but should preserve identical file bytes when expecting replay behavior.
   - Tally XML import also uses file-content hash idempotency internally; frontend should preserve exact file bytes for replay expectations.
 - **Opening balance import UX**
