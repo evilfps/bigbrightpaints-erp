@@ -314,7 +314,7 @@ abstract class AccountingCoreEngineCore {
   }
 
   @Transactional
-  public JournalEntryDto createStandardJournal(JournalCreationRequest request) {
+  protected JournalEntryDto createStandardJournal(JournalCreationRequest request) {
     if (request == null) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Journal creation request is required");
@@ -406,7 +406,7 @@ abstract class AccountingCoreEngineCore {
   }
 
   @Transactional
-  public JournalEntryDto createManualJournal(ManualJournalRequest request) {
+  protected JournalEntryDto createManualJournal(ManualJournalRequest request) {
     if (request == null) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Manual journal request is required");
@@ -545,7 +545,7 @@ abstract class AccountingCoreEngineCore {
       maxAttempts = 3,
       backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
   @Transactional
-  public JournalEntryDto createJournalEntry(JournalEntryRequest request) {
+  protected JournalEntryDto createJournalEntry(JournalEntryRequest request) {
     Map<String, String> auditMetadata = new HashMap<>();
     if (request != null && request.referenceNumber() != null) {
       auditMetadata.put("requestedReference", request.referenceNumber());
