@@ -64,7 +64,7 @@ Final backend-facing handoff for frontend-v2 consumers after the merged `truth-r
 - Surface backend blocker text verbatim for dispatch/portal denials; the mission normalized these messages into business-language guidance.
 - Treat factory dispatch previews and slip reads as redacted operational data, not a finance summary.
 - Use `POST /api/v1/dispatch/confirm` responses for invoice/journal linkage; pure factory sessions stay redacted while admin/elevated sessions keep the permitted finance-linked fields.
-- Tenant runtime policy writes now belong only on `PUT /api/v1/companies/{id}/tenant-runtime/policy`; remove any frontend or operator tooling that still targets `PUT /api/v1/admin/tenant-runtime/policy`. Tenant admins still read runtime state from `GET /api/v1/admin/tenant-runtime/metrics`.
+- Tenant runtime lifecycle/quota changes are superadmin-only control-plane actions on `PUT /api/v1/superadmin/tenants/{id}/lifecycle` and `PUT /api/v1/superadmin/tenants/{id}/limits`; keep tenant-admin tooling off retired admin/company runtime-policy aliases.
 - Remove any frontend CTA or retry logic that targets `/api/v1/orchestrator/factory/dispatch/{batchId}`; route stale shipment-posting callers to `POST /api/v1/dispatch/confirm` and keep factory UX on the canonical dispatch workspace. Orchestrator fulfillment status bumps for shipment completion should also be removed in favor of the canonical dispatch surfaces.
 - Keep non-active suppliers visible but disable mutation CTAs when the current supplier state is already known client-side.
 - Keep dealer portal scoped and narrow: allow permanent credit-limit request submission, but keep dispatch overrides and other internal workflow actions out of dealer UX.

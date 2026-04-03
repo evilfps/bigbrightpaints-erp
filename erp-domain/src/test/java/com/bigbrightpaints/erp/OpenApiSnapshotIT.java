@@ -341,6 +341,73 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
   }
 
   @Test
+  void auth_and_tenant_control_docs_match_the_hard_cut_route_story() throws IOException {
+    String modulesAuth = readRepoFile("docs/modules/auth.md");
+    assertThat(modulesAuth).contains("`GET /api/v1/auth/me`");
+    assertThat(modulesAuth).contains("`/api/v1/superadmin/tenants/{id}/support/admin-password-reset`");
+    assertThat(modulesAuth)
+        .doesNotContain("### UserProfileController — `/api/v1/auth/profile`")
+        .doesNotContain("| GET | `/api/v1/auth/profile` |")
+        .doesNotContain("| PUT | `/api/v1/auth/profile` |")
+        .doesNotContain("| GET/HEAD | `/api/v1/auth/me`, `/api/v1/auth/profile` |");
+
+    String flowAuthIdentity = readRepoFile("docs/flows/auth-identity.md");
+    assertThat(flowAuthIdentity).contains("| `/me` | GET | `/api/v1/auth/me` |");
+    assertThat(flowAuthIdentity)
+        .contains(
+            "| Super-admin support reset | POST | `/api/v1/superadmin/tenants/{id}/support/admin-password-reset` |")
+        .doesNotContain("| Profile read | GET | `/api/v1/auth/profile` |")
+        .doesNotContain("| Profile update | PUT | `/api/v1/auth/profile` |")
+        .doesNotContain("PUT `/api/v1/auth/profile`")
+        .doesNotContain("`POST /api/v1/companies/{id}/support/admin-password-reset`");
+
+    String codeReviewControlPlane =
+        readRepoFile("docs/code-review/flows/company-tenant-control-plane.md");
+    assertThat(codeReviewControlPlane)
+        .contains("`PUT /api/v1/superadmin/tenants/{id}/lifecycle`")
+        .contains("`PUT /api/v1/superadmin/tenants/{id}/limits`")
+        .contains("`POST /api/v1/superadmin/tenants/{id}/support/admin-password-reset`")
+        .doesNotContain("`GET /api/v1/admin/tenant-runtime/metrics`")
+        .doesNotContain("`PUT /api/v1/admin/tenant-runtime/policy`")
+        .doesNotContain("`PUT /api/v1/companies/{id}/tenant-runtime/policy`")
+        .doesNotContain("CompanyService.updateTenantRuntimePolicy(...)")
+        .doesNotContain("suspend, activate, deactivate, list usage");
+
+    String authHardening = readRepoFile(".factory/library/auth-hardening.md");
+    assertThat(authHardening)
+        .contains("`GET /api/v1/auth/me`")
+        .contains("`PUT /api/v1/superadmin/tenants/{id}/limits`")
+        .doesNotContain("`GET /auth/profile`")
+        .doesNotContain("`PUT /api/v1/companies/{id}/tenant-runtime/policy`")
+        .doesNotContain("`PUT /api/v1/admin/tenant-runtime/policy`");
+
+    String frontendHandoff = readRepoFile(".factory/library/frontend-handoff.md");
+    assertThat(frontendHandoff)
+        .contains("| GET | `/api/v1/auth/me` |")
+        .contains("| PUT | `/api/v1/superadmin/tenants/{id}/lifecycle` |")
+        .contains("| PUT | `/api/v1/superadmin/tenants/{id}/limits` |")
+        .doesNotContain("| GET | `/api/v1/auth/profile` |")
+        .doesNotContain("| PUT | `/api/v1/auth/profile` |")
+        .doesNotContain("GET /api/v1/auth/profile")
+        .doesNotContain("PUT /api/v1/auth/profile")
+        .doesNotContain("`PUT /api/v1/companies/{id}/tenant-runtime/policy`")
+        .doesNotContain("`PUT /api/v1/admin/tenant-runtime/policy`")
+        .doesNotContain("`POST /api/v1/superadmin/tenants/{id}/suspend`")
+        .doesNotContain("`POST /api/v1/superadmin/tenants/{id}/activate`")
+        .doesNotContain("`POST /api/v1/superadmin/tenants/{id}/deactivate`");
+
+    String frontendV2 = readRepoFile(".factory/library/frontend-v2.md");
+    assertThat(frontendV2)
+        .contains("`PUT /api/v1/superadmin/tenants/{id}/limits`")
+        .doesNotContain("`PUT /api/v1/companies/{id}/tenant-runtime/policy`");
+
+    String runtimeControlPlane = readRepoFile(".factory/library/tenant-runtime-control-plane.md");
+    assertThat(runtimeControlPlane)
+        .contains("Canonical control-plane mutation path: `PUT /api/v1/superadmin/tenants/{id}/limits`")
+        .doesNotContain("Public mutation path: `PUT /api/v1/companies/{id}/tenant-runtime/policy`");
+  }
+
+  @Test
   void catalog_surface_contract_exposes_only_canonical_public_routes() throws IOException {
     JsonNode root = fetchCurrentSpecNode();
 
@@ -1031,6 +1098,10 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertThat(json.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(json.getBody()).as("OpenAPI payload").isNotBlank();
     return CANONICAL_JSON.readTree(json.getBody());
+  }
+
+  private String readRepoFile(String relativePath) throws IOException {
+    return Files.readString(resolveRepoRoot().resolve(relativePath), StandardCharsets.UTF_8);
   }
 
   private void assertOperationContract(

@@ -6,7 +6,7 @@ This packet documents the **auth module** (`modules/auth`) and the core security
 
 ## Ownership Summary
 
-The auth module owns the **authentication corridor**: credential verification, token issuance, MFA lifecycle, password policy and reset, token/session revocation, and user-profile read/write for the authenticated user.
+The auth module owns the **authentication corridor**: credential verification, token issuance, MFA lifecycle, password policy and reset, and token/session revocation for scoped accounts.
 
 Core security infrastructure in `core/security/` owns the **request-pipeline enforcement**: JWT validation, company-context resolution, must-change-password corridor filtering, token blacklisting, security monitoring, and licensing validation at startup.
 
@@ -40,12 +40,11 @@ Core security infrastructure in `core/security/` owns the **request-pipeline enf
 | POST | `/api/v1/auth/mfa/activate` | Authenticated | Confirm TOTP enrollment with first valid code |
 | POST | `/api/v1/auth/mfa/disable` | Authenticated | Disable MFA (requires TOTP code or recovery code) |
 
-### UserProfileController — `/api/v1/auth/profile`
+### SuperAdminController — tenant admin support recovery
 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
-| GET | `/api/v1/auth/profile` | Authenticated | View current user profile |
-| PUT | `/api/v1/auth/profile` | Authenticated | Update current user profile |
+| POST | `/api/v1/superadmin/tenants/{id}/support/admin-password-reset` | `ROLE_SUPER_ADMIN` | Issue the canonical tenant-admin reset-link recovery action |
 
 ## Key Services
 
@@ -162,7 +161,7 @@ When a user's `mustChangePassword` flag is true, the `MustChangePasswordCorridor
 
 | Method | Allowed Paths |
 | --- | --- |
-| GET/HEAD | `/api/v1/auth/me`, `/api/v1/auth/profile` |
+| GET/HEAD | `/api/v1/auth/me` |
 | POST | `/api/v1/auth/password/change`, `/api/v1/auth/logout`, `/api/v1/auth/refresh-token` |
 | OPTIONS | All paths (CORS preflight) |
 
@@ -303,7 +302,7 @@ Login and refresh both require a `companyCode` parameter. The user must exist wi
 4. **Must-change-password is a flag, not a policy**: there is no automatic expiration that sets this flag. It must be set explicitly by admin actions or provisioning flows.
 5. **MFA disable requires a valid code**: if a user loses access to their authenticator and exhausts all recovery codes, they need an admin intervention to reset MFA.
 6. **Access tokens cannot be reliably revoked before expiration** for requests already in flight: the blacklist check happens per-request, but a very fast request might pass the filter before the blacklist is written. This is a standard JWT trade-off mitigated by short access-token TTL (15 minutes).
-7. **Profile changes do not emit audit events**: User profile mutations (PUT `/api/v1/auth/profile`) persist changes but do not create audit trail entries. This is a compliance gap — see the [Authoritative Recommendations Register](../RECOMMENDATIONS.md) for the "Bug to Fix Now" classification.
+7. **Retired identity aliases must stay absent**: `GET /api/v1/auth/me` is the only supported bootstrap read surface; old profile aliases must not be treated as current contract.
 
 ## Cross-References
 

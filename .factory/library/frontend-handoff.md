@@ -42,7 +42,7 @@ Each module section should include:
 - 2026-03-26 `auth-v2-hard-cut-canonicalization`: auth identity is now scoped to `(normalized_email, auth_scope_code)` with no email-only recovery path, no superadmin forgot-password alias, no tenant-switch session route, no caller-visible temporary-password payloads, and no compatibility DTO aliases. Public forgot-password requires `{ email, companyCode }`, reset tokens are scoped to that account only, admin/support resets use the same reset-link issuance path, and onboarding or user creation only reports provisioning status while emailing temporary credentials directly to the target user.
 - 2026-03-14 `remove-orchestrator-dispatch-journal`: `POST /api/v1/orchestrator/factory/dispatch/{batchId}` is now a fail-closed compatibility surface only. Valid requests receive `410 Gone` with `canonicalPath=/api/v1/dispatch/confirm`, and orchestrator fulfillment requests for `SHIPPED`/`DISPATCHED`/`FULFILLED`/`COMPLETED` now return `409 Conflict` (`BUS_001`) instead of acknowledging or posting dispatch accounting truth.
 - 2026-03-06 `reset-token-issuance-race-hardening`: no auth/admin request or response shape changes were required. Public forgot-password and admin force-reset now serialize reset-token issuance per scoped account so duplicate or overlapping requests deterministically leave only the latest reset link usable instead of cross-deleting every valid token.
-- 2026-03-06 `must-change-password-corridor-hardening`: login, refresh-token, `/auth/me`, `GET /auth/profile`, password-change, and logout success payloads stay the same. While `mustChangePassword=true`, the backend now confines the bearer session to that corridor, denies normal protected work with a `403` `ApiResponse` carrying `reason=PASSWORD_CHANGE_REQUIRED` and `mustChangePassword=true`, and still preserves company binding on the allowed corridor endpoints.
+- 2026-03-06 `must-change-password-corridor-hardening`: login, refresh-token, `/auth/me`, password-change, and logout success payloads stay the same. While `mustChangePassword=true`, the backend now confines the bearer session to that corridor, denies normal protected work with a `403` `ApiResponse` carrying `reason=PASSWORD_CHANGE_REQUIRED` and `mustChangePassword=true`, and still preserves company binding on the allowed corridor endpoints while the retired profile surface stays absent.
 - 2026-03-06 `controlled-auth-error-contracts`: supported auth/admin success payloads stay the same, but previously raw framework/servlet failure paths are now normalized into `ApiResponse` contracts. Lockout now returns `401` with `AUTH_005`, authenticated tenant-binding mismatches now return `403` `ApiResponse` envelopes with `AUTH_004` plus `reason` / `reasonDetail`, and tenant runtime hold/block/quota denials on login or authenticated auth requests now return controlled `ApiResponse` error bodies carrying their runtime denial codes (for example `TENANT_ON_HOLD`, `TENANT_BLOCKED`, `TENANT_REQUEST_RATE_EXCEEDED`).
 - 2026-03-06 `auth-compatibility-regression-handoff`: no auth/admin request or response shape changes were required. Login, refresh-token, logout, `/auth/me`, password-change, forgot/reset, admin user-control, and admin settings payloads remain frontend-safe; contract regression coverage was refreshed across those surfaces, and the published OpenAPI contract now matches the live `204 No Content` logout response so the `AuthControllerIT.refresh_token_revoked_after_logout` regression stays aligned with runtime behavior.
 - 2026-03-26 `auth-v2-hard-cut-canonicalization`: `POST /api/v1/auth/password/forgot` still masks unknown-user and disabled-user cases behind the generic success contract, but known scoped accounts now fail closed when reset-token storage or reset-email delivery/configuration fails. Frontend callers must treat forgot-password as a scoped recovery request that can return a real error instead of assuming `200 OK`.
@@ -59,8 +59,6 @@ Each module section should include:
 | POST | `/api/v1/auth/password/change` | `isAuthenticated()` | `ChangePasswordRequest` | `ApiResponse<String>` |
 | POST | `/api/v1/auth/password/forgot` | Public | `ForgotPasswordRequest` | `ApiResponse<String>` |
 | POST | `/api/v1/auth/password/reset` | Public | `ResetPasswordRequest` | `ApiResponse<String>` |
-| GET | `/api/v1/auth/profile` | `isAuthenticated()` | None | `ApiResponse<ProfileResponse>` |
-| PUT | `/api/v1/auth/profile` | `isAuthenticated()` | `UpdateProfileRequest` | `ApiResponse<ProfileResponse>` |
 | POST | `/api/v1/auth/mfa/setup` | `isAuthenticated()` | None | `ApiResponse<MfaSetupResponse>` |
 | POST | `/api/v1/auth/mfa/activate` | `isAuthenticated()` | `MfaActivateRequest` | `ApiResponse<{ enabled: true }>` |
 | POST | `/api/v1/auth/mfa/disable` | `isAuthenticated()` | `MfaDisableRequest` | `ApiResponse<{ enabled: false }>` |
@@ -69,14 +67,14 @@ Notes:
 - Login/refresh return raw `AuthResponse` (not wrapped in `ApiResponse`).
 - Most other auth endpoints return `ApiResponse<T>`.
 - MFA verification during login is done by `POST /api/v1/auth/login` using `mfaCode` or `recoveryCode` in `LoginRequest`.
-- When `mustChangePassword=true`, only login, refresh-token, `/auth/me`, `GET /auth/profile`, `POST /auth/password/change`, and `POST /auth/logout` remain usable until the password is updated.
+- When `mustChangePassword=true`, only login, refresh-token, `/auth/me`, `POST /auth/password/change`, and `POST /auth/logout` remain usable until the password is updated.
 
 #### Auth Flows
 
 1. **Login flow (without MFA)**
    1. Submit `POST /api/v1/auth/login` with `{ email, password, companyCode }`.
    2. Receive `AuthResponse` with `accessToken`, `refreshToken`, `expiresIn`, `mustChangePassword`.
-   3. Call `GET /api/v1/auth/me` and/or `GET /api/v1/auth/profile` to hydrate UI shell.
+   3. Call `GET /api/v1/auth/me` to hydrate the UI shell and permission state.
 
 2. **Login flow (with MFA challenge)**
    1. Submit `POST /api/v1/auth/login` without MFA verifier.
@@ -189,27 +187,6 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
   - `roles: string[]`
   - `permissions: string[]`
 
-- `ProfileResponse`
-  - `email: string`
-  - `displayName: string`
-  - `preferredName?: string`
-  - `jobTitle?: string`
-  - `profilePictureUrl?: string`
-  - `phoneSecondary?: string`
-  - `secondaryEmail?: string`
-  - `mfaEnabled: boolean`
-  - `companyCode?: string` (single scoped company code; `null` only for platform-scoped super admin)
-  - `createdAt: string` (ISO-8601)
-  - `publicId: string` (UUID)
-
-- `UpdateProfileRequest`
-  - `displayName?: string` (1..255)
-  - `preferredName?: string` (max 255)
-  - `jobTitle?: string` (max 255)
-  - `profilePictureUrl?: string` (max 512)
-  - `phoneSecondary?: string` (max 64)
-  - `secondaryEmail?: string` (email, max 255)
-
 - `MfaSetupResponse`
   - `secret: string`
   - `qrUri: string` (otpauth URI)
@@ -241,10 +218,10 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
 #### Current mission note
 
 - Dedicated review tracker: see `docs/frontend-update-v2/README.md` for the per-feature frontend follow-up matrix and explicit no-op entries for this mission.
-- 2026-03-06 `privileged-user-boundary-hardening`: no admin user-management request or response shape changes were required for `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, or `DELETE /api/v1/admin/users/{id}`. The feature aligned tenant-boundary authorization and audit behavior while preserving the existing frontend payloads for authorized super-admin flows, and the company control-plane lifecycle endpoint once again accepts `HOLD`/`BLOCKED` compatibility aliases while preserving the existing path shape. The later `masked-admin-target-lookup-hardening` refinement now defines the current foreign-target masking behavior for auth-sensitive tenant-admin actions.
-- 2026-03-06 `global-security-settings-authorization`: no admin settings request or response payload shapes changed, but `PUT /api/v1/admin/settings` requires `ROLE_SUPER_ADMIN` because it mutates platform-wide CORS, mail, export, and related global settings. The current public control plane does not publish `GET /api/v1/admin/tenant-runtime/metrics` or `PUT /api/v1/admin/tenant-runtime/policy`; tenant quota and lifecycle control now live on the superadmin tenant routes below.
+- 2026-03-06 `privileged-user-boundary-hardening`: no admin user-management request or response shape changes were required for `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, or `DELETE /api/v1/admin/users/{id}`. The feature aligned tenant-boundary authorization and audit behavior while preserving the existing frontend payloads for tenant-admin operators; platform super-admins stay on the canonical `/api/v1/superadmin/tenants/{id}/...` control plane instead of tenant-admin workflow prefixes.
+- 2026-03-06 `global-security-settings-authorization`: no admin settings request or response payload shapes changed, but `PUT /api/v1/admin/settings` requires `ROLE_SUPER_ADMIN` because it mutates platform-wide CORS, mail, export, and related global settings. Legacy admin/company runtime-policy aliases are retired from the published contract; tenant lifecycle and quota control now live on the superadmin tenant routes below.
 - 2026-03-06 `auth-compatibility-regression-handoff`: no admin request or response payload shapes changed for `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, `DELETE /api/v1/admin/users/{id}`, `GET /api/v1/admin/settings`, and `PUT /api/v1/admin/settings`; the refreshed OpenAPI snapshot also documents the user-control no-content endpoints as `204 No Content` instead of stale `200` responses.
-- 2026-03-15 `lane01-canonicalize-company-runtime-writer`: both legacy public runtime-policy writers are retired from the published contract. `PUT /api/v1/admin/tenant-runtime/policy` and `PUT /api/v1/companies/{id}/tenant-runtime/policy` are not current frontend targets; superadmin tenant quota/runtime control now lives on `PUT /api/v1/superadmin/tenants/{id}/limits`, and tenant detail/limits reads come from the superadmin tenant detail routes.
+- 2026-03-15 `lane01-canonicalize-company-runtime-writer`: both legacy public runtime-policy writers are retired from the published contract. Superadmin tenant quota/runtime control now lives on `PUT /api/v1/superadmin/tenants/{id}/limits`, and tenant detail/limits reads come from the superadmin tenant detail routes.
 - 2026-03-29 `erp-11-12-13-26-29-contract-closure`: the current backend does not expose dedicated UI fields for `sessionTimeoutMinutes`, `passwordMinLength`, `maxLoginAttempts`, or `mfaRequired`. Frontend/UAT should treat those as unsupported until a real backend contract lands, use the support endpoints under `/api/v1/superadmin/tenants/{id}/support/*`, create catalog records through `/api/v1/catalog/items`, and treat `/api/v1/raw-materials/intake` plus bulk-variant catalog routes as retired.
 - 2026-03-06 `tenant-lifecycle-rollout-safety-hardening`: no auth/admin/lifecycle request or response payload shapes changed. The current public lifecycle control plane is `PUT /api/v1/superadmin/tenants/{id}/lifecycle`; the backend continues to persist Flyway-v2-compatible lifecycle storage values (`ACTIVE`, `HOLD`, `BLOCKED`), and corrupted or unrecognized stored lifecycle values now fail closed instead of being treated as active.
 - 2026-03-07 `masked-admin-target-lookup-hardening`: admin user-management request and success-response payload shapes still did not change, but tenant-admin attempts to `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, or `DELETE /api/v1/admin/users/{id}` against a foreign-tenant user id now return the same `400 User not found` validation envelope as a truly missing id. This masks foreign targets from enumeration while preserving internal `ACCESS_DENIED` audit evidence, and `POST /api/v1/admin/roles` remains request/response compatible while now enforcing the super-admin mutation boundary directly at the controller guard.
@@ -277,15 +254,15 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
 
 | Method | Path | Auth | Request | Response `data` |
 |---|---|---|---|---|
-| GET | `/api/v1/admin/users` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `List<UserDto>` |
-| POST | `/api/v1/admin/users` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | `CreateUserRequest` | `UserDto` |
-| PUT | `/api/v1/admin/users/{id}` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | `UpdateUserRequest` | `UserDto` |
-| PUT | `/api/v1/admin/users/{id}/status` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | `UpdateUserStatusRequest` | `UserDto` |
-| POST | `/api/v1/admin/users/{id}/force-reset-password` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `ApiResponse<String>` (`"OK"`) |
-| PATCH | `/api/v1/admin/users/{id}/suspend` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `204 No Content` |
-| PATCH | `/api/v1/admin/users/{id}/unsuspend` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `204 No Content` |
-| PATCH | `/api/v1/admin/users/{id}/mfa/disable` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `204 No Content` |
-| DELETE | `/api/v1/admin/users/{id}` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `204 No Content` |
+| GET | `/api/v1/admin/users` | `ROLE_ADMIN` | None | `List<UserDto>` |
+| POST | `/api/v1/admin/users` | `ROLE_ADMIN` | `CreateUserRequest` | `UserDto` |
+| PUT | `/api/v1/admin/users/{id}` | `ROLE_ADMIN` | `UpdateUserRequest` | `UserDto` |
+| PUT | `/api/v1/admin/users/{id}/status` | `ROLE_ADMIN` | `UpdateUserStatusRequest` | `UserDto` |
+| POST | `/api/v1/admin/users/{id}/force-reset-password` | `ROLE_ADMIN` | None | `ApiResponse<String>` (`"OK"`) |
+| PATCH | `/api/v1/admin/users/{id}/suspend` | `ROLE_ADMIN` | None | `204 No Content` |
+| PATCH | `/api/v1/admin/users/{id}/unsuspend` | `ROLE_ADMIN` | None | `204 No Content` |
+| PATCH | `/api/v1/admin/users/{id}/mfa/disable` | `ROLE_ADMIN` | None | `204 No Content` |
+| DELETE | `/api/v1/admin/users/{id}` | `ROLE_ADMIN` | None | `204 No Content` |
 | GET | `/api/v1/admin/audit/events` | `ROLE_ADMIN` (tenant-scoped only) | Query: `from?`, `to?`, `module?`, `action?`, `status?`, `actor?`, `entityType?`, `reference?`, `page?`, `size?` | `PageResponse<AuditFeedItemDto>` |
 | GET | `/api/v1/admin/roles` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `List<RoleDto>` |
 | GET | `/api/v1/admin/roles/{roleKey}` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `RoleDto` |
@@ -341,16 +318,16 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
 
 4. **Tenant lifecycle operations (superadmin)**
    1. Review status in `GET /api/v1/superadmin/tenants`.
-   2. Transition using suspend/activate/deactivate or explicit lifecycle endpoint.
+   2. Transition tenant state through `PUT /api/v1/superadmin/tenants/{id}/lifecycle`.
    3. Runtime enforcement: `SUSPENDED` blocks writes, `DEACTIVATED` blocks all access.
 
 #### State Machines
 
 1. **Tenant lifecycle**
-   - `ACTIVE` -> `SUSPENDED` via `POST /api/v1/superadmin/tenants/{id}/suspend`
-   - `SUSPENDED` -> `ACTIVE` via `POST /api/v1/superadmin/tenants/{id}/activate`
-   - `ACTIVE` -> `DEACTIVATED` via `POST /api/v1/superadmin/tenants/{id}/deactivate`
-   - `SUSPENDED` -> `DEACTIVATED` via `POST /api/v1/superadmin/tenants/{id}/deactivate`
+   - `ACTIVE` -> `SUSPENDED` via `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
+   - `SUSPENDED` -> `ACTIVE` via `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
+   - `ACTIVE` -> `DEACTIVATED` via `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
+   - `SUSPENDED` -> `DEACTIVATED` via `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
    - `DEACTIVATED` is terminal.
 
 2. **Admin user lifecycle**
