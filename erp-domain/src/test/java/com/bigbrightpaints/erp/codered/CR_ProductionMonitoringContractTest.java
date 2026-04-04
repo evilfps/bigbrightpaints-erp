@@ -86,6 +86,26 @@ class CR_ProductionMonitoringContractTest {
   }
 
   @Test
+  @DisplayName("Release proof script boots strict compose smoke before the gate-release lane")
+  void releaseProofBootsStrictComposeSmokeBeforeGateReleaseLane() {
+    String releaseProof = readRepoFile("scripts/release_proof.sh");
+
+    assertThat(releaseProof)
+        .contains("echo \"[release-proof] strict compose smoke\"")
+        .contains("DB_PORT=\"5433\"")
+        .contains("strict_compose up -d db rabbitmq mailhog")
+        .contains("strict_compose up -d --build app")
+        .contains("http://localhost:9090/actuator/health")
+        .contains("http://localhost:9090/actuator/health/readiness")
+        .contains("http://localhost:8081/api/v1/auth/me")
+        .contains(
+            "[[ \"$STRICT_HEALTH_STATUS\" == \"200\" && \"$STRICT_READINESS_STATUS\" == \"200\" ]]")
+        .contains(
+            "[[ \"$STRICT_AUTH_STATUS\" == \"200\" || \"$STRICT_AUTH_STATUS\" == \"401\" || \"$STRICT_AUTH_STATUS\" == \"403\" ]]")
+        .contains("bash \"$ROOT_DIR/scripts/gate_release.sh\"");
+  }
+
+  @Test
   @DisplayName("Required configuration health indicator reports UP with complete configuration")
   void requiredConfigurationHealthIndicatorReportsUp() {
     RequiredConfigHealthIndicator indicator =

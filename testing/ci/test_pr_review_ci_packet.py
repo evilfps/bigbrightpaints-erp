@@ -410,6 +410,13 @@ class RuntimeProbeContractTest(unittest.TestCase):
     def test_release_proof_script_combines_strict_smoke_targeted_proofs_and_contract_guards(self):
         release_proof = (REPO_ROOT / "scripts" / "release_proof.sh").read_text(encoding="utf-8")
 
+        self.assertIn('echo "[release-proof] strict compose smoke"', release_proof)
+        self.assertIn('DB_PORT="5433"', release_proof)
+        self.assertIn("strict_compose up -d db rabbitmq mailhog", release_proof)
+        self.assertIn("strict_compose up -d --build app", release_proof)
+        self.assertIn("http://localhost:9090/actuator/health", release_proof)
+        self.assertIn("http://localhost:9090/actuator/health/readiness", release_proof)
+        self.assertIn("http://localhost:8081/api/v1/auth/me", release_proof)
         self.assertIn('bash "$ROOT_DIR/scripts/gate_release.sh"', release_proof)
         self.assertIn("CR_ProductionMonitoringContractTest", release_proof)
         self.assertIn("DispatchControllerTest", release_proof)
