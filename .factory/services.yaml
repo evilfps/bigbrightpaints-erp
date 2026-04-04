@@ -22,7 +22,7 @@ commands:
   gate-reconciliation: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_reconciliation.sh
   strict-runtime-smoke-check: >-
-    health=$(curl -s -o /tmp/factory-strict-health.out -w '%{http_code}' http://localhost:9090/actuator/health || true) && auth=$(curl -s -o /tmp/factory-strict-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true) && { [ "$health" = "200" ] && { [ "$auth" = "200" ] || [ "$auth" = "401" ] || [ "$auth" = "403" ]; }; }
+    health=$(curl -s -o /tmp/factory-strict-health.out -w '%{http_code}' http://localhost:9090/actuator/health || true) && readiness=$(curl -s -o /tmp/factory-strict-readiness.out -w '%{http_code}' http://localhost:9090/actuator/health/readiness || true) && auth=$(curl -s -o /tmp/factory-strict-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true) && { [ "$health" = "200" ] && [ "$readiness" = "200" ] && { [ "$auth" = "200" ] || [ "$auth" = "401" ] || [ "$auth" = "403" ]; }; }
   contract-guards: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_workflow_canonical_paths.sh
   targeted-dispatch-proof: >-
@@ -115,10 +115,10 @@ services:
 
   backend-compose-v2:
     start: >-
-      ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && SPRING_DATASOURCE_URL='jdbc:postgresql://db:5432/erp_domain' SPRING_DATASOURCE_USERNAME='erp' SPRING_DATASOURCE_PASSWORD='erp' JWT_SECRET='validation-jwt-secret-validation-jwt-secret' ERP_SECURITY_ENCRYPTION_KEY='validation-encryption-key-32-bytes!!' ERP_SECURITY_AUDIT_PRIVATE_KEY='validation-audit-private-key-not-for-release' SPRING_PROFILES_ACTIVE='prod,flyway-v2' ERP_CORS_ALLOWED_ORIGINS='https://app.bigbrightpaints.com' ERP_CORS_ALLOW_TAILSCALE_HTTP_ORIGINS='true' DB_PORT=5433 SPRING_MAIL_HOST='mailhog' SPRING_MAIL_PORT='1025' SPRING_MAIL_USERNAME='' SPRING_MAIL_PASSWORD='' SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH='false' SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE='false' SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED='false' docker compose up -d --build app
+      ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && SPRING_DATASOURCE_URL='jdbc:postgresql://db:5432/erp_domain' SPRING_DATASOURCE_USERNAME='erp' SPRING_DATASOURCE_PASSWORD='erp' JWT_SECRET='validation-jwt-secret-validation-jwt-secret' ERP_SECURITY_ENCRYPTION_KEY='validation-encryption-key-32-bytes!!' ERP_SECURITY_AUDIT_PRIVATE_KEY='validation-audit-private-key-not-for-release' SPRING_PROFILES_ACTIVE='prod,flyway-v2' ERP_CORS_ALLOWED_ORIGINS='https://app.bigbrightpaints.com' ERP_CORS_ALLOW_TAILSCALE_HTTP_ORIGINS='true' DB_PORT=5433 SPRING_MAIL_HOST='mailhog' SPRING_MAIL_PORT='1025' SPRING_MAIL_USERNAME='mailhog-user' SPRING_MAIL_PASSWORD='mailhog-password' SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH='false' SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE='false' SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_REQUIRED='false' docker compose up -d --build app
     stop: >-
       ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && SPRING_DATASOURCE_URL='jdbc:postgresql://db:5432/erp_domain' SPRING_DATASOURCE_USERNAME='erp' SPRING_DATASOURCE_PASSWORD='erp' JWT_SECRET='validation-jwt-secret-validation-jwt-secret' ERP_SECURITY_ENCRYPTION_KEY='validation-encryption-key-32-bytes!!' ERP_SECURITY_AUDIT_PRIVATE_KEY='validation-audit-private-key-not-for-release' DB_PORT=5433 docker compose stop app
     healthcheck: >-
-      curl -sf http://localhost:9090/actuator/health >/tmp/factory-backend-health.out && { status=$(curl -s -o /tmp/factory-backend-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true) && { [ "$status" = "200" ] || [ "$status" = "401" ] || [ "$status" = "403" ]; }; }
+      curl -sf http://localhost:9090/actuator/health >/tmp/factory-backend-health.out && curl -sf http://localhost:9090/actuator/health/readiness >/tmp/factory-backend-readiness.out && { status=$(curl -s -o /tmp/factory-backend-auth.out -w '%{http_code}' http://localhost:8081/api/v1/auth/me || true) && { [ "$status" = "200" ] || [ "$status" = "401" ] || [ "$status" = "403" ]; }; }
     port: 8081
     depends_on: [postgres-v2, rabbitmq, mailhog]
