@@ -1,0 +1,55 @@
+{
+  "status": "pass",
+  "assertions": [
+    {
+      "id": "VAL-SEC-005",
+      "status": "pass",
+      "reason": "OpenAPI snapshot and controller inspection confirm only canonical routes exist: PUT /api/v1/superadmin/tenants/{id}/lifecycle and PUT /api/v1/superadmin/tenants/{id}/limits. All retired aliases (suspend/activate/deactivate POST verbs, lifecycle-state PUT, company-scoped runtime-policy routes, admin runtime-policy routes) are absent from openapi.json and asserted missing in OpenApiSnapshotIT lines 316-322. SuperAdminController exposes only the canonical lifecycle and limits PUT endpoints with no legacy aliases."
+    },
+    {
+      "id": "VAL-SEC-007",
+      "status": "pass",
+      "reason": "TenantRuntimeAccessService exists at erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/TenantRuntimeAccessService.java but is NOT imported or referenced anywhere in request-facing main sources. Grep for 'TenantRuntimeAccessService' in src/main/java found only the class definition itself with no consumers. Request admission flows through TenantRuntimeRequestAdmissionService -> TenantRuntimeEnforcementService, which is fail-closed: missing company context returns denied (403), company lookup unavailability returns 503, unrecognized persisted states default to BLOCKED, and settings/audit faults deny safely with appropriate error codes."
+    }
+  ],
+  "commands": [
+    {
+      "command": "inspection",
+      "exitCode": 0,
+      "observation": "OpenAPI contains only canonical superadmin tenant lifecycle and limits routes at /api/v1/superadmin/tenants/{id}/lifecycle (PUT) and /api/v1/superadmin/tenants/{id}/limits (PUT). Retired routes verified absent: /api/v1/superadmin/tenants/{id}/suspend (POST), /api/v1/superadmin/tenants/{id}/activate (POST), /api/v1/superadmin/tenants/{id}/deactivate (POST), /api/v1/superadmin/tenants/{id}/lifecycle-state (PUT), /api/v1/companies/{id}/tenant-runtime/policy (PUT), /api/v1/admin/tenant-runtime/policy (PUT)."
+    },
+    {
+      "command": "inspection",
+      "exitCode": 0,
+      "observation": "SuperAdminController.java exposes only canonical lifecycle/limits PUT endpoints via SuperAdminTenantControlPlaneService. No legacy suspend/activate/deactivate endpoints present."
+    },
+    {
+      "command": "inspection",
+      "exitCode": 0,
+      "observation": "TenantRuntimeAccessService grep in src/main/java found only 1 file: the class definition itself at com/bigbrightpaints/erp/core/security/TenantRuntimeAccessService.java. No imports or usages in any filter, controller, interceptor, or service. CompanyContextFilter uses TenantRuntimeRequestAdmissionService (not TenantRuntimeAccessService)."
+    },
+    {
+      "command": "inspection",
+      "exitCode": 0,
+      "observation": "TenantRuntimeEnforcementService.admitRequest() implements fail-closed semantics: null/blank companyCode returns notTracked admission, missing company falls through to deny, unrecognized persisted states parse to BLOCKED fallback, and settings-repository exceptions throw TenantRuntimePolicyResolutionFailure (503)."
+    },
+    {
+      "command": "inspection",
+      "exitCode": 0,
+      "observation": "OpenApiSnapshotIT lines 316-322 explicitly asserts retired runtime-policy aliases are missing from the OpenAPI contract, and lines 367-368/387-388 assert docs contain only canonical lifecycle/limits routes."
+    }
+  ],
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Glob",
+    "LS"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "evidenceFiles": [
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/security-runtime/security-runtime-static/openapi-canonical-routes.txt",
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/security-runtime/security-runtime-static/retired-aliases-absence.txt",
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/security-runtime/security-runtime-static/tenant-runtime-access-service-isolation.txt"
+  ]
+}
