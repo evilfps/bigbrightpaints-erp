@@ -31,7 +31,7 @@ This surface proves the risky business seams the strict runtime smoke does not c
 - **Type:** no runtime/user-testing surface
 - **Rule:** docs-only changes in this mission skip scrutiny and runtime/user-testing validators, but still require `bash ci/lint-knowledgebase.sh` as the sole docs-only check
 
-Docs-only packets are not user-testing targets unless a feature explicitly overrides this.
+Docs-only packets are not user-testing targets unless a feature explicitly overrides this. The only docs-only lanes in this mission are the canonical docs/governance surfaces and `.factory/library/**` guidance-only packets.
 
 ### 4. Repo-static docs/governance validation
 
@@ -144,14 +144,16 @@ Rationale:
 - `commands.targeted-dependent-proof`
 - `commands.targeted-deploy-hardening`
 - `commands.gate-release`
+- `commands.release-proof`
 
 ## Validator Guidance
 
 - Prefer this order of proof:
   1. strict runtime smoke
-  2. targeted Maven suites for the touched risk area
-  3. `gate-release` and deploy-hardening proofs when release readiness is in scope
-  4. contract/OpenAPI/docs alignment checks
+  2. `gate-release`
+  3. targeted Maven suites for the touched risk area
+  4. deploy-hardening plus contract/OpenAPI/docs alignment checks
+  5. `release-proof` when a packet must prove the full staging/release lane end-to-end
 - If a feature only changes docs/governance, do not start services and do not run user-testing.
 - For docs-only packets, require `bash ci/lint-knowledgebase.sh` but do not escalate to runtime smoke or flow validation.
 - If a feature touches accounting, dispatch, runtime security, CI proof, or canonical contracts, explicitly re-run the dependent proof pack for that area.

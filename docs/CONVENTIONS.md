@@ -1,6 +1,6 @@
 # Documentation Conventions
 
-Last reviewed: 2026-04-02
+Last reviewed: 2026-04-04
 
 This document defines the writing conventions, cross-link expectations, and stale-doc handling policy for the orchestrator-erp backend documentation library.
 
@@ -159,6 +159,7 @@ Docs-only packets are limited to the canonical docs/governance lane:
 - repo-root signposts/governance: `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `CHANGELOG.md`
 - canonical docs spine files: `docs/INDEX.md`, `docs/ARCHITECTURE.md`, `docs/CONVENTIONS.md`, `docs/SECURITY.md`, `docs/RELIABILITY.md`, `docs/BACKEND-FEATURE-CATALOG.md`, `docs/RECOMMENDATIONS.md`
 - canonical directories: `docs/adrs/**`, `docs/agents/**`, `docs/approvals/**`, `docs/deprecated/**`, `docs/modules/**`, `docs/flows/**`, `docs/frontend-api/**`, `docs/frontend-portals/**`
+- internal worker-guidance lane: `.factory/library/**`
 
 Markdown outside that lane is **not** docs-only. That includes `docs/platform/**`, `docs/runbooks/**`, `docs/design/**`, `docs/code-review/**`, `docs/developer/**`, `docs/frontend-update-v2/**`, root worklogs/reports, and any mixed markdown-plus-code/config/test/script/OpenAPI diff.
 

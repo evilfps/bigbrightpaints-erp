@@ -56,16 +56,8 @@ resolve_diff_base() {
     return 0
   fi
 
-  # Prefer the canonical base when available so gate_fast diffs stay anchored to
-  # harness release lineage instead of drifting to unrelated main/master history.
-  if [[ -n "${CANONICAL_BASE_SHA:-}" ]] && git merge-base --is-ancestor "$CANONICAL_BASE_SHA" HEAD; then
-    git merge-base "$CANONICAL_BASE_SHA" HEAD
-    return 0
-  fi
-
-  if git rev-parse --verify --quiet "$CANONICAL_BASE_REF" >/dev/null \
-      && git merge-base --is-ancestor "$CANONICAL_BASE_REF" HEAD; then
-    git merge-base "$CANONICAL_BASE_REF" HEAD
+  if git rev-parse --verify --quiet main >/dev/null; then
+    git merge-base main HEAD
     return 0
   fi
 
@@ -74,13 +66,22 @@ resolve_diff_base() {
     return 0
   fi
 
-  if git rev-parse --verify --quiet main >/dev/null; then
-    git merge-base main HEAD
+  if git rev-parse --verify --quiet origin/master >/dev/null; then
+    git merge-base origin/master HEAD
     return 0
   fi
 
-  if git rev-parse --verify --quiet origin/master >/dev/null; then
-    git merge-base origin/master HEAD
+  # Fall back to the canonical harness anchor only when the branch has no
+  # usable mainline base. This keeps changed-files coverage scoped to the
+  # cleaned branch diff instead of replaying the entire release lineage.
+  if [[ -n "${CANONICAL_BASE_SHA:-}" ]] && git merge-base --is-ancestor "$CANONICAL_BASE_SHA" HEAD; then
+    git merge-base "$CANONICAL_BASE_SHA" HEAD
+    return 0
+  fi
+
+  if git rev-parse --verify --quiet "$CANONICAL_BASE_REF" >/dev/null \
+      && git merge-base --is-ancestor "$CANONICAL_BASE_REF" HEAD; then
+    git merge-base "$CANONICAL_BASE_REF" HEAD
     return 0
   fi
 

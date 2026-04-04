@@ -803,7 +803,7 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Gate Release
+      - name: Release Proof
         env:
           MIGRATION_SET: v2
           PGHOST: 127.0.0.1
@@ -813,7 +813,7 @@ jobs:
           PGDATABASE: postgres
         run: |
           set -euo pipefail
-          bash scripts/gate_release.sh
+          bash scripts/release_proof.sh
 
       - name: Upload gate-release artifacts
         if: always()

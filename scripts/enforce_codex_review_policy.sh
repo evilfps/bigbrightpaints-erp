@@ -36,7 +36,7 @@ resolve_diff_base() {
 is_docs_only_path() {
   local path="$1"
   case "$path" in
-    README.md|AGENTS.md|ARCHITECTURE.md|CHANGELOG.md|docs/INDEX.md|docs/ARCHITECTURE.md|docs/CONVENTIONS.md|docs/SECURITY.md|docs/RELIABILITY.md|docs/BACKEND-FEATURE-CATALOG.md|docs/RECOMMENDATIONS.md|docs/adrs/*|docs/agents/*|docs/approvals/*|docs/deprecated/*|docs/modules/*|docs/flows/*|docs/frontend-api/*|docs/frontend-portals/*)
+    README.md|AGENTS.md|ARCHITECTURE.md|CHANGELOG.md|docs/INDEX.md|docs/ARCHITECTURE.md|docs/CONVENTIONS.md|docs/SECURITY.md|docs/RELIABILITY.md|docs/BACKEND-FEATURE-CATALOG.md|docs/RECOMMENDATIONS.md|docs/adrs/*|docs/agents/*|docs/approvals/*|docs/deprecated/*|docs/modules/*|docs/flows/*|docs/frontend-api/*|docs/frontend-portals/*|.factory/library/*)
       return 0
       ;;
     *)
@@ -76,6 +76,7 @@ done
 if [[ "$docs_only" == "true" ]]; then
   echo "[codex-review-policy] docs-only change-set detected in $compare_range"
   echo "[codex-review-policy] policy: run knowledgebase lint only and skip Codex review/subagent/runtime validators"
+  echo "[codex-review-policy] lane: canonical docs/governance and internal .factory/library guidance packets only"
   bash ci/lint-knowledgebase.sh
   exit 0
 fi

@@ -1,1 +1,0 @@
-[guard_flyway_v2_referential_contract] OK: checked 201 FK references against 175 PK/UNIQUE targets

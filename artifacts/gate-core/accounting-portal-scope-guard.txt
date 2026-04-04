@@ -1,1 +1,0 @@
-[guard_accounting_portal_scope_contract] OK

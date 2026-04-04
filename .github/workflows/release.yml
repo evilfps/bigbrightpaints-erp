@@ -140,4 +140,6 @@ jobs:
           echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Tag:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> This workflow only generates GitHub release notes. It does **not** prove deployability; use the CI \`gate-release\` / release-proof lane for release validation." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "Release notes were generated without mutating the protected main branch." >> $GITHUB_STEP_SUMMARY

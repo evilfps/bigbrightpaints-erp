@@ -1,7 +1,0 @@
-{
-  "catalog_path": "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-37-hard-cut-superadmin-control-plane/docs/CODE-RED/confidence-suite/TEST_CATALOG.json",
-  "tests_root": "/Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-37-hard-cut-superadmin-control-plane/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite",
-  "tests_cataloged": 93,
-  "errors": [],
-  "passes": true
-}

@@ -1,1 +1,0 @@
-[guard_audit_trail_ownership_contract] OK
