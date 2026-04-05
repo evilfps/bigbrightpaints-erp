@@ -28,6 +28,8 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/api/v1")
 public class SalesController {
+  private static final String CANONICAL_SALES_ORDER_PATH = "/api/v1/sales/orders";
+
 
   private final SalesService salesService;
   private final SalesOrderCrudService salesOrderCrudService;
@@ -120,8 +122,12 @@ public class SalesController {
   @PreAuthorize("hasAnyAuthority('ROLE_SALES','ROLE_ADMIN')")
   public ResponseEntity<ApiResponse<SalesOrderDto>> createOrder(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+      @Parameter(hidden = true)
+          @RequestHeader(value = "X-Idempotency-Key", required = false)
+          String legacyIdempotencyKey,
       @Valid @RequestBody SalesOrderRequest request) {
-    SalesOrderRequest resolved = applyOrderIdempotencyKey(request, idempotencyKey);
+    SalesOrderRequest resolved =
+        applyOrderIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
     return ResponseEntity.ok(
         ApiResponse.success("Order created", salesOrderCrudService.createOrder(resolved)));
   }
@@ -182,9 +188,13 @@ public class SalesController {
   public record StatusRequest(String status) {}
 
   private SalesOrderRequest applyOrderIdempotencyKey(
-      SalesOrderRequest request, String idempotencyKeyHeader) {
+      SalesOrderRequest request, String idempotencyKeyHeader, String legacyIdempotencyKeyHeader) {
     if (request == null) {
       return null;
+    }
+    if (StringUtils.hasText(legacyIdempotencyKeyHeader)) {
+      throw IdempotencyHeaderUtils.unsupportedLegacyHeader(
+          "X-Idempotency-Key", "sales orders", CANONICAL_SALES_ORDER_PATH);
     }
     String resolvedKey =
         IdempotencyHeaderUtils.resolveBodyOrHeaderKey(

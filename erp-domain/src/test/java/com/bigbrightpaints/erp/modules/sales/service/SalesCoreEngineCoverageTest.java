@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Method;
@@ -20,10 +21,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
@@ -389,6 +394,25 @@ class SalesCoreEngineCoverageTest {
         .isEqualTo(request.resolveLegacySplitReplayIdempotencyKey());
     assertThat(method.invoke(engine, request, request.resolveLegacySplitReplayIdempotencyKey()))
         .isNull();
+  }
+
+  @Test
+  void createOrder_rejectsRetiredLegacyHeaderAtExecutionPath() {
+    MockHttpServletRequest servletRequest =
+        new MockHttpServletRequest("POST", "/api/v1/sales/orders");
+    servletRequest.addHeader("X-Idempotency-Key", "legacy-order-key");
+    RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(servletRequest));
+
+    try {
+      SalesOrderRequest request = salesOrderRequest("CREDIT", null);
+
+      assertThatThrownBy(() -> engine.createOrder(request))
+          .isInstanceOf(ApplicationException.class)
+          .hasMessageContaining("X-Idempotency-Key is not supported for sales orders");
+      verifyNoInteractions(companyContextService, salesOrderRepository);
+    } finally {
+      RequestContextHolder.resetRequestAttributes();
+    }
   }
 
   @Test

@@ -156,6 +156,17 @@ public class SalesControllerIT extends AbstractIntegrationTest {
   }
 
   private Map<?, ?> createSalesOrder(HttpHeaders headers, Long dealerId) {
+    ResponseEntity<Map> orderResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS,
+            HttpMethod.POST,
+            new HttpEntity<>(salesOrderPayload(dealerId), headers),
+            Map.class);
+    assertThat(orderResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    return (Map<?, ?>) orderResponse.getBody().get("data");
+  }
+
+  private Map<String, Object> salesOrderPayload(Long dealerId) {
     BigDecimal unitPrice = new BigDecimal("100.00");
     BigDecimal quantity = new BigDecimal("2");
     BigDecimal expectedTotal = unitPrice.multiply(quantity);
@@ -175,15 +186,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     orderReq.put("items", List.of(lineItem));
     orderReq.put("gstTreatment", "NONE");
     orderReq.put("gstRate", null);
-
-    ResponseEntity<Map> orderResponse =
-        rest.exchange(
-            ErpApiRoutes.SALES_ORDERS,
-            HttpMethod.POST,
-            new HttpEntity<>(orderReq, headers),
-            Map.class);
-    assertThat(orderResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    return (Map<?, ?>) orderResponse.getBody().get("data");
+    return orderReq;
   }
 
   private SalesOrder createPersistedOrder(
@@ -230,6 +233,55 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.OK);
     List<?> list = (List<?>) listResp.getBody().get("data");
     assertThat(list).isNotEmpty();
+  }
+
+  @Test
+  void createSalesOrder_rejectsRetiredLegacyIdempotencyHeaderWithoutCreatingOrder() {
+    HttpHeaders headers = authenticatedHeaders(loginToken());
+    Long dealerId = createDealer(headers, "Legacy Header Dealer");
+    long ordersBefore = salesOrderRepository.count();
+    headers.set("X-Idempotency-Key", "legacy-sales-order-" + System.nanoTime());
+
+    ResponseEntity<Map> response =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS,
+            HttpMethod.POST,
+            new HttpEntity<>(salesOrderPayload(dealerId), headers),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertFailureDataMessage(
+        response, "X-Idempotency-Key is not supported for sales orders; use Idempotency-Key");
+    assertThat(salesOrderRepository.count()).isEqualTo(ordersBefore);
+  }
+
+  @Test
+  void createSalesOrder_replaysCanonicalIdempotencyHeaderWithoutCreatingDuplicateOrder() {
+    HttpHeaders headers = authenticatedHeaders(loginToken());
+    Long dealerId = createDealer(headers, "Canonical Header Dealer");
+    long ordersBefore = salesOrderRepository.count();
+    headers.set("Idempotency-Key", "sales-order-" + System.nanoTime());
+
+    ResponseEntity<Map> firstResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS,
+            HttpMethod.POST,
+            new HttpEntity<>(salesOrderPayload(dealerId), headers),
+            Map.class);
+    ResponseEntity<Map> replayResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS,
+            HttpMethod.POST,
+            new HttpEntity<>(salesOrderPayload(dealerId), headers),
+            Map.class);
+
+    assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(replayResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Long firstOrderId = ((Number) ((Map<?, ?>) firstResponse.getBody().get("data")).get("id")).longValue();
+    Long replayOrderId =
+        ((Number) ((Map<?, ?>) replayResponse.getBody().get("data")).get("id")).longValue();
+    assertThat(replayOrderId).isEqualTo(firstOrderId);
+    assertThat(salesOrderRepository.count()).isEqualTo(ordersBefore + 1);
   }
 
   @Test

@@ -36,6 +36,8 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
@@ -47,6 +49,7 @@ import com.bigbrightpaints.erp.core.idempotency.IdempotencySignatureBuilder;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
+import com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -81,12 +84,15 @@ import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.servlet.http.HttpServletRequest;
 
 @Service
 public class SalesCoreEngine {
   private static final Logger log = LoggerFactory.getLogger(SalesCoreEngine.class);
   private static final BigDecimal MAX_GST_RATE = new BigDecimal("28.00");
   private static final BigDecimal DISPATCH_TOTAL_TOLERANCE = new BigDecimal("0.01");
+  private static final String SALES_ORDER_CREATE_PATH = "/api/v1/sales/orders";
+  private static final String RETIRED_LEGACY_IDEMPOTENCY_HEADER = "X-Idempotency-Key";
 
   private static final String ORDER_STATUS_DRAFT = "DRAFT";
   private static final String ORDER_STATUS_CONFIRMED = "CONFIRMED";
@@ -615,6 +621,7 @@ public class SalesCoreEngine {
   }
 
   public SalesOrderDto createOrder(SalesOrderRequest request) {
+    failClosedOnRetiredLegacyIdempotencyHeader();
     Company company = companyContextService.requireCurrentCompany();
     String requestPaymentMode = request.paymentMode();
     String idempotencyKey = request.resolveIdempotencyKey();
@@ -2043,6 +2050,22 @@ public class SalesCoreEngine {
       return null;
     }
     return legacyDefaultPaymentIdempotencyKey;
+  }
+
+  private void failClosedOnRetiredLegacyIdempotencyHeader() {
+    if (!(RequestContextHolder.getRequestAttributes()
+        instanceof ServletRequestAttributes servletRequestAttributes)) {
+      return;
+    }
+    HttpServletRequest request = servletRequestAttributes.getRequest();
+    if (request == null
+        || !StringUtils.hasText(request.getHeader(RETIRED_LEGACY_IDEMPOTENCY_HEADER))
+        || !"POST".equalsIgnoreCase(request.getMethod())
+        || !SALES_ORDER_CREATE_PATH.equals(request.getRequestURI())) {
+      return;
+    }
+    throw IdempotencyHeaderUtils.unsupportedLegacyHeader(
+        RETIRED_LEGACY_IDEMPOTENCY_HEADER, "sales orders", SALES_ORDER_CREATE_PATH);
   }
 
   private String resolveLegacySplitReplayIdempotencyKey(

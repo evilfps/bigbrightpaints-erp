@@ -45,7 +45,7 @@ class SalesControllerIdempotencyHeaderTest {
     SalesController controller = createController();
     when(salesOrderCrudService.createOrder(any())).thenReturn(null);
 
-    controller.createOrder("hdr-001", requestWithoutIdempotencyKey());
+    controller.createOrder("hdr-001", null, requestWithoutIdempotencyKey());
 
     ArgumentCaptor<SalesOrderRequest> captor = ArgumentCaptor.forClass(SalesOrderRequest.class);
     verify(salesOrderCrudService).createOrder(captor.capture());
@@ -57,9 +57,20 @@ class SalesControllerIdempotencyHeaderTest {
     SalesController controller = createController();
 
     assertThatThrownBy(
-            () -> controller.createOrder("hdr-001", requestWithIdempotencyKey("body-001")))
+            () -> controller.createOrder("hdr-001", null, requestWithIdempotencyKey("body-001")))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Idempotency key mismatch");
+  }
+
+  @Test
+  void createOrder_rejectsRetiredLegacyHeader() {
+    SalesController controller = createController();
+
+    assertThatThrownBy(
+            () -> controller.createOrder(null, "legacy-001", requestWithoutIdempotencyKey()))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("X-Idempotency-Key is not supported for sales orders");
+    verifyNoInteractions(salesOrderCrudService);
   }
 
   @Test
