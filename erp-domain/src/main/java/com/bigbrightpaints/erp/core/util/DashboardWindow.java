@@ -27,22 +27,17 @@ public record DashboardWindow(
     LocalDate today = LocalDate.ofInstant(CompanyTime.now(), zone);
     WindowRange range = resolveRange(window, today);
     long days = ChronoUnit.DAYS.between(range.start(), range.end()) + 1;
-    LocalDate compareStart = null;
-    LocalDate compareEnd = null;
-    if (compare != null && !compare.isBlank()) {
-      String normalized = compare.trim().toLowerCase(Locale.ROOT);
-      if ("prev".equals(normalized)) {
-        compareEnd = range.start().minusDays(1);
-        compareStart = compareEnd.minusDays(days - 1L);
-      } else if ("yoy".equals(normalized)) {
-        compareStart = range.start().minusYears(1);
-        compareEnd = range.end().minusYears(1);
-      }
-    }
+    ComparisonRange comparisonRange = resolveComparisonRange(range, days, compare);
     int bucketDays = days <= 31 ? 1 : 7;
     String bucket = bucketDays == 1 ? "DAILY" : "WEEKLY";
     return new DashboardWindow(
-        range.start(), range.end(), compareStart, compareEnd, zone, bucket, bucketDays);
+        range.start(),
+        range.end(),
+        comparisonRange.start(),
+        comparisonRange.end(),
+        zone,
+        bucket,
+        bucketDays);
   }
 
   public Instant startInstant() {
@@ -123,5 +118,44 @@ public record DashboardWindow(
     return LocalDate.of(today.getYear(), quarterStartMonth, 1);
   }
 
+  private static ComparisonRange resolveComparisonRange(
+      WindowRange range, long days, String compare) {
+    if (compare == null || compare.isBlank()) {
+      return ComparisonRange.empty();
+    }
+    return switch (compare.trim().toLowerCase(Locale.ROOT)) {
+      case "prev" -> resolvePreviousComparisonRange(range, days);
+      case "yoy" -> resolveYearOverYearComparisonRange(range);
+      default -> ComparisonRange.empty();
+    };
+  }
+
+  private static ComparisonRange resolvePreviousComparisonRange(WindowRange range, long days) {
+    long availablePriorDays = ChronoUnit.DAYS.between(LocalDate.MIN, range.start());
+    if (availablePriorDays < days) {
+      return ComparisonRange.empty();
+    }
+    LocalDate compareEnd = range.start().minusDays(1);
+    LocalDate compareStart = compareEnd.minusDays(days - 1L);
+    return new ComparisonRange(compareStart, compareEnd);
+  }
+
+  private static ComparisonRange resolveYearOverYearComparisonRange(WindowRange range) {
+    if (!canShiftBackOneYear(range.start()) || !canShiftBackOneYear(range.end())) {
+      return ComparisonRange.empty();
+    }
+    return new ComparisonRange(range.start().minusYears(1), range.end().minusYears(1));
+  }
+
+  private static boolean canShiftBackOneYear(LocalDate date) {
+    return date.getYear() > LocalDate.MIN.getYear();
+  }
+
   private record WindowRange(LocalDate start, LocalDate end) {}
+
+  private record ComparisonRange(LocalDate start, LocalDate end) {
+    private static ComparisonRange empty() {
+      return new ComparisonRange(null, null);
+    }
+  }
 }

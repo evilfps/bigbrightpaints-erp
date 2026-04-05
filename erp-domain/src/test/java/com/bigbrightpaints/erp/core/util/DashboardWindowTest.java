@@ -65,6 +65,26 @@ class DashboardWindowTest {
   }
 
   @Test
+  void resolve_comparePrevOversizedWindowDisablesComparison() {
+    DashboardWindow window =
+        DashboardWindow.resolve(minLocalDateWindowSpec("UTC"), "prev", "UTC", null);
+
+    assertThat(window.start()).isEqualTo(LocalDate.MIN);
+    assertThat(window.compareStart()).isNull();
+    assertThat(window.compareEnd()).isNull();
+  }
+
+  @Test
+  void resolve_compareYoyOversizedWindowDisablesComparison() {
+    DashboardWindow window =
+        DashboardWindow.resolve(minLocalDateWindowSpec("UTC"), "yoy", "UTC", null);
+
+    assertThat(window.start()).isEqualTo(LocalDate.MIN);
+    assertThat(window.compareStart()).isNull();
+    assertThat(window.compareEnd()).isNull();
+  }
+
+  @Test
   void resolve_windowZeroDays_defaultsToOneDay() {
     DashboardWindow window = DashboardWindow.resolve("0d", null, "UTC", null);
     int days = (int) ChronoUnit.DAYS.between(window.start(), window.end()) + 1;
@@ -108,5 +128,11 @@ class DashboardWindowTest {
 
   private static long windowLength(DashboardWindow window) {
     return ChronoUnit.DAYS.between(window.start(), window.end()) + 1;
+  }
+
+  private static String minLocalDateWindowSpec(String timezone) {
+    long days =
+        ChronoUnit.DAYS.between(LocalDate.MIN, LocalDate.now(ZoneId.of(timezone))) + 1;
+    return days + "d";
   }
 }
