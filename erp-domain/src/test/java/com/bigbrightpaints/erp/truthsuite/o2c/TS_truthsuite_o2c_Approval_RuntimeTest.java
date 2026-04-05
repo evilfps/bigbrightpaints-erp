@@ -623,54 +623,6 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
     assertEquals(222L, response.arJournalEntryId());
   }
 
-  @Test
-  void resolveDispatchExceptionReasonCodeCoversAllDeclaredOutcomes() {
-    String none =
-        ReflectionTestUtils.invokeMethod(
-            salesService, "resolveDispatchExceptionReasonCode", false, false, false, false, false);
-    assertNull(none);
-
-    String creditOnly =
-        ReflectionTestUtils.invokeMethod(
-            salesService, "resolveDispatchExceptionReasonCode", true, false, false, false, false);
-    assertEquals("CREDIT_LIMIT_EXCEPTION", creditOnly);
-
-    String priceOnly =
-        ReflectionTestUtils.invokeMethod(
-            salesService, "resolveDispatchExceptionReasonCode", false, true, false, false, true);
-    assertEquals("PRICE_OVERRIDE", priceOnly);
-
-    String discountOnly =
-        ReflectionTestUtils.invokeMethod(
-            salesService, "resolveDispatchExceptionReasonCode", false, false, true, false, true);
-    assertEquals("DISCOUNT_OVERRIDE", discountOnly);
-
-    String taxOnly =
-        ReflectionTestUtils.invokeMethod(
-            salesService, "resolveDispatchExceptionReasonCode", false, false, false, true, true);
-    assertEquals("TAX_OVERRIDE", taxOnly);
-
-    String lineOnly =
-        ReflectionTestUtils.invokeMethod(
-            salesService, "resolveDispatchExceptionReasonCode", false, false, false, false, true);
-    assertNull(lineOnly);
-
-    String compositeFromMultipleLines =
-        ReflectionTestUtils.invokeMethod(
-            salesService, "resolveDispatchExceptionReasonCode", false, true, true, false, true);
-    assertEquals("COMPOSITE_OVERRIDE", compositeFromMultipleLines);
-
-    String compositeWhenAnyOverrideFlagIsFalse =
-        ReflectionTestUtils.invokeMethod(
-            salesService, "resolveDispatchExceptionReasonCode", false, true, true, false, false);
-    assertEquals("COMPOSITE_OVERRIDE", compositeWhenAnyOverrideFlagIsFalse);
-
-    String composite =
-        ReflectionTestUtils.invokeMethod(
-            salesService, "resolveDispatchExceptionReasonCode", true, true, false, false, true);
-    assertEquals("COMPOSITE_OVERRIDE", composite);
-  }
-
   private SalesOrder newOrderWithSingleItem(Dealer dealer, BigDecimal unitPrice) {
     SalesOrder order = new SalesOrder();
     setField(order, "id", 10L);

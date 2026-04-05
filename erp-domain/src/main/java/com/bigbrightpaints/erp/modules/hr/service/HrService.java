@@ -57,7 +57,6 @@ public class HrService {
     this.salaryStructureTemplateService = salaryStructureTemplateService;
   }
 
-  @SuppressWarnings("unused")
   public HrService(
       CompanyContextService companyContextService,
       EmployeeRepository employeeRepository,
