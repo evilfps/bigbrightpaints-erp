@@ -804,7 +804,6 @@ Frontend rule:
 
 ### Routes
 
-- `POST /api/v1/accounting/reconciliation/bank`
 - `POST /api/v1/accounting/reconciliation/bank/sessions`
 - `PUT /api/v1/accounting/reconciliation/bank/sessions/{sessionId}/items`
 - `POST /api/v1/accounting/reconciliation/bank/sessions/{sessionId}/complete`
@@ -819,8 +818,6 @@ Frontend rule:
 
 Use these as frontend contract names:
 
-- `BankReconciliationRequest`
-- `BankReconciliationSummaryDto`
 - `BankReconciliationSessionCreateRequest`
 - `BankReconciliationSessionItemsUpdateRequest`
 - `BankReconciliationSessionCompletionRequest`

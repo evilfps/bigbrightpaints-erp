@@ -691,7 +691,6 @@ Catalog note (2026-03-21): accounting-facing stock-bearing setup now uses the ca
 | `POST` | `/api/v1/accounting/periods/{periodId}/reopen` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `AccountingPeriodReopenRequest` | `AccountingPeriodDto` |
 | `POST` | `/api/v1/accounting/receipts/dealer` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `DealerReceiptRequest` | `JournalEntryDto` |
 | `POST` | `/api/v1/accounting/receipts/dealer/hybrid` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `DealerReceiptSplitRequest` | `JournalEntryDto` |
-| `POST` | `/api/v1/accounting/reconciliation/bank` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `BankReconciliationRequest` | `BankReconciliationSummaryDto` |
 | `POST` | `/api/v1/accounting/reconciliation/bank/sessions` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `BankReconciliationSessionCreateRequest` | `BankReconciliationSessionSummaryDto` |
 | `PUT` | `/api/v1/accounting/reconciliation/bank/sessions/{sessionId}/items` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `BankReconciliationSessionItemsUpdateRequest` | `BankReconciliationSessionDetailDto` |
 | `POST` | `/api/v1/accounting/reconciliation/bank/sessions/{sessionId}/complete` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `BankReconciliationSessionCompletionRequest` (optional body) | `BankReconciliationSessionDetailDto` |
@@ -713,7 +712,7 @@ Catalog note (2026-03-21): accounting-facing stock-bearing setup now uses the ca
 | `POST` | `/api/v1/accounting/suppliers/{supplierId}/auto-settle` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `AutoSettlementRequest` | `PartnerSettlementResponse` |
 | `GET` | `/api/v1/accounting/trial-balance/as-of` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `TemporalBalanceService.TrialBalanceSnapshot` |
 
-_Total documented accounting endpoints: **81**._
+_Total documented accounting endpoints: **80**._
 
 #### Required User Flows (API call sequences)
 
@@ -751,8 +750,7 @@ _Total documented accounting endpoints: **81**._
    4. Refresh draft/full view at any time: `GET /api/v1/accounting/reconciliation/bank/sessions/{sessionId}`
    5. List previous sessions for resume/history UX: `GET /api/v1/accounting/reconciliation/bank/sessions?page={page}&size={size}`
    6. Complete and optionally link accounting period: `POST /api/v1/accounting/reconciliation/bank/sessions/{sessionId}/complete`
-   7. Legacy compatibility path (stateless one-shot): `POST /api/v1/accounting/reconciliation/bank` (internally uses same session service)
-   8. Cross-check AR/AP controls: `GET /api/v1/accounting/reconciliation/subledger`
+   7. Cross-check AR/AP controls: `GET /api/v1/accounting/reconciliation/subledger`
 
 6. **Reconciliation discrepancy review + resolution**
    1. Trigger a fresh subledger snapshot: `GET /api/v1/accounting/reconciliation/subledger`.
@@ -812,7 +810,6 @@ _Total documented accounting endpoints: **81**._
    - `DRAFT` -> `DRAFT` via `PUT /api/v1/accounting/reconciliation/bank/sessions/{sessionId}/items` (incremental clear/un-clear updates)
    - `DRAFT` -> `COMPLETED` via `POST /api/v1/accounting/reconciliation/bank/sessions/{sessionId}/complete`
    - Terminal state: `COMPLETED` cannot be updated/edited; item updates on completed session return `BUS_001` (`BUSINESS_INVALID_STATE`)
-   - Legacy endpoint `POST /api/v1/accounting/reconciliation/bank` executes the same lifecycle server-side (start -> update -> optional complete) in one request.
 
 #### Accounting ErrorCodes (all referenced in accounting module)
 
@@ -1001,16 +998,6 @@ _Total documented accounting endpoints: **81**._
   - `referenceNumber`: `String` — validation `—`
   - `memo`: `String` — validation `—`
   - Replay protection is header-only: send optional `Idempotency-Key`; body `idempotencyKey` is rejected.
-- **`BankReconciliationRequest`**
-  - `bankAccountId`: `Long` — validation `@NotNull`
-  - `statementDate`: `LocalDate` — validation `@NotNull`
-  - `statementEndingBalance`: `BigDecimal` — validation `@NotNull`
-  - `startDate`: `LocalDate` — validation `—`
-  - `endDate`: `LocalDate` — validation `—`
-  - `clearedReferences`: `List<String>` — validation `—`
-  - `accountingPeriodId`: `Long` — validation `—`
-  - `markAsComplete`: `Boolean` — validation `—`
-  - `note`: `String` — validation `—`
 - **`BankReconciliationSessionCreateRequest`**
   - `bankAccountId`: `Long` — validation `@NotNull`
   - `statementDate`: `LocalDate` — validation `@NotNull`
