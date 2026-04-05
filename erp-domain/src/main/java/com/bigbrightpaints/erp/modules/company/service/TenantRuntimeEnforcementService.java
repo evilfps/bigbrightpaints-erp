@@ -569,16 +569,47 @@ public class TenantRuntimeEnforcementService {
       return false;
     }
     Map<String, String> attemptedPersistedState = policyToPersistedState(companyId, attemptedPolicy);
+    if (hasConcurrentPolicyVersionChange(
+        companyId, persistedPolicyState, latestPersistedPolicyState, attemptedPersistedState)) {
+      return true;
+    }
     for (Map.Entry<String, String> persistedSetting : persistedPolicyState.entrySet()) {
       String key = persistedSetting.getKey();
-      String latestValue = latestPersistedPolicyState.get(key);
-      String previousValue = persistedSetting.getValue();
-      String attemptedValue = attemptedPersistedState.get(key);
-      if (!Objects.equals(latestValue, previousValue) && !Objects.equals(latestValue, attemptedValue)) {
+      if (isConcurrentPersistedPolicyChange(
+          key, persistedPolicyState, latestPersistedPolicyState, attemptedPersistedState)) {
         return true;
       }
     }
     return false;
+  }
+
+  private boolean hasConcurrentPolicyVersionChange(
+      Long companyId,
+      Map<String, String> persistedPolicyState,
+      Map<String, String> latestPersistedPolicyState,
+      Map<String, String> attemptedPersistedState) {
+    return isConcurrentPersistedPolicyChange(
+            keyPolicyReference(companyId),
+            persistedPolicyState,
+            latestPersistedPolicyState,
+            attemptedPersistedState)
+        || isConcurrentPersistedPolicyChange(
+            keyPolicyUpdatedAt(companyId),
+            persistedPolicyState,
+            latestPersistedPolicyState,
+            attemptedPersistedState);
+  }
+
+  private boolean isConcurrentPersistedPolicyChange(
+      String key,
+      Map<String, String> persistedPolicyState,
+      Map<String, String> latestPersistedPolicyState,
+      Map<String, String> attemptedPersistedState) {
+    String latestValue = latestPersistedPolicyState.get(key);
+    String previousValue = persistedPolicyState.get(key);
+    String attemptedValue = attemptedPersistedState.get(key);
+    return !Objects.equals(latestValue, previousValue)
+        && !Objects.equals(latestValue, attemptedValue);
   }
 
   private TenantRuntimePolicy policyFromPersistedState(
