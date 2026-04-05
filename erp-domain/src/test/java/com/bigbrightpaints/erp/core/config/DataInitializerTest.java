@@ -64,6 +64,20 @@ class DataInitializerTest {
   }
 
   @Test
+  void dataInitializer_isLoadedFromTestClasspath() {
+    String classLocation =
+        DataInitializer.class.getProtectionDomain().getCodeSource().getLocation().toExternalForm();
+    String testClassLocation =
+        DataInitializerTest.class
+            .getProtectionDomain()
+            .getCodeSource()
+            .getLocation()
+            .toExternalForm();
+
+    assertThat(classLocation).isEqualTo(testClassLocation);
+  }
+
+  @Test
   void seedDefaultUser_createsScopedSuperAdminAndScopedDevAdmin() throws Exception {
     Role adminRole = role("ROLE_ADMIN");
     Role superAdminRole = role("ROLE_SUPER_ADMIN");
