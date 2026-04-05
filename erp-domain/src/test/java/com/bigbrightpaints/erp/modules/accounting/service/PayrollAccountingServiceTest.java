@@ -698,6 +698,87 @@ class PayrollAccountingServiceTest {
     assertThat(run.getPaymentJournalEntryId()).isEqualTo(9204L);
   }
 
+  @Test
+  void resolvePayrollPaymentReference_usesExplicitRunTokenLegacyAndFallbackPaths() {
+    PayrollPaymentRequest explicitRequest =
+        new PayrollPaymentRequest(
+            901L, 11L, 21L, new BigDecimal("500.00"), "  CUSTOM-PAY-901  ", null);
+    PayrollRun explicitRun =
+        payrollRun(901L, PayrollRun.PayrollStatus.POSTED, 9901L, "PR-2024-04-901");
+
+    assertThat(service.resolvePayrollPaymentReference(explicitRun, explicitRequest, company))
+        .isEqualTo("CUSTOM-PAY-901");
+
+    PayrollPaymentRequest derivedRequest =
+        new PayrollPaymentRequest(902L, 11L, 21L, new BigDecimal("500.00"), null, null);
+    PayrollRun derivedRun =
+        payrollRun(902L, PayrollRun.PayrollStatus.POSTED, 9902L, "PR-2024-04");
+
+    assertThat(service.resolvePayrollPaymentReference(derivedRun, derivedRequest, company))
+        .isEqualTo("PAYROLL-PAY-PR-2024-04-902");
+    assertThat(service.resolvePayrollRunToken(null, 903L)).isEqualTo("LEGACY-903");
+    assertThat(service.resolvePayrollRunToken("LEGACY-904", 904L)).isEqualTo("LEGACY-904");
+
+    PayrollRun fallbackRun = payrollRun(null, PayrollRun.PayrollStatus.POSTED, null, null);
+    when(referenceNumberService.payrollPaymentReference(company)).thenReturn("PAY-AUTO-905");
+
+    assertThat(service.resolvePayrollPaymentReference(fallbackRun, derivedRequest, company))
+        .isEqualTo("PAY-AUTO-905");
+  }
+
+  @Test
+  void validatePayrollPaymentIdempotency_allowsMatchingExistingJournalDetails() {
+    Account cash = account(111L, "CASH", AccountType.ASSET);
+    Account payable = account(222L, "PAYABLE", AccountType.LIABILITY);
+    JournalEntry existing = journalEntry(9105L, "PAYROLL-PAY-PR-9105");
+    existing.addLine(journalLine(payable, new BigDecimal("500.00"), BigDecimal.ZERO));
+    existing.addLine(journalLine(cash, BigDecimal.ZERO, new BigDecimal("500.00")));
+    existing.addLine(journalLine(null, BigDecimal.ONE, BigDecimal.ZERO));
+    PayrollPaymentRequest request =
+        new PayrollPaymentRequest(
+            9105L,
+            cash.getId(),
+            payable.getId(),
+            new BigDecimal("500.00"),
+            "PAYROLL-PAY-PR-9105",
+            null);
+
+    service.validatePayrollPaymentIdempotency(
+        request, existing, payable, cash, new BigDecimal("500.00"));
+  }
+
+  @Test
+  void validatePayrollPaymentIdempotency_rejectsReferenceAndAmountMismatches() {
+    Account cash = account(112L, "CASH-2", AccountType.ASSET);
+    Account payable = account(223L, "PAYABLE-2", AccountType.LIABILITY);
+    JournalEntry existing = journalEntry(9106L, "PAYROLL-PAY-OTHER");
+    existing.addLine(journalLine(payable, new BigDecimal("450.00"), BigDecimal.ZERO));
+    existing.addLine(journalLine(cash, BigDecimal.ZERO, new BigDecimal("400.00")));
+    PayrollPaymentRequest request =
+        new PayrollPaymentRequest(
+            9106L,
+            cash.getId(),
+            payable.getId(),
+            new BigDecimal("500.00"),
+            "PAYROLL-PAY-9106",
+            null);
+
+    ApplicationException ex =
+        org.assertj.core.api.Assertions.catchThrowableOfType(
+            () ->
+                service.validatePayrollPaymentIdempotency(
+                    request, existing, payable, cash, new BigDecimal("500.00")),
+            ApplicationException.class);
+
+    assertThat(ex).isNotNull();
+    assertThat(ex.getMessage()).contains("Payroll payment already recorded with different details");
+    assertThat(ex.getDetails()).containsEntry("payrollRunId", 9106L);
+    assertThat(ex.getDetails().get("mismatches").toString())
+        .contains("referenceNumber")
+        .contains("salaryPayableDebit")
+        .contains("cashCredit");
+  }
+
   private void stubAccounts(Account... accounts) {
     for (Account account : accounts) {
       when(companyEntityLookup.requireAccount(eq(company), eq(account.getId()))).thenReturn(account);

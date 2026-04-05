@@ -136,13 +136,9 @@ public class PayrollAccountingService extends AccountingCoreEngineCore {
         lines == null
             ? List.of()
             : lines.stream()
-                .map(
-                    line ->
-                        new JournalCreationRequest.LineRequest(
-                            line.accountId(), line.debit(), line.credit(), line.description()))
+                .map(line -> new JournalCreationRequest.LineRequest(line.accountId(), line.debit(), line.credit(), line.description()))
                 .toList();
-    JournalCreationRequest standardizedRequest =
-        new JournalCreationRequest(
+    JournalCreationRequest standardizedRequest = new JournalCreationRequest(
             totalLinesAmount(lines),
             null,
             null,
@@ -258,17 +254,8 @@ public class PayrollAccountingService extends AccountingCoreEngineCore {
       totalAdvances = totalAdvances.add(advances);
       totalNetPay = totalNetPay.add(netPay);
 
-      lineTotals.add(
-          new PayrollBatchPaymentResponse.LineTotal(
-              line.name(),
-              days,
-              wage.setScale(2, RoundingMode.HALF_UP),
-              grossPay,
-              taxWithholding,
-              pfWithholding,
-              advances,
-              netPay,
-              line.notes()));
+      lineTotals.add(new PayrollBatchPaymentResponse.LineTotal(
+          line.name(), days, wage.setScale(2, RoundingMode.HALF_UP), grossPay, taxWithholding, pfWithholding, advances, netPay, line.notes()));
     }
 
     if (totalGross.compareTo(BigDecimal.ZERO) <= 0) {
@@ -323,73 +310,50 @@ public class PayrollAccountingService extends AccountingCoreEngineCore {
     BigDecimal totalCredits = BigDecimal.ZERO;
 
     if (totalNetPay.compareTo(BigDecimal.ZERO) > 0) {
-      payrollLines.add(
-          new JournalEntryRequest.JournalLineRequest(
-              cash.getId(), "Net payroll disbursement", BigDecimal.ZERO, totalNetPay));
+      payrollLines.add(new JournalEntryRequest.JournalLineRequest(
+          cash.getId(), "Net payroll disbursement", BigDecimal.ZERO, totalNetPay));
       totalCredits = totalCredits.add(totalNetPay);
     }
 
     if (taxPayable != null && totalTaxWithholding.compareTo(BigDecimal.ZERO) > 0) {
-      payrollLines.add(
-          new JournalEntryRequest.JournalLineRequest(
-              taxPayable.getId(),
-              "Employee tax withholding (TDS)",
-              BigDecimal.ZERO,
-              totalTaxWithholding));
+      payrollLines.add(new JournalEntryRequest.JournalLineRequest(
+          taxPayable.getId(), "Employee tax withholding (TDS)", BigDecimal.ZERO, totalTaxWithholding));
       totalCredits = totalCredits.add(totalTaxWithholding);
     }
 
     if (pfPayable != null && totalPfWithholding.compareTo(BigDecimal.ZERO) > 0) {
-      payrollLines.add(
-          new JournalEntryRequest.JournalLineRequest(
-              pfPayable.getId(), "Employee PF contribution", BigDecimal.ZERO, totalPfWithholding));
+      payrollLines.add(new JournalEntryRequest.JournalLineRequest(
+          pfPayable.getId(), "Employee PF contribution", BigDecimal.ZERO, totalPfWithholding));
       totalCredits = totalCredits.add(totalPfWithholding);
     }
 
     payrollLines.add(
         0,
-        new JournalEntryRequest.JournalLineRequest(
-            expense.getId(), "Payroll expense", totalCredits, BigDecimal.ZERO));
+        new JournalEntryRequest.JournalLineRequest(expense.getId(), "Payroll expense", totalCredits, BigDecimal.ZERO));
 
     JournalEntryDto payrollJe =
-        createJournalEntry(
-            new JournalEntryRequest(
-                reference, request.runDate(), memo, null, null, Boolean.FALSE, payrollLines));
+        createJournalEntry(new JournalEntryRequest(reference, request.runDate(), memo, null, null, Boolean.FALSE, payrollLines));
     JournalEntry payrollEntry = companyEntityLookup.requireJournalEntry(company, payrollJe.id());
 
     Long employerContribJournalId = null;
-    if ((employerTaxAmount.compareTo(BigDecimal.ZERO) > 0
-            && employerTaxExpense != null
-            && taxPayable != null)
-        || (employerPfAmount.compareTo(BigDecimal.ZERO) > 0
-            && employerPfExpense != null
-            && pfPayable != null)) {
+    if ((employerTaxAmount.compareTo(BigDecimal.ZERO) > 0 && employerTaxExpense != null && taxPayable != null)
+        || (employerPfAmount.compareTo(BigDecimal.ZERO) > 0 && employerPfExpense != null && pfPayable != null)) {
 
       List<JournalEntryRequest.JournalLineRequest> employerLines = new ArrayList<>();
 
-      if (employerTaxAmount.compareTo(BigDecimal.ZERO) > 0
-          && employerTaxExpense != null
-          && taxPayable != null) {
+      if (employerTaxAmount.compareTo(BigDecimal.ZERO) > 0 && employerTaxExpense != null && taxPayable != null) {
         employerLines.add(
             new JournalEntryRequest.JournalLineRequest(
-                employerTaxExpense.getId(),
-                "Employer tax contribution",
-                employerTaxAmount,
-                BigDecimal.ZERO));
+                employerTaxExpense.getId(), "Employer tax contribution", employerTaxAmount, BigDecimal.ZERO));
         employerLines.add(
             new JournalEntryRequest.JournalLineRequest(
                 taxPayable.getId(), "Employer tax payable", BigDecimal.ZERO, employerTaxAmount));
       }
 
-      if (employerPfAmount.compareTo(BigDecimal.ZERO) > 0
-          && employerPfExpense != null
-          && pfPayable != null) {
+      if (employerPfAmount.compareTo(BigDecimal.ZERO) > 0 && employerPfExpense != null && pfPayable != null) {
         employerLines.add(
             new JournalEntryRequest.JournalLineRequest(
-                employerPfExpense.getId(),
-                "Employer PF contribution",
-                employerPfAmount,
-                BigDecimal.ZERO));
+                employerPfExpense.getId(), "Employer PF contribution", employerPfAmount, BigDecimal.ZERO));
         employerLines.add(
             new JournalEntryRequest.JournalLineRequest(
                 pfPayable.getId(), "Employer PF payable", BigDecimal.ZERO, employerPfAmount));
@@ -398,15 +362,8 @@ public class PayrollAccountingService extends AccountingCoreEngineCore {
       if (!employerLines.isEmpty()) {
         String employerRef = reference + "-EMP";
         JournalEntryDto employerJe =
-            createJournalEntry(
-                new JournalEntryRequest(
-                    employerRef,
-                    request.runDate(),
-                    "Employer contributions for " + memo,
-                    null,
-                    null,
-                    Boolean.FALSE,
-                    employerLines));
+            createJournalEntry(new JournalEntryRequest(
+                employerRef, request.runDate(), "Employer contributions for " + memo, null, null, Boolean.FALSE, employerLines));
         employerContribJournalId = employerJe.id();
       }
     }
@@ -469,8 +426,7 @@ public class PayrollAccountingService extends AccountingCoreEngineCore {
                 () ->
                     new ApplicationException(
                         ErrorCode.SYSTEM_CONFIGURATION_ERROR,
-                        "Salary payable account (SALARY-PAYABLE) is required to record payroll"
-                            + " payments"));
+                        "Salary payable account (SALARY-PAYABLE) is required to record payroll payments"));
 
     JournalEntry postingJournal = companyEntityLookup.requireJournalEntry(company, run.getJournalEntryId());
     BigDecimal payableAmount = BigDecimal.ZERO;
@@ -518,8 +474,7 @@ public class PayrollAccountingService extends AccountingCoreEngineCore {
             : "Payroll payment for " + run.getRunDate();
     String reference = resolvePayrollPaymentReference(run, request, company);
 
-    JournalEntryRequest payload =
-        new JournalEntryRequest(
+    JournalEntryRequest payload = new JournalEntryRequest(
             reference,
             currentDate(company),
             memo,

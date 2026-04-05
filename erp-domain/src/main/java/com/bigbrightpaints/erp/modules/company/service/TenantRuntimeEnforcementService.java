@@ -281,8 +281,7 @@ public class TenantRuntimeEnforcementService {
       String actor) {
     String normalizedCompany = requireCompanyCode(companyCode);
     return withPolicyMutationLock(
-        normalizedCompany,
-        () -> {
+        normalizedCompany, () -> {
           Company company = requireTrackedCompany(normalizedCompany);
           TenantRuntimePolicy current =
               persistedPolicyForManagedOperation(normalizedCompany, company);
@@ -328,12 +327,9 @@ public class TenantRuntimeEnforcementService {
       String actor) {
     String normalizedCompany = requireCompanyCode(companyCode);
     return withPolicyMutationLock(
-        normalizedCompany,
-        () -> {
+        normalizedCompany, () -> {
           Company company = requireTrackedCompany(normalizedCompany);
-          if (targetState == null
-              && maxConcurrentRequests == null
-              && maxRequestsPerMinute == null
+          if (targetState == null && maxConcurrentRequests == null && maxRequestsPerMinute == null
               && maxActiveUsers == null) {
             throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                 "Runtime policy mutation payload is required");
@@ -459,8 +455,7 @@ public class TenantRuntimeEnforcementService {
       String action) {
     String normalizedCompany = requireCompanyCode(companyCode);
     return withPolicyMutationLock(
-        normalizedCompany,
-        () -> {
+        normalizedCompany, () -> {
           Company company = requireTrackedCompany(normalizedCompany);
           TenantRuntimePolicy current =
               persistedPolicyForManagedOperation(normalizedCompany, company);
@@ -521,12 +516,8 @@ public class TenantRuntimeEnforcementService {
     } catch (RuntimeException ex) {
       throw toManagedOperationException(
           companyCode,
-          new TenantRuntimeAdmissionFailure(
-              unavailableRejection(
-                  companyCode,
-                  "TENANT_RUNTIME_POLICY_UNAVAILABLE",
-                  "Tenant runtime policy is unavailable"),
-              ex));
+          new TenantRuntimeAdmissionFailure(unavailableRejection(
+              companyCode, "TENANT_RUNTIME_POLICY_UNAVAILABLE", "Tenant runtime policy is unavailable"), ex));
     }
   }
 
@@ -608,13 +599,9 @@ public class TenantRuntimeEnforcementService {
     String persistedUpdatedAt = persistedPolicyState.get(keyPolicyUpdatedAt(companyId));
 
     boolean hasPersistedPolicy =
-        persistedState != null
-            || persistedReason != null
-            || persistedMaxConcurrent != null
-            || persistedMaxPerMinute != null
-            || persistedMaxActiveUsers != null
-            || persistedPolicyReference != null
-            || persistedUpdatedAt != null;
+        persistedState != null || persistedReason != null || persistedMaxConcurrent != null
+            || persistedMaxPerMinute != null || persistedMaxActiveUsers != null
+            || persistedPolicyReference != null || persistedUpdatedAt != null;
     if (!hasPersistedPolicy) {
       return null;
     }
@@ -797,12 +784,8 @@ public class TenantRuntimeEnforcementService {
     } catch (RuntimeException ex) {
       throw toManagedOperationException(
           companyCode,
-          new TenantRuntimeAdmissionFailure(
-              unavailableRejection(
-                  companyCode,
-                  "TENANT_COMPANY_LOOKUP_UNAVAILABLE",
-                  "Tenant company lookup is unavailable"),
-              ex));
+          new TenantRuntimeAdmissionFailure(unavailableRejection(
+              companyCode, "TENANT_COMPANY_LOOKUP_UNAVAILABLE", "Tenant company lookup is unavailable"), ex));
     }
     if (company == null || company.getId() == null) {
       return 0L;
@@ -814,12 +797,9 @@ public class TenantRuntimeEnforcementService {
     while (true) {
       long previousBucket = usageCounters.minuteBucket.get();
       if (previousBucket != minuteBucket) {
-        if (usageCounters.minuteBucket.compareAndSet(previousBucket, minuteBucket)) {
-          usageCounters.minuteRequestCount.set(0);
-          usageCounters.minuteRejectedCount.set(0);
-        } else {
-          continue;
-        }
+        if (!usageCounters.minuteBucket.compareAndSet(previousBucket, minuteBucket)) { continue; }
+        usageCounters.minuteRequestCount.set(0);
+        usageCounters.minuteRejectedCount.set(0);
       }
       return usageCounters.minuteRequestCount.incrementAndGet();
     }
@@ -1167,9 +1147,8 @@ public class TenantRuntimeEnforcementService {
               ex));
     }
     return company.orElseThrow(
-        () ->
-            com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                "Company not found: " + normalizedCompany));
+        () -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+            "Company not found: " + normalizedCompany));
   }
 
   private TenantRuntimePolicy policyForManagedOperation(String normalizedCompany) {
@@ -1196,8 +1175,7 @@ public class TenantRuntimeEnforcementService {
     TenantRuntimeRejection rejection = failure == null ? null : failure.rejection();
     if (rejection != null && rejection.httpStatus() == HttpStatus.SERVICE_UNAVAILABLE) {
       ApplicationException ex =
-          new ApplicationException(
-              ErrorCode.SYSTEM_SERVICE_UNAVAILABLE, rejection.reasonDetail(), failure);
+          new ApplicationException(ErrorCode.SYSTEM_SERVICE_UNAVAILABLE, rejection.reasonDetail(), failure);
       return withRejectionDetails(ex, rejection);
     }
     ApplicationException ex =
@@ -1550,7 +1528,7 @@ public class TenantRuntimeEnforcementService {
     }
   }
 
-  private static final class TenantRuntimeAdmissionFailure extends RuntimeException {
+  private static class TenantRuntimeAdmissionFailure extends RuntimeException {
     private final TenantRuntimeRejection rejection;
 
     private TenantRuntimeAdmissionFailure(TenantRuntimeRejection rejection) {

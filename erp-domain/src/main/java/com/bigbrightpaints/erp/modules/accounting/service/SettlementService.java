@@ -133,50 +133,35 @@ public class SettlementService extends AccountingCoreEngineCore {
     this.dealerReceiptService = dealerReceiptService;
   }
 
-  @Retryable(
-      value = DataIntegrityViolationException.class,
-      maxAttempts = 3,
-      backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
+  @Retryable(value = DataIntegrityViolationException.class, maxAttempts = 3, backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
   @Transactional
   public JournalEntryDto recordSupplierPayment(SupplierPaymentRequest request) {
     SupplierPaymentRequest normalized = normalizeSupplierPaymentRequest(request);
     return recordSupplierPaymentInternal(normalized);
   }
 
-  @Retryable(
-      value = DataIntegrityViolationException.class,
-      maxAttempts = 3,
-      backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
+  @Retryable(value = DataIntegrityViolationException.class, maxAttempts = 3, backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
   @Transactional
   public PartnerSettlementResponse settleDealerInvoices(DealerSettlementRequest request) {
     DealerSettlementRequest normalized = normalizeDealerSettlementRequest(request);
     return settleDealerInvoicesInternal(normalized);
   }
 
-  @Retryable(
-      value = DataIntegrityViolationException.class,
-      maxAttempts = 3,
-      backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
+  @Retryable(value = DataIntegrityViolationException.class, maxAttempts = 3, backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
   @Transactional
   public PartnerSettlementResponse autoSettleDealer(Long dealerId, AutoSettlementRequest request) {
     AutoSettlementRequest normalized = normalizeAutoSettlementRequest("DEALER", dealerId, request);
     return autoSettleDealerInternal(dealerId, normalized);
   }
 
-  @Retryable(
-      value = DataIntegrityViolationException.class,
-      maxAttempts = 3,
-      backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
+  @Retryable(value = DataIntegrityViolationException.class, maxAttempts = 3, backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
   @Transactional
   public PartnerSettlementResponse settleSupplierInvoices(SupplierSettlementRequest request) {
     SupplierSettlementRequest normalized = normalizeSupplierSettlementRequest(request);
     return settleSupplierInvoicesInternal(normalized);
   }
 
-  @Retryable(
-      value = DataIntegrityViolationException.class,
-      maxAttempts = 3,
-      backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
+  @Retryable(value = DataIntegrityViolationException.class, maxAttempts = 3, backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
   @Transactional
   public PartnerSettlementResponse autoSettleSupplier(
       Long supplierId, AutoSettlementRequest request) {
@@ -191,9 +176,7 @@ public class SettlementService extends AccountingCoreEngineCore {
         supplierRepository
             .lockByCompanyAndId(company, request.supplierId())
             .orElseThrow(
-                () ->
-                    new ApplicationException(
-                        ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
+                () -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
     Account payableAccount = requireSupplierPayable(supplier);
     BigDecimal amount = ValidationUtils.requirePositive(request.amount(), "amount");
     List<SettlementAllocationRequest> allocations = request.allocations();
@@ -258,8 +241,7 @@ public class SettlementService extends AccountingCoreEngineCore {
     supplier.requireTransactionalUsage("record supplier payments");
     cashAccount =
         requireCashAccountForSettlement(company, request.cashAccountId(), "supplier payment", true);
-    JournalEntryRequest payload =
-        new JournalEntryRequest(
+    JournalEntryRequest payload = new JournalEntryRequest(
             reference,
             currentDate(company),
             memo,
@@ -267,10 +249,8 @@ public class SettlementService extends AccountingCoreEngineCore {
             supplier.getId(),
             Boolean.FALSE,
             List.of(
-                new JournalEntryRequest.JournalLineRequest(
-                    payableAccount.getId(), memo, amount, BigDecimal.ZERO),
-                new JournalEntryRequest.JournalLineRequest(
-                    cashAccount.getId(), memo, BigDecimal.ZERO, amount)));
+                new JournalEntryRequest.JournalLineRequest(payableAccount.getId(), memo, amount, BigDecimal.ZERO),
+                new JournalEntryRequest.JournalLineRequest(cashAccount.getId(), memo, BigDecimal.ZERO, amount)));
     JournalEntryDto entryDto = createJournalEntry(payload);
     JournalEntry entry = companyEntityLookup.requireJournalEntry(company, entryDto.id());
     linkReferenceMapping(company, idempotencyKey, entry, ENTITY_TYPE_SUPPLIER_PAYMENT);
@@ -307,11 +287,7 @@ public class SettlementService extends AccountingCoreEngineCore {
         purchase =
             rawMaterialPurchaseRepository
                 .lockByCompanyAndId(company, allocation.purchaseId())
-                .orElseThrow(
-                    () ->
-                        new ApplicationException(
-                            ErrorCode.VALIDATION_INVALID_REFERENCE,
-                            "Raw material purchase not found"));
+                .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Raw material purchase not found"));
         if (purchase.getSupplier() == null
             || !purchase.getSupplier().getId().equals(supplier.getId())) {
           throw new ApplicationException(
@@ -382,9 +358,7 @@ public class SettlementService extends AccountingCoreEngineCore {
         dealerRepository
             .lockByCompanyAndId(company, dealerId)
             .orElseThrow(
-                () ->
-                    new ApplicationException(
-                        ErrorCode.VALIDATION_INVALID_REFERENCE, "Dealer not found"));
+                () -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Dealer not found"));
     BigDecimal amount = ValidationUtils.requirePositive(request.amount(), "amount");
     Long cashAccountId =
         resolveAutoSettlementCashAccountId(company, request.cashAccountId(), "dealer auto-settlement");
@@ -395,14 +369,7 @@ public class SettlementService extends AccountingCoreEngineCore {
             ? request.memo().trim()
             : "Auto-settlement for dealer " + dealer.getName();
     DealerReceiptRequest receiptRequest =
-        new DealerReceiptRequest(
-            dealer.getId(),
-            cashAccountId,
-            amount,
-            request.referenceNumber(),
-            memo,
-            request.idempotencyKey(),
-            allocations);
+        new DealerReceiptRequest(dealer.getId(), cashAccountId, amount, request.referenceNumber(), memo, request.idempotencyKey(), allocations);
     JournalEntryDto journalEntry =
         dealerReceiptService.recordDealerReceiptNormalized(receiptRequest);
     return buildAutoSettlementResponse(company, journalEntry);
@@ -419,9 +386,7 @@ public class SettlementService extends AccountingCoreEngineCore {
         supplierRepository
             .lockByCompanyAndId(company, supplierId)
             .orElseThrow(
-                () ->
-                    new ApplicationException(
-                        ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
+                () -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
     BigDecimal amount = ValidationUtils.requirePositive(request.amount(), "amount");
     Long cashAccountId =
         resolveAutoSettlementCashAccountId(
@@ -439,8 +404,7 @@ public class SettlementService extends AccountingCoreEngineCore {
     String idempotencyKey =
         StringUtils.hasText(request.idempotencyKey()) ? request.idempotencyKey().trim() : reference;
     SupplierPaymentRequest paymentRequest =
-        new SupplierPaymentRequest(
-            supplier.getId(), cashAccountId, amount, reference, memo, idempotencyKey, allocations);
+        new SupplierPaymentRequest(supplier.getId(), cashAccountId, amount, reference, memo, idempotencyKey, allocations);
     JournalEntryDto journalEntry = recordSupplierPayment(paymentRequest);
     return buildAutoSettlementResponse(company, journalEntry);
   }
@@ -603,9 +567,7 @@ public class SettlementService extends AccountingCoreEngineCore {
             invoiceRepository
                 .lockByCompanyAndId(company, allocation.invoiceId())
                 .orElseThrow(
-                    () ->
-                        new ApplicationException(
-                            ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice not found"));
+                    () -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice not found"));
         if (invoice.getDealer() == null || !invoice.getDealer().getId().equals(dealer.getId())) {
           throw new ApplicationException(
               ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice does not belong to the dealer");
@@ -648,20 +610,7 @@ public class SettlementService extends AccountingCoreEngineCore {
 
     JournalEntryDto journalEntryDto =
         createJournalEntry(
-            new JournalEntryRequest(
-                reference,
-                entryDate,
-                memo,
-                dealer.getId(),
-                null,
-                request.adminOverride(),
-                lineDraft.lines(),
-                null,
-                null,
-                ENTITY_TYPE_DEALER_SETTLEMENT,
-                reference,
-                null,
-                List.of()));
+            new JournalEntryRequest(reference, entryDate, memo, dealer.getId(), null, request.adminOverride(), lineDraft.lines(), null, null, ENTITY_TYPE_DEALER_SETTLEMENT, reference, null, List.of()));
 
     JournalEntry journalEntry = companyEntityLookup.requireJournalEntry(company, journalEntryDto.id());
     linkReferenceMapping(company, trimmedIdempotencyKey, journalEntry, ENTITY_TYPE_DEALER_SETTLEMENT);
@@ -727,9 +676,7 @@ public class SettlementService extends AccountingCoreEngineCore {
         supplierRepository
             .lockByCompanyAndId(company, request.supplierId())
             .orElseThrow(
-                () ->
-                    new ApplicationException(
-                        ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
+                () -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Supplier not found"));
     Account payableAccount = requireSupplierPayable(supplier);
     String trimmedIdempotencyKey = resolveSupplierSettlementIdempotencyKey(request);
     List<SettlementAllocationRequest> allocations =
@@ -873,11 +820,7 @@ public class SettlementService extends AccountingCoreEngineCore {
         purchase =
             rawMaterialPurchaseRepository
                 .lockByCompanyAndId(company, allocation.purchaseId())
-                .orElseThrow(
-                    () ->
-                        new ApplicationException(
-                            ErrorCode.VALIDATION_INVALID_REFERENCE,
-                            "Raw material purchase not found"));
+                .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Raw material purchase not found"));
         if (purchase.getSupplier() == null || !purchase.getSupplier().getId().equals(supplier.getId())) {
           throw new ApplicationException(
               ErrorCode.VALIDATION_INVALID_REFERENCE, "Purchase does not belong to the supplier");
@@ -918,20 +861,7 @@ public class SettlementService extends AccountingCoreEngineCore {
 
     JournalEntryDto journalEntryDto =
         createJournalEntry(
-            new JournalEntryRequest(
-                reference,
-                entryDate,
-                memo,
-                null,
-                supplier.getId(),
-                request.adminOverride(),
-                lineDraft.lines(),
-                null,
-                null,
-                ENTITY_TYPE_SUPPLIER_SETTLEMENT,
-                reference,
-                null,
-                List.of()));
+            new JournalEntryRequest(reference, entryDate, memo, null, supplier.getId(), request.adminOverride(), lineDraft.lines(), null, null, ENTITY_TYPE_SUPPLIER_SETTLEMENT, reference, null, List.of()));
     JournalEntry journalEntry = companyEntityLookup.requireJournalEntry(company, journalEntryDto.id());
     linkReferenceMapping(
         company, trimmedIdempotencyKey, journalEntry, ENTITY_TYPE_SUPPLIER_SETTLEMENT);

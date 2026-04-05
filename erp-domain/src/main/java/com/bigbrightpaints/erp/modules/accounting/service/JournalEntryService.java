@@ -147,10 +147,7 @@ public class JournalEntryService extends AccountingCoreEngineCore {
     return super.listJournalEntriesByReferencePrefix(prefix);
   }
 
-  @Retryable(
-      value = DataIntegrityViolationException.class,
-      maxAttempts = 3,
-      backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
+  @Retryable(value = DataIntegrityViolationException.class, maxAttempts = 3, backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
   @Transactional
   @Override
   public JournalEntryDto createJournalEntry(JournalEntryRequest request) {
@@ -267,9 +264,7 @@ public class JournalEntryService extends AccountingCoreEngineCore {
             accountRepository
                 .lockByCompanyAndId(company, accountId)
                 .orElseThrow(
-                    () ->
-                        new ApplicationException(
-                            ErrorCode.VALIDATION_INVALID_REFERENCE, "Account not found"));
+                    () -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Account not found"));
         lockedAccounts.put(accountId, account);
       }
       Dealer dealerContext = dealer;
@@ -489,10 +484,7 @@ public class JournalEntryService extends AccountingCoreEngineCore {
             ErrorCode.VALIDATION_INVALID_INPUT,
             "Dealer journal entry has multiple receivable lines; admin override required");
       }
-      if (supplier != null
-          && supplierPayableAccount != null
-          && supplierApLines > 1
-          && !overrideAuthorized) {
+      if (supplier != null && supplierPayableAccount != null && supplierApLines > 1 && !overrideAuthorized) {
         throw new ApplicationException(
             ErrorCode.VALIDATION_INVALID_INPUT,
             "Supplier journal entry has multiple payable lines; admin override required");
@@ -566,14 +558,8 @@ public class JournalEntryService extends AccountingCoreEngineCore {
         if (dealerLedgerDebitTotal.compareTo(BigDecimal.ZERO) != 0
             || dealerLedgerCreditTotal.compareTo(BigDecimal.ZERO) != 0) {
           dealerLedgerService.recordLedgerEntry(
-              saved.getDealer(),
-              new AbstractPartnerLedgerService.LedgerContext(
-                  saved.getEntryDate(),
-                  saved.getReferenceNumber(),
-                  saved.getMemo(),
-                  dealerLedgerDebitTotal,
-                  dealerLedgerCreditTotal,
-                  saved));
+              saved.getDealer(), new AbstractPartnerLedgerService.LedgerContext(
+                  saved.getEntryDate(), saved.getReferenceNumber(), saved.getMemo(), dealerLedgerDebitTotal, dealerLedgerCreditTotal, saved));
         }
       }
       if (saved.getSupplier() != null && supplierPayableAccount != null) {
@@ -587,14 +573,8 @@ public class JournalEntryService extends AccountingCoreEngineCore {
         if (supplierLedgerDebitTotal.compareTo(BigDecimal.ZERO) != 0
             || supplierLedgerCreditTotal.compareTo(BigDecimal.ZERO) != 0) {
           supplierLedgerService.recordLedgerEntry(
-              saved.getSupplier(),
-              new AbstractPartnerLedgerService.LedgerContext(
-                  saved.getEntryDate(),
-                  saved.getReferenceNumber(),
-                  saved.getMemo(),
-                  supplierLedgerDebitTotal,
-                  supplierLedgerCreditTotal,
-                  saved));
+              saved.getSupplier(), new AbstractPartnerLedgerService.LedgerContext(
+                  saved.getEntryDate(), saved.getReferenceNumber(), saved.getMemo(), supplierLedgerDebitTotal, supplierLedgerCreditTotal, saved));
         }
       }
       if (saved.getId() != null) {
@@ -794,9 +774,7 @@ public class JournalEntryService extends AccountingCoreEngineCore {
                   request.fxRate(),
                   request.sourceModule(),
                   request.sourceReference(),
-                  StringUtils.hasText(request.journalType())
-                      ? request.journalType()
-                      : JournalEntryType.MANUAL.name(),
+                  StringUtils.hasText(request.journalType()) ? request.journalType() : JournalEntryType.MANUAL.name(),
                   request.attachmentReferences()));
     } catch (RuntimeException ex) {
       if (!StringUtils.hasText(rawKey) || !isRetryableManualConcurrencyFailure(ex)) {
@@ -808,17 +786,13 @@ public class JournalEntryService extends AccountingCoreEngineCore {
       }
       throw ex;
     }
-    if (StringUtils.hasText(key)
-        && created != null
-        && StringUtils.hasText(created.referenceNumber())) {
+    if (StringUtils.hasText(key) && created != null && StringUtils.hasText(created.referenceNumber())) {
       JournalReferenceMapping mapping =
           findLatestLegacyReferenceMapping(company, key)
               .orElseThrow(
-                  () ->
-                      new ApplicationException(
-                              ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
-                              "Manual journal idempotency reservation missing")
-                          .withDetail("referenceNumber", rawKey));
+                  () -> new ApplicationException(
+                          ErrorCode.INTERNAL_CONCURRENCY_FAILURE, "Manual journal idempotency reservation missing")
+                      .withDetail("referenceNumber", rawKey));
       mapping.setCanonicalReference(created.referenceNumber());
       mapping.setEntityId(created.id());
       journalReferenceMappingRepository.save(mapping);

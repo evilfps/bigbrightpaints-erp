@@ -265,12 +265,7 @@ public class TenantRuntimeAccessService {
       String message) {
     return deny(
         company,
-        request,
-        new TenantRuntimePolicy(
-            TenantRuntimeState.BLOCKED,
-            null,
-            defaultMaxConcurrentRequests,
-            defaultMaxRequestsPerMinute),
+        request, new TenantRuntimePolicy(TenantRuntimeState.BLOCKED, null, defaultMaxConcurrentRequests, defaultMaxRequestsPerMinute),
         metrics,
         httpStatus,
         reasonCode,
@@ -731,7 +726,7 @@ public class TenantRuntimeAccessService {
     }
   }
 
-  private static final class TenantRuntimePolicyResolutionFailure extends RuntimeException {
+  private static class TenantRuntimePolicyResolutionFailure extends RuntimeException {
     private final int httpStatus;
     private final String reasonCode;
 

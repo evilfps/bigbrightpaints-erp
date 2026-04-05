@@ -136,10 +136,7 @@ public class CompanyContextFilter extends OncePerRequestFilter {
           resolveCompanyBoundControlBinding(runtimePath, request.getMethod());
       boolean lifecycleControlRequest = controlBinding != null;
       boolean hasSuperAdminAuthority = hasSuperAdminAuthority();
-      boolean tenantRuntimePolicyControlRequest =
-          controlBinding != null
-              && controlBinding.tenantRuntimePolicyControl()
-              && hasSuperAdminAuthority;
+      boolean tenantRuntimePolicyControlRequest = controlBinding != null && controlBinding.tenantRuntimePolicyControl() && hasSuperAdminAuthority;
       if (lifecycleControlRequest && !hasAuthenticatedPrincipal()) {
         denyControlPlaneRequest(response);
         return;

@@ -1084,9 +1084,7 @@ abstract class AccountingCoreEngineCore {
     boolean overrideRequested = request != null && Boolean.TRUE.equals(request.adminOverride());
     boolean systemEntryDateOverrideActive = Boolean.TRUE.equals(SYSTEM_ENTRY_DATE_OVERRIDE.get());
     boolean userHasEntryDateOverrideAuthority = hasEntryDateOverrideAuthority();
-    boolean overrideAuthorized =
-        systemEntryDateOverrideActive
-            || (overrideRequested && userHasEntryDateOverrideAuthority);
+    boolean overrideAuthorized = systemEntryDateOverrideActive || (overrideRequested && userHasEntryDateOverrideAuthority);
     AccountingPeriod postingPeriod;
     if (systemSettingsService.isPeriodLockEnforced()) {
       validateEntryDate(company, reversalDate, overrideRequested, overrideAuthorized);

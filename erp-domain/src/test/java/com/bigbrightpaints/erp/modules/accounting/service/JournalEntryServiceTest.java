@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
@@ -639,6 +640,48 @@ class JournalEntryServiceTest {
     verify(accountingPeriodService)
         .requirePostablePeriod(
             eq(company), eq(today), eq("JOURNAL_REVERSAL"), eq("INV-730"), any(), eq(false));
+  }
+
+  @Test
+  void createJournalEntryForReversal_usesSystemEntryDateOverrideScopeWhenRequested()
+      throws ClassNotFoundException {
+    journalEntryService = org.mockito.Mockito.spy(journalEntryService);
+    JournalEntryRequest payload =
+        new JournalEntryRequest(
+            "REV-900",
+            LocalDate.of(2026, 3, 9),
+            "Scoped override",
+            null,
+            null,
+            Boolean.TRUE,
+            List.of(
+                new JournalEntryRequest.JournalLineRequest(
+                    11L, "Debit", new BigDecimal("50.00"), BigDecimal.ZERO),
+                new JournalEntryRequest.JournalLineRequest(
+                    22L, "Credit", BigDecimal.ZERO, new BigDecimal("50.00"))));
+    @SuppressWarnings("unchecked")
+    ThreadLocal<Boolean> overrideScope =
+        (ThreadLocal<Boolean>)
+            ReflectionTestUtils.getField(
+                Class.forName(
+                    "com.bigbrightpaints.erp.modules.accounting.service.AccountingCoreEngineCore"),
+                "SYSTEM_ENTRY_DATE_OVERRIDE");
+    AtomicReference<Boolean> observedOverride = new AtomicReference<>(Boolean.FALSE);
+    doAnswer(
+            invocation -> {
+              observedOverride.set(Boolean.TRUE.equals(overrideScope.get()));
+              return stubEntry(940L);
+            })
+        .when(journalEntryService)
+        .createJournalEntry(payload);
+
+    JournalEntryDto result =
+        ReflectionTestUtils.invokeMethod(
+            journalEntryService, "createJournalEntryForReversal", payload, true);
+
+    assertThat(result.id()).isEqualTo(940L);
+    assertThat(observedOverride.get()).isTrue();
+    assertThat(Boolean.TRUE.equals(overrideScope.get())).isFalse();
   }
 
   private Account account(Long id, String code, AccountType type) {

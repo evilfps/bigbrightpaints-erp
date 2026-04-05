@@ -1497,6 +1497,127 @@ class TenantRuntimeEnforcementServiceTest {
         .isEqualTo("bootstrap");
   }
 
+  @Test
+  void toManagedOperationException_copiesAllRejectionDetails() throws Exception {
+    Object rejection =
+        tenantRuntimeRejection(
+            "ACME",
+            TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED,
+            "INCIDENT_LOCK",
+            "CHAIN-501",
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "TENANT_RUNTIME_POLICY_UNAVAILABLE",
+            "Tenant runtime policy is unavailable",
+            "MAX_ACTIVE_USERS",
+            "12",
+            "10");
+    Object failure =
+        tenantRuntimeAdmissionFailure(rejection, new IllegalStateException("policy backend down"));
+
+    ApplicationException ex =
+        ReflectionTestUtils.invokeMethod(service, "toManagedOperationException", "ACME", failure);
+
+    assertThat(ex).isNotNull();
+    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.SYSTEM_SERVICE_UNAVAILABLE);
+    assertThat(ex.getDetails())
+        .containsEntry("companyCode", "ACME")
+        .containsEntry("reason", "TENANT_RUNTIME_POLICY_UNAVAILABLE")
+        .containsEntry("auditChainId", "CHAIN-501")
+        .containsEntry("tenantReasonCode", "INCIDENT_LOCK")
+        .containsEntry("limitType", "MAX_ACTIVE_USERS")
+        .containsEntry("observedValue", "12")
+        .containsEntry("limitValue", "10");
+  }
+
+  @Test
+  void policyPersistedStateHelpers_applyFallbacksAndReturnEmptyWhenInputsMissing() throws Exception {
+    @SuppressWarnings("unchecked")
+    Map<String, String> emptyPersistedState =
+        ReflectionTestUtils.invokeMethod(service, "policyToPersistedState", null, null);
+    assertThat(emptyPersistedState).isEmpty();
+
+    @SuppressWarnings("unchecked")
+    Map<String, String> persistedState =
+        ReflectionTestUtils.invokeMethod(
+            service,
+            "policyToPersistedState",
+            1L,
+            tenantRuntimePolicy(
+                TenantRuntimeEnforcementService.TenantRuntimeState.HOLD,
+                "MAINTENANCE",
+                0,
+                -1,
+                0,
+                null,
+                null,
+                0L));
+    Object noPolicy = ReflectionTestUtils.invokeMethod(service, "policyFromPersistedState", 1L, Map.of());
+    Object resolvedPolicy =
+        ReflectionTestUtils.invokeMethod(service, "policyFromPersistedState", 1L, persistedState);
+
+    assertThat(noPolicy).isNull();
+    assertThat(ReflectionTestUtils.getField(resolvedPolicy, "reasonCode")).isEqualTo("MAINTENANCE");
+    assertThat(ReflectionTestUtils.getField(resolvedPolicy, "auditChainId"))
+        .isEqualTo("bootstrap");
+  }
+
+  @Test
+  void readPersistedPolicySetting_wrapsRepositoryFailuresAsManagedOperationFailures() {
+    when(systemSettingsRepository.findById(keyHoldState(1L))).thenThrow(new RuntimeException("boom"));
+
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    service, "readPersistedPolicySetting", "ACME", keyHoldState(1L)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Tenant runtime policy is unavailable");
+  }
+
+  @Test
+  void restorePersistedPolicyState_suppressesRestoreFailures() throws Exception {
+    RuntimeException originalFailure = new RuntimeException("audit failure");
+    Object attemptedPolicy =
+        tenantRuntimePolicy(
+            TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED,
+            "INCIDENT",
+            7,
+            9,
+            11,
+            "CHAIN-600",
+            Instant.parse("2026-01-06T00:00:00Z"),
+            0L);
+    Map<String, String> persistedState = new HashMap<>();
+    persistedState.put(keyHoldState(1L), null);
+    org.mockito.Mockito.doThrow(new RuntimeException("restore failed"))
+        .when(systemSettingsRepository)
+        .deleteById(keyHoldState(1L));
+
+    ReflectionTestUtils.invokeMethod(
+        service,
+        "restorePersistedPolicyState",
+        company(1L, "ACME"),
+        "ACME",
+        attemptedPolicy,
+        persistedState,
+        originalFailure);
+
+    assertThat(originalFailure.getSuppressed()).hasSize(1);
+    assertThat(originalFailure.getSuppressed()[0]).hasMessageContaining("restore failed");
+  }
+
+  @Test
+  void resolveActiveUsers_returnsZeroForUnknownTenantAndWrapsLookupFailures() {
+    companiesByCode.remove("ACME");
+
+    Long activeUsers = ReflectionTestUtils.invokeMethod(service, "resolveActiveUsers", "ACME");
+
+    assertThat(activeUsers).isZero();
+    when(companyRepository.findByCodeIgnoreCase("FAIL")).thenThrow(new RuntimeException("lookup down"));
+    assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "resolveActiveUsers", "FAIL"))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Tenant company lookup is unavailable");
+  }
+
   private Company company(Long id, String code) {
     Company company = new Company();
     ReflectionTestUtils.setField(company, "id", id);
@@ -1578,6 +1699,58 @@ class TenantRuntimeEnforcementServiceTest {
         auditChainId,
         updatedAt,
         refreshAfterEpochMillis);
+  }
+
+  private Object tenantRuntimeRejection(
+      String companyCode,
+      TenantRuntimeEnforcementService.TenantRuntimeState tenantState,
+      String tenantReasonCode,
+      String auditChainId,
+      HttpStatus httpStatus,
+      String reasonCode,
+      String reasonDetail,
+      String limitType,
+      String observedValue,
+      String limitValue)
+      throws Exception {
+    Class<?> rejectionClass =
+        Class.forName(TenantRuntimeEnforcementService.class.getName() + "$TenantRuntimeRejection");
+    Constructor<?> constructor =
+        rejectionClass.getDeclaredConstructor(
+            String.class,
+            TenantRuntimeEnforcementService.TenantRuntimeState.class,
+            String.class,
+            String.class,
+            HttpStatus.class,
+            String.class,
+            String.class,
+            String.class,
+            String.class,
+            String.class);
+    constructor.setAccessible(true);
+    return constructor.newInstance(
+        companyCode,
+        tenantState,
+        tenantReasonCode,
+        auditChainId,
+        httpStatus,
+        reasonCode,
+        reasonDetail,
+        limitType,
+        observedValue,
+        limitValue);
+  }
+
+  private Object tenantRuntimeAdmissionFailure(Object rejection, Throwable cause) throws Exception {
+    Class<?> rejectionClass =
+        Class.forName(TenantRuntimeEnforcementService.class.getName() + "$TenantRuntimeRejection");
+    Class<?> failureClass =
+        Class.forName(
+            TenantRuntimeEnforcementService.class.getName() + "$TenantRuntimeAdmissionFailure");
+    Constructor<?> constructor =
+        failureClass.getDeclaredConstructor(rejectionClass, Throwable.class);
+    constructor.setAccessible(true);
+    return constructor.newInstance(rejection, cause);
   }
 
   private boolean invokeShouldUsePersistedPolicy(Object current, Object persisted) {

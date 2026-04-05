@@ -179,10 +179,7 @@ class AccountingFacadeCore {
    * @return the created journal entry DTO
    */
   @Transactional(isolation = Isolation.READ_COMMITTED)
-  @Retryable(
-      value = {OptimisticLockingFailureException.class, CannotAcquireLockException.class},
-      maxAttempts = 5,
-      backoff = @Backoff(delay = 50, maxDelay = 400, multiplier = 2.0))
+  @Retryable(value = {OptimisticLockingFailureException.class, CannotAcquireLockException.class}, maxAttempts = 5, backoff = @Backoff(delay = 50, maxDelay = 400, multiplier = 2.0))
   public JournalEntryDto postSalesJournal(
       Long dealerId,
       String orderNumber,
@@ -220,10 +217,7 @@ class AccountingFacadeCore {
    * @return the created journal entry DTO
    */
   @Transactional(isolation = Isolation.READ_COMMITTED)
-  @Retryable(
-      value = {OptimisticLockingFailureException.class, CannotAcquireLockException.class},
-      maxAttempts = 5,
-      backoff = @Backoff(delay = 50, maxDelay = 400, multiplier = 2.0))
+  @Retryable(value = {OptimisticLockingFailureException.class, CannotAcquireLockException.class}, maxAttempts = 5, backoff = @Backoff(delay = 50, maxDelay = 400, multiplier = 2.0))
   public JournalEntryDto postSalesJournal(
       Long dealerId,
       String orderNumber,
@@ -372,10 +366,7 @@ class AccountingFacadeCore {
   }
 
   @Transactional(isolation = Isolation.READ_COMMITTED)
-  @Retryable(
-      value = {OptimisticLockingFailureException.class, CannotAcquireLockException.class},
-      maxAttempts = 5,
-      backoff = @Backoff(delay = 50, maxDelay = 400, multiplier = 2.0))
+  @Retryable(value = {OptimisticLockingFailureException.class, CannotAcquireLockException.class}, maxAttempts = 5, backoff = @Backoff(delay = 50, maxDelay = 400, multiplier = 2.0))
   public JournalEntryDto postSalesJournal(
       Long dealerId,
       String orderNumber,
