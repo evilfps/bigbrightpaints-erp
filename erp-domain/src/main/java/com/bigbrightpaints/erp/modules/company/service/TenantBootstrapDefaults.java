@@ -10,9 +10,7 @@ final class TenantBootstrapDefaults {
   private TenantBootstrapDefaults() {}
 
   static BigDecimal resolveDefaultGstRate(BigDecimal requestedDefaultGstRate) {
-    return requestedDefaultGstRate == null
-        ? DEFAULT_BOOTSTRAP_GST_RATE
-        : requestedDefaultGstRate;
+    return requestedDefaultGstRate == null ? DEFAULT_BOOTSTRAP_GST_RATE : requestedDefaultGstRate;
   }
 
   static int failClosedRuntimeLimit(long configuredLimit) {

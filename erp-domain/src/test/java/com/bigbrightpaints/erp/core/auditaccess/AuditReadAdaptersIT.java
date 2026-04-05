@@ -117,35 +117,52 @@ class AuditReadAdaptersIT extends AbstractIntegrationTest {
             day.atTime(9, 15),
             log -> log.setMetadata(Map.of("resourceType", "COMPLIANCE")));
 
-    assertThat(sourceIds(queryTenantLogs(company, day, day, "SUPERADMIN", null, null, null, null, null)))
+    assertThat(
+            sourceIds(
+                queryTenantLogs(company, day, day, "SUPERADMIN", null, null, null, null, null)))
         .containsExactly(superadmin.getId());
     assertThat(sourceIds(queryTenantLogs(company, day, day, "ADMIN", null, null, null, null, null)))
         .containsExactly(admin.getId());
-    assertThat(sourceIds(queryTenantLogs(company, day, day, "ACCOUNTING", null, null, null, null, null)))
+    assertThat(
+            sourceIds(
+                queryTenantLogs(company, day, day, "ACCOUNTING", null, null, null, null, null)))
         .containsExactlyInAnyOrder(
             accountingPath.getId(), accountingFallback.getId(), accountingTrailFailure.getId());
     assertThat(sourceIds(queryTenantLogs(company, day, day, "AUTH", null, null, null, null, null)))
         .containsExactly(auth.getId());
-    assertThat(sourceIds(queryTenantLogs(company, day, day, "CHANGELOG", null, null, null, null, null)))
+    assertThat(
+            sourceIds(
+                queryTenantLogs(company, day, day, "CHANGELOG", null, null, null, null, null)))
         .containsExactly(changelog.getId());
-    assertThat(sourceIds(queryTenantLogs(company, day, day, "COMPANIES", null, null, null, null, null)))
+    assertThat(
+            sourceIds(
+                queryTenantLogs(company, day, day, "COMPANIES", null, null, null, null, null)))
         .containsExactly(companies.getId());
-    assertThat(sourceIds(queryTenantLogs(company, day, day, "SECURITY", null, null, null, null, null)))
+    assertThat(
+            sourceIds(queryTenantLogs(company, day, day, "SECURITY", null, null, null, null, null)))
         .containsExactly(securityFallback.getId());
     assertThat(sourceIds(queryTenantLogs(company, day, day, "DATA", null, null, null, null, null)))
         .containsExactlyInAnyOrder(dataFallback.getId(), resourceTypeData.getId());
-    assertThat(sourceIds(queryTenantLogs(company, day, day, "COMPLIANCE", null, null, null, null, null)))
+    assertThat(
+            sourceIds(
+                queryTenantLogs(company, day, day, "COMPLIANCE", null, null, null, null, null)))
         .containsExactlyInAnyOrder(complianceFallback.getId(), metadataCompliance.getId());
-    assertThat(sourceIds(queryTenantLogs(company, day, day, "SYSTEM", null, null, null, null, null)))
+    assertThat(
+            sourceIds(queryTenantLogs(company, day, day, "SYSTEM", null, null, null, null, null)))
         .containsExactlyInAnyOrder(systemFallback.getId(), systemIntegrationFailure.getId());
-    assertThat(sourceIds(queryTenantLogs(company, day, day, "BUSINESS", null, null, null, null, null)))
+    assertThat(
+            sourceIds(queryTenantLogs(company, day, day, "BUSINESS", null, null, null, null, null)))
         .containsExactly(businessFallback.getId());
-    assertThat(sourceIds(queryTenantLogs(company, day, day, "MYSTERY", null, null, null, null, null)))
+    assertThat(
+            sourceIds(queryTenantLogs(company, day, day, "MYSTERY", null, null, null, null, null)))
         .isEmpty();
-    assertThat(sourceIds(queryAccountingLogs(company, day, day, null, null, null, null, null, null)))
+    assertThat(
+            sourceIds(queryAccountingLogs(company, day, day, null, null, null, null, null, null)))
         .containsExactlyInAnyOrder(
             accountingPath.getId(), accountingFallback.getId(), accountingTrailFailure.getId());
-    assertThat(sourceIds(queryAccountingLogs(company, day, day, "BUSINESS", null, null, null, null, null)))
+    assertThat(
+            sourceIds(
+                queryAccountingLogs(company, day, day, "BUSINESS", null, null, null, null, null)))
         .isEmpty();
   }
 
@@ -191,23 +208,37 @@ class AuditReadAdaptersIT extends AbstractIntegrationTest {
               log.setTraceId("TRACE-3");
             });
 
-    assertThat(sourceIds(queryTenantLogs(company, dayTwo, null, null, null, null, null, null, null)))
+    assertThat(
+            sourceIds(queryTenantLogs(company, dayTwo, null, null, null, null, null, null, null)))
         .containsExactlyInAnyOrder(second.getId(), third.getId());
-    assertThat(sourceIds(queryTenantLogs(company, null, dayTwo, null, null, null, null, null, null)))
+    assertThat(
+            sourceIds(queryTenantLogs(company, null, dayTwo, null, null, null, null, null, null)))
         .containsExactlyInAnyOrder(first.getId(), second.getId());
-    assertThat(sourceIds(queryTenantLogs(company, null, null, null, null, null, "ops@example.com", null, null)))
+    assertThat(
+            sourceIds(
+                queryTenantLogs(
+                    company, null, null, null, null, null, "ops@example.com", null, null)))
         .containsExactly(first.getId());
     assertThat(sourceIds(queryTenantLogs(company, null, null, null, null, null, "777", null, null)))
         .containsExactly(second.getId());
-    assertThat(sourceIds(queryTenantLogs(company, null, null, null, null, "failure", null, null, null)))
+    assertThat(
+            sourceIds(
+                queryTenantLogs(company, null, null, null, null, "failure", null, null, null)))
         .containsExactly(first.getId());
-    assertThat(sourceIds(queryTenantLogs(company, null, null, null, "access_denied", null, null, null, null)))
+    assertThat(
+            sourceIds(
+                queryTenantLogs(
+                    company, null, null, null, "access_denied", null, null, null, null)))
         .containsExactly(first.getId());
-    assertThat(sourceIds(queryTenantLogs(company, null, null, null, null, null, null, "dealer", null)))
+    assertThat(
+            sourceIds(queryTenantLogs(company, null, null, null, null, null, null, "dealer", null)))
         .containsExactly(first.getId());
-    assertThat(sourceIds(queryTenantLogs(company, null, null, null, null, null, null, null, "je-99")))
+    assertThat(
+            sourceIds(queryTenantLogs(company, null, null, null, null, null, null, null, "je-99")))
         .containsExactly(second.getId());
-    assertThat(sourceIds(queryTenantLogs(company, null, null, null, null, null, null, null, "trace-1")))
+    assertThat(
+            sourceIds(
+                queryTenantLogs(company, null, null, null, null, null, null, null, "trace-1")))
         .containsExactly(first.getId());
   }
 
@@ -253,7 +284,8 @@ class AuditReadAdaptersIT extends AbstractIntegrationTest {
         log -> log.setRequestPath("/api/v1/admin/users"));
 
     AuditFeedSlice absentPlatformFeed =
-        auditLogReadAdapter.queryPlatformFeed(filter(absentDay, absentDay, null, null, null, null, null, null));
+        auditLogReadAdapter.queryPlatformFeed(
+            filter(absentDay, absentDay, null, null, null, null, null, null));
 
     assertThat(sourceIds(absentPlatformFeed))
         .containsExactlyInAnyOrder(
@@ -274,7 +306,8 @@ class AuditReadAdaptersIT extends AbstractIntegrationTest {
             log -> log.setRequestPath("/api/v1/internal/platform"));
 
     AuditFeedSlice presentPlatformFeed =
-        auditLogReadAdapter.queryPlatformFeed(filter(presentDay, presentDay, null, null, null, null, null, null));
+        auditLogReadAdapter.queryPlatformFeed(
+            filter(presentDay, presentDay, null, null, null, null, null, null));
 
     assertThat(sourceIds(presentPlatformFeed)).containsExactly(platformOwned.getId());
     assertThat(companyCodesBySourceId(presentPlatformFeed))
@@ -286,7 +319,9 @@ class AuditReadAdaptersIT extends AbstractIntegrationTest {
     Company company = dataSeeder.ensureCompany("ARDBIZ", "Audit Read Business");
     LocalDate dayOne = LocalDate.of(2035, 4, 1);
     Long accountingActorId =
-        dataSeeder.ensureUser("ops@example.com", "Passw0rd!", "Ops", company.getCode(), List.of()).getId();
+        dataSeeder
+            .ensureUser("ops@example.com", "Passw0rd!", "Ops", company.getCode(), List.of())
+            .getId();
     Long salesActorId =
         dataSeeder
             .ensureUser("sales@example.com", "Passw0rd!", "Sales", company.getCode(), List.of())
@@ -372,12 +407,14 @@ class AuditReadAdaptersIT extends AbstractIntegrationTest {
     assertThat(
             sourceIds(
                 businessAuditReadAdapter.queryAccountingFeed(
-                    company, filter(dayOne, dayOne.plusDays(2), null, null, null, null, null, null))))
+                    company,
+                    filter(dayOne, dayOne.plusDays(2), null, null, null, null, null, null))))
         .containsExactlyInAnyOrder(accounting.getId(), accountingLater.getId());
     assertThat(
             sourceIds(
                 businessAuditReadAdapter.queryAccountingFeed(
-                    company, filter(dayOne, dayOne.plusDays(2), "SALES", null, null, null, null, null))))
+                    company,
+                    filter(dayOne, dayOne.plusDays(2), "SALES", null, null, null, null, null))))
         .isEmpty();
   }
 
@@ -418,7 +455,8 @@ class AuditReadAdaptersIT extends AbstractIntegrationTest {
       String actor,
       String entityType,
       String reference) {
-    return new AuditFeedFilter(from, to, module, action, status, actor, entityType, reference, 0, 50);
+    return new AuditFeedFilter(
+        from, to, module, action, status, actor, entityType, reference, 0, 50);
   }
 
   private List<Long> sourceIds(AuditFeedSlice slice) {

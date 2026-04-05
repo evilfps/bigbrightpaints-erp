@@ -68,7 +68,16 @@ class AdminAuditControllerTest {
     ApiResponse<PageResponse<AuditFeedItemDto>> body =
         controller
             .listEvents(
-                "2026-03-01", "2026-03-31", null, "ACCESS_DENIED", "FAILURE", "ops@example.com", null, "trace-1", 0, 50)
+                "2026-03-01",
+                "2026-03-31",
+                null,
+                "ACCESS_DENIED",
+                "FAILURE",
+                "ops@example.com",
+                null,
+                "trace-1",
+                0,
+                50)
             .getBody();
 
     assertThat(body).isNotNull();

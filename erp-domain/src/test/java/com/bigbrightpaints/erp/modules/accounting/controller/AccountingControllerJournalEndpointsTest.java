@@ -12,7 +12,6 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -36,8 +35,8 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryReversalReques
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalLineDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalListItemDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.ManualJournalRequest;
-import com.bigbrightpaints.erp.modules.accounting.dto.PartnerStatementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
+import com.bigbrightpaints.erp.modules.accounting.dto.PartnerStatementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnPreviewDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationApplication;
@@ -202,8 +201,7 @@ class AccountingControllerJournalEndpointsTest {
         (LocalDate)
             ReflectionTestUtils.invokeMethod(controller, "parseOptionalDate", "   ", "fromDate");
 
-    assertThat(parsed)
-        .isNull();
+    assertThat(parsed).isNull();
   }
 
   @Test
@@ -216,8 +214,7 @@ class AccountingControllerJournalEndpointsTest {
             ReflectionTestUtils.invokeMethod(
                 controller, "parseRequiredDate", " 2026-03-10 ", "fromDate");
 
-    assertThat(parsed)
-        .isEqualTo(LocalDate.of(2026, 3, 10));
+    assertThat(parsed).isEqualTo(LocalDate.of(2026, 3, 10));
   }
 
   @Test
@@ -226,12 +223,15 @@ class AccountingControllerJournalEndpointsTest {
         newController(mock(AccountingService.class), mock(JournalEntryService.class), null);
 
     assertThatThrownBy(
-            () -> ReflectionTestUtils.invokeMethod(controller, "parseRequiredDate", "03/10/2026", "date"))
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    controller, "parseRequiredDate", "03/10/2026", "date"))
         .isInstanceOf(ApplicationException.class)
         .satisfies(
             ex -> {
               ApplicationException applicationException = (ApplicationException) ex;
-              assertThat(applicationException.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_DATE);
+              assertThat(applicationException.getErrorCode())
+                  .isEqualTo(ErrorCode.VALIDATION_INVALID_DATE);
               assertThat(applicationException.getDetails()).containsEntry("date", "03/10/2026");
             });
   }
@@ -259,7 +259,8 @@ class AccountingControllerJournalEndpointsTest {
 
     assertThat(body).isNotNull();
     assertThat(body.data()).isSameAs(expected);
-    verify(statementService).supplierStatement(7L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31));
+    verify(statementService)
+        .supplierStatement(7L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31));
   }
 
   @Test
@@ -294,7 +295,8 @@ class AccountingControllerJournalEndpointsTest {
             .getBody();
 
     assertThat(body).isEqualTo(pdf);
-    verify(statementService).supplierStatementPdf(7L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31));
+    verify(statementService)
+        .supplierStatementPdf(7L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31));
   }
 
   @Test
@@ -335,7 +337,8 @@ class AccountingControllerJournalEndpointsTest {
     TemporalBalanceService.TrialBalanceSnapshot expected =
         new TemporalBalanceService.TrialBalanceSnapshot(
             LocalDate.of(2026, 3, 31), List.of(), BigDecimal.ONE, BigDecimal.ONE);
-    when(temporalBalanceService.getTrialBalanceAsOf(LocalDate.of(2026, 3, 31))).thenReturn(expected);
+    when(temporalBalanceService.getTrialBalanceAsOf(LocalDate.of(2026, 3, 31)))
+        .thenReturn(expected);
 
     ApiResponse<TemporalBalanceService.TrialBalanceSnapshot> body =
         controllerWithTemporalBalanceService(temporalBalanceService)
@@ -349,14 +352,16 @@ class AccountingControllerJournalEndpointsTest {
 
   @Test
   void getAccountActivity_wrapsInvalidDateFormat() {
-    AccountingController controller = controllerWithTemporalBalanceService(mock(TemporalBalanceService.class));
+    AccountingController controller =
+        controllerWithTemporalBalanceService(mock(TemporalBalanceService.class));
 
     assertThatThrownBy(() -> controller.getAccountActivity(9L, "bad", "2026-03-31", null, null))
         .isInstanceOf(ApplicationException.class)
         .satisfies(
             ex -> {
               ApplicationException applicationException = (ApplicationException) ex;
-              assertThat(applicationException.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_DATE);
+              assertThat(applicationException.getErrorCode())
+                  .isEqualTo(ErrorCode.VALIDATION_INVALID_DATE);
               assertThat(applicationException.getDetails())
                   .containsEntry("startDate", "bad")
                   .containsEntry("endDate", "2026-03-31");
@@ -414,7 +419,8 @@ class AccountingControllerJournalEndpointsTest {
 
     assertThat(body).isNotNull();
     assertThat(body.data()).isSameAs(expected);
-    verify(temporalBalanceService).compareBalances(9L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31));
+    verify(temporalBalanceService)
+        .compareBalances(9L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31));
   }
 
   @Test

@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Map;
-import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -14,9 +13,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.bigbrightpaints.erp.core.auditaccess.dto.AuditFeedItemDto;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEvent;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventRepository;
-import com.bigbrightpaints.erp.core.auditaccess.dto.AuditFeedItemDto;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 
 @Component
@@ -70,7 +69,8 @@ public class BusinessAuditReadAdapter {
   }
 
   private AuditFeedItemDto toDto(AuditActionEvent event, String companyCode) {
-    Map<String, String> metadata = event.getMetadata() == null ? Map.of() : Map.copyOf(event.getMetadata());
+    Map<String, String> metadata =
+        event.getMetadata() == null ? Map.of() : Map.copyOf(event.getMetadata());
     return new AuditFeedItemDto(
         event.getId(),
         "BUSINESS_EVENT",
@@ -166,6 +166,8 @@ public class BusinessAuditReadAdapter {
     if (requestedModule == null) {
       return "ACCOUNTING";
     }
-    return auditVisibilityPolicy.isAccountingModule(requestedModule) ? requestedModule : NO_MODULE_MATCH;
+    return auditVisibilityPolicy.isAccountingModule(requestedModule)
+        ? requestedModule
+        : NO_MODULE_MATCH;
   }
 }

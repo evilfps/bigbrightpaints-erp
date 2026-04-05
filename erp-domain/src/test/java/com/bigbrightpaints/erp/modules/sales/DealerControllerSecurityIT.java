@@ -246,7 +246,8 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
 
     assertThat(dealersResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(salesAliasResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertDealerDirectoryPayloadRedacted((List<Map<String, Object>>) dealersResponse.getBody().get("data"));
+    assertDealerDirectoryPayloadRedacted(
+        (List<Map<String, Object>>) dealersResponse.getBody().get("data"));
     assertDealerDirectoryPayloadRedacted(
         (List<Map<String, Object>>) salesAliasResponse.getBody().get("data"));
   }
@@ -328,8 +329,7 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
     assertThat(pagedAliasRows)
         .hasSize(1)
         .extracting(row -> row.get("code"))
-        .containsExactlyElementsOf(
-            pagedDirectRows.stream().map(row -> row.get("code")).toList());
+        .containsExactlyElementsOf(pagedDirectRows.stream().map(row -> row.get("code")).toList());
   }
 
   private HttpHeaders authHeaders(String email, String password) {

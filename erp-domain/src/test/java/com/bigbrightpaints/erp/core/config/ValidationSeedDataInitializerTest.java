@@ -100,12 +100,14 @@ class ValidationSeedDataInitializerTest {
         .when(creditRequestRepository.save(any(CreditRequest.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
     lenient()
-        .when(exportRequestRepository.findByCompanyAndStatusOrderByCreatedAtAsc(
-            any(Company.class), any(ExportApprovalStatus.class)))
+        .when(
+            exportRequestRepository.findByCompanyAndStatusOrderByCreatedAtAsc(
+                any(Company.class), any(ExportApprovalStatus.class)))
         .thenReturn(List.of());
     lenient()
-        .when(supportTicketRepository.findByCompanyAndUserIdOrderByCreatedAtDesc(
-            any(Company.class), any()))
+        .when(
+            supportTicketRepository.findByCompanyAndUserIdOrderByCreatedAtDesc(
+                any(Company.class), any()))
         .thenReturn(List.of());
     lenient()
         .when(creditRequestRepository.findPendingByCompanyOrderByCreatedAtDesc(any(Company.class)))

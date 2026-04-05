@@ -5,10 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.lenient;
 
 import java.time.LocalDate;
 import java.util.Optional;
@@ -43,7 +43,8 @@ class InvoiceNumberServiceTest {
     when(companyClock.today(any())).thenReturn(LocalDate.of(2024, 1, 1));
     invoiceNumberService =
         new InvoiceNumberService(invoiceSequenceRepository, txManager, companyClock);
-    lenient().when(invoiceSequenceRepository.saveAndFlush(any()))
+    lenient()
+        .when(invoiceSequenceRepository.saveAndFlush(any()))
         .thenAnswer(invocation -> invocation.getArgument(0));
   }
 

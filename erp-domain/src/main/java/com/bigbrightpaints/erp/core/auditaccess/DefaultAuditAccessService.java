@@ -46,7 +46,8 @@ public class DefaultAuditAccessService implements AuditAccessService {
     validateMergedFeedWindow(filter);
     Company company = companyContextService.requireCurrentCompany();
     AuditFeedSlice tenantAuditLogs = auditLogReadAdapter.queryTenantCompanyFeed(company, filter);
-    AuditFeedSlice tenantBusinessEvents = businessAuditReadAdapter.queryTenantCompanyFeed(company, filter);
+    AuditFeedSlice tenantBusinessEvents =
+        businessAuditReadAdapter.queryTenantCompanyFeed(company, filter);
     return merge(filter, tenantAuditLogs, tenantBusinessEvents);
   }
 
@@ -55,19 +56,27 @@ public class DefaultAuditAccessService implements AuditAccessService {
     validateMergedFeedWindow(filter);
     Company company = companyContextService.requireCurrentCompany();
     AuditFeedSlice accountingAuditLogs = auditLogReadAdapter.queryAccountingFeed(company, filter);
-    AuditFeedSlice accountingBusinessEvents = businessAuditReadAdapter.queryAccountingFeed(company, filter);
+    AuditFeedSlice accountingBusinessEvents =
+        businessAuditReadAdapter.queryAccountingFeed(company, filter);
     return merge(filter, accountingAuditLogs, accountingBusinessEvents);
   }
 
   @Override
   public PageResponse<AuditFeedItemDto> queryPlatformFeed(AuditFeedFilter filter) {
     AuditFeedSlice feed = auditLogReadAdapter.queryPlatformFeed(filter);
-    return PageResponse.of(feed.items(), feed.totalElements(), filter.safePage(), filter.safeSize());
+    return PageResponse.of(
+        feed.items(), feed.totalElements(), filter.safePage(), filter.safeSize());
   }
 
   @Override
   public PageResponse<AccountingTransactionAuditListItemDto> queryAccountingTransactions(
-      LocalDate from, LocalDate to, String module, String status, String reference, int page, int size) {
+      LocalDate from,
+      LocalDate to,
+      String module,
+      String status,
+      String reference,
+      int page,
+      int size) {
     return accountingTransactionAuditReadAdapter.listTransactions(
         from, to, module, status, reference, page, size);
   }
@@ -83,7 +92,8 @@ public class DefaultAuditAccessService implements AuditAccessService {
     }
     throw new ApplicationException(
             ErrorCode.VALIDATION_OUT_OF_RANGE,
-            "Requested audit page exceeds the supported result window; refine filters or reduce page size")
+            "Requested audit page exceeds the supported result window; refine filters or reduce"
+                + " page size")
         .withDetail("page", filter.safePage())
         .withDetail("size", filter.safeSize())
         .withDetail("maxWindow", filter.maxMergeWindow());
@@ -98,6 +108,10 @@ public class DefaultAuditAccessService implements AuditAccessService {
     long offset = (long) safePage * safeSize;
     int start = (int) Math.min(offset, merged.size());
     int end = Math.min(start + safeSize, merged.size());
-    return PageResponse.of(merged.subList(start, end), left.totalElements() + right.totalElements(), safePage, safeSize);
+    return PageResponse.of(
+        merged.subList(start, end),
+        left.totalElements() + right.totalElements(),
+        safePage,
+        safeSize);
   }
 }

@@ -58,8 +58,8 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy;
-import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
+import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
@@ -147,7 +147,10 @@ public class JournalEntryService extends AccountingCoreEngineCore {
     return super.listJournalEntriesByReferencePrefix(prefix);
   }
 
-  @Retryable(value = DataIntegrityViolationException.class, maxAttempts = 3, backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
+  @Retryable(
+      value = DataIntegrityViolationException.class,
+      maxAttempts = 3,
+      backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
   @Transactional
   @Override
   public JournalEntryDto createJournalEntry(JournalEntryRequest request) {
@@ -187,16 +190,23 @@ public class JournalEntryService extends AccountingCoreEngineCore {
       auditMetadata.put("referenceNumber", entry.getReferenceNumber());
 
       Optional<JournalEntry> duplicate =
-          journalEntryRepository.findByCompanyAndReferenceNumber(company, entry.getReferenceNumber());
+          journalEntryRepository.findByCompanyAndReferenceNumber(
+              company, entry.getReferenceNumber());
 
       LocalDate entryDate = request.entryDate();
-      if (entryDate == null) { throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Entry date is required"); }
+      if (entryDate == null) {
+        throw new ApplicationException(
+            ErrorCode.VALIDATION_INVALID_INPUT, "Entry date is required");
+      }
       boolean overrideRequested = Boolean.TRUE.equals(request.adminOverride());
       boolean overrideAuthorized = overrideRequested && hasEntryDateOverrideAuthority();
       boolean manualJournal =
           entry.getJournalType() == JournalEntryType.MANUAL
               || "MANUAL".equalsIgnoreCase(entry.getSourceModule());
-      if (manualJournal && !StringUtils.hasText(request.memo())) { throw new ApplicationException(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Manual journal reason is required"); }
+      if (manualJournal && !StringUtils.hasText(request.memo())) {
+        throw new ApplicationException(
+            ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Manual journal reason is required");
+      }
       entry.setAttachmentReferences(joinAttachmentReferences(request.attachmentReferences()));
       if (duplicate.isEmpty()) {
         AccountingPeriod postingPeriod;
@@ -257,7 +267,10 @@ public class JournalEntryService extends AccountingCoreEngineCore {
         Account account =
             accountRepository
                 .lockByCompanyAndId(company, accountId)
-                .orElseThrow(() -> new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Account not found"));
+                .orElseThrow(
+                    () ->
+                        new ApplicationException(
+                            ErrorCode.VALIDATION_INVALID_REFERENCE, "Account not found"));
         lockedAccounts.put(accountId, account);
       }
       Dealer dealerContext = dealer;
@@ -274,19 +287,28 @@ public class JournalEntryService extends AccountingCoreEngineCore {
         List<Dealer> dealerOwners =
             dealerRepository.findByCompanyAndReceivableAccountIn(company, receivableAccounts);
         for (Dealer owner : dealerOwners) {
-          if (owner.getReceivableAccount() == null || owner.getReceivableAccount().getId() == null || owner.getId() == null) { continue; }
+          if (owner.getReceivableAccount() == null
+              || owner.getReceivableAccount().getId() == null
+              || owner.getId() == null) {
+            continue;
+          }
           dealerOwnerByReceivableAccountId
               .computeIfAbsent(owner.getReceivableAccount().getId(), ignored -> new HashSet<>())
               .add(owner.getId());
         }
       }
-      List<Account> payableAccounts = distinctAccounts.stream().filter(this::isPayableAccount).toList();
+      List<Account> payableAccounts =
+          distinctAccounts.stream().filter(this::isPayableAccount).toList();
       if (!payableAccounts.isEmpty()) {
         hasPayableAccount = true;
         List<Supplier> supplierOwners =
             supplierRepository.findByCompanyAndPayableAccountIn(company, payableAccounts);
         for (Supplier owner : supplierOwners) {
-          if (owner.getPayableAccount() == null || owner.getPayableAccount().getId() == null || owner.getId() == null) { continue; }
+          if (owner.getPayableAccount() == null
+              || owner.getPayableAccount().getId() == null
+              || owner.getId() == null) {
+            continue;
+          }
           supplierOwnerByPayableAccountId
               .computeIfAbsent(owner.getPayableAccount().getId(), ignored -> new HashSet<>())
               .add(owner.getId());
@@ -294,7 +316,9 @@ public class JournalEntryService extends AccountingCoreEngineCore {
       }
       for (Account account : distinctAccounts) {
         Long accountId = account.getId();
-        if (accountId == null) { continue; }
+        if (accountId == null) {
+          continue;
+        }
         Set<Long> dealerOwnerIds = dealerOwnerByReceivableAccountId.get(accountId);
         if (dealerOwnerIds != null && !dealerOwnerIds.isEmpty()) {
           if (dealerContext == null) {
@@ -341,17 +365,27 @@ public class JournalEntryService extends AccountingCoreEngineCore {
         throw new ApplicationException(
             ErrorCode.VALIDATION_INVALID_INPUT, "Posting to AP requires a supplier context");
       }
-      if (dealerContext != null && hasReceivableAccount && dealerReceivableAccount == null) { dealerReceivableAccount = requireDealerReceivable(dealerContext); }
-      if (supplierContext != null && hasPayableAccount && supplierPayableAccount == null) { supplierPayableAccount = requireSupplierPayable(supplierContext); }
+      if (dealerContext != null && hasReceivableAccount && dealerReceivableAccount == null) {
+        dealerReceivableAccount = requireDealerReceivable(dealerContext);
+      }
+      if (supplierContext != null && hasPayableAccount && supplierPayableAccount == null) {
+        supplierPayableAccount = requireSupplierPayable(supplierContext);
+      }
       BigDecimal totalBaseDebit = BigDecimal.ZERO;
       BigDecimal totalBaseCredit = BigDecimal.ZERO;
       BigDecimal totalForeignDebit = BigDecimal.ZERO;
       BigDecimal totalForeignCredit = BigDecimal.ZERO;
       List<JournalLine> postedLines = new ArrayList<>();
       for (JournalEntryRequest.JournalLineRequest lineRequest : lines) {
-        if (lineRequest.accountId() == null) { throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Account is required for every journal line"); }
+        if (lineRequest.accountId() == null) {
+          throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT, "Account is required for every journal line");
+        }
         Account account = lockedAccounts.get(lineRequest.accountId());
-        if (account == null) { throw new ApplicationException(ErrorCode.VALIDATION_INVALID_REFERENCE, "Account not found"); }
+        if (account == null) {
+          throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_REFERENCE, "Account not found");
+        }
 
         JournalLine line = new JournalLine();
         line.setJournalEntry(entry);
@@ -361,8 +395,17 @@ public class JournalEntryService extends AccountingCoreEngineCore {
         BigDecimal debitInput = lineRequest.debit() == null ? BigDecimal.ZERO : lineRequest.debit();
         BigDecimal creditInput =
             lineRequest.credit() == null ? BigDecimal.ZERO : lineRequest.credit();
-        if (debitInput.compareTo(BigDecimal.ZERO) < 0 || creditInput.compareTo(BigDecimal.ZERO) < 0) { throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Debit/Credit cannot be negative"); }
-        if (debitInput.compareTo(BigDecimal.ZERO) > 0 && creditInput.compareTo(BigDecimal.ZERO) > 0) { throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, "Debit and credit cannot both be non-zero on the same line"); }
+        if (debitInput.compareTo(BigDecimal.ZERO) < 0
+            || creditInput.compareTo(BigDecimal.ZERO) < 0) {
+          throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT, "Debit/Credit cannot be negative");
+        }
+        if (debitInput.compareTo(BigDecimal.ZERO) > 0
+            && creditInput.compareTo(BigDecimal.ZERO) > 0) {
+          throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT,
+              "Debit and credit cannot both be non-zero on the same line");
+        }
 
         if (foreignCurrency) {
           totalForeignDebit = totalForeignDebit.add(debitInput);
@@ -443,12 +486,18 @@ public class JournalEntryService extends AccountingCoreEngineCore {
         return toDto(existingEntry);
       }
 
-      if (dealer != null && dealerReceivableAccount != null && dealerArLines > 1 && !overrideAuthorized) {
+      if (dealer != null
+          && dealerReceivableAccount != null
+          && dealerArLines > 1
+          && !overrideAuthorized) {
         throw new ApplicationException(
             ErrorCode.VALIDATION_INVALID_INPUT,
             "Dealer journal entry has multiple receivable lines; admin override required");
       }
-      if (supplier != null && supplierPayableAccount != null && supplierApLines > 1 && !overrideAuthorized) {
+      if (supplier != null
+          && supplierPayableAccount != null
+          && supplierApLines > 1
+          && !overrideAuthorized) {
         throw new ApplicationException(
             ErrorCode.VALIDATION_INVALID_INPUT,
             "Supplier journal entry has multiple payable lines; admin override required");
@@ -466,7 +515,8 @@ public class JournalEntryService extends AccountingCoreEngineCore {
         saved = journalEntryRepository.save(entry);
       } catch (DataIntegrityViolationException ex) {
         Optional<JournalEntry> existing =
-            journalEntryRepository.findByCompanyAndReferenceNumber(company, entry.getReferenceNumber());
+            journalEntryRepository.findByCompanyAndReferenceNumber(
+                company, entry.getReferenceNumber());
         if (existing.isPresent()) {
           JournalEntry existingEntry = existing.get();
           if (existingEntry.getId() != null) {
@@ -490,13 +540,15 @@ public class JournalEntryService extends AccountingCoreEngineCore {
         Map<Long, BigDecimal> balancesBefore = new HashMap<>();
         for (Map.Entry<Account, BigDecimal> delta : sortedDeltas) {
           Account account = delta.getKey();
-          BigDecimal current = account.getBalance() == null ? BigDecimal.ZERO : account.getBalance();
+          BigDecimal current =
+              account.getBalance() == null ? BigDecimal.ZERO : account.getBalance();
           if (account.getId() != null) {
             balancesBefore.putIfAbsent(account.getId(), current);
           }
           BigDecimal updated = current.add(delta.getValue());
           account.validateBalanceUpdate(updated);
-          int rows = accountRepository.updateBalanceAtomic(company, account.getId(), delta.getValue());
+          int rows =
+              accountRepository.updateBalanceAtomic(company, account.getId(), delta.getValue());
           if (rows != 1) {
             throw new ApplicationException(
                 ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
@@ -520,8 +572,14 @@ public class JournalEntryService extends AccountingCoreEngineCore {
         if (dealerLedgerDebitTotal.compareTo(BigDecimal.ZERO) != 0
             || dealerLedgerCreditTotal.compareTo(BigDecimal.ZERO) != 0) {
           dealerLedgerService.recordLedgerEntry(
-              saved.getDealer(), new AbstractPartnerLedgerService.LedgerContext(
-                  saved.getEntryDate(), saved.getReferenceNumber(), saved.getMemo(), dealerLedgerDebitTotal, dealerLedgerCreditTotal, saved));
+              saved.getDealer(),
+              new AbstractPartnerLedgerService.LedgerContext(
+                  saved.getEntryDate(),
+                  saved.getReferenceNumber(),
+                  saved.getMemo(),
+                  dealerLedgerDebitTotal,
+                  dealerLedgerCreditTotal,
+                  saved));
         }
       }
       if (saved.getSupplier() != null && supplierPayableAccount != null) {
@@ -535,8 +593,14 @@ public class JournalEntryService extends AccountingCoreEngineCore {
         if (supplierLedgerDebitTotal.compareTo(BigDecimal.ZERO) != 0
             || supplierLedgerCreditTotal.compareTo(BigDecimal.ZERO) != 0) {
           supplierLedgerService.recordLedgerEntry(
-              saved.getSupplier(), new AbstractPartnerLedgerService.LedgerContext(
-                  saved.getEntryDate(), saved.getReferenceNumber(), saved.getMemo(), supplierLedgerDebitTotal, supplierLedgerCreditTotal, saved));
+              saved.getSupplier(),
+              new AbstractPartnerLedgerService.LedgerContext(
+                  saved.getEntryDate(),
+                  saved.getReferenceNumber(),
+                  saved.getMemo(),
+                  supplierLedgerDebitTotal,
+                  supplierLedgerCreditTotal,
+                  saved));
         }
       }
       if (saved.getId() != null) {
@@ -709,27 +773,37 @@ public class JournalEntryService extends AccountingCoreEngineCore {
               reservedManualReference(key),
               "JOURNAL_ENTRY",
               CompanyTime.now(company));
-      if (reserved == 0) { JournalEntry already = awaitJournalEntry(company, rawKey, key); if (already != null) { return toDto(already); } throw new ApplicationException(
-              ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
-              "Manual journal idempotency key already reserved but entry not found").withDetail("referenceNumber", rawKey); }
+      if (reserved == 0) {
+        JournalEntry already = awaitJournalEntry(company, rawKey, key);
+        if (already != null) {
+          return toDto(already);
+        }
+        throw new ApplicationException(
+                ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+                "Manual journal idempotency key already reserved but entry not found")
+            .withDetail("referenceNumber", rawKey);
+      }
     }
     JournalEntryDto created;
     try {
       created =
-          createJournalEntry(new JournalEntryRequest(
-              null,
-              request.entryDate(),
-              request.memo(),
-              request.dealerId(),
-              request.supplierId(),
-              request.adminOverride(),
-              request.lines(),
-              request.currency(),
-              request.fxRate(),
-              request.sourceModule(),
-              request.sourceReference(),
-              StringUtils.hasText(request.journalType()) ? request.journalType() : JournalEntryType.MANUAL.name(),
-              request.attachmentReferences()));
+          createJournalEntry(
+              new JournalEntryRequest(
+                  null,
+                  request.entryDate(),
+                  request.memo(),
+                  request.dealerId(),
+                  request.supplierId(),
+                  request.adminOverride(),
+                  request.lines(),
+                  request.currency(),
+                  request.fxRate(),
+                  request.sourceModule(),
+                  request.sourceReference(),
+                  StringUtils.hasText(request.journalType())
+                      ? request.journalType()
+                      : JournalEntryType.MANUAL.name(),
+                  request.attachmentReferences()));
     } catch (RuntimeException ex) {
       if (!StringUtils.hasText(rawKey) || !isRetryableManualConcurrencyFailure(ex)) {
         throw ex;
@@ -740,12 +814,17 @@ public class JournalEntryService extends AccountingCoreEngineCore {
       }
       throw ex;
     }
-    if (StringUtils.hasText(key) && created != null && StringUtils.hasText(created.referenceNumber())) {
+    if (StringUtils.hasText(key)
+        && created != null
+        && StringUtils.hasText(created.referenceNumber())) {
       JournalReferenceMapping mapping =
           findLatestLegacyReferenceMapping(company, key)
-              .orElseThrow(() -> new ApplicationException(
-                      ErrorCode.INTERNAL_CONCURRENCY_FAILURE, "Manual journal idempotency reservation missing")
-                  .withDetail("referenceNumber", rawKey));
+              .orElseThrow(
+                  () ->
+                      new ApplicationException(
+                              ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+                              "Manual journal idempotency reservation missing")
+                          .withDetail("referenceNumber", rawKey));
       mapping.setCanonicalReference(created.referenceNumber());
       mapping.setEntityId(created.id());
       journalReferenceMappingRepository.save(mapping);

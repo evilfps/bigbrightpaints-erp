@@ -17,7 +17,8 @@ import org.springframework.stereotype.Repository;
  * Repository for audit log operations.
  */
 @Repository
-public interface AuditLogRepository extends JpaRepository<AuditLog, Long>, JpaSpecificationExecutor<AuditLog> {
+public interface AuditLogRepository
+    extends JpaRepository<AuditLog, Long>, JpaSpecificationExecutor<AuditLog> {
 
   @Override
   @EntityGraph(attributePaths = "metadata")

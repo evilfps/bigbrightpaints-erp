@@ -4,8 +4,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-import jakarta.servlet.http.HttpServletRequest;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
@@ -13,10 +11,11 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 final class AccountingApplicationExceptionResponses {
 
-  private AccountingApplicationExceptionResponses() {
-  }
+  private AccountingApplicationExceptionResponses() {}
 
   static ResponseEntity<ApiResponse<Map<String, Object>>> badRequest(
       ApplicationException ex, HttpServletRequest request) {

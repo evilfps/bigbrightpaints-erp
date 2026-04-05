@@ -142,8 +142,9 @@ class OpeningStockImportServiceTest {
         .thenAnswer(invocation -> readyReadiness(invocation.getArgument(1, String.class)));
     lenient()
         .when(
-            openingStockImportRepository.findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
-                eq(company), anyString()))
+            openingStockImportRepository
+                .findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
+                    eq(company), anyString()))
         .thenReturn(Optional.empty());
   }
 
@@ -402,8 +403,7 @@ class OpeningStockImportServiceTest {
             company, openingStockBatchKey))
         .thenReturn(Optional.of(existing));
 
-    assertThatThrownBy(
-            () -> importOpeningStock(unreadableFile, "fresh-key", openingStockBatchKey))
+    assertThatThrownBy(() -> importOpeningStock(unreadableFile, "fresh-key", openingStockBatchKey))
         .isInstanceOfSatisfying(
             ApplicationException.class,
             ex -> {
@@ -1500,13 +1500,12 @@ class OpeningStockImportServiceTest {
 
     when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "fresh-key"))
         .thenReturn(Optional.empty());
-    when(
-            openingStockImportRepository.findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
+    when(openingStockImportRepository
+            .findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
                 company, fingerprint(csv)))
         .thenReturn(Optional.of(existing));
 
-    assertThatThrownBy(
-            () -> importOpeningStock(file, "fresh-key", "OPEN-STOCK-BATCH-FRESH"))
+    assertThatThrownBy(() -> importOpeningStock(file, "fresh-key", "OPEN-STOCK-BATCH-FRESH"))
         .isInstanceOfSatisfying(
             ApplicationException.class,
             ex -> {
@@ -1517,8 +1516,7 @@ class OpeningStockImportServiceTest {
                   .containsEntry("existingOpeningStockBatchKey", "OPEN-STOCK-BATCH-ORIGINAL")
                   .containsEntry("referenceNumber", "OPEN-STOCK-ACME-ORIGINAL")
                   .containsEntry("attemptedIdempotencyKey", "fresh-key")
-                  .containsEntry(
-                      "attemptedOpeningStockBatchKey", "OPEN-STOCK-BATCH-FRESH");
+                  .containsEntry("attemptedOpeningStockBatchKey", "OPEN-STOCK-BATCH-FRESH");
             });
   }
 
@@ -1537,8 +1535,7 @@ class OpeningStockImportServiceTest {
     existing.setOpeningStockBatchKey("OPEN-STOCK-BATCH-ORIGINAL");
     existing.setReferenceNumber("OPEN-STOCK-ACME-ORIGINAL");
     existing.setJournalEntryId(900L);
-    existing.setContentFingerprint(
-        legacyFingerprint("OPEN-STOCK-BATCH-ORIGINAL", "original-key"));
+    existing.setContentFingerprint(legacyFingerprint("OPEN-STOCK-BATCH-ORIGINAL", "original-key"));
     ReflectionTestUtils.setField(existing, "createdAt", Instant.parse("2026-02-03T12:00:00Z"));
 
     RawMaterial rawMaterial = new RawMaterial();
@@ -1556,25 +1553,22 @@ class OpeningStockImportServiceTest {
     rawMovement.setQuantity(new BigDecimal("10.00"));
     rawMovement.setUnitCost(new BigDecimal("5.00"));
 
-    when(
-            openingStockImportRepository.findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
+    when(openingStockImportRepository
+            .findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
                 company, fingerprint(csv)))
         .thenReturn(Optional.empty());
     when(openingStockImportRepository.findByCompanyOrderByCreatedAtAscIdAsc(company))
         .thenReturn(List.of(existing));
-    when(
-            rawMaterialMovementRepository
-                .findByRawMaterial_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
-                    company, 900L, InventoryReference.OPENING_STOCK))
+    when(rawMaterialMovementRepository
+            .findByRawMaterial_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
+                company, 900L, InventoryReference.OPENING_STOCK))
         .thenReturn(List.of(rawMovement));
-    when(
-            inventoryMovementRepository
-                .findByFinishedGood_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
-                    company, 900L, InventoryReference.OPENING_STOCK))
+    when(inventoryMovementRepository
+            .findByFinishedGood_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
+                company, 900L, InventoryReference.OPENING_STOCK))
         .thenReturn(List.of());
 
-    assertThatThrownBy(
-            () -> importOpeningStock(file, "fresh-key", "OPEN-STOCK-BATCH-FRESH"))
+    assertThatThrownBy(() -> importOpeningStock(file, "fresh-key", "OPEN-STOCK-BATCH-FRESH"))
         .isInstanceOfSatisfying(
             ApplicationException.class,
             ex -> {
@@ -1589,8 +1583,7 @@ class OpeningStockImportServiceTest {
         .save(
             org.mockito.ArgumentMatchers.argThat(
                 record ->
-                    record != null
-                        && fingerprint(csv).equals(record.getContentFingerprint())));
+                    record != null && fingerprint(csv).equals(record.getContentFingerprint())));
   }
 
   @Test
@@ -1611,15 +1604,16 @@ class OpeningStockImportServiceTest {
     existing.setReferenceNumber("OPEN-STOCK-ACME-ORIGINAL");
     existing.setContentFingerprint(fingerprint(csv));
 
-    when(
-            openingStockImportRepository.findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
+    when(openingStockImportRepository
+            .findFirstByCompanyAndContentFingerprintOrderByCreatedAtAscIdAsc(
                 company, fingerprint(csv)))
         .thenReturn(Optional.of(existing));
 
     OpeningStockImportResponse response = importOpeningStock(file, "fresh-key", "batch-same");
 
     assertThat(response.rowsProcessed()).isEqualTo(1);
-    ArgumentCaptor<OpeningStockImport> savedRecord = ArgumentCaptor.forClass(OpeningStockImport.class);
+    ArgumentCaptor<OpeningStockImport> savedRecord =
+        ArgumentCaptor.forClass(OpeningStockImport.class);
     verify(openingStockImportRepository).saveAndFlush(savedRecord.capture());
     assertThat(savedRecord.getValue().getContentFingerprint()).isEqualTo(fingerprint(csv));
   }
@@ -1675,7 +1669,8 @@ class OpeningStockImportServiceTest {
 
     when(openingStockImportRepository.findByCompanyAndIdempotencyKey(company, "fresh-key"))
         .thenReturn(Optional.empty());
-    when(openingStockImportRepository.findByCompanyAndOpeningStockBatchKey(company, openingStockBatchKey))
+    when(openingStockImportRepository.findByCompanyAndOpeningStockBatchKey(
+            company, openingStockBatchKey))
         .thenReturn(Optional.empty());
     when(journalEntryRepository.findByCompanyAndReferenceNumber(company, importReference))
         .thenReturn(Optional.of(new JournalEntry()));
@@ -2075,19 +2070,18 @@ class OpeningStockImportServiceTest {
 
     when(openingStockImportRepository.findByCompanyOrderByCreatedAtAscIdAsc(company))
         .thenReturn(List.of(legacy));
-    when(
-            rawMaterialMovementRepository
-                .findByRawMaterial_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
-                    company, 901L, InventoryReference.OPENING_STOCK))
+    when(rawMaterialMovementRepository
+            .findByRawMaterial_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
+                company, 901L, InventoryReference.OPENING_STOCK))
         .thenReturn(List.of(packagingMovement));
-    when(
-            inventoryMovementRepository
-                .findByFinishedGood_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
-                    company, 901L, InventoryReference.OPENING_STOCK))
+    when(inventoryMovementRepository
+            .findByFinishedGood_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
+                company, 901L, InventoryReference.OPENING_STOCK))
         .thenReturn(List.of(finishedMovement));
 
     OpeningStockImport replay =
-        ReflectionTestUtils.invokeMethod(service, "findContentReplay", company, expectedFingerprint);
+        ReflectionTestUtils.invokeMethod(
+            service, "findContentReplay", company, expectedFingerprint);
 
     assertThat(replay).isSameAs(legacy);
     verify(openingStockImportRepository)
@@ -2146,15 +2140,13 @@ class OpeningStockImportServiceTest {
 
     when(openingStockImportRepository.findByCompanyOrderByCreatedAtAscIdAsc(company))
         .thenReturn(List.of(nonLegacy, missingJournal, differentLegacy));
-    when(
-            rawMaterialMovementRepository
-                .findByRawMaterial_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
-                    company, 902L, InventoryReference.OPENING_STOCK))
+    when(rawMaterialMovementRepository
+            .findByRawMaterial_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
+                company, 902L, InventoryReference.OPENING_STOCK))
         .thenReturn(List.of(ignoredMovement, validMovement));
-    when(
-            inventoryMovementRepository
-                .findByFinishedGood_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
-                    company, 902L, InventoryReference.OPENING_STOCK))
+    when(inventoryMovementRepository
+            .findByFinishedGood_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
+                company, 902L, InventoryReference.OPENING_STOCK))
         .thenReturn(null);
 
     OpeningStockImport replay =
@@ -2182,8 +2174,7 @@ class OpeningStockImportServiceTest {
     List<String> parsedRows =
         ReflectionTestUtils.invokeMethod(service, "parseFingerprintRows", normalizedPayload);
 
-    assertThat(parsedRows)
-        .containsExactly("FINISHED_GOOD|FG-1|1000|12|2026-02-01|2026-08-01");
+    assertThat(parsedRows).containsExactly("FINISHED_GOOD|FG-1|1000|12|2026-02-01|2026-08-01");
     assertThat(
             (String)
                 ReflectionTestUtils.invokeMethod(
@@ -2191,7 +2182,8 @@ class OpeningStockImportServiceTest {
                     "normalizeFilePayload",
                     "\uFEFFa\r\nb\rc".getBytes(StandardCharsets.UTF_8)))
         .isEqualTo("a\nb\nc");
-    assertThat((String) ReflectionTestUtils.invokeMethod(service, "normalizeDecimal", (Object) null))
+    assertThat(
+            (String) ReflectionTestUtils.invokeMethod(service, "normalizeDecimal", (Object) null))
         .isEmpty();
     assertThat(
             (String)

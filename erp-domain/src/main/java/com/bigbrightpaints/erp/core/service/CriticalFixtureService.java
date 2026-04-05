@@ -250,7 +250,8 @@ public class CriticalFixtureService {
       String productName,
       BigDecimal basePrice,
       BigDecimal gstRate) {
-    Optional<ProductionProduct> existingProduct = productRepository.findByCompanyAndSkuCode(company, sku);
+    Optional<ProductionProduct> existingProduct =
+        productRepository.findByCompanyAndSkuCode(company, sku);
     ProductionProduct product = existingProduct.orElseGet(ProductionProduct::new);
     product.setCompany(company);
     product.setBrand(brand);

@@ -424,9 +424,7 @@ public class EnterpriseAuditTrailService {
     int maxAttempts = Math.max(1, businessEventRetryMaxAttempts);
     if (failedAttemptCount >= maxAttempts) {
       log.error(
-          "Dropping business audit event after {} failed attempts",
-          failedAttemptCount,
-          exception);
+          "Dropping business audit event after {} failed attempts", failedAttemptCount, exception);
       return;
     }
 
@@ -446,10 +444,7 @@ public class EnterpriseAuditTrailService {
     }
 
     log.warn(
-        "Queued business audit event retry {}/{}",
-        failedAttemptCount + 1,
-        maxAttempts,
-        exception);
+        "Queued business audit event retry {}/{}", failedAttemptCount + 1, maxAttempts, exception);
   }
 
   private boolean persistBusinessEventRetry(
@@ -481,8 +476,7 @@ public class EnterpriseAuditTrailService {
       return true;
     } catch (Exception persistenceEx) {
       log.error(
-          "Failed to persist business audit retry; falling back to in-memory queue",
-          persistenceEx);
+          "Failed to persist business audit retry; falling back to in-memory queue", persistenceEx);
       return false;
     }
   }

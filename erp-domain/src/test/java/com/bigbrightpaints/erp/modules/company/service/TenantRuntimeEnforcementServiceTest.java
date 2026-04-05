@@ -21,8 +21,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -325,8 +325,7 @@ class TenantRuntimeEnforcementServiceTest {
   @Test
   void enforceAuthOperationAllowed_failClosedWhenCompanyLookupUnavailableAfterPolicyWarmup() {
     TenantRuntimeEnforcementService.TenantRuntimeSnapshot warmed = service.snapshot("ACME");
-    assertThat(warmed.state())
-        .isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
+    assertThat(warmed.state()).isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
     when(companyRepository.findByCodeIgnoreCase(eq("ACME")))
         .thenThrow(new RuntimeException("company-lookup-unavailable"));
 
@@ -387,8 +386,7 @@ class TenantRuntimeEnforcementServiceTest {
   @Test
   void enforceAuthOperationAllowed_cachedPolicyStillTreatsMissingTenantAsNotFound() {
     TenantRuntimeEnforcementService.TenantRuntimeSnapshot warmed = service.snapshot("ACME");
-    assertThat(warmed.state())
-        .isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
+    assertThat(warmed.state()).isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
     companiesByCode.remove("ACME");
 
     assertThatThrownBy(
@@ -517,8 +515,7 @@ class TenantRuntimeEnforcementServiceTest {
   @Test
   void snapshot_translatesCompanyLookupFailureOnCachedPolicyToControlledServiceUnavailable() {
     TenantRuntimeEnforcementService.TenantRuntimeSnapshot warmed = service.snapshot("ACME");
-    assertThat(warmed.state())
-        .isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
+    assertThat(warmed.state()).isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
 
     when(companyRepository.findByCodeIgnoreCase(eq("ACME")))
         .thenThrow(new RuntimeException("company-lookup-unavailable"));
@@ -645,8 +642,7 @@ class TenantRuntimeEnforcementServiceTest {
   @Test
   void snapshot_waitsForPolicyMutationToFinishBeforeRefreshingExpiredPolicy() throws Exception {
     TenantRuntimeEnforcementService.TenantRuntimeSnapshot warmed = service.snapshot("ACME");
-    assertThat(warmed.state())
-        .isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
+    assertThat(warmed.state()).isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
     expireCachedPolicyRefreshDeadline("ACME");
 
     CountDownLatch firstPersistedWrite = new CountDownLatch(1);
@@ -991,7 +987,8 @@ class TenantRuntimeEnforcementServiceTest {
 
     TenantRuntimeEnforcementService.TenantRuntimeSnapshot restored = service.snapshot("ACME");
 
-    assertThat(restored.state()).isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
+    assertThat(restored.state())
+        .isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
     assertThat(restored.reasonCode()).isEqualTo("RATCHET");
     assertThat(restored.maxConcurrentRequests()).isEqualTo(13);
     assertThat(restored.maxRequestsPerMinute()).isEqualTo(15);
@@ -1012,7 +1009,8 @@ class TenantRuntimeEnforcementServiceTest {
 
     TenantRuntimeEnforcementService.TenantRuntimeSnapshot resumed =
         service.resumeTenant("ACME", "ops@bbp.com");
-    assertThat(resumed.state()).isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
+    assertThat(resumed.state())
+        .isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
 
     org.mockito.Mockito.doThrow(new RuntimeException("audit-write-failed"))
         .when(auditService)
@@ -1636,14 +1634,7 @@ class TenantRuntimeEnforcementServiceTest {
   void auditPolicyChange_defaultsMissingTenantStateWithoutNullDereference() throws Exception {
     Object policy =
         tenantRuntimePolicy(
-            null,
-            "POLICY_ACTIVE",
-            3,
-            5,
-            7,
-            "CHAIN-700",
-            Instant.parse("2026-01-07T00:00:00Z"),
-            0L);
+            null, "POLICY_ACTIVE", 3, 5, 7, "CHAIN-700", Instant.parse("2026-01-07T00:00:00Z"), 0L);
 
     @SuppressWarnings("unchecked")
     var metadataCaptor =
@@ -1696,10 +1687,7 @@ class TenantRuntimeEnforcementServiceTest {
 
     verify(auditService)
         .logAuthFailure(
-            eq(AuditEvent.ACCESS_DENIED),
-            eq("OPS@BBP.COM"),
-            eq("ACME"),
-            metadataCaptor.capture());
+            eq(AuditEvent.ACCESS_DENIED), eq("OPS@BBP.COM"), eq("ACME"), metadataCaptor.capture());
     assertThat(metadataCaptor.getValue())
         .containsEntry("tenantState", "BLOCKED")
         .containsEntry("reasonCode", "TENANT_RUNTIME_POLICY_UNAVAILABLE")
@@ -1720,7 +1708,8 @@ class TenantRuntimeEnforcementServiceTest {
   }
 
   @Test
-  void policyPersistedStateHelpers_applyFallbacksAndReturnEmptyWhenInputsMissing() throws Exception {
+  void policyPersistedStateHelpers_applyFallbacksAndReturnEmptyWhenInputsMissing()
+      throws Exception {
     @SuppressWarnings("unchecked")
     Map<String, String> emptyPersistedState =
         ReflectionTestUtils.invokeMethod(service, "policyToPersistedState", null, null);
@@ -1741,19 +1730,20 @@ class TenantRuntimeEnforcementServiceTest {
                 null,
                 null,
                 0L));
-    Object noPolicy = ReflectionTestUtils.invokeMethod(service, "policyFromPersistedState", 1L, Map.of());
+    Object noPolicy =
+        ReflectionTestUtils.invokeMethod(service, "policyFromPersistedState", 1L, Map.of());
     Object resolvedPolicy =
         ReflectionTestUtils.invokeMethod(service, "policyFromPersistedState", 1L, persistedState);
 
     assertThat(noPolicy).isNull();
     assertThat(ReflectionTestUtils.getField(resolvedPolicy, "reasonCode")).isEqualTo("MAINTENANCE");
-    assertThat(ReflectionTestUtils.getField(resolvedPolicy, "auditChainId"))
-        .isEqualTo("bootstrap");
+    assertThat(ReflectionTestUtils.getField(resolvedPolicy, "auditChainId")).isEqualTo("bootstrap");
   }
 
   @Test
   void readPersistedPolicySetting_wrapsRepositoryFailuresAsManagedOperationFailures() {
-    when(systemSettingsRepository.findById(keyHoldState(1L))).thenThrow(new RuntimeException("boom"));
+    when(systemSettingsRepository.findById(keyHoldState(1L)))
+        .thenThrow(new RuntimeException("boom"));
 
     assertThatThrownBy(
             () ->
@@ -1802,8 +1792,10 @@ class TenantRuntimeEnforcementServiceTest {
     Long activeUsers = ReflectionTestUtils.invokeMethod(service, "resolveActiveUsers", "ACME");
 
     assertThat(activeUsers).isZero();
-    when(companyRepository.findByCodeIgnoreCase("FAIL")).thenThrow(new RuntimeException("lookup down"));
-    assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "resolveActiveUsers", "FAIL"))
+    when(companyRepository.findByCodeIgnoreCase("FAIL"))
+        .thenThrow(new RuntimeException("lookup down"));
+    assertThatThrownBy(
+            () -> ReflectionTestUtils.invokeMethod(service, "resolveActiveUsers", "FAIL"))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Tenant company lookup is unavailable");
   }

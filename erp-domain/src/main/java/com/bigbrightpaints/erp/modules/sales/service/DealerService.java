@@ -236,7 +236,11 @@ public class DealerService {
 
     dealer = dealerRepository.save(dealer);
     BigDecimal balance = dealerLedgerService.currentBalance(dealer.getId());
-    return toResponse(dealer, dealer.getPortalUser() != null ? dealer.getPortalUser().getEmail() : null, balance, resolvePendingOrderExposure(dealer));
+    return toResponse(
+        dealer,
+        dealer.getPortalUser() != null ? dealer.getPortalUser().getEmail() : null,
+        balance,
+        resolvePendingOrderExposure(dealer));
   }
 
   @Transactional
@@ -473,7 +477,8 @@ public class DealerService {
   private List<Dealer> listAllDealers(Company company, String normalizedStatus) {
     return normalizedStatus == null
         ? dealerRepository.findByCompanyOrderByNameAsc(company)
-        : dealerRepository.findByCompanyAndStatusIgnoreCaseOrderByNameAsc(company, normalizedStatus);
+        : dealerRepository.findByCompanyAndStatusIgnoreCaseOrderByNameAsc(
+            company, normalizedStatus);
   }
 
   private List<Dealer> listDealersPage(
@@ -481,12 +486,13 @@ public class DealerService {
     PageRequest directoryPage =
         PageRequest.of(
             normalizePage(page != null ? page : DEALER_DIRECTORY_DEFAULT_PAGE),
-            normalizeSize(size != null ? size : DEALER_DIRECTORY_DEFAULT_SIZE,
-                DEALER_DIRECTORY_DEFAULT_SIZE),
+            normalizeSize(
+                size != null ? size : DEALER_DIRECTORY_DEFAULT_SIZE, DEALER_DIRECTORY_DEFAULT_SIZE),
             Sort.by(Sort.Order.asc("name"), Sort.Order.asc("id")));
     return normalizedStatus == null
         ? dealerRepository.findByCompany(company, directoryPage)
-        : dealerRepository.findByCompanyAndStatusIgnoreCase(company, normalizedStatus, directoryPage);
+        : dealerRepository.findByCompanyAndStatusIgnoreCase(
+            company, normalizedStatus, directoryPage);
   }
 
   private String normalizeCreditStatus(String creditStatus) {
@@ -541,8 +547,8 @@ public class DealerService {
       return Map.of();
     }
     Map<Long, BigDecimal> exposures = new LinkedHashMap<>();
-    for (DealerCreditExposureView row : salesOrderRepository
-        .sumPendingCreditExposureByCompanyAndDealerIds(
+    for (DealerCreditExposureView row :
+        salesOrderRepository.sumPendingCreditExposureByCompanyAndDealerIds(
             company, dealerIds, SalesOrderCreditExposurePolicy.pendingCreditExposureStatuses())) {
       if (row == null || row.dealerId() == null) {
         continue;

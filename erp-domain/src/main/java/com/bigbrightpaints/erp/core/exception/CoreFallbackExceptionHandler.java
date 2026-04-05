@@ -188,8 +188,7 @@ public class CoreFallbackExceptionHandler {
     data.put("code", ErrorCode.BUSINESS_INVALID_STATE.getCode());
     data.put("message", userMessage);
     data.put("traceId", traceId);
-    return ResponseEntity.status(HttpStatus.CONFLICT)
-        .body(ApiResponse.failure(userMessage, data));
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.failure(userMessage, data));
   }
 
   @ExceptionHandler(RuntimeException.class)

@@ -404,7 +404,8 @@ class AccountingCatalogControllerSecurityIT extends AbstractIntegrationTest {
             "/api/v1/catalog/items",
             HttpMethod.POST,
             new HttpEntity<>(
-                canonicalFinishedGoodPayload(brand.getId(), "Stock Visibility Product " + shortId()),
+                canonicalFinishedGoodPayload(
+                    brand.getId(), "Stock Visibility Product " + shortId()),
                 headers),
             Map.class);
     assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);

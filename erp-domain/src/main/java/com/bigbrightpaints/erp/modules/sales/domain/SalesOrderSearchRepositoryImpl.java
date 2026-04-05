@@ -43,8 +43,7 @@ class SalesOrderSearchRepositoryImpl implements SalesOrderSearchRepository {
     selectQuery
         .select(selectRoot.get("id"))
         .where(
-            buildPredicates(
-                    company, status, dealer, orderNumber, fromDate, toDate, selectRoot, cb)
+            buildPredicates(company, status, dealer, orderNumber, fromDate, toDate, selectRoot, cb)
                 .toArray(Predicate[]::new))
         .orderBy(cb.desc(selectRoot.get("createdAt")), cb.desc(selectRoot.get("id")));
 
@@ -102,27 +101,28 @@ class SalesOrderSearchRepositoryImpl implements SalesOrderSearchRepository {
     return predicates;
   }
 
-  private Predicate buildStatusPredicate(Path<String> statusPath, CriteriaBuilder cb, String status) {
+  private Predicate buildStatusPredicate(
+      Path<String> statusPath, CriteriaBuilder cb, String status) {
     if (!StringUtils.hasText(status)) {
       return null;
     }
     String normalizedStatus = status.trim().toUpperCase(Locale.ROOT);
     jakarta.persistence.criteria.Expression<String> normalizedPath = cb.upper(cb.trim(statusPath));
     return switch (normalizedStatus) {
-      case "DRAFT" -> cb.or(
-          cb.equal(normalizedPath, normalizedStatus), cb.equal(normalizedPath, "BOOKED"));
-      case "DISPATCHED" -> cb.or(
-          cb.equal(normalizedPath, normalizedStatus),
-          normalizedPath.in("SHIPPED", "FULFILLED"));
-      case "SETTLED" -> cb.or(
-          cb.equal(normalizedPath, normalizedStatus), cb.equal(normalizedPath, "COMPLETED"));
+      case "DRAFT" ->
+          cb.or(cb.equal(normalizedPath, normalizedStatus), cb.equal(normalizedPath, "BOOKED"));
+      case "DISPATCHED" ->
+          cb.or(
+              cb.equal(normalizedPath, normalizedStatus),
+              normalizedPath.in("SHIPPED", "FULFILLED"));
+      case "SETTLED" ->
+          cb.or(cb.equal(normalizedPath, normalizedStatus), cb.equal(normalizedPath, "COMPLETED"));
       default -> cb.equal(normalizedPath, normalizedStatus);
     };
   }
 
   private String containsPattern(String value) {
-    String escaped =
-        value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    String escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     return "%" + escaped + "%";
   }
 }

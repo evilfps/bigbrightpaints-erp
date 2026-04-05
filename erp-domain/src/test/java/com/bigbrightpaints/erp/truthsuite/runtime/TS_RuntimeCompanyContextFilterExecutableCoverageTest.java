@@ -102,11 +102,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         TenantRuntimeEnforcementService.TenantRequestAdmission.admittedPolicyControl(
             "ACME", "chain-1");
     when(tenantRuntimeRequestAdmissionService.beginRequest(
-            "ACME",
-            "/api/v1/superadmin/tenants/42/lifecycle",
-            "PUT",
-            "ops@bbp.com",
-            true))
+            "ACME", "/api/v1/superadmin/tenants/42/lifecycle", "PUT", "ops@bbp.com", true))
         .thenReturn(admission);
 
     MockHttpServletRequest request = request("PUT", "/api/v1/superadmin/tenants/42/lifecycle");
@@ -121,11 +117,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
     assertThat(response.getStatus()).isEqualTo(200);
     verify(tenantRuntimeRequestAdmissionService)
         .beginRequest(
-            "ACME",
-            "/api/v1/superadmin/tenants/42/lifecycle",
-            "PUT",
-            "ops@bbp.com",
-            true);
+            "ACME", "/api/v1/superadmin/tenants/42/lifecycle", "PUT", "ops@bbp.com", true);
     verify(tenantRuntimeRequestAdmissionService).completeRequest(admission, 200);
   }
 

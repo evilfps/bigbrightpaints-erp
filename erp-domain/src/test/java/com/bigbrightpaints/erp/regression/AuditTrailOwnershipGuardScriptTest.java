@@ -35,7 +35,8 @@ class AuditTrailOwnershipGuardScriptTest {
   private Path repoRoot() {
     Path cursor = Path.of("").toAbsolutePath();
     while (cursor != null) {
-      if (java.nio.file.Files.exists(cursor.resolve("scripts/guard_audit_trail_ownership_contract.sh"))) {
+      if (java.nio.file.Files.exists(
+          cursor.resolve("scripts/guard_audit_trail_ownership_contract.sh"))) {
         return cursor;
       }
       cursor = cursor.getParent();

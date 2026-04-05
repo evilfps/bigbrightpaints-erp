@@ -444,9 +444,8 @@ class PurchaseReturnIdempotencyRegressionIT extends AbstractIntegrationTest {
     assertThat(rawMaterialRepository.findById(material.getId()).orElseThrow().getCurrentStock())
         .isEqualByComparingTo(stockAfterFirst);
     assertThat(
-            movementRepository
-                .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
-                    company, InventoryReference.PURCHASE_RETURN, replayReference))
+            movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company, InventoryReference.PURCHASE_RETURN, replayReference))
         .hasSize((int) movementCountAfterFirst)
         .allMatch(movement -> movement.getJournalEntryId().equals(first.id()));
   }

@@ -60,7 +60,8 @@ public class AuditEventClassifier {
               MFA_DISABLED,
               MFA_SUCCESS,
               MFA_FAILURE,
-              MFA_RECOVERY_CODE_USED -> "AUTH";
+              MFA_RECOVERY_CODE_USED ->
+          "AUTH";
       case ACCESS_GRANTED, ACCESS_DENIED, SECURITY_ALERT -> "SECURITY";
       case USER_CREATED,
               USER_UPDATED,
@@ -72,17 +73,12 @@ public class AuditEventClassifier {
               PERMISSION_CHANGED,
               ROLE_ASSIGNED,
               ROLE_REMOVED,
-              CONFIGURATION_CHANGED -> "ADMIN";
-      case DATA_CREATE,
-              DATA_READ,
-              DATA_UPDATE,
-              DATA_DELETE,
-              DATA_EXPORT,
-              SENSITIVE_DATA_ACCESSED -> "DATA";
-      case AUDIT_LOG_ACCESSED,
-              AUDIT_LOG_EXPORTED,
-              COMPLIANCE_CHECK,
-              DATA_RETENTION_ACTION -> "COMPLIANCE";
+              CONFIGURATION_CHANGED ->
+          "ADMIN";
+      case DATA_CREATE, DATA_READ, DATA_UPDATE, DATA_DELETE, DATA_EXPORT, SENSITIVE_DATA_ACCESSED ->
+          "DATA";
+      case AUDIT_LOG_ACCESSED, AUDIT_LOG_EXPORTED, COMPLIANCE_CHECK, DATA_RETENTION_ACTION ->
+          "COMPLIANCE";
       case SYSTEM_STARTUP, SYSTEM_SHUTDOWN, INTEGRATION_SUCCESS, INTEGRATION_FAILURE -> "SYSTEM";
       default -> "BUSINESS";
     };

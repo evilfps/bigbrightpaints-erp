@@ -20,8 +20,15 @@ public class AccountingTransactionAuditReadAdapter {
   }
 
   public PageResponse<AccountingTransactionAuditListItemDto> listTransactions(
-      LocalDate from, LocalDate to, String module, String status, String reference, int page, int size) {
-    return accountingAuditTrailService.listTransactions(from, to, module, status, reference, page, size);
+      LocalDate from,
+      LocalDate to,
+      String module,
+      String status,
+      String reference,
+      int page,
+      int size) {
+    return accountingAuditTrailService.listTransactions(
+        from, to, module, status, reference, page, size);
   }
 
   public AccountingTransactionAuditDetailDto transactionDetail(Long journalEntryId) {

@@ -25,7 +25,9 @@ class AuditLogReadAdapterTest {
   void entityFieldResolvers_preferMetadataResourceKeys() {
     AuditLogReadAdapter adapter =
         new AuditLogReadAdapter(
-            mock(AuditLogRepository.class), new AuditEventClassifier(), mock(AuditVisibilityPolicy.class));
+            mock(AuditLogRepository.class),
+            new AuditEventClassifier(),
+            mock(AuditVisibilityPolicy.class));
     AuditLog auditLog = new AuditLog();
     auditLog.setMetadata(
         Map.of(
@@ -42,7 +44,9 @@ class AuditLogReadAdapterTest {
   void referenceNumberFallsBackToEntityIdWhenExplicitReferenceIsMissing() {
     AuditLogReadAdapter adapter =
         new AuditLogReadAdapter(
-            mock(AuditLogRepository.class), new AuditEventClassifier(), mock(AuditVisibilityPolicy.class));
+            mock(AuditLogRepository.class),
+            new AuditEventClassifier(),
+            mock(AuditVisibilityPolicy.class));
     AuditLog auditLog = new AuditLog();
     auditLog.setMetadata(Map.of("resourceId", "17"));
 
@@ -54,7 +58,9 @@ class AuditLogReadAdapterTest {
   void referenceResolvers_supportLegacyAuditMetadataKeys() {
     AuditLogReadAdapter adapter =
         new AuditLogReadAdapter(
-            mock(AuditLogRepository.class), new AuditEventClassifier(), mock(AuditVisibilityPolicy.class));
+            mock(AuditLogRepository.class),
+            new AuditEventClassifier(),
+            mock(AuditVisibilityPolicy.class));
     AuditLog journalAuditLog = new AuditLog();
     journalAuditLog.setMetadata(Map.of("journalEntryId", "19", "journalReference", "JE-19"));
     AuditLog orderAuditLog = new AuditLog();
@@ -74,7 +80,9 @@ class AuditLogReadAdapterTest {
   void entityResolvers_handleNullMetadataWithoutThrowing() {
     AuditLogReadAdapter adapter =
         new AuditLogReadAdapter(
-            mock(AuditLogRepository.class), new AuditEventClassifier(), mock(AuditVisibilityPolicy.class));
+            mock(AuditLogRepository.class),
+            new AuditEventClassifier(),
+            mock(AuditVisibilityPolicy.class));
     AuditLog auditLog = new AuditLog();
     auditLog.setMetadata(null);
     auditLog.setResourceType(" JOURNAL_ENTRY ");
@@ -90,7 +98,8 @@ class AuditLogReadAdapterTest {
     AuditLogRepository auditLogRepository = mock(AuditLogRepository.class);
     AuditVisibilityPolicy auditVisibilityPolicy = mock(AuditVisibilityPolicy.class);
     AuditLogReadAdapter adapter =
-        new AuditLogReadAdapter(auditLogRepository, new AuditEventClassifier(), auditVisibilityPolicy);
+        new AuditLogReadAdapter(
+            auditLogRepository, new AuditEventClassifier(), auditVisibilityPolicy);
     Specification<com.bigbrightpaints.erp.core.audit.AuditLog> allowAll =
         (root, query, cb) -> cb.conjunction();
     when(auditVisibilityPolicy.platformVisibility()).thenReturn(allowAll);
@@ -107,16 +116,17 @@ class AuditLogReadAdapterTest {
     metadataCompanyLog.setRequestPath("/api/v1/companies/9");
     metadataCompanyLog.setMetadata(Map.of("targetCompanyCode", "TENANT-B"));
 
-    when(
-            auditLogRepository.findAll(
-                org.mockito.ArgumentMatchers.<Specification<AuditLog>>any(), any(Pageable.class)))
+    when(auditLogRepository.findAll(
+            org.mockito.ArgumentMatchers.<Specification<AuditLog>>any(), any(Pageable.class)))
         .thenReturn(new PageImpl<>(java.util.List.of(fallbackCompanyLog, metadataCompanyLog)));
 
     AuditFeedSlice slice =
         adapter.queryPlatformFeed(
             new AuditFeedFilter(null, null, null, null, null, null, null, null, 0, 50));
 
-    assertThat(slice.items()).extracting(item -> item.companyCode()).containsExactly("TENANT-A", "TENANT-B");
+    assertThat(slice.items())
+        .extracting(item -> item.companyCode())
+        .containsExactly("TENANT-A", "TENANT-B");
     verify(auditVisibilityPolicy).resolveCompanyCodes(java.util.Set.of(7L));
   }
 
@@ -125,7 +135,8 @@ class AuditLogReadAdapterTest {
     AuditLogRepository auditLogRepository = mock(AuditLogRepository.class);
     AuditVisibilityPolicy auditVisibilityPolicy = mock(AuditVisibilityPolicy.class);
     AuditLogReadAdapter adapter =
-        new AuditLogReadAdapter(auditLogRepository, new AuditEventClassifier(), auditVisibilityPolicy);
+        new AuditLogReadAdapter(
+            auditLogRepository, new AuditEventClassifier(), auditVisibilityPolicy);
     Specification<com.bigbrightpaints.erp.core.audit.AuditLog> allowAll =
         (root, query, cb) -> cb.conjunction();
     when(auditVisibilityPolicy.platformVisibility()).thenReturn(allowAll);
@@ -137,20 +148,21 @@ class AuditLogReadAdapterTest {
     metadata.put("journalReference", null);
     auditLog.setMetadata(metadata);
 
-    when(
-            auditLogRepository.findAll(
-                org.mockito.ArgumentMatchers.<Specification<AuditLog>>any(), any(Pageable.class)))
+    when(auditLogRepository.findAll(
+            org.mockito.ArgumentMatchers.<Specification<AuditLog>>any(), any(Pageable.class)))
         .thenReturn(new PageImpl<>(java.util.List.of(auditLog)));
 
     AuditFeedSlice slice =
         adapter.queryPlatformFeed(
             new AuditFeedFilter(null, null, null, null, null, null, null, null, 0, 50));
 
-    assertThat(slice.items()).singleElement().satisfies(
-        item -> {
-          assertThat(item.entityId()).isEqualTo("19");
-          assertThat(item.metadata()).containsKey("journalReference");
-          assertThat(item.metadata().get("journalReference")).isNull();
-        });
+    assertThat(slice.items())
+        .singleElement()
+        .satisfies(
+            item -> {
+              assertThat(item.entityId()).isEqualTo("19");
+              assertThat(item.metadata()).containsKey("journalReference");
+              assertThat(item.metadata().get("journalReference")).isNull();
+            });
   }
 }

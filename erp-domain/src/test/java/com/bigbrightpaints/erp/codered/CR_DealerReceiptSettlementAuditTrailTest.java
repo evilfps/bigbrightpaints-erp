@@ -677,7 +677,8 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
         new DealerReceiptSplitRequest(
             dealer.getId(),
             List.of(
-                new DealerReceiptSplitRequest.IncomingLine(accounts.get("BANK").getId(), bankAmount),
+                new DealerReceiptSplitRequest.IncomingLine(
+                    accounts.get("BANK").getId(), bankAmount),
                 new DealerReceiptSplitRequest.IncomingLine(cash.getId(), cashAmount)),
             referenceNumber,
             "CODE-RED split receipt",

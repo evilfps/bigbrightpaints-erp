@@ -228,7 +228,9 @@ public class CompanyService {
       company.setEnabledModules(validateAndNormalizeEnabledModules(request.enabledModules()));
     }
     synchronizeRuntimePolicyEnvelope(
-        company, SecurityContextHolder.getContext().getAuthentication(), TENANT_RUNTIME_POLICY_SYNC_REASON);
+        company,
+        SecurityContextHolder.getContext().getAuthentication(),
+        TENANT_RUNTIME_POLICY_SYNC_REASON);
     return toDto(company);
   }
 
@@ -822,19 +824,18 @@ public class CompanyService {
       CompanyLifecycleState requestedState,
       String lifecycleReason,
       Authentication authentication) {
-    if (company == null
-        || requestedState == null
-        || !StringUtils.hasText(company.getCode())) {
+    if (company == null || requestedState == null || !StringUtils.hasText(company.getCode())) {
       return;
     }
-    requireTenantRuntimeEnforcementService().updatePolicy(
-        company.getCode(),
-        mapLifecycleToRuntimeState(requestedState),
-        lifecycleReason,
-        safeRuntimeLimit(company.getQuotaMaxConcurrentRequests()),
-        safeRuntimeLimit(company.getQuotaMaxApiRequests()),
-        safeRuntimeLimit(company.getQuotaMaxActiveUsers()),
-        resolveActor(authentication));
+    requireTenantRuntimeEnforcementService()
+        .updatePolicy(
+            company.getCode(),
+            mapLifecycleToRuntimeState(requestedState),
+            lifecycleReason,
+            safeRuntimeLimit(company.getQuotaMaxConcurrentRequests()),
+            safeRuntimeLimit(company.getQuotaMaxApiRequests()),
+            safeRuntimeLimit(company.getQuotaMaxActiveUsers()),
+            resolveActor(authentication));
   }
 
   private void synchronizeRuntimePolicyEnvelope(
@@ -844,19 +845,22 @@ public class CompanyService {
     }
     TenantRuntimeEnforcementService.TenantRuntimeState runtimeState =
         mapLifecycleToRuntimeState(
-            company.getLifecycleState() == null ? CompanyLifecycleState.ACTIVE : company.getLifecycleState());
+            company.getLifecycleState() == null
+                ? CompanyLifecycleState.ACTIVE
+                : company.getLifecycleState());
     String effectiveReason =
         StringUtils.hasText(company.getLifecycleReason())
             ? company.getLifecycleReason()
             : reasonCode;
-    requireTenantRuntimeEnforcementService().updatePolicy(
-        company.getCode(),
-        runtimeState,
-        effectiveReason,
-        TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxConcurrentRequests()),
-        TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxApiRequests()),
-        TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxActiveUsers()),
-        resolveActor(authentication));
+    requireTenantRuntimeEnforcementService()
+        .updatePolicy(
+            company.getCode(),
+            runtimeState,
+            effectiveReason,
+            TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxConcurrentRequests()),
+            TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxApiRequests()),
+            TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxActiveUsers()),
+            resolveActor(authentication));
   }
 
   private TenantRuntimeEnforcementService.TenantRuntimeState mapLifecycleToRuntimeState(

@@ -28,8 +28,7 @@ class JournalCorrectionMetadataServiceTest {
 
   @BeforeEach
   void setUp() {
-    journalCorrectionMetadataService =
-        new JournalCorrectionMetadataService(journalEntryRepository);
+    journalCorrectionMetadataService = new JournalCorrectionMetadataService(journalEntryRepository);
     company = new Company();
   }
 

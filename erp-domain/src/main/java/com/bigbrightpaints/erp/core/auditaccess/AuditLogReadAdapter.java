@@ -21,9 +21,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLog;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
-import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.auditaccess.dto.AuditFeedItemDto;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 
@@ -38,7 +38,13 @@ import jakarta.persistence.criteria.Root;
 public class AuditLogReadAdapter {
 
   private static final List<String> ENTITY_ID_METADATA_KEYS =
-      List.of("resourceId", "entityId", "journalEntryId", "journalReference", "reference", "orderNumber");
+      List.of(
+          "resourceId",
+          "entityId",
+          "journalEntryId",
+          "journalReference",
+          "reference",
+          "orderNumber");
   private static final List<String> REFERENCE_METADATA_KEYS =
       List.of("referenceNumber", "journalReference", "reference", "orderNumber");
   private static final List<String> REFERENCE_FILTER_METADATA_KEYS =
@@ -106,7 +112,8 @@ public class AuditLogReadAdapter {
             .and(byAction(filter.normalizedAction()))
             .and(byEntityType(filter.normalizedEntityType()))
             .and(byReference(filter.normalizedReference()));
-    Page<AuditLog> page = auditLogRepository.findAll(spec, PageRequest.of(safePage, safeSize, sort()));
+    Page<AuditLog> page =
+        auditLogRepository.findAll(spec, PageRequest.of(safePage, safeSize, sort()));
     List<AuditLog> logs = page.getContent();
     Map<Long, String> companyCodes = resolveFallbackCompanyCodes(logs);
     return new AuditFeedSlice(
@@ -128,7 +135,9 @@ public class AuditLogReadAdapter {
         log.getId(),
         "AUDIT_LOG",
         auditEventClassifier.categoryFor(log),
-        log.getTimestamp() != null ? log.getTimestamp().atZone(java.time.ZoneOffset.UTC).toInstant() : null,
+        log.getTimestamp() != null
+            ? log.getTimestamp().atZone(java.time.ZoneOffset.UTC).toInstant()
+            : null,
         log.getCompanyId(),
         companyCode,
         auditEventClassifier.moduleFor(log),
@@ -161,11 +170,13 @@ public class AuditLogReadAdapter {
   }
 
   private String entityTypeFor(AuditLog log, Map<String, String> metadata) {
-    return firstNonBlank(log.getResourceType(), metadata.get("resourceType"), metadata.get("entityType"));
+    return firstNonBlank(
+        log.getResourceType(), metadata.get("resourceType"), metadata.get("entityType"));
   }
 
   private String entityIdFor(AuditLog log, Map<String, String> metadata) {
-    return firstNonBlank(log.getResourceId(), firstMetadataValue(metadata, ENTITY_ID_METADATA_KEYS));
+    return firstNonBlank(
+        log.getResourceId(), firstMetadataValue(metadata, ENTITY_ID_METADATA_KEYS));
   }
 
   private String referenceNumberFor(String entityId, Map<String, String> metadata) {
@@ -241,7 +252,8 @@ public class AuditLogReadAdapter {
         if (categoryMatch != null) {
           accountingFallbackMatch = cb.or(categoryMatch, accountingFailureMatch);
         }
-        matches.add(cb.and(cb.not(knownPath), cb.not(resourceTypePresent), accountingFallbackMatch));
+        matches.add(
+            cb.and(cb.not(knownPath), cb.not(resourceTypePresent), accountingFallbackMatch));
       } else if (categoryMatch != null) {
         Predicate fallbackCategoryMatch = categoryMatch;
         if ("SYSTEM".equals(normalizedModule)) {
@@ -350,7 +362,8 @@ public class AuditLogReadAdapter {
 
   private Set<AuditEvent> categoryEvents(String normalizedModule) {
     return switch (normalizedModule) {
-      case "AUTH" -> EnumSet.of(
+      case "AUTH" ->
+          EnumSet.of(
               AuditEvent.LOGIN_SUCCESS,
               AuditEvent.LOGIN_FAILURE,
               AuditEvent.LOGOUT,
@@ -366,10 +379,12 @@ public class AuditLogReadAdapter {
               AuditEvent.MFA_FAILURE,
               AuditEvent.MFA_RECOVERY_CODE_USED);
 
-      case "SECURITY" -> EnumSet.of(
+      case "SECURITY" ->
+          EnumSet.of(
               AuditEvent.ACCESS_GRANTED, AuditEvent.ACCESS_DENIED, AuditEvent.SECURITY_ALERT);
 
-      case "ADMIN" -> EnumSet.of(
+      case "ADMIN" ->
+          EnumSet.of(
               AuditEvent.USER_CREATED,
               AuditEvent.USER_UPDATED,
               AuditEvent.USER_DELETED,
@@ -384,7 +399,8 @@ public class AuditLogReadAdapter {
 
       case "ACCOUNTING" -> auditEventClassifier.accountingEventTypes();
 
-      case "DATA" -> EnumSet.of(
+      case "DATA" ->
+          EnumSet.of(
               AuditEvent.DATA_CREATE,
               AuditEvent.DATA_READ,
               AuditEvent.DATA_UPDATE,
@@ -392,19 +408,22 @@ public class AuditLogReadAdapter {
               AuditEvent.DATA_EXPORT,
               AuditEvent.SENSITIVE_DATA_ACCESSED);
 
-      case "COMPLIANCE" -> EnumSet.of(
+      case "COMPLIANCE" ->
+          EnumSet.of(
               AuditEvent.AUDIT_LOG_ACCESSED,
               AuditEvent.AUDIT_LOG_EXPORTED,
               AuditEvent.COMPLIANCE_CHECK,
               AuditEvent.DATA_RETENTION_ACTION);
 
-      case "SYSTEM" -> EnumSet.of(
+      case "SYSTEM" ->
+          EnumSet.of(
               AuditEvent.SYSTEM_STARTUP,
               AuditEvent.SYSTEM_SHUTDOWN,
               AuditEvent.INTEGRATION_SUCCESS,
               AuditEvent.INTEGRATION_FAILURE);
 
-      case "BUSINESS" -> EnumSet.of(
+      case "BUSINESS" ->
+          EnumSet.of(
               AuditEvent.REFERENCE_GENERATED,
               AuditEvent.ORDER_NUMBER_GENERATED,
               AuditEvent.DISPATCH_CONFIRMED);
@@ -482,7 +501,9 @@ public class AuditLogReadAdapter {
     if (requestedModule == null) {
       return "ACCOUNTING";
     }
-    return auditVisibilityPolicy.isAccountingModule(requestedModule) ? requestedModule : NO_MODULE_MATCH;
+    return auditVisibilityPolicy.isAccountingModule(requestedModule)
+        ? requestedModule
+        : NO_MODULE_MATCH;
   }
 
   private Long parseLong(String value) {

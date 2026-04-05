@@ -1,7 +1,9 @@
 package com.bigbrightpaints.erp.modules.accounting.domain;
 
 import java.math.BigDecimal;
+
 import com.bigbrightpaints.erp.core.domain.VersionedEntity;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;

@@ -155,7 +155,8 @@ class MockDataInitializerTest {
     when(companyRepository.save(any(Company.class)))
         .thenAnswer(invocation -> invocation.getArgument(0, Company.class));
 
-    Company company = ReflectionTestUtils.invokeMethod(initializer, "createCompany", companyRepository);
+    Company company =
+        ReflectionTestUtils.invokeMethod(initializer, "createCompany", companyRepository);
 
     assertThat(company.getCode()).isEqualTo("MOCK");
     assertThat(company.getStateCode()).isEqualTo("MH");
@@ -168,7 +169,8 @@ class MockDataInitializerTest {
     when(companyRepository.save(any(Company.class)))
         .thenAnswer(invocation -> invocation.getArgument(0, Company.class));
 
-    Company company = ReflectionTestUtils.invokeMethod(initializer, "createCompany", companyRepository);
+    Company company =
+        ReflectionTestUtils.invokeMethod(initializer, "createCompany", companyRepository);
 
     assertThat(company.getStateCode()).isEqualTo("MH");
   }
@@ -216,7 +218,8 @@ class MockDataInitializerTest {
     Account wipAccount = account(1180L, "WIP_PACK");
     Map<String, Account> accounts = fixtureAccounts();
 
-    when(finishedGoodRepository.findByCompanyAndProductCode(company, E2eFixtureCatalog.ORDER_PRIMARY_SKU))
+    when(finishedGoodRepository.findByCompanyAndProductCode(
+            company, E2eFixtureCatalog.ORDER_PRIMARY_SKU))
         .thenReturn(Optional.empty());
     when(finishedGoodRepository.save(any(FinishedGood.class)))
         .thenAnswer(
@@ -254,11 +257,13 @@ class MockDataInitializerTest {
     assertThat(seeded.getProductCode()).isEqualTo(E2eFixtureCatalog.ORDER_PRIMARY_SKU);
     assertThat(seeded.getName()).isEqualTo(E2eFixtureCatalog.ORDER_PRIMARY_NAME);
 
-    ArgumentCaptor<ProductionProduct> productCaptor = ArgumentCaptor.forClass(ProductionProduct.class);
+    ArgumentCaptor<ProductionProduct> productCaptor =
+        ArgumentCaptor.forClass(ProductionProduct.class);
     verify(productRepository).save(productCaptor.capture());
     ProductionProduct product = productCaptor.getValue();
     assertThat(product.getProductName()).isEqualTo(E2eFixtureCatalog.ORDER_PRIMARY_NAME);
-    assertThat(product.getBasePrice()).isEqualByComparingTo(E2eFixtureCatalog.ORDER_PRIMARY_BASE_PRICE);
+    assertThat(product.getBasePrice())
+        .isEqualByComparingTo(E2eFixtureCatalog.ORDER_PRIMARY_BASE_PRICE);
     assertThat(product.getGstRate()).isEqualByComparingTo(E2eFixtureCatalog.ORDER_PRIMARY_GST_RATE);
     assertThat(product.getMetadata())
         .containsEntry("wipAccountId", wipAccount.getId())
@@ -286,7 +291,8 @@ class MockDataInitializerTest {
             12L, fgLifo,
             13L, fgKit,
             14L, fgE2ePrimary);
-    when(batchRepository.existsByFinishedGoodAndBatchCodeIgnoreCase(any(FinishedGood.class), anyString()))
+    when(batchRepository.existsByFinishedGoodAndBatchCodeIgnoreCase(
+            any(FinishedGood.class), anyString()))
         .thenReturn(false);
     when(batchRepository.save(any(FinishedGoodBatch.class)))
         .thenAnswer(invocation -> invocation.getArgument(0, FinishedGoodBatch.class));
@@ -308,13 +314,15 @@ class MockDataInitializerTest {
         fgKit,
         fgE2ePrimary);
 
-    ArgumentCaptor<FinishedGoodBatch> batchCaptor = ArgumentCaptor.forClass(FinishedGoodBatch.class);
+    ArgumentCaptor<FinishedGoodBatch> batchCaptor =
+        ArgumentCaptor.forClass(FinishedGoodBatch.class);
     verify(batchRepository, org.mockito.Mockito.times(6)).save(batchCaptor.capture());
     assertThat(batchCaptor.getAllValues())
         .anySatisfy(
             batch -> {
               assertThat(batch.getFinishedGood()).isEqualTo(fgE2ePrimary);
-              assertThat(batch.getBatchCode()).isEqualTo(E2eFixtureCatalog.ORDER_PRIMARY_BATCH_CODE);
+              assertThat(batch.getBatchCode())
+                  .isEqualTo(E2eFixtureCatalog.ORDER_PRIMARY_BATCH_CODE);
               assertThat(batch.getQuantityTotal())
                   .isEqualByComparingTo(E2eFixtureCatalog.ORDER_PRIMARY_STOCK_QUANTITY);
               assertThat(batch.getUnitCost())

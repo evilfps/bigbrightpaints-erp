@@ -1898,7 +1898,8 @@ class FinishedGoodsReservationEngineTest extends AbstractIntegrationTest {
     try {
       return AopTestUtils.getTargetObject(finishedGoodsReservationEngine);
     } catch (Exception ex) {
-      throw new IllegalStateException("Failed to resolve FinishedGoodsReservationEngine target", ex);
+      throw new IllegalStateException(
+          "Failed to resolve FinishedGoodsReservationEngine target", ex);
     }
   }
 }

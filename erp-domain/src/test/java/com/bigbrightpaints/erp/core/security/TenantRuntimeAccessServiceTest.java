@@ -10,12 +10,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -258,8 +258,7 @@ class TenantRuntimeAccessServiceTest {
 
   @Test
   void acquire_failsClosed_whenSettingsReadThrows() {
-    when(settingsRepository.findById(any()))
-        .thenThrow(new RuntimeException("settings-store-down"));
+    when(settingsRepository.findById(any())).thenThrow(new RuntimeException("settings-store-down"));
 
     TenantRuntimeAccessService.AccessHandle accessHandle =
         service.acquire("ACME", new MockHttpServletRequest("GET", "/api/v1/auth/me"));
@@ -523,8 +522,7 @@ class TenantRuntimeAccessServiceTest {
   }
 
   @Test
-  void tenantRuntimePolicyResolutionFailure_isStaticAndDeclaresSerialVersionUid()
-      throws Exception {
+  void tenantRuntimePolicyResolutionFailure_isStaticAndDeclaresSerialVersionUid() throws Exception {
     Class<?> failureClass =
         Class.forName(
             TenantRuntimeAccessService.class.getName() + "$TenantRuntimePolicyResolutionFailure");

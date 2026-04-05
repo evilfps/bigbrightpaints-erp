@@ -418,9 +418,7 @@ public class PurchaseReturnService {
   }
 
   private void validateReplayPurchaseReturnProvenance(
-      RawMaterialPurchase purchase,
-      String reference,
-      List<RawMaterialMovement> existingMovements) {
+      RawMaterialPurchase purchase, String reference, List<RawMaterialMovement> existingMovements) {
     if (purchase == null || existingMovements == null || existingMovements.isEmpty()) {
       return;
     }
@@ -465,7 +463,8 @@ public class PurchaseReturnService {
       return;
     }
     if (entry.getReversalOf() != null
-        && sourceEntry != null && sourceEntry.getId() != null
+        && sourceEntry != null
+        && sourceEntry.getId() != null
         && !Objects.equals(entry.getReversalOf().getId(), sourceEntry.getId())) {
       throw new ApplicationException(
           ErrorCode.CONCURRENCY_CONFLICT,

@@ -80,10 +80,13 @@ class SettlementServiceTest {
                 org.mockito.Mockito.mock(
                     com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository.class),
                 org.mockito.Mockito.mock(
-                    com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService.class),
+                    com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService
+                        .class),
                 org.mockito.Mockito.mock(
-                    com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService.class),
-                org.mockito.Mockito.mock(org.springframework.context.ApplicationEventPublisher.class),
+                    com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService
+                        .class),
+                org.mockito.Mockito.mock(
+                    org.springframework.context.ApplicationEventPublisher.class),
                 org.mockito.Mockito.mock(com.bigbrightpaints.erp.core.util.CompanyClock.class),
                 companyEntityLookup,
                 settlementAllocationRepository,
@@ -93,18 +96,21 @@ class SettlementServiceTest {
                     com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository
                         .class),
                 org.mockito.Mockito.mock(
-                    com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository.class),
+                    com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository
+                        .class),
                 org.mockito.Mockito.mock(
-                    com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository.class),
+                    com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository
+                        .class),
                 dealerRepository,
                 supplierRepository,
                 org.mockito.Mockito.mock(
                     com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy.class),
                 org.mockito.Mockito.mock(
-                    com.bigbrightpaints.erp.modules.accounting.service.JournalReferenceResolver.class),
-                org.mockito.Mockito.mock(
-                    com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository
+                    com.bigbrightpaints.erp.modules.accounting.service.JournalReferenceResolver
                         .class),
+                org.mockito.Mockito.mock(
+                    com.bigbrightpaints.erp.modules.accounting.domain
+                        .JournalReferenceMappingRepository.class),
                 org.mockito.Mockito.mock(jakarta.persistence.EntityManager.class),
                 org.mockito.Mockito.mock(
                     com.bigbrightpaints.erp.core.config.SystemSettingsService.class),
@@ -314,8 +320,10 @@ class SettlementServiceTest {
         ArgumentCaptor.forClass(AutoSettlementRequest.class);
     ArgumentCaptor<AutoSettlementRequest> supplierCaptor =
         ArgumentCaptor.forClass(AutoSettlementRequest.class);
-    verify(settlementService).autoSettleDealerInternal(org.mockito.ArgumentMatchers.eq(91L), dealerCaptor.capture());
-    verify(settlementService).autoSettleSupplierInternal(org.mockito.ArgumentMatchers.eq(92L), supplierCaptor.capture());
+    verify(settlementService)
+        .autoSettleDealerInternal(org.mockito.ArgumentMatchers.eq(91L), dealerCaptor.capture());
+    verify(settlementService)
+        .autoSettleSupplierInternal(org.mockito.ArgumentMatchers.eq(92L), supplierCaptor.capture());
 
     assertThat(dealerCaptor.getValue().referenceNumber()).isNull();
     assertThat(dealerCaptor.getValue().idempotencyKey()).isNull();
@@ -608,7 +616,8 @@ class SettlementServiceTest {
 
   private void stubAccounts(Account... accounts) {
     for (Account account : accounts) {
-      when(companyEntityLookup.requireAccount(eq(company), eq(account.getId()))).thenReturn(account);
+      when(companyEntityLookup.requireAccount(eq(company), eq(account.getId())))
+          .thenReturn(account);
     }
   }
 

@@ -24,6 +24,8 @@ class AdminUserRequestContractTest {
   }
 
   private String[] recordComponentNames(Class<?> type) {
-    return Arrays.stream(type.getRecordComponents()).map(RecordComponent::getName).toArray(String[]::new);
+    return Arrays.stream(type.getRecordComponents())
+        .map(RecordComponent::getName)
+        .toArray(String[]::new);
   }
 }

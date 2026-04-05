@@ -120,8 +120,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
   }
 
   @Test
-  void rejectsReadRequestWhenTenantLifecycleIsSuspended_beforeRuntimeAdmission()
-      throws Exception {
+  void rejectsReadRequestWhenTenantLifecycleIsSuspended_beforeRuntimeAdmission() throws Exception {
     authenticateForCompany("actor@bbp.com", "ACME", "ROLE_ADMIN");
     when(companyService.resolveLifecycleStateByCode("ACME"))
         .thenReturn(CompanyLifecycleState.SUSPENDED);
@@ -167,11 +166,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
         TenantRuntimeEnforcementService.TenantRequestAdmission.admittedPolicyControl(
             "ACME", "chain-1");
     when(tenantRuntimeRequestAdmissionService.beginRequest(
-            "ACME",
-            "/api/v1/superadmin/tenants/42/limits",
-            "PUT",
-            "super-admin@bbp.com",
-            true))
+            "ACME", "/api/v1/superadmin/tenants/42/limits", "PUT", "super-admin@bbp.com", true))
         .thenReturn(admission);
 
     MockHttpServletRequest request =
@@ -188,11 +183,7 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
     assertThat(companyInChain.get()).isEqualTo("ACME");
     verify(tenantRuntimeRequestAdmissionService)
         .beginRequest(
-            "ACME",
-            "/api/v1/superadmin/tenants/42/limits",
-            "PUT",
-            "super-admin@bbp.com",
-            true);
+            "ACME", "/api/v1/superadmin/tenants/42/limits", "PUT", "super-admin@bbp.com", true);
     verify(tenantRuntimeRequestAdmissionService).completeRequest(admission, 200);
   }
 

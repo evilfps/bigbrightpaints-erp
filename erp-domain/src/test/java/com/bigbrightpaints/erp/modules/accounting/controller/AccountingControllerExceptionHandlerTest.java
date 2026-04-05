@@ -3,6 +3,9 @@ package com.bigbrightpaints.erp.modules.accounting.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Map;
 
@@ -20,10 +23,6 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.exception.GlobalExceptionHandler;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Tag("critical")
 class AccountingControllerExceptionHandlerTest {
@@ -234,7 +233,8 @@ class AccountingControllerExceptionHandlerTest {
         .perform(get("/api/v1/accounting/statements/suppliers/42").param("from", "2026-02-30"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.success").value(false))
-        .andExpect(jsonPath("$.message").value("Invalid from date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(
+            jsonPath("$.message").value("Invalid from date format; expected ISO date yyyy-MM-dd"))
         .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
         .andExpect(jsonPath("$.data.details.from").value("2026-02-30"));
   }
@@ -245,7 +245,8 @@ class AccountingControllerExceptionHandlerTest {
         .perform(get("/api/v1/accounting/aging/suppliers/42").param("asOf", "not-a-date"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.success").value(false))
-        .andExpect(jsonPath("$.message").value("Invalid asOf date format; expected ISO date yyyy-MM-dd"))
+        .andExpect(
+            jsonPath("$.message").value("Invalid asOf date format; expected ISO date yyyy-MM-dd"))
         .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_DATE.getCode()))
         .andExpect(jsonPath("$.data.details.asOf").value("not-a-date"));
   }

@@ -649,7 +649,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     assertThat(((Number) secondDebitNote.get("id")).longValue()).isEqualTo(firstDebitNoteId);
     assertThat(secondDebitNote.get("referenceNumber")).isEqualTo(reference);
 
-    assertThat(journalEntryRepository.findByCompanyAndReferenceNumber(company, reference)).isPresent();
+    assertThat(journalEntryRepository.findByCompanyAndReferenceNumber(company, reference))
+        .isPresent();
 
     RawMaterialPurchase purchase = purchaseRepository.findById(purchaseId).orElseThrow();
     assertThat(purchase.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);

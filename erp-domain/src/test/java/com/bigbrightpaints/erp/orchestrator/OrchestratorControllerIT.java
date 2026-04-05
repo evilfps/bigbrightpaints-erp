@@ -726,7 +726,8 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
     assertThat(journalEntryRepository.count()).isEqualTo(journalBefore);
     assertThat(inventoryMovementRepository.count()).isEqualTo(inventoryMovementBefore);
     assertThat(afterOrder.getStatus()).isEqualTo(beforeOrder.getStatus());
-    assertThat(afterOrder.getFulfillmentInvoiceId()).isEqualTo(beforeOrder.getFulfillmentInvoiceId());
+    assertThat(afterOrder.getFulfillmentInvoiceId())
+        .isEqualTo(beforeOrder.getFulfillmentInvoiceId());
     assertThat(afterOrder.getSalesJournalEntryId()).isEqualTo(beforeOrder.getSalesJournalEntryId());
     assertThat(afterOrder.getCogsJournalEntryId()).isEqualTo(beforeOrder.getCogsJournalEntryId());
   }

@@ -95,7 +95,13 @@ class CostAllocationServiceTest {
     CostAllocationResponse response =
         costAllocationService.allocateCosts(
             new CostAllocationRequest(
-                2026, 4, new BigDecimal("100.00"), new BigDecimal("50.00"), 11L, 12L, 13L,
+                2026,
+                4,
+                new BigDecimal("100.00"),
+                new BigDecimal("50.00"),
+                11L,
+                12L,
+                13L,
                 "Variance allocation"));
 
     assertThat(response.totalLaborAllocated()).isEqualByComparingTo("60.00");
@@ -125,13 +131,27 @@ class CostAllocationServiceTest {
     when(companyEntityLookup.requireAccount(company, 13L))
         .thenReturn(account(13L, "OVH", AccountType.EXPENSE));
     when(accountingFacade.postCostVarianceAllocation(
-            any(), eq("202604"), any(), eq(11L), eq(12L), eq(13L), any(), any(), eq("Variance allocation")))
+            any(),
+            eq("202604"),
+            any(),
+            eq(11L),
+            eq(12L),
+            eq(13L),
+            any(),
+            any(),
+            eq("Variance allocation")))
         .thenReturn(null);
 
     CostAllocationResponse response =
         costAllocationService.allocateCosts(
             new CostAllocationRequest(
-                2026, 4, new BigDecimal("100.00"), new BigDecimal("50.00"), 11L, 12L, 13L,
+                2026,
+                4,
+                new BigDecimal("100.00"),
+                new BigDecimal("50.00"),
+                11L,
+                12L,
+                13L,
                 "Variance allocation"));
 
     assertThat(response.totalLaborAllocated()).isEqualByComparingTo("100.00");

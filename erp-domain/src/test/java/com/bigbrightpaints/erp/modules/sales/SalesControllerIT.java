@@ -13,10 +13,10 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.http.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.*;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.fixture.E2eFixtureCatalog;
@@ -139,10 +139,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
   private Map<?, ?> salesDashboardData(HttpHeaders headers) {
     ResponseEntity<Map> dashboardResponse =
         rest.exchange(
-            ErpApiRoutes.SALES_DASHBOARD,
-            HttpMethod.GET,
-            new HttpEntity<>(headers),
-            Map.class);
+            ErpApiRoutes.SALES_DASHBOARD, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
     assertThat(dashboardResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     return (Map<?, ?>) dashboardResponse.getBody().get("data");
   }
@@ -254,7 +251,8 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     Map<?, ?> emptySearchData = (Map<?, ?>) emptySearchBody.get("data");
     assertThat(emptySearchData).isNotNull();
     @SuppressWarnings("unchecked")
-    List<Map<String, Object>> emptyContent = (List<Map<String, Object>>) emptySearchData.get("content");
+    List<Map<String, Object>> emptyContent =
+        (List<Map<String, Object>>) emptySearchData.get("content");
     assertThat(emptyContent).isEmpty();
 
     ResponseEntity<Map> searchResponse =
@@ -279,7 +277,8 @@ public class SalesControllerIT extends AbstractIntegrationTest {
 
   @Test
   void sales_order_search_repository_supports_alias_filters_escaping_and_unpaged_queries() {
-    Long primaryDealerId = createPersistedDealer("ALIAS-A" + System.nanoTime(), new BigDecimal("50000"));
+    Long primaryDealerId =
+        createPersistedDealer("ALIAS-A" + System.nanoTime(), new BigDecimal("50000"));
     Long secondaryDealerId =
         createPersistedDealer("ALIAS-B" + System.nanoTime(), new BigDecimal("50000"));
 
@@ -351,13 +350,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
 
     Page<Long> pendingResults =
         salesOrderRepository.searchIdsByCompany(
-            company,
-            "PENDING",
-            secondaryDealer,
-            "SO-PENDING",
-            null,
-            null,
-            Pageable.unpaged());
+            company, "PENDING", secondaryDealer, "SO-PENDING", null, null, Pageable.unpaged());
     assertThat(pendingResults.getContent()).containsExactly(pendingOrder.getId());
     assertThat(pendingResults.getTotalElements()).isEqualTo(1);
 
@@ -396,13 +389,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
             Instant.parse("2026-02-05T00:00:01Z"));
     Page<Long> literalPercentResults =
         salesOrderRepository.searchIdsByCompany(
-            company,
-            null,
-            primaryDealer,
-            "%" + percentSuffix,
-            null,
-            null,
-            PageRequest.of(0, 10));
+            company, null, primaryDealer, "%" + percentSuffix, null, null, PageRequest.of(0, 10));
     assertThat(literalPercentResults.getContent())
         .contains(literalPercentOrder.getId())
         .doesNotContain(percentDistractorOrder.getId());
@@ -455,7 +442,13 @@ public class SalesControllerIT extends AbstractIntegrationTest {
             Instant.parse("2026-02-05T00:00:05Z"));
     Page<Long> backslashResults =
         salesOrderRepository.searchIdsByCompany(
-            company, null, primaryDealer, "\\" + backslashSuffix, null, null, PageRequest.of(0, 10));
+            company,
+            null,
+            primaryDealer,
+            "\\" + backslashSuffix,
+            null,
+            null,
+            PageRequest.of(0, 10));
     assertThat(backslashResults.getContent())
         .contains(backslashOrder.getId())
         .doesNotContain(backslashDistractorOrder.getId());

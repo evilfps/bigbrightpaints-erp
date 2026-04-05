@@ -21,21 +21,21 @@ class AccountingTransactionAuditReadAdapterTest {
 
   @Test
   void delegatesListAndDetailQueriesToAccountingAuditTrailService() {
-    AccountingAuditTrailService accountingAuditTrailService = mock(AccountingAuditTrailService.class);
+    AccountingAuditTrailService accountingAuditTrailService =
+        mock(AccountingAuditTrailService.class);
     AccountingTransactionAuditReadAdapter adapter =
         new AccountingTransactionAuditReadAdapter(accountingAuditTrailService);
     PageResponse<AccountingTransactionAuditListItemDto> expectedPage =
         PageResponse.of(List.of(), 0, 0, 50);
     AccountingTransactionAuditDetailDto expectedDetail = null;
-    when(
-            accountingAuditTrailService.listTransactions(
-                LocalDate.of(2026, 3, 1),
-                LocalDate.of(2026, 3, 31),
-                "ACCOUNTING",
-                "POSTED",
-                "JE-17",
-                0,
-                50))
+    when(accountingAuditTrailService.listTransactions(
+            LocalDate.of(2026, 3, 1),
+            LocalDate.of(2026, 3, 31),
+            "ACCOUNTING",
+            "POSTED",
+            "JE-17",
+            0,
+            50))
         .thenReturn(expectedPage);
     when(accountingAuditTrailService.transactionDetail(17L)).thenReturn(expectedDetail);
 
@@ -52,7 +52,13 @@ class AccountingTransactionAuditReadAdapterTest {
     assertThat(adapter.transactionDetail(17L)).isNull();
     verify(accountingAuditTrailService)
         .listTransactions(
-            LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31), "ACCOUNTING", "POSTED", "JE-17", 0, 50);
+            LocalDate.of(2026, 3, 1),
+            LocalDate.of(2026, 3, 31),
+            "ACCOUNTING",
+            "POSTED",
+            "JE-17",
+            0,
+            50);
     verify(accountingAuditTrailService).transactionDetail(17L);
   }
 }

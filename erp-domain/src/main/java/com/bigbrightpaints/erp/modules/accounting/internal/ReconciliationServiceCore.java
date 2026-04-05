@@ -443,7 +443,8 @@ public class ReconciliationServiceCore {
       throw ValidationUtils.invalidState(
           "Active company must be persisted for inter-company reconciliation");
     }
-    if (!Objects.equals(companyAId, activeCompanyId) && !Objects.equals(companyBId, activeCompanyId)) {
+    if (!Objects.equals(companyAId, activeCompanyId)
+        && !Objects.equals(companyBId, activeCompanyId)) {
       throw new ApplicationException(
               ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS,
               "Inter-company reconciliation must include the active company")
@@ -455,17 +456,21 @@ public class ReconciliationServiceCore {
     Company companyA =
         Objects.equals(companyAId, activeCompanyId)
             ? activeCompany
-            : companyRepository.findById(companyAId).orElseThrow(
-                () ->
-                    com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                        "Company not found: " + companyAId));
+            : companyRepository
+                .findById(companyAId)
+                .orElseThrow(
+                    () ->
+                        com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                            "Company not found: " + companyAId));
     Company companyB =
         Objects.equals(companyBId, activeCompanyId)
             ? activeCompany
-            : companyRepository.findById(companyBId).orElseThrow(
-                () ->
-                    com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                        "Company not found: " + companyBId));
+            : companyRepository
+                .findById(companyBId)
+                .orElseThrow(
+                    () ->
+                        com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                            "Company not found: " + companyBId));
 
     InterCompanyReconciliationItem aReceivableVsBPayable =
         reconcileInterCompanyDirection(companyA, companyB);

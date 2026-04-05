@@ -44,7 +44,8 @@ class AccountingControllerIdempotencyHeaderParityTest {
             () -> controller.recordDealerReceipt(dealerReceiptRequest(null), null, "legacy-001"))
         .isInstanceOfSatisfying(
             ApplicationException.class,
-            ex -> assertLegacyHeaderContract(ex, "legacy-001", "/api/v1/accounting/receipts/dealer"));
+            ex ->
+                assertLegacyHeaderContract(ex, "legacy-001", "/api/v1/accounting/receipts/dealer"));
   }
 
   @Test
@@ -67,8 +68,7 @@ class AccountingControllerIdempotencyHeaderParityTest {
 
     assertForwardedIdempotencyKey(
         DealerReceiptRequest.class,
-        () ->
-            controller.recordDealerReceipt(dealerReceiptRequest("   "), "hdr-blank-001", null),
+        () -> controller.recordDealerReceipt(dealerReceiptRequest("   "), "hdr-blank-001", null),
         captor -> verify(dealerReceiptService).recordDealerReceipt(captor.capture()),
         DealerReceiptRequest::idempotencyKey,
         "hdr-blank-001");
@@ -240,7 +240,8 @@ class AccountingControllerIdempotencyHeaderParityTest {
 
     assertForwardedIdempotencyKey(
         com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest.class,
-        () -> controller.autoSettleDealer(1001L, autoSettlementRequest("body-001"), "body-001", null),
+        () ->
+            controller.autoSettleDealer(1001L, autoSettlementRequest("body-001"), "body-001", null),
         captor -> verify(settlementService).autoSettleDealer(any(), captor.capture()),
         com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest::idempotencyKey,
         "body-001");

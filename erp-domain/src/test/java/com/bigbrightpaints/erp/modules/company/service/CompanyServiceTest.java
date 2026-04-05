@@ -207,7 +207,8 @@ class CompanyServiceTest {
   }
 
   @Test
-  void synchronizeRuntimePolicyEnvelope_usesFallbackReasonAndActiveStateWhenLifecycleFieldsAreBlank() {
+  void
+      synchronizeRuntimePolicyEnvelope_usesFallbackReasonAndActiveStateWhenLifecycleFieldsAreBlank() {
     authenticateAs("ROLE_SUPER_ADMIN");
     Company target = company(4L, "ACME");
     target.setLifecycleState(null);
@@ -749,16 +750,7 @@ class CompanyServiceTest {
     target.setLifecycleReason("manual_hold");
     CompanyRequest request =
         new CompanyRequest(
-            "Acme Updated",
-            "ACME",
-            "UTC",
-            BigDecimal.TEN,
-            120L,
-            3000L,
-            4096L,
-            7L,
-            false,
-            true);
+            "Acme Updated", "ACME", "UTC", BigDecimal.TEN, 120L, 3000L, 4096L, 7L, false, true);
     when(repository.findById(2L)).thenReturn(Optional.of(target));
     when(repository.findByCodeIgnoreCase("ACME")).thenReturn(Optional.of(target));
     when(authScopeService.isPlatformScope("ACME")).thenReturn(false);

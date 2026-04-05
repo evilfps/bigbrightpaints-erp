@@ -3367,7 +3367,8 @@ class SalesServiceTest {
             null,
             "CASH");
 
-    assertThrows(CreditLimitExceededException.class, () -> salesService.updateOrder(4300L, request));
+    assertThrows(
+        CreditLimitExceededException.class, () -> salesService.updateOrder(4300L, request));
     verify(dealerLedgerService).currentBalance(430L);
   }
 

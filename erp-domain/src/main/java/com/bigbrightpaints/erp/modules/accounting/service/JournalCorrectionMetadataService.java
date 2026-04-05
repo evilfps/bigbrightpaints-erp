@@ -33,7 +33,8 @@ public class JournalCorrectionMetadataService {
       String sourceModule,
       String sourceReference) {
     findByCompanyAndId(company, journalEntryId)
-        .ifPresent(entry -> syncReversalMetadata(entry, correctionReason, sourceModule, sourceReference));
+        .ifPresent(
+            entry -> syncReversalMetadata(entry, correctionReason, sourceModule, sourceReference));
   }
 
   public void syncReversalMetadata(

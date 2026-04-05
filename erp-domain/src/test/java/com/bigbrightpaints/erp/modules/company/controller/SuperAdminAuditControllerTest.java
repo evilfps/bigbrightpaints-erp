@@ -68,7 +68,15 @@ class SuperAdminAuditControllerTest {
     ApiResponse<PageResponse<AuditFeedItemDto>> body =
         controller
             .listPlatformEvents(
-                "2026-03-01", "2026-03-31", "CONFIGURATION_CHANGED", "SUCCESS", "root-superadmin@bbp.com", null, null, 0, 50)
+                "2026-03-01",
+                "2026-03-31",
+                "CONFIGURATION_CHANGED",
+                "SUCCESS",
+                "root-superadmin@bbp.com",
+                null,
+                null,
+                0,
+                50)
             .getBody();
 
     assertThat(body).isNotNull();

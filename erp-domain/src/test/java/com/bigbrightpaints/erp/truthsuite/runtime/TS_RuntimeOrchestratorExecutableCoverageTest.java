@@ -463,7 +463,8 @@ class TS_RuntimeOrchestratorExecutableCoverageTest {
   }
 
   @Test
-  void commandDispatcher_retired_dispatch_shortcut_stays_deleted_while_payroll_replay_shortCircuits() {
+  void
+      commandDispatcher_retired_dispatch_shortcut_stays_deleted_while_payroll_replay_shortCircuits() {
     WorkflowService workflowService = mock(WorkflowService.class);
     IntegrationCoordinator integrationCoordinator = mock(IntegrationCoordinator.class);
     EventPublisherService eventPublisherService = mock(EventPublisherService.class);

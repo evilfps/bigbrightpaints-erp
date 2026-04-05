@@ -141,7 +141,8 @@ class CriticalFixtureServiceTest {
             });
 
     FinishedGood fixtureFinishedGood = finishedGood(company, 11L, "FG-FIXTURE");
-    FinishedGood orderFinishedGood = finishedGood(company, 12L, E2eFixtureCatalog.ORDER_PRIMARY_SKU);
+    FinishedGood orderFinishedGood =
+        finishedGood(company, 12L, E2eFixtureCatalog.ORDER_PRIMARY_SKU);
     when(finishedGoodRepository.findByCompanyAndProductCode(eq(company), anyString()))
         .thenAnswer(
             invocation -> {

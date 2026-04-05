@@ -41,9 +41,7 @@ class AuditVisibilityPolicyTest {
     when(companyRepository.findCompanyCodesByIdIn(Set.of(7L, 8L)))
         .thenReturn(
             List.of(
-                projection(7L, " TENANT-A "),
-                projection(8L, " "),
-                projection(null, "TENANT-Z")));
+                projection(7L, " TENANT-A "), projection(8L, " "), projection(null, "TENANT-Z")));
     AuditVisibilityPolicy policy = new AuditVisibilityPolicy(companyRepository, authScopeService);
 
     Map<Long, String> companyCodes = policy.resolveCompanyCodes(Set.of(7L, 8L));
@@ -65,7 +63,8 @@ class AuditVisibilityPolicyTest {
 
   @Test
   void isAccountingModule_matchesIgnoringCase() {
-    AuditVisibilityPolicy policy = new AuditVisibilityPolicy(mock(CompanyRepository.class), mock(AuthScopeService.class));
+    AuditVisibilityPolicy policy =
+        new AuditVisibilityPolicy(mock(CompanyRepository.class), mock(AuthScopeService.class));
 
     assertThat(policy.isAccountingModule("ACCOUNTING")).isTrue();
     assertThat(policy.isAccountingModule("accounting")).isTrue();

@@ -82,7 +82,9 @@ class CR_ProductionMonitoringContractTest {
         .contains("MANAGEMENT_SERVER_PORT: 9090")
         .contains("SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-mailhog-user}")
         .contains("SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-mailhog-password}")
-        .contains("SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:-false}");
+        .contains(
+            "SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:"
+                + " ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:-false}");
   }
 
   @Test
@@ -101,7 +103,8 @@ class CR_ProductionMonitoringContractTest {
         .contains(
             "[[ \"$STRICT_HEALTH_STATUS\" == \"200\" && \"$STRICT_READINESS_STATUS\" == \"200\" ]]")
         .contains(
-            "[[ \"$STRICT_AUTH_STATUS\" == \"200\" || \"$STRICT_AUTH_STATUS\" == \"401\" || \"$STRICT_AUTH_STATUS\" == \"403\" ]]")
+            "[[ \"$STRICT_AUTH_STATUS\" == \"200\" || \"$STRICT_AUTH_STATUS\" == \"401\" ||"
+                + " \"$STRICT_AUTH_STATUS\" == \"403\" ]]")
         .contains("bash \"$ROOT_DIR/scripts/gate_release.sh\"");
   }
 

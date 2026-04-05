@@ -22,9 +22,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -203,14 +203,17 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
   void getItem_includesStockForFactoryRoleWhenRequested() {
     ProductionBrand brand = saveBrand("Factory Stock Brand", true);
     Map<String, Object> created =
-        data(postCatalogItem(finishedGoodPayload(brand.getId(), "Factory Stock Paint"), adminHeaders));
+        data(
+            postCatalogItem(
+                finishedGoodPayload(brand.getId(), "Factory Stock Paint"), adminHeaders));
     Long itemId = ((Number) created.get("id")).longValue();
 
     ResponseEntity<Map> factoryDetail = getCatalogItem(itemId, true, true, factoryHeaders);
 
     assertThat(factoryDetail.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(((Number) stock(data(factoryDetail)).get("onHandQuantity")).doubleValue()).isZero();
-    assertThat(((Number) stock(data(factoryDetail)).get("availableQuantity")).doubleValue()).isZero();
+    assertThat(((Number) stock(data(factoryDetail)).get("availableQuantity")).doubleValue())
+        .isZero();
   }
 
   @Test
@@ -228,14 +231,20 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
             "sales", "n/a", List.of(new SimpleGrantedAuthority("ROLE_SALES")));
     when(authoritiesMissing.getAuthorities()).thenReturn(null);
 
-    assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "canViewStock", new Object[] {null}))
+    assertThat(
+            (Boolean)
+                ReflectionTestUtils.invokeMethod(controller, "canViewStock", new Object[] {null}))
         .isFalse();
-    assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "canViewStock", authoritiesMissing))
+    assertThat(
+            (Boolean)
+                ReflectionTestUtils.invokeMethod(controller, "canViewStock", authoritiesMissing))
         .isFalse();
-    assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "canViewStock", admin)).isTrue();
+    assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "canViewStock", admin))
+        .isTrue();
     assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "canViewStock", accounting))
         .isTrue();
-    assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "canViewStock", sales)).isFalse();
+    assertThat((Boolean) ReflectionTestUtils.invokeMethod(controller, "canViewStock", sales))
+        .isFalse();
   }
 
   @Test

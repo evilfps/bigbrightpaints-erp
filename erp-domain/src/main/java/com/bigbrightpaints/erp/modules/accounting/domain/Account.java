@@ -2,10 +2,13 @@ package com.bigbrightpaints.erp.modules.accounting.domain;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import com.bigbrightpaints.erp.core.domain.VersionedEntity;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

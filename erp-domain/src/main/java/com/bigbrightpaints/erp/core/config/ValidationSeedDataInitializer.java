@@ -16,7 +16,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.security.AuthScopeService;
 import com.bigbrightpaints.erp.core.security.CryptoService;
@@ -105,7 +104,8 @@ public class ValidationSeedDataInitializer {
 
       Company mockCompany = ensureCompany(companyRepository, "MOCK", "Mock Training Co");
       Company rivalCompany = ensureCompany(companyRepository, "RIVAL", "Rival Validation Co");
-      Company holdCompany = ensureCompany(companyRepository, HOLD_COMPANY_CODE, "Hold Validation Co");
+      Company holdCompany =
+          ensureCompany(companyRepository, HOLD_COMPANY_CODE, "Hold Validation Co");
       Company blockedCompany =
           ensureCompany(companyRepository, BLOCKED_COMPANY_CODE, "Blocked Validation Co");
       Company quotaCompany =
@@ -114,29 +114,11 @@ public class ValidationSeedDataInitializer {
 
       ensureRuntimePolicy(systemSettingsRepository, mockCompany, null, null, null, null, null);
       ensureRuntimePolicy(
-          systemSettingsRepository,
-          holdCompany,
-          "HOLD",
-          "COMPLIANCE_REVIEW",
-          null,
-          null,
-          null);
+          systemSettingsRepository, holdCompany, "HOLD", "COMPLIANCE_REVIEW", null, null, null);
       ensureRuntimePolicy(
-          systemSettingsRepository,
-          blockedCompany,
-          "BLOCKED",
-          "ABUSE_INCIDENT",
-          null,
-          null,
-          null);
+          systemSettingsRepository, blockedCompany, "BLOCKED", "ABUSE_INCIDENT", null, null, null);
       ensureRuntimePolicy(
-          systemSettingsRepository,
-          quotaCompany,
-          "ACTIVE",
-          "ACTIVE_USER_LIMIT",
-          1,
-          null,
-          null);
+          systemSettingsRepository, quotaCompany, "ACTIVE", "ACTIVE_USER_LIMIT", 1, null, null);
 
       Role admin = ensureRole(roleRepository, "ROLE_ADMIN", "Administrator");
       Role accounting = ensureRole(roleRepository, "ROLE_ACCOUNTING", "Accounting");
@@ -380,7 +362,8 @@ public class ValidationSeedDataInitializer {
           blockedAdmin.getEmail(),
           quotaAlpha.getEmail());
       log.info(
-          "Validation admin inbox fixtures ready: exportReportType={} supportSubject={} creditReason={}.",
+          "Validation admin inbox fixtures ready: exportReportType={} supportSubject={}"
+              + " creditReason={}.",
           SEED_EXPORT_REPORT_TYPE,
           SEED_SUPPORT_SUBJECT,
           SEED_CREDIT_REASON);
@@ -546,8 +529,10 @@ public class ValidationSeedDataInitializer {
     if (company == null || company.getId() == null) {
       return;
     }
-    upsertRuntimeSetting(systemSettingsRepository, "tenant.runtime.hold-state." + company.getId(), state);
-    upsertRuntimeSetting(systemSettingsRepository, "tenant.runtime.hold-reason." + company.getId(), reason);
+    upsertRuntimeSetting(
+        systemSettingsRepository, "tenant.runtime.hold-state." + company.getId(), state);
+    upsertRuntimeSetting(
+        systemSettingsRepository, "tenant.runtime.hold-reason." + company.getId(), reason);
     upsertRuntimeSetting(
         systemSettingsRepository,
         "tenant.runtime.max-active-users." + company.getId(),
@@ -666,8 +651,8 @@ public class ValidationSeedDataInitializer {
     }
     Long requesterId = requesterId(requester);
     boolean exists =
-        exportRequestRepository.findByCompanyAndStatusOrderByCreatedAtAsc(
-                company, ExportApprovalStatus.PENDING)
+        exportRequestRepository
+            .findByCompanyAndStatusOrderByCreatedAtAsc(company, ExportApprovalStatus.PENDING)
             .stream()
             .anyMatch(
                 request ->
@@ -693,7 +678,9 @@ public class ValidationSeedDataInitializer {
     }
     Long requesterId = requesterId(requester);
     boolean exists =
-        supportTicketRepository.findByCompanyAndUserIdOrderByCreatedAtDesc(company, requesterId).stream()
+        supportTicketRepository
+            .findByCompanyAndUserIdOrderByCreatedAtDesc(company, requesterId)
+            .stream()
             .anyMatch(
                 ticket ->
                     ticket.getCategory() == SupportTicketCategory.SUPPORT

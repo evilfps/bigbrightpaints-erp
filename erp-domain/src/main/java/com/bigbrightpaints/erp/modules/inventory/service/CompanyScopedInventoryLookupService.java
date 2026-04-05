@@ -57,7 +57,8 @@ public class CompanyScopedInventoryLookupService {
         finishedGoodRepository
             .findByCompanyAndId(company, finishedGoodId)
             .orElseThrow(
-                () -> new IllegalArgumentException("Finished good not found: id=" + finishedGoodId));
+                () ->
+                    new IllegalArgumentException("Finished good not found: id=" + finishedGoodId));
     assertLinkedProductActive(
         company, finishedGood.getProductCode(), "finished good", finishedGoodId);
     return finishedGood;
@@ -68,7 +69,8 @@ public class CompanyScopedInventoryLookupService {
         finishedGoodRepository
             .lockByCompanyAndId(company, finishedGoodId)
             .orElseThrow(
-                () -> new IllegalArgumentException("Finished good not found: id=" + finishedGoodId));
+                () ->
+                    new IllegalArgumentException("Finished good not found: id=" + finishedGoodId));
     assertLinkedProductActive(
         company, finishedGood.getProductCode(), "finished good", finishedGoodId);
     return finishedGood;

@@ -39,6 +39,7 @@ public class SuperAdminAuditController extends AuditControllerSupport {
     return ResponseEntity.ok(
         ApiResponse.success(
             auditAccessService.queryPlatformFeed(
-                buildFilter(from, to, null, action, status, actor, entityType, reference, page, size))));
+                buildFilter(
+                    from, to, null, action, status, actor, entityType, reference, page, size))));
   }
 }

@@ -40,6 +40,7 @@ public class AdminAuditController extends AuditControllerSupport {
     return ResponseEntity.ok(
         ApiResponse.success(
             auditAccessService.queryTenantAdminFeed(
-                buildFilter(from, to, module, action, status, actor, entityType, reference, page, size))));
+                buildFilter(
+                    from, to, module, action, status, actor, entityType, reference, page, size))));
   }
 }

@@ -205,7 +205,9 @@ class PurchaseInvoiceEngineLifecycleTest {
     lenient()
         .when(purchaseRepository.findByCompanyAndGoodsReceipt(company, goodsReceipt))
         .thenReturn(Optional.empty());
-    lenient().when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    lenient()
+        .when(inventoryLookupService.lockActiveRawMaterial(company, 20L))
+        .thenReturn(rawMaterial);
     lenient()
         .when(referenceNumberService.purchaseReference(company, supplier, "INV-40"))
         .thenReturn("RMP-SUP10-INV40");

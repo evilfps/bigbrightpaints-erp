@@ -402,9 +402,8 @@ class AuthTenantAuthorityIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void
-      super_admin_can_hold_and_block_tenant_and_hold_lifecycle_denies_authenticated_runtime_reads()
-          throws InterruptedException {
+  void super_admin_can_hold_and_block_tenant_and_hold_lifecycle_denies_authenticated_runtime_reads()
+      throws InterruptedException {
     String adminToken = login(ADMIN_EMAIL, TENANT_A);
     String superToken = login(SUPER_ADMIN_EMAIL, PLATFORM_SCOPE);
     Long tenantAId =

@@ -136,7 +136,10 @@ public class CompanyContextFilter extends OncePerRequestFilter {
           resolveCompanyBoundControlBinding(runtimePath, request.getMethod());
       boolean lifecycleControlRequest = controlBinding != null;
       boolean hasSuperAdminAuthority = hasSuperAdminAuthority();
-      boolean tenantRuntimePolicyControlRequest = controlBinding != null && controlBinding.tenantRuntimePolicyControl() && hasSuperAdminAuthority;
+      boolean tenantRuntimePolicyControlRequest =
+          controlBinding != null
+              && controlBinding.tenantRuntimePolicyControl()
+              && hasSuperAdminAuthority;
       if (lifecycleControlRequest && !hasAuthenticatedPrincipal()) {
         denyControlPlaneRequest(response);
         return;
@@ -209,7 +212,8 @@ public class CompanyContextFilter extends OncePerRequestFilter {
         String pathTargetCompanyCode;
         try {
           pathTargetCompanyCode =
-              normalizeCompanyCode(companyService.resolveCompanyCodeById(lifecycleControlCompanyId));
+              normalizeCompanyCode(
+                  companyService.resolveCompanyCodeById(lifecycleControlCompanyId));
         } catch (RuntimeException ex) {
           log.warn(
               "Rejecting control-plane request because target tenant lookup failed. path={}",

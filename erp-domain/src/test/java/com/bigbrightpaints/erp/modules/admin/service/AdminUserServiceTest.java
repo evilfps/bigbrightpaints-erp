@@ -574,7 +574,8 @@ class AdminUserServiceTest {
         .thenReturn(Optional.empty());
 
     var response =
-        service.updateUser(402L, new UpdateUserRequest("Updated User", List.of("ROLE_SALES"), null));
+        service.updateUser(
+            402L, new UpdateUserRequest("Updated User", List.of("ROLE_SALES"), null));
 
     assertThat(response.displayName()).isEqualTo("Updated User");
     assertThat(response.roles()).containsExactly("ROLE_SALES");

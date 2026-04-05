@@ -89,18 +89,20 @@ public class BulkPackingReadService {
         rawMovements.stream()
             .filter(movement -> "ISSUE".equalsIgnoreCase(movement.getMovementType()))
             .filter(
-                movement -> movement.getRawMaterialBatch() != null
-                    && movement.getRawMaterialBatch().getId() != null
-                    && movement.getRawMaterialBatch().getId().equals(bulkBatch.getId()))
+                movement ->
+                    movement.getRawMaterialBatch() != null
+                        && movement.getRawMaterialBatch().getId() != null
+                        && movement.getRawMaterialBatch().getId().equals(bulkBatch.getId()))
             .map(RawMaterialMovement::getQuantity)
             .filter(qty -> qty != null && qty.compareTo(BigDecimal.ZERO) > 0)
             .reduce(BigDecimal.ZERO, BigDecimal::add);
     BigDecimal packagingCost =
         rawMovements.stream()
             .filter(
-                movement -> movement.getRawMaterialBatch() == null
-                    || movement.getRawMaterialBatch().getId() == null
-                    || !movement.getRawMaterialBatch().getId().equals(bulkBatch.getId()))
+                movement ->
+                    movement.getRawMaterialBatch() == null
+                        || movement.getRawMaterialBatch().getId() == null
+                        || !movement.getRawMaterialBatch().getId().equals(bulkBatch.getId()))
             .map(movement -> safe(movement.getQuantity()).multiply(safe(movement.getUnitCost())))
             .reduce(BigDecimal.ZERO, BigDecimal::add)
             .setScale(2, COST_ROUNDING);
@@ -149,16 +151,14 @@ public class BulkPackingReadService {
       return List.of();
     }
     RawMaterial bulkMaterial =
-        rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, semiFinishedSku)
-            .orElse(null);
+        rawMaterialRepository.findByCompanyAndSkuIgnoreCase(company, semiFinishedSku).orElse(null);
     if (bulkMaterial == null) {
       return List.of();
     }
     return rawMaterialBatchRepository.findByRawMaterial(bulkMaterial).stream()
         .filter(
             batch ->
-                batch.getQuantity() != null
-                    && batch.getQuantity().compareTo(BigDecimal.ZERO) > 0)
+                batch.getQuantity() != null && batch.getQuantity().compareTo(BigDecimal.ZERO) > 0)
         .map(this::toBulkBatchDto)
         .toList();
   }
@@ -180,12 +180,16 @@ public class BulkPackingReadService {
         rawMaterialBatchRepository
             .findByRawMaterial_CompanyAndId(company, parentBatchId)
             .orElseThrow(
-                () -> new ApplicationException(
-                    ErrorCode.BUSINESS_ENTITY_NOT_FOUND, "Parent batch not found"));
+                () ->
+                    new ApplicationException(
+                        ErrorCode.BUSINESS_ENTITY_NOT_FOUND, "Parent batch not found"));
     List<RawMaterialMovement> parentIssues =
-        rawMaterialMovementRepository.findByRawMaterialBatchOrderByCreatedAtAsc(parentBatch).stream()
+        rawMaterialMovementRepository
+            .findByRawMaterialBatchOrderByCreatedAtAsc(parentBatch)
+            .stream()
             .filter(movement -> "ISSUE".equalsIgnoreCase(movement.getMovementType()))
-            .filter(movement -> InventoryReference.PACKING_RECORD.equals(movement.getReferenceType()))
+            .filter(
+                movement -> InventoryReference.PACKING_RECORD.equals(movement.getReferenceType()))
             .toList();
     Map<Long, BulkPackResponse.ChildBatchDto> childByBatchId = new LinkedHashMap<>();
     for (RawMaterialMovement issue : parentIssues) {

@@ -518,7 +518,8 @@ public class OpeningStockImportService {
     }
     return record
         .getContentFingerprint()
-        .equals(legacyContentFingerprint(record.getOpeningStockBatchKey(), record.getIdempotencyKey()));
+        .equals(
+            legacyContentFingerprint(record.getOpeningStockBatchKey(), record.getIdempotencyKey()));
   }
 
   private String legacyContentFingerprint(String openingStockBatchKey, String idempotencyKey) {
@@ -536,8 +537,9 @@ public class OpeningStockImportService {
     List<String> fingerprintRows = new ArrayList<>();
 
     List<RawMaterialMovement> rawMovements =
-        rawMaterialMovementRepository.findByRawMaterial_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
-            company, record.getJournalEntryId(), InventoryReference.OPENING_STOCK);
+        rawMaterialMovementRepository
+            .findByRawMaterial_CompanyAndJournalEntryIdAndReferenceTypeOrderByIdAsc(
+                company, record.getJournalEntryId(), InventoryReference.OPENING_STOCK);
     if (rawMovements != null) {
       for (RawMaterialMovement movement : rawMovements) {
         if (movement.getRawMaterial() == null) {

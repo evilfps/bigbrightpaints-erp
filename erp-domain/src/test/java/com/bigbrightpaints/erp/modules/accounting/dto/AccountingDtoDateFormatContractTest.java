@@ -144,7 +144,8 @@ class AccountingDtoDateFormatContractTest {
   private List<Class<?>> loadTopLevelDtoClasses() throws IOException {
     try (Stream<Path> paths = Files.walk(DTO_ROOT)) {
       return paths
-          .filter(path -> Files.isRegularFile(path) && path.getFileName().toString().endsWith(".java"))
+          .filter(
+              path -> Files.isRegularFile(path) && path.getFileName().toString().endsWith(".java"))
           .filter(path -> !"package-info.java".equals(path.getFileName().toString()))
           .sorted(Comparator.naturalOrder())
           .map(this::loadClass)

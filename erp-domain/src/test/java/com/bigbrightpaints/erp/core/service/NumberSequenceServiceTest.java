@@ -41,7 +41,9 @@ class NumberSequenceServiceTest {
     when(txManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
     when(companyRepository.existsById(anyLong())).thenReturn(true);
     numberSequenceService = new NumberSequenceService(repository, companyRepository, txManager);
-    lenient().when(repository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+    lenient()
+        .when(repository.saveAndFlush(any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
   }
 
   @Test

@@ -130,7 +130,8 @@ public class TenantOnboardingService {
     company.setName(request.name());
     company.setCode(normalizedCompanyCode);
     company.setTimezone(request.timezone());
-    company.setDefaultGstRate(TenantBootstrapDefaults.resolveDefaultGstRate(request.defaultGstRate()));
+    company.setDefaultGstRate(
+        TenantBootstrapDefaults.resolveDefaultGstRate(request.defaultGstRate()));
     company.setQuotaMaxActiveUsers(defaultLong(request.maxActiveUsers()));
     company.setQuotaMaxApiRequests(defaultLong(request.maxApiRequests()));
     company.setQuotaMaxStorageBytes(defaultLong(request.maxStorageBytes()));
@@ -290,14 +291,15 @@ public class TenantOnboardingService {
     if (company == null || !StringUtils.hasText(company.getCode())) {
       return;
     }
-    requireTenantRuntimeEnforcementService().updatePolicy(
-        company.getCode(),
-        TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE,
-        "TENANT_ONBOARDING_BOOTSTRAP",
-        TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxConcurrentRequests()),
-        TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxApiRequests()),
-        TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxActiveUsers()),
-        SecurityActorResolver.resolveActorOrUnknown());
+    requireTenantRuntimeEnforcementService()
+        .updatePolicy(
+            company.getCode(),
+            TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE,
+            "TENANT_ONBOARDING_BOOTSTRAP",
+            TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxConcurrentRequests()),
+            TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxApiRequests()),
+            TenantBootstrapDefaults.failClosedRuntimeLimit(company.getQuotaMaxActiveUsers()),
+            SecurityActorResolver.resolveActorOrUnknown());
   }
 
   private AuthScopeService requireAuthScopeService() {

@@ -258,7 +258,8 @@ class DealerPortalServiceTest {
     assertThatThrownBy(() -> dealerPortalService.getCurrentDealer())
         .isInstanceOf(AccessDeniedException.class)
         .hasMessageContaining("mapping missing for authenticated principal");
-    verify(dealerRepository).findAllByCompanyAndPortalUserEmailIgnoreCase(company, "dealer@tenant.com");
+    verify(dealerRepository)
+        .findAllByCompanyAndPortalUserEmailIgnoreCase(company, "dealer@tenant.com");
   }
 
   @Test

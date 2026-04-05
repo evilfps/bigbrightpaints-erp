@@ -31,6 +31,7 @@ public class CompanyScopedPurchasingLookupService {
     return rawMaterialPurchaseRepository
         .findByCompanyAndId(company, purchaseId)
         .orElseThrow(
-            () -> new IllegalArgumentException("Raw material purchase not found: id=" + purchaseId));
+            () ->
+                new IllegalArgumentException("Raw material purchase not found: id=" + purchaseId));
   }
 }

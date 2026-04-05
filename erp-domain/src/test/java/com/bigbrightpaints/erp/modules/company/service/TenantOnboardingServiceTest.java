@@ -249,7 +249,8 @@ class TenantOnboardingServiceTest {
     template.setCode("GENERIC");
     template.setActive(true);
     when(coATemplateService.requireActiveTemplate("GENERIC")).thenReturn(template);
-    when(companyRepository.findByCodeIgnoreCase("DEFAULTED")).thenReturn(java.util.Optional.empty());
+    when(companyRepository.findByCodeIgnoreCase("DEFAULTED"))
+        .thenReturn(java.util.Optional.empty());
     when(authScopeService.isPlatformScope("DEFAULTED")).thenReturn(false);
     when(userAccountRepository.existsByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
             "admin@defaulted.com", "DEFAULTED"))
@@ -290,7 +291,8 @@ class TenantOnboardingServiceTest {
     assertThat(savedCompanyCaptor.getAllValues())
         .anyMatch(
             company ->
-                company != null && company.getDefaultGstRate().compareTo(BigDecimal.valueOf(18)) == 0);
+                company != null
+                    && company.getDefaultGstRate().compareTo(BigDecimal.valueOf(18)) == 0);
     verify(tenantRuntimeEnforcementService)
         .updatePolicy(
             eq("DEFAULTED"),
@@ -326,7 +328,8 @@ class TenantOnboardingServiceTest {
     company.setCode("ACME");
 
     assertThatThrownBy(
-            () -> ReflectionTestUtils.invokeMethod(service, "initializeTenantRuntimePolicy", company))
+            () ->
+                ReflectionTestUtils.invokeMethod(service, "initializeTenantRuntimePolicy", company))
         .hasMessageContaining("Tenant runtime enforcement service unavailable");
   }
 

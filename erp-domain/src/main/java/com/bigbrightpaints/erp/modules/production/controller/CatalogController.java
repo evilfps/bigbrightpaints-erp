@@ -157,9 +157,11 @@ public class CatalogController {
     }
     return authentication.getAuthorities().stream()
         .map(grantedAuthority -> grantedAuthority.getAuthority())
-        .anyMatch(authority -> "ROLE_ADMIN".equals(authority)
-            || "ROLE_ACCOUNTING".equals(authority)
-            || "ROLE_FACTORY".equals(authority));
+        .anyMatch(
+            authority ->
+                "ROLE_ADMIN".equals(authority)
+                    || "ROLE_ACCOUNTING".equals(authority)
+                    || "ROLE_FACTORY".equals(authority));
   }
 
   private boolean canViewAccountingMetadata(Authentication authentication) {

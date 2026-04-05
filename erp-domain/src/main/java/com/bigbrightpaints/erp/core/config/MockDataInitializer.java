@@ -27,14 +27,14 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.GstRegistrationType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.admin.domain.ExportRequest;
 import com.bigbrightpaints.erp.modules.admin.domain.ExportRequestRepository;
 import com.bigbrightpaints.erp.modules.admin.domain.SupportTicket;
 import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketCategory;
 import com.bigbrightpaints.erp.modules.admin.domain.SupportTicketRepository;
 import com.bigbrightpaints.erp.modules.admin.dto.ExportApprovalStatus;
-import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -201,7 +201,8 @@ public class MockDataInitializer {
               "FIFO",
               wipPackAccount);
       seedRawMaterials(company, rawMaterialRepository, rawMaterialBatchRepository, accounts);
-      seedBatches(company, batchRepository, finishedGoodRepository, fg, fgLifo, fgKit, fgE2ePrimary);
+      seedBatches(
+          company, batchRepository, finishedGoodRepository, fg, fgLifo, fgKit, fgE2ePrimary);
 
       // Seed a handful of journals for UI exploration
       CompanyContextHolder.setCompanyCode(company.getCode());
@@ -484,23 +485,20 @@ public class MockDataInitializer {
       return;
     }
     Dealer approvalDealer =
-        dealerRepository
-            .findByCompanyAndCodeIgnoreCase(company, "VALID-DEALER")
-            .orElse(dealer);
+        dealerRepository.findByCompanyAndCodeIgnoreCase(company, "VALID-DEALER").orElse(dealer);
     seedPendingExportRequest(company, seededAdmin, exportRequestRepository);
     seedPendingSupportTicket(company, approvalDealer, supportTicketRepository);
     seedPendingCreditRequest(company, approvalDealer, creditRequestRepository);
   }
 
   private void seedPendingExportRequest(
-      Company company,
-      UserAccount seededAdmin,
-      ExportRequestRepository exportRequestRepository) {
+      Company company, UserAccount seededAdmin, ExportRequestRepository exportRequestRepository) {
     if (seededAdmin == null || seededAdmin.getId() == null) {
       return;
     }
     boolean exists =
-        exportRequestRepository.findByCompanyAndStatusOrderByCreatedAtAsc(company, ExportApprovalStatus.PENDING)
+        exportRequestRepository
+            .findByCompanyAndStatusOrderByCreatedAtAsc(company, ExportApprovalStatus.PENDING)
             .stream()
             .anyMatch(
                 request ->
@@ -529,8 +527,8 @@ public class MockDataInitializer {
       return;
     }
     boolean exists =
-        supportTicketRepository.findByCompanyAndUserIdOrderByCreatedAtDesc(
-                company, dealer.getPortalUser().getId())
+        supportTicketRepository
+            .findByCompanyAndUserIdOrderByCreatedAtDesc(company, dealer.getPortalUser().getId())
             .stream()
             .anyMatch(ticket -> APPROVAL_SUPPORT_SUBJECT.equalsIgnoreCase(ticket.getSubject()));
     if (exists) {
@@ -588,9 +586,7 @@ public class MockDataInitializer {
     }
 
     RawMaterial rawMaterial =
-        rawMaterialRepository
-            .findByCompanyAndSku(company, "RM-RESIN")
-            .orElse(null);
+        rawMaterialRepository.findByCompanyAndSku(company, "RM-RESIN").orElse(null);
     if (rawMaterial == null || rawMaterial.getId() == null) {
       return;
     }
@@ -602,7 +598,9 @@ public class MockDataInitializer {
     }
 
     PurchaseOrder purchaseOrder =
-        purchaseOrderRepository.findByCompanyAndOrderNumberIgnoreCase(company, P2P_ORDER_NUMBER).orElse(null);
+        purchaseOrderRepository
+            .findByCompanyAndOrderNumberIgnoreCase(company, P2P_ORDER_NUMBER)
+            .orElse(null);
     if (purchaseOrder == null) {
       PurchaseOrderResponse created =
           purchasingService.createPurchaseOrder(
@@ -619,9 +617,7 @@ public class MockDataInitializer {
                           new BigDecimal("5.50"),
                           "Validation seeded PO line"))));
       purchaseOrder =
-          purchaseOrderRepository
-              .findByCompanyAndId(company, created.id())
-              .orElseThrow();
+          purchaseOrderRepository.findByCompanyAndId(company, created.id()).orElseThrow();
     }
 
     if ("DRAFT".equalsIgnoreCase(purchaseOrder.getStatus())) {
@@ -631,7 +627,9 @@ public class MockDataInitializer {
     }
 
     GoodsReceipt goodsReceipt =
-        goodsReceiptRepository.findByCompanyAndReceiptNumberIgnoreCase(company, P2P_RECEIPT_NUMBER).orElse(null);
+        goodsReceiptRepository
+            .findByCompanyAndReceiptNumberIgnoreCase(company, P2P_RECEIPT_NUMBER)
+            .orElse(null);
     if (goodsReceipt == null) {
       GoodsReceiptResponse created =
           purchasingService.createGoodsReceipt(
@@ -649,8 +647,7 @@ public class MockDataInitializer {
                           "UNIT",
                           new BigDecimal("5.50"),
                           "Validation seeded GRN line"))));
-      goodsReceipt =
-          goodsReceiptRepository.findByCompanyAndId(company, created.id()).orElseThrow();
+      goodsReceipt = goodsReceiptRepository.findByCompanyAndId(company, created.id()).orElseThrow();
     }
 
     if (rawMaterialPurchaseRepository
@@ -680,10 +677,7 @@ public class MockDataInitializer {
                     "Validation seeded purchase invoice line"))));
   }
 
-  private Dealer seedDealer(
-      Company company,
-      DealerRepository dealerRepository,
-      Account ar) {
+  private Dealer seedDealer(Company company, DealerRepository dealerRepository, Account ar) {
     Dealer dealer =
         dealerRepository
             .findByCompanyAndCodeIgnoreCase(company, "GST-DEALER")

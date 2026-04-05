@@ -67,9 +67,11 @@ class SupplierServiceTest {
     company.setCode("TEST");
 
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    Mockito.lenient().when(supplierRepository.findByCompanyAndCodeIgnoreCase(eq(company), anyString()))
+    Mockito.lenient()
+        .when(supplierRepository.findByCompanyAndCodeIgnoreCase(eq(company), anyString()))
         .thenReturn(Optional.empty());
-    Mockito.lenient().when(supplierRepository.save(any(Supplier.class)))
+    Mockito.lenient()
+        .when(supplierRepository.save(any(Supplier.class)))
         .thenAnswer(
             invocation -> {
               Supplier supplier = invocation.getArgument(0);
@@ -78,9 +80,11 @@ class SupplierServiceTest {
               }
               return supplier;
             });
-    Mockito.lenient().when(accountRepository.findByCompanyAndCodeIgnoreCase(eq(company), anyString()))
+    Mockito.lenient()
+        .when(accountRepository.findByCompanyAndCodeIgnoreCase(eq(company), anyString()))
         .thenReturn(Optional.empty());
-    Mockito.lenient().when(accountRepository.save(any(Account.class)))
+    Mockito.lenient()
+        .when(accountRepository.save(any(Account.class)))
         .thenAnswer(
             invocation -> {
               Account account = invocation.getArgument(0);
@@ -89,7 +93,9 @@ class SupplierServiceTest {
               }
               return account;
             });
-    Mockito.lenient().when(supplierLedgerService.currentBalance(anyLong())).thenReturn(BigDecimal.ZERO);
+    Mockito.lenient()
+        .when(supplierLedgerService.currentBalance(anyLong()))
+        .thenReturn(BigDecimal.ZERO);
   }
 
   @Test
@@ -365,12 +371,7 @@ class SupplierServiceTest {
         supplierService.updateSupplier(
             77L,
             new SupplierRequest(
-                "Skeina Updated",
-                "   ",
-                "skeina@example.com",
-                "9999999999",
-                "Main Street",
-                null));
+                "Skeina Updated", "   ", "skeina@example.com", "9999999999", "Main Street", null));
 
     assertThat(supplier.getCode()).isEqualTo("LEGACY");
     assertThat(supplier.getCreditLimit()).isEqualByComparingTo(BigDecimal.ZERO);

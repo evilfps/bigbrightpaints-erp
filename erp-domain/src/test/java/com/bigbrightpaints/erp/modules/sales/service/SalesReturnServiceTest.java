@@ -1656,8 +1656,7 @@ class SalesReturnServiceTest {
 
     assertThat(result.id()).isEqualTo(1202L);
     verify(journalCorrectionMetadataService)
-        .syncReversalMetadata(
-            company, 1202L, "SALES_RETURN", "SALES_RETURN", "INV-REPLAY-CLEAN");
+        .syncReversalMetadata(company, 1202L, "SALES_RETURN", "SALES_RETURN", "INV-REPLAY-CLEAN");
     verify(inventoryMovementRepository, never()).saveAll(any());
     verify(finishedGoodRepository, never()).save(any(FinishedGood.class));
     verify(finishedGoodBatchRepository, never()).save(any(FinishedGoodBatch.class));
@@ -2684,8 +2683,7 @@ class SalesReturnServiceTest {
         company, journalEntryDto(321L, "JE-321", LocalDate.now(), null), source, "INV-ALIGNED");
 
     verify(journalCorrectionMetadataService)
-        .syncReversalMetadata(
-            company, 321L, "SALES_RETURN", "SALES_RETURN", "INV-ALIGNED");
+        .syncReversalMetadata(company, 321L, "SALES_RETURN", "SALES_RETURN", "INV-ALIGNED");
   }
 
   @Test

@@ -32,7 +32,9 @@ public class AuditVisibilityPolicy {
 
   public Specification<AuditLog> platformVisibility() {
     Long platformCompanyId =
-        companyRepository.findIdByCodeIgnoreCase(authScopeService.getPlatformScopeCode()).orElse(null);
+        companyRepository
+            .findIdByCodeIgnoreCase(authScopeService.getPlatformScopeCode())
+            .orElse(null);
 
     return (root, query, cb) -> {
       List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
@@ -52,7 +54,8 @@ public class AuditVisibilityPolicy {
       return Map.of();
     }
     Map<Long, String> companyCodes = new LinkedHashMap<>();
-    for (CompanyRepository.CompanyCodeProjection projection : companyRepository.findCompanyCodesByIdIn(companyIds)) {
+    for (CompanyRepository.CompanyCodeProjection projection :
+        companyRepository.findCompanyCodesByIdIn(companyIds)) {
       if (projection.getId() == null || !StringUtils.hasText(projection.getCode())) {
         continue;
       }
@@ -71,5 +74,4 @@ public class AuditVisibilityPolicy {
       String prefix) {
     return cb.or(cb.equal(path, prefix), cb.like(path, prefix + "/%"));
   }
-
 }

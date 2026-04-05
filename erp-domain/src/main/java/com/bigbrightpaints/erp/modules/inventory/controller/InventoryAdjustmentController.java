@@ -66,9 +66,7 @@ public class InventoryAdjustmentController {
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Inventory adjustment request is required");
     }
     IdempotencyHeaderUtils.rejectLegacyHeader(
-        legacyIdempotencyKeyHeader,
-        "inventory adjustments",
-        CANONICAL_INVENTORY_ADJUSTMENT_PATH);
+        legacyIdempotencyKeyHeader, "inventory adjustments", CANONICAL_INVENTORY_ADJUSTMENT_PATH);
     String resolvedKey =
         IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
             request.idempotencyKey(), idempotencyKeyHeader, null);

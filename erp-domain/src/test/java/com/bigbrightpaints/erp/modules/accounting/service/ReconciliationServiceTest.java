@@ -588,7 +588,10 @@ class ReconciliationServiceTest {
         .isInstanceOfSatisfying(
             ApplicationException.class,
             ex -> {
-              assertThat(ex.getErrorCode()).isEqualTo(com.bigbrightpaints.erp.core.exception.ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS);
+              assertThat(ex.getErrorCode())
+                  .isEqualTo(
+                      com.bigbrightpaints.erp.core.exception.ErrorCode
+                          .AUTH_INSUFFICIENT_PERMISSIONS);
               assertThat(ex.getMessage())
                   .isEqualTo("Inter-company reconciliation must include the active company");
               assertThat(ex.getDetails())

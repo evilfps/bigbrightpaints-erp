@@ -344,7 +344,8 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
   void auth_and_tenant_control_docs_match_the_hard_cut_route_story() throws IOException {
     String modulesAuth = readRepoFile("docs/modules/auth.md");
     assertThat(modulesAuth).contains("`GET /api/v1/auth/me`");
-    assertThat(modulesAuth).contains("`/api/v1/superadmin/tenants/{id}/support/admin-password-reset`");
+    assertThat(modulesAuth)
+        .contains("`/api/v1/superadmin/tenants/{id}/support/admin-password-reset`");
     assertThat(modulesAuth)
         .doesNotContain("### UserProfileController — `/api/v1/auth/profile`")
         .doesNotContain("| GET | `/api/v1/auth/profile` |")
@@ -355,7 +356,8 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertThat(flowAuthIdentity).contains("| `/me` | GET | `/api/v1/auth/me` |");
     assertThat(flowAuthIdentity)
         .contains(
-            "| Super-admin support reset | POST | `/api/v1/superadmin/tenants/{id}/support/admin-password-reset` |")
+            "| Super-admin support reset | POST |"
+                + " `/api/v1/superadmin/tenants/{id}/support/admin-password-reset` |")
         .doesNotContain("| Profile read | GET | `/api/v1/auth/profile` |")
         .doesNotContain("| Profile update | PUT | `/api/v1/auth/profile` |")
         .doesNotContain("PUT `/api/v1/auth/profile`")
@@ -403,7 +405,8 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
 
     String runtimeControlPlane = readRepoFile(".factory/library/tenant-runtime-control-plane.md");
     assertThat(runtimeControlPlane)
-        .contains("Canonical control-plane mutation path: `PUT /api/v1/superadmin/tenants/{id}/limits`")
+        .contains(
+            "Canonical control-plane mutation path: `PUT /api/v1/superadmin/tenants/{id}/limits`")
         .doesNotContain("Public mutation path: `PUT /api/v1/companies/{id}/tenant-runtime/policy`");
   }
 

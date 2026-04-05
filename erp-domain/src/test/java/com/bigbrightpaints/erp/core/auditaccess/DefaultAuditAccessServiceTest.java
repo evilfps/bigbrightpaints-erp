@@ -36,14 +36,26 @@ class DefaultAuditAccessServiceTest {
         mock(AccountingTransactionAuditReadAdapter.class);
     DefaultAuditAccessService service =
         new DefaultAuditAccessService(
-            companyContextService, auditLogReadAdapter, businessAuditReadAdapter, transactionReadAdapter);
+            companyContextService,
+            auditLogReadAdapter,
+            businessAuditReadAdapter,
+            transactionReadAdapter);
     Company company = new Company();
     ReflectionTestUtils.setField(company, "id", 7L);
     company.setCode("TENANT-A");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     AuditFeedFilter filter =
         new AuditFeedFilter(
-            LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31), null, null, null, null, null, null, 0, 2);
+            LocalDate.of(2026, 3, 1),
+            LocalDate.of(2026, 3, 31),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            0,
+            2);
     when(auditLogReadAdapter.queryTenantCompanyFeed(company, filter))
         .thenReturn(
             new AuditFeedSlice(
@@ -112,7 +124,10 @@ class DefaultAuditAccessServiceTest {
         mock(AccountingTransactionAuditReadAdapter.class);
     DefaultAuditAccessService service =
         new DefaultAuditAccessService(
-            companyContextService, auditLogReadAdapter, businessAuditReadAdapter, transactionReadAdapter);
+            companyContextService,
+            auditLogReadAdapter,
+            businessAuditReadAdapter,
+            transactionReadAdapter);
     Company company = new Company();
     ReflectionTestUtils.setField(company, "id", 7L);
     company.setCode("TENANT-A");
@@ -197,7 +212,10 @@ class DefaultAuditAccessServiceTest {
         mock(AccountingTransactionAuditReadAdapter.class);
     DefaultAuditAccessService service =
         new DefaultAuditAccessService(
-            companyContextService, auditLogReadAdapter, businessAuditReadAdapter, transactionReadAdapter);
+            companyContextService,
+            auditLogReadAdapter,
+            businessAuditReadAdapter,
+            transactionReadAdapter);
     PageResponse<AccountingTransactionAuditListItemDto> expectedPage =
         PageResponse.of(List.of(), 0, 0, 50);
     AccountingTransactionAuditDetailDto expectedDetail =
@@ -239,7 +257,13 @@ class DefaultAuditAccessServiceTest {
             "ops@example.com",
             "ops@example.com");
     when(transactionReadAdapter.listTransactions(
-            LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31), "ACCOUNTING", "POSTED", "JE-17", 0, 50))
+            LocalDate.of(2026, 3, 1),
+            LocalDate.of(2026, 3, 31),
+            "ACCOUNTING",
+            "POSTED",
+            "JE-17",
+            0,
+            50))
         .thenReturn(expectedPage);
     when(transactionReadAdapter.transactionDetail(17L)).thenReturn(expectedDetail);
 
@@ -256,7 +280,13 @@ class DefaultAuditAccessServiceTest {
     assertThat(service.getAccountingTransactionDetail(17L)).isEqualTo(expectedDetail);
     verify(transactionReadAdapter)
         .listTransactions(
-            LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31), "ACCOUNTING", "POSTED", "JE-17", 0, 50);
+            LocalDate.of(2026, 3, 1),
+            LocalDate.of(2026, 3, 31),
+            "ACCOUNTING",
+            "POSTED",
+            "JE-17",
+            0,
+            50);
     verify(transactionReadAdapter).transactionDetail(17L);
   }
 
@@ -269,7 +299,10 @@ class DefaultAuditAccessServiceTest {
         mock(AccountingTransactionAuditReadAdapter.class);
     DefaultAuditAccessService service =
         new DefaultAuditAccessService(
-            companyContextService, auditLogReadAdapter, businessAuditReadAdapter, transactionReadAdapter);
+            companyContextService,
+            auditLogReadAdapter,
+            businessAuditReadAdapter,
+            transactionReadAdapter);
     AuditFeedFilter filter =
         new AuditFeedFilter(null, null, null, null, null, null, null, null, 2, 25);
     AuditFeedSlice feed = new AuditFeedSlice(List.of(), 0);
@@ -293,7 +326,10 @@ class DefaultAuditAccessServiceTest {
         mock(AccountingTransactionAuditReadAdapter.class);
     DefaultAuditAccessService service =
         new DefaultAuditAccessService(
-            companyContextService, auditLogReadAdapter, businessAuditReadAdapter, transactionReadAdapter);
+            companyContextService,
+            auditLogReadAdapter,
+            businessAuditReadAdapter,
+            transactionReadAdapter);
     AuditFeedFilter filter =
         new AuditFeedFilter(null, null, null, null, null, null, null, null, 30, 200);
 
@@ -318,7 +354,10 @@ class DefaultAuditAccessServiceTest {
         mock(AccountingTransactionAuditReadAdapter.class);
     DefaultAuditAccessService service =
         new DefaultAuditAccessService(
-            companyContextService, auditLogReadAdapter, businessAuditReadAdapter, transactionReadAdapter);
+            companyContextService,
+            auditLogReadAdapter,
+            businessAuditReadAdapter,
+            transactionReadAdapter);
     AuditFeedFilter filter =
         new AuditFeedFilter(null, null, "ACCOUNTING", null, null, null, null, null, 30, 200);
 

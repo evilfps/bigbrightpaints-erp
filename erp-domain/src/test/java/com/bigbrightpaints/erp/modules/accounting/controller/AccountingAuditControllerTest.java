@@ -117,7 +117,13 @@ class AccountingAuditControllerTest {
             0,
             50);
     when(auditAccessService.queryAccountingTransactions(
-            LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31), "ACCOUNTING", "POSTED", "JE-17", 0, 50))
+            LocalDate.of(2026, 3, 1),
+            LocalDate.of(2026, 3, 31),
+            "ACCOUNTING",
+            "POSTED",
+            "JE-17",
+            0,
+            50))
         .thenReturn(expected);
 
     ApiResponse<PageResponse<AccountingTransactionAuditListItemDto>> body =
@@ -129,7 +135,13 @@ class AccountingAuditControllerTest {
     assertThat(body.data()).isEqualTo(expected);
     verify(auditAccessService)
         .queryAccountingTransactions(
-            LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31), "ACCOUNTING", "POSTED", "JE-17", 0, 50);
+            LocalDate.of(2026, 3, 1),
+            LocalDate.of(2026, 3, 31),
+            "ACCOUNTING",
+            "POSTED",
+            "JE-17",
+            0,
+            50);
   }
 
   @Test

@@ -81,7 +81,8 @@ class TS_RuntimeAccountingControllerExportCoverageTest {
   void supplierPdfExportEndpoints_remainAvailableWhenAuditServiceUnavailable() {
     StatementService statementService = mock(StatementService.class);
     AccountingController controller = newController(statementService, null);
-    when(statementService.supplierStatementPdf(eq(20L), any(), any())).thenReturn("supplier".getBytes());
+    when(statementService.supplierStatementPdf(eq(20L), any(), any()))
+        .thenReturn("supplier".getBytes());
 
     var response = controller.supplierStatementPdf(20L, null, null);
 
@@ -89,8 +90,7 @@ class TS_RuntimeAccountingControllerExportCoverageTest {
   }
 
   private AccountingController newController(
-      StatementService statementService,
-      AuditService auditService) {
+      StatementService statementService, AuditService auditService) {
     AccountingController controller =
         new AccountingController(
             mock(AccountingService.class),

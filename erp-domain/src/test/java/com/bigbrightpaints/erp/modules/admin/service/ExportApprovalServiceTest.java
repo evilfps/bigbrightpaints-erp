@@ -163,7 +163,8 @@ class ExportApprovalServiceTest {
     ReflectionTestUtils.setField(pending, "id", 90L);
 
     when(exportRequestRepository.findByCompanyAndId(company, 90L)).thenReturn(Optional.of(pending));
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@bbp.com", "EXP"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "admin@bbp.com", "EXP"))
         .thenReturn(Optional.of(actor));
     when(systemSettingsService.isExportApprovalRequired()).thenReturn(true);
 
@@ -188,7 +189,8 @@ class ExportApprovalServiceTest {
 
     when(exportRequestRepository.findByCompanyAndId(company, 91L))
         .thenReturn(Optional.of(approved));
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@bbp.com", "EXP"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "admin@bbp.com", "EXP"))
         .thenReturn(Optional.of(actor));
     when(systemSettingsService.isExportApprovalRequired()).thenReturn(true);
 
@@ -210,7 +212,8 @@ class ExportApprovalServiceTest {
 
     when(exportRequestRepository.findByCompanyAndId(company, 93L))
         .thenReturn(Optional.of(approved));
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@bbp.com", "EXP"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "admin@bbp.com", "EXP"))
         .thenReturn(Optional.of(actor));
 
     assertThatThrownBy(() -> service.resolveDownload(93L))
@@ -233,7 +236,8 @@ class ExportApprovalServiceTest {
 
     when(exportRequestRepository.findByCompanyAndId(company, 92L))
         .thenReturn(Optional.of(rejected));
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@bbp.com", "EXP"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "admin@bbp.com", "EXP"))
         .thenReturn(Optional.of(actor));
     when(systemSettingsService.isExportApprovalRequired()).thenReturn(false);
 
@@ -255,7 +259,8 @@ class ExportApprovalServiceTest {
 
     when(exportRequestRepository.findByCompanyAndId(company, 93L))
         .thenReturn(Optional.of(approved));
-    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase("admin@bbp.com", "EXP"))
+    when(userAccountRepository.findByEmailIgnoreCaseAndAuthScopeCodeIgnoreCase(
+            "admin@bbp.com", "EXP"))
         .thenReturn(Optional.of(actor));
 
     assertThatThrownBy(() -> service.resolveDownload(93L))
@@ -264,8 +269,7 @@ class ExportApprovalServiceTest {
             ex -> {
               ApplicationException appEx = (ApplicationException) ex;
               assertThat(appEx.getErrorCode()).isEqualTo(ErrorCode.AUTH_INSUFFICIENT_PERMISSIONS);
-              assertThat(appEx.getMessage())
-                  .contains("does not belong to the authenticated actor");
+              assertThat(appEx.getMessage()).contains("does not belong to the authenticated actor");
             });
   }
 }

@@ -16,10 +16,12 @@ class TS_AccountingExportAuditGovernanceContractTest {
   void supplierPdfExportEndpointsRemainAdminOnly() {
     TruthSuiteFileAssert.assertContainsInOrder(
         ACCOUNTING_CONTROLLER,
-        "@GetMapping(value = \"/statements/suppliers/{supplierId}/pdf\", produces = \"application/pdf\")",
+        "@GetMapping(value = \"/statements/suppliers/{supplierId}/pdf\", produces ="
+            + " \"application/pdf\")",
         "@PreAuthorize(\"hasAuthority('ROLE_ADMIN')\")",
         "public ResponseEntity<byte[]> supplierStatementPdf(",
-        "@GetMapping(value = \"/aging/suppliers/{supplierId}/pdf\", produces = \"application/pdf\")",
+        "@GetMapping(value = \"/aging/suppliers/{supplierId}/pdf\", produces ="
+            + " \"application/pdf\")",
         "@PreAuthorize(\"hasAuthority('ROLE_ADMIN')\")",
         "public ResponseEntity<byte[]> supplierAgingPdf(");
   }
