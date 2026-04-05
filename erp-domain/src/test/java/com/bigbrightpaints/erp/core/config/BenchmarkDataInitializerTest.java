@@ -56,6 +56,24 @@ class BenchmarkDataInitializerTest {
   }
 
   @Test
+  void benchmarkInitializer_isLoadedFromTestClasspath() {
+    String classLocation =
+        BenchmarkDataInitializer.class
+            .getProtectionDomain()
+            .getCodeSource()
+            .getLocation()
+            .toExternalForm();
+    String testClassLocation =
+        BenchmarkDataInitializerTest.class
+            .getProtectionDomain()
+            .getCodeSource()
+            .getLocation()
+            .toExternalForm();
+
+    assertThat(classLocation).isEqualTo(testClassLocation);
+  }
+
+  @Test
   void seedRolesAndUsers_createsScopedBenchmarkAdminWhenMissing() {
     Company company = company("BBP");
     when(passwordEncoder.encode("Temp123!")).thenReturn("encoded-password");
