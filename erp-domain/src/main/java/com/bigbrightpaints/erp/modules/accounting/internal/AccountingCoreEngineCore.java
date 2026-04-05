@@ -1083,8 +1083,10 @@ abstract class AccountingCoreEngineCore {
             : currentDate(company);
     boolean overrideRequested = request != null && Boolean.TRUE.equals(request.adminOverride());
     boolean systemEntryDateOverrideActive = Boolean.TRUE.equals(SYSTEM_ENTRY_DATE_OVERRIDE.get());
+    boolean userHasEntryDateOverrideAuthority = hasEntryDateOverrideAuthority();
     boolean overrideAuthorized =
-        systemEntryDateOverrideActive || (overrideRequested && hasEntryDateOverrideAuthority());
+        systemEntryDateOverrideActive
+            || (overrideRequested && userHasEntryDateOverrideAuthority);
     AccountingPeriod postingPeriod;
     if (systemSettingsService.isPeriodLockEnforced()) {
       validateEntryDate(company, reversalDate, overrideRequested, overrideAuthorized);
@@ -1438,7 +1440,7 @@ abstract class AccountingCoreEngineCore {
       row.setWriteOffAmount(BigDecimal.ZERO);
       row.setFxDifferenceAmount(BigDecimal.ZERO);
       row.setIdempotencyKey(idempotencyKey);
-      if (invoice != null && invoice.getCurrency() != null) {
+      if (invoice.getCurrency() != null) {
         row.setCurrency(invoice.getCurrency());
       }
       row.setMemo(allocation.memo());
