@@ -12,10 +12,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.audit.AuditService;
+import com.bigbrightpaints.erp.core.notification.EmailService;
 
 /**
  * Service for monitoring security events and detecting suspicious activities.
@@ -37,6 +39,8 @@ public class SecurityMonitoringService {
 
   @Autowired private TokenBlacklistService tokenBlacklistService;
 
+  @Autowired private EmailService emailService;
+
   // Configuration
   @Value("${security.monitoring.max-failed-logins:5}")
   private int maxFailedLogins;
@@ -49,6 +53,9 @@ public class SecurityMonitoringService {
 
   @Value("${security.monitoring.suspicious-activity-threshold:10}")
   private int suspiciousActivityThreshold;
+
+  @Value("${security.monitoring.notification-email:}")
+  private String securityNotificationEmail;
 
   // Tracking maps
   private final Map<String, AtomicInteger> failedLoginAttempts = new ConcurrentHashMap<>();
@@ -171,7 +178,7 @@ public class SecurityMonitoringService {
         ipAddress,
         attempts);
 
-    // Send notification (implement based on your notification system)
+    // Send notification if an alert recipient is configured.
     sendSecurityNotification("Brute force attack", username, ipAddress);
   }
 
@@ -252,12 +259,33 @@ public class SecurityMonitoringService {
   }
 
   /**
-   * Sends security notifications (implement based on your notification system).
+   * Sends a security notification when an alert recipient is configured.
    */
   private void sendSecurityNotification(String alertType, String subject, String details) {
-    // TODO: Implement email/SMS/Slack notifications
-    logger.info(
-        "Security notification: {} - Subject: {}, Details: {}", alertType, subject, details);
+    if (!StringUtils.hasText(securityNotificationEmail)) {
+      logger.debug(
+          "Security notification skipped because no security.monitoring.notification-email is"
+              + " configured for alertType={}",
+          alertType);
+      return;
+    }
+
+    String emailSubject = "Security alert: " + alertType;
+    StringBuilder body =
+        new StringBuilder("A security event requires attention.\n\nAlert type: ").append(alertType);
+    if (StringUtils.hasText(subject)) {
+      body.append("\nSubject: ").append(subject);
+    }
+    if (StringUtils.hasText(details)) {
+      body.append("\nDetails: ").append(details);
+    }
+    body.append("\nGenerated at: ").append(LocalDateTime.now());
+
+    try {
+      emailService.sendSimpleEmail(securityNotificationEmail, emailSubject, body.toString());
+    } catch (RuntimeException ex) {
+      logger.warn("Failed to dispatch security notification for alertType={}", alertType, ex);
+    }
   }
 
   /**

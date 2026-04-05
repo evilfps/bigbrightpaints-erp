@@ -200,7 +200,6 @@ run_case "release_mismatch_fail_closed" 4 \
 require_output "release_mismatch_fail_closed" "FLYWAY_GUARD_DB_NAME and PGDATABASE differ."
 
 # Case 7: gate_release propagates allow/delegation flags to verify_local call.
-mv "$TMP_ROOT/scripts/verify_local.sh" "$TMP_ROOT/scripts/verify_local.real.sh"
 cat > "$TMP_ROOT/scripts/verify_local.sh" <<'STUB_VERIFY_WRAPPER'
 #!/usr/bin/env bash
 set -euo pipefail

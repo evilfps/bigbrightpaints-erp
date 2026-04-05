@@ -8,8 +8,7 @@ echo "[codex-autofix] running docs + architecture checks"
 bash ci/lint-knowledgebase.sh
 bash ci/check-architecture.sh
 
-echo "[codex-autofix] running doc-gardener hint script"
-bash skills/doc-gardener/scripts/lint-and-fix-hints.sh
+echo "[codex-autofix] skipping retired doc-gardener hint step"
 
 echo "[codex-autofix] template run complete"
 echo "[codex-autofix] NOTE: automatic PR creation is unspecified (requires repo/app token + policy)."
