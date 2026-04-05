@@ -60,6 +60,7 @@ com.bigbrightpaints.erp.modules.inventory.controller.FinishedGoodControllerTest
 com.bigbrightpaints.erp.modules.inventory.controller.RawMaterialControllerSecurityIT
 com.bigbrightpaints.erp.modules.inventory.controller.RawMaterialControllerTest
 com.bigbrightpaints.erp.modules.hr.service.LeaveServiceTest
+com.bigbrightpaints.erp.core.service.NumberSequenceServiceTest
 InvoiceServiceTest
 com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicyTest
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeInvoiceSettlementPolicyExecutableCoverageTest
@@ -79,6 +80,7 @@ RawMaterialPurchaseControllerTest
 RawMaterialServiceReceiptContextTest
 SalesControllerIdempotencyHeaderTest
 SalesControllerIT
+com.bigbrightpaints.erp.modules.sales.service.OrderNumberServiceTest
 SalesCoreEngineCoverageTest
 SalesFulfillmentServiceTest
 SalesOrderDtoContractTest

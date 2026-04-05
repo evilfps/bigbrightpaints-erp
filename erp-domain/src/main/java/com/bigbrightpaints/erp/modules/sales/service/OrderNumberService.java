@@ -2,6 +2,8 @@ package com.bigbrightpaints.erp.modules.sales.service;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -21,6 +23,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.OrderSequenceRepository;
 public class OrderNumberService {
 
   private static final int DEFAULT_PADDING = 5;
+  private static final long RETRY_BACKOFF_MILLIS = 10L;
   private static final int MAX_RETRIES = 5;
 
   private final OrderSequenceRepository orderSequenceRepository;
@@ -63,6 +66,9 @@ public class OrderNumberService {
         }
       } catch (DataIntegrityViolationException | OptimisticLockingFailureException ex) {
         lastError = ex;
+        if (attempt == MAX_RETRIES || !pauseBeforeRetry(attempt)) {
+          break;
+        }
       }
     }
     if (lastError != null) {
@@ -82,6 +88,11 @@ public class OrderNumberService {
 
   private int resolveFiscalYear(Company company) {
     return companyClock.today(company).getYear();
+  }
+
+  private boolean pauseBeforeRetry(int attempt) {
+    LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(RETRY_BACKOFF_MILLIS * attempt));
+    return !Thread.currentThread().isInterrupted();
   }
 
   private String formatOrderNumber(String companyCode, int fiscalYear, long sequenceNumber) {

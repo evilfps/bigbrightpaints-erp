@@ -1,10 +1,12 @@
 package com.bigbrightpaints.erp.modules.sales.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
@@ -43,7 +47,8 @@ class OrderNumberServiceTest {
     when(companyClock.today(any())).thenReturn(LocalDate.of(2024, 1, 1));
     orderNumberService =
         new OrderNumberService(orderSequenceRepository, auditService, txManager, companyClock);
-    when(orderSequenceRepository.saveAndFlush(any()))
+    lenient()
+        .when(orderSequenceRepository.saveAndFlush(any()))
         .thenAnswer(invocation -> invocation.getArgument(0));
   }
 
@@ -72,5 +77,62 @@ class OrderNumberServiceTest {
     verify(orderSequenceRepository).saveAndFlush(seq1);
     verify(orderSequenceRepository).saveAndFlush(seq2);
     verify(auditService, times(2)).logSuccess(eq(AuditEvent.ORDER_NUMBER_GENERATED), anyMap());
+  }
+
+  @Test
+  void retriesOnTransientSequenceContention() {
+    Company company = new Company();
+    company.setCode("C1");
+    company.setTimezone("UTC");
+
+    OrderSequence sequence = new OrderSequence();
+    when(orderSequenceRepository.findByCompanyAndFiscalYear(eq(company), anyInt()))
+        .thenThrow(new DataIntegrityViolationException("duplicate key"))
+        .thenThrow(new OptimisticLockingFailureException("stale row"))
+        .thenReturn(Optional.of(sequence));
+
+    String orderNumber = orderNumberService.nextOrderNumber(company);
+
+    assertThat(orderNumber).isEqualTo("C1-2024-00001");
+    verify(orderSequenceRepository, times(3)).findByCompanyAndFiscalYear(eq(company), eq(2024));
+    verify(orderSequenceRepository).saveAndFlush(sequence);
+    verify(auditService).logSuccess(eq(AuditEvent.ORDER_NUMBER_GENERATED), anyMap());
+  }
+
+  @Test
+  void throwsLastErrorAfterMaxRetries() {
+    Company company = new Company();
+    company.setCode("C1");
+    company.setTimezone("UTC");
+
+    when(orderSequenceRepository.findByCompanyAndFiscalYear(eq(company), anyInt()))
+        .thenThrow(new DataIntegrityViolationException("duplicate key"));
+
+    assertThatThrownBy(() -> orderNumberService.nextOrderNumber(company))
+        .isInstanceOf(DataIntegrityViolationException.class)
+        .hasMessageContaining("duplicate key");
+
+    verify(orderSequenceRepository, times(5)).findByCompanyAndFiscalYear(eq(company), eq(2024));
+  }
+
+  @Test
+  void stopsRetryingWhenBackoffIsInterrupted() {
+    Company company = new Company();
+    company.setCode("C1");
+    company.setTimezone("UTC");
+
+    when(orderSequenceRepository.findByCompanyAndFiscalYear(eq(company), anyInt()))
+        .thenThrow(new OptimisticLockingFailureException("stale row"));
+
+    Thread.currentThread().interrupt();
+    try {
+      assertThatThrownBy(() -> orderNumberService.nextOrderNumber(company))
+          .isInstanceOf(OptimisticLockingFailureException.class)
+          .hasMessageContaining("stale row");
+    } finally {
+      Thread.interrupted();
+    }
+
+    verify(orderSequenceRepository).findByCompanyAndFiscalYear(eq(company), eq(2024));
   }
 }
