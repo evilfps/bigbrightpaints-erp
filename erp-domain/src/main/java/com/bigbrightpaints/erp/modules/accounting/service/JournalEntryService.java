@@ -475,9 +475,7 @@ public class JournalEntryService extends AccountingCoreEngineCore {
           auditMetadata.put("journalEntryId", existingEntry.getId().toString());
         }
         ensureDuplicateMatchesExisting(existingEntry, entry, postedLines);
-        log.info(
-            "Idempotent return: journal entry '{}' already exists, returning existing entry",
-            entry.getReferenceNumber());
+        log.info("Idempotent return: journal entry already exists, returning existing entry");
         auditMetadata.put("idempotent", "true");
         logAuditSuccessAfterCommit(AuditEvent.JOURNAL_ENTRY_POSTED, auditMetadata);
         return toDto(existingEntry);
@@ -517,17 +515,13 @@ public class JournalEntryService extends AccountingCoreEngineCore {
           }
           ensureDuplicateMatchesExisting(existingEntry, entry, postedLines);
           log.info(
-              "Idempotent return after concurrent save race: journal entry '{}' already exists,"
-                  + " returning existing entry",
-              entry.getReferenceNumber());
+              "Idempotent return after concurrent save race: journal entry already exists,"
+                  + " returning existing entry");
           auditMetadata.put("idempotent", "true");
           logAuditSuccessAfterCommit(AuditEvent.JOURNAL_ENTRY_POSTED, auditMetadata);
           return toDto(existingEntry);
         }
-        log.info(
-            "Concurrent journal save conflict for reference '{}' detected; retrying in fresh"
-                + " transaction",
-            entry.getReferenceNumber());
+        log.info("Concurrent journal save conflict detected; retrying in fresh transaction");
         throw ex;
       }
       boolean postedEventTrailRecorded = true;
@@ -828,6 +822,7 @@ public class JournalEntryService extends AccountingCoreEngineCore {
     return created;
   }
 
+  @Override
   public JournalEntryDto reverseJournalEntry(Long entryId, JournalEntryReversalRequest request) {
     if (request != null
         && (request.cascadeRelatedEntries()
@@ -840,11 +835,13 @@ public class JournalEntryService extends AccountingCoreEngineCore {
     return super.reverseJournalEntry(entryId, request);
   }
 
+  @Override
   JournalEntryDto reverseClosingEntryForPeriodReopen(
       JournalEntry entry, AccountingPeriod period, String reason) {
     return super.reverseClosingEntryForPeriodReopen(entry, period, reason);
   }
 
+  @Override
   public List<JournalEntryDto> cascadeReverseRelatedEntries(
       Long primaryEntryId, JournalEntryReversalRequest request) {
     return super.cascadeReverseRelatedEntries(primaryEntryId, request);

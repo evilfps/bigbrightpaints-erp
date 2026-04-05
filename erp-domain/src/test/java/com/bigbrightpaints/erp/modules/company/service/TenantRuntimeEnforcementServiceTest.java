@@ -121,6 +121,15 @@ class TenantRuntimeEnforcementServiceTest {
               persistedSettingsByKey.put(setting.getKey(), setting.getValue());
               return setting;
             });
+    lenient()
+        .doAnswer(
+            invocation -> {
+              String key = invocation.getArgument(0, String.class);
+              persistedSettingsByKey.remove(key);
+              return null;
+            })
+        .when(systemSettingsRepository)
+        .deleteById(any());
   }
 
   @AfterEach
@@ -688,6 +697,191 @@ class TenantRuntimeEnforcementServiceTest {
     TenantRuntimeEnforcementService.TenantRequestAdmission stillAllowed =
         admissionService.beginRequest("ACME", "/api/v1/private", "GET", "actor@bbp.com");
     assertThat(stillAllowed.isAdmitted()).isTrue();
+    assertThat(persistedSettingsByKey).isEmpty();
+  }
+
+  @Test
+  void updateQuotas_auditFailureRestoresPersistedPolicyState() {
+    persistedSettingsByKey.put(keyHoldState(1L), "ACTIVE");
+    persistedSettingsByKey.put(keyHoldReason(1L), "POLICY_ACTIVE");
+    persistedSettingsByKey.put(keyMaxConcurrentRequests(1L), "3");
+    persistedSettingsByKey.put(keyMaxRequestsPerMinute(1L), "3");
+    persistedSettingsByKey.put(keyMaxActiveUsers(1L), "3");
+    persistedSettingsByKey.put(keyPolicyReference(1L), "persisted-policy-ref");
+    persistedSettingsByKey.put(keyPolicyUpdatedAt(1L), "2026-01-01T00:00:00Z");
+    Map<String, String> persistedBefore = new HashMap<>(persistedSettingsByKey);
+
+    org.mockito.Mockito.doThrow(new RuntimeException("audit-write-failed"))
+        .when(auditService)
+        .logAuthSuccess(eq(AuditEvent.CONFIGURATION_CHANGED), any(), eq("ACME"), anyMap());
+
+    assertThatThrownBy(() -> service.updateQuotas("ACME", 9, 11, 13, "ratchet", "ops@bbp.com"))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("audit-write-failed");
+
+    assertThat(persistedSettingsByKey).containsExactlyInAnyOrderEntriesOf(persistedBefore);
+  }
+
+  @Test
+  void updateQuotas_persistFailureRestoresPreviouslyPersistedPolicyState() {
+    persistedSettingsByKey.put(keyHoldState(1L), "ACTIVE");
+    persistedSettingsByKey.put(keyHoldReason(1L), "POLICY_ACTIVE");
+    persistedSettingsByKey.put(keyMaxConcurrentRequests(1L), "3");
+    persistedSettingsByKey.put(keyMaxRequestsPerMinute(1L), "3");
+    persistedSettingsByKey.put(keyMaxActiveUsers(1L), "3");
+    persistedSettingsByKey.put(keyPolicyReference(1L), "persisted-policy-ref");
+    persistedSettingsByKey.put(keyPolicyUpdatedAt(1L), "2026-01-01T00:00:00Z");
+    Map<String, String> persistedBefore = new HashMap<>(persistedSettingsByKey);
+    int[] saveCalls = {0};
+
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              SystemSetting setting = invocation.getArgument(0, SystemSetting.class);
+              saveCalls[0]++;
+              if (saveCalls[0] == 4) {
+                throw new RuntimeException("persist-write-failed");
+              }
+              persistedSettingsByKey.put(setting.getKey(), setting.getValue());
+              return setting;
+            })
+        .when(systemSettingsRepository)
+        .save(any(SystemSetting.class));
+
+    assertThatThrownBy(() -> service.updateQuotas("ACME", 9, 11, 13, "ratchet", "ops@bbp.com"))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("persist-write-failed");
+
+    assertThat(persistedSettingsByKey).containsExactlyInAnyOrderEntriesOf(persistedBefore);
+  }
+
+  @Test
+  void updateQuotas_auditFailurePersistsExistingLiveHoldStateAcrossCacheInvalidation() {
+    TenantRuntimeEnforcementService.TenantRuntimeSnapshot held =
+        service.holdTenant("ACME", "manual-hold", "ops@bbp.com");
+
+    org.mockito.Mockito.doThrow(new RuntimeException("audit-write-failed"))
+        .when(auditService)
+        .logAuthSuccess(eq(AuditEvent.CONFIGURATION_CHANGED), any(), eq("ACME"), anyMap());
+
+    assertThatThrownBy(() -> service.updateQuotas("ACME", 9, 11, 13, "ratchet", "ops@bbp.com"))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("audit-write-failed");
+
+    service.invalidatePolicyCache("ACME");
+    TenantRuntimeEnforcementService.TenantRuntimeSnapshot restored = service.snapshot("ACME");
+
+    assertThat(restored.state()).isEqualTo(held.state());
+    assertThat(restored.reasonCode()).isEqualTo(held.reasonCode());
+    assertThat(restored.maxConcurrentRequests()).isEqualTo(held.maxConcurrentRequests());
+    assertThat(restored.maxRequestsPerMinute()).isEqualTo(held.maxRequestsPerMinute());
+    assertThat(restored.maxActiveUsers()).isEqualTo(held.maxActiveUsers());
+  }
+
+  @Test
+  void updateQuotas_auditFailureDoesNotOverwriteNewerPersistedPolicyWithCacheOnlyState() {
+    service.holdTenant("ACME", "manual-hold", "ops@bbp.com");
+    persistedSettingsByKey.put(keyHoldState(1L), "BLOCKED");
+    persistedSettingsByKey.put(keyHoldReason(1L), "INCIDENT_LOCK");
+    persistedSettingsByKey.put(keyMaxConcurrentRequests(1L), "7");
+    persistedSettingsByKey.put(keyMaxRequestsPerMinute(1L), "9");
+    persistedSettingsByKey.put(keyMaxActiveUsers(1L), "11");
+    persistedSettingsByKey.put(keyPolicyReference(1L), "persisted-policy-ref");
+    persistedSettingsByKey.put(keyPolicyUpdatedAt(1L), "2026-02-20T10:16:00Z");
+
+    org.mockito.Mockito.doThrow(new RuntimeException("audit-write-failed"))
+        .when(auditService)
+        .logAuthSuccess(eq(AuditEvent.CONFIGURATION_CHANGED), any(), eq("ACME"), anyMap());
+
+    assertThatThrownBy(() -> service.updateQuotas("ACME", 13, 15, 17, "ratchet", "ops@bbp.com"))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("audit-write-failed");
+
+    TenantRuntimeEnforcementService.TenantRuntimeSnapshot immediate = service.snapshot("ACME");
+    service.invalidatePolicyCache("ACME");
+    TenantRuntimeEnforcementService.TenantRuntimeSnapshot restored = service.snapshot("ACME");
+
+    assertThat(immediate.state())
+        .isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED);
+    assertThat(immediate.reasonCode()).isEqualTo("INCIDENT_LOCK");
+    assertThat(immediate.maxConcurrentRequests()).isEqualTo(7);
+    assertThat(immediate.maxRequestsPerMinute()).isEqualTo(9);
+    assertThat(immediate.maxActiveUsers()).isEqualTo(11);
+    assertThat(restored.state())
+        .isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED);
+    assertThat(restored.reasonCode()).isEqualTo("INCIDENT_LOCK");
+    assertThat(restored.maxConcurrentRequests()).isEqualTo(7);
+    assertThat(restored.maxRequestsPerMinute()).isEqualTo(9);
+    assertThat(restored.maxActiveUsers()).isEqualTo(11);
+  }
+
+  @Test
+  void updateQuotas_auditFailurePreservesNewerPersistedPolicyWrittenAfterSnapshot() {
+    persistedSettingsByKey.put(keyHoldState(1L), "ACTIVE");
+    persistedSettingsByKey.put(keyHoldReason(1L), "POLICY_ACTIVE");
+    persistedSettingsByKey.put(keyMaxConcurrentRequests(1L), "3");
+    persistedSettingsByKey.put(keyMaxRequestsPerMinute(1L), "3");
+    persistedSettingsByKey.put(keyMaxActiveUsers(1L), "3");
+    persistedSettingsByKey.put(keyPolicyReference(1L), "persisted-policy-ref");
+    persistedSettingsByKey.put(keyPolicyUpdatedAt(1L), "2026-01-01T00:00:00Z");
+
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              persistedSettingsByKey.put(keyHoldState(1L), "BLOCKED");
+              persistedSettingsByKey.put(keyHoldReason(1L), "INCIDENT_LOCK");
+              persistedSettingsByKey.put(keyMaxConcurrentRequests(1L), "7");
+              persistedSettingsByKey.put(keyMaxRequestsPerMinute(1L), "9");
+              persistedSettingsByKey.put(keyMaxActiveUsers(1L), "11");
+              persistedSettingsByKey.put(keyPolicyReference(1L), "newer-policy-ref");
+              persistedSettingsByKey.put(keyPolicyUpdatedAt(1L), "2026-02-20T10:16:00Z");
+              throw new RuntimeException("audit-write-failed");
+            })
+        .when(auditService)
+        .logAuthSuccess(eq(AuditEvent.CONFIGURATION_CHANGED), any(), eq("ACME"), anyMap());
+
+    assertThatThrownBy(() -> service.updateQuotas("ACME", 13, 15, 17, "ratchet", "ops@bbp.com"))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("audit-write-failed");
+
+    TenantRuntimeEnforcementService.TenantRuntimeSnapshot restored = service.snapshot("ACME");
+
+    assertThat(restored.state())
+        .isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.BLOCKED);
+    assertThat(restored.reasonCode()).isEqualTo("INCIDENT_LOCK");
+    assertThat(restored.maxConcurrentRequests()).isEqualTo(7);
+    assertThat(restored.maxRequestsPerMinute()).isEqualTo(9);
+    assertThat(restored.maxActiveUsers()).isEqualTo(11);
+  }
+
+  @Test
+  void updateQuotas_auditFailurePreservesPersistedResumeState() {
+    persistedSettingsByKey.put(keyHoldState(1L), "BLOCKED");
+    persistedSettingsByKey.put(keyHoldReason(1L), "PERSISTED_BLOCK");
+    persistedSettingsByKey.put(keyMaxConcurrentRequests(1L), "5");
+    persistedSettingsByKey.put(keyMaxRequestsPerMinute(1L), "7");
+    persistedSettingsByKey.put(keyMaxActiveUsers(1L), "9");
+    persistedSettingsByKey.put(keyPolicyReference(1L), "persisted-block-ref");
+    persistedSettingsByKey.put(keyPolicyUpdatedAt(1L), "2026-02-20T10:16:00Z");
+
+    TenantRuntimeEnforcementService.TenantRuntimeSnapshot resumed =
+        service.resumeTenant("ACME", "ops@bbp.com");
+    assertThat(resumed.state()).isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
+
+    org.mockito.Mockito.doThrow(new RuntimeException("audit-write-failed"))
+        .when(auditService)
+        .logAuthSuccess(eq(AuditEvent.CONFIGURATION_CHANGED), any(), eq("ACME"), anyMap());
+
+    assertThatThrownBy(() -> service.updateQuotas("ACME", 13, 15, 17, "ratchet", "ops@bbp.com"))
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("audit-write-failed");
+
+    TenantRuntimeEnforcementService.TenantRuntimeSnapshot restored = service.snapshot("ACME");
+
+    assertThat(restored.state())
+        .isEqualTo(TenantRuntimeEnforcementService.TenantRuntimeState.ACTIVE);
+    assertThat(restored.reasonCode()).isEqualTo("POLICY_ACTIVE");
+    assertThat(restored.maxConcurrentRequests()).isEqualTo(5);
+    assertThat(restored.maxRequestsPerMinute()).isEqualTo(7);
+    assertThat(restored.maxActiveUsers()).isEqualTo(9);
   }
 
   @Test

@@ -114,6 +114,7 @@ public class DealerReceiptService extends AccountingCoreEngineCore {
     return super.recordDealerReceipt(request);
   }
 
+  @Override
   public JournalEntryDto recordDealerReceiptSplit(DealerReceiptSplitRequest request) {
     DealerReceiptSplitRequest normalized = normalizeDealerReceiptSplitRequest(request);
     return super.recordDealerReceiptSplit(normalized);

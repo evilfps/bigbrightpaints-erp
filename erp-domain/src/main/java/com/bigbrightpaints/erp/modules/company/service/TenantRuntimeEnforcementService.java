@@ -4,10 +4,12 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Supplier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -52,6 +54,7 @@ public class TenantRuntimeEnforcementService {
   private final UserAccountRepository userAccountRepository;
   private final AuditService auditService;
   private final int defaultMaxConcurrentRequests;
+  private final ConcurrentMap<String, Object> policyMutationLocks = new ConcurrentHashMap<>();
   private final int defaultMaxRequestsPerMinute;
   private final int defaultMaxActiveUsers;
   private final long persistedPolicyCacheTtlMillis;
@@ -277,38 +280,42 @@ public class TenantRuntimeEnforcementService {
       String reasonCode,
       String actor) {
     String normalizedCompany = requireCompanyCode(companyCode);
-    Company company = requireTrackedCompany(normalizedCompany);
-    TenantRuntimePolicy current = policyForManagedOperation(normalizedCompany);
-    String normalizedReason = normalizeReason(reasonCode);
-    String previousChainId = current.auditChainId;
-    String newChainId = UUID.randomUUID().toString();
-    Instant now = CompanyTime.now();
-    TenantRuntimePolicy updated = copyPolicy(current);
-    if (maxConcurrentRequests != null) {
-      updated.maxConcurrentRequests = sanitizeLimit(maxConcurrentRequests);
-    }
-    if (maxRequestsPerMinute != null) {
-      updated.maxRequestsPerMinute = sanitizeLimit(maxRequestsPerMinute);
-    }
-    if (maxActiveUsers != null) {
-      updated.maxActiveUsers = sanitizeLimit(maxActiveUsers);
-    }
-    updated.reasonCode = normalizedReason;
-    updated.updatedAt = now;
-    updated.auditChainId = newChainId;
-    updated.policyRefreshAfterEpochMillis =
-        System.currentTimeMillis() + persistedPolicyCacheTtlMillis;
-    persistPolicy(company, updated);
-    auditPolicyChange(
-        "UPDATE_TENANT_QUOTAS",
+    return withPolicyMutationLock(
         normalizedCompany,
-        normalizeActor(actor),
-        normalizedReason,
-        previousChainId,
-        updated.auditChainId,
-        updated);
-    activatePolicy(normalizedCompany, updated);
-    return snapshot(normalizedCompany);
+        () -> {
+          Company company = requireTrackedCompany(normalizedCompany);
+          TenantRuntimePolicy current =
+              persistedPolicyForManagedOperation(normalizedCompany, company);
+          String normalizedReason = normalizeReason(reasonCode);
+          String previousChainId = current.auditChainId;
+          String newChainId = UUID.randomUUID().toString();
+          Instant now = CompanyTime.now();
+          TenantRuntimePolicy updated = copyPolicy(current);
+          if (maxConcurrentRequests != null) {
+            updated.maxConcurrentRequests = sanitizeLimit(maxConcurrentRequests);
+          }
+          if (maxRequestsPerMinute != null) {
+            updated.maxRequestsPerMinute = sanitizeLimit(maxRequestsPerMinute);
+          }
+          if (maxActiveUsers != null) {
+            updated.maxActiveUsers = sanitizeLimit(maxActiveUsers);
+          }
+          updated.reasonCode = normalizedReason;
+          updated.updatedAt = now;
+          updated.auditChainId = newChainId;
+          updated.policyRefreshAfterEpochMillis =
+              System.currentTimeMillis() + persistedPolicyCacheTtlMillis;
+          persistPolicyAndAuditChange(
+              company,
+              normalizedCompany,
+              "UPDATE_TENANT_QUOTAS",
+              normalizeActor(actor),
+              normalizedReason,
+              previousChainId,
+              updated);
+          activatePolicy(normalizedCompany, updated);
+          return snapshot(normalizedCompany);
+        });
   }
 
   public TenantRuntimeSnapshot updatePolicy(
@@ -320,48 +327,52 @@ public class TenantRuntimeEnforcementService {
       Integer maxActiveUsers,
       String actor) {
     String normalizedCompany = requireCompanyCode(companyCode);
-    Company company = requireTrackedCompany(normalizedCompany);
-    if (targetState == null
-        && maxConcurrentRequests == null
-        && maxRequestsPerMinute == null
-        && maxActiveUsers == null) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Runtime policy mutation payload is required");
-    }
-    TenantRuntimePolicy current = policyForManagedOperation(normalizedCompany);
-    String normalizedReason = normalizeReason(reasonCode);
-    String previousChainId = current.auditChainId;
-    String newChainId = UUID.randomUUID().toString();
-    Instant now = CompanyTime.now();
-    TenantRuntimePolicy updated = copyPolicy(current);
-    if (targetState != null) {
-      updated.state = targetState;
-    }
-    if (maxConcurrentRequests != null) {
-      updated.maxConcurrentRequests = sanitizeLimit(maxConcurrentRequests);
-    }
-    if (maxRequestsPerMinute != null) {
-      updated.maxRequestsPerMinute = sanitizeLimit(maxRequestsPerMinute);
-    }
-    if (maxActiveUsers != null) {
-      updated.maxActiveUsers = sanitizeLimit(maxActiveUsers);
-    }
-    updated.reasonCode = normalizedReason;
-    updated.updatedAt = now;
-    updated.auditChainId = newChainId;
-    updated.policyRefreshAfterEpochMillis =
-        System.currentTimeMillis() + persistedPolicyCacheTtlMillis;
-    persistPolicy(company, updated);
-    auditPolicyChange(
-        "UPDATE_TENANT_RUNTIME_POLICY",
+    return withPolicyMutationLock(
         normalizedCompany,
-        normalizeActor(actor),
-        normalizedReason,
-        previousChainId,
-        updated.auditChainId,
-        updated);
-    activatePolicy(normalizedCompany, updated);
-    return snapshot(normalizedCompany);
+        () -> {
+          Company company = requireTrackedCompany(normalizedCompany);
+          if (targetState == null
+              && maxConcurrentRequests == null
+              && maxRequestsPerMinute == null
+              && maxActiveUsers == null) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                "Runtime policy mutation payload is required");
+          }
+          TenantRuntimePolicy current =
+              persistedPolicyForManagedOperation(normalizedCompany, company);
+          String normalizedReason = normalizeReason(reasonCode);
+          String previousChainId = current.auditChainId;
+          String newChainId = UUID.randomUUID().toString();
+          Instant now = CompanyTime.now();
+          TenantRuntimePolicy updated = copyPolicy(current);
+          if (targetState != null) {
+            updated.state = targetState;
+          }
+          if (maxConcurrentRequests != null) {
+            updated.maxConcurrentRequests = sanitizeLimit(maxConcurrentRequests);
+          }
+          if (maxRequestsPerMinute != null) {
+            updated.maxRequestsPerMinute = sanitizeLimit(maxRequestsPerMinute);
+          }
+          if (maxActiveUsers != null) {
+            updated.maxActiveUsers = sanitizeLimit(maxActiveUsers);
+          }
+          updated.reasonCode = normalizedReason;
+          updated.updatedAt = now;
+          updated.auditChainId = newChainId;
+          updated.policyRefreshAfterEpochMillis =
+              System.currentTimeMillis() + persistedPolicyCacheTtlMillis;
+          persistPolicyAndAuditChange(
+              company,
+              normalizedCompany,
+              "UPDATE_TENANT_RUNTIME_POLICY",
+              normalizeActor(actor),
+              normalizedReason,
+              previousChainId,
+              updated);
+          activatePolicy(normalizedCompany, updated);
+          return snapshot(normalizedCompany);
+        });
   }
 
   public TenantRuntimeSnapshot snapshot(String companyCode) {
@@ -414,6 +425,32 @@ public class TenantRuntimeEnforcementService {
         policy.updatedAt == null ? null : policy.updatedAt.toString());
   }
 
+  private void persistPolicyAndAuditChange(
+      Company company,
+      String companyCode,
+      String action,
+      String actor,
+      String reasonCode,
+      String previousChainId,
+      TenantRuntimePolicy policy) {
+    Map<String, String> persistedPolicyState =
+        capturePersistedPolicyState(companyCode, company == null ? null : company.getId());
+    try {
+      persistPolicy(company, policy);
+      auditPolicyChange(
+          action,
+          companyCode,
+          actor,
+          reasonCode,
+          previousChainId,
+          policy.auditChainId,
+          policy);
+    } catch (RuntimeException ex) {
+      restorePersistedPolicyState(company, companyCode, policy, persistedPolicyState, ex);
+      throw ex;
+    }
+  }
+
   private TenantRuntimeSnapshot updateState(
       String companyCode,
       TenantRuntimeState targetState,
@@ -421,29 +458,197 @@ public class TenantRuntimeEnforcementService {
       String actor,
       String action) {
     String normalizedCompany = requireCompanyCode(companyCode);
-    requireTrackedCompany(normalizedCompany);
-    TenantRuntimePolicy current = policyForManagedOperation(normalizedCompany);
-    String normalizedReason = normalizeReason(reasonCode);
-    String previousChainId = current.auditChainId;
-    String newChainId = UUID.randomUUID().toString();
-    Instant now = CompanyTime.now();
-    TenantRuntimePolicy updated = copyPolicy(current);
-    updated.state = targetState;
-    updated.reasonCode = normalizedReason;
-    updated.auditChainId = newChainId;
-    updated.updatedAt = now;
-    updated.policyRefreshAfterEpochMillis =
-        System.currentTimeMillis() + persistedPolicyCacheTtlMillis;
-    auditPolicyChange(
-        action,
+    return withPolicyMutationLock(
         normalizedCompany,
-        normalizeActor(actor),
-        normalizedReason,
-        previousChainId,
-        updated.auditChainId,
-        updated);
-    activatePolicy(normalizedCompany, updated);
-    return snapshot(normalizedCompany);
+        () -> {
+          Company company = requireTrackedCompany(normalizedCompany);
+          TenantRuntimePolicy current =
+              persistedPolicyForManagedOperation(normalizedCompany, company);
+          String normalizedReason = normalizeReason(reasonCode);
+          String previousChainId = current.auditChainId;
+          String newChainId = UUID.randomUUID().toString();
+          Instant now = CompanyTime.now();
+          TenantRuntimePolicy updated = copyPolicy(current);
+          updated.state = targetState;
+          updated.reasonCode = normalizedReason;
+          updated.auditChainId = newChainId;
+          updated.updatedAt = now;
+          updated.policyRefreshAfterEpochMillis =
+              System.currentTimeMillis() + persistedPolicyCacheTtlMillis;
+          persistPolicyAndAuditChange(
+              company,
+              normalizedCompany,
+              action,
+              normalizeActor(actor),
+              normalizedReason,
+              previousChainId,
+              updated);
+          activatePolicy(normalizedCompany, updated);
+          return snapshot(normalizedCompany);
+        });
+  }
+
+  private Map<String, String> capturePersistedPolicyState(String companyCode, Long companyId) {
+    Map<String, String> persistedPolicyState = new HashMap<>();
+    if (companyId == null) {
+      return persistedPolicyState;
+    }
+    persistedPolicyState.put(
+        keyHoldState(companyId), readPersistedPolicySetting(companyCode, keyHoldState(companyId)));
+    persistedPolicyState.put(
+        keyHoldReason(companyId), readPersistedPolicySetting(companyCode, keyHoldReason(companyId)));
+    persistedPolicyState.put(
+        keyMaxConcurrentRequests(companyId),
+        readPersistedPolicySetting(companyCode, keyMaxConcurrentRequests(companyId)));
+    persistedPolicyState.put(
+        keyMaxRequestsPerMinute(companyId),
+        readPersistedPolicySetting(companyCode, keyMaxRequestsPerMinute(companyId)));
+    persistedPolicyState.put(
+        keyMaxActiveUsers(companyId),
+        readPersistedPolicySetting(companyCode, keyMaxActiveUsers(companyId)));
+    persistedPolicyState.put(
+        keyPolicyReference(companyId),
+        readPersistedPolicySetting(companyCode, keyPolicyReference(companyId)));
+    persistedPolicyState.put(
+        keyPolicyUpdatedAt(companyId),
+        readPersistedPolicySetting(companyCode, keyPolicyUpdatedAt(companyId)));
+    return persistedPolicyState;
+  }
+
+  private String readPersistedPolicySetting(String companyCode, String key) {
+    try {
+      return systemSettingsRepository.findById(key).map(SystemSetting::getValue).orElse(null);
+    } catch (RuntimeException ex) {
+      throw toManagedOperationException(
+          companyCode,
+          new TenantRuntimeAdmissionFailure(
+              unavailableRejection(
+                  companyCode,
+                  "TENANT_RUNTIME_POLICY_UNAVAILABLE",
+                  "Tenant runtime policy is unavailable"),
+              ex));
+    }
+  }
+
+  private void restorePersistedPolicyState(
+      Company company,
+      String companyCode,
+      TenantRuntimePolicy attemptedPolicy,
+      Map<String, String> persistedPolicyState,
+      RuntimeException originalFailure) {
+    try {
+      Long companyId = company == null ? null : company.getId();
+      Map<String, String> latestPersistedPolicyState =
+          companyId == null ? Map.of() : capturePersistedPolicyState(companyCode, companyId);
+      if (shouldPreserveLatestPersistedState(
+          companyId, persistedPolicyState, latestPersistedPolicyState, attemptedPolicy)) {
+        activatePolicy(
+            companyCode,
+            Optional.ofNullable(policyFromPersistedState(companyId, latestPersistedPolicyState))
+                .orElseGet(this::defaultPolicy));
+        return;
+      }
+      for (Map.Entry<String, String> persistedSetting : persistedPolicyState.entrySet()) {
+        restorePersistedSetting(persistedSetting.getKey(), persistedSetting.getValue());
+      }
+      activatePolicy(
+          companyCode,
+          companyId == null
+              ? defaultPolicy()
+              : Optional.ofNullable(policyFromPersistedState(companyId, persistedPolicyState))
+                  .orElseGet(this::defaultPolicy));
+    } catch (RuntimeException restoreFailure) {
+      originalFailure.addSuppressed(restoreFailure);
+    }
+  }
+
+  private void restorePersistedSetting(String key, String value) {
+    if (!StringUtils.hasText(key)) {
+      return;
+    }
+    if (value == null) {
+      systemSettingsRepository.deleteById(key);
+      return;
+    }
+    systemSettingsRepository.save(new SystemSetting(key, value));
+  }
+
+  private boolean shouldPreserveLatestPersistedState(
+      Long companyId,
+      Map<String, String> persistedPolicyState,
+      Map<String, String> latestPersistedPolicyState,
+      TenantRuntimePolicy attemptedPolicy) {
+    if (companyId == null || attemptedPolicy == null || latestPersistedPolicyState == null) {
+      return false;
+    }
+    Map<String, String> attemptedPersistedState = policyToPersistedState(companyId, attemptedPolicy);
+    for (Map.Entry<String, String> persistedSetting : persistedPolicyState.entrySet()) {
+      String key = persistedSetting.getKey();
+      String latestValue = latestPersistedPolicyState.get(key);
+      String previousValue = persistedSetting.getValue();
+      String attemptedValue = attemptedPersistedState.get(key);
+      if (!Objects.equals(latestValue, previousValue) && !Objects.equals(latestValue, attemptedValue)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private TenantRuntimePolicy policyFromPersistedState(
+      Long companyId, Map<String, String> persistedPolicyState) {
+    if (persistedPolicyState == null || persistedPolicyState.isEmpty()) {
+      return null;
+    }
+    String persistedState = persistedPolicyState.get(keyHoldState(companyId));
+    String persistedReason = persistedPolicyState.get(keyHoldReason(companyId));
+    String persistedMaxConcurrent = persistedPolicyState.get(keyMaxConcurrentRequests(companyId));
+    String persistedMaxPerMinute = persistedPolicyState.get(keyMaxRequestsPerMinute(companyId));
+    String persistedMaxActiveUsers = persistedPolicyState.get(keyMaxActiveUsers(companyId));
+    String persistedPolicyReference = persistedPolicyState.get(keyPolicyReference(companyId));
+    String persistedUpdatedAt = persistedPolicyState.get(keyPolicyUpdatedAt(companyId));
+
+    boolean hasPersistedPolicy =
+        persistedState != null
+            || persistedReason != null
+            || persistedMaxConcurrent != null
+            || persistedMaxPerMinute != null
+            || persistedMaxActiveUsers != null
+            || persistedPolicyReference != null
+            || persistedUpdatedAt != null;
+    if (!hasPersistedPolicy) {
+      return null;
+    }
+
+    return new TenantRuntimePolicy(
+        normalizeState(persistedState),
+        StringUtils.hasText(persistedReason) ? persistedReason.trim() : DEFAULT_REASON,
+        parsePositiveInt(persistedMaxConcurrent, defaultMaxConcurrentRequests),
+        parsePositiveInt(persistedMaxPerMinute, defaultMaxRequestsPerMinute),
+        parsePositiveInt(persistedMaxActiveUsers, defaultMaxActiveUsers),
+        StringUtils.hasText(persistedPolicyReference)
+            ? persistedPolicyReference.trim()
+            : DEFAULT_POLICY_REFERENCE,
+        parseInstantOrNull(persistedUpdatedAt),
+        0L);
+  }
+
+  private Map<String, String> policyToPersistedState(Long companyId, TenantRuntimePolicy policy) {
+    Map<String, String> persistedState = new HashMap<>();
+    if (companyId == null || policy == null) {
+      return persistedState;
+    }
+    persistedState.put(keyHoldState(companyId), policy.state == null ? null : policy.state.name());
+    persistedState.put(keyHoldReason(companyId), policy.reasonCode);
+    persistedState.put(
+        keyMaxConcurrentRequests(companyId), Integer.toString(policy.maxConcurrentRequests));
+    persistedState.put(
+        keyMaxRequestsPerMinute(companyId), Integer.toString(policy.maxRequestsPerMinute));
+    persistedState.put(keyMaxActiveUsers(companyId), Integer.toString(policy.maxActiveUsers));
+    persistedState.put(keyPolicyReference(companyId), policy.auditChainId);
+    persistedState.put(
+        keyPolicyUpdatedAt(companyId),
+        policy.updatedAt == null ? null : policy.updatedAt.toString());
+    return persistedState;
   }
 
   private void auditPolicyChange(
@@ -700,7 +905,16 @@ public class TenantRuntimeEnforcementService {
     if (company == null || company.getId() == null) {
       throw new TenantRuntimeAdmissionFailure(tenantNotFoundRejection(companyCode));
     }
-    Long companyId = company.getId();
+    return loadPersistedPolicy(companyCode, company.getId());
+  }
+
+  private TenantRuntimePolicy loadPersistedPolicy(String companyCode, Long companyId) {
+    if (!StringUtils.hasText(companyCode)) {
+      return null;
+    }
+    if (companyId == null) {
+      throw new TenantRuntimeAdmissionFailure(tenantNotFoundRejection(companyCode));
+    }
     String persistedState = readSetting(companyCode, keyHoldState(companyId), null);
     String persistedReason = readSetting(companyCode, keyHoldReason(companyId), null);
     String persistedMaxConcurrent =
@@ -877,6 +1091,13 @@ public class TenantRuntimeEnforcementService {
     return counters.computeIfAbsent(companyCode, key -> new TenantRuntimeCounters());
   }
 
+  private <T> T withPolicyMutationLock(String companyCode, Supplier<T> action) {
+    Object lock = policyMutationLocks.computeIfAbsent(companyCode, key -> new Object());
+    synchronized (lock) {
+      return action.get();
+    }
+  }
+
   private Optional<String> currentAuditChainId(String companyCode) {
     TenantRuntimePolicy current = policies.get(companyCode);
     if (current == null || !StringUtils.hasText(current.auditChainId)) {
@@ -946,6 +1167,17 @@ public class TenantRuntimeEnforcementService {
   private TenantRuntimePolicy policyForManagedOperation(String normalizedCompany) {
     try {
       return policyFor(normalizedCompany);
+    } catch (TenantRuntimeAdmissionFailure failure) {
+      throw toManagedOperationException(normalizedCompany, failure);
+    }
+  }
+
+  private TenantRuntimePolicy persistedPolicyForManagedOperation(
+      String normalizedCompany, Company company) {
+    try {
+      TenantRuntimePolicy persistedPolicy =
+          loadPersistedPolicy(normalizedCompany, company == null ? null : company.getId());
+      return persistedPolicy == null ? defaultPolicy() : persistedPolicy;
     } catch (TenantRuntimeAdmissionFailure failure) {
       throw toManagedOperationException(normalizedCompany, failure);
     }
