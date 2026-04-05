@@ -136,3 +136,13 @@ management:
       probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
   security:
     enabled: true
+sentry:
+  dsn: ${SENTRY_DSN}
+  environment: prod
+  release: ${SENTRY_RELEASE:erp-domain@${project.version:unknown}}
+  send-default-pii: true
+  traces-sample-rate: ${SENTRY_TRACES_SAMPLE_RATE:0.2}
+  logging:
+    minimum-event-level: warn
+    minimum-breadcrumb-level: info
+  exception-resolver-order: -2147483647

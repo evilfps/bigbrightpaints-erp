@@ -163,6 +163,16 @@ erp:
     repo-owner: ${ERP_GITHUB_REPO_OWNER:}
     repo-name: ${ERP_GITHUB_REPO_NAME:}
 
+sentry:
+  dsn: ${SENTRY_DSN:}
+  send-default-pii: true
+  environment: ${SPRING_PROFILES_ACTIVE:dev}
+  traces-sample-rate: ${SENTRY_TRACES_SAMPLE_RATE:0.1}
+  logging:
+    minimum-event-level: error
+    minimum-breadcrumb-level: info
+  exception-resolver-order: -2147483647
+
 logging:
   level:
     com.bigbrightpaints.erp: INFO
