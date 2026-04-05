@@ -12,6 +12,7 @@ import java.util.regex.Pattern;
 final class PackagingSizeParser {
 
   private static final BigDecimal ONE_THOUSAND = new BigDecimal("1000");
+  private static final Pattern BARE_SIZE_PATTERN = Pattern.compile("^[0-9]+(?:\\.[0-9]+)?$");
   private static final Pattern SIZE_WITH_UNIT_PATTERN =
       Pattern.compile("^([0-9]+(?:\\.[0-9]+)?)\\s*(ML|L|LTR|LITRE|LITER)$");
 
@@ -30,12 +31,8 @@ final class PackagingSizeParser {
       return null;
     }
     String normalized = label.trim().toUpperCase(Locale.ROOT);
-    if (allowBareNumber) {
-      try {
-        return new BigDecimal(normalized);
-      } catch (NumberFormatException ignored) {
-        // Fall through to unit-based parsing.
-      }
+    if (allowBareNumber && BARE_SIZE_PATTERN.matcher(normalized).matches()) {
+      return new BigDecimal(normalized);
     }
 
     Matcher matcher = SIZE_WITH_UNIT_PATTERN.matcher(normalized);

@@ -10,6 +10,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +25,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
@@ -229,5 +233,50 @@ class ProductionLogServiceCostingFallbackTest {
                     "FG-NO-ACC-BULK"))
         .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
         .hasMessageContaining("missing semi-finished account metadata");
+  }
+
+  @Test
+  void resolveProducedAt_supportsIsoAndLocalFormats() {
+    Company company = new Company();
+    ZoneId zoneId = ZoneId.of("Asia/Kolkata");
+    when(companyClock.zoneId(company)).thenReturn(zoneId);
+
+    Instant offsetDateTime =
+        ReflectionTestUtils.invokeMethod(
+            productionLogService, "resolveProducedAt", company, "2026-04-05T10:15:30+05:30");
+    Instant isoInstant =
+        ReflectionTestUtils.invokeMethod(
+            productionLogService, "resolveProducedAt", company, "2026-04-05T04:45:30Z");
+    Instant localMinutes =
+        ReflectionTestUtils.invokeMethod(
+            productionLogService, "resolveProducedAt", company, "05-04-2026 10:15");
+    Instant localSeconds =
+        ReflectionTestUtils.invokeMethod(
+            productionLogService, "resolveProducedAt", company, "05-04-2026 10:15:30");
+    Instant dateOnly =
+        ReflectionTestUtils.invokeMethod(
+            productionLogService, "resolveProducedAt", company, "2026-04-05");
+
+    assertThat(offsetDateTime).isEqualTo(Instant.parse("2026-04-05T04:45:30Z"));
+    assertThat(isoInstant).isEqualTo(Instant.parse("2026-04-05T04:45:30Z"));
+    assertThat(localMinutes).isEqualTo(Instant.parse("2026-04-05T04:45:00Z"));
+    assertThat(localSeconds).isEqualTo(Instant.parse("2026-04-05T04:45:30Z"));
+    assertThat(dateOnly).isEqualTo(Instant.parse("2026-04-04T18:30:00Z"));
+  }
+
+  @Test
+  void resolveProducedAt_rejectsUnknownFormat() {
+    Company company = new Company();
+    when(companyClock.zoneId(company)).thenReturn(ZoneId.of("UTC"));
+
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    productionLogService, "resolveProducedAt", company, "04/05/2026"))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            ex ->
+                assertThat(((ApplicationException) ex).getErrorCode())
+                    .isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT));
   }
 }

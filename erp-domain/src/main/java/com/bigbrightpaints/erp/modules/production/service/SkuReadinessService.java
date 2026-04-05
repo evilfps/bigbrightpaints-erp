@@ -501,11 +501,11 @@ public class SkuReadinessService {
       return number.longValue();
     }
     if (candidate instanceof String stringValue && StringUtils.hasText(stringValue)) {
-      try {
-        return Long.parseLong(stringValue.trim());
-      } catch (NumberFormatException ignored) {
+      String normalized = stringValue.trim();
+      if (!normalized.chars().allMatch(Character::isDigit)) {
         return null;
       }
+      return Long.parseLong(normalized);
     }
     return null;
   }

@@ -27,10 +27,11 @@ public enum CompanyLifecycleState {
       return Optional.empty();
     }
     String normalized = rawValue.trim().toUpperCase(Locale.ROOT);
-    try {
-      return Optional.of(CompanyLifecycleState.valueOf(normalized));
-    } catch (IllegalArgumentException ignored) {
-      return Optional.empty();
+    for (CompanyLifecycleState state : values()) {
+      if (state.name().equals(normalized)) {
+        return Optional.of(state);
+      }
     }
+    return Optional.empty();
   }
 }

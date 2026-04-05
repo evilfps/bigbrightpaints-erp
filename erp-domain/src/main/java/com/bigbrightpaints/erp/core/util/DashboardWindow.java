@@ -7,6 +7,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 public record DashboardWindow(
     LocalDate start,
@@ -16,6 +17,8 @@ public record DashboardWindow(
     ZoneId zone,
     String bucket,
     int bucketDays) {
+  private static final Pattern DAY_WINDOW_PATTERN = Pattern.compile("^\\d+d$");
+
   public static DashboardWindow resolve(
       String window, String compare, String timezone, String fallbackTimezone) {
     ZoneId zone = parseZone(timezone, fallbackTimezone);
@@ -59,19 +62,12 @@ public record DashboardWindow(
   }
 
   private static ZoneId parseZone(String timezone, String fallbackTimezone) {
-    try {
-      if (timezone != null && !timezone.isBlank()) {
-        return ZoneId.of(timezone.trim());
-      }
-    } catch (Exception ignored) {
+    ZoneId requestedZone = resolveZoneId(timezone);
+    if (requestedZone != null) {
+      return requestedZone;
     }
-    try {
-      if (fallbackTimezone != null && !fallbackTimezone.isBlank()) {
-        return ZoneId.of(fallbackTimezone.trim());
-      }
-    } catch (Exception ignored) {
-    }
-    return ZoneId.of("UTC");
+    ZoneId fallbackZone = resolveZoneId(fallbackTimezone);
+    return fallbackZone != null ? fallbackZone : ZoneId.of("UTC");
   }
 
   private static WindowRange resolveRange(String window, LocalDate today) {
@@ -79,13 +75,10 @@ public record DashboardWindow(
       return rangeForDays(today, 30);
     }
     String normalized = window.trim().toLowerCase(Locale.ROOT);
-    if (normalized.endsWith("d")) {
+    if (DAY_WINDOW_PATTERN.matcher(normalized).matches()) {
       String daysPart = normalized.substring(0, normalized.length() - 1);
-      try {
-        int days = Integer.parseInt(daysPart);
-        return rangeForDays(today, Math.max(days, 1));
-      } catch (NumberFormatException ignored) {
-      }
+      int days = Integer.parseInt(daysPart);
+      return rangeForDays(today, Math.max(days, 1));
     }
     return switch (normalized) {
       case "mtd" -> new WindowRange(today.withDayOfMonth(1), today);
@@ -93,6 +86,17 @@ public record DashboardWindow(
       case "ytd" -> new WindowRange(LocalDate.of(today.getYear(), 1, 1), today);
       default -> rangeForDays(today, 30);
     };
+  }
+
+  private static ZoneId resolveZoneId(String candidate) {
+    if (candidate == null || candidate.isBlank()) {
+      return null;
+    }
+    String normalized = candidate.trim();
+    if (!ZoneId.getAvailableZoneIds().contains(normalized) && !"UTC".equals(normalized)) {
+      return null;
+    }
+    return ZoneId.of(normalized);
   }
 
   private static WindowRange rangeForDays(LocalDate today, int days) {

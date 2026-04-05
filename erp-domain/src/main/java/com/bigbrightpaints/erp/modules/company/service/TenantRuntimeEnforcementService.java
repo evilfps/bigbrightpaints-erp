@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.company.service;
 
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -1016,12 +1017,12 @@ public class TenantRuntimeEnforcementService {
     if (!StringUtils.hasText(rawValue)) {
       return fallback;
     }
-    try {
-      int parsed = Integer.parseInt(rawValue.trim());
-      return parsed > 0 ? parsed : fallback;
-    } catch (NumberFormatException ignored) {
+    String normalized = rawValue.trim();
+    if (!normalized.chars().allMatch(Character::isDigit)) {
       return fallback;
     }
+    int parsed = Integer.parseInt(normalized);
+    return parsed > 0 ? parsed : fallback;
   }
 
   private Instant parseInstantOrNull(String rawValue) {
@@ -1030,7 +1031,7 @@ public class TenantRuntimeEnforcementService {
     }
     try {
       return Instant.parse(rawValue.trim());
-    } catch (RuntimeException ignored) {
+    } catch (DateTimeParseException ex) {
       return null;
     }
   }

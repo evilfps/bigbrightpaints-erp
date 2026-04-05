@@ -110,11 +110,11 @@ public class PackingProductSupport {
       return number.longValue();
     }
     if (candidate instanceof String str && StringUtils.hasText(str)) {
-      try {
-        return Long.parseLong(str.trim());
-      } catch (NumberFormatException ignored) {
+      String normalized = str.trim();
+      if (!normalized.chars().allMatch(Character::isDigit)) {
         return null;
       }
+      return Long.parseLong(normalized);
     }
     return null;
   }

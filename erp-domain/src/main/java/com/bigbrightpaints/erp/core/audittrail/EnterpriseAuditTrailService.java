@@ -19,6 +19,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.util.ReflectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -542,13 +543,13 @@ public class EnterpriseAuditTrailService {
       return false;
     }
     for (String methodName : List.of("isAiPersonalizationOptIn", "getAiPersonalizationOptIn")) {
-      try {
-        Object result = UserAccount.class.getMethod(methodName).invoke(actor);
-        if (result instanceof Boolean booleanResult) {
-          return booleanResult;
-        }
-      } catch (ReflectiveOperationException ignored) {
-        // Maintain compatibility across UserAccount contract variants.
+      var method = ReflectionUtils.findMethod(UserAccount.class, methodName);
+      if (method == null) {
+        continue;
+      }
+      Object result = ReflectionUtils.invokeMethod(method, actor);
+      if (result instanceof Boolean booleanResult) {
+        return booleanResult;
       }
     }
     return false;

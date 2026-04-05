@@ -97,12 +97,12 @@ public final class CorrelationIdentifierSanitizer {
       return null;
     }
     String fingerprint = fingerprint(normalized);
-    try {
-      String sanitized = sanitizeRequired("correlation", normalized, maxLength);
-      return abbreviate(sanitized, LOG_VISIBLE_CHARACTERS) + "#" + fingerprint;
-    } catch (RuntimeException ignored) {
+    if (containsDisallowedControlCharacter(normalized)
+        || !SAFE_IDENTIFIER_PATTERN.matcher(normalized).matches()
+        || normalized.length() > maxLength) {
       return "invalid#" + fingerprint;
     }
+    return abbreviate(normalized, LOG_VISIBLE_CHARACTERS) + "#" + fingerprint;
   }
 
   private static String sanitizeRequired(String field, String value, int maxLength) {

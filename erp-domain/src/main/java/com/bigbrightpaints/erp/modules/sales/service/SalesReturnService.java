@@ -968,15 +968,11 @@ public class SalesReturnService {
       int delimiter = lineRemainder.indexOf(SALES_RETURN_LINE_SEPARATOR);
       String lineIdText =
           delimiter >= 0 ? lineRemainder.substring(0, delimiter).trim() : lineRemainder;
-      if (lineIdText.isEmpty()) {
+      if (lineIdText.isEmpty() || !lineIdText.chars().allMatch(Character::isDigit)) {
         continue;
       }
-      try {
-        Long lineId = Long.parseLong(lineIdText);
-        totalsByLine.merge(lineId, quantity, BigDecimal::add);
-      } catch (NumberFormatException ignored) {
-        // ignore invalid line ids
-      }
+      Long lineId = Long.parseLong(lineIdText);
+      totalsByLine.merge(lineId, quantity, BigDecimal::add);
     }
     return new ReturnMovementSummary(totalsByLine, totalsByFinishedGood);
   }

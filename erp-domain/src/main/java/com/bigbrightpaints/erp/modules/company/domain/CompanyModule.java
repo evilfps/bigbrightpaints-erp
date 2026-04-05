@@ -43,11 +43,13 @@ public enum CompanyModule {
     if (!StringUtils.hasText(rawValue)) {
       return Optional.empty();
     }
-    try {
-      return Optional.of(CompanyModule.valueOf(rawValue.trim().toUpperCase(Locale.ROOT)));
-    } catch (IllegalArgumentException ignored) {
-      return Optional.empty();
+    String normalized = rawValue.trim().toUpperCase(Locale.ROOT);
+    for (CompanyModule module : values()) {
+      if (module.name().equals(normalized)) {
+        return Optional.of(module);
+      }
     }
+    return Optional.empty();
   }
 
   public static Set<String> defaultEnabledGatableModuleNames() {

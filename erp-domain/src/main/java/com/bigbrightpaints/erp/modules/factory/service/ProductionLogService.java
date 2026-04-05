@@ -8,6 +8,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -595,11 +596,11 @@ public class ProductionLogService {
       return number.longValue();
     }
     if (candidate instanceof String str && StringUtils.hasText(str)) {
-      try {
-        return Long.parseLong(str.trim());
-      } catch (NumberFormatException ignored) {
+      String normalized = str.trim();
+      if (!normalized.chars().allMatch(Character::isDigit)) {
         return null;
       }
+      return Long.parseLong(normalized);
     }
     return null;
   }
@@ -645,36 +646,39 @@ public class ProductionLogService {
     if (!StringUtils.hasText(producedAt)) {
       return CompanyTime.now(company);
     }
-    // Accept common UI formats: ISO_OFFSET_DATE_TIME, ISO_INSTANT, yyyy-MM-dd, dd-MM-yyyy
-    // HH:mm[:ss]
+    String normalized = producedAt.trim();
     ZoneId zoneId = companyClock.zoneId(company);
     try {
-      return OffsetDateTime.parse(producedAt).toInstant();
-    } catch (Exception ignored) {
-      // fall through
-    }
-    try {
-      return Instant.parse(producedAt);
-    } catch (Exception ignored) {
-      // fall through to final attempt
-    }
-    try {
-      DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
-      return java.time.LocalDateTime.parse(producedAt, fmt).atZone(zoneId).toInstant();
-    } catch (Exception ignored) {
-      // fall through
-    }
-    try {
-      DateTimeFormatter fmtSeconds = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
-      return java.time.LocalDateTime.parse(producedAt, fmtSeconds).atZone(zoneId).toInstant();
-    } catch (Exception ignored) {
-      // fall through to final attempt
-    }
-    try {
-      return LocalDate.parse(producedAt).atStartOfDay(zoneId).toInstant();
-    } catch (Exception ex) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Invalid producedAt format: " + producedAt, ex);
+      return OffsetDateTime.parse(normalized).toInstant();
+    } catch (DateTimeParseException firstFailure) {
+      try {
+        return Instant.parse(normalized);
+      } catch (DateTimeParseException secondFailure) {
+        try {
+          return java.time.LocalDateTime.parse(
+                  normalized, DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm"))
+              .atZone(zoneId)
+              .toInstant();
+        } catch (DateTimeParseException thirdFailure) {
+          try {
+            return java.time.LocalDateTime.parse(
+                    normalized, DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss"))
+                .atZone(zoneId)
+                .toInstant();
+          } catch (DateTimeParseException fourthFailure) {
+            try {
+              return LocalDate.parse(normalized).atStartOfDay(zoneId).toInstant();
+            } catch (DateTimeParseException finalFailure) {
+              finalFailure.addSuppressed(firstFailure);
+              finalFailure.addSuppressed(secondFailure);
+              finalFailure.addSuppressed(thirdFailure);
+              finalFailure.addSuppressed(fourthFailure);
+              throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                  "Invalid producedAt format: " + producedAt, finalFailure);
+            }
+          }
+        }
+      }
     }
   }
 

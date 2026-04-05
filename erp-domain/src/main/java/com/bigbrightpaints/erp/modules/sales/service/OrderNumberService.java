@@ -108,11 +108,11 @@ public class OrderNumberService {
     if (lastDash < 0 || lastDash + 1 >= orderNumber.length()) {
       return 0L;
     }
-    try {
-      return Long.parseLong(orderNumber.substring(lastDash + 1));
-    } catch (NumberFormatException ignored) {
+    String suffix = orderNumber.substring(lastDash + 1);
+    if (!suffix.chars().allMatch(Character::isDigit)) {
       return 0L;
     }
+    return Long.parseLong(suffix);
   }
 
   private void auditOrderNumber(Company company, int fiscalYear, long value, String orderNumber) {

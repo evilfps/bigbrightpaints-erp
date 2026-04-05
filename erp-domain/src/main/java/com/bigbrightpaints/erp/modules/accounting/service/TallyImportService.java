@@ -13,7 +13,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -49,6 +52,8 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 
 @Service
 public class TallyImportService {
+
+  private static final Logger log = LoggerFactory.getLogger(TallyImportService.class);
 
   private static final Map<String, AccountType> TALLY_GROUP_ACCOUNT_TYPE_MAP =
       Map.ofEntries(
@@ -469,8 +474,10 @@ public class TallyImportService {
       factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
       factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
       factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-    } catch (Exception ignored) {
-      // best-effort hardening; parser still works if runtime does not support these flags
+    } catch (ParserConfigurationException ex) {
+      log.warn(
+          "XML parser does not support one or more XXE-hardening features; continuing with best-effort configuration",
+          ex);
     }
     try {
       Document document = factory.newDocumentBuilder().parse(new ByteArrayInputStream(payload));

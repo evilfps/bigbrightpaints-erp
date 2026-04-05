@@ -34,18 +34,14 @@ public class SentryConfig {
   }
 
   private void enrichWithUserContext(SentryEvent event) {
-    try {
-      Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-      if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
-        User sentryUser = event.getUser();
-        if (sentryUser == null) {
-          sentryUser = new User();
-        }
-        sentryUser.setUsername(auth.getName());
-        event.setUser(sentryUser);
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
+      User sentryUser = event.getUser();
+      if (sentryUser == null) {
+        sentryUser = new User();
       }
-    } catch (Exception ignored) {
-      // Security context not available outside request scope
+      sentryUser.setUsername(auth.getName());
+      event.setUser(sentryUser);
     }
   }
 }

@@ -381,11 +381,11 @@ public class AuditService {
     if (value == null || value.isBlank()) {
       return null;
     }
-    try {
-      return Long.parseLong(value);
-    } catch (NumberFormatException ignored) {
+    String normalized = value.trim();
+    if (!normalized.chars().allMatch(Character::isDigit)) {
       return null;
     }
+    return Long.parseLong(normalized);
   }
 
   /**

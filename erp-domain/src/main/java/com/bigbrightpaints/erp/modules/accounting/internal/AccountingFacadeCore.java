@@ -1981,13 +1981,12 @@ class AccountingFacadeCore {
       if (suffix.isEmpty()) {
         continue;
       }
-      try {
-        int index = Integer.parseInt(suffix);
-        if (index > maxIndex) {
-          maxIndex = index;
-        }
-      } catch (NumberFormatException ignored) {
-        // skip non-numeric suffixes
+      if (!suffix.chars().allMatch(Character::isDigit)) {
+        continue;
+      }
+      int index = Integer.parseInt(suffix);
+      if (index > maxIndex) {
+        maxIndex = index;
       }
     }
     return prefix + (maxIndex + 1);

@@ -12,6 +12,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.LongSupplier;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -47,6 +49,8 @@ import com.bigbrightpaints.erp.modules.company.dto.CompanyTenantMetricsDto;
 
 @Service
 public class CompanyService {
+
+  private static final Logger log = LoggerFactory.getLogger(CompanyService.class);
 
   private static final String LIFECYCLE_STATE_METADATA_KEY = "companyLifecycleState";
   private static final String LIFECYCLE_PREVIOUS_STATE_METADATA_KEY =
@@ -1274,8 +1278,11 @@ public class CompanyService {
     if (tenantRuntimeEnforcementService != null && StringUtils.hasText(companyCode)) {
       try {
         return tenantRuntimeEnforcementService.snapshot(companyCode).metrics().inFlightRequests();
-      } catch (RuntimeException ignored) {
-        // Fall back to the best available telemetry path when runtime snapshot resolution fails.
+      } catch (RuntimeException ex) {
+        log.debug(
+            "Falling back to session-based concurrent request telemetry for company {}",
+            companyCode,
+            ex);
       }
     }
     return countDistinctSessionActivity(companyId);

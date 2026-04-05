@@ -1761,12 +1761,12 @@ public class ProductionCatalogService {
       return value > 0 ? value : null;
     }
     if (candidate instanceof String text && StringUtils.hasText(text)) {
-      try {
-        long value = Long.parseLong(text.trim());
-        return value > 0 ? value : null;
-      } catch (NumberFormatException ignored) {
+      String normalized = text.trim();
+      if (!normalized.chars().allMatch(Character::isDigit)) {
         return null;
       }
+      long value = Long.parseLong(normalized);
+      return value > 0 ? value : null;
     }
     return null;
   }
@@ -2031,11 +2031,11 @@ public class ProductionCatalogService {
       return number.longValue() > 0;
     }
     if (value instanceof String stringValue && StringUtils.hasText(stringValue)) {
-      try {
-        return Long.parseLong(stringValue.trim()) > 0;
-      } catch (NumberFormatException ignored) {
+      String normalized = stringValue.trim();
+      if (!normalized.chars().allMatch(Character::isDigit)) {
         return false;
       }
+      return Long.parseLong(normalized) > 0;
     }
     return false;
   }
