@@ -1032,7 +1032,7 @@ abstract class AccountingCoreEngineCore {
   public JournalEntryDto reverseJournalEntry(Long entryId, JournalEntryReversalRequest request) {
     Company company = companyContextService.requireCurrentCompany();
     JournalEntry entry = companyEntityLookup.requireJournalEntry(company, entryId);
-    return reverseJournalEntryInternal(company, entry, request, false);
+    return reverseJournalEntryInternal(company, entry, request);
   }
 
   @Transactional
@@ -1059,14 +1059,14 @@ abstract class AccountingCoreEngineCore {
             StringUtils.hasText(reason) ? reason.trim() : "Period reopen",
             memo,
             Boolean.TRUE);
-    return reverseJournalEntryInternal(company, entry, request, true);
+    return runWithSystemEntryDateOverride(
+        () -> reverseJournalEntryInternal(company, entry, request));
   }
 
   private JournalEntryDto reverseJournalEntryInternal(
       Company company,
       JournalEntry entry,
-      JournalEntryReversalRequest request,
-      boolean allowClosedPeriodOverride) {
+      JournalEntryReversalRequest request) {
     // Validate entry state
     if ("VOIDED".equalsIgnoreCase(entry.getStatus())) {
       throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE, "Entry is already voided");
@@ -1082,10 +1082,9 @@ abstract class AccountingCoreEngineCore {
             ? request.reversalDate()
             : currentDate(company);
     boolean overrideRequested = request != null && Boolean.TRUE.equals(request.adminOverride());
-    boolean overrideAuthorized = overrideRequested && hasEntryDateOverrideAuthority();
-    if (allowClosedPeriodOverride) {
-      overrideAuthorized = true;
-    }
+    boolean systemEntryDateOverrideActive = Boolean.TRUE.equals(SYSTEM_ENTRY_DATE_OVERRIDE.get());
+    boolean overrideAuthorized =
+        systemEntryDateOverrideActive || (overrideRequested && hasEntryDateOverrideAuthority());
     AccountingPeriod postingPeriod;
     if (systemSettingsService.isPeriodLockEnforced()) {
       validateEntryDate(company, reversalDate, overrideRequested, overrideAuthorized);
@@ -1096,7 +1095,7 @@ abstract class AccountingCoreEngineCore {
               "JOURNAL_REVERSAL",
               entry.getReferenceNumber(),
               request != null ? request.reason() : null,
-              overrideAuthorized || allowClosedPeriodOverride);
+              overrideAuthorized);
     } else {
       validateEntryDate(company, reversalDate, overrideRequested, overrideAuthorized);
       postingPeriod = accountingPeriodService.ensurePeriod(company, reversalDate);
@@ -1162,7 +1161,7 @@ abstract class AccountingCoreEngineCore {
     if (request != null && request.voidOnly()) {
       Instant now = CompanyTime.now(company);
       JournalEntryDto reversalDto =
-          createJournalEntryForReversal(payload, allowClosedPeriodOverride);
+          createJournalEntryForReversal(payload, systemEntryDateOverrideActive);
       JournalEntry reversalEntry =
           companyEntityLookup.requireJournalEntry(company, reversalDto.id());
       reversalEntry.setReversalOf(entry);
@@ -1211,7 +1210,8 @@ abstract class AccountingCoreEngineCore {
       }
       return toDto(reversalEntry);
     }
-    JournalEntryDto reversalDto = createJournalEntryForReversal(payload, allowClosedPeriodOverride);
+    JournalEntryDto reversalDto =
+        createJournalEntryForReversal(payload, systemEntryDateOverrideActive);
     JournalEntry reversalEntry = companyEntityLookup.requireJournalEntry(company, reversalDto.id());
     reversalEntry.setReversalOf(entry);
     reversalEntry.setAccountingPeriod(postingPeriod);
@@ -1567,7 +1567,10 @@ abstract class AccountingCoreEngineCore {
       return entryDto;
     }
     LocalDate entryDate = entry.getEntryDate();
-    List<Invoice> openInvoices = invoiceRepository.lockOpenInvoicesForSettlement(company, dealer);
+    List<Invoice> openInvoices =
+        invoiceRepository.lockOpenInvoicesForSettlement(company, dealer).stream()
+            .filter(Objects::nonNull)
+            .toList();
     if (openInvoices.isEmpty()) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_INPUT, "No open invoices available to allocate the receipt");
@@ -1590,9 +1593,6 @@ abstract class AccountingCoreEngineCore {
     List<PartnerSettlementAllocation> settlementRows = new ArrayList<>();
     List<Invoice> touchedInvoices = new ArrayList<>();
     for (Invoice invoice : openInvoices) {
-      if (invoice == null) {
-        continue;
-      }
       BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
       if (currentOutstanding.compareTo(BigDecimal.ZERO) <= 0) {
         continue;
@@ -1618,7 +1618,7 @@ abstract class AccountingCoreEngineCore {
       row.setWriteOffAmount(BigDecimal.ZERO);
       row.setFxDifferenceAmount(BigDecimal.ZERO);
       row.setIdempotencyKey(idempotencyKey);
-      if (invoice != null && invoice.getCurrency() != null) {
+      if (invoice.getCurrency() != null) {
         row.setCurrency(invoice.getCurrency());
       }
       row.setMemo(request.memo());
@@ -4106,10 +4106,14 @@ abstract class AccountingCoreEngineCore {
     if (!allowClosedPeriodOverride) {
       return createJournalEntry(payload);
     }
+    return runWithSystemEntryDateOverride(() -> createJournalEntry(payload));
+  }
+
+  private <T> T runWithSystemEntryDateOverride(java.util.function.Supplier<T> action) {
     Boolean previous = SYSTEM_ENTRY_DATE_OVERRIDE.get();
     SYSTEM_ENTRY_DATE_OVERRIDE.set(Boolean.TRUE);
     try {
-      return createJournalEntry(payload);
+      return action.get();
     } finally {
       if (Boolean.TRUE.equals(previous)) {
         SYSTEM_ENTRY_DATE_OVERRIDE.set(Boolean.TRUE);
@@ -4263,7 +4267,7 @@ abstract class AccountingCoreEngineCore {
 
     // First reverse the primary entry
     JournalEntryDto primaryReversal =
-        reverseJournalEntryInternal(company, primaryEntry, primaryRequest, false);
+        reverseJournalEntryInternal(company, primaryEntry, primaryRequest);
     reversedEntries.add(primaryReversal);
     processedIds.add(primaryEntryId);
     if (primaryReversal != null && primaryReversal.id() != null) {
@@ -4296,7 +4300,7 @@ abstract class AccountingCoreEngineCore {
           JournalEntryReversalRequest relatedRequest =
               request.forCascadeChild(cascadeReason, "Cascade from " + baseRef);
           JournalEntryDto relatedReversal =
-              reverseJournalEntryInternal(company, related, relatedRequest, false);
+              reverseJournalEntryInternal(company, related, relatedRequest);
           reversedEntries.add(relatedReversal);
           processedIds.add(related.getId());
         } catch (ApplicationException e) {
@@ -4324,8 +4328,7 @@ abstract class AccountingCoreEngineCore {
             continue;
           }
           JournalEntryDto relatedReversal =
-              reverseJournalEntryInternal(
-                  company, relatedEntry, request.withoutCascadeReplay(), false);
+              reverseJournalEntryInternal(company, relatedEntry, request.withoutCascadeReplay());
           reversedEntries.add(relatedReversal);
           processedIds.add(relatedId);
         } catch (ApplicationException e) {
