@@ -3,6 +3,7 @@ com.bigbrightpaints.erp.truthsuite.accounting.TS_SubledgerControlReconciliationC
 com.bigbrightpaints.erp.truthsuite.accounting.TS_AccountingAuditSafetyCoverageTest
 com.bigbrightpaints.erp.truthsuite.accounting.TS_AccountingPeriodCloseChecklistSafetyContractTest
 com.bigbrightpaints.erp.truthsuite.accounting.TS_AccountingControllerIdempotencyHeaderParityRuntimeCoverageTest
+com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeAccountingAuditTrailServiceExecutableCoverageTest
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeAccountingControllerExportCoverageTest
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeAccountingFacadeExecutableCoverageTest
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeAccountingFacadePeriodCloseBoundaryTest
@@ -17,6 +18,7 @@ com.bigbrightpaints.erp.codered.CR_PeriodCloseDriftScansTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingFacadeTest
 com.bigbrightpaints.erp.modules.accounting.controller.AccountingConfigurationControllerTest
 com.bigbrightpaints.erp.modules.accounting.service.JournalEntryServiceTest
+com.bigbrightpaints.erp.modules.accounting.service.JournalCorrectionMetadataServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.PayrollAccountingServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.ReconciliationServiceTest
@@ -28,6 +30,7 @@ com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingServiceStandardJournalTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditTrailServiceTest
+com.bigbrightpaints.erp.modules.accounting.service.AccountingComplianceAuditServiceTest
 com.bigbrightpaints.erp.core.auditaccess.AccountingTransactionAuditReadAdapterTest
 com.bigbrightpaints.erp.core.auditaccess.AuditEventClassifierTest
 com.bigbrightpaints.erp.core.auditaccess.AuditFeedFilterTest

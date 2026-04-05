@@ -3,8 +3,6 @@ package com.bigbrightpaints.erp.core.util;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import java.util.Optional;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -111,6 +109,14 @@ class CompanyEntityLookupTest {
   }
 
   @Test
+  void lockActiveRawMaterial_delegatesToInventoryLookupService() {
+    RawMaterial material = rawMaterial(11L, "RM-BBP-ZINC");
+    when(inventoryLookupService.lockActiveRawMaterial(company, 11L)).thenReturn(material);
+
+    assertThat(lookup.lockActiveRawMaterial(company, 11L)).isSameAs(material);
+  }
+
+  @Test
   void lockActiveFinishedGood_delegatesToInventoryLookupService() {
     FinishedGood finishedGood = finishedGood(22L, "FG-BBP-EMULSION");
     when(inventoryLookupService.lockActiveFinishedGood(company, 22L)).thenReturn(finishedGood);
@@ -126,6 +132,14 @@ class CompanyEntityLookupTest {
     assertThat(lookup.requireRawMaterialPurchase(company, 91L)).isSameAs(purchase);
   }
 
+  @Test
+  void requireActiveFinishedGood_delegatesToInventoryLookupService() {
+    FinishedGood finishedGood = finishedGood(23L, "FG-BBP-SATIN");
+    when(inventoryLookupService.requireActiveFinishedGood(company, 23L)).thenReturn(finishedGood);
+
+    assertThat(lookup.requireActiveFinishedGood(company, 23L)).isSameAs(finishedGood);
+  }
+
   private RawMaterial rawMaterial(Long id, String sku) {
     RawMaterial material = new RawMaterial();
     ReflectionTestUtils.setField(material, "id", id);
@@ -139,5 +153,4 @@ class CompanyEntityLookupTest {
     finishedGood.setProductCode(productCode);
     return finishedGood;
   }
-
 }

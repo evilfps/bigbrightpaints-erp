@@ -474,6 +474,25 @@ class PayrollAccountingServiceTest {
   }
 
   @Test
+  void recordPayrollPayment_rejectsRunsThatAreNotPostedOrPaid() {
+    PayrollRun run = payrollRun(800L, PayrollRun.PayrollStatus.DRAFT, 9000L, "PR-2024-04-800");
+    when(companyEntityLookup.lockPayrollRun(company, 800L)).thenReturn(run);
+
+    assertThatThrownBy(
+            () ->
+                service.recordPayrollPayment(
+                    new PayrollPaymentRequest(
+                        800L,
+                        11L,
+                        21L,
+                        new BigDecimal("100.00"),
+                        null,
+                        null)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("must be posted to accounting before recording payment");
+  }
+
+  @Test
   void recordPayrollPayment_rejectsWhenPostingJournalReferenceIsMissing() {
     PayrollRun run = payrollRun(802L, PayrollRun.PayrollStatus.POSTED, null, "PR-2024-04-802");
     when(companyEntityLookup.lockPayrollRun(company, 802L)).thenReturn(run);
@@ -490,6 +509,42 @@ class PayrollAccountingServiceTest {
                         null)))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("must be posted to accounting before recording payment");
+  }
+
+  @Test
+  void recordPayrollPayment_handlesNullPostingJournalLinesAsMissingPayableAmount() {
+    Account cash = account(11L, "CASH", AccountType.ASSET);
+    Account salaryPayable = account(31L, "SALARY-PAYABLE", AccountType.LIABILITY);
+    stubAccounts(cash);
+    PayrollRun run = payrollRun(8021L, PayrollRun.PayrollStatus.POSTED, 9100L, "PR-2024-04-8021");
+    JournalEntry postingJournal =
+        new JournalEntry() {
+          @Override
+          public List<JournalLine> getLines() {
+            return null;
+          }
+        };
+    ReflectionTestUtils.setField(postingJournal, "id", 9100L);
+    postingJournal.setCompany(company);
+    postingJournal.setReferenceNumber("PAYROLL-POSTED-8021");
+    postingJournal.setEntryDate(LocalDate.of(2024, 4, 30));
+    when(companyEntityLookup.lockPayrollRun(company, 8021L)).thenReturn(run);
+    when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "SALARY-PAYABLE"))
+        .thenReturn(Optional.of(salaryPayable));
+    when(companyEntityLookup.requireJournalEntry(company, 9100L)).thenReturn(postingJournal);
+
+    assertThatThrownBy(
+            () ->
+                service.recordPayrollPayment(
+                    new PayrollPaymentRequest(
+                        8021L,
+                        cash.getId(),
+                        21L,
+                        new BigDecimal("100.00"),
+                        null,
+                        null)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("does not contain a payable amount for SALARY-PAYABLE");
   }
 
   @Test
@@ -572,6 +627,39 @@ class PayrollAccountingServiceTest {
     assertThat(result.id()).isEqualTo(9203L);
     assertThat(result.referenceNumber()).isEqualTo("PAYROLL-PAY-PR-2024-04-805");
     verify(journalEntryService, never()).createJournalEntry(any(JournalEntryRequest.class));
+  }
+
+  @Test
+  void recordPayrollPayment_rejectsIdempotentReplayWithDifferentExistingDetails() {
+    Account cash = account(11L, "CASH", AccountType.ASSET);
+    Account salaryPayable = account(31L, "SALARY-PAYABLE", AccountType.LIABILITY);
+    stubAccounts(cash);
+    PayrollRun run = payrollRun(8051L, PayrollRun.PayrollStatus.PAID, 91031L, "PR-2024-04-8051");
+    run.setPaymentJournalEntryId(92031L);
+    JournalEntry postingJournal = journalEntry(91031L, "PAYROLL-POSTED-8051");
+    postingJournal.addLine(journalLine(salaryPayable, BigDecimal.ZERO, new BigDecimal("500.00")));
+    JournalEntry existingPaymentJournal = journalEntry(92031L, "PAYROLL-PAY-PR-2024-04-8051");
+    existingPaymentJournal.addLine(
+        journalLine(salaryPayable, new BigDecimal("400.00"), BigDecimal.ZERO));
+    existingPaymentJournal.addLine(journalLine(cash, BigDecimal.ZERO, new BigDecimal("400.00")));
+    when(companyEntityLookup.lockPayrollRun(company, 8051L)).thenReturn(run);
+    when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "SALARY-PAYABLE"))
+        .thenReturn(Optional.of(salaryPayable));
+    when(companyEntityLookup.requireJournalEntry(company, 91031L)).thenReturn(postingJournal);
+    when(companyEntityLookup.requireJournalEntry(company, 92031L)).thenReturn(existingPaymentJournal);
+
+    assertThatThrownBy(
+            () ->
+                service.recordPayrollPayment(
+                    new PayrollPaymentRequest(
+                        8051L,
+                        cash.getId(),
+                        21L,
+                        new BigDecimal("500.00"),
+                        null,
+                        null)))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("already recorded with different details");
   }
 
   @Test

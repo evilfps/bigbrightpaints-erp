@@ -61,6 +61,8 @@ com.bigbrightpaints.erp.modules.inventory.controller.RawMaterialControllerSecuri
 com.bigbrightpaints.erp.modules.inventory.controller.RawMaterialControllerTest
 com.bigbrightpaints.erp.modules.hr.service.LeaveServiceTest
 InvoiceServiceTest
+com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicyTest
+com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeInvoiceSettlementPolicyExecutableCoverageTest
 LegacyDispatchInvoiceLinkMatcherTest
 PackagingSlipEntityTest
 PurchaseInvoiceEngineLifecycleTest
