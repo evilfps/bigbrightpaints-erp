@@ -34,7 +34,7 @@ class TS_AccountingControllerIdempotencyHeaderParityRuntimeCoverageTest {
     DealerReceiptRequest request = dealerReceiptRequest(null);
     when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
 
-    controller.recordDealerReceipt(request, null, null);
+    controller.recordDealerReceipt(request, null);
 
     ArgumentCaptor<DealerReceiptRequest> captor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
@@ -50,7 +50,7 @@ class TS_AccountingControllerIdempotencyHeaderParityRuntimeCoverageTest {
     DealerReceiptRequest request = dealerReceiptRequest(null);
     when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
 
-    controller.recordDealerReceipt(request, "hdr-001", null);
+    controller.recordDealerReceipt(request, "hdr-001");
 
     ArgumentCaptor<DealerReceiptRequest> captor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
@@ -66,24 +66,12 @@ class TS_AccountingControllerIdempotencyHeaderParityRuntimeCoverageTest {
     DealerReceiptRequest request = dealerReceiptRequest("body-001");
     when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
 
-    controller.recordDealerReceipt(request, "body-001", null);
+    controller.recordDealerReceipt(request, "body-001");
 
     ArgumentCaptor<DealerReceiptRequest> captor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
     verify(dealerReceiptService).recordDealerReceipt(captor.capture());
     assertThat(captor.getValue().idempotencyKey()).isEqualTo("body-001");
-  }
-
-  @Test
-  void recordDealerReceipt_legacyHeader_throwsApplicationException() {
-    DealerReceiptService dealerReceiptService = mock(DealerReceiptService.class);
-    AccountingController controller = newController(dealerReceiptService);
-
-    assertThatThrownBy(
-            () -> controller.recordDealerReceipt(dealerReceiptRequest(null), null, "legacy-001"))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("X-Idempotency-Key is not supported");
-    verifyNoInteractions(dealerReceiptService);
   }
 
   @Test
@@ -94,8 +82,8 @@ class TS_AccountingControllerIdempotencyHeaderParityRuntimeCoverageTest {
     DealerReceiptRequest blankHeaderRequest = dealerReceiptRequest(null);
     when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
 
-    controller.recordDealerReceipt(nonBlankHeaderRequest, "  hdr-trim-001  ", "   ");
-    controller.recordDealerReceipt(blankHeaderRequest, "   ", "\t");
+    controller.recordDealerReceipt(nonBlankHeaderRequest, "  hdr-trim-001  ");
+    controller.recordDealerReceipt(blankHeaderRequest, "   ");
 
     ArgumentCaptor<DealerReceiptRequest> captor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);

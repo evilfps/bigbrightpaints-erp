@@ -32,7 +32,7 @@ class PurchasingWorkflowControllerTest {
   void createGoodsReceipt_rejectsWhenRequestMissing() {
     PurchasingWorkflowController controller = new PurchasingWorkflowController(purchasingService);
 
-    assertThatThrownBy(() -> controller.createGoodsReceipt("hdr-001", null, null))
+    assertThatThrownBy(() -> controller.createGoodsReceipt("hdr-001", null))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Goods receipt request is required");
   }
@@ -42,7 +42,7 @@ class PurchasingWorkflowControllerTest {
     PurchasingWorkflowController controller = new PurchasingWorkflowController(purchasingService);
 
     assertThatThrownBy(
-            () -> controller.createGoodsReceipt(null, null, requestWithoutIdempotencyKey()))
+            () -> controller.createGoodsReceipt(null, requestWithoutIdempotencyKey()))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Idempotency-Key header is required");
   }
@@ -52,33 +52,11 @@ class PurchasingWorkflowControllerTest {
     PurchasingWorkflowController controller = new PurchasingWorkflowController(purchasingService);
     when(purchasingService.createGoodsReceipt(any())).thenReturn(null);
 
-    controller.createGoodsReceipt("hdr-001", null, requestWithoutIdempotencyKey());
+    controller.createGoodsReceipt("hdr-001", requestWithoutIdempotencyKey());
 
     ArgumentCaptor<GoodsReceiptRequest> captor = ArgumentCaptor.forClass(GoodsReceiptRequest.class);
     verify(purchasingService).createGoodsReceipt(captor.capture());
     assertThat(captor.getValue().idempotencyKey()).isEqualTo("hdr-001");
-  }
-
-  @Test
-  void createGoodsReceipt_rejectsLegacyHeaderWhenPrimaryMissing() {
-    PurchasingWorkflowController controller = new PurchasingWorkflowController(purchasingService);
-
-    assertThatThrownBy(
-            () -> controller.createGoodsReceipt(null, "legacy-001", requestWithoutIdempotencyKey()))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("X-Idempotency-Key is not supported");
-  }
-
-  @Test
-  void createGoodsReceipt_rejectsLegacyHeaderWhenPrimaryAlsoPresent() {
-    PurchasingWorkflowController controller = new PurchasingWorkflowController(purchasingService);
-
-    assertThatThrownBy(
-            () ->
-                controller.createGoodsReceipt(
-                    "hdr-001", "legacy-001", requestWithoutIdempotencyKey()))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("X-Idempotency-Key is not supported");
   }
 
   @Test
@@ -87,8 +65,7 @@ class PurchasingWorkflowControllerTest {
 
     assertThatThrownBy(
             () ->
-                controller.createGoodsReceipt(
-                    "hdr-001", null, requestWithIdempotencyKey("body-001")))
+                controller.createGoodsReceipt("hdr-001", requestWithIdempotencyKey("body-001")))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Idempotency key mismatch");
   }

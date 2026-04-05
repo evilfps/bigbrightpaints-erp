@@ -84,9 +84,7 @@ public class CatalogController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<CatalogImportResponse>> importCatalog(
       @RequestPart("file") MultipartFile file,
-      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      HttpServletRequest request) {
-    rejectLegacyIdempotencyHeader(request.getHeader("X-Idempotency-Key"));
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
     return ResponseEntity.ok(
         ApiResponse.success(
             "Catalog import processed",
@@ -172,17 +170,5 @@ public class CatalogController {
         .map(grantedAuthority -> grantedAuthority.getAuthority())
         .anyMatch(
             authority -> "ROLE_ADMIN".equals(authority) || "ROLE_ACCOUNTING".equals(authority));
-  }
-
-  private void rejectLegacyIdempotencyHeader(String legacyIdempotencyKey) {
-    if (!StringUtils.hasText(legacyIdempotencyKey)) {
-      return;
-    }
-    throw new ApplicationException(
-            ErrorCode.VALIDATION_INVALID_INPUT,
-            "X-Idempotency-Key is not supported for catalog import; use Idempotency-Key")
-        .withDetail("legacyHeader", "X-Idempotency-Key")
-        .withDetail("canonicalHeader", "Idempotency-Key")
-        .withDetail("canonicalPath", "/api/v1/catalog/import");
   }
 }

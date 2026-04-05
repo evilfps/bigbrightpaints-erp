@@ -61,11 +61,9 @@ public class RawMaterialController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<RawMaterialAdjustmentDto>> adjustRawMaterials(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
-          String legacyIdempotencyKey,
       @RequestBody RawMaterialAdjustmentRequest request) {
     RawMaterialAdjustmentRequest resolvedRequest =
-        applyAdjustmentIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
+        applyAdjustmentIdempotencyKey(request, idempotencyKey);
     validateAdjustmentRequest(resolvedRequest);
     return ResponseEntity.ok(
         ApiResponse.success(
@@ -82,21 +80,15 @@ public class RawMaterialController {
   }
 
   private RawMaterialAdjustmentRequest applyAdjustmentIdempotencyKey(
-      RawMaterialAdjustmentRequest request,
-      String idempotencyKeyHeader,
-      String legacyIdempotencyKeyHeader) {
+      RawMaterialAdjustmentRequest request, String idempotencyKeyHeader) {
     if (request == null) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
           "Raw material adjustment request is required");
     }
-    IdempotencyHeaderUtils.rejectLegacyHeader(
-        legacyIdempotencyKeyHeader,
-        "raw material adjustments",
-        CANONICAL_RAW_MATERIAL_ADJUSTMENT_PATH);
     String resolvedKey =
         IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
-            request.idempotencyKey(), idempotencyKeyHeader, null);
+            request.idempotencyKey(), idempotencyKeyHeader);
     if (StringUtils.hasText(request.idempotencyKey())) {
       return request;
     }

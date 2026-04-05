@@ -18,6 +18,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
@@ -80,14 +81,26 @@ class CR_TimeDateSafetyTest extends AbstractIntegrationTest {
 
     // Accounting: entryDate defaults to CompanyClock.today(company)
     var manual =
-        accountingFacade.postSimpleJournal(
-            "MANUAL-" + shortId(),
-            null,
-            "CODE-RED fixed-date journal",
-            bank.getId(),
-            expense.getId(),
-            new BigDecimal("100.00"),
-            false);
+        accountingFacade.createManualJournalEntry(
+            new JournalEntryRequest(
+                "MANUAL-" + shortId(),
+                null,
+                "CODE-RED fixed-date journal",
+                null,
+                null,
+                Boolean.FALSE,
+                java.util.List.of(
+                    new JournalEntryRequest.JournalLineRequest(
+                        bank.getId(),
+                        "CODE-RED fixed-date journal",
+                        new BigDecimal("100.00"),
+                        BigDecimal.ZERO),
+                    new JournalEntryRequest.JournalLineRequest(
+                        expense.getId(),
+                        "CODE-RED fixed-date journal",
+                        BigDecimal.ZERO,
+                        new BigDecimal("100.00")))),
+            null);
     JournalEntry je = journalEntryRepository.findById(manual.id()).orElseThrow();
     assertThat(je.getEntryDate())
         .as("Accounting uses CompanyClock override date")

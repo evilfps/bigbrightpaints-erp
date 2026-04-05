@@ -607,11 +607,10 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     when(settlementService.settleDealerInvoices(any())).thenReturn(null);
     when(settlementService.settleSupplierInvoices(any())).thenReturn(null);
 
-    controller.recordDealerReceipt(controllerDealerReceiptRequest("   "), "HDR-DR", null);
-    controller.recordDealerHybridReceipt(
-        controllerDealerReceiptSplitRequest("   "), "HDR-DRS", null);
-    controller.settleDealer(controllerDealerSettlementRequest("   "), "HDR-ADS", null);
-    controller.settleSupplier(controllerSupplierSettlementRequest("   "), "HDR-APS", null);
+    controller.recordDealerReceipt(controllerDealerReceiptRequest("   "), "HDR-DR");
+    controller.recordDealerHybridReceipt(controllerDealerReceiptSplitRequest("   "), "HDR-DRS");
+    controller.settleDealer(controllerDealerSettlementRequest("   "), "HDR-ADS");
+    controller.settleSupplier(controllerSupplierSettlementRequest("   "), "HDR-APS");
 
     assertCapturedControllerIdempotencyKeys(
         dealerReceiptService, settlementService, "HDR-DR", "HDR-DRS", "HDR-ADS", "HDR-APS");
@@ -630,11 +629,11 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     when(settlementService.settleDealerInvoices(any())).thenReturn(null);
     when(settlementService.settleSupplierInvoices(any())).thenReturn(null);
 
-    controller.recordDealerReceipt(controllerDealerReceiptRequest("BODY-DR"), "BODY-DR", null);
+    controller.recordDealerReceipt(controllerDealerReceiptRequest("BODY-DR"), "BODY-DR");
     controller.recordDealerHybridReceipt(
-        controllerDealerReceiptSplitRequest("BODY-DRS"), "BODY-DRS", null);
-    controller.settleDealer(controllerDealerSettlementRequest("BODY-ADS"), "BODY-ADS", null);
-    controller.settleSupplier(controllerSupplierSettlementRequest("BODY-APS"), "BODY-APS", null);
+        controllerDealerReceiptSplitRequest("BODY-DRS"), "BODY-DRS");
+    controller.settleDealer(controllerDealerSettlementRequest("BODY-ADS"), "BODY-ADS");
+    controller.settleSupplier(controllerSupplierSettlementRequest("BODY-APS"), "BODY-APS");
 
     assertCapturedControllerIdempotencyKeys(
         dealerReceiptService, settlementService, "BODY-DR", "BODY-DRS", "BODY-ADS", "BODY-APS");
@@ -653,10 +652,10 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     when(settlementService.settleDealerInvoices(any())).thenReturn(null);
     when(settlementService.settleSupplierInvoices(any())).thenReturn(null);
 
-    controller.recordDealerReceipt(controllerDealerReceiptRequest(null), null, null);
-    controller.recordDealerHybridReceipt(controllerDealerReceiptSplitRequest(null), null, null);
-    controller.settleDealer(controllerDealerSettlementRequest(null), null, null);
-    controller.settleSupplier(controllerSupplierSettlementRequest(null), null, null);
+    controller.recordDealerReceipt(controllerDealerReceiptRequest(null), null);
+    controller.recordDealerHybridReceipt(controllerDealerReceiptSplitRequest(null), null);
+    controller.settleDealer(controllerDealerSettlementRequest(null), null);
+    controller.settleSupplier(controllerSupplierSettlementRequest(null), null);
 
     assertCapturedControllerIdempotencyKeys(
         dealerReceiptService, settlementService, null, null, null, null);
@@ -675,10 +674,10 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     when(settlementService.settleDealerInvoices(any())).thenReturn(null);
     when(settlementService.settleSupplierInvoices(any())).thenReturn(null);
 
-    controller.recordDealerReceipt(null, "HDR-DR", "LEGACY-DR");
-    controller.recordDealerHybridReceipt(null, "HDR-DRS", "LEGACY-DRS");
-    controller.settleDealer(null, "HDR-ADS", "LEGACY-ADS");
-    controller.settleSupplier(null, "HDR-APS", null);
+    controller.recordDealerReceipt(null, "HDR-DR");
+    controller.recordDealerHybridReceipt(null, "HDR-DRS");
+    controller.settleDealer(null, "HDR-ADS");
+    controller.settleSupplier(null, "HDR-APS");
 
     ArgumentCaptor<DealerReceiptRequest> dealerCaptor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);

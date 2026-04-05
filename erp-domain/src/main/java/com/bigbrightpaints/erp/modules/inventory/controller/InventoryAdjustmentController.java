@@ -46,11 +46,8 @@ public class InventoryAdjustmentController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<InventoryAdjustmentDto>> createAdjustment(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
-          String legacyIdempotencyKey,
       @RequestBody InventoryAdjustmentRequest request) {
-    InventoryAdjustmentRequest resolved =
-        applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
+    InventoryAdjustmentRequest resolved = applyIdempotencyKey(request, idempotencyKey);
     validateRequest(resolved);
     return ResponseEntity.ok(
         ApiResponse.success(
@@ -58,18 +55,14 @@ public class InventoryAdjustmentController {
   }
 
   private InventoryAdjustmentRequest applyIdempotencyKey(
-      InventoryAdjustmentRequest request,
-      String idempotencyKeyHeader,
-      String legacyIdempotencyKeyHeader) {
+      InventoryAdjustmentRequest request, String idempotencyKeyHeader) {
     if (request == null) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Inventory adjustment request is required");
     }
-    IdempotencyHeaderUtils.rejectLegacyHeader(
-        legacyIdempotencyKeyHeader, "inventory adjustments", CANONICAL_INVENTORY_ADJUSTMENT_PATH);
     String resolvedKey =
         IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
-            request.idempotencyKey(), idempotencyKeyHeader, null);
+            request.idempotencyKey(), idempotencyKeyHeader);
     if (StringUtils.hasText(request.idempotencyKey())) {
       return request;
     }

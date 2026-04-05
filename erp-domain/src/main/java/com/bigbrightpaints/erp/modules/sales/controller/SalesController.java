@@ -120,11 +120,8 @@ public class SalesController {
   @PreAuthorize("hasAnyAuthority('ROLE_SALES','ROLE_ADMIN')")
   public ResponseEntity<ApiResponse<SalesOrderDto>> createOrder(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
-          String legacyIdempotencyKey,
       @Valid @RequestBody SalesOrderRequest request) {
-    SalesOrderRequest resolved =
-        applyOrderIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
+    SalesOrderRequest resolved = applyOrderIdempotencyKey(request, idempotencyKey);
     return ResponseEntity.ok(
         ApiResponse.success("Order created", salesOrderCrudService.createOrder(resolved)));
   }
@@ -185,15 +182,13 @@ public class SalesController {
   public record StatusRequest(String status) {}
 
   private SalesOrderRequest applyOrderIdempotencyKey(
-      SalesOrderRequest request, String idempotencyKeyHeader, String legacyIdempotencyKeyHeader) {
+      SalesOrderRequest request, String idempotencyKeyHeader) {
     if (request == null) {
       return null;
     }
-    IdempotencyHeaderUtils.rejectLegacyHeader(
-        legacyIdempotencyKeyHeader, "sales orders", "/api/v1/sales/orders");
     String resolvedKey =
         IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
-            request.idempotencyKey(), idempotencyKeyHeader, null);
+            request.idempotencyKey(), idempotencyKeyHeader);
     if (!StringUtils.hasText(resolvedKey) || StringUtils.hasText(request.idempotencyKey())) {
       return request;
     }

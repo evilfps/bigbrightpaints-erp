@@ -35,13 +35,10 @@ public class PackingController {
   public ResponseEntity<ApiResponse<ProductionLogDetailDto>> recordPacking(
       @Parameter(required = true) @RequestHeader(value = "Idempotency-Key", required = false)
           String idempotencyKey,
-      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
-          String legacyIdempotencyKey,
       @Parameter(hidden = true) @RequestHeader(value = "X-Request-Id", required = false)
           String requestId,
       @Valid @RequestBody PackingRequest request) {
-    PackingRequest resolved =
-        applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey, requestId);
+    PackingRequest resolved = applyIdempotencyKey(request, idempotencyKey, requestId);
     return ResponseEntity.ok(
         ApiResponse.success("Packing recorded", packingService.recordPacking(resolved)));
   }
@@ -80,16 +77,10 @@ public class PackingController {
   }
 
   private PackingRequest applyIdempotencyKey(
-      PackingRequest request,
-      String idempotencyKeyHeader,
-      String legacyIdempotencyKeyHeader,
-      String requestId) {
+      PackingRequest request, String idempotencyKeyHeader, String requestId) {
     if (request == null) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Packing request is required");
-    }
-    if (StringUtils.hasText(legacyIdempotencyKeyHeader)) {
-      throw unsupportedLegacyHeader("X-Idempotency-Key");
     }
     if (StringUtils.hasText(requestId)) {
       throw unsupportedLegacyHeader("X-Request-Id");

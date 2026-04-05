@@ -680,7 +680,7 @@ class AccountingControllerJournalEndpointsTest {
     when(settlementService.settleDealerInvoices(any(DealerSettlementRequest.class)))
         .thenReturn(expected);
 
-    controller.settleDealer(request, "IDEMP-DEALER-HDR-1", null);
+    controller.settleDealer(request, "IDEMP-DEALER-HDR-1");
 
     ArgumentCaptor<DealerSettlementRequest> requestCaptor =
         ArgumentCaptor.forClass(DealerSettlementRequest.class);
@@ -725,7 +725,7 @@ class AccountingControllerJournalEndpointsTest {
     when(settlementService.settleSupplierInvoices(any(SupplierSettlementRequest.class)))
         .thenReturn(expected);
 
-    controller.settleSupplier(request, "IDEMP-SUP-HDR-1", null);
+    controller.settleSupplier(request, "IDEMP-SUP-HDR-1");
 
     ArgumentCaptor<SupplierSettlementRequest> requestCaptor =
         ArgumentCaptor.forClass(SupplierSettlementRequest.class);
@@ -757,7 +757,7 @@ class AccountingControllerJournalEndpointsTest {
     when(settlementService.autoSettleSupplier(eq(8L), any(AutoSettlementRequest.class)))
         .thenReturn(expected);
 
-    controller.autoSettleSupplier(8L, request, "IDEMP-SUP-AUTO-1", null);
+    controller.autoSettleSupplier(8L, request, "IDEMP-SUP-AUTO-1");
 
     ArgumentCaptor<AutoSettlementRequest> requestCaptor =
         ArgumentCaptor.forClass(AutoSettlementRequest.class);

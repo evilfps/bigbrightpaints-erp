@@ -106,32 +106,22 @@ public class PurchasingWorkflowController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<GoodsReceiptResponse>> createGoodsReceipt(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @RequestHeader(value = "X-Idempotency-Key", required = false) String legacyIdempotencyKey,
       @Valid @RequestBody GoodsReceiptRequest request) {
-    GoodsReceiptRequest resolved =
-        applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
+    GoodsReceiptRequest resolved = applyIdempotencyKey(request, idempotencyKey);
     return ResponseEntity.ok(
         ApiResponse.success(
             "Goods receipt recorded", purchasingService.createGoodsReceipt(resolved)));
   }
 
   private GoodsReceiptRequest applyIdempotencyKey(
-      GoodsReceiptRequest request, String idempotencyKeyHeader, String legacyIdempotencyKeyHeader) {
+      GoodsReceiptRequest request, String idempotencyKeyHeader) {
     if (request == null) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Goods receipt request is required");
     }
-    if (StringUtils.hasText(legacyIdempotencyKeyHeader)) {
-      throw new ApplicationException(
-              ErrorCode.VALIDATION_INVALID_INPUT,
-              "X-Idempotency-Key is not supported for goods receipts; use Idempotency-Key")
-          .withDetail("legacyHeader", "X-Idempotency-Key")
-          .withDetail("canonicalHeader", "Idempotency-Key")
-          .withDetail("canonicalPath", CANONICAL_GOODS_RECEIPT_PATH);
-    }
     String resolvedKey =
         IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
-            request.idempotencyKey(), idempotencyKeyHeader, null);
+            request.idempotencyKey(), idempotencyKeyHeader);
     if (StringUtils.hasText(request.idempotencyKey())) {
       return request;
     }

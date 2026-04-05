@@ -37,7 +37,7 @@ class InventoryAdjustmentControllerTest {
     InventoryAdjustmentController controller = controller();
     InventoryAdjustmentRequest request = validRequest(null);
 
-    assertThatThrownBy(() -> controller.createAdjustment(null, null, request))
+    assertThatThrownBy(() -> controller.createAdjustment(null, request))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Idempotency-Key header is required");
   }
@@ -47,7 +47,7 @@ class InventoryAdjustmentControllerTest {
     InventoryAdjustmentController controller = controller();
     InventoryAdjustmentRequest request = validRequest("body-key");
 
-    assertThatThrownBy(() -> controller.createAdjustment("header-key", null, request))
+    assertThatThrownBy(() -> controller.createAdjustment("header-key", request))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Idempotency key mismatch");
   }
@@ -58,54 +58,12 @@ class InventoryAdjustmentControllerTest {
     when(inventoryAdjustmentService.createAdjustment(any())).thenReturn(null);
 
     InventoryAdjustmentRequest request = validRequest(null);
-    controller.createAdjustment("header-key", null, request);
+    controller.createAdjustment("header-key", request);
 
     ArgumentCaptor<InventoryAdjustmentRequest> captor =
         ArgumentCaptor.forClass(InventoryAdjustmentRequest.class);
     verify(inventoryAdjustmentService).createAdjustment(captor.capture());
     assertThat(captor.getValue().idempotencyKey()).isEqualTo("header-key");
-  }
-
-  @Test
-  void createAdjustment_rejectsLegacyHeaderWhenPrimaryMissing() {
-    InventoryAdjustmentController controller = controller();
-    assertThatThrownBy(() -> controller.createAdjustment(null, "legacy-key", validRequest(null)))
-        .isInstanceOfSatisfying(
-            ApplicationException.class,
-            ex -> {
-              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
-              assertThat(ex.getMessage())
-                  .contains("X-Idempotency-Key is not supported for inventory adjustments");
-              assertThat(ex.getDetails())
-                  .containsEntry("legacyHeader", "X-Idempotency-Key")
-                  .containsEntry("legacyHeaderValue", "legacy-key")
-                  .containsEntry("canonicalHeader", "Idempotency-Key")
-                  .containsEntry("canonicalPath", "/api/v1/inventory/adjustments");
-            });
-
-    verifyNoInteractions(inventoryAdjustmentService);
-  }
-
-  @Test
-  void createAdjustment_rejectsLegacyHeaderWhenPrimaryAlsoPresent() {
-    InventoryAdjustmentController controller = controller();
-
-    InventoryAdjustmentRequest request = validRequest(null);
-    assertThatThrownBy(() -> controller.createAdjustment("header-key", "legacy-key", request))
-        .isInstanceOfSatisfying(
-            ApplicationException.class,
-            ex -> {
-              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
-              assertThat(ex.getMessage())
-                  .contains("X-Idempotency-Key is not supported for inventory adjustments");
-              assertThat(ex.getDetails())
-                  .containsEntry("legacyHeader", "X-Idempotency-Key")
-                  .containsEntry("legacyHeaderValue", "legacy-key")
-                  .containsEntry("canonicalHeader", "Idempotency-Key")
-                  .containsEntry("canonicalPath", "/api/v1/inventory/adjustments");
-            });
-
-    verifyNoInteractions(inventoryAdjustmentService);
   }
 
   @Test
@@ -121,7 +79,7 @@ class InventoryAdjustmentControllerTest {
             null,
             List.of(new InventoryAdjustmentRequest.LineRequest(null, null, null, "note")));
 
-    assertThatThrownBy(() -> controller.createAdjustment("header-key", null, invalid))
+    assertThatThrownBy(() -> controller.createAdjustment("header-key", invalid))
         .isInstanceOf(ConstraintViolationException.class);
   }
 

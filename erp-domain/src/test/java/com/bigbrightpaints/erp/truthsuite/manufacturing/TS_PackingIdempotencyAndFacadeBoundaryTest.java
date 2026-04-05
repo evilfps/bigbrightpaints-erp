@@ -35,7 +35,6 @@ class TS_PackingIdempotencyAndFacadeBoundaryTest {
     TruthSuiteFileAssert.assertContains(
         PACKING_CONTROLLER,
         "@PostMapping(\"/packing-records\")",
-        "unsupportedLegacyHeader(\"X-Idempotency-Key\")",
         "unsupportedLegacyHeader(\"X-Request-Id\")",
         "\" is not supported for packing records; use Idempotency-Key\"",
         "\"Idempotency-Key header is required\"");

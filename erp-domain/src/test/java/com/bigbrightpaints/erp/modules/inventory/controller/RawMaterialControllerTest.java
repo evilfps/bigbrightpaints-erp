@@ -43,7 +43,7 @@ class RawMaterialControllerTest {
     RawMaterialController controller = controller();
     RawMaterialAdjustmentRequest request = adjustmentRequest(null);
 
-    controller.adjustRawMaterials("header-key", null, request);
+    controller.adjustRawMaterials("header-key", request);
 
     verify(rawMaterialService)
         .adjustStock(
@@ -63,7 +63,7 @@ class RawMaterialControllerTest {
     RawMaterialController controller = controller();
 
     RawMaterialAdjustmentRequest request = adjustmentRequest("body-key");
-    assertThatThrownBy(() -> controller.adjustRawMaterials("header-key", null, request))
+    assertThatThrownBy(() -> controller.adjustRawMaterials("header-key", request))
         .isInstanceOfSatisfying(
             ApplicationException.class,
             ex -> {
@@ -80,7 +80,7 @@ class RawMaterialControllerTest {
     RawMaterialController controller = controller();
 
     RawMaterialAdjustmentRequest request = adjustmentRequest(null);
-    assertThatThrownBy(() -> controller.adjustRawMaterials(null, null, request))
+    assertThatThrownBy(() -> controller.adjustRawMaterials(null, request))
         .isInstanceOfSatisfying(
             ApplicationException.class,
             ex -> {
@@ -105,53 +105,8 @@ class RawMaterialControllerTest {
             null,
             List.of(new RawMaterialAdjustmentRequest.LineRequest(null, null, null, "note")));
 
-    assertThatThrownBy(() -> controller.adjustRawMaterials("header-key", null, invalid))
+    assertThatThrownBy(() -> controller.adjustRawMaterials("header-key", invalid))
         .isInstanceOf(ConstraintViolationException.class);
-
-    verifyNoInteractions(rawMaterialService);
-  }
-
-  @Test
-  void adjustRawMaterials_rejectsLegacyHeaderWhenPrimaryMissing() {
-    RawMaterialController controller = controller();
-
-    assertThatThrownBy(
-            () -> controller.adjustRawMaterials(null, "legacy-key", adjustmentRequest(null)))
-        .isInstanceOfSatisfying(
-            ApplicationException.class,
-            ex -> {
-              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
-              assertThat(ex.getMessage())
-                  .contains("X-Idempotency-Key is not supported for raw material adjustments");
-              assertThat(ex.getDetails())
-                  .containsEntry("legacyHeader", "X-Idempotency-Key")
-                  .containsEntry("legacyHeaderValue", "legacy-key")
-                  .containsEntry("canonicalHeader", "Idempotency-Key")
-                  .containsEntry("canonicalPath", "/api/v1/inventory/raw-materials/adjustments");
-            });
-
-    verifyNoInteractions(rawMaterialService);
-  }
-
-  @Test
-  void adjustRawMaterials_rejectsLegacyHeaderWhenPrimaryAlsoPresent() {
-    RawMaterialController controller = controller();
-
-    assertThatThrownBy(
-            () ->
-                controller.adjustRawMaterials("header-key", "legacy-key", adjustmentRequest(null)))
-        .isInstanceOfSatisfying(
-            ApplicationException.class,
-            ex -> {
-              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
-              assertThat(ex.getMessage())
-                  .contains("X-Idempotency-Key is not supported for raw material adjustments");
-              assertThat(ex.getDetails())
-                  .containsEntry("legacyHeader", "X-Idempotency-Key")
-                  .containsEntry("legacyHeaderValue", "legacy-key")
-                  .containsEntry("canonicalHeader", "Idempotency-Key")
-                  .containsEntry("canonicalPath", "/api/v1/inventory/raw-materials/adjustments");
-            });
 
     verifyNoInteractions(rawMaterialService);
   }

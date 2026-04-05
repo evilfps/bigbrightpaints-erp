@@ -10,36 +10,26 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 class IdempotencyHeaderUtilsTest {
 
   @Test
-  void resolveHeaderKey_prefersPrimaryHeader() {
-    String resolved = IdempotencyHeaderUtils.resolveHeaderKey("hdr-001", "hdr-001");
+  void resolveHeaderKey_trimsCanonicalHeader() {
+    String resolved = IdempotencyHeaderUtils.resolveHeaderKey("  hdr-001  ");
     assertThat(resolved).isEqualTo("hdr-001");
   }
 
   @Test
-  void resolveHeaderKey_usesLegacyWhenPrimaryMissing() {
-    String resolved = IdempotencyHeaderUtils.resolveHeaderKey(null, "legacy-001");
-    assertThat(resolved).isEqualTo("legacy-001");
-  }
-
-  @Test
-  void resolveHeaderKey_rejectsPrimaryLegacyMismatch() {
-    assertThatThrownBy(() -> IdempotencyHeaderUtils.resolveHeaderKey("hdr-001", "legacy-001"))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining(
-            "Idempotency key mismatch between Idempotency-Key and X-Idempotency-Key headers");
+  void resolveHeaderKey_treatsBlankHeaderAsMissing() {
+    assertThat(IdempotencyHeaderUtils.resolveHeaderKey("   ")).isNull();
   }
 
   @Test
   void resolveBodyOrHeaderKey_rejectsBodyHeaderMismatch() {
-    assertThatThrownBy(
-            () -> IdempotencyHeaderUtils.resolveBodyOrHeaderKey("body-001", "hdr-001", null))
+    assertThatThrownBy(() -> IdempotencyHeaderUtils.resolveBodyOrHeaderKey("body-001", "hdr-001"))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Idempotency key mismatch");
   }
 
   @Test
   void resolveBodyOrHeaderKey_returnsBodyKeyWhenMatchingHeader() {
-    String resolved = IdempotencyHeaderUtils.resolveBodyOrHeaderKey(" body-001 ", "body-001", null);
+    String resolved = IdempotencyHeaderUtils.resolveBodyOrHeaderKey(" body-001 ", "body-001");
     assertThat(resolved).isEqualTo("body-001");
   }
 }

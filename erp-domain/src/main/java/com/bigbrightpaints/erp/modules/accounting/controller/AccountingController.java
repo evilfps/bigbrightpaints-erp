@@ -342,11 +342,8 @@ public class AccountingController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<JournalEntryDto>> recordDealerReceipt(
       @Valid @RequestBody DealerReceiptRequest request,
-      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
-          String legacyIdempotencyKey) {
-    DealerReceiptRequest resolved =
-        applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+    DealerReceiptRequest resolved = applyIdempotencyKey(request, idempotencyKey);
     return ResponseEntity.ok(
         ApiResponse.success(
             "Receipt recorded", dealerReceiptService.recordDealerReceipt(resolved)));
@@ -356,11 +353,8 @@ public class AccountingController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<JournalEntryDto>> recordDealerHybridReceipt(
       @Valid @RequestBody DealerReceiptSplitRequest request,
-      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
-          String legacyIdempotencyKey) {
-    DealerReceiptSplitRequest resolved =
-        applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+    DealerReceiptSplitRequest resolved = applyIdempotencyKey(request, idempotencyKey);
     return ResponseEntity.ok(
         ApiResponse.success(
             "Receipt recorded", dealerReceiptService.recordDealerReceiptSplit(resolved)));
@@ -370,11 +364,8 @@ public class AccountingController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<PartnerSettlementResponse>> settleDealer(
       @Valid @RequestBody DealerSettlementRequest request,
-      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
-          String legacyIdempotencyKey) {
-    DealerSettlementRequest resolved =
-        applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+    DealerSettlementRequest resolved = applyIdempotencyKey(request, idempotencyKey);
     return ResponseEntity.ok(
         ApiResponse.success(
             "Settlement recorded", settlementService.settleDealerInvoices(resolved)));
@@ -385,12 +376,9 @@ public class AccountingController {
   public ResponseEntity<ApiResponse<PartnerSettlementResponse>> autoSettleDealer(
       @PathVariable Long dealerId,
       @Valid @RequestBody AutoSettlementRequest request,
-      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
-          String legacyIdempotencyKey) {
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
     AutoSettlementRequest resolved =
-        applyIdempotencyKey(
-            request, idempotencyKey, legacyIdempotencyKey, DEALER_AUTO_SETTLEMENT_PATH);
+        applyIdempotencyKey(request, idempotencyKey, DEALER_AUTO_SETTLEMENT_PATH);
     return ResponseEntity.ok(
         ApiResponse.success(
             "Auto-settlement recorded", settlementService.autoSettleDealer(dealerId, resolved)));
@@ -409,11 +397,8 @@ public class AccountingController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<PartnerSettlementResponse>> settleSupplier(
       @Valid @RequestBody SupplierSettlementRequest request,
-      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
-          String legacyIdempotencyKey) {
-    SupplierSettlementRequest resolved =
-        applyIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+    SupplierSettlementRequest resolved = applyIdempotencyKey(request, idempotencyKey);
     return ResponseEntity.ok(
         ApiResponse.success(
             "Settlement recorded", settlementService.settleSupplierInvoices(resolved)));
@@ -424,12 +409,9 @@ public class AccountingController {
   public ResponseEntity<ApiResponse<PartnerSettlementResponse>> autoSettleSupplier(
       @PathVariable Long supplierId,
       @Valid @RequestBody AutoSettlementRequest request,
-      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
-          String legacyIdempotencyKey) {
+      @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
     AutoSettlementRequest resolved =
-        applyIdempotencyKey(
-            request, idempotencyKey, legacyIdempotencyKey, SUPPLIER_AUTO_SETTLEMENT_PATH);
+        applyIdempotencyKey(request, idempotencyKey, SUPPLIER_AUTO_SETTLEMENT_PATH);
     return ResponseEntity.ok(
         ApiResponse.success(
             "Auto-settlement recorded",
@@ -461,13 +443,10 @@ public class AccountingController {
   }
 
   private DealerReceiptRequest applyIdempotencyKey(
-      DealerReceiptRequest request,
-      String idempotencyKeyHeader,
-      String legacyIdempotencyKeyHeader) {
+      DealerReceiptRequest request, String idempotencyKeyHeader) {
     return applyHeaderOnlyIdempotencyKey(
         request,
         idempotencyKeyHeader,
-        legacyIdempotencyKeyHeader,
         DEALER_RECEIPT_PATH,
         DealerReceiptRequest::idempotencyKey,
         (resolvedRequest, resolvedKey) ->
@@ -482,13 +461,10 @@ public class AccountingController {
   }
 
   private DealerReceiptSplitRequest applyIdempotencyKey(
-      DealerReceiptSplitRequest request,
-      String idempotencyKeyHeader,
-      String legacyIdempotencyKeyHeader) {
+      DealerReceiptSplitRequest request, String idempotencyKeyHeader) {
     return applyHeaderOnlyIdempotencyKey(
         request,
         idempotencyKeyHeader,
-        legacyIdempotencyKeyHeader,
         DEALER_HYBRID_RECEIPT_PATH,
         DealerReceiptSplitRequest::idempotencyKey,
         (resolvedRequest, resolvedKey) ->
@@ -501,13 +477,10 @@ public class AccountingController {
   }
 
   private DealerSettlementRequest applyIdempotencyKey(
-      DealerSettlementRequest request,
-      String idempotencyKeyHeader,
-      String legacyIdempotencyKeyHeader) {
+      DealerSettlementRequest request, String idempotencyKeyHeader) {
     return applyHeaderOnlyIdempotencyKey(
         request,
         idempotencyKeyHeader,
-        legacyIdempotencyKeyHeader,
         DEALER_SETTLEMENT_PATH,
         DealerSettlementRequest::idempotencyKey,
         (resolvedRequest, resolvedKey) ->
@@ -530,14 +503,10 @@ public class AccountingController {
   }
 
   private AutoSettlementRequest applyIdempotencyKey(
-      AutoSettlementRequest request,
-      String idempotencyKeyHeader,
-      String legacyIdempotencyKeyHeader,
-      String canonicalPath) {
+      AutoSettlementRequest request, String idempotencyKeyHeader, String canonicalPath) {
     return applyHeaderOnlyIdempotencyKey(
         request,
         idempotencyKeyHeader,
-        legacyIdempotencyKeyHeader,
         canonicalPath,
         AutoSettlementRequest::idempotencyKey,
         (resolvedRequest, resolvedKey) ->
@@ -550,13 +519,10 @@ public class AccountingController {
   }
 
   private SupplierSettlementRequest applyIdempotencyKey(
-      SupplierSettlementRequest request,
-      String idempotencyKeyHeader,
-      String legacyIdempotencyKeyHeader) {
+      SupplierSettlementRequest request, String idempotencyKeyHeader) {
     return applyHeaderOnlyIdempotencyKey(
         request,
         idempotencyKeyHeader,
-        legacyIdempotencyKeyHeader,
         SUPPLIER_SETTLEMENT_PATH,
         SupplierSettlementRequest::idempotencyKey,
         (resolvedRequest, resolvedKey) ->
@@ -580,7 +546,6 @@ public class AccountingController {
   private <T> T applyHeaderOnlyIdempotencyKey(
       T request,
       String idempotencyKeyHeader,
-      String legacyIdempotencyKeyHeader,
       String canonicalPath,
       Function<T, String> requestIdempotencyKeyExtractor,
       BiFunction<T, String, T> requestWithIdempotencyKey) {
@@ -590,10 +555,7 @@ public class AccountingController {
     String currentRequestIdempotencyKey = requestIdempotencyKeyExtractor.apply(request);
     String resolvedKey =
         resolveHeaderOnlyIdempotencyKey(
-            currentRequestIdempotencyKey,
-            idempotencyKeyHeader,
-            legacyIdempotencyKeyHeader,
-            canonicalPath);
+            currentRequestIdempotencyKey, idempotencyKeyHeader, canonicalPath);
     if (!StringUtils.hasText(resolvedKey) || StringUtils.hasText(currentRequestIdempotencyKey)) {
       return request;
     }
@@ -601,14 +563,8 @@ public class AccountingController {
   }
 
   private String resolveHeaderOnlyIdempotencyKey(
-      String bodyIdempotencyKey,
-      String idempotencyKeyHeader,
-      String legacyIdempotencyKeyHeader,
-      String canonicalPath) {
-    IdempotencyHeaderUtils.rejectLegacyHeader(
-        legacyIdempotencyKeyHeader, "accounting write requests", canonicalPath);
-    return IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
-        bodyIdempotencyKey, idempotencyKeyHeader, null);
+      String bodyIdempotencyKey, String idempotencyKeyHeader, String canonicalPath) {
+    return IdempotencyHeaderUtils.resolveBodyOrHeaderKey(bodyIdempotencyKey, idempotencyKeyHeader);
   }
 
   private ReconciliationDiscrepancyStatus parseDiscrepancyStatus(String rawStatus) {

@@ -324,25 +324,6 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
         .isEqualTo(HttpStatus.FORBIDDEN);
   }
 
-  @Test
-  void importCatalog_rejectsLegacyXIdempotencyKeyHeader() {
-    HttpHeaders headers = new HttpHeaders();
-    headers.putAll(adminHeaders);
-    headers.set("X-Idempotency-Key", "legacy-catalog-import-key");
-
-    ResponseEntity<Map> response =
-        importCatalog(
-            "brand,product_name,sku,category,unit_of_measure,hsn_code,gst_rate,base_price,color,size\n"
-                + "Legacy Brand,Legacy"
-                + " Primer,LEGACY-PRIMER-001,FINISHED_GOOD,LITER,320910,18,1200,WHITE,1L\n",
-            "catalog-import-legacy-header.csv",
-            headers);
-
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-    assertThat(String.valueOf(errorData(response).get("reason")))
-        .contains("X-Idempotency-Key is not supported for catalog import");
-  }
-
   private Map<String, Object> finishedGoodPayload(Long brandId, String name) {
     Map<String, Object> payload = new LinkedHashMap<>();
     payload.put("brandId", brandId);
