@@ -1,6 +1,6 @@
 # Workflow Governance
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-04-04
 
 ## Canonical Workflow Paths
 
@@ -8,15 +8,16 @@ Last reviewed: 2026-03-29
 
 1. **Feature branch creation** — work happens on feature branches off `main`.
 2. **Pre-commit validation** — Spotless format, Checkstyle, compile, and lint hooks run locally.
-3. **Push and CI** — `gate-fast` runs on push; `gate-release` runs before merge.
+3. **Push and CI** — `gate-fast` is the PR/push merge-confidence lane, `gate-core` is the main-branch integration lane, and `gate-release` plus `gate-reconciliation` run on tag/manual release validation. The separate `Release` workflow only generates GitHub release notes and is not deploy proof.
 4. **Packet review** — orchestrator assigns reviewers based on change class.
 5. **R2 escalation** — high-risk changes (auth, company, RBAC, HR, accounting, orchestrator, migration_v2) require updated `docs/approvals/R2-CHECKPOINT.md`.
 6. **Merge** — only after CI green + reviewer approval.
 
 ### Docs-only workflow
 
-- Docs-only governance changes validate with `bash ci/lint-knowledgebase.sh`.
-- Keep the diff limited to docs/governance files.
+- Docs-only packets are limited to the canonical docs/governance lane — `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `CHANGELOG.md`, `docs/INDEX.md`, `docs/ARCHITECTURE.md`, `docs/CONVENTIONS.md`, `docs/SECURITY.md`, `docs/RELIABILITY.md`, `docs/BACKEND-FEATURE-CATALOG.md`, `docs/RECOMMENDATIONS.md`, `docs/adrs/**`, `docs/agents/**`, `docs/approvals/**`, `docs/deprecated/**`, `docs/modules/**`, `docs/flows/**`, `docs/frontend-api/**`, `docs/frontend-portals/**` — or the internal worker-guidance lane `.factory/library/**`.
+- Markdown outside that lane — including `docs/platform/**`, `docs/runbooks/**`, `docs/design/**`, `docs/code-review/**`, `docs/developer/**`, `docs/frontend-update-v2/**`, root worklogs/reports, or mixed markdown-plus-code/config/test/script/OpenAPI changes — is not docs-only.
+- Docs-only packets run `bash ci/lint-knowledgebase.sh` only.
 - Skip Codex review/subagent review for docs-only packets.
 - Must not change backend runtime behavior.
 

@@ -23,7 +23,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMapping;
@@ -39,13 +38,14 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 
 @ExtendWith(MockitoExtension.class)
 @Tag("critical")
 class PackagingMaterialServiceTest {
 
   @Mock private CompanyContextService companyContextService;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedInventoryLookupService inventoryLookupService;
   @Mock private PackagingSizeMappingRepository mappingRepository;
   @Mock private RawMaterialRepository rawMaterialRepository;
   @Mock private RawMaterialBatchRepository rawMaterialBatchRepository;
@@ -59,7 +59,7 @@ class PackagingMaterialServiceTest {
     packagingMaterialService =
         new PackagingMaterialService(
             companyContextService,
-            companyEntityLookup,
+            inventoryLookupService,
             mappingRepository,
             rawMaterialRepository,
             rawMaterialBatchRepository,
@@ -73,7 +73,7 @@ class PackagingMaterialServiceTest {
   void createMapping_rejectsNonPackagingMaterial() {
     RawMaterial material = rawMaterial(15L, 900L, new BigDecimal("10"), null);
     material.setMaterialType(MaterialType.PRODUCTION);
-    when(companyEntityLookup.requireActiveRawMaterial(company, 15L)).thenReturn(material);
+    when(inventoryLookupService.requireActiveRawMaterial(company, 15L)).thenReturn(material);
 
     assertThatThrownBy(
             () ->
@@ -90,7 +90,7 @@ class PackagingMaterialServiceTest {
 
   @Test
   void createMapping_rejectsMissingActiveRawMaterial() {
-    when(companyEntityLookup.requireActiveRawMaterial(company, 99L))
+    when(inventoryLookupService.requireActiveRawMaterial(company, 99L))
         .thenThrow(new IllegalArgumentException("inactive"));
 
     assertThatThrownBy(
@@ -124,7 +124,7 @@ class PackagingMaterialServiceTest {
   @Test
   void createMapping_rejectsDuplicateMapping() {
     RawMaterial material = rawMaterial(15L, 900L, new BigDecimal("10"), null);
-    when(companyEntityLookup.requireActiveRawMaterial(company, 15L)).thenReturn(material);
+    when(inventoryLookupService.requireActiveRawMaterial(company, 15L)).thenReturn(material);
     when(mappingRepository.existsByCompanyAndPackagingSizeIgnoreCaseAndRawMaterial(
             company, "1L", material))
         .thenReturn(true);
@@ -146,7 +146,7 @@ class PackagingMaterialServiceTest {
   @Test
   void createMapping_defaultsOptionalLitersPerUnitFromPackagingSize() {
     RawMaterial material = rawMaterial(21L, 901L, new BigDecimal("10"), null);
-    when(companyEntityLookup.requireActiveRawMaterial(company, 21L)).thenReturn(material);
+    when(inventoryLookupService.requireActiveRawMaterial(company, 21L)).thenReturn(material);
     when(mappingRepository.existsByCompanyAndPackagingSizeIgnoreCaseAndRawMaterial(
             company, "500ML", material))
         .thenReturn(false);
@@ -168,7 +168,7 @@ class PackagingMaterialServiceTest {
   @Test
   void createMapping_preservesExplicitLitersPerUnit() {
     RawMaterial material = rawMaterial(27L, 907L, new BigDecimal("10"), null);
-    when(companyEntityLookup.requireActiveRawMaterial(company, 27L)).thenReturn(material);
+    when(inventoryLookupService.requireActiveRawMaterial(company, 27L)).thenReturn(material);
     when(mappingRepository.existsByCompanyAndPackagingSizeIgnoreCaseAndRawMaterial(
             company, "1L", material))
         .thenReturn(false);
@@ -206,7 +206,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
         .thenReturn(List.of(mapping));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 17L)).thenReturn(material);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 17L)).thenReturn(material);
 
     assertThatThrownBy(() -> packagingMaterialService.consumePackagingMaterial("1L", 1, "PACK-REF"))
         .isInstanceOf(ApplicationException.class)
@@ -229,7 +229,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
         .thenReturn(List.of(mapping));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 19L)).thenReturn(material);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 19L)).thenReturn(material);
 
     assertThatThrownBy(() -> packagingMaterialService.consumePackagingMaterial("1L", 3, "PACK-REF"))
         .isInstanceOf(ApplicationException.class)
@@ -256,7 +256,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
         .thenReturn(List.of(mapping));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 11L)).thenReturn(material);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 11L)).thenReturn(material);
     when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material))
         .thenReturn(List.of(batchA, batchB));
     when(rawMaterialBatchRepository.deductQuantityIfSufficient(eq(101L), any())).thenReturn(1);
@@ -287,7 +287,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
         .thenReturn(List.of(mapping));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 12L)).thenReturn(material);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 12L)).thenReturn(material);
     when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material))
         .thenReturn(List.of(batchA, batchB));
     when(rawMaterialBatchRepository.calculateWeightedAverageCost(material))
@@ -319,7 +319,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
         .thenReturn(List.of(mapping));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 13L)).thenReturn(material);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 13L)).thenReturn(material);
     when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material))
         .thenReturn(List.of(batchA, batchB));
     when(rawMaterialBatchRepository.calculateWeightedAverageCost(material)).thenReturn(null);
@@ -365,7 +365,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
         .thenReturn(List.of(mapping));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 14L)).thenReturn(material);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 14L)).thenReturn(material);
     when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material)).thenReturn(List.of(batchA));
     when(rawMaterialBatchRepository.calculateWeightedAverageCost(material)).thenReturn(null);
     when(rawMaterialBatchRepository.deductQuantityIfSufficient(eq(401L), any())).thenReturn(1);
@@ -393,7 +393,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
         .thenReturn(List.of(mapping));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 16L))
+    when(inventoryLookupService.lockActiveRawMaterial(company, 16L))
         .thenThrow(new IllegalArgumentException("inactive"));
 
     assertThatThrownBy(() -> packagingMaterialService.consumePackagingMaterial("1L", 1, "PACK-REF"))
@@ -418,7 +418,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
         .thenReturn(List.of(mapping));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 18L)).thenReturn(material);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 18L)).thenReturn(material);
 
     assertThatThrownBy(() -> packagingMaterialService.consumePackagingMaterial("1L", 1, "PACK-REF"))
         .isInstanceOf(ApplicationException.class)
@@ -443,7 +443,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findByCompanyAndId(company, 41L))
         .thenReturn(java.util.Optional.of(mapping));
-    when(companyEntityLookup.requireActiveRawMaterial(company, 32L)).thenReturn(updatedMaterial);
+    when(inventoryLookupService.requireActiveRawMaterial(company, 32L)).thenReturn(updatedMaterial);
     when(mappingRepository.existsByCompanyAndPackagingSizeIgnoreCaseAndRawMaterialAndIdNot(
             company, "500ML", updatedMaterial, 41L))
         .thenReturn(false);
@@ -470,7 +470,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findByCompanyAndId(company, 42L))
         .thenReturn(java.util.Optional.of(mapping));
-    when(companyEntityLookup.requireActiveRawMaterial(company, 34L)).thenReturn(updatedMaterial);
+    when(inventoryLookupService.requireActiveRawMaterial(company, 34L)).thenReturn(updatedMaterial);
     when(mappingRepository.existsByCompanyAndPackagingSizeIgnoreCaseAndRawMaterialAndIdNot(
             company, "5L", updatedMaterial, 42L))
         .thenReturn(true);
@@ -562,7 +562,7 @@ class PackagingMaterialServiceTest {
   @Test
   void createMapping_defaultsLitersPerUnitToOneWhenSizeCannotBeParsed() {
     RawMaterial material = rawMaterial(22L, 902L, new BigDecimal("10"), null);
-    when(companyEntityLookup.requireActiveRawMaterial(company, 22L)).thenReturn(material);
+    when(inventoryLookupService.requireActiveRawMaterial(company, 22L)).thenReturn(material);
     when(mappingRepository.existsByCompanyAndPackagingSizeIgnoreCaseAndRawMaterial(
             company, "CUSTOM", material))
         .thenReturn(false);
@@ -579,7 +579,7 @@ class PackagingMaterialServiceTest {
   @Test
   void createMapping_defaultsLitersPerUnitToOneWhenParsedSizeIsNotPositive() {
     RawMaterial material = rawMaterial(29L, 909L, new BigDecimal("10"), null);
-    when(companyEntityLookup.requireActiveRawMaterial(company, 29L)).thenReturn(material);
+    when(inventoryLookupService.requireActiveRawMaterial(company, 29L)).thenReturn(material);
     when(mappingRepository.existsByCompanyAndPackagingSizeIgnoreCaseAndRawMaterial(
             company, "0L", material))
         .thenReturn(false);
@@ -604,7 +604,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
         .thenReturn(List.of(mapping));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 23L)).thenReturn(material);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 23L)).thenReturn(material);
     when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material)).thenReturn(List.of(batch));
     when(rawMaterialBatchRepository.deductQuantityIfSufficient(eq(501L), any())).thenReturn(1);
     when(rawMaterialMovementRepository.save(any(RawMaterialMovement.class)))
@@ -630,7 +630,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
         .thenReturn(List.of(mapping));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 24L)).thenReturn(material);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 24L)).thenReturn(material);
     when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material))
         .thenReturn(List.of(emptyBatch, usableBatch));
     when(rawMaterialBatchRepository.deductQuantityIfSufficient(eq(602L), any())).thenReturn(1);
@@ -654,7 +654,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
         .thenReturn(List.of(mapping));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 25L)).thenReturn(material);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 25L)).thenReturn(material);
     when(rawMaterialBatchRepository.findAvailableBatchesFIFO(material)).thenReturn(List.of(batch));
     when(rawMaterialBatchRepository.deductQuantityIfSufficient(eq(701L), any())).thenReturn(0);
 
@@ -697,7 +697,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
         .thenReturn(List.of(mapping));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 26L)).thenReturn(material);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 26L)).thenReturn(material);
 
     assertThatThrownBy(() -> packagingMaterialService.consumePackagingMaterial("1L", 1, "PACK-REF"))
         .isInstanceOf(ApplicationException.class)
@@ -712,7 +712,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
         .thenReturn(List.of(mapping));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 30L)).thenReturn(null);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 30L)).thenReturn(null);
 
     assertThatThrownBy(() -> packagingMaterialService.consumePackagingMaterial("1L", 1, "PACK-REF"))
         .isInstanceOf(ApplicationException.class)
@@ -731,7 +731,7 @@ class PackagingMaterialServiceTest {
 
     when(mappingRepository.findActiveByCompanyAndPackagingSizeIgnoreCase(company, "1L"))
         .thenReturn(List.of(mapping));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 28L)).thenReturn(unresolvedMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 28L)).thenReturn(unresolvedMaterial);
 
     assertThatThrownBy(() -> packagingMaterialService.consumePackagingMaterial("1L", 1, "PACK-REF"))
         .isInstanceOf(ApplicationException.class)

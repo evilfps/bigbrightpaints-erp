@@ -1,0 +1,76 @@
+{
+  "surface": "repo-static",
+  "groupId": "docs-spine",
+  "group": "docs-spine",
+  "testedAt": "2026-04-02T16:29:10Z",
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "LS",
+    "Execute"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-DOCS-002",
+      "title": "Current docs are reachable from the canonical spine",
+      "status": "fail",
+      "reason": "The docs spine still leaves some top-level docs outside docs/INDEX without any non-canonical/reference-only labeling, so a reader cannot reliably tell that those surfaces are outside the canonical tree.",
+      "evidencePaths": [
+        "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/canonical-truth/docs-spine/VAL-DOCS-002.md"
+      ],
+      "evidence": [
+        "docs/INDEX.md says packets not reachable through the index are outside the canonical docs tree.",
+        "docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md is not indexed and opens with a plain title plus `Status: mandatory, do not remove.` rather than a non-canonical/reference banner.",
+        "docs/AUDIT_TRAIL_OWNERSHIP.md is not indexed and opens as a normal doc with `## Canonical Audit Surfaces` rather than a non-canonical/reference banner.",
+        "docs/accounting-portal-endpoint-map.md is not indexed and opens as a normal OpenAPI-driven doc without a non-canonical/reference banner."
+      ]
+    },
+    {
+      "id": "VAL-DOCS-003",
+      "title": "Superseded docs are deleted or explicitly retired",
+      "status": "pass",
+      "reason": "The previously stale retained docs sampled in this rerun now carry explicit top-of-file non-canonical/reference banners and point readers to their replacements or to an explicit no-replacement note.",
+      "evidencePaths": [
+        "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/canonical-truth/docs-spine/VAL-DOCS-003.md"
+      ],
+      "evidence": [
+        "docs/developer-guide.md is bannered `NON-CANONICAL` and redirects to the indexed module/flow inventories.",
+        "docs/endpoint-inventory.md is bannered `REFERENCE ONLY` and redirects readers to `openapi.json` plus indexed canonical docs.",
+        "docs/migration-guide.md is bannered `RETIRED / REFERENCE ONLY` and explicitly states there is no maintained canonical replacement for the old CSV/Tally appendix.",
+        "Sample legacy frontend/workflow docs now carry matching non-canonical banners and replacement links, and docs/deprecated/INDEX.md registers them."
+      ]
+    },
+    {
+      "id": "VAL-DOCS-004",
+      "title": "Retirement registry covers hard cuts",
+      "status": "pass",
+      "reason": "The retirement registry now covers both sampled hard-cut routes and the retained reference-only docs surfaces, with either a replacement path or an explicit no-replacement statement.",
+      "evidencePaths": [
+        "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/canonical-truth/docs-spine/VAL-DOCS-004.md"
+      ],
+      "evidence": [
+        "docs/deprecated/INDEX.md states every entry points to a canonical replacement or explicitly says no replacement exists.",
+        "The registry maps `POST /api/v1/catalog/products` to `POST /api/v1/catalog/items` as a hard-cut replacement.",
+        "The registry marks legacy raw-material intake endpoints as `No replacement` and explains the surviving GRN path.",
+        "The registry now includes the retained legacy handoff/workflow/reference docs that were missing in the earlier failed synthesis."
+      ]
+    },
+    {
+      "id": "VAL-DOCS-007",
+      "title": "Canonical naming matches the approved product identity",
+      "status": "fail",
+      "reason": "The entrypoints use `orchestrator-erp`, but many active canonical docs still describe the current product as `BigBright ERP`, so the naming remediation is incomplete.",
+      "evidencePaths": [
+        "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/canonical-truth/docs-spine/VAL-DOCS-007.md"
+      ],
+      "evidence": [
+        "README.md, ARCHITECTURE.md, and docs/INDEX.md now use `orchestrator-erp`.",
+        "docs/CONVENTIONS.md, docs/RELIABILITY.md, docs/RECOMMENDATIONS.md, and docs/BACKEND-FEATURE-CATALOG.md still use `BigBright ERP` in active canonical content.",
+        "Canonical docs under docs/agents/, docs/adrs/, and docs/modules/ still contain current-product `BigBright ERP` wording."
+      ]
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Re-ran 4 repo-static docs-spine assertions: 2 passed (VAL-DOCS-003, VAL-DOCS-004) and 2 failed (VAL-DOCS-002, VAL-DOCS-007). The earlier migration-guide/retirement-registry gaps are fixed, but unlabeled out-of-spine docs and mixed product naming remain."
+}

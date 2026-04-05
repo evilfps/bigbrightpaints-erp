@@ -26,7 +26,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -526,7 +525,15 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
             () -> {
               CompanyContextHolder.setCompanyCode(COMPANY_CODE);
               try {
-                return postSalesJournalWithRetry(orderNumber, today, base, tax, total, null);
+                return accountingFacade.postSalesJournal(
+                    dealer.getId(),
+                    orderNumber,
+                    today,
+                    "Concurrent sale",
+                    Map.of(accounts.get("REV").getId(), base),
+                    Map.of(accounts.get("GST_OUT").getId(), tax),
+                    total,
+                    null);
               } finally {
                 CompanyContextHolder.clear();
               }
@@ -537,8 +544,15 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
             () -> {
               CompanyContextHolder.setCompanyCode(COMPANY_CODE);
               try {
-                return postSalesJournalWithRetry(
-                    orderNumber, today, base, tax, total, aliasReference);
+                return accountingFacade.postSalesJournal(
+                    dealer.getId(),
+                    orderNumber,
+                    today,
+                    "Concurrent sale",
+                    Map.of(accounts.get("REV").getId(), base),
+                    Map.of(accounts.get("GST_OUT").getId(), tax),
+                    total,
+                    aliasReference);
               } finally {
                 CompanyContextHolder.clear();
               }
@@ -556,40 +570,6 @@ class CriticalAccountingAxesIT extends AbstractIntegrationTest {
         .get()
         .extracting(JournalEntry::getId)
         .isEqualTo(canonical.id());
-  }
-
-  private JournalEntryDto postSalesJournalWithRetry(
-      String orderNumber,
-      LocalDate today,
-      BigDecimal base,
-      BigDecimal tax,
-      BigDecimal total,
-      String reference) {
-    int attempts = 0;
-    while (true) {
-      try {
-        return accountingFacade.postSalesJournal(
-            dealer.getId(),
-            orderNumber,
-            today,
-            "Concurrent sale",
-            Map.of(accounts.get("REV").getId(), base),
-            Map.of(accounts.get("GST_OUT").getId(), tax),
-            total,
-            reference);
-      } catch (CannotAcquireLockException ex) {
-        attempts++;
-        if (attempts >= 5) {
-          throw ex;
-        }
-        try {
-          Thread.sleep(50L * attempts);
-        } catch (InterruptedException interrupted) {
-          Thread.currentThread().interrupt();
-          throw ex;
-        }
-      }
-    }
   }
 
   @Test

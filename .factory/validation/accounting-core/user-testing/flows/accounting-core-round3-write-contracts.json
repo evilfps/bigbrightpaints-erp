@@ -1,0 +1,160 @@
+{
+  "groupId": "accounting-core-round3-write-contracts",
+  "testedAt": "2026-04-03T18:59:48+05:30",
+  "credentials": {
+    "account": "n/a",
+    "namespace": "n/a"
+  },
+  "toolsUsed": [
+    "mvn",
+    "python3",
+    "Read",
+    "Grep"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-ACCT-001",
+      "title": "Canonical manual journal surface remains singular",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run the targeted accounting proof pack from erp-domain with the mission command.",
+          "expected": "All manual-journal proofs pass and the suite reports a single canonical writer.",
+          "observed": "BUILD SUCCESS; 136 tests passed. CR_ManualJournalSafetyTest and AccountingControllerJournalEndpointsTest both passed inside the pack."
+        },
+        {
+          "action": "Inspect AccountingController and openapi.json for manual-journal routes.",
+          "expected": "Only POST /api/v1/accounting/journal-entries is the manual-journal write surface.",
+          "observed": "Controller exposes createJournalEntry at POST /api/v1/accounting/journal-entries; OpenAPI lists only GET and POST on that path, with POST bound to JournalEntryRequest and no second manual writer."
+        },
+        {
+          "action": "Inspect manual-journal safety coverage.",
+          "expected": "Client reference is used as idempotency surface, reserved system namespaces are rejected, and concurrent repeats converge on one journal id.",
+          "observed": "CR_ManualJournalSafetyTest asserts only createJournalEntry is present, concurrent manual journal requests return the same id, and failed retries leave no reserved mapping behind."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "ROOT=$(git rev-parse --show-toplevel) && cd \"$ROOT/erp-domain\" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='JournalEntryE2ETest,AccountingControllerJournalEndpointsTest,AccountingControllerIdempotencyHeaderParityTest,CriticalAccountingAxesIT,TS_RuntimeAccountingReplayConflictExecutableCoverageTest,TS_RuntimeAccountingPayrollPostingExecutableCoverageTest,CR_ManualJournalSafetyTest,CR_DealerReceiptSettlementAuditTrailTest,CR_PayrollIdempotencyConcurrencyTest,NumberSequenceServiceIntegrationTest,ReferenceNumberServiceTest,TS_RuntimeReferenceNumberServiceExecutableCoverageTest,OrderNumberServiceTest,InvoiceNumberServiceTest,AccountingServiceTest#dealerReceiptService_routesLiveReceiptFlowThroughJournalEntryService+creditDebitNoteService_routesLiveCreditNoteFlowThroughJournalEntryService+inventoryAccountingService_routesLiveLandedCostFlowThroughJournalEntryService' test",
+          "python3 OpenAPI route scan for /api/v1/accounting/journal-entries"
+        ],
+        "output": "BUILD SUCCESS; Tests run: 136, Failures: 0, Errors: 0, Skipped: 0",
+        "codeRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java:242-271",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_ManualJournalSafetyTest.java:66-109",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/JournalEntryE2ETest.java:148-257, 321-339, 417-435",
+          "openapi.json: /api/v1/accounting/journal-entries"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ACCT-003",
+      "title": "Receipt and settlement header contract stays stable",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect OpenAPI for accounting receipt/settlement write routes.",
+          "expected": "Dealer receipt, hybrid receipt, dealer settlement, supplier settlement, and auto-settle routes accept Idempotency-Key only.",
+          "observed": "All six accounting POST write routes list Idempotency-Key as the only header parameter; no accounting route lists X-Idempotency-Key."
+        },
+        {
+          "action": "Run route-level parity tests for accounting idempotency headers.",
+          "expected": "Legacy X-Idempotency-Key is rejected and header/body mismatches fail closed.",
+          "observed": "AccountingControllerIdempotencyHeaderParityTest passed all 18 tests, including legacy-header rejection and body/header mismatch rejection for dealer receipt, hybrid receipt, dealer/supplier settlement, and auto-settle routes."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "python3 OpenAPI route scan for accounting receipt/settlement routes",
+          "AccountingControllerIdempotencyHeaderParityTest via targeted accounting proof pack"
+        ],
+        "output": "OpenAPI: each accounting write route exposes Idempotency-Key only; targeted parity test class: 18 tests passed",
+        "codeRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java:287-375, 526-564",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/core/util/IdempotencyHeaderUtils.java:11-62",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerIdempotencyHeaderParityTest.java:20-198",
+          "openapi.json: /api/v1/accounting/receipts/dealer, /api/v1/accounting/receipts/dealer/hybrid, /api/v1/accounting/settlements/dealers, /api/v1/accounting/dealers/{dealerId}/auto-settle, /api/v1/accounting/settlements/suppliers, /api/v1/accounting/suppliers/{supplierId}/auto-settle"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ACCT-004",
+      "title": "Replay conflicts stay explicit and diagnosable",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect exception mapping for accounting concurrency failures.",
+          "expected": "CONCURRENCY_CONFLICT maps to HTTP 409 with structured metadata.",
+          "observed": "AccountingController routes ErrorCode.CONCURRENCY_CONFLICT to mappedStatus; AccountingApplicationExceptionResponses maps CONC/BUS/DATA errors to HTTP 409 and includes code, message, path, traceId, and details."
+        },
+        {
+          "action": "Run replay-conflict executable coverage.",
+          "expected": "Dealer and supplier replay drift surfaces explicit concurrency conflicts with idempotency and partner metadata.",
+          "observed": "TS_RuntimeAccountingReplayConflictExecutableCoverageTest passed and its helper asserts ErrorCode.CONCURRENCY_CONFLICT plus idempotency-key, partner-type, and partner-id details on replay drift cases."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "Read/grep inspection of AccountingController.java and AccountingApplicationExceptionResponses.java",
+          "TS_RuntimeAccountingReplayConflictExecutableCoverageTest via targeted accounting proof pack"
+        ],
+        "output": "Replay-conflict executable coverage passed; helper assertions require ErrorCode.CONCURRENCY_CONFLICT and partner/idempotency metadata",
+        "codeRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java:154-160",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingApplicationExceptionResponses.java:21-68",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingReplayConflictExecutableCoverageTest.java:73-375, 1093-1099"
+        ]
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ACCT-005",
+      "title": "Payroll accounting remains on the canonical posting path",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Inspect payroll posting controller and facade/service path.",
+          "expected": "Payroll posting flows through the canonical accounting facade/service path and produces PAYROLL-* journals.",
+          "observed": "AccountingController.recordPayrollPayment delegates to accountingFacade.recordPayrollPayment; AccountingFacade delegates to accountingService.recordPayrollPayment; PayrollAccountingService builds a PAYROLL source reference and standard journal request."
+        },
+        {
+          "action": "Run payroll posting and payroll concurrency coverage.",
+          "expected": "Concurrent payroll requests converge on one journal and mismatched replays fail closed.",
+          "observed": "TS_RuntimeAccountingPayrollPostingExecutableCoverageTest passed; CR_PayrollIdempotencyConcurrencyTest passed inside the targeted pack and exercises payroll run idempotency, canonical PAYROLL-* journal creation, and concurrency convergence."
+        }
+      ],
+      "evidence": {
+        "commands": [
+          "Read/grep inspection of AccountingController.java, AccountingFacade.java, and PayrollAccountingService.java",
+          "TS_RuntimeAccountingPayrollPostingExecutableCoverageTest and CR_PayrollIdempotencyConcurrencyTest via targeted accounting proof pack"
+        ],
+        "output": "Payroll posting coverage passed within the 136-test accounting proof pack",
+        "codeRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java:345-351",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java:182-184",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/PayrollAccountingService.java:106-140",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingPayrollPostingExecutableCoverageTest.java:24-98",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_PayrollIdempotencyConcurrencyTest.java:71-148"
+        ]
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "The targeted Maven proof pack recompiles a broad test set and emits noisy but benign Java agent and accounting cache warnings during execution.",
+      "resolved": true,
+      "resolution": "Used the single targeted accounting proof pack as the authoritative signal and recorded the final surefire summary only.",
+      "affectedAssertions": [
+        "VAL-ACCT-001",
+        "VAL-ACCT-003",
+        "VAL-ACCT-004",
+        "VAL-ACCT-005"
+      ]
+    }
+  ],
+  "blockers": [],
+  "summary": "Validated all 4 assigned accounting-core write-contract assertions: manual journal surface singular, accounting header contract stable, replay conflicts explicit with metadata, and payroll posting stays on the canonical PAYROLL path."
+}

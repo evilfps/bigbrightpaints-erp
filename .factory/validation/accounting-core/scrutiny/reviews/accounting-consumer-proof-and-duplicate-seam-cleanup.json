@@ -1,0 +1,21 @@
+{
+  "featureId": "accounting-consumer-proof-and-duplicate-seam-cleanup",
+  "reviewedAt": "2026-04-03T05:53:00Z",
+  "commitId": "7127d738202ba9f5ab90d4675a80cd1b8b2fa318",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Reviewed the handoff, transcript skeleton, prior accounting-core scrutiny context, and commit `7127d738202ba9f5ab90d4675a80cd1b8b2fa318`. The change cleanly centralizes sales/purchasing correction-journal metadata rewrites in an accounting-owned helper, removes dead sales-side `AccountingService` constructor seams, and realigns dependent proofs to the canonical header-only `Idempotency-Key` contract. I did not find a new correctness defect in this feature's scope; it trims consumer-side duplication without reopening the previously deferred deep-decomposition concern from earlier accounting-core scrutiny.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "Worker-base guidance appears underspecified for successful feature completion when unrelated pre-existing dirty files remain in the worktree.",
+      "evidence": "The handoff for this run records `skillFeedback.followedProcedure=false` and recommends clarifying worker-base guidance because the feature commit was clean but unrelated pre-existing `.factory/droids/*.md` edits were intentionally left untouched."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS: The reviewed feature removes the targeted duplicate correction seams, keeps downstream consumer proof aligned with the canonical `Idempotency-Key` header contract, and does not introduce a new code-review issue in its reviewed scope."
+}

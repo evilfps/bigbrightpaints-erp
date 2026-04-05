@@ -1,6 +1,6 @@
 # Agent Permissions
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-04-02
 
 ## Role Boundaries
 
@@ -14,5 +14,5 @@ Last reviewed: 2026-03-29
 ## Required Approval Rules
 
 - Review-only agents do not merge or push changes.
-- Docs-only governance packets may skip Codex review/subagent review after `bash ci/lint-knowledgebase.sh` passes.
+- Docs-only governance packets may skip Codex review/subagent review only when every changed file stays inside the canonical docs/governance lane (`README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `CHANGELOG.md`, `docs/INDEX.md`, `docs/ARCHITECTURE.md`, `docs/CONVENTIONS.md`, `docs/SECURITY.md`, `docs/RELIABILITY.md`, `docs/BACKEND-FEATURE-CATALOG.md`, `docs/RECOMMENDATIONS.md`, `docs/adrs/**`, `docs/agents/**`, `docs/approvals/**`, `docs/deprecated/**`, `docs/modules/**`, `docs/flows/**`, `docs/frontend-api/**`, `docs/frontend-portals/**`) and `bash ci/lint-knowledgebase.sh` passes.
 - High-risk packets must update `docs/approvals/R2-CHECKPOINT.md` and preserve rollback ownership before review is considered complete.

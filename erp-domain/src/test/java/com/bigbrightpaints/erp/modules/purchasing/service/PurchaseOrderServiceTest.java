@@ -28,11 +28,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
-import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrder;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderRepository;
@@ -53,8 +52,8 @@ class PurchaseOrderServiceTest {
 
   @Mock private CompanyContextService companyContextService;
   @Mock private PurchaseOrderRepository purchaseOrderRepository;
-  @Mock private RawMaterialRepository rawMaterialRepository;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedPurchasingLookupService purchasingLookupService;
+  @Mock private CompanyScopedInventoryLookupService inventoryLookupService;
   @Mock private PurchaseOrderStatusHistoryRepository purchaseOrderStatusHistoryRepository;
 
   private PurchaseOrderService purchaseOrderService;
@@ -68,8 +67,8 @@ class PurchaseOrderServiceTest {
         new PurchaseOrderService(
             companyContextService,
             purchaseOrderRepository,
-            rawMaterialRepository,
-            companyEntityLookup,
+            purchasingLookupService,
+            inventoryLookupService,
             new PurchaseResponseMapper(),
             purchaseOrderStatusHistoryRepository);
 
@@ -98,10 +97,10 @@ class PurchaseOrderServiceTest {
   @DisplayName("createPurchaseOrder creates DRAFT status and records initial status history")
   void createPurchaseOrder_createsDraftAndHistory() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 11L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 11L)).thenReturn(supplier);
     when(purchaseOrderRepository.lockByCompanyAndOrderNumberIgnoreCase(company, "PO-1001"))
         .thenReturn(Optional.empty());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 21L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 21L)).thenReturn(rawMaterial);
 
     when(purchaseOrderRepository.save(any(PurchaseOrder.class)))
         .thenAnswer(
@@ -143,10 +142,10 @@ class PurchaseOrderServiceTest {
   @DisplayName("createPurchaseOrder rejects inactive catalog-backed raw materials")
   void createPurchaseOrder_rejectsInactiveCatalogRawMaterial() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 11L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 11L)).thenReturn(supplier);
     when(purchaseOrderRepository.lockByCompanyAndOrderNumberIgnoreCase(company, "PO-1003"))
         .thenReturn(Optional.empty());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 21L))
+    when(inventoryLookupService.lockActiveRawMaterial(company, 21L))
         .thenThrow(
             new ApplicationException(
                 ErrorCode.BUSINESS_INVALID_STATE,
@@ -177,10 +176,10 @@ class PurchaseOrderServiceTest {
   @DisplayName("createPurchaseOrder rejects unknown raw materials before saving")
   void createPurchaseOrder_rejectsUnknownRawMaterial() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 11L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 11L)).thenReturn(supplier);
     when(purchaseOrderRepository.lockByCompanyAndOrderNumberIgnoreCase(company, "PO-1004"))
         .thenReturn(Optional.empty());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 21L))
+    when(inventoryLookupService.lockActiveRawMaterial(company, 21L))
         .thenThrow(new IllegalArgumentException("Raw material not found: id=21"));
 
     PurchaseOrderRequest request =
@@ -205,7 +204,7 @@ class PurchaseOrderServiceTest {
   void createPurchaseOrder_rejectsReferenceOnlySupplierWithExplicitReason() {
     supplier.setStatus(SupplierStatus.PENDING);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 11L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 11L)).thenReturn(supplier);
 
     PurchaseOrderRequest request =
         new PurchaseOrderRequest(

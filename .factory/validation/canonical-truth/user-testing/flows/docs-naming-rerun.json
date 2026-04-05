@@ -1,0 +1,67 @@
+{
+  "surface": "repo-static",
+  "groupId": "docs-naming-rerun",
+  "group": "docs-naming-rerun",
+  "testedAt": "2026-04-02T16:47:57Z",
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "LS",
+    "Execute"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-DOCS-007",
+      "title": "Canonical naming matches the approved product identity",
+      "status": "fail",
+      "reason": "The latest remediation cleaned the touched canonical docs, but the active canonical spine still contains `BigBright ERP` in platform packets that are neither historical nor reference-only.",
+      "steps": [
+        {
+          "action": "Inspect repo-root canonical entrypoints (`README.md`, `ARCHITECTURE.md`, `docs/INDEX.md`, `CHANGELOG.md`, `docs/CONVENTIONS.md`).",
+          "expected": "Current product identity uses `orchestrator-erp`, with no lingering active canonical `BigBright ERP` wording.",
+          "observed": "`README.md`, `ARCHITECTURE.md`, `docs/INDEX.md`, and `docs/CONVENTIONS.md` use `orchestrator-erp`; `CHANGELOG.md` has no relevant product-identity text."
+        },
+        {
+          "action": "Inspect the latest remediation commit (`604dce95a`) changed canonical docs for `BigBright` matches.",
+          "expected": "Touched canonical docs are fully normalized to `orchestrator-erp` unless a quote or historical/reference-only context requires the older name.",
+          "observed": "No `BigBright` matches remain in the 17 canonical docs changed by the remediation commit."
+        },
+        {
+          "action": "Spot-check the active canonical spine for any remaining current-product `BigBright ERP` wording outside historical/reference-only contexts.",
+          "expected": "Old naming appears only in quoted historical contexts or explicitly non-canonical/reference-only files.",
+          "observed": "Two active canonical platform packets still contain `BigBright ERP`: `docs/platform/db-migration.md:5` in live prose and `docs/platform/config-feature-toggles.md:247` as the documented current MFA issuer default."
+        },
+        {
+          "action": "Verify whether old-name occurrences outside the canonical spine are properly classified.",
+          "expected": "Any remaining old-name files outside the canonical spine are explicitly non-canonical/reference-only.",
+          "observed": "`docs/developer-guide.md` and `docs/migration-guide.md` still contain the old name, but both are explicitly bannered as non-canonical/reference-only."
+        }
+      ],
+      "evidencePaths": [
+        "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/canonical-truth/docs-naming-rerun/VAL-DOCS-007-evidence.json"
+      ],
+      "evidence": [
+        "Repo-root canonical entrypoints now use `orchestrator-erp` consistently where they describe the current backend identity.",
+        "The latest remediation commit `604dce95a` changed 17 canonical docs, and none of those files still match `BigBright`.",
+        "`docs/platform/db-migration.md:5` still says `the BigBright ERP backend` in an active canonical platform packet linked from `docs/INDEX.md`.",
+        "`docs/platform/config-feature-toggles.md:247` still documents the current `security.mfa.issuer` default as `BigBright ERP` in an active canonical platform packet.",
+        "Reference-only files with old naming remain properly classified, including `docs/developer-guide.md` (`NON-CANONICAL`) and `docs/migration-guide.md` (`RETIRED / REFERENCE ONLY`)."
+      ],
+      "issues": [
+        {
+          "severity": "blocking",
+          "path": "docs/platform/db-migration.md:5",
+          "detail": "Current-product canonical prose still uses the old repo/product identity."
+        },
+        {
+          "severity": "blocking",
+          "path": "docs/platform/config-feature-toggles.md:247",
+          "detail": "The canonical config packet still exposes the old product-facing MFA issuer string."
+        }
+      ]
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Re-tested 1 repo-static assertion. VAL-DOCS-007 still fails: the touched canonical docs are clean, but the active canonical platform spine still contains `BigBright ERP` in `docs/platform/db-migration.md:5` and `docs/platform/config-feature-toggles.md:247`."
+}

@@ -25,6 +25,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
@@ -35,6 +36,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMapping;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
@@ -88,6 +90,7 @@ class AccountingFacadeTest {
             journalReferenceResolver,
             journalReferenceMappingRepository);
     company = new Company();
+    ReflectionTestUtils.setField(company, "id", 1L);
     company.setBaseCurrency("INR");
     lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
     lenient().when(companyClock.today(company)).thenReturn(LocalDate.of(2024, 4, 9));
@@ -960,6 +963,126 @@ class AccountingFacadeTest {
     verify(accountingService).recordPayrollPayment(request);
   }
 
+  @Test
+  void upsertJournalReferenceMapping_updatesExistingReservationWithoutEntityId() {
+    JournalReferenceMapping mapping = journalReferenceMapping("LEGACY-100", null, null);
+    JournalEntry entry = journalEntry(1001L, "SALES-100");
+    when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(
+            eq(company), eq("LEGACY-100")))
+        .thenReturn(Optional.of(mapping));
+
+    ReflectionTestUtils.invokeMethod(
+        accountingFacade, "upsertJournalReferenceMapping", company, "LEGACY-100", "SALES-100", entry);
+
+    assertThat(mapping.getCanonicalReference()).isEqualTo("SALES-100");
+    assertThat(mapping.getEntityType()).isEqualTo("JOURNAL_ENTRY");
+    assertThat(mapping.getEntityId()).isEqualTo(1001L);
+    verify(journalReferenceMappingRepository).save(mapping);
+  }
+
+  @Test
+  void upsertJournalReferenceMapping_skipsConflictingExistingMapping() {
+    JournalReferenceMapping mapping = journalReferenceMapping("LEGACY-101", "OTHER-REF", 44L);
+    JournalEntry entry = journalEntry(1002L, "SALES-101");
+    when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(
+            eq(company), eq("LEGACY-101")))
+        .thenReturn(Optional.of(mapping));
+
+    ReflectionTestUtils.invokeMethod(
+        accountingFacade, "upsertJournalReferenceMapping", company, "LEGACY-101", "SALES-101", entry);
+
+    assertThat(mapping.getCanonicalReference()).isEqualTo("OTHER-REF");
+    assertThat(mapping.getEntityId()).isEqualTo(44L);
+    verify(journalReferenceMappingRepository, never()).save(mapping);
+  }
+
+  @Test
+  void upsertJournalReferenceMapping_ignoresConcurrentInsertViolation() {
+    JournalEntry entry = journalEntry(1003L, "SALES-102");
+    when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(
+            eq(company), eq("LEGACY-102")))
+        .thenReturn(Optional.empty());
+    when(journalReferenceMappingRepository.save(any(JournalReferenceMapping.class)))
+        .thenThrow(new DataIntegrityViolationException("duplicate"));
+
+    ReflectionTestUtils.invokeMethod(
+        accountingFacade, "upsertJournalReferenceMapping", company, "LEGACY-102", "SALES-102", entry);
+
+    verify(journalReferenceMappingRepository).save(any(JournalReferenceMapping.class));
+  }
+
+  @Test
+  void reserveSalesJournalReference_returnsFalseWhenCanonicalReservationExists() {
+    when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(
+            eq(company), eq("SO-200")))
+        .thenReturn(Optional.of(journalReferenceMapping("SO-200", "SO-200", 200L)));
+
+    Boolean leader =
+        ReflectionTestUtils.invokeMethod(
+            accountingFacade, "reserveSalesJournalReference", company, " SO-200 ");
+
+    assertThat(leader).isFalse();
+    verify(journalReferenceMappingRepository, never())
+        .reserveReferenceMapping(any(), any(), any(), any(), any());
+  }
+
+  @Test
+  void reserveSalesJournalReference_throwsWhenReservationCannotBeResolved() {
+    when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(
+            eq(company), eq("SO-201")))
+        .thenReturn(Optional.empty(), Optional.empty());
+    when(journalReferenceMappingRepository.reserveReferenceMapping(
+            eq(company.getId()), eq("SO-201"), eq("SO-201"), eq("SALES_JOURNAL"), any()))
+        .thenReturn(0);
+
+    assertThatThrownBy(
+            () ->
+                ReflectionTestUtils.invokeMethod(
+                    accountingFacade, "reserveSalesJournalReference", company, "SO-201"))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Sales journal reference already reserved but mapping not found");
+  }
+
+  @Test
+  void resolveReservedSalesJournalEntry_returnsMappedEntryByEntityId() {
+    JournalReferenceMapping mapping = journalReferenceMapping("SO-202", "SO-202", 2020L);
+    JournalEntry entry = journalEntry(2020L, "SO-202");
+    when(journalReferenceResolver.findExistingEntry(eq(company), eq("SO-202")))
+        .thenReturn(Optional.empty());
+    when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(
+            eq(company), eq("SO-202")))
+        .thenReturn(Optional.of(mapping));
+    when(journalEntryRepository.findByCompanyAndId(eq(company), eq(2020L)))
+        .thenReturn(Optional.of(entry));
+
+    Optional<JournalEntry> resolved =
+        ReflectionTestUtils.invokeMethod(
+            accountingFacade, "resolveReservedSalesJournalEntry", company, "SO-202");
+
+    assertThat(resolved).contains(entry);
+  }
+
+  @Test
+  void resolveReservedSalesJournalEntry_fallsBackToMappedCanonicalReference() {
+    JournalReferenceMapping mapping = journalReferenceMapping("SO-203", "SALES-203", 2030L);
+    JournalEntry entry = journalEntry(2031L, "SALES-203");
+    when(journalReferenceResolver.findExistingEntry(eq(company), eq("SO-203")))
+        .thenReturn(Optional.empty());
+    when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(
+            eq(company), eq("SO-203")))
+        .thenReturn(Optional.of(mapping));
+    when(journalEntryRepository.findByCompanyAndId(eq(company), eq(2030L)))
+        .thenReturn(Optional.empty());
+    when(journalReferenceResolver.findExistingEntry(eq(company), eq("SALES-203")))
+        .thenReturn(Optional.of(entry));
+
+    Optional<JournalEntry> resolved =
+        ReflectionTestUtils.invokeMethod(
+            accountingFacade, "resolveReservedSalesJournalEntry", company, "SO-203");
+
+    assertThat(resolved).contains(entry);
+  }
+
   private String buildExpectedHash(
       String base,
       Long dealerId,
@@ -993,5 +1116,24 @@ class AccountingFacadeTest {
       return "0";
     }
     return value.stripTrailingZeros().toPlainString();
+  }
+
+  private JournalEntry journalEntry(Long id, String referenceNumber) {
+    JournalEntry entry = new JournalEntry();
+    ReflectionTestUtils.setField(entry, "id", id);
+    entry.setCompany(company);
+    entry.setReferenceNumber(referenceNumber);
+    return entry;
+  }
+
+  private JournalReferenceMapping journalReferenceMapping(
+      String legacyReference, String canonicalReference, Long entityId) {
+    JournalReferenceMapping mapping = new JournalReferenceMapping();
+    mapping.setCompany(company);
+    mapping.setLegacyReference(legacyReference);
+    mapping.setCanonicalReference(canonicalReference);
+    mapping.setEntityType("JOURNAL_ENTRY");
+    mapping.setEntityId(entityId);
+    return mapping;
   }
 }

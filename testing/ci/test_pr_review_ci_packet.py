@@ -392,6 +392,90 @@ class RuntimeProbeContractTest(unittest.TestCase):
         self.assertIn('[ "$status" = "403" ]', services_text)
         self.assertNotIn('echo "$status"', services_text)
 
+    def test_services_manifest_exposes_release_proof_and_dispatch_handoff_guard(self):
+        services_text = (REPO_ROOT / ".factory" / "services.yaml").read_text(encoding="utf-8")
+
+        self.assertIn("release-proof:", services_text)
+        self.assertIn("bash scripts/release_proof.sh", services_text)
+        self.assertIn("guard_dispatch_frontend_handoff_contract.sh", services_text)
+
+    def test_release_workflows_keep_deploy_proof_and_release_notes_separate(self):
+        ci_workflow = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+        release_workflow = (REPO_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+        self.assertIn("bash scripts/release_proof.sh", ci_workflow)
+        self.assertIn("does **not** prove deployability", release_workflow)
+        self.assertIn("gate-release", release_workflow)
+
+    def test_release_proof_script_combines_strict_smoke_targeted_proofs_and_contract_guards(self):
+        release_proof = (REPO_ROOT / "scripts" / "release_proof.sh").read_text(encoding="utf-8")
+
+        self.assertIn('echo "[release-proof] strict compose smoke"', release_proof)
+        self.assertIn('DB_PORT="5433"', release_proof)
+        self.assertIn("strict_compose up -d db rabbitmq mailhog", release_proof)
+        self.assertIn("strict_compose up -d --build app", release_proof)
+        self.assertIn("http://localhost:9090/actuator/health", release_proof)
+        self.assertIn("http://localhost:9090/actuator/health/readiness", release_proof)
+        self.assertIn("http://localhost:8081/api/v1/auth/me", release_proof)
+        self.assertIn('bash "$ROOT_DIR/scripts/gate_release.sh"', release_proof)
+        self.assertIn("CR_ProductionMonitoringContractTest", release_proof)
+        self.assertIn("DispatchControllerTest", release_proof)
+        self.assertIn("JournalEntryE2ETest", release_proof)
+        self.assertIn("CompanyContextFilterControlPlaneBindingTest", release_proof)
+        self.assertIn("guard_workflow_canonical_paths.sh", release_proof)
+        self.assertIn("guard_dispatch_frontend_handoff_contract.sh", release_proof)
+
+    def test_docs_only_lane_includes_factory_library_guidance_packets(self):
+        review_policy = (REPO_ROOT / "scripts" / "enforce_codex_review_policy.sh").read_text(encoding="utf-8")
+        agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        workflow = (REPO_ROOT / "docs" / "agents" / "WORKFLOW.md").read_text(encoding="utf-8")
+        conventions = (REPO_ROOT / "docs" / "CONVENTIONS.md").read_text(encoding="utf-8")
+
+        self.assertIn(".factory/library/*", review_policy)
+        self.assertIn(".factory/library/**", agents)
+        self.assertIn(".factory/library/**", workflow)
+        self.assertIn(".factory/library/**", conventions)
+
+    def test_dispatch_frontend_handoff_guard_script_passes(self):
+        result = subprocess.run(
+            ["bash", str(REPO_ROOT / "scripts" / "guard_dispatch_frontend_handoff_contract.sh")],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("[guard_dispatch_frontend_handoff_contract] OK", result.stdout)
+
+    def test_gate_fast_prefers_mainline_diff_base_before_canonical_anchor(self):
+        gate_fast = (REPO_ROOT / "scripts" / "gate_fast.sh").read_text(encoding="utf-8")
+
+        origin_main_index = gate_fast.index('if git rev-parse --verify --quiet origin/main >/dev/null; then')
+        canonical_index = gate_fast.index('if [[ -n "${CANONICAL_BASE_SHA:-}" ]] && git merge-base --is-ancestor "$CANONICAL_BASE_SHA" HEAD; then')
+        self.assertLess(origin_main_index, canonical_index)
+
+    def test_gate_release_and_core_allow_mainline_canonical_base_fallback(self):
+        gate_release = (REPO_ROOT / "scripts" / "gate_release.sh").read_text(encoding="utf-8")
+        gate_core = (REPO_ROOT / "scripts" / "gate_core.sh").read_text(encoding="utf-8")
+        schema_drift_scan = (REPO_ROOT / "scripts" / "schema_drift_scan.sh").read_text(encoding="utf-8")
+        time_api_scan = (REPO_ROOT / "scripts" / "time_api_scan.sh").read_text(encoding="utf-8")
+
+        self.assertIn("for fallback_ref in main origin/main; do", gate_release)
+        self.assertIn("for fallback_ref in main origin/main; do", gate_core)
+        self.assertNotIn("VERIFY_LOCAL_SKIP_MVN_VERIFY=true", gate_release)
+        self.assertIn("VERIFY_LOCAL_SKIP_TESTS=true", gate_release)
+        self.assertIn("--diff-base <ref>", schema_drift_scan)
+        self.assertIn("no changed migration files; skipping branch-scoped drift scan", schema_drift_scan)
+        self.assertIn("no changed Java sources; skipping branch-scoped scan", time_api_scan)
+
+    def test_generated_gate_artifact_directories_are_gitignored(self):
+        gitignore = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8")
+
+        self.assertIn("artifacts/gate-core/", gitignore)
+        self.assertIn("artifacts/gate-release/", gitignore)
+        self.assertIn("artifacts/gate-reconciliation/", gitignore)
+
 
 class PrAuthTenantManifestContractTest(unittest.TestCase):
     def test_manifest_includes_lane01_runtime_regression_bundle(self):

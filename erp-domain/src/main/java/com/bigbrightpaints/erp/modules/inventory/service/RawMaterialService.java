@@ -26,7 +26,6 @@ import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencySignatureBuilder;
 import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
@@ -55,6 +54,7 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandReposito
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.service.CompanyScopedPurchasingLookupService;
 
 import jakarta.transaction.Transactional;
 
@@ -73,7 +73,8 @@ public class RawMaterialService {
   private final BatchNumberService batchNumberService;
   private final ReferenceNumberService referenceNumberService;
   private final CompanyClock companyClock;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedInventoryLookupService inventoryLookupService;
+  private final CompanyScopedPurchasingLookupService purchasingLookupService;
   private final AuditService auditService;
   private final IdempotencyReservationService idempotencyReservationService =
       new IdempotencyReservationService();
@@ -94,7 +95,8 @@ public class RawMaterialService {
       BatchNumberService batchNumberService,
       ReferenceNumberService referenceNumberService,
       CompanyClock companyClock,
-      CompanyEntityLookup companyEntityLookup,
+      CompanyScopedInventoryLookupService inventoryLookupService,
+      CompanyScopedPurchasingLookupService purchasingLookupService,
       AuditService auditService,
       Environment environment,
       PlatformTransactionManager transactionManager,
@@ -111,7 +113,8 @@ public class RawMaterialService {
     this.batchNumberService = batchNumberService;
     this.referenceNumberService = referenceNumberService;
     this.companyClock = companyClock;
-    this.companyEntityLookup = companyEntityLookup;
+    this.inventoryLookupService = inventoryLookupService;
+    this.purchasingLookupService = purchasingLookupService;
     this.auditService = auditService;
     this.environment = environment;
     this.transactionTemplate = new TransactionTemplate(transactionManager);
@@ -430,7 +433,7 @@ public class RawMaterialService {
             .map(
                 id -> {
                   try {
-                    return companyEntityLookup.lockActiveRawMaterial(company, id);
+                    return inventoryLookupService.lockActiveRawMaterial(company, id);
                   } catch (IllegalArgumentException ex) {
                     throw ValidationUtils.invalidInput("Raw material not found");
                   }
@@ -669,7 +672,7 @@ public class RawMaterialService {
     // This method is used by write flows (receipts/intake/adjustments). Keep locking semantics.
     Company company = companyContextService.requireCurrentCompany();
     try {
-      return companyEntityLookup.lockActiveRawMaterial(company, rawMaterialId);
+      return inventoryLookupService.lockActiveRawMaterial(company, rawMaterialId);
     } catch (IllegalArgumentException ex) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Raw material not found");
@@ -862,7 +865,7 @@ public class RawMaterialService {
   }
 
   private Supplier requireSupplier(Company company, Long supplierId) {
-    return companyEntityLookup.requireSupplier(company, supplierId);
+    return purchasingLookupService.requireSupplier(company, supplierId);
   }
 
   private void ensureReceiptAccounts(

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.boot.test.web.server.LocalManagementPort;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
@@ -45,6 +46,8 @@ class CR_ActuatorProdHardeningIT extends AbstractIntegrationTest {
 
   @Autowired private Environment environment;
 
+  @LocalServerPort private int appPort;
+
   @LocalManagementPort private int managementPort;
 
   @Test
@@ -54,6 +57,23 @@ class CR_ActuatorProdHardeningIT extends AbstractIntegrationTest {
 
     assertThat(response.getStatusCode()).isIn(HttpStatus.OK, HttpStatus.SERVICE_UNAVAILABLE);
     assertThat(response.getBody()).containsKey("status");
+  }
+
+  @Test
+  @DisplayName("Prod keeps actuator traffic on the management port")
+  void prodKeepsActuatorTrafficOnManagementPort() {
+    ResponseEntity<String> appPortResponse =
+        rest.getForEntity(appUrl("/actuator/health"), String.class);
+    ResponseEntity<Map> managementHealth =
+        rest.getForEntity(managementUrl("/actuator/health"), Map.class);
+    ResponseEntity<Map> managementReadiness =
+        rest.getForEntity(managementUrl("/actuator/health/readiness"), Map.class);
+
+    assertThat(appPortResponse.getStatusCode()).isNotEqualTo(HttpStatus.OK);
+    assertThat(managementHealth.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(managementHealth.getBody()).containsEntry("status", "UP");
+    assertThat(managementReadiness.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(managementReadiness.getBody()).containsEntry("status", "UP");
   }
 
   @Test
@@ -77,5 +97,9 @@ class CR_ActuatorProdHardeningIT extends AbstractIntegrationTest {
 
   private String managementUrl(String path) {
     return "http://localhost:" + managementPort + path;
+  }
+
+  private String appUrl(String path) {
+    return "http://localhost:" + appPort + path;
   }
 }

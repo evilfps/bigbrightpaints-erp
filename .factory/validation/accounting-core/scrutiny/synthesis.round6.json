@@ -1,0 +1,46 @@
+{
+  "milestone": "accounting-core",
+  "round": 6,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "ROOT=/home/realnigga/Desktop/Mission-control && cd \"$ROOT\" && bash scripts/gate_fast.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "ROOT=/home/realnigga/Desktop/Mission-control && cd \"$ROOT/erp-domain\" && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "ROOT=/home/realnigga/Desktop/Mission-control && cd \"$ROOT\" && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "failedFeatures": [
+      "accounting-final-owner-cut-and-shadow-wrapper-retirement"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "accounting-final-owner-cut-and-shadow-wrapper-retirement",
+      "severity": "blocking",
+      "description": "The rerun removes AccountingIdempotencyService and the public super-wrapper chain, but AccountingCoreEngineCore still retains duplicate public journal owners (`createStandardJournal`, `createManualJournal`, and `createJournalEntry`) alongside JournalEntryService, so the monolith remains a live runtime owner instead of leaving JournalEntryService as the sole canonical journal owner."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [],
+  "rejectedObservations": [
+    {
+      "observation": "Update the accounting/hr module AGENTS guidance now to describe payroll/accounting ownership after the fix packet.",
+      "reason": "ambiguous: this rerun still fails because journal ownership remains split between AccountingCoreEngineCore and JournalEntryService, so refreshing the module guidance now would risk documenting a transient partial state instead of the final canonical ownership."
+    }
+  ],
+  "previousRound": ".factory/validation/accounting-core/scrutiny/synthesis.round5.json"
+}

@@ -56,7 +56,6 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingComplianceAuditService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyAccountingSettingsService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
@@ -208,7 +207,6 @@ public class SalesCoreEngine {
   private final CompanyClock companyClock;
   private final PackagingSlipRepository packagingSlipRepository;
   private final FinishedGoodsService finishedGoodsService;
-  private final AccountingService accountingService;
   private final AccountingFacade accountingFacade;
   private final JournalEntryRepository journalEntryRepository;
   private final InvoiceNumberService invoiceNumberService;
@@ -247,7 +245,6 @@ public class SalesCoreEngine {
       CompanyEntityLookup companyEntityLookup,
       PackagingSlipRepository packagingSlipRepository,
       FinishedGoodsService finishedGoodsService,
-      AccountingService accountingService,
       AccountingFacade accountingFacade,
       JournalEntryRepository journalEntryRepository,
       InvoiceNumberService invoiceNumberService,
@@ -277,7 +274,6 @@ public class SalesCoreEngine {
     this.companyEntityLookup = companyEntityLookup;
     this.packagingSlipRepository = packagingSlipRepository;
     this.finishedGoodsService = finishedGoodsService;
-    this.accountingService = accountingService;
     this.accountingFacade = accountingFacade;
     this.journalEntryRepository = journalEntryRepository;
     this.invoiceNumberService = invoiceNumberService;

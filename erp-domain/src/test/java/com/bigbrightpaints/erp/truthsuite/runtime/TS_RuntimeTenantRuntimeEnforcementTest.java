@@ -157,11 +157,22 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
   }
 
   @Test
-  void canonicalSuperadminControlBypassesRuntimeAdmission_forInactiveTenant() throws Exception {
+  void canonicalSuperadminControlUsesPrivilegedRuntimeAdmission_forInactiveTenant()
+      throws Exception {
     authenticateForCompany("super-admin@bbp.com", "ROOT", "ROLE_SUPER_ADMIN");
     when(companyService.resolveCompanyCodeById(42L)).thenReturn("ACME");
     when(companyService.resolveLifecycleStateByCode("ACME"))
         .thenReturn(CompanyLifecycleState.DEACTIVATED);
+    TenantRuntimeEnforcementService.TenantRequestAdmission admission =
+        TenantRuntimeEnforcementService.TenantRequestAdmission.admittedPolicyControl(
+            "ACME", "chain-1");
+    when(tenantRuntimeRequestAdmissionService.beginRequest(
+            "ACME",
+            "/api/v1/superadmin/tenants/42/limits",
+            "PUT",
+            "super-admin@bbp.com",
+            true))
+        .thenReturn(admission);
 
     MockHttpServletRequest request =
         new MockHttpServletRequest("PUT", "/api/v1/superadmin/tenants/42/limits");
@@ -175,8 +186,14 @@ class TS_RuntimeTenantRuntimeEnforcementTest {
 
     assertThat(response.getStatus()).isEqualTo(200);
     assertThat(companyInChain.get()).isEqualTo("ACME");
-    verify(tenantRuntimeRequestAdmissionService, never())
-        .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+    verify(tenantRuntimeRequestAdmissionService)
+        .beginRequest(
+            "ACME",
+            "/api/v1/superadmin/tenants/42/limits",
+            "PUT",
+            "super-admin@bbp.com",
+            true);
+    verify(tenantRuntimeRequestAdmissionService).completeRequest(admission, 200);
   }
 
   @Test

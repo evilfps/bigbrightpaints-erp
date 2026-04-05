@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
@@ -94,7 +95,6 @@ class JournalEntryServiceTest {
   @Mock private SystemSettingsService systemSettingsService;
   @Mock private AuditService auditService;
   @Mock private AccountingEventStore accountingEventStore;
-  @Mock private AccountingIdempotencyService accountingIdempotencyService;
 
   private JournalEntryService journalEntryService;
   private Company company;
@@ -129,8 +129,7 @@ class JournalEntryServiceTest {
             entityManager,
             systemSettingsService,
             auditService,
-            accountingEventStore,
-            accountingIdempotencyService);
+            accountingEventStore);
     company = new Company();
     ReflectionTestUtils.setField(company, "id", 44L);
     company.setBaseCurrency("INR");
@@ -296,6 +295,86 @@ class JournalEntryServiceTest {
     assertThat(result.entryDate()).isEqualTo(explicitDate);
     assertThat(savedEntry.get()).isNotNull();
     assertThat(savedEntry.get().getEntryDate()).isEqualTo(explicitDate);
+  }
+
+  @Test
+  void createStandardJournal_overrideRequestedWithoutAuthorityUsesUnauthorizedPostablePeriodFlag() {
+    LocalDate explicitDate = LocalDate.of(2026, 3, 7);
+    AccountingPeriod postingPeriod = new AccountingPeriod();
+    postingPeriod.setYear(explicitDate.getYear());
+    postingPeriod.setMonth(explicitDate.getMonthValue());
+    JournalReferenceMapping mapping = new JournalReferenceMapping();
+    Account debitAccount = account(11L, "CASH-11", AccountType.ASSET);
+    Account creditAccount = account(22L, "REV-22", AccountType.REVENUE);
+
+    when(companyClock.today(company)).thenReturn(explicitDate);
+    lenient().when(companyClock.today((Company) null)).thenReturn(explicitDate);
+    when(referenceNumberService.nextJournalReference(company)).thenReturn("JRN-4403");
+    when(journalEntryRepository.findByCompanyAndReferenceNumber(company, "manual-override-ref"))
+        .thenReturn(Optional.empty());
+    when(journalEntryRepository.findByCompanyAndReferenceNumber(company, "JRN-4403"))
+        .thenReturn(Optional.empty());
+    when(journalReferenceResolver.findExistingEntry(company, "manual-override-ref"))
+        .thenReturn(Optional.empty());
+    when(journalReferenceMappingRepository.reserveManualReference(
+            eq(44L), anyString(), anyString(), eq("JOURNAL_ENTRY"), any()))
+        .thenReturn(1);
+    when(journalReferenceMappingRepository.findAllByCompanyAndLegacyReferenceIgnoreCase(
+            company, "manual-override-ref"))
+        .thenReturn(List.of(mapping));
+    when(systemSettingsService.isPeriodLockEnforced()).thenReturn(true);
+    when(accountingPeriodService.requirePostablePeriod(
+            eq(company),
+            eq(explicitDate),
+            eq("MANUAL"),
+            eq("manual-override-ref"),
+            eq("Override requested"),
+            eq(false)))
+        .thenReturn(postingPeriod);
+    when(accountRepository.lockByCompanyAndId(company, 11L)).thenReturn(Optional.of(debitAccount));
+    when(accountRepository.lockByCompanyAndId(company, 22L)).thenReturn(Optional.of(creditAccount));
+    when(accountRepository.updateBalanceAtomic(eq(company), eq(11L), eq(new BigDecimal("25.00"))))
+        .thenReturn(1);
+    when(accountRepository.updateBalanceAtomic(eq(company), eq(22L), eq(new BigDecimal("-25.00"))))
+        .thenReturn(1);
+    when(journalEntryRepository.save(any()))
+        .thenAnswer(
+            invocation -> {
+              com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry entry =
+                  invocation.getArgument(0);
+              ReflectionTestUtils.setField(entry, "id", 4403L);
+              return entry;
+            });
+
+    JournalEntryDto result =
+        journalEntryService.createStandardJournal(
+            new JournalCreationRequest(
+                new BigDecimal("25.00"),
+                11L,
+                22L,
+                "Override requested",
+                "MANUAL",
+                "manual-override-ref",
+                null,
+                List.of(
+                    new JournalCreationRequest.LineRequest(
+                        11L, new BigDecimal("25.00"), BigDecimal.ZERO, "Debit"),
+                    new JournalCreationRequest.LineRequest(
+                        22L, BigDecimal.ZERO, new BigDecimal("25.00"), "Credit")),
+                explicitDate,
+                null,
+                null,
+                true));
+
+    assertThat(result).isNotNull();
+    verify(accountingPeriodService)
+        .requirePostablePeriod(
+            eq(company),
+            eq(explicitDate),
+            eq("MANUAL"),
+            eq("manual-override-ref"),
+            eq("Override requested"),
+            eq(false));
   }
 
   @Test
@@ -514,6 +593,97 @@ class JournalEntryServiceTest {
         .findByCompanyAndReferenceNumberStartingWith(company, "INV-720-");
   }
 
+  @Test
+  void reverseJournalEntry_overrideRequestedWithoutAuthorityUsesUnauthorizedPostablePeriodFlag() {
+    journalEntryService = org.mockito.Mockito.spy(journalEntryService);
+    LocalDate today = LocalDate.of(2026, 3, 8);
+    AccountingPeriod postingPeriod = new AccountingPeriod();
+    postingPeriod.setYear(today.getYear());
+    postingPeriod.setMonth(today.getMonthValue());
+    Account cashAccount = account(11L, "CASH", AccountType.ASSET);
+    Account revenueAccount = account(22L, "REV", AccountType.REVENUE);
+    JournalEntry primaryEntry =
+        reversalSourceEntry(730L, "INV-730", today, cashAccount, revenueAccount);
+    JournalEntry directReversal = reversalResult(930L, "REV-INV-730");
+
+    when(companyClock.today(company)).thenReturn(today);
+    when(systemSettingsService.isPeriodLockEnforced()).thenReturn(true);
+    when(accountingPeriodService.requirePostablePeriod(
+            eq(company), eq(today), anyString(), anyString(), any(), eq(false)))
+        .thenReturn(postingPeriod);
+    when(referenceNumberService.reversalReference("INV-730")).thenReturn("REV-INV-730");
+    when(companyEntityLookup.requireJournalEntry(company, 730L)).thenReturn(primaryEntry);
+    when(companyEntityLookup.requireJournalEntry(company, 930L)).thenReturn(directReversal);
+    when(journalEntryRepository.save(any(JournalEntry.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    doReturn(stubEntry(930L))
+        .when(journalEntryService)
+        .createJournalEntry(any(JournalEntryRequest.class));
+
+    JournalEntryDto result =
+        journalEntryService.reverseJournalEntry(
+            730L,
+            new JournalEntryReversalRequest(
+                today,
+                false,
+                "Unauthorized override request",
+                "Direct memo",
+                Boolean.TRUE,
+                null,
+                false,
+                List.of(),
+                null,
+                null,
+                null));
+
+    assertThat(result.id()).isEqualTo(930L);
+    verify(accountingPeriodService)
+        .requirePostablePeriod(
+            eq(company), eq(today), eq("JOURNAL_REVERSAL"), eq("INV-730"), any(), eq(false));
+  }
+
+  @Test
+  void createJournalEntryForReversal_usesSystemEntryDateOverrideScopeWhenRequested()
+      throws ClassNotFoundException {
+    journalEntryService = org.mockito.Mockito.spy(journalEntryService);
+    JournalEntryRequest payload =
+        new JournalEntryRequest(
+            "REV-900",
+            LocalDate.of(2026, 3, 9),
+            "Scoped override",
+            null,
+            null,
+            Boolean.TRUE,
+            List.of(
+                new JournalEntryRequest.JournalLineRequest(
+                    11L, "Debit", new BigDecimal("50.00"), BigDecimal.ZERO),
+                new JournalEntryRequest.JournalLineRequest(
+                    22L, "Credit", BigDecimal.ZERO, new BigDecimal("50.00"))));
+    @SuppressWarnings("unchecked")
+    ThreadLocal<Boolean> overrideScope =
+        (ThreadLocal<Boolean>)
+            ReflectionTestUtils.getField(
+                Class.forName(
+                    "com.bigbrightpaints.erp.modules.accounting.service.AccountingCoreEngineCore"),
+                "SYSTEM_ENTRY_DATE_OVERRIDE");
+    AtomicReference<Boolean> observedOverride = new AtomicReference<>(Boolean.FALSE);
+    doAnswer(
+            invocation -> {
+              observedOverride.set(Boolean.TRUE.equals(overrideScope.get()));
+              return stubEntry(940L);
+            })
+        .when(journalEntryService)
+        .createJournalEntry(payload);
+
+    JournalEntryDto result =
+        ReflectionTestUtils.invokeMethod(
+            journalEntryService, "createJournalEntryForReversal", payload, true);
+
+    assertThat(result.id()).isEqualTo(940L);
+    assertThat(observedOverride.get()).isTrue();
+    assertThat(Boolean.TRUE.equals(overrideScope.get())).isFalse();
+  }
+
   private Account account(Long id, String code, AccountType type) {
     Account account = new Account();
     ReflectionTestUtils.setField(account, "id", id);
@@ -563,8 +733,8 @@ class JournalEntryServiceTest {
     entry.setEntryDate(entryDate);
     entry.setMemo("Original " + reference);
     entry.setStatus("POSTED");
-    entry.getLines().add(journalLine(entry, debitAccount, new BigDecimal("100.00"), BigDecimal.ZERO));
-    entry.getLines().add(journalLine(entry, creditAccount, BigDecimal.ZERO, new BigDecimal("100.00")));
+    entry.addLine(journalLine(entry, debitAccount, new BigDecimal("100.00"), BigDecimal.ZERO));
+    entry.addLine(journalLine(entry, creditAccount, BigDecimal.ZERO, new BigDecimal("100.00")));
     return entry;
   }
 

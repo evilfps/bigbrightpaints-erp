@@ -1,8 +1,8 @@
 # Documentation Conventions
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-04-04
 
-This document defines the writing conventions, cross-link expectations, and stale-doc handling policy for the BigBright ERP backend documentation library.
+This document defines the writing conventions, cross-link expectations, and stale-doc handling policy for the orchestrator-erp backend documentation library.
 
 ---
 
@@ -152,16 +152,23 @@ When marking a legacy doc as non-canonical or reference-only, use one of these s
 
 Use these templates consistently so future legacy-doc redirects follow one uniform format across the docs tree.
 
-## 7) Docs-Only Validation
+## 7) Docs-Only Lane
 
-Docs-only changes validate with:
+Docs-only packets are limited to the canonical docs/governance lane:
 
-- `bash ci/lint-knowledgebase.sh` — primary docs validator.
-- `bash ci/check-enterprise-policy.sh` — supplemental governance validation.
-- `bash ci/check-architecture.sh` — architecture invariant checks.
-- `bash ci/check-orchestrator-layer.sh` — orchestrator boundary checks.
+- repo-root signposts/governance: `README.md`, `AGENTS.md`, `ARCHITECTURE.md`, `CHANGELOG.md`
+- canonical docs spine files: `docs/INDEX.md`, `docs/ARCHITECTURE.md`, `docs/CONVENTIONS.md`, `docs/SECURITY.md`, `docs/RELIABILITY.md`, `docs/BACKEND-FEATURE-CATALOG.md`, `docs/RECOMMENDATIONS.md`
+- canonical directories: `docs/adrs/**`, `docs/agents/**`, `docs/approvals/**`, `docs/deprecated/**`, `docs/modules/**`, `docs/flows/**`, `docs/frontend-api/**`, `docs/frontend-portals/**`
+- internal worker-guidance lane: `.factory/library/**`
 
-No application runtime startup is required for docs validation.
+Markdown outside that lane is **not** docs-only. That includes `docs/platform/**`, `docs/runbooks/**`, `docs/design/**`, `docs/code-review/**`, `docs/developer/**`, `docs/frontend-update-v2/**`, root worklogs/reports, and any mixed markdown-plus-code/config/test/script/OpenAPI diff.
+
+Docs-only packets:
+
+- run `bash ci/lint-knowledgebase.sh` only
+- skip Codex review/subagent review
+- skip runtime validators and service startup
+- must not change backend runtime behavior
 
 ## Cross-references
 

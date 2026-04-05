@@ -1,7 +1,0 @@
-{
-  "catalog_path": "/home/realnigga/Desktop/Mission-control/docs/CODE-RED/confidence-suite/TEST_CATALOG.json",
-  "tests_root": "/home/realnigga/Desktop/Mission-control/erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite",
-  "tests_cataloged": 93,
-  "errors": [],
-  "passes": true
-}

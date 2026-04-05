@@ -19,10 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
+import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.orchestrator.repository.AuditRepository;
 import com.bigbrightpaints.erp.orchestrator.repository.OutboxEventRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
@@ -41,6 +45,10 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
   @Autowired private PayrollRunRepository payrollRunRepository;
   @Autowired private CompanyRepository companyRepository;
   @Autowired private AccountRepository accountRepository;
+  @Autowired private SalesOrderRepository salesOrderRepository;
+  @Autowired private InvoiceRepository invoiceRepository;
+  @Autowired private JournalEntryRepository journalEntryRepository;
+  @Autowired private InventoryMovementRepository inventoryMovementRepository;
 
   private Long seededOrderId;
   private Long payrollCashAccountId;
@@ -681,6 +689,46 @@ public class OrchestratorControllerIT extends AbstractIntegrationTest {
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     assertThat(response.getBody()).isNotNull();
     assertThat(response.getBody()).contains("BUS_001").contains("/api/v1/dispatch/confirm");
+  }
+
+  @Test
+  void fulfillment_dispatch_like_status_rejection_keeps_order_and_side_effects_unchanged() {
+    String token = loginToken();
+    HttpHeaders headers = authHeaders(token);
+    headers.add("Idempotency-Key", UUID.randomUUID().toString());
+    long outboxBefore = outboxEventRepository.count();
+    long auditBefore = auditRepository.count();
+    long invoiceBefore = invoiceRepository.count();
+    long journalBefore = journalEntryRepository.count();
+    long inventoryMovementBefore = inventoryMovementRepository.count();
+    SalesOrder beforeOrder = salesOrderRepository.findById(seededOrderId).orElseThrow();
+
+    Map<String, Object> body =
+        Map.of(
+            "status", "SHIPPED",
+            "notes", "attempt hidden dispatch fallback");
+
+    ResponseEntity<String> response =
+        rest.exchange(
+            "/api/v1/orchestrator/orders/" + seededOrderId + "/fulfillment",
+            HttpMethod.POST,
+            new HttpEntity<>(body, headers),
+            String.class);
+
+    SalesOrder afterOrder = salesOrderRepository.findById(seededOrderId).orElseThrow();
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody()).contains("BUS_001").contains("/api/v1/dispatch/confirm");
+    assertThat(outboxEventRepository.count()).isEqualTo(outboxBefore);
+    assertThat(auditRepository.count()).isEqualTo(auditBefore);
+    assertThat(invoiceRepository.count()).isEqualTo(invoiceBefore);
+    assertThat(journalEntryRepository.count()).isEqualTo(journalBefore);
+    assertThat(inventoryMovementRepository.count()).isEqualTo(inventoryMovementBefore);
+    assertThat(afterOrder.getStatus()).isEqualTo(beforeOrder.getStatus());
+    assertThat(afterOrder.getFulfillmentInvoiceId()).isEqualTo(beforeOrder.getFulfillmentInvoiceId());
+    assertThat(afterOrder.getSalesJournalEntryId()).isEqualTo(beforeOrder.getSalesJournalEntryId());
+    assertThat(afterOrder.getCogsJournalEntryId()).isEqualTo(beforeOrder.getCogsJournalEntryId());
   }
 
   @Test

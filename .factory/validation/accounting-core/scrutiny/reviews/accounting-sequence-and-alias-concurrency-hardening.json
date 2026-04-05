@@ -1,0 +1,34 @@
+{
+  "featureId": "accounting-sequence-and-alias-concurrency-hardening",
+  "reviewedAt": "2026-04-03T06:13:22+00:00",
+  "commitId": "bee7f023b021ed052eb8ae9c28564d35e597ecae",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "Commit bee7f023 correctly removes sleep-based backoff from the number/order/invoice generators, strengthens the sales-alias contention proof, and wires the new order/invoice contention suites into the targeted accounting proof pack. However, the accounting-core replay rewrite is not safe under concurrent duplicate submissions: several reservation-first accounting writers now replace the former wait-for-leader window with a single point-in-time lookup, so a follower request that collides while the leader transaction is still open can throw INTERNAL_CONCURRENCY_FAILURE instead of replaying the reserved result. This review is orthogonal to the prior accounting-core decomposition failure from fix-remaining-accounting-scrutiny-gaps, which is neither addressed nor worsened here.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingCoreEngineCore.java",
+        "line": 3752,
+        "severity": "blocking",
+        "description": "The manual-journal idempotency path now does a single `findReservedJournalEntry(...)` read immediately after `reserveManualReference(...)` reports an existing reservation. The reserve-first comment at lines 3741-3744 makes clear the reservation row is created before the leader journal exists, so a concurrent duplicate request can legitimately hit lines 3752-3759 before the leader commits and now gets `INTERNAL_CONCURRENCY_FAILURE` instead of the prior replay behavior. That regresses concurrent idempotent manual-journal submissions."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingCoreEngineCore.java",
+        "line": 1324,
+        "severity": "blocking",
+        "description": "The same single-read regression exists across the reservation-first receipt/payment/settlement/correction paths. `reserveReferenceMapping(...)` inserts the idempotency mapping before the leader writes journal/allocation rows (lines 4221-4266), but the non-leader branches now do one immediate `findReservedJournalEntry(...)` / `findReservedAllocations(...)` read and then throw if nothing is visible yet. For example, `recordDealerReceipt` now throws `missingReservedPartnerAllocation(...)` at line 1324 after one read, and the same pattern appears in `recordDealerReceiptSplit` (1529-1543), `recordSupplierPayment` (2279-2302), `settleDealerInvoices` (2554-2580), `settleSupplierInvoices` (2829-2855), and the credit/debit-note replay branches (6698-6799). Under normal concurrent duplicates, the loser can now fail even though the leader will commit successfully moments later."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "services",
+      "observation": "The canonical `targeted-accounting-proof` pack was updated for order/invoice contention, but there is still no direct duplicate-replay contention probe for the accounting reserved-row paths that this packet rewrote.",
+      "evidence": "bee7f023 changes `AccountingCoreEngineCore` replay branches for manual journals and receipt/payment/settlement flows, while `.factory/services.yaml` only swaps `InvoiceNumberServiceTest` for `OrderNumberServiceContentionIT` and `InvoiceNumberServiceContentionIT`, and the packet adds only those two new contention tests plus the updated `CriticalAccountingAxesIT` sales-alias scenario."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "FAIL: the feature removes sleep-based waits and adds the requested generator/alias contention coverage, but the new single-read accounting replay logic can now surface `INTERNAL_CONCURRENCY_FAILURE` for normal concurrent duplicate accounting submissions instead of replaying the leader result."
+}

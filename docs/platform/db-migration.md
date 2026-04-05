@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-03-30
 
-This packet documents the database layer of the BigBright ERP backend: persistence technology, schema areas, entity/repository conventions, migration strategy, profile-based activation, legacy-track constraints, and data-import entry surfaces. It fulfills VAL-PLAT-005.
+This packet documents the database layer of the orchestrator-erp backend: persistence technology, schema areas, entity/repository conventions, migration strategy, profile-based activation, legacy-track constraints, and data-import entry surfaces. It fulfills VAL-PLAT-005.
 
 A maintainer or frontend collaborator should be able to understand the active migration posture, the conventions governing schema and repository code, and the surviving import surfaces without reading Flyway SQL files or Spring configuration by hand.
 

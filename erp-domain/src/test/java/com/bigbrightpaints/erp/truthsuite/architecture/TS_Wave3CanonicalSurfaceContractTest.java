@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.lang.reflect.Modifier;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -23,9 +25,9 @@ class TS_Wave3CanonicalSurfaceContractTest {
   void accountingCoreScaffoldsStayHiddenBehindPublicServiceEntryPoints() throws Exception {
     assertHidden("com.bigbrightpaints.erp.modules.accounting.service.AccountingFacadeCore");
     assertHidden("com.bigbrightpaints.erp.modules.accounting.service.AccountingCoreEngineCore");
-    assertHidden("com.bigbrightpaints.erp.modules.accounting.service.AccountingCoreEngine");
-    assertHidden("com.bigbrightpaints.erp.modules.accounting.service.AccountingCoreLogic");
-    assertHidden("com.bigbrightpaints.erp.modules.accounting.service.AccountingCoreService");
+    assertRemoved("com.bigbrightpaints.erp.modules.accounting.service.AccountingCoreEngine");
+    assertRemoved("com.bigbrightpaints.erp.modules.accounting.service.AccountingCoreLogic");
+    assertRemoved("com.bigbrightpaints.erp.modules.accounting.service.AccountingCoreService");
   }
 
   @Test
@@ -72,5 +74,10 @@ class TS_Wave3CanonicalSurfaceContractTest {
     assertThat(Modifier.isPublic(Class.forName(fqcn).getModifiers()))
         .as("%s should stay package-private", fqcn)
         .isFalse();
+  }
+
+  private void assertRemoved(String fqcn) {
+    Path sourcePath = Path.of("src/main/java", fqcn.replace('.', '/') + ".java");
+    assertThat(Files.exists(sourcePath)).as("%s source should be removed", fqcn).isFalse();
   }
 }

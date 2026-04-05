@@ -1,0 +1,28 @@
+{
+  "featureId": "accounting-final-owner-cut-and-shadow-wrapper-retirement",
+  "reviewedAt": "2026-04-03T11:48:38Z",
+  "commitId": "a93aea5e71a8272bac9624b70caab66395b5da9a",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "Reviewed the fix handoff/transcript skeleton, both commits (`34fbba0c609e53664a7830e6984071d469f747c3` and `a93aea5e71a8272bac9624b70caab66395b5da9a`), and the current accounting code. The fix fully resolves the second prior blocker: `AccountingIdempotencyService` is gone and the touched payroll/settlement entry points no longer delegate through public `super.*` wrappers. But it does not fully resolve the first blocker: `AccountingCoreEngineCore` still retains full public journal implementations alongside `JournalEntryService`, so the monolith remains a live runtime owner of journal behavior instead of leaving `JournalEntryService` as the sole owner required by the prior scrutiny failure.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingCoreEngineCore.java",
+        "line": 317,
+        "severity": "blocking",
+        "description": "The ownership hard-cut still is not complete. `AccountingCoreEngineCore` keeps full public journal implementations at `createStandardJournal` (317), `createManualJournal` (409), and `createJournalEntry` (548), while `JournalEntryService` still carries parallel journal owners at `JournalEntryService.java:153`, `632`, and `745`. Because multiple concrete services still extend `AccountingCoreEngineCore` (`AccountingService.java:61`, `DealerReceiptService.java:40`, `InventoryAccountingService.java:37`, `CreditDebitNoteService.java:38`, `SettlementService.java:68`, `PayrollAccountingService.java:54`), the monolith remains a live alternative owner for journal creation/manual-journal behavior instead of leaving `JournalEntryService` as the sole runtime owner. That means prior blocker #1 is only partially fixed even though the touched payroll/settlement methods and the `AccountingIdempotencyService` wrapper class were removed."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The payroll/accounting ownership guidance is stale after this fix packet.",
+      "evidence": "`erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md:35,81` still says payroll posting goes through `AccountingCoreEngineCore.postPayrollRun()`, but the live path is `PayrollPostingService -> AccountingFacadeCore.postPayrollRun -> AccountingService.postPayrollRun -> PayrollAccountingService.postPayrollRun` (`AccountingFacadeCore.java:1707`, `AccountingService.java:204`, `PayrollAccountingService.java:120`). `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md:29` still describes `AccountingCoreEngineCore` as the centralized journal/payroll owner."
+    }
+  ],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/accounting-core/scrutiny/reviews/accounting-direct-journal-payroll-settlement-extraction.json",
+  "summary": "FAIL: the fix removes the `AccountingIdempotencyService` shadow-wrapper chain, but it does not fully clear the prior ownership failure because `AccountingCoreEngineCore` still keeps duplicate public journal owners alongside `JournalEntryService`."
+}

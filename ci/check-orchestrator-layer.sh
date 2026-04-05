@@ -62,9 +62,6 @@ if [[ -f "$DOC_FILE" ]]; then
   if ! grep -Fq "agents/orchestrator-layer.yaml" "$DOC_FILE"; then
     fail "$DOC_FILE must reference agents/orchestrator-layer.yaml"
   fi
-  if ! grep -Fq "asyncloop" "$DOC_FILE"; then
-    fail "$DOC_FILE must reference asyncloop evidence ledger"
-  fi
 fi
 
 if [[ "$errors" -gt 0 ]]; then

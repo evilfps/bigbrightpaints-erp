@@ -39,6 +39,7 @@ import com.bigbrightpaints.erp.modules.auth.domain.UserPrincipal;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyLifecycleState;
 import com.bigbrightpaints.erp.modules.company.service.CompanyService;
+import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeEnforcementService;
 import com.bigbrightpaints.erp.modules.company.service.TenantRuntimeRequestAdmissionService;
 
 import io.jsonwebtoken.Claims;
@@ -127,6 +128,44 @@ class CompanyContextFilterControlPlaneBindingTest {
   }
 
   @Test
+  void canonicalLimitsRequest_tracksPrivilegedRuntimeAdmissionForSuperAdmin()
+      throws ServletException, IOException {
+    authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("ROOT"));
+    when(companyService.resolveCompanyCodeById(42L)).thenReturn("TENANT-A");
+    when(companyService.resolveLifecycleStateByCode("TENANT-A"))
+        .thenReturn(CompanyLifecycleState.DEACTIVATED);
+    TenantRuntimeEnforcementService.TenantRequestAdmission admission =
+        TenantRuntimeEnforcementService.TenantRequestAdmission.admittedPolicyControl(
+            "TENANT-A", "chain-1");
+    when(tenantRuntimeRequestAdmissionService.beginRequest(
+            "TENANT-A",
+            "/api/v1/superadmin/tenants/42/limits",
+            "PUT",
+            "root-superadmin@bbp.com",
+            true))
+        .thenReturn(admission);
+
+    MockHttpServletRequest request = request("PUT", "/api/v1/superadmin/tenants/42/limits");
+    request.setAttribute("jwtClaims", claimsFor("ROOT"));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(
+        request,
+        response,
+        (req, res) -> assertThat(CompanyContextHolder.getCompanyCode()).isEqualTo("TENANT-A"));
+
+    assertThat(response.getStatus()).isEqualTo(200);
+    verify(tenantRuntimeRequestAdmissionService)
+        .beginRequest(
+            "TENANT-A",
+            "/api/v1/superadmin/tenants/42/limits",
+            "PUT",
+            "root-superadmin@bbp.com",
+            true);
+    verify(tenantRuntimeRequestAdmissionService).completeRequest(admission, 200);
+  }
+
+  @Test
   void canonicalTenantControlRequest_rejectsNonSuperAdmin() throws ServletException, IOException {
     authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("ROOT"));
     when(companyService.resolveCompanyCodeById(42L)).thenReturn("TENANT-A");
@@ -182,6 +221,79 @@ class CompanyContextFilterControlPlaneBindingTest {
   }
 
   @Test
+  void companyScopedRequest_rejectsLegacyCompanyIdHeader() throws ServletException, IOException {
+    authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("TENANT-A"));
+    MockHttpServletRequest request = request("GET", "/api/v1/private");
+    request.setAttribute("jwtClaims", claimsFor("TENANT-A"));
+    request.addHeader("X-Company-Id", "42");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(response.getContentAsString()).contains("COMPANY_CONTEXT_LEGACY_HEADER_UNSUPPORTED");
+    verifyNoInteractions(companyService);
+    verify(tenantRuntimeRequestAdmissionService, never())
+        .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+  }
+
+  @Test
+  void companyScopedRequest_rejectsUnauthenticatedHeaderBoundContext()
+      throws ServletException, IOException {
+    MockHttpServletRequest request = request("GET", "/api/v1/private");
+    request.addHeader("X-Company-Code", "TENANT-A");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(response.getContentAsString()).contains("COMPANY_CONTEXT_AUTH_REQUIRED");
+    verifyNoInteractions(companyService);
+    verify(tenantRuntimeRequestAdmissionService, never())
+        .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+  }
+
+  @Test
+  void companyScopedRequest_rejectsHeaderMismatchWithJwtClaim()
+      throws ServletException, IOException {
+    authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("TENANT-A"));
+    MockHttpServletRequest request = request("GET", "/api/v1/private");
+    request.setAttribute("jwtClaims", claimsFor("TENANT-A"));
+    request.addHeader("X-Company-Code", "TENANT-B");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(response.getContentAsString()).contains("COMPANY_CONTEXT_MISMATCH");
+    verifyNoInteractions(companyService);
+    verify(tenantRuntimeRequestAdmissionService, never())
+        .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+  }
+
+  @Test
+  void companyScopedRequest_rejectsWhenRuntimeAdmissionServiceReturnsNull()
+      throws ServletException, IOException {
+    authenticate("tenant-admin@bbp.com", Set.of("ROLE_ADMIN"), Set.of("TENANT-A"));
+    when(companyService.resolveLifecycleStateByCode("TENANT-A"))
+        .thenReturn(CompanyLifecycleState.ACTIVE);
+    when(tenantRuntimeRequestAdmissionService.beginRequest(
+            "TENANT-A", "/api/v1/private", "GET", "tenant-admin@bbp.com", false))
+        .thenReturn(null);
+
+    MockHttpServletRequest request = request("GET", "/api/v1/private");
+    request.setAttribute("jwtClaims", claimsFor("TENANT-A"));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(response.getContentAsString()).contains("TENANT_RUNTIME_ADMISSION_UNAVAILABLE");
+    verify(companyService).resolveLifecycleStateByCode("TENANT-A");
+    verify(filterChain, never()).doFilter(request, response);
+  }
+
+  @Test
   void canonicalTenantControlRequest_rejectsWhenResolvedTenantIsMissing()
       throws ServletException, IOException {
     authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("ROOT"));
@@ -197,6 +309,55 @@ class CompanyContextFilterControlPlaneBindingTest {
     assertThat(response.getContentAsString()).contains(CONTROL_PLANE_AUTH_DENIED_MESSAGE);
     verify(companyService).resolveCompanyCodeById(404L);
     verify(companyService, never()).resolveLifecycleStateByCode(anyString());
+  }
+
+  @Test
+  void canonicalTenantControlRequest_returnsServiceUnavailableWhenTargetLookupFails()
+      throws ServletException, IOException {
+    authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("ROOT"));
+    when(companyService.resolveCompanyCodeById(42L))
+        .thenThrow(new RuntimeException("tenant-lookup-unavailable"));
+
+    MockHttpServletRequest request = request("GET", "/api/v1/superadmin/tenants/42");
+    request.setAttribute("jwtClaims", claimsFor("ROOT"));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(503);
+    assertThat(response.getContentAsString())
+        .contains("SYS_002")
+        .contains("TENANT_CONTROL_TARGET_LOOKUP_UNAVAILABLE");
+    verify(companyService).resolveCompanyCodeById(42L);
+    verify(companyService, never()).resolveLifecycleStateByCode(anyString());
+    verify(tenantRuntimeRequestAdmissionService, never())
+        .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+    verify(filterChain, never()).doFilter(request, response);
+  }
+
+  @Test
+  void canonicalTenantControlRequest_returnsServiceUnavailableWhenLifecycleLookupFails()
+      throws ServletException, IOException {
+    authenticate("root-superadmin@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("ROOT"));
+    when(companyService.resolveCompanyCodeById(42L)).thenReturn("TENANT-A");
+    when(companyService.resolveLifecycleStateByCode("TENANT-A"))
+        .thenThrow(new RuntimeException("lifecycle-unavailable"));
+
+    MockHttpServletRequest request = request("GET", "/api/v1/superadmin/tenants/42");
+    request.setAttribute("jwtClaims", claimsFor("ROOT"));
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(response.getStatus()).isEqualTo(503);
+    assertThat(response.getContentAsString())
+        .contains("SYS_002")
+        .contains("TENANT_LIFECYCLE_LOOKUP_UNAVAILABLE");
+    verify(companyService).resolveCompanyCodeById(42L);
+    verify(companyService).resolveLifecycleStateByCode("TENANT-A");
+    verify(tenantRuntimeRequestAdmissionService, never())
+        .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+    verify(filterChain, never()).doFilter(request, response);
   }
 
   @Test
@@ -239,7 +400,7 @@ class CompanyContextFilterControlPlaneBindingTest {
                     "hasTenantRuntimePolicyControlAuthority",
                     "/api/v1/superadmin/tenants/42/limits",
                     "PUT"))
-        .isFalse();
+        .isTrue();
   }
 
   @Test

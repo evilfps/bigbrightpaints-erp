@@ -18,13 +18,13 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencySignatureBuilder;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.inventory.dto.RawMaterialBatchRequest;
 import com.bigbrightpaints.erp.modules.inventory.service.RawMaterialService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceipt;
@@ -46,10 +46,9 @@ public class GoodsReceiptService {
   private final CompanyContextService companyContextService;
   private final PurchaseOrderRepository purchaseOrderRepository;
   private final GoodsReceiptRepository goodsReceiptRepository;
-  private final com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository
-      rawMaterialRepository;
   private final RawMaterialService rawMaterialService;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedPurchasingLookupService purchasingLookupService;
+  private final CompanyScopedInventoryLookupService inventoryLookupService;
   private final AccountingPeriodService accountingPeriodService;
   private final PurchaseResponseMapper responseMapper;
   private final PurchaseOrderService purchaseOrderService;
@@ -61,9 +60,9 @@ public class GoodsReceiptService {
       CompanyContextService companyContextService,
       PurchaseOrderRepository purchaseOrderRepository,
       GoodsReceiptRepository goodsReceiptRepository,
-      com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository rawMaterialRepository,
       RawMaterialService rawMaterialService,
-      CompanyEntityLookup companyEntityLookup,
+      CompanyScopedPurchasingLookupService purchasingLookupService,
+      CompanyScopedInventoryLookupService inventoryLookupService,
       AccountingPeriodService accountingPeriodService,
       PurchaseResponseMapper responseMapper,
       PurchaseOrderService purchaseOrderService,
@@ -71,9 +70,9 @@ public class GoodsReceiptService {
     this.companyContextService = companyContextService;
     this.purchaseOrderRepository = purchaseOrderRepository;
     this.goodsReceiptRepository = goodsReceiptRepository;
-    this.rawMaterialRepository = rawMaterialRepository;
     this.rawMaterialService = rawMaterialService;
-    this.companyEntityLookup = companyEntityLookup;
+    this.purchasingLookupService = purchasingLookupService;
+    this.inventoryLookupService = inventoryLookupService;
     this.accountingPeriodService = accountingPeriodService;
     this.responseMapper = responseMapper;
     this.purchaseOrderService = purchaseOrderService;
@@ -87,7 +86,7 @@ public class GoodsReceiptService {
   public List<GoodsReceiptResponse> listGoodsReceipts(Long supplierId) {
     Company company = companyContextService.requireCurrentCompany();
     Supplier supplier =
-        supplierId != null ? companyEntityLookup.requireSupplier(company, supplierId) : null;
+        supplierId != null ? purchasingLookupService.requireSupplier(company, supplierId) : null;
     List<GoodsReceipt> receipts =
         supplier == null
             ? goodsReceiptRepository.findByCompanyWithLinesOrderByReceiptDateDesc(company)
@@ -387,7 +386,7 @@ public class GoodsReceiptService {
 
   private RawMaterial requireMaterial(Company company, Long rawMaterialId) {
     try {
-      return companyEntityLookup.lockActiveRawMaterial(company, rawMaterialId);
+      return inventoryLookupService.lockActiveRawMaterial(company, rawMaterialId);
     } catch (IllegalArgumentException ex) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Raw material not found");

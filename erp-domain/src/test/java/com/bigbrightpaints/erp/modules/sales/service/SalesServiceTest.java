@@ -154,7 +154,6 @@ class SalesServiceTest {
             companyEntityLookup,
             packagingSlipRepository,
             finishedGoodsService,
-            accountingService,
             accountingFacade,
             journalEntryRepository,
             invoiceNumberService,
@@ -2101,7 +2100,7 @@ class SalesServiceTest {
     line.setAccount(receivable);
     line.setDebit(new BigDecimal("90.00"));
     line.setCredit(BigDecimal.ZERO);
-    existingEntry.getLines().add(line);
+    existingEntry.addLine(line);
 
     when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company))
         .thenReturn(Optional.of(slip));
@@ -2231,7 +2230,7 @@ class SalesServiceTest {
     receivableLine.setAccount(receivable);
     receivableLine.setDebit(new BigDecimal("100.00"));
     receivableLine.setCredit(BigDecimal.ZERO);
-    existingEntry.getLines().add(receivableLine);
+    existingEntry.addLine(receivableLine);
 
     when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company))
         .thenReturn(Optional.of(slip));
@@ -2904,7 +2903,7 @@ class SalesServiceTest {
     line.setAccount(receivable);
     line.setDebit(new BigDecimal("200"));
     line.setCredit(BigDecimal.ZERO);
-    existingEntry.getLines().add(line);
+    existingEntry.addLine(line);
 
     when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company))
         .thenReturn(Optional.of(slip));
@@ -3005,7 +3004,7 @@ class SalesServiceTest {
     line.setAccount(receivable);
     line.setDebit(new BigDecimal("200"));
     line.setCredit(BigDecimal.ZERO);
-    existingEntry.getLines().add(line);
+    existingEntry.addLine(line);
 
     when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company))
         .thenReturn(Optional.of(slip));

@@ -1,0 +1,46 @@
+{
+  "milestone": "dispatch-hardcut",
+  "round": 2,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "ROOT=\"/home/realnigga/Desktop/Mission-control\" && cd \"$ROOT\" && bash scripts/gate_fast.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "ROOT=\"/home/realnigga/Desktop/Mission-control\" && cd \"$ROOT/erp-domain\" && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "ROOT=\"/home/realnigga/Desktop/Mission-control\" && cd \"$ROOT\" && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "contract guard guidance",
+      "suggestion": "Add a dispatch DTO parity guard or equivalent review rule for shared handoff/library docs that enumerate `DispatchConfirmationResponse` fields, because route-literal-only guards still would not detect response-shape drift in `.factory/library/frontend-handoff.md`.",
+      "evidence": "The re-review for `dispatch-frontend-handoff-response-alignment` passed only after a manual comparison between `.factory/library/frontend-handoff.md`, `DispatchConfirmationResponse.java`, and `openapi.json`, while `scripts/guard_workflow_canonical_paths.sh` still checks only route/ownership literals.",
+      "isSystemic": false
+    },
+    {
+      "target": "docs-worker skill",
+      "suggestion": "Clarify `.factory/library/*` docs-only validation expectations and how workers should report skill adherence, so feature-specific docs-lint plus contract-guard packets are not unnecessarily escalated to `gate_fast.sh` while still being marked as procedure-following.",
+      "evidence": "The re-review for `dispatch-frontend-handoff-response-alignment` found the worker ran `bash scripts/gate_fast.sh` even though `features.json` required only `docs-lint`, `contract-guards`, and manual DTO/OpenAPI comparison, and the handoff still reported `followedProcedure=true`.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": ".factory/validation/dispatch-hardcut/scrutiny/synthesis.round1.json"
+}

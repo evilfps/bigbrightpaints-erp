@@ -210,8 +210,8 @@ class AccountingComplianceAuditServiceTest {
     credit.setDebit(BigDecimal.ZERO);
     credit.setCredit(new BigDecimal("100.00"));
 
-    entry.getLines().add(debit);
-    entry.getLines().add(credit);
+    entry.addLine(debit);
+    entry.addLine(credit);
     return entry;
   }
 

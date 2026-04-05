@@ -130,8 +130,8 @@ class AccountingServiceBenchmarkTest {
             mock(DealerReceiptService.class),
             mock(SettlementService.class),
             mock(CreditDebitNoteService.class),
-            mock(AccountingAuditService.class),
             mock(InventoryAccountingService.class),
+            mock(PayrollAccountingService.class),
             mock(org.springframework.beans.factory.ObjectProvider.class));
 
     company = new Company();

@@ -1,0 +1,62 @@
+{
+  "milestone": "accounting-core",
+  "round": 5,
+  "status": "fail",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "ROOT=/home/realnigga/Desktop/Mission-control && cd \"$ROOT\" && bash scripts/gate_fast.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "ROOT=/home/realnigga/Desktop/Mission-control && cd \"$ROOT/erp-domain\" && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "ROOT=/home/realnigga/Desktop/Mission-control && cd \"$ROOT\" && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 1,
+    "failed": 1,
+    "failedFeatures": [
+      "accounting-direct-journal-payroll-settlement-extraction"
+    ]
+  },
+  "blockingIssues": [
+    {
+      "featureId": "accounting-direct-journal-payroll-settlement-extraction",
+      "severity": "blocking",
+      "description": "The ownership hard-cut is still incomplete because `AccountingCoreEngineCore` keeps full business-logic implementations for the same touched behaviors the fix was supposed to extract, including `createStandardJournal`, `createJournalEntry`, `postPayrollRun`, `recordPayrollPayment`, `recordSupplierPayment`, `autoSettleSupplier`, `settleDealerInvoices`, and `settleSupplierInvoices`, leaving duplicate live owners instead of one canonical owner per behavior."
+    },
+    {
+      "featureId": "accounting-direct-journal-payroll-settlement-extraction",
+      "severity": "blocking",
+      "description": "`AccountingIdempotencyService` still exposes public `recordSupplierPayment`, `settleDealerInvoices`, `autoSettleDealer`, `settleSupplierInvoices`, and `autoSettleSupplier` methods that delegate via `super.*` back into `AccountingCoreEngineCore`, so the indirect monolith delegation chain was not fully hard-cut."
+    }
+  ],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "backend-worker skill",
+      "suggestion": "When repo-wide Spotless drift is a known pre-existing condition, document scoped formatter verification with `mvn spotless:check -DspotlessFiles=...` as the expected touched-files-only fallback instead of leaving workers to record it as an ad hoc deviation.",
+      "evidence": "The `accounting-split-receipt-replay-contention-proof` review cited a justified deviation to rerun Spotless only for the touched test file, and the earlier `accounting-direct-journal-payroll-settlement-extraction` handoff reported the same scoped-Spotless workaround because the mission guidance already treats full-repo Spotless drift as pre-existing.",
+      "isSystemic": true
+    }
+  ],
+  "rejectedObservations": [
+    {
+      "observation": "The accounting module AGENTS guidance should be updated immediately to describe `JournalEntryService` and `PayrollAccountingService` as the new canonical owners instead of `AccountingCoreEngineCore`.",
+      "reason": "ambiguous: this rerun still fails because `AccountingCoreEngineCore` and `AccountingIdempotencyService` retain duplicate live owners and shadow delegation paths, so updating the module guidance now would misstate the current runtime ownership instead of clarifying it."
+    },
+    {
+      "observation": "Shared worker guidance should explicitly bless detached-worktree clean-status verification when the root checkout contains unrelated dirty files that cannot be touched.",
+      "reason": "duplicate: the same mission-worker-base guidance update was already recommended in round 4, and this review did not add a new distinct remediation beyond reaffirming that existing recommendation."
+    }
+  ],
+  "previousRound": ".factory/validation/accounting-core/scrutiny/synthesis.round4.json"
+}

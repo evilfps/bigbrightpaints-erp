@@ -14,7 +14,6 @@ import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -33,12 +32,13 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 
 @Service
 public class PackagingMaterialService {
 
   private final CompanyContextService companyContextService;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedInventoryLookupService inventoryLookupService;
   private final PackagingSizeMappingRepository mappingRepository;
   private final RawMaterialRepository rawMaterialRepository;
   private final RawMaterialBatchRepository rawMaterialBatchRepository;
@@ -46,13 +46,13 @@ public class PackagingMaterialService {
 
   public PackagingMaterialService(
       CompanyContextService companyContextService,
-      CompanyEntityLookup companyEntityLookup,
+      CompanyScopedInventoryLookupService inventoryLookupService,
       PackagingSizeMappingRepository mappingRepository,
       RawMaterialRepository rawMaterialRepository,
       RawMaterialBatchRepository rawMaterialBatchRepository,
       RawMaterialMovementRepository rawMaterialMovementRepository) {
     this.companyContextService = companyContextService;
-    this.companyEntityLookup = companyEntityLookup;
+    this.inventoryLookupService = inventoryLookupService;
     this.mappingRepository = mappingRepository;
     this.rawMaterialRepository = rawMaterialRepository;
     this.rawMaterialBatchRepository = rawMaterialBatchRepository;
@@ -314,7 +314,7 @@ public class PackagingMaterialService {
           normalizedSize, "does not reference a packaging material");
     }
     try {
-      return companyEntityLookup.lockActiveRawMaterial(company, rawMaterialId);
+      return inventoryLookupService.lockActiveRawMaterial(company, rawMaterialId);
     } catch (IllegalArgumentException ex) {
       throw invalidPackagingSetupReference(
           normalizedSize, "points to an inactive or missing packaging material");
@@ -342,8 +342,8 @@ public class PackagingMaterialService {
       Company company, Long rawMaterialId, boolean lock) {
     try {
       return lock
-          ? companyEntityLookup.lockActiveRawMaterial(company, rawMaterialId)
-          : companyEntityLookup.requireActiveRawMaterial(company, rawMaterialId);
+          ? inventoryLookupService.lockActiveRawMaterial(company, rawMaterialId)
+          : inventoryLookupService.requireActiveRawMaterial(company, rawMaterialId);
     } catch (IllegalArgumentException ex) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_REFERENCE, "Raw material not found", ex);

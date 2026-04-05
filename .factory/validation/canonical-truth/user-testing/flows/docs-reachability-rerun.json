@@ -1,0 +1,69 @@
+{
+  "surface": "repo-static",
+  "groupId": "docs-reachability-rerun",
+  "group": "docs-reachability-rerun",
+  "testedAt": "2026-04-02T16:49:16Z",
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "LS"
+  ],
+  "assertions": [
+    {
+      "id": "VAL-DOCS-002",
+      "title": "Current docs are reachable from the canonical spine",
+      "status": "fail",
+      "reason": "README.md and ARCHITECTURE.md correctly route readers into docs/INDEX and the canonical module/flow inventories remain reachable there, but three retained top-level docs still lack top-of-file non-canonical/reference-only labeling, so out-of-spine docs are not yet consistently clear when opened directly from the repo surface.",
+      "steps": [
+        {
+          "action": "Follow the canonical reader path from README.md and repo-root ARCHITECTURE.md into docs/INDEX.md.",
+          "expected": "Canonical entrypoints should route readers into the docs spine.",
+          "observed": "README.md and ARCHITECTURE.md both point readers to docs/INDEX.md as the canonical documentation entrypoint/signpost."
+        },
+        {
+          "action": "Inspect docs/INDEX.md for canonical reachability of core current docs.",
+          "expected": "Current canonical docs should be reachable from the spine, including module and flow inventories.",
+          "observed": "docs/INDEX.md defines the spine, links MODULE-INVENTORY.md and FLOW-INVENTORY.md, and classifies retained non-spine docs separately."
+        },
+        {
+          "action": "Inspect the previously failing retained top-level docs and compare them with the spine classification.",
+          "expected": "Docs outside the spine should be clearly labeled as non-canonical/historical/reference-only.",
+          "observed": "docs/INDEX.md and docs/deprecated/INDEX.md now classify the three targeted docs as reference-only, but the files themselves still open without top-of-file non-canonical/reference-only banners."
+        },
+        {
+          "action": "Sample other retained top-level docs that could still look canonical.",
+          "expected": "Other retained docs should show explicit banners if they are outside the canonical spine.",
+          "observed": "Sampled retained docs such as developer-guide.md, endpoint-inventory.md, migration-guide.md, ERP-DOD-BIBLE.md, and accounting-portal-frontend-engineer-handoff.md are explicitly bannered."
+        }
+      ],
+      "evidencePaths": [
+        "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/canonical-truth/docs-reachability-rerun/VAL-DOCS-002-evidence.json"
+      ],
+      "evidence": [
+        "README.md:245-246 and ARCHITECTURE.md:5-9 still route readers into docs/INDEX.md, so the canonical spine entrypoints are intact.",
+        "docs/INDEX.md:5 declares that packets not reachable through the index are outside the canonical docs tree, and docs/INDEX.md:46 and :73 link the canonical module and flow inventories.",
+        "docs/INDEX.md:173-175 and docs/deprecated/INDEX.md:162-164 now classify docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md, docs/AUDIT_TRAIL_OWNERSHIP.md, and docs/accounting-portal-endpoint-map.md as reference-only retained docs with canonical replacements.",
+        "docs/CONVENTIONS.md:123-125 requires retained legacy docs to carry a redirect/archive notice at the top and to be clearly labeled as non-canonical or superseded.",
+        "docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md:1-5, docs/AUDIT_TRAIL_OWNERSHIP.md:1-6, and docs/accounting-portal-endpoint-map.md:1-5 still open as ordinary active docs without any top-of-file non-canonical/reference-only banner.",
+        "Other retained top-level docs sampled in this rerun are clearly bannered: developer-guide.md:3 (`NON-CANONICAL`), endpoint-inventory.md:3 (`REFERENCE ONLY`), migration-guide.md:3 (`RETIRED / REFERENCE ONLY`), ERP-DOD-BIBLE.md:3 (`NON-CANONICAL`), accounting-portal-frontend-engineer-handoff.md:3 (`NON-CANONICAL / REFERENCE ONLY`)."
+      ],
+      "issues": [
+        {
+          "file": "/home/realnigga/Desktop/Mission-control/docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md",
+          "issue": "Indexed as reference-only, but still lacks an in-file non-canonical/reference-only banner."
+        },
+        {
+          "file": "/home/realnigga/Desktop/Mission-control/docs/AUDIT_TRAIL_OWNERSHIP.md",
+          "issue": "Indexed as reference-only, but still lacks an in-file non-canonical/reference-only banner."
+        },
+        {
+          "file": "/home/realnigga/Desktop/Mission-control/docs/accounting-portal-endpoint-map.md",
+          "issue": "Indexed as reference-only, but still lacks an in-file non-canonical/reference-only banner."
+        }
+      ]
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Re-tested VAL-DOCS-002 on the repo-static surface. The canonical spine entrypoints and inventory links are now reachable, and the targeted retained docs are classified as reference-only in the index and deprecated registry, but the three targeted top-level docs still lack top-of-file non-canonical/reference-only banners, so the assertion remains failed."
+}

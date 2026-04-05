@@ -1,8 +1,10 @@
-# Deprecated, Unmaintained, and Incomplete Surfaces Registry
+# orchestrator-erp Deprecated, Unmaintained, and Incomplete Surfaces Registry
 
-Last reviewed: 2026-03-30
+Last reviewed: 2026-04-02
 
-This registry documents retired, partial, duplicated, or dead-end surfaces in the BigBright ERP backend. Every entry points to a canonical replacement or explicitly states that no replacement exists.
+This registry documents retired, partial, duplicated, or dead-end surfaces in the `orchestrator-erp` backend. Every entry points to a canonical replacement or explicitly states that no replacement exists.
+
+Repo-root `README.md` and `ARCHITECTURE.md` are current entrypoints into the canonical docs spine and are therefore not retired surfaces.
 
 For surfaces still under active development or fully maintained, see the [Module Inventory](../modules/MODULE-INVENTORY.md) and [Flow Inventory](../flows/FLOW-INVENTORY.md).
 
@@ -49,7 +51,7 @@ Each entry follows this pattern:
 | `X-Idempotency-Key` header on packing requests | Rejected (400 error) | Use `Idempotency-Key` (canonical header) |
 | `X-Request-Id` header on packing requests | Rejected (400 error) | Use `Idempotency-Key` (canonical header) |
 | `ProductionBatch` entity | Unmaintained (unused) | Use `ProductionLog` entity for production tracking |
-| `DispatchRequest` command payload | Deprecated | Use direct dispatch execution via `DispatchController` |
+| Historical orchestrator dispatch shortcut (`POST /api/v1/orchestrator/factory/dispatch/{batchId}`) | Retired (hard cut) | No orchestrator replacement. Use `POST /api/v1/dispatch/confirm` for the canonical dispatch write |
 
 **Module Reference**: [factory.md](../modules/factory.md), [manufacturing-packing flow](../flows/manufacturing-packing.md)
 
@@ -152,9 +154,25 @@ The following historical docs remain in the repo for reference but are **not** t
 
 | Document | Status | Replacement |
 | --- | --- | --- |
-| [docs/ARCHITECTURE.md](../ARCHITECTURE.md) | Superseded | Canonical path is now uppercase `docs/ARCHITECTURE.md` |
-| [docs/developer-guide.md](../developer-guide.md) | Superseded | Use module packets and flow packets in the new docs tree |
+| [docs/frontend-handoff-platform.md](../frontend-handoff-platform.md) | Reference only (superseded) | Use [docs/frontend-portals/README.md](../frontend-portals/README.md) and [docs/frontend-api/README.md](../frontend-api/README.md) |
+| [docs/frontend-handoff-operations.md](../frontend-handoff-operations.md) | Reference only (superseded) | Use [docs/frontend-portals/README.md](../frontend-portals/README.md) and [docs/frontend-api/README.md](../frontend-api/README.md) |
+| [docs/frontend-handoff-commercial.md](../frontend-handoff-commercial.md) | Reference only (superseded) | Use [docs/frontend-portals/README.md](../frontend-portals/README.md) and [docs/frontend-api/README.md](../frontend-api/README.md) |
+| [docs/frontend-handoff-finance.md](../frontend-handoff-finance.md) | Reference only (superseded) | Use [docs/frontend-portals/README.md](../frontend-portals/README.md) and [docs/frontend-api/README.md](../frontend-api/README.md) |
+| [docs/accounting-portal-frontend-engineer-handoff.md](../accounting-portal-frontend-engineer-handoff.md) | Reference only (historical deep handoff) | Use [docs/frontend-portals/accounting/README.md](../frontend-portals/accounting/README.md) and [docs/frontend-api/README.md](../frontend-api/README.md) |
+| [docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md](../ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md) | Reference only (retained scope lock) | Use [docs/frontend-portals/accounting/README.md](../frontend-portals/accounting/README.md) and [docs/frontend-api/README.md](../frontend-api/README.md) for current portal ownership and API boundary truth |
+| [docs/accounting-portal-endpoint-map.md](../accounting-portal-endpoint-map.md) | Reference only (curated parity snapshot) | Use [docs/frontend-portals/accounting/README.md](../frontend-portals/accounting/README.md), [docs/frontend-api/README.md](../frontend-api/README.md), and `openapi.json` for current contract truth |
+| [docs/AUDIT_TRAIL_OWNERSHIP.md](../AUDIT_TRAIL_OWNERSHIP.md) | Reference only (narrow change-control contract) | Use [docs/modules/core-audit-runtime-settings.md](../modules/core-audit-runtime-settings.md) for the canonical audit ownership overview |
+| [docs/workflows/admin-and-tenant-management.md](../workflows/admin-and-tenant-management.md) | Reference only (superseded) | Use [docs/flows/tenant-admin-management.md](../flows/tenant-admin-management.md) |
+| [docs/workflows/manufacturing-and-packaging.md](../workflows/manufacturing-and-packaging.md) | Reference only (superseded) | Use [docs/flows/manufacturing-packing.md](../flows/manufacturing-packing.md) |
+| [docs/workflows/inventory-management.md](../workflows/inventory-management.md) | Reference only (superseded) | Use [docs/flows/inventory-management.md](../flows/inventory-management.md) |
+| [docs/workflows/sales-order-to-cash.md](../workflows/sales-order-to-cash.md) | Reference only (superseded) | Use [docs/flows/order-to-cash.md](../flows/order-to-cash.md) |
+| [docs/workflows/purchase-to-pay.md](../workflows/purchase-to-pay.md) | Reference only (superseded) | Use [docs/flows/procure-to-pay.md](../flows/procure-to-pay.md) |
+| [docs/workflows/accounting-and-period-close.md](../workflows/accounting-and-period-close.md) | Reference only (superseded) | Use [docs/flows/accounting-period-close.md](../flows/accounting-period-close.md) |
+| [docs/workflows/payroll.md](../workflows/payroll.md) | Reference only (superseded) | Use [docs/flows/hr-payroll.md](../flows/hr-payroll.md) |
+| [docs/workflows/data-migration.md](../workflows/data-migration.md) | Reference only (historical migration checklist) | Use [docs/runbooks/migrations.md](../runbooks/migrations.md) for current rollout truth |
+| [docs/developer-guide.md](../developer-guide.md) | Non-canonical (superseded) | Use [docs/INDEX.md](../INDEX.md), [docs/modules/MODULE-INVENTORY.md](../modules/MODULE-INVENTORY.md), and [docs/flows/FLOW-INVENTORY.md](../flows/FLOW-INVENTORY.md) |
 | [docs/endpoint-inventory.md](../endpoint-inventory.md) | Reference only | Use `openapi.json` and module packets as primary truth |
+| [docs/migration-guide.md](../migration-guide.md) | Retired reference only | Use [docs/runbooks/migrations.md](../runbooks/migrations.md) for current migration rollout truth; there is no maintained canonical replacement for the old CSV/Tally appendix |
 
 ---
 

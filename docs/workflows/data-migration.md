@@ -1,12 +1,12 @@
 # Data Migration Workflow (Business Operations View)
 
-> ⚠️ **NON-CANONICAL**: This document references `docs/migration-guide.md` which may be outdated. Current migration documentation is available in [docs/runbooks/migrations.md](../runbooks/migrations.md).
+> ⚠️ **NON-CANONICAL**: This historical workflow guide is superseded by the canonical migration rollout guidance in [docs/runbooks/migrations.md](../runbooks/migrations.md). The companion [docs/migration-guide.md](../migration-guide.md) file is now an archival appendix only, not current truth.
 
 **Audience:** Finance onboarding lead, warehouse lead, implementation manager
 
-This guide complements **`docs/migration-guide.md`** by translating migration into business execution steps and ownership.
+This guide complements the archived **`docs/migration-guide.md`** appendix by translating older migration packets into business execution steps and ownership.
 
-> Use this together with `docs/migration-guide.md` (templates, exact field mapping, and error catalog).
+> Use [docs/runbooks/migrations.md](../runbooks/migrations.md) for current rollout/rollback truth. Treat `docs/migration-guide.md` as archival context only.
 
 ## End-to-End Steps
 

@@ -24,12 +24,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
-import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.inventory.service.RawMaterialService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrder;
@@ -49,8 +48,8 @@ class PurchaseOrderLifecycleTransitionTest {
 
   @Mock private CompanyContextService companyContextService;
   @Mock private PurchaseOrderRepository purchaseOrderRepository;
-  @Mock private RawMaterialRepository rawMaterialRepository;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedPurchasingLookupService purchasingLookupService;
+  @Mock private CompanyScopedInventoryLookupService inventoryLookupService;
   @Mock private PurchaseOrderStatusHistoryRepository purchaseOrderStatusHistoryRepository;
   @Mock private GoodsReceiptRepository goodsReceiptRepository;
   @Mock private RawMaterialService rawMaterialService;
@@ -69,8 +68,8 @@ class PurchaseOrderLifecycleTransitionTest {
         new PurchaseOrderService(
             companyContextService,
             purchaseOrderRepository,
-            rawMaterialRepository,
-            companyEntityLookup,
+            purchasingLookupService,
+            inventoryLookupService,
             new PurchaseResponseMapper(),
             purchaseOrderStatusHistoryRepository);
 
@@ -79,9 +78,9 @@ class PurchaseOrderLifecycleTransitionTest {
             companyContextService,
             purchaseOrderRepository,
             goodsReceiptRepository,
-            rawMaterialRepository,
             rawMaterialService,
-            companyEntityLookup,
+            purchasingLookupService,
+            inventoryLookupService,
             accountingPeriodService,
             new PurchaseResponseMapper(),
             purchaseOrderService,

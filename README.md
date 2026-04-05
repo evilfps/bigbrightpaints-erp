@@ -1,7 +1,7 @@
-# BigBright ERP Backend
+# orchestrator-erp Backend
 
 ## 1) Project Overview
-BigBright ERP is a multi-company ERP backend for manufacturers and distribution teams. It handles the core business flows end-to-end: order-to-cash, procure-to-pay, manufacturing/packing, inventory control, accounting, HR/payroll, and reporting.
+orchestrator-erp is the multi-company ERP backend for manufacturers and distribution teams. It handles the core business flows end-to-end: order-to-cash, procure-to-pay, manufacturing/packing, inventory control, accounting, HR/payroll, and reporting.
 
 It is designed for:
 - Backend engineers extending ERP modules
@@ -242,10 +242,12 @@ Notes:
 
 ---
 
-## 9) Architecture
-- Architecture reference: [`.factory/library/architecture.md`](.factory/library/architecture.md)
-- Frontend/backend contract handoff: [`.factory/library/frontend-v2.md`](.factory/library/frontend-v2.md) and [`.factory/library/frontend-handoff.md`](.factory/library/frontend-handoff.md)
-- Cleanup/remediation roll-up: [`.factory/library/remediation-log.md`](.factory/library/remediation-log.md)
+## 9) Documentation Spine
+- Canonical docs entrypoint: [`docs/INDEX.md`](docs/INDEX.md)
+- Runtime architecture reference: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- Frontend portal and shared API contracts: [`docs/frontend-portals/README.md`](docs/frontend-portals/README.md) and [`docs/frontend-api/README.md`](docs/frontend-api/README.md)
+- Retirement registry for non-canonical and reference-only surfaces: [`docs/deprecated/INDEX.md`](docs/deprecated/INDEX.md)
+- `.factory/library/*` is internal worker guidance, not part of the public docs spine.
 
 Key backend patterns used across modules:
 - **Facade pattern:** module entry services centralize validation/routing (for example, accounting facade flows)

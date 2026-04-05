@@ -1,0 +1,58 @@
+{
+  "status": "pass",
+  "assertions": [
+    {
+      "id": "VAL-SEC-001",
+      "status": "pass",
+      "reason": "CompanyContextFilterControlPlaneBindingTest (13 tests) validates: (1) unauthenticated tenant headers are denied, (2) X-Company-Id is unsupported, (3) X-Company-Code must match token company context, (4) public password reset bypasses company binding. TS_RuntimeCompanyContextFilterExecutableCoverageTest (11 tests) covers: doFilter_rejectsCompanyHeaderWithoutAuthentication, doFilter_rejectsAuthenticatedRequestWithoutCompanyClaim, helperMethods_coverPublicPasswordResetAndPathNormalizationBranches. TS_RuntimeTenantRuntimeEnforcementTest (9 tests) covers: rejectsMismatchedCompanyHeaders_failClosed, rejectsMismatchedTokenClaims_failClosed."
+    },
+    {
+      "id": "VAL-SEC-002",
+      "status": "pass",
+      "reason": "CompanyContextFilterControlPlaneBindingTest validates canonical /api/v1/superadmin/tenants/{id} detail, lifecycle, limits, support-reset routes bind target tenant from path: canonicalTenantDetailRequest_bindsPathTargetCompany_andBypassesRuntimeAdmission, canonicalSupportResetRequest_bindsPathTargetCompany_andBypassesRuntimeAdmission, canonicalLimitsRequest_tracksPrivilegedRuntimeAdmissionForSuperAdmin. Tests also verify rejection of malformed tenant IDs (doFilter_rejectsMalformedControlPlaneTenantId), unresolved tenants (canonicalTenantControlRequest_rejectsWhenResolvedTenantIsMissing), and unauthenticated/out-of-scope actors (canonicalTenantControlRequest_rejectsUnauthenticatedBeforeResolvingTarget, canonicalTenantControlRequest_rejectsNonSuperAdmin)."
+    },
+    {
+      "id": "VAL-SEC-003",
+      "status": "pass",
+      "reason": "AuthTenantAuthorityIT validates super-admin is blocked from tenant business workflows: auditTenantWorkflowRequest_rejectsSuperAdminAsPlatformOnly, super_admin_tenant_context_cannot_create_tenant_admin_user_via_admin_workflow_surface, super_admin_without_admin_role_is_still_blocked_from_admin_only_sales_target_flow, super_admin_tenant_context_cannot_execute_privileged_user_action_matrix_across_tenants. TS_RuntimeCompanyContextFilterExecutableCoverageTest validates: platformScopedSuperAdmin_rejectsNonAllowlistedBusinessWorkflow, helperMethods_coverSuperAdminTenantBusinessAndAuditGuards. CompanyContextFilterControlPlaneBindingTest validates: auditTenantWorkflowRequest_rejectsSuperAdminAsPlatformOnly, platformScopeAllowlist_exposesOnlyPlatformControlRoutes."
+    },
+    {
+      "id": "VAL-SEC-004",
+      "status": "pass",
+      "reason": "TenantRuntimeEnforcementAuthIT validates suspended/deactivated tenants are denied before business execution: heldTenantBlocksLogin_andEmitsAuditChain, blockedTenantBlocksAuthenticatedRuntimeRequest_andRecoveryReallowsImmediately. TS_RuntimeTenantRuntimeEnforcementTest covers: rejectsMutatingRequestWhenTenantLifecycleIsSuspended_beforeRuntimeAdmission, rejectsReadRequestWhenTenantLifecycleIsSuspended_beforeRuntimeAdmission, rejectsRequestWhenTenantRuntimeAdmissionIsMissing_failClosed. TS_RuntimeTenantControlPlaneEnforcementTest validates policy-store/settings failures deny requests: coreRuntimeAdmission_settingReadFailure_deniesRequestFailClosed, coreRuntimeAdmission_resolvePolicy_handlesNullCompanyId_andExpiredCacheEntry. TS_RuntimeCompanyContextFilterExecutableCoverageTest covers: doFilter_rejectsWhenTenantRuntimeAdmissionUnavailable."
+    },
+    {
+      "id": "VAL-SEC-006",
+      "status": "pass",
+      "reason": "AuthTenantAuthorityIT validates immediate policy invalidation: super_admin_can_hold_and_block_tenant_and_hold_lifecycle_denies_authenticated_runtime_reads proves that after successful lifecycle mutation, subsequent auth/me requests observe the new blocked/held state immediately, and blockedTenantBlocksAuthenticatedRuntimeRequest_andRecoveryReallowsImmediately proves recovery is immediate. TenantRuntimeEnforcementAuthIT validates quota enforcement and recovery: activeUserQuotaBlocksLogin_withAuditChain, requestRateQuotaBlocksSecondAuthenticatedCall_withAuditChain. TS_RuntimeTenantControlPlaneEnforcementTest validates cache eviction and policy reload: coreRuntimeAdmission_cacheEvictionReloadsPolicyAndHandlesMissingTenantGracefully."
+    },
+    {
+      "id": "VAL-SEC-008",
+      "status": "pass",
+      "reason": "CompanyControllerIT validates company-scoped resolution: list_companies_as_admin_only returns only the admin's company, retired_company_control_plane_aliases_are_not_exposed. TS_RuntimeTenantControlPlaneEnforcementTest validates company-scoped resolution and wrong-tenant guards: coreRuntimeAdmission_isolatesCacheByCompanyId_whenNormalizedCodeTokensCollide, coreRuntimeAdmission_isolatesRuntimeQuotasAndCounters_whenNormalizedCodeTokensCollide, coreRuntimeAdmission_failsClosed_whenCompanyContextMissingOrUnresolvedId. AuthTenantAuthorityIT validates cross-tenant IDOR protection: tenant_mismatch_and_cross_tenant_idor_fail_closed, tenant_admin_cross_tenant_privileged_user_actions_mask_foreign_targets_as_missing_and_still_audit_denials."
+    },
+    {
+      "id": "VAL-CROSS-004",
+      "status": "pass",
+      "reason": "OpenApiSnapshotIT validates identity bootstrap and tenant-control surfaces: assertOperationMissing for retired /api/v1/auth/profile, assertOperationContract for canonical GET /api/v1/auth/me, assertOperationContract for POST /api/v1/auth/password/forgot and /api/v1/auth/password/reset, assertOperationContract for canonical super-admin support-reset route POST /api/v1/superadmin/tenants/{id}/support/admin-password-reset. CompanyControllerIT validates: delete_company_endpoint_is_not_exposed, retired_company_control_plane_aliases_are_not_exposed. AuthTenantAuthorityIT validates tenant-admin/superadmin boundaries: tenant_metrics_endpoint_is_super_admin_only, tenant_configuration_update_is_super_admin_only, admin_cannot_block_tenant_lifecycle_state."
+    }
+  ],
+  "commands": [
+    {
+      "command": "MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CompanyContextFilterControlPlaneBindingTest,AuthTenantAuthorityIT,TenantRuntimeEnforcementAuthIT,TS_RuntimeCompanyContextFilterExecutableCoverageTest,TS_RuntimeTenantRuntimeEnforcementTest,TS_RuntimeTenantControlPlaneEnforcementTest,CompanyControllerIT,OpenApiSnapshotIT' test",
+      "exitCode": 0,
+      "observation": "Tests run: 101, Failures: 0, Errors: 0, Skipped: 0. BUILD SUCCESS. All 8 test classes passed covering company-context binding, tenant authority, runtime enforcement, control-plane enforcement, company controller, and OpenAPI contract validation."
+    }
+  ],
+  "toolsUsed": [
+    "Execute",
+    "Read",
+    "Grep",
+    "Create"
+  ],
+  "frictions": [],
+  "blockers": [],
+  "evidenceFiles": [
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/security-runtime/security-runtime-jvm/targeted-security-proof.txt"
+  ]
+}

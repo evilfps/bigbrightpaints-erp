@@ -18,7 +18,9 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AccrualRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.BadDebtWriteOffRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.CreditNoteRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DebitNoteRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository;
@@ -35,7 +37,9 @@ import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import jakarta.persistence.EntityManager;
 
 @Service
-public class CreditDebitNoteService extends AccountingCoreEngine {
+public class CreditDebitNoteService extends AccountingCoreEngineCore {
+
+  private final JournalEntryService journalEntryService;
 
   @Autowired
   public CreditDebitNoteService(
@@ -65,7 +69,8 @@ public class CreditDebitNoteService extends AccountingCoreEngine {
       EntityManager entityManager,
       SystemSettingsService systemSettingsService,
       AuditService auditService,
-      AccountingEventStore accountingEventStore) {
+      AccountingEventStore accountingEventStore,
+      JournalEntryService journalEntryService) {
     super(
         companyContextService,
         accountRepository,
@@ -94,26 +99,41 @@ public class CreditDebitNoteService extends AccountingCoreEngine {
         systemSettingsService,
         auditService,
         accountingEventStore);
+    this.journalEntryService = journalEntryService;
   }
 
+  @Override
   public JournalEntryDto postCreditNote(CreditNoteRequest request) {
     CreditNoteRequest normalized = normalizeCreditNoteRequest(request);
     return super.postCreditNote(normalized);
   }
 
+  @Override
   public JournalEntryDto postDebitNote(DebitNoteRequest request) {
     DebitNoteRequest normalized = normalizeDebitNoteRequest(request);
     return super.postDebitNote(normalized);
   }
 
+  @Override
   public JournalEntryDto postAccrual(AccrualRequest request) {
     AccrualRequest normalized = normalizeAccrualRequest(request);
     return super.postAccrual(normalized);
   }
 
+  @Override
   public JournalEntryDto writeOffBadDebt(BadDebtWriteOffRequest request) {
     BadDebtWriteOffRequest normalized = normalizeBadDebtRequest(request);
     return super.writeOffBadDebt(normalized);
+  }
+
+  @Override
+  public JournalEntryDto createJournalEntry(JournalEntryRequest request) {
+    return journalEntryService.createJournalEntry(request);
+  }
+
+  @Override
+  public JournalEntryDto createStandardJournal(JournalCreationRequest request) {
+    return journalEntryService.createStandardJournal(request);
   }
 
   private CreditNoteRequest normalizeCreditNoteRequest(CreditNoteRequest request) {

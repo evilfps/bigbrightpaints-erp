@@ -424,13 +424,8 @@ public class EnterpriseAuditTrailService {
     int maxAttempts = Math.max(1, businessEventRetryMaxAttempts);
     if (failedAttemptCount >= maxAttempts) {
       log.error(
-          "Dropping business audit event after {} failed attempts (module={}, action={},"
-              + " reference={}, trace={})",
+          "Dropping business audit event after {} failed attempts",
           failedAttemptCount,
-          logLabel(command.module()),
-          logLabel(command.action()),
-          logLabel(command.referenceNumber()),
-          logLabel(command.traceId()),
           exception);
       return;
     }
@@ -443,26 +438,17 @@ public class EnterpriseAuditTrailService {
         new PendingBusinessEventRetry(command, actorSnapshot, failedAttemptCount);
     if (!offerBusinessEventRetry(pending)) {
       log.error(
-          "Business audit retry queue full (size={}, max={}); dropping event (module={}, action={},"
-              + " reference={}, trace={})",
+          "Business audit retry queue full (size={}, max={}); dropping event",
           businessEventRetryQueueSize.get(),
           Math.max(1, businessEventRetryMaxQueueSize),
-          logLabel(command.module()),
-          logLabel(command.action()),
-          logLabel(command.referenceNumber()),
-          logLabel(command.traceId()),
           exception);
       return;
     }
 
     log.warn(
-        "Queued business audit event retry {}/{} (module={}, action={}, reference={}, trace={})",
+        "Queued business audit event retry {}/{}",
         failedAttemptCount + 1,
         maxAttempts,
-        logLabel(command.module()),
-        logLabel(command.action()),
-        logLabel(command.referenceNumber()),
-        logLabel(command.traceId()),
         exception);
   }
 
@@ -486,26 +472,16 @@ public class EnterpriseAuditTrailService {
               exception.getClass().getSimpleName()));
       auditActionEventRetryRepository.save(retry);
       log.warn(
-          "Queued persistent business audit retry {}/{} (id={}, companyId={}, module={}, action={},"
-              + " reference={}, trace={})",
+          "Queued persistent business audit retry {}/{} (id={}, companyId={})",
           failedAttemptCount + 1,
           Math.max(1, businessEventRetryMaxAttempts),
           retry.getId(),
           retry.getCompanyId(),
-          logLabel(command.module()),
-          logLabel(command.action()),
-          logLabel(command.referenceNumber()),
-          logLabel(command.traceId()),
           exception);
       return true;
     } catch (Exception persistenceEx) {
       log.error(
-          "Failed to persist business audit retry (module={}, action={}, reference={}, trace={});"
-              + " falling back to in-memory queue",
-          logLabel(command.module()),
-          logLabel(command.action()),
-          logLabel(command.referenceNumber()),
-          logLabel(command.traceId()),
+          "Failed to persist business audit retry; falling back to in-memory queue",
           persistenceEx);
       return false;
     }
@@ -535,10 +511,6 @@ public class EnterpriseAuditTrailService {
 
   int pendingBusinessEventRetryQueueSize() {
     return businessEventRetryQueueSize.get();
-  }
-
-  private String logLabel(String value) {
-    return trim(value, 128, "n/a");
   }
 
   private String resolveActorIdentifier(UserAccount actor) {

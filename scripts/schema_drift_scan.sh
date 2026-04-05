@@ -5,12 +5,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MIGRATION_SET="${MIGRATION_SET:-v2}"
 MIGRATIONS_DIR="${MIGRATIONS_DIR:-}"
 ALLOWLIST_FILE="${ALLOWLIST_FILE:-}"
+DIFF_BASE="${SCHEMA_DRIFT_DIFF_BASE:-}"
 
 FAIL_ON_FINDINGS="${FAIL_ON_FINDINGS:-false}"
 
 usage() {
   cat <<USAGE
-Usage: bash scripts/schema_drift_scan.sh [--migration-set <v2>] [--migrations-dir <dir>] [--allowlist <file>]
+Usage: bash scripts/schema_drift_scan.sh [--migration-set <v2>] [--migrations-dir <dir>] [--allowlist <file>] [--diff-base <ref>]
 USAGE
 }
 
@@ -26,6 +27,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --allowlist)
       ALLOWLIST_FILE="${2:-}"
+      shift 2
+      ;;
+    --diff-base)
+      DIFF_BASE="${2:-}"
       shift 2
       ;;
     -h|--help)
@@ -52,6 +57,8 @@ if [[ -z "$ALLOWLIST_FILE" ]]; then
   ALLOWLIST_FILE="$ROOT_DIR/scripts/schema_drift_scan_allowlist_v2.txt"
 fi
 
+MIGRATIONS_DIR_REL="${MIGRATIONS_DIR#"$ROOT_DIR"/}"
+
 if [[ ! -d "$MIGRATIONS_DIR" ]]; then
   echo "[schema_drift_scan] missing migrations dir: $MIGRATIONS_DIR"
   exit 2
@@ -69,6 +76,31 @@ echo "[schema_drift_scan] using: $SEARCH_TOOL"
 
 findings=0
 allowlist=()
+target_files=()
+
+resolve_diff_base() {
+  if [[ -n "$DIFF_BASE" ]] && git -C "$ROOT_DIR" rev-parse --verify --quiet "$DIFF_BASE" >/dev/null; then
+    echo "$DIFF_BASE"
+    return 0
+  fi
+
+  if [[ -n "${GITHUB_BASE_SHA:-}" ]] && git -C "$ROOT_DIR" rev-parse --verify --quiet "$GITHUB_BASE_SHA" >/dev/null; then
+    echo "$GITHUB_BASE_SHA"
+    return 0
+  fi
+
+  if git -C "$ROOT_DIR" rev-parse --verify --quiet main >/dev/null; then
+    git -C "$ROOT_DIR" merge-base main HEAD
+    return 0
+  fi
+
+  if git -C "$ROOT_DIR" rev-parse --verify --quiet origin/main >/dev/null; then
+    git -C "$ROOT_DIR" merge-base origin/main HEAD
+    return 0
+  fi
+
+  echo ""
+}
 
 if [[ -f "$ALLOWLIST_FILE" ]]; then
   while IFS= read -r raw; do
@@ -80,6 +112,26 @@ if [[ -f "$ALLOWLIST_FILE" ]]; then
     fi
   done < "$ALLOWLIST_FILE"
   echo "[schema_drift_scan] allowlist entries: ${#allowlist[@]}"
+fi
+
+if git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  resolved_diff_base="$(resolve_diff_base)"
+  if [[ -n "$resolved_diff_base" ]]; then
+    while IFS= read -r changed; do
+      [[ -z "$changed" ]] && continue
+      target_files+=("$ROOT_DIR/$changed")
+    done < <(
+      git -C "$ROOT_DIR" diff --name-only "$resolved_diff_base"...HEAD -- "$MIGRATIONS_DIR_REL" \
+        | grep -E '\.sql$' || true
+    )
+    if [[ "${#target_files[@]}" -eq 0 ]]; then
+      echo "[schema_drift_scan] diff base: $resolved_diff_base"
+      echo "[schema_drift_scan] no changed migration files; skipping branch-scoped drift scan"
+      exit 0
+    fi
+    echo "[schema_drift_scan] diff base: $resolved_diff_base"
+    echo "[schema_drift_scan] changed migration files: ${#target_files[@]}"
+  fi
 fi
 
 is_allowlisted() {
@@ -106,7 +158,11 @@ scan_pattern() {
   echo "[schema_drift_scan] $label"
   tmp_file="$(mktemp "${TMPDIR:-/tmp}/schema_drift_scan.XXXXXX")"
   trap 'rm -f "$tmp_file"' RETURN
-  if [[ "$SEARCH_TOOL" == "rg" ]]; then
+  if [[ "${#target_files[@]}" -gt 0 && "$SEARCH_TOOL" == "rg" ]]; then
+    rg -n "$pattern" "${target_files[@]}" >"$tmp_file" 2>/dev/null || true
+  elif [[ "${#target_files[@]}" -gt 0 ]]; then
+    grep -nH -e "$pattern" "${target_files[@]}" >"$tmp_file" 2>/dev/null || true
+  elif [[ "$SEARCH_TOOL" == "rg" ]]; then
     rg -n --glob '*.sql' "$pattern" "$MIGRATIONS_DIR" >"$tmp_file" 2>/dev/null || true
   else
     grep -RIn --include='*.sql' -e "$pattern" "$MIGRATIONS_DIR" >"$tmp_file" 2>/dev/null || true
@@ -142,15 +198,29 @@ scan_pattern "ALTER TABLE IF EXISTS (drift generator)" "ALTER TABLE IF EXISTS"
 echo
 echo "[schema_drift_scan] UPDATE + FROM backfills (review determinism)"
 update_files=()
-while IFS= read -r f; do
-  update_files+=("$f")
-done < <(
-  if [[ "$SEARCH_TOOL" == "rg" ]]; then
-    rg -l --glob '*.sql' -i "^[[:space:]]*UPDATE[[:space:]]+" "$MIGRATIONS_DIR" || true
-  else
-    grep -RIl --include='*.sql' -i -E '^[[:space:]]*UPDATE[[:space:]]+' "$MIGRATIONS_DIR" || true
-  fi
-)
+if [[ "${#target_files[@]}" -gt 0 ]]; then
+  for f in "${target_files[@]}"; do
+    if [[ "$SEARCH_TOOL" == "rg" ]]; then
+      if rg -q -i "^[[:space:]]*UPDATE[[:space:]]+" "$f"; then
+        update_files+=("$f")
+      fi
+    else
+      if grep -qi -E '^[[:space:]]*UPDATE[[:space:]]+' "$f"; then
+        update_files+=("$f")
+      fi
+    fi
+  done
+else
+  while IFS= read -r f; do
+    update_files+=("$f")
+  done < <(
+    if [[ "$SEARCH_TOOL" == "rg" ]]; then
+      rg -l --glob '*.sql' -i "^[[:space:]]*UPDATE[[:space:]]+" "$MIGRATIONS_DIR" || true
+    else
+      grep -RIl --include='*.sql' -i -E '^[[:space:]]*UPDATE[[:space:]]+' "$MIGRATIONS_DIR" || true
+    fi
+  )
+fi
 
 if [[ "${#update_files[@]}" -eq 0 ]]; then
   echo "  (none)"

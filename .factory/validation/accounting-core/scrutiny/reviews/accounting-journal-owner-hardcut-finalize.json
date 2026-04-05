@@ -1,0 +1,34 @@
+{
+  "featureId": "accounting-journal-owner-hardcut-finalize",
+  "reviewedAt": "2026-04-03T12:29:31Z",
+  "commitId": "a511ccf0e0db64526d554fb4e7c57145d9d8e894",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "Reviewed the fix transcript skeleton, the prior failed review, both handoffs, and commits `a93aea5e71a8272bac9624b70caab66395b5da9a` and `a511ccf0e0db64526d554fb4e7c57145d9d8e894`. The new fix does resolve the narrow visibility complaint from the prior review: `AccountingCoreEngineCore#createStandardJournal`, `createManualJournal`, and `createJournalEntry` are now protected instead of public. But the owner hard-cut itself is still incomplete. Live accounting flows in concrete services still execute inherited `AccountingCoreEngineCore` journal creation logic, so `JournalEntryService` is not yet the sole canonical runtime owner required by the feature description and expected behavior.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/DealerReceiptService.java",
+        "line": 103,
+        "severity": "blocking",
+        "description": "The fix privatizes the core journal methods but does not remove `AccountingCoreEngineCore` as a live runtime owner. `DealerReceiptService.recordDealerReceipt` still calls `super.recordDealerReceipt(...)` here, and that inherited flow posts through `AccountingCoreEngineCore.createJournalEntry(...)` (`AccountingCoreEngineCore.java:1362` -> `548`) because `DealerReceiptService` does not override the journal-creation methods. The same pattern remains in `CreditDebitNoteService.postCreditNote` (`CreditDebitNoteService.java:101`, `AccountingCoreEngineCore.java:5354`) and `InventoryAccountingService.recordLandedCost` (`InventoryAccountingService.java:100`, `AccountingCoreEngineCore.java:5805`). So `JournalEntryService` is still not the sole canonical runtime owner for journal creation behavior."
+      },
+      {
+        "file": "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/JournalCreationOwnershipContractTest.java",
+        "line": 16,
+        "severity": "non_blocking",
+        "description": "The new regression test only checks reflective visibility on `AccountingCoreEngineCore` and public signatures on `JournalEntryService`. It never exercises a live subclass path, so it stays green even while concrete services like `DealerReceiptService`, `CreditDebitNoteService`, and `InventoryAccountingService` still execute the inherited core journal implementation. That gives false confidence about the unresolved owner-cut."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "Accounting module guidance still describes `AccountingCoreEngineCore` as the centralized journal creation owner, which conflicts with the intended `JournalEntryService` ownership hard-cut and can mislead future workers.",
+      "evidence": "`erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md:29` says `AccountingCoreEngineCore` is responsible for centralized journal creation and payroll posting, while this feature contract expects `JournalEntryService` to be the sole canonical runtime owner for journal creation."
+    }
+  ],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/accounting-core/scrutiny/reviews/accounting-final-owner-cut-and-shadow-wrapper-retirement.json",
+  "summary": "FAIL: commit `a511ccf0e0db64526d554fb4e7c57145d9d8e894` removes the duplicate public core entrypoints, but it does not finish the owner hard-cut because live accounting flows still execute inherited `AccountingCoreEngineCore` journal creation logic instead of routing journal creation exclusively through `JournalEntryService`."
+}

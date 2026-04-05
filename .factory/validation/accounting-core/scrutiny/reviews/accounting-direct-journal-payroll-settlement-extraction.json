@@ -1,0 +1,34 @@
+{
+  "featureId": "accounting-direct-journal-payroll-settlement-extraction",
+  "reviewedAt": "2026-04-03T11:07:29Z",
+  "commitId": "34fbba0c609e53664a7830e6984071d469f747c3",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "Reviewed the prior failed scrutiny report, the rerun handoff/transcript skeleton, the backend-worker procedure, and commit `34fbba0c609e53664a7830e6984071d469f747c3`. The rerun does rewire the active controller/facade paths so `JournalEntryService`, `PayrollAccountingService`, and `SettlementService` no longer call `super` directly for the touched flows, but it stops short of the required hard-cut: the original journal/payroll/settlement implementations still remain inside `AccountingCoreEngineCore`, and `AccountingIdempotencyService` still republishes the old settlement/payment routes through `super.*`. That leaves duplicate monolith owners and a surviving indirect path back into `AccountingCoreEngineCore`, so the original blocking decomposition failure is not fully resolved.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingCoreEngineCore.java",
+        "line": 317,
+        "severity": "blocking",
+        "description": "The ownership hard-cut is still incomplete because `AccountingCoreEngineCore` keeps full business-logic implementations for the same touched behaviors the feature was supposed to extract: `createStandardJournal` (317), `createJournalEntry` (548), `postPayrollRun` (1705), `recordPayrollPayment` (1747), `recordSupplierPayment` (2252), `autoSettleSupplier` (2447), `settleDealerInvoices` (2490), and `settleSupplierInvoices` (2775). The packet copied those bodies into the new direct services, but it did not retire the monolith versions, leaving duplicate live owners instead of one canonical owner per behavior."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingIdempotencyService.java",
+        "line": 122,
+        "severity": "blocking",
+        "description": "The prohibited indirect path back into the monolith still exists in code: `AccountingIdempotencyService` continues to expose public `recordSupplierPayment`, `settleDealerInvoices`, `autoSettleDealer`, `settleSupplierInvoices`, and `autoSettleSupplier` methods that delegate via `super.*` to `AccountingCoreEngineCore` (122-140). Even though the main callers were rewired, these shadow super-backed routes were not hard-cut or retired, so the original 'no indirect delegation back into `AccountingCoreEngineCore`' requirement is still not fully satisfied."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "The accounting module guidance is stale after this ownership-extraction packet: it still documents `AccountingCoreEngineCore` as the centralized owner of journal creation and payroll posting, which no longer matches the intended service split reviewers and future workers are supposed to reason about.",
+      "evidence": "`erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/AGENTS.md:29` says `AccountingCoreEngineCore` is the centralized journal/payroll owner, but the current wiring routes those flows through `JournalEntryService` and `PayrollAccountingService` via `AccountingService.java:177-183` and `203-252`."
+    }
+  ],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/accounting-core/scrutiny/reviews/accounting-core-decomposition-foundation.json",
+  "summary": "FAIL: this rerun removes the direct `super` usage from the new journal/payroll/settlement services, but it does not finish the ownership hard-cut because the old implementations still live in `AccountingCoreEngineCore` and remain re-exposed through `AccountingIdempotencyService` super wrappers."
+}

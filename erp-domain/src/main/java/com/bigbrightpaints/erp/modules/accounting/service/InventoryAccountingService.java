@@ -15,7 +15,9 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.InventoryRevaluationRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.LandedCostRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.WipAdjustmentRequest;
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore;
@@ -34,7 +36,9 @@ import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import jakarta.persistence.EntityManager;
 
 @Service
-public class InventoryAccountingService extends AccountingCoreEngine {
+public class InventoryAccountingService extends AccountingCoreEngineCore {
+
+  private final JournalEntryService journalEntryService;
 
   @Autowired
   public InventoryAccountingService(
@@ -64,7 +68,8 @@ public class InventoryAccountingService extends AccountingCoreEngine {
       EntityManager entityManager,
       SystemSettingsService systemSettingsService,
       AuditService auditService,
-      AccountingEventStore accountingEventStore) {
+      AccountingEventStore accountingEventStore,
+      JournalEntryService journalEntryService) {
     super(
         companyContextService,
         accountRepository,
@@ -93,21 +98,35 @@ public class InventoryAccountingService extends AccountingCoreEngine {
         systemSettingsService,
         auditService,
         accountingEventStore);
+    this.journalEntryService = journalEntryService;
   }
 
+  @Override
   public JournalEntryDto recordLandedCost(LandedCostRequest request) {
     LandedCostRequest normalized = normalizeLandedCostRequest(request);
     return super.recordLandedCost(normalized);
   }
 
+  @Override
   public JournalEntryDto revalueInventory(InventoryRevaluationRequest request) {
     InventoryRevaluationRequest normalized = normalizeInventoryRevaluationRequest(request);
     return super.revalueInventory(normalized);
   }
 
+  @Override
   public JournalEntryDto adjustWip(WipAdjustmentRequest request) {
     WipAdjustmentRequest normalized = normalizeWipAdjustmentRequest(request);
     return super.adjustWip(normalized);
+  }
+
+  @Override
+  public JournalEntryDto createJournalEntry(JournalEntryRequest request) {
+    return journalEntryService.createJournalEntry(request);
+  }
+
+  @Override
+  public JournalEntryDto createStandardJournal(JournalCreationRequest request) {
+    return journalEntryService.createStandardJournal(request);
   }
 
   private LandedCostRequest normalizeLandedCostRequest(LandedCostRequest request) {

@@ -1,5 +1,12 @@
 # Accounting Portal Endpoint Map (OpenAPI-Driven)
 
+> ⚠️ **NON-CANONICAL / REFERENCE ONLY**
+>
+> This curated parity snapshot is outside the canonical docs spine.
+> Use [docs/frontend-portals/accounting/README.md](frontend-portals/accounting/README.md), [docs/frontend-api/README.md](frontend-api/README.md), and `openapi.json` for current contract truth.
+>
+> Status: reference only — curated parity snapshot. If this file conflicts with the canonical accounting portal docs or `openapi.json`, the canonical docs/OpenAPI win.
+
 Scope includes accounting core, invoices, purchasing/payables, inventory/costing, HR/payroll, and reports.
 
 ## Scope Guardrail (Do Not Remove)

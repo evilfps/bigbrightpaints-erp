@@ -1,0 +1,139 @@
+{
+  "groupId": "accounting-core-round3-concurrency",
+  "testedAt": "2026-04-03T19:05:54+05:30",
+  "credentials": {
+    "account": "n/a",
+    "namespace": "n/a"
+  },
+  "toolsUsed": ["Read", "Grep", "mvn"],
+  "assertions": [
+    {
+      "id": "VAL-ACCT-002",
+      "title": "Sales journal aliases converge on one canonical entry",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Read the validation contract and current accounting sources",
+          "expected": "Find the canonical alias-contention proof path",
+          "observed": "CriticalAccountingAxesIT contains concurrent alias coverage via salesJournalConcurrentDedupesAcrossReferences and a sleep-based retry helper."
+        },
+        {
+          "action": "Run targeted accounting JVM proof",
+          "expected": "Alias contention proof passes",
+          "observed": "CriticalAccountingAxesIT passed, including the concurrent sales journal dedupe test."
+        },
+        {
+          "action": "Scan the current canonical write path for time-based retries",
+          "expected": "No sleep-based caller retries in the proof path",
+          "observed": "CriticalAccountingAxesIT uses Thread.sleep(50L * attempts) in postSalesJournalWithRetry."
+        }
+      ],
+      "evidence": {
+        "testRuns": [
+          "cd erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='NumberSequenceServiceIntegrationTest,ReferenceNumberServiceTest,TS_RuntimeReferenceNumberServiceExecutableCoverageTest,OrderNumberServiceTest,InvoiceServiceTest,CriticalAccountingAxesIT' test",
+          "cd erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='NumberSequenceServiceIntegrationTest' test"
+        ],
+        "sourceRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/CriticalAccountingAxesIT.java:515-586",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingCoreEngineCore.java:2910,2954,3031-3033"
+        ],
+        "evidenceFiles": [
+          "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/accounting-core/round3-concurrency/proof-summary.txt"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": "The concurrent sales-journal proof still depends on a sleep-based caller retry helper, which violates the assertion's no-sleep requirement."
+    },
+    {
+      "id": "VAL-ACCT-006",
+      "title": "Number and reference generation stays monotonic under contention",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run the shared sequence contention test",
+          "expected": "Concurrent callers produce unique monotonic values",
+          "observed": "NumberSequenceServiceIntegrationTest passed; the 20-way contention scenario returned the full 1..20 set."
+        },
+        {
+          "action": "Run reference-format and company-scoping tests",
+          "expected": "Accounting, sales-order, and invoice references preserve their contracts",
+          "observed": "ReferenceNumberServiceTest, OrderNumberServiceTest, TS_RuntimeReferenceNumberServiceExecutableCoverageTest, and InvoiceServiceTest all passed."
+        },
+        {
+          "action": "Inspect the service implementations",
+          "expected": "Accounting, order, and invoice generators use the shared locking/retry shape",
+          "observed": "NumberSequenceService, OrderNumberService, and InvoiceNumberService all use REQUIRES_NEW transactions with retry-on-conflict behavior."
+        }
+      ],
+      "evidence": {
+        "testRuns": [
+          "cd erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='NumberSequenceServiceIntegrationTest' test",
+          "cd erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='NumberSequenceServiceIntegrationTest,ReferenceNumberServiceTest,TS_RuntimeReferenceNumberServiceExecutableCoverageTest,OrderNumberServiceTest,InvoiceServiceTest,CriticalAccountingAxesIT' test"
+        ],
+        "sourceRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/core/service/NumberSequenceServiceIntegrationTest.java:19-67",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/service/ReferenceNumberServiceTest.java:1-102",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/sales/service/OrderNumberServiceTest.java:1-77",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/modules/invoice/service/InvoiceServiceTest.java:1-260",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/core/service/NumberSequenceService.java:35-71",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/OrderNumberService.java:39-67",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/service/InvoiceNumberService.java:29-56"
+        ],
+        "evidenceFiles": [
+          "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/accounting-core/round3-concurrency/proof-summary.txt"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ACCT-007",
+      "title": "Sequence and accounting writes complete without sleep-based fallback loops",
+      "status": "fail",
+      "steps": [
+        {
+          "action": "Run contention-focused sequence proof",
+          "expected": "Locking/retry resolves contention without sleep fallback dependence",
+          "observed": "NumberSequenceServiceIntegrationTest passed and showed retries resolving duplicate-key contention."
+        },
+        {
+          "action": "Scan the canonical accounting and sequence write-path classes",
+          "expected": "No Thread.sleep or equivalent time-based polling in the canonical write paths",
+          "observed": "Thread.sleep is present in NumberSequenceService, OrderNumberService, InvoiceNumberService, and AccountingCoreEngineCore.sleepBriefly()."
+        },
+        {
+          "action": "Check the concurrent sales-journal proof helper",
+          "expected": "No sleep-based caller retry loops",
+          "observed": "CriticalAccountingAxesIT still uses postSalesJournalWithRetry() with Thread.sleep(50L * attempts)."
+        }
+      ],
+      "evidence": {
+        "testRuns": [
+          "cd erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='NumberSequenceServiceIntegrationTest' test"
+        ],
+        "sourceRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/core/service/NumberSequenceService.java:65-71",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/OrderNumberService.java:61-67",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/service/InvoiceNumberService.java:50-56",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingCoreEngineCore.java:2910,2954,3031-3033",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/CriticalAccountingAxesIT.java:561-586"
+        ],
+        "evidenceFiles": [
+          "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/accounting-core/round3-concurrency/proof-summary.txt"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": "Canonical write paths still contain sleep-based fallback loops, so the assertion is not satisfied."
+    }
+  ],
+  "frictions": [
+    {
+      "description": "The targeted-accounting-proof manifest references an `InvoiceNumberServiceTest` class that does not exist in the repo.",
+      "resolved": true,
+      "resolution": "Used the existing `InvoiceServiceTest` as the nearest invoice-side proof and verified it passed.",
+      "affectedAssertions": ["VAL-ACCT-006"]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 3 assertions: 1 passed (VAL-ACCT-006), 2 failed (VAL-ACCT-002 and VAL-ACCT-007). The shared contention proof passed, but the current canonical accounting/sales proof path still uses sleep-based retry helpers."
+}

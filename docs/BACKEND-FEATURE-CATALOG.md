@@ -1,8 +1,8 @@
 # Backend Feature Catalog
 
-Last reviewed: 2026-03-30
+Last reviewed: 2026-04-02
 
-This document is a reader-friendly summary of the complete BigBright ERP backend feature landscape. It lets a human read one place and understand exactly what the backend currently contains, with links to deeper canonical packets for detailed exploration.
+This document is a reader-friendly summary of the complete orchestrator-erp backend feature landscape. It lets a human read one place and understand exactly what the backend currently contains, with links to deeper canonical packets for detailed exploration.
 
 For the authoritative module and flow inventories, see [Module Inventory](modules/MODULE-INVENTORY.md) and [Flow Inventory](flows/FLOW-INVENTORY.md).
 

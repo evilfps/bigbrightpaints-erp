@@ -1,0 +1,97 @@
+{
+  "featureId": "tenant-runtime-failclosed-hardening",
+  "milestone": "security-runtime",
+  "commitId": "bab3ca67ff8c2ec9b1d1ce0739c8dc308128e82e",
+  "workerSessionId": "f9e76a93-b146-44d2-8f8d-826c9bf4ae93",
+  "reviewTimestamp": "2026-04-04T06:28:00Z",
+  "reviewerType": "manual-normalized-from-subagent-review",
+  "verdict": "PASS",
+  "summary": "The feature hardens canonical runtime admission so company-lookup and policy-store faults fail closed, keeps lifecycle/limits mutations on the canonical privileged control-plane path, and removes TenantRuntimeAccessService from production bean wiring without regressing the surrounding runtime/auth proof pack.",
+  "categories": {
+    "correctness": {
+      "status": "PASS",
+      "confidence": "HIGH",
+      "findings": [
+        {
+          "severity": "info",
+          "description": "TenantRuntimeEnforcementService now converts company lookup and settings-read failures into explicit service-unavailable denials instead of permissive fallback.",
+          "evidence": [
+            "TenantRuntimeEnforcementService.java:690-709 throws TenantRuntimeAdmissionFailure with TENANT_COMPANY_LOOKUP_UNAVAILABLE when company lookup fails.",
+            "TenantRuntimeEnforcementService.java:792-806 throws TenantRuntimeAdmissionFailure with TENANT_RUNTIME_POLICY_UNAVAILABLE when settings reads fail.",
+            "TenantRuntimeEnforcementServiceTest.java:375-394 verifies 503 responses and reason codes for both failure modes."
+          ]
+        },
+        {
+          "severity": "info",
+          "description": "Policy mutations preserve the prior live policy if persistence or audit fails, matching the copy-on-write contract instead of partially activating a new state.",
+          "evidence": [
+            "TenantRuntimeEnforcementServiceTest.java:544-565 covers updatePolicy_auditFailureLeavesPriorLivePolicyIntact.",
+            "Worker handoff reports targeted runtime and security suites passed after these changes."
+          ]
+        }
+      ]
+    },
+    "security": {
+      "status": "PASS",
+      "confidence": "HIGH",
+      "findings": [
+        {
+          "severity": "info",
+          "description": "Privileged runtime admission is restricted to canonical superadmin lifecycle and limits writes, while non-superadmin or malformed control-plane requests are denied.",
+          "evidence": [
+            "CompanyContextFilterControlPlaneBindingTest.java:131-165 verifies privileged runtime admission for ROLE_SUPER_ADMIN limits writes.",
+            "CompanyContextFilterControlPlaneBindingTest.java:168-189 verifies canonical tenant control requests reject non-superadmin actors.",
+            "TenantRuntimeEnforcementServiceTest.java:197-236 verifies retired admin runtime-policy paths and unprivileged control requests are not admitted."
+          ]
+        },
+        {
+          "severity": "info",
+          "description": "TenantRuntimeAccessService no longer has Spring component registration, so it is no longer a production shadow owner.",
+          "evidence": [
+            "TenantRuntimeAccessService.java has no @Service or @Component annotation at the class declaration.",
+            "TenantRuntimeAccessServiceTest.java continues to exercise the class directly as legacy coverage without relying on bean wiring."
+          ]
+        }
+      ]
+    },
+    "testCoverage": {
+      "status": "PASS",
+      "confidence": "HIGH",
+      "findings": [
+        {
+          "severity": "info",
+          "description": "The feature kept focused regression coverage for fail-closed admission, control-plane binding, and truthsuite runtime enforcement.",
+          "evidence": [
+            "Worker handoff: 118 targeted runtime and security tests passed.",
+            "Worker handoff: targeted security proof pack passed with 101 tests.",
+            "Local scrutiny validators also passed gate_fast, compile/typecheck, and lint."
+          ]
+        }
+      ]
+    },
+    "sharedStateObservations": {
+      "status": "INFO",
+      "findings": []
+    }
+  },
+  "blockingIssues": [],
+  "nonBlockingIssues": [],
+  "recommendations": [],
+  "evidenceSummary": {
+    "filesChanged": 9,
+    "linesChanged": {
+      "added": 539,
+      "removed": 140
+    },
+    "verificationCommands": [
+      "bash ci/check-codex-review-guidelines.sh",
+      "MIGRATION_SET=v2 mvn compile -q",
+      "MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='TenantRuntimeEnforcementServiceTest,TenantRuntimeAccessServiceTest,CompanyContextFilterControlPlaneBindingTest,TS_RuntimeCompanyContextFilterExecutableCoverageTest,TS_RuntimeTenantRuntimeEnforcementTest,TS_RuntimeTenantControlPlaneEnforcementTest' test",
+      "MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CompanyContextFilterControlPlaneBindingTest,AuthTenantAuthorityIT,TenantRuntimeEnforcementAuthIT,TS_RuntimeCompanyContextFilterExecutableCoverageTest,TS_RuntimeTenantRuntimeEnforcementTest,TS_RuntimeTenantControlPlaneEnforcementTest,CompanyControllerIT,OpenApiSnapshotIT' test",
+      "bash scripts/gate_fast.sh",
+      "MIGRATION_SET=v2 mvn test -Pgate-fast -Djacoco.skip=true",
+      "MIGRATION_SET=v2 mvn spotless:check -DspotlessFiles='src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java,src/main/java/com/bigbrightpaints/erp/core/security/TenantRuntimeAccessService.java,src/main/java/com/bigbrightpaints/erp/modules/company/service/TenantRuntimeEnforcementService.java,src/test/java/com/bigbrightpaints/erp/core/security/TenantRuntimeAccessServiceTest.java,src/test/java/com/bigbrightpaints/erp/modules/auth/CompanyContextFilterControlPlaneBindingTest.java,src/test/java/com/bigbrightpaints/erp/modules/company/service/TenantRuntimeEnforcementServiceTest.java,src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeCompanyContextFilterExecutableCoverageTest.java,src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantControlPlaneEnforcementTest.java,src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeTenantRuntimeEnforcementTest.java'"
+    ],
+    "allVerificationPassed": true
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "featureId": "company-entity-lookup-dissolution",
+  "milestone": "security-runtime",
+  "commitId": "0039e4bca37eef03b0a328ac1459e1822599fea7",
+  "reviewTimestamp": "2026-04-04T06:15:00Z",
+  "verdict": "PASS",
+  "summary": "Correctness-preserving refactoring that narrows CompanyEntityLookup boundaries by delegating inventory and purchasing lookups to focused company-scoped services. The change maintains all security invariants (wrong-tenant not-found, missing-id not-found, inactive-catalog-item rejection) while reducing coupling.",
+  "categories": {
+    "correctness": {
+      "status": "PASS",
+      "confidence": "HIGH",
+      "findings": [
+        {
+          "severity": "info",
+          "description": "CompanyEntityLookup now delegates to CompanyScopedInventoryLookupService and CompanyScopedPurchasingLookupService instead of directly accessing repositories",
+          "evidence": "CompanyEntityLookup.java:119-122, 128-133, 158-164, 247-250",
+          "recommendation": "No action needed - this is the intended design improvement"
+        },
+        {
+          "severity": "info",
+          "description": "Preserved wrong-tenant/missing-id not-found semantics through delegation to focused services",
+          "evidence": "CompanyScopedInventoryLookupServiceTest:lockActiveRawMaterial_rejectsMissingOrWrongTenantMaterial, lockActiveFinishedGood_rejectsMissingOrWrongTenantFinishedGood",
+          "recommendation": "No action needed - security boundary preserved"
+        },
+        {
+          "severity": "info",
+          "description": "Preserved inactive catalog-item rejection behavior through assertLinkedProductActive guard in new CompanyScopedInventoryLookupService",
+          "evidence": "CompanyScopedInventoryLookupService.java:73-86, CompanyScopedInventoryLookupServiceTest:requireActiveRawMaterial_rejectsInactiveLinkedProduct",
+          "recommendation": "No action needed - business rule maintained"
+        }
+      ]
+    },
+    "security": {
+      "status": "PASS",
+      "confidence": "HIGH",
+      "findings": [
+        {
+          "severity": "info",
+          "description": "Company-scoped repository queries remain the enforcement mechanism for tenant isolation",
+          "evidence": "CompanyScopedInventoryLookupService.java:40-46, 64-69; CompanyScopedPurchasingLookupService.java:25-30, 31-36",
+          "recommendation": "No action needed - tenant isolation preserved"
+        },
+        {
+          "severity": "info",
+          "description": "No new security boundaries introduced; existing boundaries maintained through delegation",
+          "evidence": "All touched services continue to filter by Company parameter before repository access",
+          "recommendation": "No action needed"
+        },
+        {
+          "severity": "info",
+          "description": "Lock methods (lockActiveRawMaterial, lockActiveFinishedGood) preserved pessimistic locking semantics",
+          "evidence": "CompanyScopedInventoryLookupService.java:52-58, 77-83",
+          "recommendation": "No action needed - concurrency safety maintained"
+        }
+      ]
+    },
+    "testCoverage": {
+      "status": "PASS",
+      "confidence": "HIGH",
+      "findings": [
+        {
+          "severity": "info",
+          "description": "New CompanyScopedInventoryLookupServiceTest provides 9 direct characterization tests covering all public methods",
+          "evidence": "CompanyScopedInventoryLookupServiceTest.java:44-126",
+          "recommendation": "No action needed - comprehensive coverage"
+        },
+        {
+          "severity": "info",
+          "description": "12 existing test classes updated to inject focused lookup services",
+          "evidence": "Handoff artifact lists updated test files with 136 tests passing in targeted packet suite",
+          "recommendation": "No action needed"
+        },
+        {
+          "severity": "info",
+          "description": "CompanyEntityLookupTest simplified to focus on delegation verification",
+          "evidence": "CompanyEntityLookupTest.java reduced from comprehensive repository tests to delegation tests",
+          "recommendation": "No action needed - appropriate refactoring"
+        }
+      ]
+    },
+    "sharedStateObservations": {
+      "status": "INFO",
+      "findings": [
+        {
+          "severity": "info",
+          "description": "No shared mutable state introduced; all services remain stateless Spring singletons",
+          "evidence": "All touched service classes use constructor injection without mutable fields"
+        },
+        {
+          "severity": "info",
+          "description": "No circular dependency risk; dependency graph flows from CompanyEntityLookup -> focused services -> repositories",
+          "evidence": "CompanyScopedInventoryLookupService and CompanyScopedPurchasingLookupService have no dependency on CompanyEntityLookup"
+        },
+        {
+          "severity": "info",
+          "description": "No cross-module shared state concerns; inventory and purchasing services remain within their module boundaries",
+          "evidence": "CompanyScopedInventoryLookupService in inventory module, CompanyScopedPurchasingLookupService in purchasing module"
+        }
+      ]
+    },
+    "integrationRisks": {
+      "status": "PASS",
+      "confidence": "HIGH",
+      "findings": [
+        {
+          "severity": "info",
+          "description": "All existing callers updated to use new focused services directly where appropriate",
+          "evidence": "GoodsReceiptService, PurchaseInvoiceEngine, PurchaseOrderService, etc. updated to inject CompanyScopedInventoryLookupService and CompanyScopedPurchasingLookupService",
+          "recommendation": "No action needed"
+        },
+        {
+          "severity": "info",
+          "description": "CompanyEntityLookup maintains backward-compatible API by delegating to focused services",
+          "evidence": "CompanyEntityLookup.java public methods unchanged, implementation delegates to new services",
+          "recommendation": "No action needed - API compatibility preserved"
+        }
+      ]
+    }
+  },
+  "blockingIssues": [],
+  "recommendations": [
+    {
+      "priority": "low",
+      "description": "Consider adding integration tests that verify end-to-end company isolation across the new service boundaries",
+      "rationale": "While unit tests cover individual services, integration tests would provide additional confidence in the complete flow"
+    }
+  ],
+  "evidenceSummary": {
+    "testsRun": {
+      "targetedPacketSuite": 136,
+      "securityProofSuite": 101,
+      "dependentProofSuite": 53
+    },
+    "filesChanged": 26,
+    "linesChanged": {
+      "added": 573,
+      "removed": 362
+    },
+    "verificationCommands": [
+      "cd erp-domain && MIGRATION_SET=v2 mvn -q clean -DskipTests test-compile",
+      "cd erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CompanyScopedInventoryLookupServiceTest,CompanyEntityLookupTest,PurchaseOrderServiceTest,...' test",
+      "cd /home/realnigga/Desktop/Mission-control && bash ci/check-codex-review-guidelines.sh",
+      "cd erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CompanyContextFilterControlPlaneBindingTest,AuthTenantAuthorityIT,...' test",
+      "bash scripts/gate_fast.sh",
+      "cd erp-domain && MIGRATION_SET=v2 mvn -q spotless:check -DspotlessFiles='...'"
+    ],
+    "allVerificationPassed": true
+  }
+}

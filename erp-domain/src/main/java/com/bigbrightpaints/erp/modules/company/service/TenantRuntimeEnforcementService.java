@@ -4,9 +4,12 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Supplier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -20,7 +23,9 @@ import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.config.SystemSetting;
 import com.bigbrightpaints.erp.core.config.SystemSettingsRepository;
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.AuthSecurityContractException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccountRepository;
@@ -42,12 +47,14 @@ public class TenantRuntimeEnforcementService {
   private static final String UNKNOWN_ACTOR = "UNKNOWN_AUTH_ACTOR";
   private static final String CANONICAL_SUPERADMIN_TENANT_LIMITS_PREFIX =
       "/api/v1/superadmin/tenants/";
+  private static final String CANONICAL_SUPERADMIN_TENANT_LIFECYCLE_SUFFIX = "/lifecycle";
   private static final String CANONICAL_SUPERADMIN_TENANT_LIMITS_SUFFIX = "/limits";
   private final CompanyRepository companyRepository;
   private final SystemSettingsRepository systemSettingsRepository;
   private final UserAccountRepository userAccountRepository;
   private final AuditService auditService;
   private final int defaultMaxConcurrentRequests;
+  private final ConcurrentMap<String, Object> policyMutationLocks = new ConcurrentHashMap<>();
   private final int defaultMaxRequestsPerMinute;
   private final int defaultMaxActiveUsers;
   private final long persistedPolicyCacheTtlMillis;
@@ -90,11 +97,26 @@ public class TenantRuntimeEnforcementService {
     if (normalizedCompany == null) {
       return TenantRequestAdmission.notTracked();
     }
-    TenantRuntimePolicy policy = policyFor(normalizedCompany);
     TenantRuntimeCounters usageCounters = countersFor(normalizedCompany);
     boolean policyControlRequest =
         isTenantRuntimePolicyControlRequest(
             requestPath, requestMethod, policyControlPrivilegedActor);
+    if (policyControlRequest) {
+      usageCounters.totalRequests.incrementAndGet();
+      usageCounters.inFlightRequests.incrementAndGet();
+      return TenantRequestAdmission.admittedPolicyControl(
+          normalizedCompany,
+          currentAuditChainId(normalizedCompany).orElse(DEFAULT_POLICY_REFERENCE),
+          usageCounters);
+    }
+    TenantRuntimePolicy policy;
+    try {
+      policy = policyFor(normalizedCompany);
+    } catch (TenantRuntimeAdmissionFailure failure) {
+      incrementRejectedCount(usageCounters);
+      auditRejection(failure.rejection(), actor, requestPath, requestMethod);
+      return TenantRequestAdmission.rejected(failure.rejection());
+    }
 
     TenantRuntimeRejection stateRejection =
         stateRejection(policy, normalizedCompany, policyControlRequest, requestMethod);
@@ -102,13 +124,6 @@ public class TenantRuntimeEnforcementService {
       incrementRejectedCount(usageCounters);
       auditRejection(stateRejection, actor, requestPath, requestMethod);
       return TenantRequestAdmission.rejected(stateRejection);
-    }
-
-    if (policyControlRequest) {
-      usageCounters.totalRequests.incrementAndGet();
-      usageCounters.inFlightRequests.incrementAndGet();
-      return TenantRequestAdmission.admittedPolicyControl(
-          normalizedCompany, policy.auditChainId, usageCounters);
     }
 
     long minuteBucket = CompanyTime.now().getEpochSecond() / 60L;
@@ -173,8 +188,15 @@ public class TenantRuntimeEnforcementService {
   void enforceAuthOperation(String companyCode, String actor, String operation) {
     String normalizedCompany = requireCompanyCode(companyCode);
     String scope = "auth_" + normalizeUpperToken(operation, "UNKNOWN");
-    TenantRuntimePolicy policy = policyFor(normalizedCompany);
     TenantRuntimeCounters usageCounters = countersFor(normalizedCompany);
+    TenantRuntimePolicy policy;
+    try {
+      policy = policyFor(normalizedCompany);
+    } catch (TenantRuntimeAdmissionFailure failure) {
+      incrementRejectedCount(usageCounters);
+      auditRejection(failure.rejection(), actor, scope, "POST");
+      throw failure.rejection().asAuthSecurityContractException();
+    }
 
     TenantRuntimeRejection stateRejection =
         stateRejection(policy, normalizedCompany, false, "POST");
@@ -184,14 +206,39 @@ public class TenantRuntimeEnforcementService {
       throw stateRejection.asAuthSecurityContractException();
     }
 
-    Company company =
-        companyRepository
-            .findByCodeIgnoreCase(normalizedCompany)
-            .orElseThrow(
-                () ->
-                    com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                        "Company not found: " + normalizedCompany));
-    long activeUsers = userAccountRepository.countByCompany_IdAndEnabledTrue(company.getId());
+    Optional<Company> companyLookup;
+    try {
+      companyLookup = companyRepository.findByCodeIgnoreCase(normalizedCompany);
+    } catch (RuntimeException ex) {
+      TenantRuntimeRejection rejection =
+          unavailableRejection(
+              normalizedCompany,
+              "TENANT_COMPANY_LOOKUP_UNAVAILABLE",
+              "Tenant company lookup is unavailable");
+      incrementRejectedCount(usageCounters);
+      auditRejection(rejection, actor, scope, "POST");
+      throw rejection.asAuthSecurityContractException();
+    }
+    Company company = companyLookup.orElse(null);
+    if (company == null || company.getId() == null) {
+      TenantRuntimeRejection rejection = tenantNotFoundRejection(normalizedCompany);
+      incrementRejectedCount(usageCounters);
+      auditRejection(rejection, actor, scope, "POST");
+      throw rejection.asAuthSecurityContractException();
+    }
+    long activeUsers;
+    try {
+      activeUsers = userAccountRepository.countByCompany_IdAndEnabledTrue(company.getId());
+    } catch (RuntimeException ex) {
+      TenantRuntimeRejection rejection =
+          unavailableRejection(
+              normalizedCompany,
+              "TENANT_ACTIVE_USER_QUOTA_UNAVAILABLE",
+              "Tenant active-user quota is unavailable");
+      incrementRejectedCount(usageCounters);
+      auditRejection(rejection, actor, scope, "POST");
+      throw rejection.asAuthSecurityContractException();
+    }
     int maxActiveUsers = policy.effectiveMaxActiveUsers(defaultMaxActiveUsers);
     if (activeUsers > maxActiveUsers) {
       incrementRejectedCount(usageCounters);
@@ -233,45 +280,40 @@ public class TenantRuntimeEnforcementService {
       String reasonCode,
       String actor) {
     String normalizedCompany = requireCompanyCode(companyCode);
-    // Force fail-closed for unknown company code updates.
-    companyRepository
-        .findByCodeIgnoreCase(normalizedCompany)
-        .orElseThrow(
-            () ->
-                com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                    "Company not found: " + normalizedCompany));
-
-    TenantRuntimePolicy policy = policyFor(normalizedCompany);
-    String normalizedReason = normalizeReason(reasonCode);
-    String previousChainId;
-    String newChainId = UUID.randomUUID().toString();
-    Instant now = CompanyTime.now();
-    synchronized (policy) {
-      previousChainId = policy.auditChainId;
-      if (maxConcurrentRequests != null) {
-        policy.maxConcurrentRequests = sanitizeLimit(maxConcurrentRequests);
-      }
-      if (maxRequestsPerMinute != null) {
-        policy.maxRequestsPerMinute = sanitizeLimit(maxRequestsPerMinute);
-      }
-      if (maxActiveUsers != null) {
-        policy.maxActiveUsers = sanitizeLimit(maxActiveUsers);
-      }
-      policy.reasonCode = normalizedReason;
-      policy.updatedAt = now;
-      policy.auditChainId = newChainId;
-      policy.policyRefreshAfterEpochMillis =
-          System.currentTimeMillis() + persistedPolicyCacheTtlMillis;
-    }
-    auditPolicyChange(
-        "UPDATE_TENANT_QUOTAS",
-        normalizedCompany,
-        normalizeActor(actor),
-        normalizedReason,
-        previousChainId,
-        policy.auditChainId,
-        policy);
-    return snapshot(normalizedCompany);
+    return withPolicyMutationLock(
+        normalizedCompany, () -> { Company company = requireTrackedCompany(normalizedCompany);
+          TenantRuntimePolicy current =
+              persistedPolicyForManagedOperation(normalizedCompany, company);
+          String normalizedReason = normalizeReason(reasonCode);
+          String previousChainId = current.auditChainId;
+          String newChainId = UUID.randomUUID().toString();
+          Instant now = CompanyTime.now();
+          TenantRuntimePolicy updated = copyPolicy(current);
+          if (maxConcurrentRequests != null) {
+            updated.maxConcurrentRequests = sanitizeLimit(maxConcurrentRequests);
+          }
+          if (maxRequestsPerMinute != null) {
+            updated.maxRequestsPerMinute = sanitizeLimit(maxRequestsPerMinute);
+          }
+          if (maxActiveUsers != null) {
+            updated.maxActiveUsers = sanitizeLimit(maxActiveUsers);
+          }
+          updated.reasonCode = normalizedReason;
+          updated.updatedAt = now;
+          updated.auditChainId = newChainId;
+          updated.policyRefreshAfterEpochMillis =
+              System.currentTimeMillis() + persistedPolicyCacheTtlMillis;
+          persistPolicyAndAuditChange(
+              company,
+              normalizedCompany,
+              "UPDATE_TENANT_QUOTAS",
+              normalizeActor(actor),
+              normalizedReason,
+              previousChainId,
+              updated);
+          activatePolicy(normalizedCompany, updated);
+          return snapshot(normalizedCompany);
+        });
   }
 
   public TenantRuntimeSnapshot updatePolicy(
@@ -283,58 +325,52 @@ public class TenantRuntimeEnforcementService {
       Integer maxActiveUsers,
       String actor) {
     String normalizedCompany = requireCompanyCode(companyCode);
-    Company company =
-        companyRepository
-            .findByCodeIgnoreCase(normalizedCompany)
-            .orElseThrow(
-                () ->
-                    com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                        "Company not found: " + normalizedCompany));
-    if (targetState == null
-        && maxConcurrentRequests == null
-        && maxRequestsPerMinute == null
-        && maxActiveUsers == null) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Runtime policy mutation payload is required");
-    }
-    TenantRuntimePolicy policy = policyFor(normalizedCompany);
-    String normalizedReason = normalizeReason(reasonCode);
-    String previousChainId;
-    String newChainId = UUID.randomUUID().toString();
-    Instant now = CompanyTime.now();
-    synchronized (policy) {
-      previousChainId = policy.auditChainId;
-      if (targetState != null) {
-        policy.state = targetState;
-      }
-      if (maxConcurrentRequests != null) {
-        policy.maxConcurrentRequests = sanitizeLimit(maxConcurrentRequests);
-      }
-      if (maxRequestsPerMinute != null) {
-        policy.maxRequestsPerMinute = sanitizeLimit(maxRequestsPerMinute);
-      }
-      if (maxActiveUsers != null) {
-        policy.maxActiveUsers = sanitizeLimit(maxActiveUsers);
-      }
-      policy.reasonCode = normalizedReason;
-      policy.updatedAt = now;
-      policy.auditChainId = newChainId;
-    }
-    persistPolicy(company, policy);
-    auditPolicyChange(
-        "UPDATE_TENANT_RUNTIME_POLICY",
-        normalizedCompany,
-        normalizeActor(actor),
-        normalizedReason,
-        previousChainId,
-        policy.auditChainId,
-        policy);
-    return snapshot(normalizedCompany);
+    return withPolicyMutationLock(
+        normalizedCompany, () -> { Company company = requireTrackedCompany(normalizedCompany);
+          if (targetState == null && maxConcurrentRequests == null && maxRequestsPerMinute == null && maxActiveUsers == null) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                "Runtime policy mutation payload is required");
+          }
+          TenantRuntimePolicy current =
+              persistedPolicyForManagedOperation(normalizedCompany, company);
+          String normalizedReason = normalizeReason(reasonCode);
+          String previousChainId = current.auditChainId;
+          String newChainId = UUID.randomUUID().toString();
+          Instant now = CompanyTime.now();
+          TenantRuntimePolicy updated = copyPolicy(current);
+          if (targetState != null) {
+            updated.state = targetState;
+          }
+          if (maxConcurrentRequests != null) {
+            updated.maxConcurrentRequests = sanitizeLimit(maxConcurrentRequests);
+          }
+          if (maxRequestsPerMinute != null) {
+            updated.maxRequestsPerMinute = sanitizeLimit(maxRequestsPerMinute);
+          }
+          if (maxActiveUsers != null) {
+            updated.maxActiveUsers = sanitizeLimit(maxActiveUsers);
+          }
+          updated.reasonCode = normalizedReason;
+          updated.updatedAt = now;
+          updated.auditChainId = newChainId;
+          updated.policyRefreshAfterEpochMillis =
+              System.currentTimeMillis() + persistedPolicyCacheTtlMillis;
+          persistPolicyAndAuditChange(
+              company,
+              normalizedCompany,
+              "UPDATE_TENANT_RUNTIME_POLICY",
+              normalizeActor(actor),
+              normalizedReason,
+              previousChainId,
+              updated);
+          activatePolicy(normalizedCompany, updated);
+          return snapshot(normalizedCompany);
+        });
   }
 
   public TenantRuntimeSnapshot snapshot(String companyCode) {
     String normalizedCompany = requireCompanyCode(companyCode);
-    TenantRuntimePolicy policy = policyFor(normalizedCompany);
+    TenantRuntimePolicy policy = policyForManagedOperation(normalizedCompany);
     TenantRuntimeCounters usageCounters = countersFor(normalizedCompany);
     Long activeUsers = resolveActiveUsers(normalizedCompany);
     return new TenantRuntimeSnapshot(
@@ -382,6 +418,32 @@ public class TenantRuntimeEnforcementService {
         policy.updatedAt == null ? null : policy.updatedAt.toString());
   }
 
+  private void persistPolicyAndAuditChange(
+      Company company,
+      String companyCode,
+      String action,
+      String actor,
+      String reasonCode,
+      String previousChainId,
+      TenantRuntimePolicy policy) {
+    Map<String, String> persistedPolicyState =
+        capturePersistedPolicyState(companyCode, company == null ? null : company.getId());
+    try {
+      persistPolicy(company, policy);
+      auditPolicyChange(
+          action,
+          companyCode,
+          actor,
+          reasonCode,
+          previousChainId,
+          policy.auditChainId,
+          policy);
+    } catch (RuntimeException ex) {
+      restorePersistedPolicyState(company, companyCode, policy, persistedPolicyState, ex);
+      throw ex;
+    }
+  }
+
   private TenantRuntimeSnapshot updateState(
       String companyCode,
       TenantRuntimeState targetState,
@@ -389,37 +451,223 @@ public class TenantRuntimeEnforcementService {
       String actor,
       String action) {
     String normalizedCompany = requireCompanyCode(companyCode);
-    // Force fail-closed for unknown company code updates.
-    companyRepository
-        .findByCodeIgnoreCase(normalizedCompany)
-        .orElseThrow(
-            () ->
-                com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                    "Company not found: " + normalizedCompany));
+    return withPolicyMutationLock(
+        normalizedCompany, () -> { Company company = requireTrackedCompany(normalizedCompany);
+          TenantRuntimePolicy current =
+              persistedPolicyForManagedOperation(normalizedCompany, company);
+          String normalizedReason = normalizeReason(reasonCode);
+          String previousChainId = current.auditChainId;
+          String newChainId = UUID.randomUUID().toString();
+          Instant now = CompanyTime.now();
+          TenantRuntimePolicy updated = copyPolicy(current);
+          updated.state = targetState;
+          updated.reasonCode = normalizedReason;
+          updated.auditChainId = newChainId;
+          updated.updatedAt = now;
+          updated.policyRefreshAfterEpochMillis =
+              System.currentTimeMillis() + persistedPolicyCacheTtlMillis;
+          persistPolicyAndAuditChange(
+              company,
+              normalizedCompany,
+              action,
+              normalizeActor(actor),
+              normalizedReason,
+              previousChainId,
+              updated);
+          activatePolicy(normalizedCompany, updated);
+          return snapshot(normalizedCompany);
+        });
+  }
 
-    TenantRuntimePolicy policy = policyFor(normalizedCompany);
-    String normalizedReason = normalizeReason(reasonCode);
-    String previousChainId;
-    String newChainId = UUID.randomUUID().toString();
-    Instant now = CompanyTime.now();
-    synchronized (policy) {
-      previousChainId = policy.auditChainId;
-      policy.state = targetState;
-      policy.reasonCode = normalizedReason;
-      policy.auditChainId = newChainId;
-      policy.updatedAt = now;
-      policy.policyRefreshAfterEpochMillis =
-          System.currentTimeMillis() + persistedPolicyCacheTtlMillis;
+  private Map<String, String> capturePersistedPolicyState(String companyCode, Long companyId) {
+    Map<String, String> persistedPolicyState = new HashMap<>();
+    if (companyId == null) {
+      return persistedPolicyState;
     }
-    auditPolicyChange(
-        action,
-        normalizedCompany,
-        normalizeActor(actor),
+    persistedPolicyState.put(
+        keyHoldState(companyId), readPersistedPolicySetting(companyCode, keyHoldState(companyId)));
+    persistedPolicyState.put(
+        keyHoldReason(companyId), readPersistedPolicySetting(companyCode, keyHoldReason(companyId)));
+    persistedPolicyState.put(
+        keyMaxConcurrentRequests(companyId),
+        readPersistedPolicySetting(companyCode, keyMaxConcurrentRequests(companyId)));
+    persistedPolicyState.put(
+        keyMaxRequestsPerMinute(companyId),
+        readPersistedPolicySetting(companyCode, keyMaxRequestsPerMinute(companyId)));
+    persistedPolicyState.put(
+        keyMaxActiveUsers(companyId),
+        readPersistedPolicySetting(companyCode, keyMaxActiveUsers(companyId)));
+    persistedPolicyState.put(
+        keyPolicyReference(companyId),
+        readPersistedPolicySetting(companyCode, keyPolicyReference(companyId)));
+    persistedPolicyState.put(
+        keyPolicyUpdatedAt(companyId),
+        readPersistedPolicySetting(companyCode, keyPolicyUpdatedAt(companyId)));
+    return persistedPolicyState;
+  }
+
+  private String readPersistedPolicySetting(String companyCode, String key) {
+    try {
+      return systemSettingsRepository.findById(key).map(SystemSetting::getValue).orElse(null);
+    } catch (RuntimeException ex) {
+      throw toManagedOperationException(
+          companyCode,
+          new TenantRuntimeAdmissionFailure(unavailableRejection(
+              companyCode, "TENANT_RUNTIME_POLICY_UNAVAILABLE", "Tenant runtime policy is unavailable"), ex));
+    }
+  }
+
+  private void restorePersistedPolicyState(
+      Company company,
+      String companyCode,
+      TenantRuntimePolicy attemptedPolicy,
+      Map<String, String> persistedPolicyState,
+      RuntimeException originalFailure) {
+    try {
+      Long companyId = company == null ? null : company.getId();
+      Map<String, String> latestPersistedPolicyState =
+          companyId == null ? Map.of() : capturePersistedPolicyState(companyCode, companyId);
+      if (shouldPreserveLatestPersistedState(
+          companyId, persistedPolicyState, latestPersistedPolicyState, attemptedPolicy)) {
+        activatePolicy(
+            companyCode,
+            Optional.ofNullable(policyFromPersistedState(companyId, latestPersistedPolicyState))
+                .orElseGet(this::defaultPolicy));
+        return;
+      }
+      for (Map.Entry<String, String> persistedSetting : persistedPolicyState.entrySet()) {
+        restorePersistedSetting(persistedSetting.getKey(), persistedSetting.getValue());
+      }
+      activatePolicy(
+          companyCode,
+          companyId == null
+              ? defaultPolicy()
+              : Optional.ofNullable(policyFromPersistedState(companyId, persistedPolicyState))
+                  .orElseGet(this::defaultPolicy));
+    } catch (RuntimeException restoreFailure) {
+      originalFailure.addSuppressed(restoreFailure);
+    }
+  }
+
+  private void restorePersistedSetting(String key, String value) {
+    if (!StringUtils.hasText(key)) {
+      return;
+    }
+    if (value == null) {
+      systemSettingsRepository.deleteById(key);
+      return;
+    }
+    systemSettingsRepository.save(new SystemSetting(key, value));
+  }
+
+  private boolean shouldPreserveLatestPersistedState(
+      Long companyId,
+      Map<String, String> persistedPolicyState,
+      Map<String, String> latestPersistedPolicyState,
+      TenantRuntimePolicy attemptedPolicy) {
+    if (companyId == null || attemptedPolicy == null || latestPersistedPolicyState == null) {
+      return false;
+    }
+    Map<String, String> attemptedPersistedState = policyToPersistedState(companyId, attemptedPolicy);
+    if (hasConcurrentPolicyVersionChange(
+        companyId, persistedPolicyState, latestPersistedPolicyState, attemptedPersistedState)) {
+      return true;
+    }
+    for (Map.Entry<String, String> persistedSetting : persistedPolicyState.entrySet()) {
+      String key = persistedSetting.getKey();
+      if (isConcurrentPersistedPolicyChange(
+          key, persistedPolicyState, latestPersistedPolicyState, attemptedPersistedState)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private boolean hasConcurrentPolicyVersionChange(
+      Long companyId,
+      Map<String, String> persistedPolicyState,
+      Map<String, String> latestPersistedPolicyState,
+      Map<String, String> attemptedPersistedState) {
+    return isConcurrentPersistedPolicyChange(
+            keyPolicyReference(companyId),
+            persistedPolicyState,
+            latestPersistedPolicyState,
+            attemptedPersistedState)
+        || isConcurrentPersistedPolicyChange(
+            keyPolicyUpdatedAt(companyId),
+            persistedPolicyState,
+            latestPersistedPolicyState,
+            attemptedPersistedState);
+  }
+
+  private boolean isConcurrentPersistedPolicyChange(
+      String key,
+      Map<String, String> persistedPolicyState,
+      Map<String, String> latestPersistedPolicyState,
+      Map<String, String> attemptedPersistedState) {
+    String latestValue = latestPersistedPolicyState.get(key);
+    String previousValue = persistedPolicyState.get(key);
+    String attemptedValue = attemptedPersistedState.get(key);
+    return !Objects.equals(latestValue, previousValue)
+        && !Objects.equals(latestValue, attemptedValue);
+  }
+
+  private TenantRuntimePolicy policyFromPersistedState(
+      Long companyId, Map<String, String> persistedPolicyState) {
+    if (persistedPolicyState == null || persistedPolicyState.isEmpty()) {
+      return null;
+    }
+    String persistedState = persistedPolicyState.get(keyHoldState(companyId));
+    String persistedReason = persistedPolicyState.get(keyHoldReason(companyId));
+    String persistedMaxConcurrent = persistedPolicyState.get(keyMaxConcurrentRequests(companyId));
+    String persistedMaxPerMinute = persistedPolicyState.get(keyMaxRequestsPerMinute(companyId));
+    String persistedMaxActiveUsers = persistedPolicyState.get(keyMaxActiveUsers(companyId));
+    String persistedPolicyReference = persistedPolicyState.get(keyPolicyReference(companyId));
+    String persistedUpdatedAt = persistedPolicyState.get(keyPolicyUpdatedAt(companyId));
+
+    boolean hasPersistedPolicy = persistedState != null || persistedReason != null || persistedMaxConcurrent != null || persistedMaxPerMinute != null || persistedMaxActiveUsers != null || persistedPolicyReference != null || persistedUpdatedAt != null;
+    if (!hasPersistedPolicy) {
+      return null;
+    }
+
+    String normalizedReason = persistedReason == null ? null : persistedReason.trim();
+    if (!StringUtils.hasText(normalizedReason)) {
+      normalizedReason = DEFAULT_REASON;
+    }
+    String normalizedPolicyReference =
+        persistedPolicyReference == null ? null : persistedPolicyReference.trim();
+    if (!StringUtils.hasText(normalizedPolicyReference)) {
+      normalizedPolicyReference = DEFAULT_POLICY_REFERENCE;
+    }
+
+    return new TenantRuntimePolicy(
+        normalizeState(persistedState),
         normalizedReason,
-        previousChainId,
-        policy.auditChainId,
-        policy);
-    return snapshot(normalizedCompany);
+        parsePositiveInt(persistedMaxConcurrent, defaultMaxConcurrentRequests),
+        parsePositiveInt(persistedMaxPerMinute, defaultMaxRequestsPerMinute),
+        parsePositiveInt(persistedMaxActiveUsers, defaultMaxActiveUsers),
+        normalizedPolicyReference,
+        parseInstantOrNull(persistedUpdatedAt),
+        0L);
+  }
+
+  private Map<String, String> policyToPersistedState(Long companyId, TenantRuntimePolicy policy) {
+    Map<String, String> persistedState = new HashMap<>();
+    if (companyId == null || policy == null) {
+      return persistedState;
+    }
+    persistedState.put(keyHoldState(companyId), policy.state == null ? null : policy.state.name());
+    persistedState.put(keyHoldReason(companyId), policy.reasonCode);
+    persistedState.put(
+        keyMaxConcurrentRequests(companyId), Integer.toString(policy.maxConcurrentRequests));
+    persistedState.put(
+        keyMaxRequestsPerMinute(companyId), Integer.toString(policy.maxRequestsPerMinute));
+    persistedState.put(keyMaxActiveUsers(companyId), Integer.toString(policy.maxActiveUsers));
+    persistedState.put(keyPolicyReference(companyId), policy.auditChainId);
+    persistedState.put(
+        keyPolicyUpdatedAt(companyId),
+        policy.updatedAt == null ? null : policy.updatedAt.toString());
+    return persistedState;
   }
 
   private void auditPolicyChange(
@@ -517,11 +765,15 @@ public class TenantRuntimeEnforcementService {
   private boolean isCanonicalSuperAdminTenantLimitsPath(String normalizedPath) {
     if (!StringUtils.hasText(normalizedPath)
         || !normalizedPath.startsWith(CANONICAL_SUPERADMIN_TENANT_LIMITS_PREFIX)
-        || !normalizedPath.endsWith(CANONICAL_SUPERADMIN_TENANT_LIMITS_SUFFIX)) {
+        || (!normalizedPath.endsWith(CANONICAL_SUPERADMIN_TENANT_LIMITS_SUFFIX)
+            && !normalizedPath.endsWith(CANONICAL_SUPERADMIN_TENANT_LIFECYCLE_SUFFIX))) {
       return false;
     }
     int prefixLength = CANONICAL_SUPERADMIN_TENANT_LIMITS_PREFIX.length();
-    int suffixLength = CANONICAL_SUPERADMIN_TENANT_LIMITS_SUFFIX.length();
+    int suffixLength =
+        normalizedPath.endsWith(CANONICAL_SUPERADMIN_TENANT_LIMITS_SUFFIX)
+            ? CANONICAL_SUPERADMIN_TENANT_LIMITS_SUFFIX.length()
+            : CANONICAL_SUPERADMIN_TENANT_LIFECYCLE_SUFFIX.length();
     String companyIdSegment =
         normalizedPath.substring(prefixLength, normalizedPath.length() - suffixLength);
     return StringUtils.hasText(companyIdSegment) && !companyIdSegment.contains("/");
@@ -550,23 +802,27 @@ public class TenantRuntimeEnforcementService {
   }
 
   private Long resolveActiveUsers(String companyCode) {
-    return companyRepository
-        .findByCodeIgnoreCase(companyCode)
-        .map(Company::getId)
-        .map(userAccountRepository::countByCompany_IdAndEnabledTrue)
-        .orElse(0L);
+    Company company;
+    try {
+      company = companyRepository.findByCodeIgnoreCase(companyCode).orElse(null);
+    } catch (RuntimeException ex) {
+      throw toManagedOperationException(
+          companyCode,
+          new TenantRuntimeAdmissionFailure(unavailableRejection(
+              companyCode, "TENANT_COMPANY_LOOKUP_UNAVAILABLE", "Tenant company lookup is unavailable"), ex));
+    }
+    if (company == null || company.getId() == null) {
+      return 0L;
+    }
+    return userAccountRepository.countByCompany_IdAndEnabledTrue(company.getId());
   }
 
   private int incrementMinuteCount(TenantRuntimeCounters usageCounters, long minuteBucket) {
-    while (true) {
-      long previousBucket = usageCounters.minuteBucket.get();
+    while (true) { long previousBucket = usageCounters.minuteBucket.get();
       if (previousBucket != minuteBucket) {
-        if (usageCounters.minuteBucket.compareAndSet(previousBucket, minuteBucket)) {
-          usageCounters.minuteRequestCount.set(0);
-          usageCounters.minuteRejectedCount.set(0);
-        } else {
-          continue;
-        }
+        if (!usageCounters.minuteBucket.compareAndSet(previousBucket, minuteBucket)) { continue; }
+        usageCounters.minuteRequestCount.set(0);
+        usageCounters.minuteRejectedCount.set(0);
       }
       return usageCounters.minuteRequestCount.incrementAndGet();
     }
@@ -591,33 +847,27 @@ public class TenantRuntimeEnforcementService {
     if (current != null && current.policyRefreshAfterEpochMillis > nowMillis) {
       return current;
     }
-    return policies.compute(
-        companyCode,
-        (key, cached) -> {
-          long refreshCheckAt = System.currentTimeMillis();
-          if (cached != null && cached.policyRefreshAfterEpochMillis > refreshCheckAt) {
-            return cached;
-          }
-          TenantRuntimePolicy persisted;
-          try {
-            persisted = loadPersistedPolicy(key);
-          } catch (RuntimeException ignored) {
-            // Keep request admission available during transient policy persistence outages.
-            persisted = null;
-          }
-          TenantRuntimePolicy resolved;
-          if (persisted != null && shouldUsePersistedPolicy(cached, persisted)) {
-            resolved = persisted;
-          } else if (cached != null) {
-            resolved = cached;
-          } else if (persisted != null) {
-            resolved = persisted;
-          } else {
-            resolved = defaultPolicy();
-          }
-          resolved.policyRefreshAfterEpochMillis = refreshCheckAt + persistedPolicyCacheTtlMillis;
-          return resolved;
-        });
+    return withPolicyMutationLock(companyCode, () -> {
+      TenantRuntimePolicy cached = policies.get(companyCode);
+      long refreshCheckAt = System.currentTimeMillis();
+      if (cached != null && cached.policyRefreshAfterEpochMillis > refreshCheckAt) {
+        return cached;
+      }
+      TenantRuntimePolicy persisted = loadPersistedPolicy(companyCode);
+      TenantRuntimePolicy resolved;
+      if (persisted != null && shouldUsePersistedPolicy(cached, persisted)) {
+        resolved = persisted;
+      } else if (cached != null) {
+        resolved = cached;
+      } else if (persisted != null) {
+        resolved = persisted;
+      } else {
+        resolved = defaultPolicy();
+      }
+      resolved.policyRefreshAfterEpochMillis = refreshCheckAt + persistedPolicyCacheTtlMillis;
+      policies.put(companyCode, resolved);
+      return resolved;
+    });
   }
 
   private boolean shouldUsePersistedPolicy(
@@ -655,20 +905,37 @@ public class TenantRuntimeEnforcementService {
     Company company;
     try {
       company = companyRepository.findByCodeIgnoreCase(companyCode.trim()).orElse(null);
-    } catch (RuntimeException ignored) {
-      return null;
+    } catch (RuntimeException ex) {
+      throw new TenantRuntimeAdmissionFailure(
+          unavailableRejection(
+              companyCode,
+              "TENANT_COMPANY_LOOKUP_UNAVAILABLE",
+              "Tenant company lookup is unavailable"),
+          ex);
     }
     if (company == null || company.getId() == null) {
+      throw new TenantRuntimeAdmissionFailure(tenantNotFoundRejection(companyCode));
+    }
+    return loadPersistedPolicy(companyCode, company.getId());
+  }
+
+  private TenantRuntimePolicy loadPersistedPolicy(String companyCode, Long companyId) {
+    if (!StringUtils.hasText(companyCode)) {
       return null;
     }
-    Long companyId = company.getId();
-    String persistedState = readSetting(keyHoldState(companyId), null);
-    String persistedReason = readSetting(keyHoldReason(companyId), null);
-    String persistedMaxConcurrent = readSetting(keyMaxConcurrentRequests(companyId), null);
-    String persistedMaxPerMinute = readSetting(keyMaxRequestsPerMinute(companyId), null);
-    String persistedMaxActiveUsers = readSetting(keyMaxActiveUsers(companyId), null);
-    String persistedPolicyReference = readSetting(keyPolicyReference(companyId), null);
-    String persistedUpdatedAt = readSetting(keyPolicyUpdatedAt(companyId), null);
+    if (companyId == null) { throw new TenantRuntimeAdmissionFailure(tenantNotFoundRejection(companyCode)); }
+    String persistedState = readSetting(companyCode, keyHoldState(companyId), null);
+    String persistedReason = readSetting(companyCode, keyHoldReason(companyId), null);
+    String persistedMaxConcurrent =
+        readSetting(companyCode, keyMaxConcurrentRequests(companyId), null);
+    String persistedMaxPerMinute =
+        readSetting(companyCode, keyMaxRequestsPerMinute(companyId), null);
+    String persistedMaxActiveUsers =
+        readSetting(companyCode, keyMaxActiveUsers(companyId), null);
+    String persistedPolicyReference =
+        readSetting(companyCode, keyPolicyReference(companyId), null);
+    String persistedUpdatedAt =
+        readSetting(companyCode, keyPolicyUpdatedAt(companyId), null);
 
     boolean hasPersistedPolicy =
         StringUtils.hasText(persistedState)
@@ -752,12 +1019,46 @@ public class TenantRuntimeEnforcementService {
     }
   }
 
-  private String readSetting(String key, String fallback) {
+  private String readSetting(String companyCode, String key, String fallback) {
     try {
       return systemSettingsRepository.findById(key).map(SystemSetting::getValue).orElse(fallback);
-    } catch (RuntimeException ignored) {
-      return fallback;
+    } catch (RuntimeException ex) {
+      throw new TenantRuntimeAdmissionFailure(
+          unavailableRejection(
+              companyCode,
+              "TENANT_RUNTIME_POLICY_UNAVAILABLE",
+              "Tenant runtime policy is unavailable"),
+          ex);
     }
+  }
+
+  private TenantRuntimeRejection unavailableRejection(
+      String companyCode, String reasonCode, String reasonDetail) {
+    return new TenantRuntimeRejection(
+        companyCode,
+        TenantRuntimeState.BLOCKED,
+        DEFAULT_REASON,
+        DEFAULT_POLICY_REFERENCE,
+        HttpStatus.SERVICE_UNAVAILABLE,
+        reasonCode,
+        reasonDetail,
+        null,
+        null,
+        null);
+  }
+
+  private TenantRuntimeRejection tenantNotFoundRejection(String companyCode) {
+    return new TenantRuntimeRejection(
+        companyCode,
+        TenantRuntimeState.BLOCKED,
+        DEFAULT_REASON,
+        DEFAULT_POLICY_REFERENCE,
+        HttpStatus.FORBIDDEN,
+        "TENANT_NOT_FOUND",
+        "Tenant not found",
+        null,
+        null,
+        null);
   }
 
   private void persistSetting(String key, String value) {
@@ -799,6 +1100,40 @@ public class TenantRuntimeEnforcementService {
     return counters.computeIfAbsent(companyCode, key -> new TenantRuntimeCounters());
   }
 
+  private <T> T withPolicyMutationLock(String companyCode, Supplier<T> action) {
+    Object lock = policyMutationLocks.computeIfAbsent(companyCode, key -> new Object());
+    synchronized (lock) {
+      return action.get();
+    }
+  }
+
+  private Optional<String> currentAuditChainId(String companyCode) {
+    TenantRuntimePolicy current = policies.get(companyCode);
+    if (current == null || !StringUtils.hasText(current.auditChainId)) {
+      return Optional.empty();
+    }
+    return Optional.of(current.auditChainId);
+  }
+
+  private void activatePolicy(String companyCode, TenantRuntimePolicy updatedPolicy) {
+    if (!StringUtils.hasText(companyCode) || updatedPolicy == null) { return; }
+    updatedPolicy.policyRefreshAfterEpochMillis =
+        System.currentTimeMillis() + persistedPolicyCacheTtlMillis;
+    policies.put(companyCode, updatedPolicy);
+  }
+
+  private TenantRuntimePolicy copyPolicy(TenantRuntimePolicy source) {
+    return new TenantRuntimePolicy(
+        source.state,
+        source.reasonCode,
+        source.maxConcurrentRequests,
+        source.maxRequestsPerMinute,
+        source.maxActiveUsers,
+        source.auditChainId,
+        source.updatedAt,
+        source.policyRefreshAfterEpochMillis);
+  }
+
   private String normalizeActor(String actor) {
     String normalized = normalizeUpperToken(actor, null);
     if (!StringUtils.hasText(normalized)) {
@@ -814,6 +1149,80 @@ public class TenantRuntimeEnforcementService {
           "Company code is required");
     }
     return normalized;
+  }
+
+  private Company requireTrackedCompany(String normalizedCompany) {
+    Optional<Company> company;
+    try {
+      company = companyRepository.findByCodeIgnoreCase(normalizedCompany);
+    } catch (RuntimeException ex) {
+      throw toManagedOperationException(
+          normalizedCompany,
+          new TenantRuntimeAdmissionFailure(unavailableRejection(
+              normalizedCompany, "TENANT_COMPANY_LOOKUP_UNAVAILABLE", "Tenant company lookup is unavailable"), ex));
+    }
+    return company.orElseThrow(
+        () -> com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+            "Company not found: " + normalizedCompany));
+  }
+
+  private TenantRuntimePolicy policyForManagedOperation(String normalizedCompany) {
+    try {
+      return policyFor(normalizedCompany);
+    } catch (TenantRuntimeAdmissionFailure failure) {
+      throw toManagedOperationException(normalizedCompany, failure);
+    }
+  }
+
+  private TenantRuntimePolicy persistedPolicyForManagedOperation(
+      String normalizedCompany, Company company) {
+    try {
+      TenantRuntimePolicy persistedPolicy =
+          loadPersistedPolicy(normalizedCompany, company == null ? null : company.getId());
+      return persistedPolicy == null ? defaultPolicy() : persistedPolicy;
+    } catch (TenantRuntimeAdmissionFailure failure) {
+      throw toManagedOperationException(normalizedCompany, failure);
+    }
+  }
+
+  private ApplicationException toManagedOperationException(
+      String normalizedCompany, TenantRuntimeAdmissionFailure failure) {
+    TenantRuntimeRejection rejection = failure == null ? null : failure.rejection();
+    if (rejection != null && rejection.httpStatus() == HttpStatus.SERVICE_UNAVAILABLE) {
+      return withRejectionDetails(
+          new ApplicationException(ErrorCode.SYSTEM_SERVICE_UNAVAILABLE, rejection.reasonDetail(), failure),
+          rejection);
+    }
+    return withRejectionDetails(
+        com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput("Company not found: " + normalizedCompany),
+        rejection);
+  }
+
+  private ApplicationException withRejectionDetails(
+      ApplicationException ex, TenantRuntimeRejection rejection) {
+    if (ex == null || rejection == null) { return ex; }
+    if (StringUtils.hasText(rejection.companyCode())) {
+      ex.withDetail("companyCode", rejection.companyCode());
+    }
+    if (StringUtils.hasText(rejection.reasonCode())) {
+      ex.withDetail("reason", rejection.reasonCode());
+    }
+    if (StringUtils.hasText(rejection.auditChainId())) {
+      ex.withDetail("auditChainId", rejection.auditChainId());
+    }
+    if (StringUtils.hasText(rejection.tenantReasonCode())) {
+      ex.withDetail("tenantReasonCode", rejection.tenantReasonCode());
+    }
+    if (StringUtils.hasText(rejection.limitType())) {
+      ex.withDetail("limitType", rejection.limitType());
+    }
+    if (StringUtils.hasText(rejection.observedValue())) {
+      ex.withDetail("observedValue", rejection.observedValue());
+    }
+    if (StringUtils.hasText(rejection.limitValue())) {
+      ex.withDetail("limitValue", rejection.limitValue());
+    }
+    return ex;
   }
 
   private String normalizeCompanyCode(String companyCode) {
@@ -944,10 +1353,19 @@ public class TenantRuntimeEnforcementService {
       return NOT_TRACKED;
     }
 
+    public static TenantRequestAdmission admitted(String companyCode, String auditChainId) {
+      return admitted(companyCode, auditChainId, new TenantRuntimeCounters());
+    }
+
     public static TenantRequestAdmission admitted(
         String companyCode, String auditChainId, TenantRuntimeCounters counters) {
       return new TenantRequestAdmission(
           true, companyCode, auditChainId, counters, HttpStatus.OK.value(), null);
+    }
+
+    public static TenantRequestAdmission admittedPolicyControl(
+        String companyCode, String auditChainId) {
+      return admittedPolicyControl(companyCode, auditChainId, new TenantRuntimeCounters());
     }
 
     public static TenantRequestAdmission admittedPolicyControl(
@@ -1119,6 +1537,24 @@ public class TenantRuntimeEnforcementService {
         ex.withDetail("limitValue", limitValue);
       }
       return ex;
+    }
+  }
+
+  private static final class TenantRuntimeAdmissionFailure extends RuntimeException
+  {
+    private final TenantRuntimeRejection rejection;
+
+    private TenantRuntimeAdmissionFailure(TenantRuntimeRejection rejection) {
+      this.rejection = rejection;
+    }
+
+    private TenantRuntimeAdmissionFailure(TenantRuntimeRejection rejection, Throwable cause) {
+      super(cause);
+      this.rejection = rejection;
+    }
+
+    private TenantRuntimeRejection rejection() {
+      return rejection;
     }
   }
 }

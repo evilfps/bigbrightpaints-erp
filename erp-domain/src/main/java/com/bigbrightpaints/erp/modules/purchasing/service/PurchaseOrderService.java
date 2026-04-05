@@ -14,12 +14,11 @@ import org.springframework.util.StringUtils;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
-import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrder;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderRepository;
@@ -40,22 +39,22 @@ public class PurchaseOrderService {
 
   private final CompanyContextService companyContextService;
   private final PurchaseOrderRepository purchaseOrderRepository;
-  private final RawMaterialRepository rawMaterialRepository;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedPurchasingLookupService purchasingLookupService;
+  private final CompanyScopedInventoryLookupService inventoryLookupService;
   private final PurchaseResponseMapper responseMapper;
   private final PurchaseOrderStatusHistoryRepository purchaseOrderStatusHistoryRepository;
 
   public PurchaseOrderService(
       CompanyContextService companyContextService,
       PurchaseOrderRepository purchaseOrderRepository,
-      RawMaterialRepository rawMaterialRepository,
-      CompanyEntityLookup companyEntityLookup,
+      CompanyScopedPurchasingLookupService purchasingLookupService,
+      CompanyScopedInventoryLookupService inventoryLookupService,
       PurchaseResponseMapper responseMapper,
       PurchaseOrderStatusHistoryRepository purchaseOrderStatusHistoryRepository) {
     this.companyContextService = companyContextService;
     this.purchaseOrderRepository = purchaseOrderRepository;
-    this.rawMaterialRepository = rawMaterialRepository;
-    this.companyEntityLookup = companyEntityLookup;
+    this.purchasingLookupService = purchasingLookupService;
+    this.inventoryLookupService = inventoryLookupService;
     this.responseMapper = responseMapper;
     this.purchaseOrderStatusHistoryRepository = purchaseOrderStatusHistoryRepository;
   }
@@ -67,7 +66,7 @@ public class PurchaseOrderService {
   public List<PurchaseOrderResponse> listPurchaseOrders(Long supplierId) {
     Company company = companyContextService.requireCurrentCompany();
     Supplier supplier =
-        supplierId != null ? companyEntityLookup.requireSupplier(company, supplierId) : null;
+        supplierId != null ? purchasingLookupService.requireSupplier(company, supplierId) : null;
     List<PurchaseOrder> orders =
         supplier == null
             ? purchaseOrderRepository.findByCompanyWithLinesOrderByOrderDateDesc(company)
@@ -91,7 +90,7 @@ public class PurchaseOrderService {
   @Transactional
   public PurchaseOrderResponse createPurchaseOrder(PurchaseOrderRequest request) {
     Company company = companyContextService.requireCurrentCompany();
-    Supplier supplier = companyEntityLookup.requireSupplier(company, request.supplierId());
+    Supplier supplier = purchasingLookupService.requireSupplier(company, request.supplierId());
     supplier.requireTransactionalUsage("create purchase orders");
 
     String orderNumber = request.orderNumber().trim();
@@ -358,7 +357,7 @@ public class PurchaseOrderService {
 
   private RawMaterial requireMaterial(Company company, Long rawMaterialId) {
     try {
-      return companyEntityLookup.lockActiveRawMaterial(company, rawMaterialId);
+      return inventoryLookupService.lockActiveRawMaterial(company, rawMaterialId);
     } catch (IllegalArgumentException ex) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Raw material not found");

@@ -1,10 +1,10 @@
 # Reports Module
 
-Last reviewed: 2026-03-30
+Last reviewed: 2026-04-02
 
 ## Overview
 
-The `reports` module provides financial and operational reporting surfaces for the BigBright ERP. It serves as the canonical query layer over accounting truth, reading from posted journal lines, closed-period snapshots, dealer/supplier subledgers, and inventory data to produce various report outputs.
+The `reports` module provides financial and operational reporting surfaces for the orchestrator-erp backend. It serves as the canonical query layer over accounting truth, reading from posted journal lines, closed-period snapshots, dealer/supplier subledgers, and inventory data to produce various report outputs.
 
 **RBAC:** All report endpoints require `ROLE_ADMIN` or `ROLE_ACCOUNTING`.
 

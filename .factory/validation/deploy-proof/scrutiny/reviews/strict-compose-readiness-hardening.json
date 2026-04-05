@@ -1,0 +1,14 @@
+{
+  "featureId": "strict-compose-readiness-hardening",
+  "reviewedAt": "2026-04-04T02:15:00Z",
+  "commitId": "201f1ee9a6c0dcffedd19845ba538a624c357472",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Reviewed the feature handoff, commit diff (4 files: services.yaml, docker-compose.yml, CR_ActuatorProdHardeningIT.java, CR_ProductionMonitoringContractTest.java), and validation contract assertions VAL-DEPLOY-001 through VAL-DEPLOY-004 and VAL-CROSS-003. The changes correctly harden the strict compose smoke to require management health + readiness + app-boundary auth probe on the approved 9090/8081 boundary. The MailHog-backed compose defaults now provide complete SMTP config so readiness reports UP for local smoke. New regression tests verify the manifest/compose contract and the 8081-vs-9090 actuator split. All validation contract assertions are satisfied.",
+    "issues": []
+  },
+  "sharedStateObservations": [],
+  "summary": "PASS: commit 201f1ee9a6c0dcffedd19845ba538a624c357472 correctly implements the strict-compose-readiness-hardening feature. The strict-runtime-smoke-check now requires 9090/actuator/health=200 AND 9090/actuator/health/readiness=200 AND 8081/api/v1/auth/me in (200,401,403), satisfying VAL-DEPLOY-001, VAL-DEPLOY-002, VAL-DEPLOY-003, VAL-DEPLOY-004, and VAL-CROSS-003. The docker-compose.yml MailHog defaults provide explicit mailhog-user/mailhog-password SMTP credentials so local strict compose reaches readiness=UP without artificial DOWN state from missing config. New tests CR_ActuatorProdHardeningIT.prodKeepsActuatorTrafficOnManagementPort and CR_ProductionMonitoringContractTest.{strictComposeSmokeContractRequiresManagementReadinessAndAppProbe,composeDefaultsPreserveApprovedManagementAndAppBoundary} provide regression coverage for the manifest/compose contract and port boundary."
+}

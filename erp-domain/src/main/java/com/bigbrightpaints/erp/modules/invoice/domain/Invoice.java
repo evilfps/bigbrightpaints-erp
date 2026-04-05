@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -250,6 +251,20 @@ public class Invoice extends VersionedEntity {
   }
 
   public Set<String> getPaymentReferences() {
-    return paymentReferences;
+    return Collections.unmodifiableSet(new HashSet<>(paymentReferences));
+  }
+
+  public void addPaymentReference(String reference) {
+    if (reference == null) {
+      return;
+    }
+    paymentReferences.add(reference);
+  }
+
+  public void removePaymentReference(String reference) {
+    if (reference == null) {
+      return;
+    }
+    paymentReferences.remove(reference);
   }
 }

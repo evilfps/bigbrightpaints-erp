@@ -156,17 +156,18 @@ class TS_RuntimeTenantControlPlaneEnforcementTest {
   }
 
   @Test
-  void coreRuntimeAdmission_settingReadFailure_defaultsSafelyWithoutThrowing() {
+  void coreRuntimeAdmission_settingReadFailure_deniesRequestFailClosed() {
     com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService coreRuntimeService =
         coreRuntimeService();
     when(systemSettingsRepository.findById(any()))
         .thenThrow(new RuntimeException("settings-store-down"));
 
-    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle allowed =
+    com.bigbrightpaints.erp.core.security.TenantRuntimeAccessService.AccessHandle denied =
         coreRuntimeService.acquire("ACME", new MockHttpServletRequest("GET", "/api/v1/private"));
 
-    assertThat(allowed.allowed()).isTrue();
-    allowed.close();
+    assertThat(denied.allowed()).isFalse();
+    assertThat(denied.httpStatus()).isEqualTo(503);
+    assertThat(denied.reasonCode()).isEqualTo("TENANT_RUNTIME_POLICY_UNAVAILABLE");
   }
 
   @Test

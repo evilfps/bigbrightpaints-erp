@@ -28,7 +28,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import jakarta.persistence.EntityManager;
 
 @Service
-public class AccountingAuditService extends AccountingCoreEngine {
+public class AccountingAuditService extends AccountingCoreEngineCore {
 
   @Autowired
   public AccountingAuditService(

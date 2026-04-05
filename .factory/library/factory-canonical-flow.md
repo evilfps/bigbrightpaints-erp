@@ -13,15 +13,15 @@ Mission-specific route ownership, cleanup targets, and worker guardrails for the
 - Packaging setup/read contract: `/api/v1/factory/packaging-mappings`
 - Batch creation: `POST /api/v1/factory/production/logs`
 - Pack mutation: `POST /api/v1/factory/packing-records`
-- Dispatch confirm: `POST /api/v1/sales/dispatch/confirm`
+- Dispatch confirm: `POST /api/v1/dispatch/confirm`
 - Factory dispatch reads only: `/api/v1/dispatch/{pending,preview/{slipId},slip/{slipId},order/{orderId}}`
 
 ## Delete-First Targets
 
 - internal callers that still route through the legacy batch seam
 - pack legacy idempotency compatibility (`X-Idempotency-Key`, `X-Request-Id`, payload-derived fallback, auto-generated fallback keys)
-- `POST /api/v1/dispatch/confirm`
-- stale orchestrator dispatch aliases or canonicalPath pointers to `/api/v1/sales/dispatch/confirm`
+- the retired sales-prefixed dispatch-confirm alias
+- stale orchestrator dispatch aliases or canonicalPath pointers to the retired sales-prefixed dispatch-confirm alias
 - stale tests/docs/OpenAPI/frontend-handoff entries for retired surfaces, including any leftover references to retired pack routes or pack-completion semantics
 
 ## Terminology Rules
@@ -36,7 +36,7 @@ Mission-specific route ownership, cleanup targets, and worker guardrails for the
 - Factory owns execution truth only.
 - Production logging must keep raw-material consumption + WIP/semi-finished truth aligned.
 - Packing must keep packaging-material consumption + finished-goods truth aligned.
-- Dispatch posting owner remains the sales path through `SalesCoreEngine.confirmDispatch(...)`.
+- Dispatch controller/transport stays on `DispatchController` at `POST /api/v1/dispatch/confirm`, while `SalesCoreEngine.confirmDispatch(...)` remains the downstream commercial/accounting owner.
 - Do not redesign unrelated tenant/company/superadmin/control-plane flows in this packet.
 
 ## Validation Hotspots

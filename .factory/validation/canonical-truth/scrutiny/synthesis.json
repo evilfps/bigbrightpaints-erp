@@ -1,0 +1,46 @@
+{
+  "milestone": "canonical-truth",
+  "round": 1,
+  "status": "pass",
+  "validatorsRun": {
+    "test": {
+      "passed": true,
+      "command": "ROOT=\"/home/realnigga/Desktop/Mission-control\" && cd \"$ROOT\" && bash scripts/gate_fast.sh",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "passed": true,
+      "command": "ROOT=\"/home/realnigga/Desktop/Mission-control\" && cd \"$ROOT/erp-domain\" && MIGRATION_SET=v2 mvn -T8 compile -q",
+      "exitCode": 0
+    },
+    "lint": {
+      "passed": true,
+      "command": "ROOT=\"/home/realnigga/Desktop/Mission-control\" && cd \"$ROOT\" && bash ci/lint-knowledgebase.sh && bash ci/check-architecture.sh && bash ci/check-enterprise-policy.sh && bash ci/check-orchestrator-layer.sh && python3 scripts/check_flaky_tags.py --tests-root erp-domain/src/test/java --gate gate-fast && bash scripts/guard_openapi_contract_drift.sh",
+      "exitCode": 0
+    }
+  },
+  "reviewsSummary": {
+    "total": 2,
+    "passed": 2,
+    "failed": 0,
+    "failedFeatures": []
+  },
+  "blockingIssues": [],
+  "appliedUpdates": [],
+  "suggestedGuidanceUpdates": [
+    {
+      "target": "mission orchestration",
+      "suggestion": "Ensure canonical docs/governance-only features are excluded from scrutiny routing when mission guidance already classifies them as docs-only packets that should skip scrutiny and validators.",
+      "evidence": "The review for `canonical-doc-entrypoints-and-retirement-spine-cleanup` found that mission AGENTS says canonical docs/governance-only diffs should skip scrutiny, yet commit `06d5ffdd89ae8f4625f89cdaef04c93d7c42b7c1` was still sent through scrutiny review.",
+      "isSystemic": false
+    },
+    {
+      "target": "backend-worker skill",
+      "suggestion": "Allow governance/script cleanup features to satisfy the procedure with existing guard scripts and focused policy probes instead of requiring Java TDD-first steps in all cases.",
+      "evidence": "The review for `repo-artifact-purge-and-docs-only-governance-hardening` found the assigned `backend-worker` skill's hard-coded TDD-first procedure did not fit the feature's governance/script cleanup scope, and the worker handoff explicitly recorded a deviation to use governance validators and policy probes.",
+      "isSystemic": false
+    }
+  ],
+  "rejectedObservations": [],
+  "previousRound": null
+}

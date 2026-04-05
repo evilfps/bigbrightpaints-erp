@@ -108,7 +108,7 @@ class AccountingControllerExceptionHandlerTest {
     ApiResponse<Map<String, Object>> body =
         assertReplayErrorEnvelope(
             response,
-            HttpStatus.BAD_REQUEST,
+            HttpStatus.CONFLICT,
             ErrorCode.CONCURRENCY_CONFLICT,
             REPLAY_REASON_SUPPLIER,
             "/api/v1/accounting/settlements/suppliers");
@@ -134,7 +134,7 @@ class AccountingControllerExceptionHandlerTest {
     ApiResponse<Map<String, Object>> body =
         assertReplayErrorEnvelope(
             response,
-            HttpStatus.BAD_REQUEST,
+            HttpStatus.CONFLICT,
             ErrorCode.CONCURRENCY_CONFLICT,
             REPLAY_REASON_DEALER,
             "/api/v1/accounting/settlements/dealers");
@@ -156,7 +156,7 @@ class AccountingControllerExceptionHandlerTest {
     ApiResponse<Map<String, Object>> body =
         assertReplayErrorEnvelope(
             response,
-            HttpStatus.BAD_REQUEST,
+            HttpStatus.CONFLICT,
             ErrorCode.CONCURRENCY_CONFLICT,
             REPLAY_REASON_PARTNER_TYPE,
             "/api/v1/accounting/settlements/partners");
@@ -177,11 +177,32 @@ class AccountingControllerExceptionHandlerTest {
     ApiResponse<Map<String, Object>> body =
         assertReplayErrorEnvelope(
             response,
-            HttpStatus.BAD_REQUEST,
+            HttpStatus.CONFLICT,
             ErrorCode.CONCURRENCY_CONFLICT,
             REPLAY_REASON_SUPPLIER,
             "/api/v1/accounting/settlements/suppliers");
     assertThat(body.data()).doesNotContainKey("details");
+  }
+
+  @Test
+  void handleApplicationException_internalConcurrencyFailureMapsToConflictEnvelope() {
+    AccountingController controller = controller();
+    ApplicationException ex =
+        new ApplicationException(
+            ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+            "Sales journal reference already reserved but mapping not found");
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    request.setRequestURI("/api/v1/accounting/sales/returns");
+
+    ResponseEntity<ApiResponse<Map<String, Object>>> response =
+        controller.handleApplicationException(ex, request);
+
+    assertReplayErrorEnvelope(
+        response,
+        HttpStatus.CONFLICT,
+        ErrorCode.INTERNAL_CONCURRENCY_FAILURE,
+        "Sales journal reference already reserved but mapping not found",
+        "/api/v1/accounting/sales/returns");
   }
 
   @Test

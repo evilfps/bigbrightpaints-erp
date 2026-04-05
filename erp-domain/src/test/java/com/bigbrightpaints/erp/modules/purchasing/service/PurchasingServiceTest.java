@@ -49,6 +49,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.inventory.service.RawMaterialService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceipt;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptLine;
@@ -82,6 +83,8 @@ class PurchasingServiceTest {
   @Mock private GoodsReceiptRepository goodsReceiptRepository;
   @Mock private AccountingFacade accountingFacade;
   @Mock private JournalEntryRepository journalEntryRepository;
+  @Mock private CompanyScopedPurchasingLookupService purchasingLookupService;
+  @Mock private CompanyScopedInventoryLookupService inventoryLookupService;
   @Mock private CompanyEntityLookup companyEntityLookup;
   @Mock private ReferenceNumberService referenceNumberService;
   @Mock private CompanyClock companyClock;
@@ -109,6 +112,8 @@ class PurchasingServiceTest {
             movementRepository,
             goodsReceiptRepository,
             accountingFacade,
+            purchasingLookupService,
+            inventoryLookupService,
             journalEntryRepository,
             companyEntityLookup,
             referenceNumberService,
@@ -157,7 +162,7 @@ class PurchasingServiceTest {
   @DisplayName("createPurchase rejects duplicate invoice via pessimistic lock")
   void createPurchase_duplicateInvoice_throws() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
 
     RawMaterialPurchase existing = new RawMaterialPurchase();
     existing.setInvoiceNumber("INV-001");
@@ -232,7 +237,7 @@ class PurchasingServiceTest {
     settlementJournal.setStatus("POSTED");
     allocation.setJournalEntry(settlementJournal);
 
-    when(companyEntityLookup.requireRawMaterialPurchase(company, 215L)).thenReturn(purchase);
+    when(purchasingLookupService.requireRawMaterialPurchase(company, 215L)).thenReturn(purchase);
     when(settlementAllocationRepository.findByCompanyAndPurchase_IdInOrderByCreatedAtDesc(
             company, List.of(215L)))
         .thenReturn(List.of(allocation));
@@ -359,7 +364,7 @@ class PurchasingServiceTest {
   void recordPurchaseReturn_insufficientStock_throws() {
     activateSupplier();
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     RawMaterialPurchase purchase = new RawMaterialPurchase();
     ReflectionTestUtils.setField(purchase, "id", 30L);
     purchase.setSupplier(supplier);
@@ -372,7 +377,7 @@ class PurchasingServiceTest {
     purchaseLine.setQuantity(BigDecimal.valueOf(200));
     purchase.getLines().add(purchaseLine);
     when(purchaseRepository.lockByCompanyAndId(company, 30L)).thenReturn(Optional.of(purchase));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     when(companyClock.today(company)).thenReturn(LocalDate.now());
     when(accountingFacade.postPurchaseReturn(
             any(), any(), any(), any(), any(), any(), any(), any()))
@@ -404,7 +409,7 @@ class PurchasingServiceTest {
   void recordPurchaseReturn_sufficientStock_succeeds() {
     activateSupplier();
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     RawMaterialPurchase purchase = new RawMaterialPurchase();
     ReflectionTestUtils.setField(purchase, "id", 40L);
     purchase.setSupplier(supplier);
@@ -417,7 +422,7 @@ class PurchasingServiceTest {
     purchaseLine.setQuantity(BigDecimal.TEN);
     purchase.getLines().add(purchaseLine);
     when(purchaseRepository.lockByCompanyAndId(company, 40L)).thenReturn(Optional.of(purchase));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     when(companyClock.today(company)).thenReturn(LocalDate.now());
 
     JournalEntryDto journalDto = dummyJournal("PRN-SUP001-ABC123");
@@ -459,7 +464,7 @@ class PurchasingServiceTest {
   void recordPurchaseReturn_quantityExceedsRemaining_throws() {
     activateSupplier();
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     RawMaterialPurchase purchase = new RawMaterialPurchase();
     ReflectionTestUtils.setField(purchase, "id", 50L);
     purchase.setSupplier(supplier);
@@ -473,7 +478,7 @@ class PurchasingServiceTest {
     purchaseLine.setReturnedQuantity(BigDecimal.valueOf(8));
     purchase.getLines().add(purchaseLine);
     when(purchaseRepository.lockByCompanyAndId(company, 50L)).thenReturn(Optional.of(purchase));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     when(companyClock.today(company)).thenReturn(LocalDate.now());
     when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
             company, "PURCHASE_RETURN", "PRN-TEST-0001"))
@@ -497,7 +502,7 @@ class PurchasingServiceTest {
   void recordPurchaseReturn_amountExceedsOutstanding_throws() {
     activateSupplier();
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     RawMaterialPurchase purchase = new RawMaterialPurchase();
     ReflectionTestUtils.setField(purchase, "id", 60L);
     purchase.setSupplier(supplier);
@@ -510,7 +515,7 @@ class PurchasingServiceTest {
     purchaseLine.setQuantity(BigDecimal.TEN);
     purchase.getLines().add(purchaseLine);
     when(purchaseRepository.lockByCompanyAndId(company, 60L)).thenReturn(Optional.of(purchase));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     when(companyClock.today(company)).thenReturn(LocalDate.now());
     when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
             company, "PURCHASE_RETURN", "PRN-TEST-0001"))
@@ -551,7 +556,7 @@ class PurchasingServiceTest {
   void recordPurchaseReturn_currencyPrecisionComparison_allowsRoundedMatch() {
     activateSupplier();
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     RawMaterialPurchase purchase = new RawMaterialPurchase();
     ReflectionTestUtils.setField(purchase, "id", 61L);
     purchase.setSupplier(supplier);
@@ -564,7 +569,7 @@ class PurchasingServiceTest {
     purchaseLine.setQuantity(BigDecimal.ONE);
     purchase.getLines().add(purchaseLine);
     when(purchaseRepository.lockByCompanyAndId(company, 61L)).thenReturn(Optional.of(purchase));
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     when(companyClock.today(company)).thenReturn(LocalDate.now());
     when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
             company, "PURCHASE_RETURN", "PRN-TEST-0001"))
@@ -620,10 +625,10 @@ class PurchasingServiceTest {
   @DisplayName("createPurchase posts journal before saving purchase to avoid orphans")
   void createPurchase_journalPostedFirst() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-002"))
         .thenReturn(Optional.empty());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     GoodsReceipt goodsReceipt = stubGoodsReceipt(300L, 200L, BigDecimal.TEN, BigDecimal.valueOf(5));
 
     JournalEntry journalEntry = new JournalEntry();
@@ -672,10 +677,10 @@ class PurchasingServiceTest {
   @DisplayName("createPurchase posts input tax lines when taxAmount provided")
   void createPurchase_postsTaxLines() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-003"))
         .thenReturn(Optional.empty());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     GoodsReceipt goodsReceipt = stubGoodsReceipt(301L, 201L, BigDecimal.TEN, BigDecimal.valueOf(5));
 
     JournalEntryDto journalDto = dummyJournal("RMP-SUP001-INV003", 999L);
@@ -725,10 +730,10 @@ class PurchasingServiceTest {
   @DisplayName("createPurchase rejects mixed manual tax and line-level tax directives")
   void createPurchase_rejectsMixedManualAndLineTax() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-003A"))
         .thenReturn(Optional.empty());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     stubGoodsReceipt(311L, 211L, BigDecimal.TEN, BigDecimal.valueOf(5));
 
     RawMaterialPurchaseRequest request =
@@ -764,10 +769,10 @@ class PurchasingServiceTest {
   @DisplayName("createPurchase fails closed when taxInclusive is true without positive GST rate")
   void createPurchase_taxInclusiveWithoutPositiveRate_rejected() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-003B"))
         .thenReturn(Optional.empty());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     stubGoodsReceipt(312L, 212L, BigDecimal.TEN, new BigDecimal("5.90"));
 
     rawMaterial.setGstRate(BigDecimal.ZERO);
@@ -804,10 +809,10 @@ class PurchasingServiceTest {
   @DisplayName("createPurchase auto-computes tax when taxAmount omitted (exclusive)")
   void createPurchase_autoComputesTaxExclusive() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-004"))
         .thenReturn(Optional.empty());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     GoodsReceipt goodsReceipt =
         stubGoodsReceipt(302L, 202L, new BigDecimal("10"), new BigDecimal("5.00"));
 
@@ -865,10 +870,10 @@ class PurchasingServiceTest {
   @DisplayName("createPurchase fails closed to non-GST when no tax rates are provided")
   void createPurchase_noTaxRatesProvided_postsNoTaxLines() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-004A"))
         .thenReturn(Optional.empty());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     stubGoodsReceipt(305L, 205L, new BigDecimal("10"), new BigDecimal("5.00"));
 
     JournalEntryDto journalDto = dummyJournal("RMP-SUP001-INV004A", 1004L);
@@ -924,10 +929,10 @@ class PurchasingServiceTest {
   @DisplayName("createPurchase rejects negative GST rate when tax is auto-computed")
   void createPurchase_negativeTaxRate_throws() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-004B"))
         .thenReturn(Optional.empty());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     stubGoodsReceipt(306L, 206L, new BigDecimal("10"), new BigDecimal("5.00"));
 
     RawMaterialPurchaseRequest request =
@@ -962,10 +967,10 @@ class PurchasingServiceTest {
   @DisplayName("createPurchase rejects GST rate above supported maximum")
   void createPurchase_taxRateAboveMax_throws() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-004C"))
         .thenReturn(Optional.empty());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     stubGoodsReceipt(307L, 207L, new BigDecimal("10"), new BigDecimal("5.00"));
 
     RawMaterialPurchaseRequest request =
@@ -1000,10 +1005,10 @@ class PurchasingServiceTest {
   @DisplayName("createPurchase auto-computes tax when prices are tax-inclusive")
   void createPurchase_autoComputesTaxInclusive() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-005"))
         .thenReturn(Optional.empty());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     GoodsReceipt goodsReceipt =
         stubGoodsReceipt(303L, 203L, new BigDecimal("10"), new BigDecimal("5.90"));
 
@@ -1061,10 +1066,10 @@ class PurchasingServiceTest {
   @DisplayName("createPurchase rounds GST to paise for exclusive rates")
   void createPurchase_roundsTaxToPaise() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-006"))
         .thenReturn(Optional.empty());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     GoodsReceipt goodsReceipt =
         stubGoodsReceipt(304L, 204L, new BigDecimal("3"), new BigDecimal("1.99"));
 
@@ -1119,13 +1124,13 @@ class PurchasingServiceTest {
   @DisplayName("createPurchase rejects positive taxAmount for non-GST purchase mode")
   void createPurchase_rejectsNonGstTaxAmount() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-007"))
         .thenReturn(Optional.empty());
 
     RawMaterial privateMaterial =
         buildRawMaterial(21L, "Private Material", InventoryType.PRIVATE, BigDecimal.ZERO, 201L);
-    when(companyEntityLookup.lockActiveRawMaterial(company, 21L)).thenReturn(privateMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 21L)).thenReturn(privateMaterial);
     GoodsReceipt goodsReceipt =
         stubGoodsReceiptForMaterial(
             privateMaterial, 305L, 205L, BigDecimal.TEN, BigDecimal.valueOf(5));
@@ -1157,10 +1162,10 @@ class PurchasingServiceTest {
   @DisplayName("createPurchase rejects taxable GST lines when explicit taxAmount is zero")
   void createPurchase_rejectsZeroTaxAmountForTaxableGstLines() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-008"))
         .thenReturn(Optional.empty());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     GoodsReceipt goodsReceipt = stubGoodsReceipt(306L, 206L, BigDecimal.TEN, BigDecimal.valueOf(5));
     rawMaterial.setGstRate(new BigDecimal("18.00"));
 
@@ -1191,14 +1196,14 @@ class PurchasingServiceTest {
   @DisplayName("createPurchase rejects invoices that mix GST and non-GST materials")
   void createPurchase_rejectsMixedTaxModes() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-009"))
         .thenReturn(Optional.empty());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
 
     RawMaterial privateMaterial =
         buildRawMaterial(21L, "Private Material", InventoryType.PRIVATE, BigDecimal.ZERO, 201L);
-    when(companyEntityLookup.lockActiveRawMaterial(company, 21L)).thenReturn(privateMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 21L)).thenReturn(privateMaterial);
 
     PurchaseOrder order =
         buildPurchaseOrder(207L, supplier, rawMaterial, BigDecimal.TEN, BigDecimal.valueOf(5));

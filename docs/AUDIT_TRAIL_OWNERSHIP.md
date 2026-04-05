@@ -1,5 +1,12 @@
 # Audit Trail Ownership and De-dup Contract
 
+> ⚠️ **NON-CANONICAL / REFERENCE ONLY**
+>
+> This retained audit de-dup/change-control contract is outside the canonical docs spine.
+> Use [docs/modules/core-audit-runtime-settings.md](modules/core-audit-runtime-settings.md) for the canonical audit ownership overview.
+>
+> Status: reference only — retained audit de-dup/change-control contract. If this file conflicts with the canonical audit module packet, the canonical module packet wins.
+
 ## Goal
 Keep audit coverage complete without running duplicate audit-processing paths for the same accounting workflow event.
 

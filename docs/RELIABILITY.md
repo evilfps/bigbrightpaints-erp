@@ -1,8 +1,8 @@
-# BigBright ERP — Reliability
+# orchestrator-erp — Reliability
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-04-02
 
-This document captures the reliability posture of the BigBright ERP backend: idempotency patterns, retry/dead-letter handling, outbox guarantees, event propagation semantics, and known safety gaps.
+This document captures the reliability posture of the orchestrator-erp backend: idempotency patterns, retry/dead-letter handling, outbox guarantees, event propagation semantics, and known safety gaps.
 
 ---
 

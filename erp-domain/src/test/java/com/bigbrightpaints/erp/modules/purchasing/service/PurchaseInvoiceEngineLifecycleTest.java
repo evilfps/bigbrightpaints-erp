@@ -45,6 +45,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.inventory.service.RawMaterialService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceipt;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptLine;
@@ -77,6 +78,8 @@ class PurchaseInvoiceEngineLifecycleTest {
   @Mock private RawMaterialService rawMaterialService;
   @Mock private RawMaterialMovementRepository movementRepository;
   @Mock private AccountingFacade accountingFacade;
+  @Mock private CompanyScopedPurchasingLookupService purchasingLookupService;
+  @Mock private CompanyScopedInventoryLookupService inventoryLookupService;
   @Mock private CompanyEntityLookup companyEntityLookup;
   @Mock private ReferenceNumberService referenceNumberService;
   @Mock private com.bigbrightpaints.erp.core.util.CompanyClock companyClock;
@@ -103,6 +106,8 @@ class PurchaseInvoiceEngineLifecycleTest {
             rawMaterialService,
             movementRepository,
             accountingFacade,
+            purchasingLookupService,
+            inventoryLookupService,
             companyEntityLookup,
             referenceNumberService,
             companyClock,
@@ -190,7 +195,7 @@ class PurchaseInvoiceEngineLifecycleTest {
     movement.setUnitCost(new BigDecimal("12.50"));
 
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    lenient().when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    lenient().when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     lenient()
         .when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-40"))
         .thenReturn(Optional.empty());
@@ -200,7 +205,7 @@ class PurchaseInvoiceEngineLifecycleTest {
     lenient()
         .when(purchaseRepository.findByCompanyAndGoodsReceipt(company, goodsReceipt))
         .thenReturn(Optional.empty());
-    lenient().when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    lenient().when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
     lenient()
         .when(referenceNumberService.purchaseReference(company, supplier, "INV-40"))
         .thenReturn("RMP-SUP10-INV40");
@@ -317,7 +322,7 @@ class PurchaseInvoiceEngineLifecycleTest {
 
   @Test
   void createPurchase_rejectsUnknownRawMaterial() {
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L))
         .thenThrow(new IllegalArgumentException("Raw material not found: id=20"));
 
     RawMaterialPurchaseRequest request =

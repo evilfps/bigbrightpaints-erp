@@ -1,0 +1,27 @@
+{
+  "surface": "repo-static",
+  "groupId": "docs-reachability-round4",
+  "testedAt": "2026-04-02T17:00:02Z",
+  "assertions": [
+    {
+      "id": "VAL-DOCS-002",
+      "status": "pass",
+      "summary": "The canonical docs spine still defines `docs/INDEX.md` as the entrypoint, links the current module and flow inventories from that spine, and classifies the three retained top-level docs as reference-only in both `docs/INDEX.md` and `docs/deprecated/INDEX.md`. When opened directly, `docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md`, `docs/AUDIT_TRAIL_OWNERSHIP.md`, and `docs/accounting-portal-endpoint-map.md` now each carry matching top-of-file NON-CANONICAL / REFERENCE ONLY banners and replacement guidance, so the previously failing direct-open mismatch is resolved.",
+      "evidence": [
+        "docs/INDEX.md:5 defines the canonical docs spine boundary; docs/INDEX.md:46 and docs/INDEX.md:73 link the canonical module and flow inventories.",
+        "docs/INDEX.md:173-175 classifies ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md, AUDIT_TRAIL_OWNERSHIP.md, and accounting-portal-endpoint-map.md as reference-only retained docs with canonical replacements.",
+        "docs/deprecated/INDEX.md:162-164 repeats the same three docs as historical/non-canonical reference surfaces with their replacement paths.",
+        "docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md:3 and docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md:8 show a top-of-file NON-CANONICAL / REFERENCE ONLY banner and reference-only status note.",
+        "docs/AUDIT_TRAIL_OWNERSHIP.md:3 and docs/AUDIT_TRAIL_OWNERSHIP.md:8 show a top-of-file NON-CANONICAL / REFERENCE ONLY banner and reference-only status note.",
+        "docs/accounting-portal-endpoint-map.md:3 and docs/accounting-portal-endpoint-map.md:8 show a top-of-file NON-CANONICAL / REFERENCE ONLY banner and reference-only status note."
+      ],
+      "frictions": [],
+      "blockers": [],
+      "toolsUsed": [
+        "Read",
+        "Grep",
+        "LS"
+      ]
+    }
+  ]
+}

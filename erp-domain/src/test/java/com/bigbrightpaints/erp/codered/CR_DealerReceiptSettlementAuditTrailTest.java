@@ -642,6 +642,122 @@ class CR_DealerReceiptSettlementAuditTrailTest extends AbstractIntegrationTest {
   }
 
   @Test
+  void dealerReceiptSplit_isIdempotent_underConcurrency_andWritesAuditTrail() {
+    String companyCode = "CR-DRS-" + shortId();
+    Company company = bootstrapCompany(companyCode, "UTC");
+    Map<String, Account> accounts = ensureCoreAccounts(company);
+    Account cash = ensureAccount(company, "CASH", "Cash", AccountType.ASSET);
+    Dealer dealer = ensureDealer(company, accounts.get("AR"));
+
+    FinishedGood fg =
+        ensureFinishedGoodWithCatalog(company, accounts, "FG-" + shortId(), BigDecimal.ZERO);
+    CompanyContextHolder.setCompanyCode(companyCode);
+    registerFinishedGoodBatchForTest(
+        new FinishedGoodBatchRequest(
+            fg.getId(),
+            "BATCH-1",
+            new BigDecimal("20"),
+            new BigDecimal("10.00"),
+            Instant.now(),
+            null));
+    CompanyContextHolder.clear();
+
+    SalesOrder order =
+        createOrder(
+            company, dealer, fg.getProductCode(), new BigDecimal("5"), new BigDecimal("15.50"));
+    Invoice invoice = issueInvoiceForOrder(company, dealer, order);
+    BigDecimal outstanding = invoice.getOutstandingAmount();
+    BigDecimal bankAmount =
+        outstanding.divide(new BigDecimal("2"), 2, java.math.RoundingMode.HALF_UP);
+    BigDecimal cashAmount = outstanding.subtract(bankAmount);
+    String referenceNumber = "DRS-" + UUID.randomUUID();
+    String idempotencyKey = "DRS-IDEMP-" + UUID.randomUUID();
+
+    DealerReceiptSplitRequest receiptRequest =
+        new DealerReceiptSplitRequest(
+            dealer.getId(),
+            List.of(
+                new DealerReceiptSplitRequest.IncomingLine(accounts.get("BANK").getId(), bankAmount),
+                new DealerReceiptSplitRequest.IncomingLine(cash.getId(), cashAmount)),
+            referenceNumber,
+            "CODE-RED split receipt",
+            idempotencyKey);
+
+    CoderedConcurrencyHarness.RunResult<JournalEntryDto> result =
+        CoderedConcurrencyHarness.run(
+            2,
+            3,
+            Duration.ofSeconds(30),
+            threadIndex ->
+                () -> {
+                  CompanyContextHolder.setCompanyCode(companyCode);
+                  try {
+                    return accountingService.recordDealerReceiptSplit(receiptRequest);
+                  } finally {
+                    CompanyContextHolder.clear();
+                  }
+                },
+            CoderedRetry::isRetryable);
+
+    assertThat(result.outcomes())
+        .as("split receipt calls succeed")
+        .allMatch(outcome -> outcome instanceof CoderedConcurrencyHarness.Outcome.Success<?>);
+
+    List<Long> journalIds =
+        result.outcomes().stream()
+            .map(
+                outcome ->
+                    ((CoderedConcurrencyHarness.Outcome.Success<JournalEntryDto>) outcome).value())
+            .map(JournalEntryDto::id)
+            .distinct()
+            .toList();
+    assertThat(journalIds).as("single split receipt journal").hasSize(1);
+    Long journalId = journalIds.getFirst();
+
+    assertThat(
+            settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, referenceNumber))
+        .as("reference number not used as idempotency key")
+        .isEmpty();
+    assertThat(
+            settlementAllocationRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
+        .as("single split settlement allocation")
+        .hasSize(1);
+
+    Invoice refreshed =
+        invoiceRepository.findByCompanyAndId(company, invoice.getId()).orElseThrow();
+    assertThat(refreshed.getOutstandingAmount())
+        .as("invoice settled")
+        .isEqualByComparingTo(BigDecimal.ZERO);
+
+    CoderedDbAssertions.assertBalancedJournal(journalEntryRepository, journalId);
+    CoderedDbAssertions.assertDealerLedgerEntriesLinkedToJournal(
+        jdbcTemplate, company.getId(), journalId);
+    CoderedDbAssertions.assertAuditLogRecordedForJournal(jdbcTemplate, journalId);
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    ReconciliationService.ReconciliationResult reconciliation =
+        reconciliationService.reconcileArWithDealerLedger();
+    CompanyContextHolder.clear();
+    assertThat(reconciliation.isReconciled())
+        .as(
+            "ar reconciled (gl=%s ledger=%s variance=%s)",
+            reconciliation.glArBalance(),
+            reconciliation.dealerLedgerTotal(),
+            reconciliation.variance())
+        .isTrue();
+
+    CoderedDbAssertions.assertNoNegativeInventory(jdbcTemplate, company.getId());
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    try {
+      JournalEntryDto retry = accountingService.recordDealerReceiptSplit(receiptRequest);
+      assertThat(retry.id()).as("retry returns same split receipt").isEqualTo(journalId);
+    } finally {
+      CompanyContextHolder.clear();
+    }
+  }
+
+  @Test
   void dealerReceipt_reusedReferenceWithDifferentIdempotencyKey_doesNotDuplicateAllocations() {
     String companyCode = "CR-DR-REF-REUSE-" + shortId();
     Company company = bootstrapCompany(companyCode, "UTC");

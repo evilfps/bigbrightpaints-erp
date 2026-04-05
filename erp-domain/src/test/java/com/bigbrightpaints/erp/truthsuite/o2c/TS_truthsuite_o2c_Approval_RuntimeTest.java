@@ -44,7 +44,6 @@ import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyAccountingSettingsService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
@@ -104,7 +103,6 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
   @Mock private CompanyEntityLookup companyEntityLookup;
   @Mock private PackagingSlipRepository packagingSlipRepository;
   @Mock private FinishedGoodsService finishedGoodsService;
-  @Mock private AccountingService accountingService;
   @Mock private AccountingFacade accountingFacade;
 
   @Mock
@@ -148,7 +146,6 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
             companyEntityLookup,
             packagingSlipRepository,
             finishedGoodsService,
-            accountingService,
             accountingFacade,
             journalEntryRepository,
             invoiceNumberService,

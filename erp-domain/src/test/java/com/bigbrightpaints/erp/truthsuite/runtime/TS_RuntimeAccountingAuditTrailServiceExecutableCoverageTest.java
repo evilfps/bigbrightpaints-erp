@@ -107,8 +107,8 @@ class TS_RuntimeAccountingAuditTrailServiceExecutableCoverageTest {
     credit.setDebit(BigDecimal.ZERO);
     credit.setCredit(new BigDecimal("1500.00"));
 
-    entry.getLines().add(debit);
-    entry.getLines().add(credit);
+    entry.addLine(debit);
+    entry.addLine(credit);
 
     when(journalEntryRepository.findAll(
             any(org.springframework.data.jpa.domain.Specification.class), any(PageRequest.class)))
@@ -159,8 +159,8 @@ class TS_RuntimeAccountingAuditTrailServiceExecutableCoverageTest {
     credit.setDebit(BigDecimal.ZERO);
     credit.setCredit(new BigDecimal("1000.00"));
 
-    entry.getLines().add(debit);
-    entry.getLines().add(credit);
+    entry.addLine(debit);
+    entry.addLine(credit);
 
     when(journalEntryRepository.findByCompanyAndId(company, 99L)).thenReturn(Optional.of(entry));
     when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(

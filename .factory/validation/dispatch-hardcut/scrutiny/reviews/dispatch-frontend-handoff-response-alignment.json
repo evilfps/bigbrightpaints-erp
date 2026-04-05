@@ -1,0 +1,26 @@
+{
+  "featureId": "dispatch-frontend-handoff-response-alignment",
+  "reviewedAt": "2026-04-02T18:24:09.785569Z",
+  "commitId": "3652b9a2e6359ffdb1fb883970ab2c904b666a8e",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The fix fully resolves the prior blocking docs drift. `.factory/library/frontend-handoff.md` now describes `POST /api/v1/dispatch/confirm` with the live `DispatchConfirmationResponse`/`LineResult` field set and the O2C section no longer tells frontend consumers to read nonexistent `finalInvoiceId`-style values from the dispatch response.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The canonical dispatch workflow guard still only checks route/ownership literals, not field-level parity for `DispatchConfirmationResponse` in `.factory/library/frontend-handoff.md`, so the exact response-shape drift that caused the original scrutiny failure could recur without automated detection.",
+      "evidence": "`scripts/guard_workflow_canonical_paths.sh:28-83` requires `/api/v1/dispatch/confirm` literals and forbids retired aliases, but it never validates response-field names. The resolved drift lived at `.factory/library/frontend-handoff.md:2163-2166,3315` and only became obvious when compared against `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/dto/DispatchConfirmationResponse.java:7-25` and the `DispatchConfirmationResponse` / `LineResult` schemas in `openapi.json`."
+    },
+    {
+      "area": "skills",
+      "observation": "The docs-worker guidance still does not cleanly align with how docs-only `.factory/library/*` packets are being validated: this worker ran `bash scripts/gate_fast.sh` even though the feature only required docs-lint, contract guards, and a manual DTO/OpenAPI comparison, yet the handoff still reported `followedProcedure=true`.",
+      "evidence": "`.factory/skills/docs-worker/SKILL.md` Step 4 says docs-only features do not require repo-wide compile/runtime tests unless explicitly required and to run the packet's required verification commands; `features.json:634-639` lists only `docs-lint`, `contract-guards`, and a manual contract comparison; the transcript skeleton for session `af78cccc-073f-493e-8d2d-007c036d5d3e` shows `bash scripts/gate_fast.sh`; the handoff records `skillFeedback.followedProcedure: true`."
+    }
+  ],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/dispatch-hardcut/scrutiny/reviews/dispatch-surface-hardcut-and-flow-alignment.json",
+  "summary": "Pass. I reviewed the prior failed feature and review, the fix feature handoff/transcript/diff, and the current `.factory/library/frontend-handoff.md` against `DispatchConfirmationResponse` and `openapi.json`. The fix removes the nonexistent dispatch response fields and stale `finalInvoiceId` guidance that blocked the original packet, and I did not find new contract drift in the touched handoff sections."
+}

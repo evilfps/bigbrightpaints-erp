@@ -28,6 +28,8 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalLineDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.ManualJournalRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.PayrollBatchPaymentRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.PayrollBatchPaymentResponse;
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository;
@@ -75,6 +77,7 @@ class AccountingServiceStandardJournalTest {
   @Mock private AccountingEventStore accountingEventStore;
   @Mock private ObjectProvider<AccountingFacade> accountingFacadeProvider;
   @Mock private AccountingFacade accountingFacade;
+  @Mock private PayrollAccountingService payrollAccountingService;
 
   private AccountingService accountingService;
 
@@ -113,8 +116,8 @@ class AccountingServiceStandardJournalTest {
             mock(DealerReceiptService.class),
             mock(SettlementService.class),
             mock(CreditDebitNoteService.class),
-            mock(AccountingAuditService.class),
             mock(InventoryAccountingService.class),
+            payrollAccountingService,
             accountingFacadeProvider);
   }
 
@@ -228,6 +231,48 @@ class AccountingServiceStandardJournalTest {
     when(accountingFacade.createManualJournalEntry(request, "manual-xyz")).thenReturn(expected);
 
     JournalEntryDto actual = accountingService.createManualJournalEntry(request, "manual-xyz");
+
+    assertThat(actual).isSameAs(expected);
+  }
+
+  @Test
+  void processPayrollBatchPayment_delegatesToPayrollAccountingService() {
+    PayrollBatchPaymentRequest request =
+        new PayrollBatchPaymentRequest(
+            LocalDate.of(2026, 3, 31),
+            10L,
+            20L,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "PAY-2026-03",
+            "March payroll",
+            List.of(
+                new PayrollBatchPaymentRequest.PayrollLine(
+                    "Worker A", 5, new BigDecimal("100.00"), BigDecimal.ZERO, null, null, null)));
+    PayrollBatchPaymentResponse expected =
+        new PayrollBatchPaymentResponse(
+            401L,
+            LocalDate.of(2026, 3, 31),
+            new BigDecimal("500.00"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            new BigDecimal("500.00"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            new BigDecimal("500.00"),
+            901L,
+            null,
+            List.of());
+    when(payrollAccountingService.processPayrollBatchPayment(request)).thenReturn(expected);
+
+    PayrollBatchPaymentResponse actual = accountingService.processPayrollBatchPayment(request);
 
     assertThat(actual).isSameAs(expected);
   }

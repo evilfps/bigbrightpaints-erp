@@ -24,6 +24,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.service.PayrollAccountingService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 
@@ -32,8 +33,8 @@ class TS_RuntimeAccountingPayrollPostingExecutableCoverageTest {
 
   @Test
   void postPayrollRun_rejectsMissingRunIdentity() {
-    AccountingService service =
-        newAccountingService(mock(CompanyContextService.class), mock(CompanyClock.class));
+    PayrollAccountingService service =
+        newPayrollAccountingService(mock(CompanyContextService.class), mock(CompanyClock.class));
 
     assertThatThrownBy(
             () -> service.postPayrollRun("   ", null, LocalDate.of(2026, 2, 19), "memo", List.of()))
@@ -49,7 +50,8 @@ class TS_RuntimeAccountingPayrollPostingExecutableCoverageTest {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 19));
 
-    AccountingService service = spy(newAccountingService(companyContextService, companyClock));
+    PayrollAccountingService service =
+        spy(newPayrollAccountingService(companyContextService, companyClock));
     ArgumentCaptor<JournalCreationRequest> requestCaptor =
         ArgumentCaptor.forClass(JournalCreationRequest.class);
     doReturn(null).when(service).createStandardJournal(requestCaptor.capture());
@@ -79,7 +81,8 @@ class TS_RuntimeAccountingPayrollPostingExecutableCoverageTest {
     Company company = company();
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
 
-    AccountingService service = spy(newAccountingService(companyContextService, companyClock));
+    PayrollAccountingService service =
+        spy(newPayrollAccountingService(companyContextService, companyClock));
     ArgumentCaptor<JournalCreationRequest> requestCaptor =
         ArgumentCaptor.forClass(JournalCreationRequest.class);
     doReturn(null).when(service).createStandardJournal(requestCaptor.capture());
@@ -163,9 +166,48 @@ class TS_RuntimeAccountingPayrollPostingExecutableCoverageTest {
         mock(com.bigbrightpaints.erp.modules.accounting.service.DealerReceiptService.class),
         mock(com.bigbrightpaints.erp.modules.accounting.service.SettlementService.class),
         mock(com.bigbrightpaints.erp.modules.accounting.service.CreditDebitNoteService.class),
-        mock(com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditService.class),
         mock(com.bigbrightpaints.erp.modules.accounting.service.InventoryAccountingService.class),
+        newPayrollAccountingService(companyContextService, companyClock),
         mock(org.springframework.beans.factory.ObjectProvider.class));
+  }
+
+  private PayrollAccountingService newPayrollAccountingService(
+      CompanyContextService companyContextService, CompanyClock companyClock) {
+    com.bigbrightpaints.erp.modules.accounting.service.JournalEntryService journalEntryService =
+        mock(com.bigbrightpaints.erp.modules.accounting.service.JournalEntryService.class);
+    return new PayrollAccountingService(
+        companyContextService,
+        mock(com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository.class),
+        mock(com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository.class),
+        mock(com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService.class),
+        mock(com.bigbrightpaints.erp.modules.accounting.service.SupplierLedgerService.class),
+        mock(com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository.class),
+        mock(com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository.class),
+        mock(com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService.class),
+        mock(com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService.class),
+        mock(org.springframework.context.ApplicationEventPublisher.class),
+        companyClock,
+        mock(com.bigbrightpaints.erp.core.util.CompanyEntityLookup.class),
+        mock(
+            com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository
+                .class),
+        mock(com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository.class),
+        mock(com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository.class),
+        mock(com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository.class),
+        mock(com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository.class),
+        mock(com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository.class),
+        mock(com.bigbrightpaints.erp.modules.sales.domain.DealerRepository.class),
+        mock(com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository.class),
+        mock(com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy.class),
+        mock(com.bigbrightpaints.erp.modules.accounting.service.JournalReferenceResolver.class),
+        mock(
+            com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository
+                .class),
+        mock(jakarta.persistence.EntityManager.class),
+        mock(com.bigbrightpaints.erp.core.config.SystemSettingsService.class),
+        mock(com.bigbrightpaints.erp.core.audit.AuditService.class),
+        mock(com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore.class),
+        journalEntryService);
   }
 
   private AccountingFacade newAccountingFacade(AccountingService accountingService) {

@@ -1,0 +1,21 @@
+{
+  "featureId": "accounting-write-contract-and-replay-hardening",
+  "reviewedAt": "2026-04-03T06:12:58Z",
+  "commitId": "ff7056dcdcb0616f404728484674567fb5e23b12",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Within this feature's scope, the implementation correctly hardens the accounting write contract: `AccountingController` now maps replay conflicts to `409 CONCURRENCY_CONFLICT`, receipt/settlement/auto-settle routes reject legacy and body idempotency inputs in favor of `Idempotency-Key`, the affected DTO/OpenAPI surfaces no longer advertise body `idempotencyKey`, and payroll posting/payment still routes through the canonical accounting seam. The prior accounting-core decomposition failure from the previous synthesis remains orthogonal and unchanged, but I found no new feature-scoped regression or missing contract hardening here.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The backend-worker skill still lacks an explicit procedure for producing a clean feature commit when the shared workspace already contains unrelated dirty files.",
+      "evidence": "`.factory/skills/backend-worker/SKILL.md` does not document a clean-worktree fallback, while this feature's transcript skeleton and handoff show the worker had to create an isolated `/tmp/mission-control-accounting-contract-worker` worktree and `handoff.skillFeedback.followedProcedure=false` cites that detour as the deviation."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS: the feature delivers the requested accounting write-contract hardening without introducing new scoped issues. In rerun context, it neither resolves nor regresses the prior decomposition failure from the last accounting-core scrutiny synthesis."
+}

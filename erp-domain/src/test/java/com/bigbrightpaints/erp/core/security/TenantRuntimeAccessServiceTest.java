@@ -8,6 +8,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -238,6 +239,32 @@ class TenantRuntimeAccessServiceTest {
     assertThat(accessHandle.httpStatus()).isEqualTo(403);
     assertThat(accessHandle.reasonCode()).isEqualTo("TENANT_NOT_FOUND");
     verifyNoInteractions(auditService, enterpriseAuditTrailService);
+  }
+
+  @Test
+  void acquire_failsClosed_whenCompanyLookupThrows() {
+    when(companyRepository.findByCodeIgnoreCase("ACME"))
+        .thenThrow(new RuntimeException("company-lookup-unavailable"));
+
+    TenantRuntimeAccessService.AccessHandle accessHandle =
+        service.acquire("ACME", new MockHttpServletRequest("GET", "/api/v1/auth/me"));
+
+    assertThat(accessHandle.allowed()).isFalse();
+    assertThat(accessHandle.httpStatus()).isEqualTo(503);
+    assertThat(accessHandle.reasonCode()).isEqualTo("TENANT_COMPANY_LOOKUP_UNAVAILABLE");
+  }
+
+  @Test
+  void acquire_failsClosed_whenSettingsReadThrows() {
+    when(settingsRepository.findById(any()))
+        .thenThrow(new RuntimeException("settings-store-down"));
+
+    TenantRuntimeAccessService.AccessHandle accessHandle =
+        service.acquire("ACME", new MockHttpServletRequest("GET", "/api/v1/auth/me"));
+
+    assertThat(accessHandle.allowed()).isFalse();
+    assertThat(accessHandle.httpStatus()).isEqualTo(503);
+    assertThat(accessHandle.reasonCode()).isEqualTo("TENANT_RUNTIME_POLICY_UNAVAILABLE");
   }
 
   @Test

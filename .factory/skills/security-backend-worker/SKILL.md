@@ -17,6 +17,10 @@ Use for backend features that change:
 - compatibility-preserving hardening around frontend-sensitive auth/admin endpoints
 - CI-only router/manifest/contract packets for security-sensitive catching lanes when the feature intentionally changes verification surfaces rather than runtime product code
 
+## Required Skills
+
+None.
+
 ## Work Procedure
 
 ### Step 1: Understand the feature and its blast radius
@@ -45,15 +49,16 @@ Use for backend features that change:
 1. Make the smallest change that closes the security gap without unnecessary API churn.
 2. Preserve request/response shapes unless the feature explicitly allows a documented change.
 3. Remove obsolete authz checks, stale override paths, unused compatibility branches, and dead security-related code in the touched area when they would otherwise leave production confusion behind.
-4. When a feature is about canonicalizing a control-plane path, do not leave a second public writer, helper allowlist entry, or OpenAPI contract behind in the touched surface.
-5. For CI-only routing packets, keep the diff limited to manifests, router logic, and regression tests that prove the intended catching lane now fires for the feature's file surface.
-6. If a shape change is truly unavoidable:
+4. Do not leave a shadow runtime owner or fallback service behind when the feature is consolidating a security/control-plane path.
+5. When a feature is about canonicalizing a control-plane path, do not leave a second public writer, helper allowlist entry, or OpenAPI contract behind in the touched surface.
+6. For CI-only routing packets, keep the diff limited to manifests, router logic, and regression tests that prove the intended catching lane now fires for the feature's file surface.
+7. If a shape change is truly unavoidable:
    - update `.factory/library/frontend-handoff.md` in the same session,
    - describe the exact contract delta,
    - include migration notes for the frontend,
    - mention it explicitly in the handoff summary.
-7. Keep company/tenant binding fail-closed.
-8. Prefer strengthening existing code paths over introducing parallel contracts unless the feature specifically requires a replacement path.
+8. Keep company/tenant binding fail-closed.
+9. Prefer strengthening existing code paths over introducing parallel contracts unless the feature specifically requires a replacement path.
 
 ### Step 4: Verify aggressively
 1. Run `cd erp-domain && mvn compile -q`.
@@ -63,7 +68,8 @@ Use for backend features that change:
 5. Re-read every touched controller, DTO, migration, manifest, and error path in the diff looking for silent regressions.
 6. Explicitly verify adjacent ERP-sensitive flows touched by the change (for example: login/refresh/logout, `/auth/me`, forgot/reset, admin user controls, admin settings authz, tenant binding).
 7. If the local app is started and the feature needs runtime evidence, verify the changed flow with `curl` and capture the exact sequence.
-8. If the change surfaced stale adjacent security or period-policy tests, update them before handoff or return a tracked issue against a pending feature.
+8. If the feature changes runtime admission or control-plane mutation, re-run the dependent proof pack for auth/runtime boundaries from `.factory/services.yaml`.
+9. If the change surfaced stale adjacent security or period-policy tests, update them before handoff or return a tracked issue against a pending feature.
 
 ### Step 5: Update shared knowledge
 1. Update `.factory/library/frontend-handoff.md` for any touched auth/admin surface. If nothing changed, say so explicitly.

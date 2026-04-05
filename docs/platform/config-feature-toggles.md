@@ -244,7 +244,7 @@ These settings are scoped to individual tenants and are not directly tunable thr
 
 | Property | Default | Scope | Description |
 | --- | --- | --- | --- |
-| `security.mfa.issuer` | `BigBright ERP` | Config-only | Issuer name displayed in TOTP authenticator apps during MFA enrollment. |
+| `security.mfa.issuer` | Legacy literal default `BigBright ERP` | Config-only | Issuer name displayed in TOTP authenticator apps during MFA enrollment. Override this value when deployments should present current `orchestrator-erp` branding. |
 
 ---
 

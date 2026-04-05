@@ -33,6 +33,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.inventory.service.RawMaterialService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceipt;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptLine;
@@ -65,6 +66,8 @@ public class PurchaseInvoiceEngine {
   private final RawMaterialService rawMaterialService;
   private final RawMaterialMovementRepository movementRepository;
   private final AccountingFacade accountingFacade;
+  private final CompanyScopedPurchasingLookupService purchasingLookupService;
+  private final CompanyScopedInventoryLookupService inventoryLookupService;
   private final CompanyEntityLookup companyEntityLookup;
   private final ReferenceNumberService referenceNumberService;
   private final CompanyClock companyClock;
@@ -83,6 +86,8 @@ public class PurchaseInvoiceEngine {
       RawMaterialService rawMaterialService,
       RawMaterialMovementRepository movementRepository,
       AccountingFacade accountingFacade,
+      CompanyScopedPurchasingLookupService purchasingLookupService,
+      CompanyScopedInventoryLookupService inventoryLookupService,
       CompanyEntityLookup companyEntityLookup,
       ReferenceNumberService referenceNumberService,
       CompanyClock companyClock,
@@ -98,6 +103,8 @@ public class PurchaseInvoiceEngine {
     this.rawMaterialService = rawMaterialService;
     this.movementRepository = movementRepository;
     this.accountingFacade = accountingFacade;
+    this.purchasingLookupService = purchasingLookupService;
+    this.inventoryLookupService = inventoryLookupService;
     this.companyEntityLookup = companyEntityLookup;
     this.referenceNumberService = referenceNumberService;
     this.companyClock = companyClock;
@@ -117,7 +124,7 @@ public class PurchaseInvoiceEngine {
   public List<RawMaterialPurchaseResponse> listPurchases(Long supplierId) {
     Company company = companyContextService.requireCurrentCompany();
     Supplier supplier =
-        supplierId != null ? companyEntityLookup.requireSupplier(company, supplierId) : null;
+        supplierId != null ? purchasingLookupService.requireSupplier(company, supplierId) : null;
     List<RawMaterialPurchase> purchases =
         supplier == null
             ? purchaseRepository.findByCompanyWithLinesOrderByInvoiceDateDesc(company)
@@ -128,14 +135,14 @@ public class PurchaseInvoiceEngine {
 
   public RawMaterialPurchaseResponse getPurchase(Long id) {
     Company company = companyContextService.requireCurrentCompany();
-    RawMaterialPurchase purchase = companyEntityLookup.requireRawMaterialPurchase(company, id);
+    RawMaterialPurchase purchase = purchasingLookupService.requireRawMaterialPurchase(company, id);
     return responseMapper.toPurchaseResponse(purchase);
   }
 
   @Transactional
   public RawMaterialPurchaseResponse createPurchase(RawMaterialPurchaseRequest request) {
     Company company = companyContextService.requireCurrentCompany();
-    Supplier supplier = companyEntityLookup.requireSupplier(company, request.supplierId());
+    Supplier supplier = purchasingLookupService.requireSupplier(company, request.supplierId());
     supplier.requireTransactionalUsage("post purchase invoices");
     if (supplier.getPayableAccount() == null) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
@@ -711,7 +718,7 @@ public class PurchaseInvoiceEngine {
 
   private RawMaterial requireMaterial(Company company, Long rawMaterialId) {
     try {
-      return companyEntityLookup.lockActiveRawMaterial(company, rawMaterialId);
+      return inventoryLookupService.lockActiveRawMaterial(company, rawMaterialId);
     } catch (IllegalArgumentException ex) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Raw material not found");

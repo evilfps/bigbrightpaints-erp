@@ -2,22 +2,22 @@
 # See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
 # Default owner for everything in the repo
-* @anasibnanwar-XYE
+* @evilfps
 
 # CI/CD and GitHub automation - require review for workflow changes
-.github/ @anasibnanwar-XYE
-ci/ @anasibnanwar-XYE
+.github/ @evilfps
+ci/ @evilfps
 
 # Core domain source code
-erp-domain/ @anasibnanwar-XYE
+erp-domain/ @evilfps
 
 # Infrastructure and scripts
-scripts/ @anasibnanwar-XYE
-docker-compose.yml @anasibnanwar-XYE
+scripts/ @evilfps
+docker-compose.yml @evilfps
 
 # Testing infrastructure
-testing/ @anasibnanwar-XYE
+testing/ @evilfps
 
 # Documentation
-docs/ @anasibnanwar-XYE
-*.md @anasibnanwar-XYE
+docs/ @evilfps
+*.md @evilfps

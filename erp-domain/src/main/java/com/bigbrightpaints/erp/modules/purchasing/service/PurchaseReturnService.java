@@ -15,7 +15,6 @@ import org.springframework.util.StringUtils;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
@@ -24,6 +23,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
+import com.bigbrightpaints.erp.modules.accounting.service.JournalCorrectionMetadataService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -34,6 +34,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
@@ -53,7 +54,9 @@ public class PurchaseReturnService {
   private final RawMaterialMovementRepository movementRepository;
   private final AccountingFacade accountingFacade;
   private final JournalEntryRepository journalEntryRepository;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final JournalCorrectionMetadataService journalCorrectionMetadataService;
+  private final CompanyScopedPurchasingLookupService purchasingLookupService;
+  private final CompanyScopedInventoryLookupService inventoryLookupService;
   private final ReferenceNumberService referenceNumberService;
   private final CompanyClock companyClock;
   private final GstService gstService;
@@ -67,7 +70,9 @@ public class PurchaseReturnService {
       RawMaterialMovementRepository movementRepository,
       AccountingFacade accountingFacade,
       JournalEntryRepository journalEntryRepository,
-      CompanyEntityLookup companyEntityLookup,
+      JournalCorrectionMetadataService journalCorrectionMetadataService,
+      CompanyScopedPurchasingLookupService purchasingLookupService,
+      CompanyScopedInventoryLookupService inventoryLookupService,
       ReferenceNumberService referenceNumberService,
       CompanyClock companyClock,
       GstService gstService,
@@ -79,7 +84,9 @@ public class PurchaseReturnService {
     this.movementRepository = movementRepository;
     this.accountingFacade = accountingFacade;
     this.journalEntryRepository = journalEntryRepository;
-    this.companyEntityLookup = companyEntityLookup;
+    this.journalCorrectionMetadataService = journalCorrectionMetadataService;
+    this.purchasingLookupService = purchasingLookupService;
+    this.inventoryLookupService = inventoryLookupService;
     this.referenceNumberService = referenceNumberService;
     this.companyClock = companyClock;
     this.gstService = gstService;
@@ -89,7 +96,7 @@ public class PurchaseReturnService {
   @Transactional
   public PurchaseReturnPreviewDto previewPurchaseReturn(PurchaseReturnRequest request) {
     Company company = companyContextService.requireCurrentCompany();
-    Supplier supplier = companyEntityLookup.requireSupplier(company, request.supplierId());
+    Supplier supplier = purchasingLookupService.requireSupplier(company, request.supplierId());
     supplier.requireTransactionalUsage("preview purchase returns");
     RawMaterialPurchase purchase =
         purchaseRepository
@@ -153,7 +160,7 @@ public class PurchaseReturnService {
   @Transactional
   public JournalEntryDto recordPurchaseReturn(PurchaseReturnRequest request) {
     Company company = companyContextService.requireCurrentCompany();
-    Supplier supplier = companyEntityLookup.requireSupplier(company, request.supplierId());
+    Supplier supplier = purchasingLookupService.requireSupplier(company, request.supplierId());
     RawMaterialPurchase purchase =
         purchaseRepository
             .lockByCompanyAndId(company, request.purchaseId())
@@ -368,7 +375,7 @@ public class PurchaseReturnService {
         || sourceEntry.getId() == null) {
       return;
     }
-    journalEntryRepository
+    journalCorrectionMetadataService
         .findByCompanyAndId(company, entryDto.id())
         .ifPresent(
             entry -> {
@@ -378,26 +385,8 @@ public class PurchaseReturnService {
               if (!bootstrapCandidate) {
                 validateReplayCorrectionJournal(entry, sourceEntry, purchaseInvoiceNumber);
               }
-              boolean changed = false;
-              if (entry.getCorrectionType() != JournalCorrectionType.REVERSAL) {
-                entry.setCorrectionType(JournalCorrectionType.REVERSAL);
-                changed = true;
-              }
-              if (!"PURCHASE_RETURN".equalsIgnoreCase(entry.getCorrectionReason())) {
-                entry.setCorrectionReason("PURCHASE_RETURN");
-                changed = true;
-              }
-              if (!"PURCHASING_RETURN".equalsIgnoreCase(entry.getSourceModule())) {
-                entry.setSourceModule("PURCHASING_RETURN");
-                changed = true;
-              }
-              if (!Objects.equals(purchaseInvoiceNumber, entry.getSourceReference())) {
-                entry.setSourceReference(purchaseInvoiceNumber);
-                changed = true;
-              }
-              if (changed) {
-                journalEntryRepository.save(entry);
-              }
+              journalCorrectionMetadataService.syncReversalMetadata(
+                  entry, "PURCHASE_RETURN", "PURCHASING_RETURN", purchaseInvoiceNumber);
             });
   }
 
@@ -675,7 +664,7 @@ public class PurchaseReturnService {
 
   private RawMaterial requireActiveMaterial(Company company, Long rawMaterialId) {
     try {
-      return companyEntityLookup.lockActiveRawMaterial(company, rawMaterialId);
+      return inventoryLookupService.lockActiveRawMaterial(company, rawMaterialId);
     } catch (IllegalArgumentException ex) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Raw material not found");

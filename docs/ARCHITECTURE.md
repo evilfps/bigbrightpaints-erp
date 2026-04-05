@@ -1,10 +1,8 @@
-# BigBright ERP Architecture (Code-Grounded)
+# orchestrator-erp Architecture (Code-Grounded)
 
-> ⚠️ **NON-CANONICAL**: This document is superseded by the canonical documentation in the new docs tree. See [docs/INDEX.md](INDEX.md) as the primary entry point, [docs/modules/MODULE-INVENTORY.md](modules/MODULE-INVENTORY.md) for the module inventory, and [docs/BACKEND-FEATURE-CATALOG.md](BACKEND-FEATURE-CATALOG.md) for the exhaustive feature catalog.
+Last reviewed: 2026-04-02
 
-Last reviewed: 2026-03-29
-
-This document captures the runtime architecture implemented in `erp-domain` and is intended as an engineering reference for cross-module behavior, invariants, and dependency boundaries.
+This is the canonical runtime architecture reference in the public `orchestrator-erp` docs spine. Use [docs/INDEX.md](INDEX.md) for top-level navigation and [../ARCHITECTURE.md](../ARCHITECTURE.md) only as the repo-root signpost into this packet.
 
 ## 1) Runtime topology and module map
 

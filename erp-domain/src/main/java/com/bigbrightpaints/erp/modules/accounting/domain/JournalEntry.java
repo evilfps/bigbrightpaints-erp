@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -293,7 +294,15 @@ public class JournalEntry extends VersionedEntity {
   }
 
   public List<JournalLine> getLines() {
-    return lines;
+    return Collections.unmodifiableList(new ArrayList<>(lines));
+  }
+
+  public void addLine(JournalLine line) {
+    if (line == null) {
+      return;
+    }
+    line.setJournalEntry(this);
+    lines.add(line);
   }
 
   public Instant getCreatedAt() {

@@ -3,10 +3,6 @@ package com.bigbrightpaints.erp.core.util;
 import java.util.Optional;
 
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
-
-import com.bigbrightpaints.erp.core.exception.ApplicationException;
-import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
@@ -27,9 +23,8 @@ import com.bigbrightpaints.erp.modules.hr.domain.LeaveRequestRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
-import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
@@ -37,9 +32,8 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandReposito
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
-import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
-import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
+import com.bigbrightpaints.erp.modules.purchasing.service.CompanyScopedPurchasingLookupService;
 import com.bigbrightpaints.erp.modules.sales.domain.CreditRequest;
 import com.bigbrightpaints.erp.modules.sales.domain.CreditRequestRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
@@ -55,9 +49,8 @@ import com.bigbrightpaints.erp.modules.sales.domain.SalesTargetRepository;
 public class CompanyEntityLookup {
 
   private final DealerRepository dealerRepository;
-  private final SupplierRepository supplierRepository;
-  private final RawMaterialRepository rawMaterialRepository;
-  private final FinishedGoodRepository finishedGoodRepository;
+  private final CompanyScopedPurchasingLookupService purchasingLookupService;
+  private final CompanyScopedInventoryLookupService inventoryLookupService;
   private final SalesOrderRepository salesOrderRepository;
   private final InvoiceRepository invoiceRepository;
   private final ProductionBrandRepository productionBrandRepository;
@@ -70,7 +63,6 @@ public class CompanyEntityLookup {
   private final JournalEntryRepository journalEntryRepository;
   private final AccountingPeriodRepository accountingPeriodRepository;
   private final PayrollRunRepository payrollRunRepository;
-  private final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
   private final ProductionPlanRepository productionPlanRepository;
   private final FactoryTaskRepository factoryTaskRepository;
   private final EmployeeRepository employeeRepository;
@@ -78,9 +70,8 @@ public class CompanyEntityLookup {
 
   public CompanyEntityLookup(
       DealerRepository dealerRepository,
-      SupplierRepository supplierRepository,
-      RawMaterialRepository rawMaterialRepository,
-      FinishedGoodRepository finishedGoodRepository,
+      CompanyScopedPurchasingLookupService purchasingLookupService,
+      CompanyScopedInventoryLookupService inventoryLookupService,
       SalesOrderRepository salesOrderRepository,
       InvoiceRepository invoiceRepository,
       ProductionBrandRepository productionBrandRepository,
@@ -93,15 +84,13 @@ public class CompanyEntityLookup {
       JournalEntryRepository journalEntryRepository,
       AccountingPeriodRepository accountingPeriodRepository,
       PayrollRunRepository payrollRunRepository,
-      RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
       ProductionPlanRepository productionPlanRepository,
       FactoryTaskRepository factoryTaskRepository,
       EmployeeRepository employeeRepository,
       LeaveRequestRepository leaveRequestRepository) {
     this.dealerRepository = dealerRepository;
-    this.supplierRepository = supplierRepository;
-    this.rawMaterialRepository = rawMaterialRepository;
-    this.finishedGoodRepository = finishedGoodRepository;
+    this.purchasingLookupService = purchasingLookupService;
+    this.inventoryLookupService = inventoryLookupService;
     this.salesOrderRepository = salesOrderRepository;
     this.invoiceRepository = invoiceRepository;
     this.productionBrandRepository = productionBrandRepository;
@@ -114,7 +103,6 @@ public class CompanyEntityLookup {
     this.journalEntryRepository = journalEntryRepository;
     this.accountingPeriodRepository = accountingPeriodRepository;
     this.payrollRunRepository = payrollRunRepository;
-    this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
     this.productionPlanRepository = productionPlanRepository;
     this.factoryTaskRepository = factoryTaskRepository;
     this.employeeRepository = employeeRepository;
@@ -128,32 +116,19 @@ public class CompanyEntityLookup {
   }
 
   public Supplier requireSupplier(Company company, Long supplierId) {
-    return supplierRepository
-        .findByCompanyAndId(company, supplierId)
-        .orElseThrow(() -> new IllegalArgumentException("Supplier not found: id=" + supplierId));
+    return purchasingLookupService.requireSupplier(company, supplierId);
   }
 
   public RawMaterial requireRawMaterial(Company company, Long rawMaterialId) {
-    return rawMaterialRepository
-        .findByCompanyAndId(company, rawMaterialId)
-        .orElseThrow(
-            () -> new IllegalArgumentException("Raw material not found: id=" + rawMaterialId));
+    return inventoryLookupService.requireRawMaterial(company, rawMaterialId);
   }
 
   public RawMaterial requireActiveRawMaterial(Company company, Long rawMaterialId) {
-    RawMaterial rawMaterial = requireRawMaterial(company, rawMaterialId);
-    assertLinkedProductActive(company, rawMaterial.getSku(), "raw material", rawMaterialId);
-    return rawMaterial;
+    return inventoryLookupService.requireActiveRawMaterial(company, rawMaterialId);
   }
 
   public RawMaterial lockActiveRawMaterial(Company company, Long rawMaterialId) {
-    RawMaterial rawMaterial =
-        rawMaterialRepository
-            .lockByCompanyAndId(company, rawMaterialId)
-            .orElseThrow(
-                () -> new IllegalArgumentException("Raw material not found: id=" + rawMaterialId));
-    assertLinkedProductActive(company, rawMaterial.getSku(), "raw material", rawMaterialId);
-    return rawMaterial;
+    return inventoryLookupService.lockActiveRawMaterial(company, rawMaterialId);
   }
 
   public SalesOrder requireSalesOrder(Company company, Long orderId) {
@@ -183,27 +158,11 @@ public class CompanyEntityLookup {
   }
 
   public FinishedGood requireActiveFinishedGood(Company company, Long finishedGoodId) {
-    FinishedGood finishedGood =
-        finishedGoodRepository
-            .findByCompanyAndId(company, finishedGoodId)
-            .orElseThrow(
-                () ->
-                    new IllegalArgumentException("Finished good not found: id=" + finishedGoodId));
-    assertLinkedProductActive(
-        company, finishedGood.getProductCode(), "finished good", finishedGoodId);
-    return finishedGood;
+    return inventoryLookupService.requireActiveFinishedGood(company, finishedGoodId);
   }
 
   public FinishedGood lockActiveFinishedGood(Company company, Long finishedGoodId) {
-    FinishedGood finishedGood =
-        finishedGoodRepository
-            .lockByCompanyAndId(company, finishedGoodId)
-            .orElseThrow(
-                () ->
-                    new IllegalArgumentException("Finished good not found: id=" + finishedGoodId));
-    assertLinkedProductActive(
-        company, finishedGood.getProductCode(), "finished good", finishedGoodId);
-    return finishedGood;
+    return inventoryLookupService.lockActiveFinishedGood(company, finishedGoodId);
   }
 
   public ProductionLog requireProductionLog(Company company, Long logId) {
@@ -288,11 +247,7 @@ public class CompanyEntityLookup {
   }
 
   public RawMaterialPurchase requireRawMaterialPurchase(Company company, Long purchaseId) {
-    return rawMaterialPurchaseRepository
-        .findByCompanyAndId(company, purchaseId)
-        .orElseThrow(
-            () ->
-                new IllegalArgumentException("Raw material purchase not found: id=" + purchaseId));
+    return purchasingLookupService.requireRawMaterialPurchase(company, purchaseId);
   }
 
   public ProductionPlan requireProductionPlan(Company company, Long planId) {
@@ -317,23 +272,5 @@ public class CompanyEntityLookup {
     return leaveRequestRepository
         .findByCompanyAndId(company, leaveRequestId)
         .orElseThrow(() -> new IllegalArgumentException("Leave request not found"));
-  }
-
-  private void assertLinkedProductActive(
-      Company company, String sku, String entityType, Long entityId) {
-    if (company == null || !StringUtils.hasText(sku)) {
-      return;
-    }
-    ProductionProduct linkedProduct =
-        productionProductRepository.findByCompanyAndSkuCodeIgnoreCase(company, sku).orElse(null);
-    if (linkedProduct == null || linkedProduct.isActive()) {
-      return;
-    }
-    throw new ApplicationException(
-            ErrorCode.BUSINESS_INVALID_STATE,
-            "Catalog item is inactive for " + entityType + " " + sku)
-        .withDetail("sku", sku)
-        .withDetail(entityType.replace(' ', '_') + "Id", entityId)
-        .withDetail("productId", linkedProduct.getId());
   }
 }

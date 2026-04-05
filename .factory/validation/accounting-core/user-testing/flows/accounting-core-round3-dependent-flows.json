@@ -1,0 +1,111 @@
+{
+  "groupId": "accounting-core-round3-dependent-flows",
+  "testedAt": "2026-04-03T19:13:03+05:30",
+  "credentials": {
+    "account": "n/a",
+    "namespace": "n/a"
+  },
+  "toolsUsed": ["Read", "Grep", "LS", "mvn"],
+  "assertions": [
+    {
+      "id": "VAL-CROSS-005",
+      "title": "Finance and reconciliation consume dispatch truth instead of redefining it",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Read the validation contract and Lane 03 boundary note",
+          "expected": "Find the canonical dispatch/accounting boundary and downstream consumers",
+          "observed": "The contract and decision note state dispatch confirmation is the canonical sales-side accounting truth boundary and that reconciliation/period close consume that model."
+        },
+        {
+          "action": "Run the targeted accounting JVM proof pack",
+          "expected": "CriticalAccountingAxesIT and related accounting proof stay green",
+          "observed": "BUILD SUCCESS; CriticalAccountingAxesIT passed 12 tests and ReconciliationControlsIT passed 3 tests in the targeted accounting run."
+        },
+        {
+          "action": "Inspect the dispatch-to-accounting source path",
+          "expected": "Dispatch confirmation posts COGS/AR and creates the invoice without alternate posting boundaries",
+          "observed": "SalesCoreEngine.confirmDispatch calls accountingFacade.postCogsJournal and accountingFacade.postSalesJournal, then creates/syncs the invoice and ledger markers."
+        }
+      ],
+      "evidence": {
+        "testRuns": [
+          "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='JournalEntryE2ETest,AccountingControllerJournalEndpointsTest,AccountingControllerIdempotencyHeaderParityTest,CriticalAccountingAxesIT,TS_RuntimeAccountingReplayConflictExecutableCoverageTest,TS_RuntimeAccountingPayrollPostingExecutableCoverageTest,CR_ManualJournalSafetyTest,CR_DealerReceiptSettlementAuditTrailTest,CR_PayrollIdempotencyConcurrencyTest,NumberSequenceServiceIntegrationTest,ReferenceNumberServiceTest,TS_RuntimeReferenceNumberServiceExecutableCoverageTest,OrderNumberServiceTest,InvoiceNumberServiceTest,AccountingServiceTest#dealerReceiptService_routesLiveReceiptFlowThroughJournalEntryService+creditDebitNoteService_routesLiveCreditNoteFlowThroughJournalEntryService+inventoryAccountingService_routesLiveLandedCostFlowThroughJournalEntryService' test"
+        ],
+        "sourceRefs": [
+          "/home/realnigga/Desktop/Mission-control/docs/code-review/executable-specs/03-lane-accounting-truth-boundary/00-lane03-boundary-decision-note.md:24,39,67,81,114",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesCoreEngine.java:3303,3399-3450",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/ReconciliationServiceCore.java:897",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingPeriodServiceCore.java:801,851"
+        ],
+        "evidenceFiles": [
+          "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/accounting-core/round3-dependent-flows/evidence-notes.txt",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/target/surefire-reports/com.bigbrightpaints.erp.e2e.accounting.CriticalAccountingAxesIT.txt",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/target/surefire-reports/com.bigbrightpaints.erp.e2e.accounting.ReconciliationControlsIT.txt"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-CROSS-007",
+      "title": "Accounting cleanup preserves dependent-module behavior without duplicating accounting seams",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run the targeted dependent proof pack",
+          "expected": "Sales, inventory, purchasing, invoice, and period-close dependent flows stay green",
+          "observed": "BUILD SUCCESS; OrderFulfillmentE2ETest, ProcureToPayE2ETest, InventoryAccountingEventListenerIT, CreditDebitNoteIT, ReconciliationControlsIT, TS_PeriodCloseBoundaryCoverageTest, and TS_PeriodCloseAtomicSnapshotTest all passed."
+        },
+        {
+          "action": "Inspect the dependent module wiring",
+          "expected": "Touched areas rely on the canonical accounting facade instead of alternate write helpers",
+          "observed": "Dependent modules route through AccountingFacade; the only super.* hits in accounting services are thin delegating wrappers, not a second posting implementation."
+        },
+        {
+          "action": "Check the source evidence for the dependent proof surfaces",
+          "expected": "No duplicate helper seam or fallback accounting writer remains in the touched paths",
+          "observed": "Sales, purchasing, inventory, reconciliation, and period-close flows all resolve through canonical facade/core entrypoints, with no alternate write boundary found in the scanned touched areas."
+        }
+      ],
+      "evidence": {
+        "testRuns": [
+          "cd /home/realnigga/Desktop/Mission-control/erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='OrderFulfillmentE2ETest,ProcureToPayE2ETest,InventoryAccountingEventListenerIT,CreditDebitNoteIT,ReconciliationControlsIT,TS_PeriodCloseBoundaryCoverageTest,TS_PeriodCloseAtomicSnapshotTest' test"
+        ],
+        "sourceRefs": [
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesCoreEngine.java:3303,3399-3450",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/orchestrator/service/IntegrationCoordinator.java:72,86",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/inventory/service/InventoryAdjustmentService.java:33,60,75",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/PurchasingService.java:14,118",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/CreditDebitNoteService.java:107-122",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingPeriodService.java:170-188",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/InventoryAccountingService.java:106-116",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/DealerReceiptService.java:109-126",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/JournalEntryService.java:136-850"
+        ],
+        "evidenceFiles": [
+          "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/accounting-core/round3-dependent-flows/evidence-notes.txt",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/target/surefire-reports/com.bigbrightpaints.erp.e2e.sales.OrderFulfillmentE2ETest.txt",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/target/surefire-reports/com.bigbrightpaints.erp.e2e.accounting.ProcureToPayE2ETest.txt",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/target/surefire-reports/com.bigbrightpaints.erp.regression.InventoryAccountingEventListenerIT.txt",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/target/surefire-reports/com.bigbrightpaints.erp.e2e.accounting.CreditDebitNoteIT.txt",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/target/surefire-reports/com.bigbrightpaints.erp.e2e.accounting.ReconciliationControlsIT.txt",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/target/surefire-reports/com.bigbrightpaints.erp.truthsuite.periodclose.TS_PeriodCloseBoundaryCoverageTest.txt",
+          "/home/realnigga/Desktop/Mission-control/erp-domain/target/surefire-reports/com.bigbrightpaints.erp.truthsuite.periodclose.TS_PeriodCloseAtomicSnapshotTest.txt"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [
+    {
+      "description": "The Maven terminal output was truncated, so exact per-class results were verified from Surefire summary files under target/surefire-reports.",
+      "resolved": true,
+      "resolution": "Read the generated Surefire .txt summaries for each target test class and used those summaries as the authoritative proof record.",
+      "affectedAssertions": ["VAL-CROSS-005", "VAL-CROSS-007"]
+    }
+  ],
+  "blockers": [],
+  "summary": "Tested 2 assertions: 2 passed, 0 failed, 0 blocked. Dispatch confirmation remains the canonical sales-side accounting truth boundary, and the dependent sales, inventory, purchasing, invoice, reconciliation, and period-close flows stayed green without a duplicate accounting fallback path."
+}

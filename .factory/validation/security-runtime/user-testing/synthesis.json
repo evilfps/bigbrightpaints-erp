@@ -1,0 +1,26 @@
+{
+  "milestone": "security-runtime",
+  "round": 1,
+  "status": "pass",
+  "assertionsSummary": {
+    "total": 9,
+    "passed": 9,
+    "failed": 0,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-SEC-001",
+    "VAL-SEC-002",
+    "VAL-SEC-003",
+    "VAL-SEC-004",
+    "VAL-SEC-005",
+    "VAL-SEC-006",
+    "VAL-SEC-007",
+    "VAL-SEC-008",
+    "VAL-CROSS-004"
+  ],
+  "failedAssertions": [],
+  "blockedAssertions": [],
+  "appliedUpdates": [],
+  "previousRound": null
+}

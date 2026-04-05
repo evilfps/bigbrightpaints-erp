@@ -1,0 +1,38 @@
+{
+  "milestone": "deploy-proof",
+  "surface": "repo-static",
+  "generatedAt": "2026-04-04T12:24:53Z",
+  "assertionResults": [
+    {
+      "id": "VAL-DEPLOY-006",
+      "status": "pass",
+      "reason": ".github/workflows/ci.yml keeps deployability proof on gate-release/release_proof, while .github/workflows/release.yml states in its summary that it only generates release notes and does not prove deployability."
+    },
+    {
+      "id": "VAL-DEPLOY-007",
+      "status": "pass",
+      "reason": "AGENTS.md and scripts/enforce_codex_review_policy.sh use the same narrow docs-only allowlist, include .factory/library/** explicitly, run bash ci/lint-knowledgebase.sh only, and classify markdown outside that allowlist as non-docs-only."
+    }
+  ],
+  "filesInspected": [
+    "/home/realnigga/Desktop/Mission-control/.github/workflows/ci.yml",
+    "/home/realnigga/Desktop/Mission-control/.github/workflows/release.yml",
+    "/home/realnigga/Desktop/Mission-control/scripts/enforce_codex_review_policy.sh",
+    "/home/realnigga/Desktop/Mission-control/AGENTS.md",
+    "/home/realnigga/Desktop/Mission-control/.factory/library/user-testing.md",
+    "/home/realnigga/Desktop/Mission-control/.factory/services.yaml"
+  ],
+  "toolsUsed": [
+    "Read",
+    "Grep",
+    "Execute"
+  ],
+  "frictions": [
+    "Task-based flow-validator subagents could not be used in this session because the configured user-testing-flow-validator droid reported an invalid model (gpt-5.4); the parent validator performed equivalent checks directly and captured the same artifacts."
+  ],
+  "blockers": [],
+  "evidencePaths": [
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/deploy-proof/repo-static/workflow-release-summary.txt",
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/deploy-proof/repo-static/docs-only-policy-summary.txt"
+  ]
+}

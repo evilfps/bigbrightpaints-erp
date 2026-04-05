@@ -1,0 +1,45 @@
+{
+  "featureId": "accounting-core-decomposition-foundation",
+  "reviewedAt": "2026-04-03T05:48:19Z",
+  "commitId": "6525b77cc3fe363ce6593204dd273811362f1e16",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "fail",
+  "codeReview": {
+    "summary": "The feature successfully removes the AccountingCoreEngine/AccountingCoreLogic/AccountingCoreService wrapper shells and deletes dead helper scaffolding, but it does not resolve the previously reported decomposition problem: core accounting behavior remains centralized in AccountingCoreEngineCore and focused services still forward key workflows through inheritance/delegation instead of owning them.",
+    "issues": [
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingCoreEngineCore.java",
+        "line": 86,
+        "severity": "blocking",
+        "description": "Real decomposition is still not achieved. After this refactor, AccountingCoreEngineCore remains an 8100-line monolith that still owns the core implementations for createStandardJournal (line 317), createJournalEntry (line 548), postPayrollRun (line 1705), recordPayrollPayment (line 1747), settleDealerInvoices (line 2490), and settleSupplierInvoices (line 2775), so the business logic is still centralized instead of owned by focused services."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/SettlementService.java",
+        "line": 41,
+        "severity": "blocking",
+        "description": "The prior settlement delegation-chain failure remains. SettlementService now extends AccountingCoreEngineCore directly but still only normalizes input and forwards settleDealerInvoices/settleSupplierInvoices to AccountingIdempotencyService (lines 111-123), and AccountingIdempotencyService still forwards those calls to super.* in AccountingCoreEngineCore (AccountingIdempotencyService lines 126-140). Focused settlement ownership was not achieved."
+      },
+      {
+        "file": "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/PayrollAccountingService.java",
+        "line": 37,
+        "severity": "blocking",
+        "description": "The new payroll-focused service is still a thin wrapper over the monolith rather than the canonical owner of migrated payroll logic. PayrollAccountingService extends AccountingCoreEngineCore and its main payroll operations just call super.postPayrollRun / super.recordPayrollPayment (lines 102-112), so the packet renames the old engine surface without extracting ownership of the underlying behavior."
+      }
+    ]
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The backend-worker decomposition procedure still permits wrapper-only outcomes that delete shell classes without migrating real business logic into focused owners.",
+      "evidence": ".factory/skills/backend-worker/SKILL.md Step 3 says to create focused services and keep the god service as a delegating facade initially, but it never requires validating that the new services own the migrated implementations. In this feature, the wrapper classes were deleted, yet AccountingCoreEngineCore still holds the core methods (for example createJournalEntry line 548 and settleSupplierInvoices line 2775) while SettlementService and PayrollAccountingService still delegate through super/dependency hops."
+    },
+    {
+      "area": "skills",
+      "observation": "Backend-worker Step 6 still conflicts with higher-priority packet rules when a feature removes dead code but is not allowed to update docs/library files.",
+      "evidence": ".factory/skills/backend-worker/SKILL.md Step 6 requires appending .factory/library/remediation-log.md when duplicate-truth or dead code paths are removed, but this feature's handoff marks followedProcedure=false and records a justified deviation because higher-priority packet instructions forbade doc updates unless explicitly requested."
+    }
+  ],
+  "addressesFailureFrom": "/home/realnigga/Desktop/Mission-control/.factory/validation/accounting-core/scrutiny/reviews/fix-remaining-accounting-scrutiny-gaps.json",
+  "summary": "FAIL: the packet removes the old wrapper classes and dead helper scaffolding, but the prior accounting-core decomposition concerns remain open because AccountingCoreEngineCore is still the monolithic owner and settlement/payroll workflows still rely on inheritance-based delegation."
+}

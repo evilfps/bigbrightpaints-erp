@@ -28,6 +28,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 public class AccountingFacade extends AccountingFacadeCore {
 
   public static final String MANUAL_REFERENCE_PREFIX = AccountingFacadeCore.MANUAL_REFERENCE_PREFIX;
+  private final AccountingService accountingService;
   private final CompanyContextService companyContextService;
   private final CompanyClock companyClock;
 
@@ -57,6 +58,7 @@ public class AccountingFacade extends AccountingFacadeCore {
         companyAccountingSettingsService,
         journalReferenceResolver,
         journalReferenceMappingRepository);
+    this.accountingService = accountingService;
     this.companyContextService = companyContextService;
     this.companyClock = companyClock;
   }
@@ -178,8 +180,7 @@ public class AccountingFacade extends AccountingFacadeCore {
 
   @Override
   public JournalEntryDto recordPayrollPayment(PayrollPaymentRequest request) {
-    // return accountingService.recordPayrollPayment(request);
-    return super.recordPayrollPayment(request);
+    return accountingService.recordPayrollPayment(request);
   }
 
   private static java.util.List<JournalCreationRequest.LineRequest> toCreationLines(

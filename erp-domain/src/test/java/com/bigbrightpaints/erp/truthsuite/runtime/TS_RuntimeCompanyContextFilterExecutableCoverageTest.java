@@ -92,12 +92,22 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
   }
 
   @Test
-  void doFilter_allowsSuperAdminCanonicalTenantControlBypassForNonActiveTenant()
+  void doFilter_allowsSuperAdminCanonicalTenantControlAdmissionForNonActiveTenant()
       throws ServletException, IOException {
     authenticate("ops@bbp.com", Set.of("ROLE_SUPER_ADMIN"), Set.of("ROOT"));
     when(companyService.resolveCompanyCodeById(42L)).thenReturn("ACME");
     when(companyService.resolveLifecycleStateByCode("ACME"))
         .thenReturn(CompanyLifecycleState.DEACTIVATED);
+    TenantRuntimeEnforcementService.TenantRequestAdmission admission =
+        TenantRuntimeEnforcementService.TenantRequestAdmission.admittedPolicyControl(
+            "ACME", "chain-1");
+    when(tenantRuntimeRequestAdmissionService.beginRequest(
+            "ACME",
+            "/api/v1/superadmin/tenants/42/lifecycle",
+            "PUT",
+            "ops@bbp.com",
+            true))
+        .thenReturn(admission);
 
     MockHttpServletRequest request = request("PUT", "/api/v1/superadmin/tenants/42/lifecycle");
     request.setAttribute("jwtClaims", claimsFor("ROOT"));
@@ -109,8 +119,14 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
         (req, res) -> assertThat(CompanyContextHolder.getCompanyCode()).isEqualTo("ACME"));
 
     assertThat(response.getStatus()).isEqualTo(200);
-    verify(tenantRuntimeRequestAdmissionService, never())
-        .beginRequest(anyString(), anyString(), anyString(), anyString(), anyBoolean());
+    verify(tenantRuntimeRequestAdmissionService)
+        .beginRequest(
+            "ACME",
+            "/api/v1/superadmin/tenants/42/lifecycle",
+            "PUT",
+            "ops@bbp.com",
+            true);
+    verify(tenantRuntimeRequestAdmissionService).completeRequest(admission, 200);
   }
 
   @Test
@@ -279,7 +295,7 @@ class TS_RuntimeCompanyContextFilterExecutableCoverageTest {
     assertThat(
             invokeHasTenantRuntimePolicyControlAuthority(
                 "/api/v1/superadmin/tenants/77/limits", "PUT"))
-        .isFalse();
+        .isTrue();
     assertThat(
             invokeExtractCompanyIdFromControlPlanePath(
                 "/api/v1/superadmin/tenants/not-a-number/limits"))

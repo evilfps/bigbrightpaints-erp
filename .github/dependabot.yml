@@ -26,7 +26,7 @@ updates:
       - "dependencies"
       - "java"
     assignees:
-      - "anasibnanwar-XYE"
+      - "evilfps"
     commit-message:
       prefix: "deps"
       include: "scope"
@@ -50,7 +50,7 @@ updates:
       - "dependencies"
       - "github-actions"
     assignees:
-      - "anasibnanwar-XYE"
+      - "evilfps"
     commit-message:
       prefix: "ci"
       include: "scope"

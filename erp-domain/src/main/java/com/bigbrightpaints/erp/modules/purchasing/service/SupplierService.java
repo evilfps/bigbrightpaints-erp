@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.security.CryptoService;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -38,7 +37,7 @@ public class SupplierService {
   private final CompanyContextService companyContextService;
   private final AccountRepository accountRepository;
   private final SupplierLedgerService supplierLedgerService;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedPurchasingLookupService purchasingLookupService;
   private final CryptoService cryptoService;
 
   public SupplierService(
@@ -46,13 +45,13 @@ public class SupplierService {
       CompanyContextService companyContextService,
       AccountRepository accountRepository,
       SupplierLedgerService supplierLedgerService,
-      CompanyEntityLookup companyEntityLookup,
+      CompanyScopedPurchasingLookupService purchasingLookupService,
       CryptoService cryptoService) {
     this.supplierRepository = supplierRepository;
     this.companyContextService = companyContextService;
     this.accountRepository = accountRepository;
     this.supplierLedgerService = supplierLedgerService;
-    this.companyEntityLookup = companyEntityLookup;
+    this.purchasingLookupService = purchasingLookupService;
     this.cryptoService = cryptoService;
   }
 
@@ -165,7 +164,7 @@ public class SupplierService {
   }
 
   private Supplier requireSupplier(Company company, Long id) {
-    return companyEntityLookup.requireSupplier(company, id);
+    return purchasingLookupService.requireSupplier(company, id);
   }
 
   private Account createPayableAccount(Company company, Supplier supplier) {

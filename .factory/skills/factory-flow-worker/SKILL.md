@@ -13,7 +13,7 @@ Use for ERP-38 implementation features that change factory, inventory, sales, or
 
 - `POST /api/v1/factory/production/logs`
 - `POST /api/v1/factory/packing-records`
-- `POST /api/v1/sales/dispatch/confirm`
+- `POST /api/v1/dispatch/confirm`
 
 This worker owns route removal, dead-code cleanup, stale test replacement/deletion, OpenAPI/endpoint-inventory cleanup, workflow-doc cleanup, and cross-module correctness proof for the ERP-38 packet.
 

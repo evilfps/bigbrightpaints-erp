@@ -1,0 +1,21 @@
+{
+  "featureId": "canonical-doc-entrypoints-and-retirement-spine-cleanup",
+  "reviewedAt": "2026-04-02T21:13:41+05:30",
+  "commitId": "06d5ffdd89ae8f4625f89cdaef04c93d7c42b7c1",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The docs-only commit satisfies the stated canonical-truth scope. README.md and repo-root ARCHITECTURE.md now act as signposts into the public docs spine instead of pointing readers at .factory/library guidance; docs/ARCHITECTURE.md is correctly restored to canonical status; docs/INDEX.md and docs/deprecated/INDEX.md now agree on which surfaces are canonical versus retained-reference; and docs/endpoint-inventory.md now carries a top-of-file REFERENCE ONLY banner that matches its index classification. The touched canonical entrypoints consistently use orchestrator-erp naming, and I did not find any blocking or non-blocking correctness issues in the reviewed diff.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "conventions",
+      "observation": "The mission shared-state says canonical docs/governance-only packets should skip scrutiny, but this docs-only feature was still routed into scrutiny review. That suggests the docs-only classifier/orchestration is not fully aligned with the mission rule.",
+      "evidence": "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/AGENTS.md:39-46 says docs-only canonical docs/governance diffs should 'skip scrutiny' and 'skip validators'; /home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/features.json:386-392 defines this feature as a docs-worker task whose diff must stay limited to docs/governance surfaces; commit 06d5ffdd89ae8f4625f89cdaef04c93d7c42b7c1 touches only README.md, ARCHITECTURE.md, docs/ARCHITECTURE.md, docs/INDEX.md, docs/deprecated/INDEX.md, and docs/endpoint-inventory.md."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The feature correctly aligns the repo entrypoints onto one canonical docs spine, fixes the docs/ARCHITECTURE canonical-status drift, aligns retained-reference classifications with file-local banners, and updates the touched canonical entrypoints to orchestrator-erp naming. No actionable review issues found; one shared-state observation notes that a docs-only packet was still sent through scrutiny despite the mission AGENTS rule saying such packets should skip scrutiny."
+}

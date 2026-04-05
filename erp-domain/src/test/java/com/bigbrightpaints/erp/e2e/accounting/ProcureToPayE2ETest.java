@@ -169,14 +169,14 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     settlementReq.put("cashAccountId", cash.getId());
     settlementReq.put("settlementDate", entryDate);
     settlementReq.put("referenceNumber", settlementRef);
-    settlementReq.put("idempotencyKey", settlementRef);
     settlementReq.put("allocations", List.of(allocation));
+    HttpHeaders settlementHeaders = headersWithIdempotencyKey(settlementRef);
 
     ResponseEntity<Map> settleResp =
         rest.exchange(
             "/api/v1/accounting/settlements/suppliers",
             HttpMethod.POST,
-            new HttpEntity<>(settlementReq, headers),
+            new HttpEntity<>(settlementReq, settlementHeaders),
             Map.class);
     assertThat(settleResp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -184,7 +184,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         rest.exchange(
             "/api/v1/accounting/settlements/suppliers",
             HttpMethod.POST,
-            new HttpEntity<>(settlementReq, headers),
+            new HttpEntity<>(settlementReq, settlementHeaders),
             Map.class);
     assertThat(settleRepeat.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -438,15 +438,15 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     paymentReq.put("amount", totalAmount);
     String paymentRef = "PAY-" + shortSuffix();
     paymentReq.put("referenceNumber", paymentRef);
-    paymentReq.put("idempotencyKey", paymentRef);
     paymentReq.put("memo", "Supplier payment allocation");
     paymentReq.put("allocations", List.of(allocation));
+    HttpHeaders paymentHeaders = headersWithIdempotencyKey(paymentRef);
 
     ResponseEntity<Map> paymentResp =
         rest.exchange(
             "/api/v1/accounting/settlements/suppliers",
             HttpMethod.POST,
-            new HttpEntity<>(paymentReq, headers),
+            new HttpEntity<>(paymentReq, paymentHeaders),
             Map.class);
     assertThat(paymentResp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -704,14 +704,14 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     settlementReq.put("cashAccountId", cash.getId());
     settlementReq.put("settlementDate", entryDate);
     settlementReq.put("referenceNumber", settlementRef);
-    settlementReq.put("idempotencyKey", settlementRef);
     settlementReq.put("allocations", List.of(allocation));
+    HttpHeaders settlementHeaders = headersWithIdempotencyKey(settlementRef);
 
     ResponseEntity<Map> settleResp =
         rest.exchange(
             "/api/v1/accounting/settlements/suppliers",
             HttpMethod.POST,
-            new HttpEntity<>(settlementReq, headers),
+            new HttpEntity<>(settlementReq, settlementHeaders),
             Map.class);
     assertThat(settleResp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -1214,6 +1214,13 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     h.setContentType(MediaType.APPLICATION_JSON);
     h.set("X-Company-Code", COMPANY_CODE);
     return h;
+  }
+
+  private HttpHeaders headersWithIdempotencyKey(String idempotencyKey) {
+    HttpHeaders scoped = new HttpHeaders();
+    scoped.putAll(headers);
+    scoped.set("Idempotency-Key", idempotencyKey);
+    return scoped;
   }
 
   private String shortSuffix() {

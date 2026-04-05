@@ -24,11 +24,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
-import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrder;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderLine;
 import com.bigbrightpaints.erp.modules.purchasing.domain.PurchaseOrderRepository;
@@ -43,8 +42,8 @@ class PurchaseOrderServiceTransitionMatrixTest {
 
   @Mock private CompanyContextService companyContextService;
   @Mock private PurchaseOrderRepository purchaseOrderRepository;
-  @Mock private RawMaterialRepository rawMaterialRepository;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedPurchasingLookupService purchasingLookupService;
+  @Mock private CompanyScopedInventoryLookupService inventoryLookupService;
   @Mock private PurchaseOrderStatusHistoryRepository purchaseOrderStatusHistoryRepository;
 
   private PurchaseOrderService purchaseOrderService;
@@ -58,8 +57,8 @@ class PurchaseOrderServiceTransitionMatrixTest {
         new PurchaseOrderService(
             companyContextService,
             purchaseOrderRepository,
-            rawMaterialRepository,
-            companyEntityLookup,
+            purchasingLookupService,
+            inventoryLookupService,
             new PurchaseResponseMapper(),
             purchaseOrderStatusHistoryRepository);
 

@@ -20,14 +20,13 @@ import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
-import com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
-import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnPreviewDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyAccountingSettingsService;
+import com.bigbrightpaints.erp.modules.accounting.service.JournalCorrectionMetadataService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
@@ -61,7 +60,7 @@ public class SalesReturnService {
   private final InventoryMovementRepository inventoryMovementRepository;
   private final BatchNumberService batchNumberService;
   private final AccountingFacade accountingFacade;
-  private final JournalEntryRepository journalEntryRepository;
+  private final JournalCorrectionMetadataService journalCorrectionMetadataService;
   private final InvoiceRepository invoiceRepository;
   private final CompanyAccountingSettingsService companyAccountingSettingsService;
   private final FinishedGoodsService finishedGoodsService;
@@ -73,7 +72,7 @@ public class SalesReturnService {
       InventoryMovementRepository inventoryMovementRepository,
       BatchNumberService batchNumberService,
       AccountingFacade accountingFacade,
-      JournalEntryRepository journalEntryRepository,
+      JournalCorrectionMetadataService journalCorrectionMetadataService,
       InvoiceRepository invoiceRepository,
       CompanyAccountingSettingsService companyAccountingSettingsService,
       FinishedGoodsService finishedGoodsService) {
@@ -83,7 +82,7 @@ public class SalesReturnService {
     this.inventoryMovementRepository = inventoryMovementRepository;
     this.batchNumberService = batchNumberService;
     this.accountingFacade = accountingFacade;
-    this.journalEntryRepository = journalEntryRepository;
+    this.journalCorrectionMetadataService = journalCorrectionMetadataService;
     this.invoiceRepository = invoiceRepository;
     this.companyAccountingSettingsService = companyAccountingSettingsService;
     this.finishedGoodsService = finishedGoodsService;
@@ -723,31 +722,8 @@ public class SalesReturnService {
         || sourceJournal.getId() == null) {
       return;
     }
-    journalEntryRepository
-        .findByCompanyAndId(company, salesReturnEntry.id())
-        .ifPresent(
-            entry -> {
-              boolean changed = false;
-              if (entry.getCorrectionType() != JournalCorrectionType.REVERSAL) {
-                entry.setCorrectionType(JournalCorrectionType.REVERSAL);
-                changed = true;
-              }
-              if (!"SALES_RETURN".equalsIgnoreCase(entry.getCorrectionReason())) {
-                entry.setCorrectionReason("SALES_RETURN");
-                changed = true;
-              }
-              if (!"SALES_RETURN".equalsIgnoreCase(entry.getSourceModule())) {
-                entry.setSourceModule("SALES_RETURN");
-                changed = true;
-              }
-              if (!invoiceNumber.equals(entry.getSourceReference())) {
-                entry.setSourceReference(invoiceNumber);
-                changed = true;
-              }
-              if (changed) {
-                journalEntryRepository.save(entry);
-              }
-            });
+    journalCorrectionMetadataService.syncReversalMetadata(
+        company, salesReturnEntry.id(), "SALES_RETURN", "SALES_RETURN", invoiceNumber);
   }
 
   private void relinkExistingReturnMovements(

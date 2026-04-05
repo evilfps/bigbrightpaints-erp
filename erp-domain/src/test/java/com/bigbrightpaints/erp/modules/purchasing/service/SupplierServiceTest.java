@@ -25,7 +25,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.security.CryptoService;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -46,7 +45,7 @@ class SupplierServiceTest {
   @Mock private CompanyContextService companyContextService;
   @Mock private AccountRepository accountRepository;
   @Mock private SupplierLedgerService supplierLedgerService;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedPurchasingLookupService purchasingLookupService;
   @Mock private CryptoService cryptoService;
 
   private SupplierService supplierService;
@@ -60,7 +59,7 @@ class SupplierServiceTest {
             companyContextService,
             accountRepository,
             supplierLedgerService,
-            companyEntityLookup,
+            purchasingLookupService,
             cryptoService);
 
     company = new Company();
@@ -171,7 +170,7 @@ class SupplierServiceTest {
   @Test
   void getSupplier_includesBankDetailsWhenSensitiveVisibilityIsEnabled() {
     Supplier supplier = supplierWithEncryptedBankDetails();
-    when(companyEntityLookup.requireSupplier(company, 77L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 77L)).thenReturn(supplier);
     when(cryptoService.isEncrypted("enc-name")).thenReturn(true);
     when(cryptoService.isEncrypted("enc-number")).thenReturn(true);
     when(cryptoService.isEncrypted("enc-ifsc")).thenReturn(true);
@@ -224,7 +223,7 @@ class SupplierServiceTest {
   @Test
   void updateSupplier_returnsSensitiveBankDetailsWhenPrivilegedFlowReadsBackSupplier() {
     Supplier supplier = supplierWithEncryptedBankDetails();
-    when(companyEntityLookup.requireSupplier(company, 77L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 77L)).thenReturn(supplier);
     when(cryptoService.encrypt("Updated Supplier")).thenReturn("enc-name");
     when(cryptoService.encrypt("9999999999")).thenReturn("enc-number");
     when(cryptoService.encrypt("ICIC0009999")).thenReturn("enc-ifsc");
@@ -266,7 +265,7 @@ class SupplierServiceTest {
   @Test
   void statusTransitions_keepSensitiveBankDetailsVisibleForPrivilegedFlows() {
     Supplier supplier = supplierWithEncryptedBankDetails();
-    when(companyEntityLookup.requireSupplier(company, 77L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 77L)).thenReturn(supplier);
     stubDecryptBankDetails();
 
     supplier.setStatus(SupplierStatus.PENDING);
@@ -286,7 +285,7 @@ class SupplierServiceTest {
   @Test
   void getSupplier_redactsBankDetailsWhenSensitiveVisibilityIsDisabled() {
     Supplier supplier = supplierWithEncryptedBankDetails();
-    when(companyEntityLookup.requireSupplier(company, 77L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 77L)).thenReturn(supplier);
     when(supplierLedgerService.currentBalance(77L)).thenReturn(BigDecimal.ZERO);
 
     SupplierResponse response = supplierService.getSupplier(77L, false);
@@ -360,7 +359,7 @@ class SupplierServiceTest {
   void updateSupplier_defaultsMissingCreditLimitAndKeepsExistingCodeWhenRequestCodeIsBlank() {
     Supplier supplier = supplierWithEncryptedBankDetails();
     supplier.setCode("LEGACY");
-    when(companyEntityLookup.requireSupplier(company, 77L)).thenReturn(supplier);
+    when(purchasingLookupService.requireSupplier(company, 77L)).thenReturn(supplier);
 
     SupplierResponse response =
         supplierService.updateSupplier(

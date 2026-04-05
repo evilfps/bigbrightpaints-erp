@@ -193,8 +193,8 @@ class IntegrationFailureMetadataSchemaContractTest {
         mock(com.bigbrightpaints.erp.modules.accounting.service.DealerReceiptService.class),
         mock(com.bigbrightpaints.erp.modules.accounting.service.SettlementService.class),
         mock(com.bigbrightpaints.erp.modules.accounting.service.CreditDebitNoteService.class),
-        mock(com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditService.class),
         mock(com.bigbrightpaints.erp.modules.accounting.service.InventoryAccountingService.class),
+        mock(com.bigbrightpaints.erp.modules.accounting.service.PayrollAccountingService.class),
         mock(org.springframework.beans.factory.ObjectProvider.class));
   }
 

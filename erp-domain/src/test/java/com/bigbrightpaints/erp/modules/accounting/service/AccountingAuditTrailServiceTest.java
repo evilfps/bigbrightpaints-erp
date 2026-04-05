@@ -121,8 +121,8 @@ class AccountingAuditTrailServiceTest {
     credit.setDebit(BigDecimal.ZERO);
     credit.setCredit(new BigDecimal("2000.00"));
 
-    entry.getLines().add(debit);
-    entry.getLines().add(credit);
+    entry.addLine(debit);
+    entry.addLine(credit);
 
     when(journalEntryRepository.findAll(
             any(org.springframework.data.jpa.domain.Specification.class), any(PageRequest.class)))
@@ -203,8 +203,8 @@ class AccountingAuditTrailServiceTest {
     credit.setDebit(BigDecimal.ZERO);
     credit.setCredit(new BigDecimal("4000.00"));
 
-    entry.getLines().add(debit);
-    entry.getLines().add(credit);
+    entry.addLine(debit);
+    entry.addLine(credit);
 
     AccountingEvent event = new AccountingEvent();
     event.setEventType(AccountingEventType.JOURNAL_ENTRY_POSTED);
@@ -278,8 +278,8 @@ class AccountingAuditTrailServiceTest {
     credit.setDebit(BigDecimal.ZERO);
     credit.setCredit(new BigDecimal("4000.00"));
 
-    entry.getLines().add(debit);
-    entry.getLines().add(credit);
+    entry.addLine(debit);
+    entry.addLine(credit);
 
     when(journalEntryRepository.findByCompanyAndId(company, 84L)).thenReturn(Optional.of(entry));
     when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(
@@ -332,8 +332,8 @@ class AccountingAuditTrailServiceTest {
     credit.setDebit(BigDecimal.ZERO);
     credit.setCredit(new BigDecimal("4000.00"));
 
-    entry.getLines().add(debit);
-    entry.getLines().add(credit);
+    entry.addLine(debit);
+    entry.addLine(credit);
 
     when(journalEntryRepository.findAll(
             any(org.springframework.data.jpa.domain.Specification.class), any(PageRequest.class)))
@@ -494,8 +494,8 @@ class AccountingAuditTrailServiceTest {
     credit.setAccount(ap);
     credit.setDebit(BigDecimal.ZERO);
     credit.setCredit(new BigDecimal("800.00"));
-    entry.getLines().add(debit);
-    entry.getLines().add(credit);
+    entry.addLine(debit);
+    entry.addLine(credit);
 
     Supplier supplier = new Supplier();
     setField(supplier, "id", 201L);
@@ -564,8 +564,8 @@ class AccountingAuditTrailServiceTest {
     entry.setReferenceNumber("INV-BBP-92");
     entry.setEntryDate(LocalDate.of(2026, 2, 16));
     entry.setStatus("POSTED");
-    entry.getLines().add(line("AR", "800.00", "0.00"));
-    entry.getLines().add(line("REV", "0.00", "800.00"));
+    entry.addLine(line("AR", "800.00", "0.00"));
+    entry.addLine(line("REV", "0.00", "800.00"));
 
     SalesOrder order = new SalesOrder();
     setField(order, "id", 302L);
@@ -654,8 +654,8 @@ class AccountingAuditTrailServiceTest {
     entry.setReferenceNumber("INV-BBP-193");
     entry.setEntryDate(LocalDate.of(2026, 2, 16));
     entry.setStatus("POSTED");
-    entry.getLines().add(line("AR", "500.00", "0.00"));
-    entry.getLines().add(line("REV", "0.00", "500.00"));
+    entry.addLine(line("AR", "500.00", "0.00"));
+    entry.addLine(line("REV", "0.00", "500.00"));
 
     SalesOrder order = new SalesOrder();
     setField(order, "id", 393L);
@@ -719,8 +719,8 @@ class AccountingAuditTrailServiceTest {
     entry.setReferenceNumber("INV-BBP-194");
     entry.setEntryDate(LocalDate.of(2026, 2, 16));
     entry.setStatus("POSTED");
-    entry.getLines().add(line("AR", "500.00", "0.00"));
-    entry.getLines().add(line("REV", "0.00", "500.00"));
+    entry.addLine(line("AR", "500.00", "0.00"));
+    entry.addLine(line("REV", "0.00", "500.00"));
 
     SalesOrder order = new SalesOrder();
     setField(order, "id", 394L);
@@ -784,8 +784,8 @@ class AccountingAuditTrailServiceTest {
     entry.setReferenceNumber("INV-BBP-196");
     entry.setEntryDate(LocalDate.of(2026, 2, 16));
     entry.setStatus("POSTED");
-    entry.getLines().add(line("AR", "500.00", "0.00"));
-    entry.getLines().add(line("REV", "0.00", "500.00"));
+    entry.addLine(line("AR", "500.00", "0.00"));
+    entry.addLine(line("REV", "0.00", "500.00"));
 
     SalesOrder order = new SalesOrder();
     setField(order, "id", 396L);
@@ -843,8 +843,8 @@ class AccountingAuditTrailServiceTest {
     entry.setReferenceNumber("INV-BBP-195");
     entry.setEntryDate(LocalDate.of(2026, 2, 16));
     entry.setStatus("POSTED");
-    entry.getLines().add(line("AR", "500.00", "0.00"));
-    entry.getLines().add(line("REV", "0.00", "500.00"));
+    entry.addLine(line("AR", "500.00", "0.00"));
+    entry.addLine(line("REV", "0.00", "500.00"));
 
     SalesOrder order = new SalesOrder();
     setField(order, "id", 395L);
@@ -1011,8 +1011,8 @@ class AccountingAuditTrailServiceTest {
     settlementEntry.setReferenceNumber("SET-110");
     settlementEntry.setEntryDate(LocalDate.of(2026, 2, 18));
     settlementEntry.setStatus("POSTED");
-    settlementEntry.getLines().add(line("CASH", "0.00", "100.00"));
-    settlementEntry.getLines().add(line("AR", "100.00", "0.00"));
+    settlementEntry.addLine(line("CASH", "0.00", "100.00"));
+    settlementEntry.addLine(line("AR", "100.00", "0.00"));
 
     JournalEntry invoiceJournal = new JournalEntry();
     setField(invoiceJournal, "id", 210L);
@@ -1067,8 +1067,8 @@ class AccountingAuditTrailServiceTest {
     settlementEntry.setReferenceNumber("SUP-SET-111");
     settlementEntry.setEntryDate(LocalDate.of(2026, 2, 18));
     settlementEntry.setStatus("POSTED");
-    settlementEntry.getLines().add(line("CASH", "100.00", "0.00"));
-    settlementEntry.getLines().add(line("AP", "0.00", "100.00"));
+    settlementEntry.addLine(line("CASH", "100.00", "0.00"));
+    settlementEntry.addLine(line("AP", "0.00", "100.00"));
 
     JournalEntry purchaseJournal = new JournalEntry();
     setField(purchaseJournal, "id", 211L);
@@ -1123,8 +1123,8 @@ class AccountingAuditTrailServiceTest {
     settlementEntry.setReferenceNumber("SUP-SET-112");
     settlementEntry.setEntryDate(LocalDate.of(2026, 2, 18));
     settlementEntry.setStatus("POSTED");
-    settlementEntry.getLines().add(line("CASH", "75.00", "0.00"));
-    settlementEntry.getLines().add(line("AP", "0.00", "75.00"));
+    settlementEntry.addLine(line("CASH", "75.00", "0.00"));
+    settlementEntry.addLine(line("AP", "0.00", "75.00"));
 
     PartnerSettlementAllocation allocation = new PartnerSettlementAllocation();
     setField(allocation, "id", 412L);
@@ -1167,8 +1167,8 @@ class AccountingAuditTrailServiceTest {
     settlementEntry.setReferenceNumber("SUP-SET-113");
     settlementEntry.setEntryDate(LocalDate.of(2026, 2, 19));
     settlementEntry.setStatus("POSTED");
-    settlementEntry.getLines().add(line("CASH", "40.00", "0.00"));
-    settlementEntry.getLines().add(line("AP", "0.00", "40.00"));
+    settlementEntry.addLine(line("CASH", "40.00", "0.00"));
+    settlementEntry.addLine(line("AP", "0.00", "40.00"));
 
     PartnerSettlementAllocation allocation = new PartnerSettlementAllocation();
     setField(allocation, "id", 413L);
@@ -1211,8 +1211,8 @@ class AccountingAuditTrailServiceTest {
     settlementEntry.setReferenceNumber("SUP-SET-115");
     settlementEntry.setEntryDate(LocalDate.of(2026, 2, 21));
     settlementEntry.setStatus("POSTED");
-    settlementEntry.getLines().add(line("CASH", "35.00", "0.00"));
-    settlementEntry.getLines().add(line("AP", "0.00", "35.00"));
+    settlementEntry.addLine(line("CASH", "35.00", "0.00"));
+    settlementEntry.addLine(line("AP", "0.00", "35.00"));
 
     PartnerSettlementAllocation allocation = new PartnerSettlementAllocation();
     setField(allocation, "id", 415L);
@@ -1331,8 +1331,8 @@ class AccountingAuditTrailServiceTest {
     settlementEntry.setReferenceNumber("SET-NULL-PARTNER");
     settlementEntry.setEntryDate(LocalDate.of(2026, 2, 21));
     settlementEntry.setStatus("POSTED");
-    settlementEntry.getLines().add(line("CASH", "10.00", "0.00"));
-    settlementEntry.getLines().add(line("AP", "0.00", "10.00"));
+    settlementEntry.addLine(line("CASH", "10.00", "0.00"));
+    settlementEntry.addLine(line("AP", "0.00", "10.00"));
 
     PartnerSettlementAllocation allocation = new PartnerSettlementAllocation();
     setField(allocation, "id", 416L);
@@ -1377,8 +1377,8 @@ class AccountingAuditTrailServiceTest {
     settlementEntry.setReferenceNumber("SUP-SET-114");
     settlementEntry.setEntryDate(LocalDate.of(2026, 2, 20));
     settlementEntry.setStatus("POSTED");
-    settlementEntry.getLines().add(line("CASH", "60.00", "0.00"));
-    settlementEntry.getLines().add(line("AP", "0.00", "60.00"));
+    settlementEntry.addLine(line("CASH", "60.00", "0.00"));
+    settlementEntry.addLine(line("AP", "0.00", "60.00"));
 
     RawMaterialPurchase purchase = new RawMaterialPurchase();
     setField(purchase, "id", 314L);

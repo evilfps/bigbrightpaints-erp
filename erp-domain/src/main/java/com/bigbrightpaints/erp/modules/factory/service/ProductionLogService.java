@@ -48,6 +48,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
@@ -70,6 +71,7 @@ public class ProductionLogService {
   private final RawMaterialMovementRepository rawMaterialMovementRepository;
   private final AccountingFacade accountingFacade;
   private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedInventoryLookupService inventoryLookupService;
   private final CompanyClock companyClock;
   private final PackingAllowedSizeService packingAllowedSizeService;
 
@@ -82,6 +84,7 @@ public class ProductionLogService {
       RawMaterialMovementRepository rawMaterialMovementRepository,
       AccountingFacade accountingFacade,
       CompanyEntityLookup companyEntityLookup,
+      CompanyScopedInventoryLookupService inventoryLookupService,
       CompanyClock companyClock,
       PackingAllowedSizeService packingAllowedSizeService) {
     this.companyContextService = companyContextService;
@@ -92,6 +95,7 @@ public class ProductionLogService {
     this.rawMaterialMovementRepository = rawMaterialMovementRepository;
     this.accountingFacade = accountingFacade;
     this.companyEntityLookup = companyEntityLookup;
+    this.inventoryLookupService = inventoryLookupService;
     this.companyClock = companyClock;
     this.packingAllowedSizeService = packingAllowedSizeService;
   }
@@ -310,7 +314,7 @@ public class ProductionLogService {
     BigDecimal qty = positive(usage.quantity(), "materials.quantity");
     RawMaterial rawMaterial;
     try {
-      rawMaterial = companyEntityLookup.lockActiveRawMaterial(company, usage.rawMaterialId());
+      rawMaterial = inventoryLookupService.lockActiveRawMaterial(company, usage.rawMaterialId());
     } catch (IllegalArgumentException ex) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_REFERENCE, "Raw material not found");

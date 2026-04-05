@@ -82,7 +82,7 @@ class TS_RuntimeInvoiceSettlementPolicyExecutableCoverageTest {
     assertThat(voidInvoice.getStatus()).isEqualTo("VOID");
 
     Invoice reversible = invoice("PARTIAL", "100.00", "60.00");
-    reversible.getPaymentReferences().add("REF-1");
+    reversible.addPaymentReference("REF-1");
     policy.reversePayment(reversible, new BigDecimal("10.00"), "REF-1");
     assertThat(reversible.getOutstandingAmount()).isEqualByComparingTo("70.00");
     assertThat(reversible.getPaymentReferences()).doesNotContain("REF-1");
@@ -92,7 +92,7 @@ class TS_RuntimeInvoiceSettlementPolicyExecutableCoverageTest {
         .hasMessageContaining("No payment found");
 
     Invoice overflow = invoice("PARTIAL", "100.00", "95.00");
-    overflow.getPaymentReferences().add("REF-2");
+    overflow.addPaymentReference("REF-2");
     assertThatThrownBy(() -> policy.reversePayment(overflow, new BigDecimal("10.00"), "REF-2"))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Reversal exceeds original total");

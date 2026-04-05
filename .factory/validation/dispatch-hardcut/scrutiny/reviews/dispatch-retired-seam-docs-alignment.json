@@ -1,0 +1,26 @@
+{
+  "featureId": "dispatch-retired-seam-docs-alignment",
+  "reviewedAt": "2026-04-02T17:50:51.335196Z",
+  "commitId": "18026dfbda394dc96f91605472afcd920ee4a2b8",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The reviewed commit cleanly aligns the three requested docs/library surfaces with the dispatch hard-cut: `docs/modules/orchestrator.md`, `docs/deprecated/INDEX.md`, and `.factory/library/frontend-handoff.md` no longer present `DispatchRequest` or `dispatchBatch` as live seams, and the surviving guidance consistently points readers to `POST /api/v1/dispatch/confirm`, which still matches `DispatchController` and `openapi.json`.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "knowledge",
+      "observation": "A retained validation artifact still teaches the retired dispatch shortcut with an outdated canonical pointer, so it competes with the cleaned dispatch docs/library story.",
+      "evidence": ".factory/validation/remove-noncanonical-dispatch-path/user-testing/flows/orchestrator-cleanup.json:20 still says `CommandDispatcher.dispatchBatch throws OrchestratorFeatureDisabledException with /api/v1/sales/dispatch/confirm`, while the reviewed docs and current OpenAPI/controller truth point to `POST /api/v1/dispatch/confirm`."
+    },
+    {
+      "area": "skills",
+      "observation": "Shared guidance is ambiguous about how `.factory/library/*`-only docs packets should be validated, which led this docs feature to run `gate_fast.sh` even though the feature-specific proof pack was the narrower docs lint plus dispatch contract guards.",
+      "evidence": "Mission AGENTS.md:37-45 defines a docs-only lane with `bash ci/lint-knowledgebase.sh` as the sole validator; `.factory/skills/docs-worker/SKILL.md:53-54` says docs-only features should avoid repo-wide runtime proof unless required; but the worker handoff for session `641d8e87-9de0-454d-8893-79733f5c7af8` records an additional `bash scripts/gate_fast.sh` run before the required docs checks."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "Pass. I reviewed the feature metadata, worker handoff, transcript skeleton, and commit diff, then checked the edited docs/library surfaces against `DispatchController` and `openapi.json`. The implementation satisfies the requested dispatch hard-cut alignment with no blocking issues; I also recorded one stale validation artifact and one docs-worker validation-guidance ambiguity for scrutiny triage."
+}

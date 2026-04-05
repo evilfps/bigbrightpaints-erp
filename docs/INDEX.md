@@ -1,10 +1,19 @@
-# BigBright ERP — Backend Documentation Index
+# orchestrator-erp — Backend Documentation Index
 
-Last reviewed: 2026-03-30
+Last reviewed: 2026-04-02
 
 This is the canonical entrypoint for backend documentation. Every major docs section is linked from here. If a packet is not reachable through this index, it is not part of the canonical docs tree.
 
+`README.md` and repo-root [`ARCHITECTURE.md`](../ARCHITECTURE.md) are signposts into this spine. Public runtime and deployment truth lives under `docs/`; `.factory/library/*` remains internal worker guidance rather than canonical reader-facing documentation.
+
 ---
+
+## Repo-Root Entry Points
+
+| Document | Purpose |
+| --- | --- |
+| [README.md](../README.md) | Repository overview and setup entrypoint that routes readers into the canonical docs spine |
+| [ARCHITECTURE.md](../ARCHITECTURE.md) | Repo-root architecture signpost; use [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) for the full runtime architecture reference |
 
 ## Architecture and Platform
 
@@ -107,6 +116,21 @@ The seeded ADR set covers multi-tenant auth scoping (ADR-002), outbox/idempotenc
 | [docs/frontend-handoff-finance.md](frontend-handoff-finance.md) | Reference only — superseded by `docs/frontend-portals/` and `docs/frontend-api/` |
 | [docs/accounting-portal-frontend-engineer-handoff.md](accounting-portal-frontend-engineer-handoff.md) | Reference only — superseded by `docs/frontend-portals/accounting/` |
 
+## Historical Workflow Guides (Reference Only)
+
+> **⚠️ These workflow guides are NON-CANONICAL / REFERENCE ONLY.** Canonical lifecycle truth lives in `docs/flows/*`. The guides below are retained as historical step-by-step references and are also registered in `docs/deprecated/INDEX.md`.
+
+| Document | Status |
+| --- | --- |
+| [docs/workflows/admin-and-tenant-management.md](workflows/admin-and-tenant-management.md) | Reference only — superseded by `docs/flows/tenant-admin-management.md` |
+| [docs/workflows/manufacturing-and-packaging.md](workflows/manufacturing-and-packaging.md) | Reference only — superseded by `docs/flows/manufacturing-packing.md` |
+| [docs/workflows/inventory-management.md](workflows/inventory-management.md) | Reference only — superseded by `docs/flows/inventory-management.md` |
+| [docs/workflows/sales-order-to-cash.md](workflows/sales-order-to-cash.md) | Reference only — superseded by `docs/flows/order-to-cash.md` |
+| [docs/workflows/purchase-to-pay.md](workflows/purchase-to-pay.md) | Reference only — superseded by `docs/flows/procure-to-pay.md` |
+| [docs/workflows/accounting-and-period-close.md](workflows/accounting-and-period-close.md) | Reference only — superseded by `docs/flows/accounting-period-close.md` |
+| [docs/workflows/payroll.md](workflows/payroll.md) | Reference only — superseded by `docs/flows/hr-payroll.md` |
+| [docs/workflows/data-migration.md](workflows/data-migration.md) | Reference only — use `docs/runbooks/migrations.md` for current migration rollout truth |
+
 ## Deprecated and Incomplete Surfaces
 
 The deprecated/incomplete registry lists retired, partial, duplicated, or dead-end surfaces. Every entry points to a canonical replacement or explicitly states that no replacement exists.
@@ -139,12 +163,15 @@ The deprecated/incomplete registry lists retired, partial, duplicated, or dead-e
 | [docs/runbooks/rollback.md](runbooks/rollback.md) | Rollback procedures for applied migrations and coordinated app/schema cuts |
 | [docs/runbooks/migrations.md](runbooks/migrations.md) | Migration forward plans, dry-run commands, and rollback strategies |
 
-## Historical Docs
+## Retained Reference Docs
 
-The following historical docs remain in the repo for reference but are **not** the canonical source of truth. They may be stale, partial, or contradictory with the current implementation.
+The following docs remain in the repo for reference but are **not** part of the canonical docs spine. They may be stale, partial, or narrower than the current implementation.
 
 | Document | Status |
 | --- | --- |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Canonical architecture doc (uppercase path required for Linux CI) |
-| [developer-guide.md](developer-guide.md) | Superseded by the module packets and flow packets in the new docs tree |
+| [developer-guide.md](developer-guide.md) | Non-canonical — superseded by the module packets and flow packets in the docs tree |
+| [ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md](ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md) | Reference only — retained accounting-portal scope lock; use `docs/frontend-portals/accounting/README.md` and `docs/frontend-api/README.md` for current portal truth |
+| [AUDIT_TRAIL_OWNERSHIP.md](AUDIT_TRAIL_OWNERSHIP.md) | Reference only — retained audit de-dup/change-control contract; use `docs/modules/core-audit-runtime-settings.md` for the canonical audit ownership overview |
+| [accounting-portal-endpoint-map.md](accounting-portal-endpoint-map.md) | Reference only — curated parity snapshot; use `docs/frontend-portals/accounting/README.md`, `docs/frontend-api/README.md`, and `openapi.json` for current contract truth |
 | [endpoint-inventory.md](endpoint-inventory.md) | Reference only; use `openapi.json` and module packets as primary truth |
+| [migration-guide.md](migration-guide.md) | Retired reference only — current migration rollout guidance lives in `docs/runbooks/migrations.md`; the legacy CSV/Tally appendix is archival |

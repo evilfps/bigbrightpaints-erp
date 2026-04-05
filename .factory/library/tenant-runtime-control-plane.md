@@ -8,34 +8,30 @@ Canonical tenant/runtime policy behavior for the Lane 01 packet.
 
 ## Canonical writer
 
-- Public mutation path: `PUT /api/v1/companies/{id}/tenant-runtime/policy`
-- Path owner: `modules.company.controller.CompanyController`
-- Service path: `CompanyService.updateTenantRuntimePolicy(...)` -> `modules.company.service.TenantRuntimeEnforcementService.updatePolicy(...)`
-- Canonical snapshot fields: `companyCode`, `state`, `reasonCode`, `auditChainId`, `updatedAt`, `maxConcurrentRequests`, `maxRequestsPerMinute`, `maxActiveUsers`, `metrics`
+- Canonical control-plane mutation path: `PUT /api/v1/superadmin/tenants/{id}/limits`
+- Canonical lifecycle companion path: `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
+- Path owner: `modules.company.controller.SuperAdminController`
+- Service path: `SuperAdminTenantControlPlaneService.updateLimits(...)` / `updateLifecycleState(...)`
+- Canonical snapshot fields: tenant detail plus limits/lifecycle response DTOs under the superadmin tenant control plane
 
-## Stale path to retire in this packet
+## Retired aliases
 
-- `PUT /api/v1/admin/tenant-runtime/policy`
-- `modules.admin.service.TenantRuntimePolicyService.updatePolicy(...)` as an independent public writer
-- Any `CompanyContextFilter` / helper recognition that still treats the admin path as a separate privileged policy-control writer
-- Published contract references that keep the stale admin writer alive (`openapi.json`, snapshot tests, manifest coverage)
+- Old admin/company runtime-policy aliases stay retired from the published contract.
+- `modules.admin.service.TenantRuntimePolicyService` remains an internal implementation seam, not a separate public writer.
+- `CompanyContextFilter` and runtime helpers should recognize only the canonical `/api/v1/superadmin/tenants/{id}/...` control plane as the public mutation story.
 
 ## Canonical consumers to align
 
 - `CompanyContextFilter` runtime admission and control-plane rebinding
 - `modules.auth.service.AuthService` login/refresh/runtime denials
 - `modules.portal.service.TenantRuntimeEnforcementInterceptor`
-- `GET /api/v1/admin/tenant-runtime/metrics` as the tenant-scoped reader that must map canonical `auditChainId`/`updatedAt` to `policyReference`/`policyUpdatedAt`
+- Superadmin tenant detail / limits docs and proofs that explain the same lifecycle/quota ownership
 
 ## Catching lane
 
-- Exact PR catching lane: `pr-auth-tenant`
-- Repo commands:
-  - `.factory/services.yaml -> commands.pr-auth-tenant`
-  - `.factory/services.yaml -> commands.gate-fast`
-  - `.factory/services.yaml -> commands.gate-core`
-  - `.factory/services.yaml -> commands.lane01-targeted`
-  - `.factory/services.yaml -> commands.lane01-router-check`
+- Feature proof lives on `.factory/services.yaml -> commands.targeted-security-proof`
+- Contract drift guard lives on `.factory/services.yaml -> commands.contract-guards`
+- `gate-fast` remains the broader merge-confidence lane
 
 ## Packet rules
 

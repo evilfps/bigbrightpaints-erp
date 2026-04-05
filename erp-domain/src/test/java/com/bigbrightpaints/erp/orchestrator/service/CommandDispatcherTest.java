@@ -27,7 +27,6 @@ import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.In
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService.InventoryShortage;
 import com.bigbrightpaints.erp.orchestrator.config.OrchestratorFeatureFlags;
 import com.bigbrightpaints.erp.orchestrator.dto.ApproveOrderRequest;
-import com.bigbrightpaints.erp.orchestrator.dto.DispatchRequest;
 import com.bigbrightpaints.erp.orchestrator.dto.OrderFulfillmentRequest;
 import com.bigbrightpaints.erp.orchestrator.dto.PayrollRunRequest;
 import com.bigbrightpaints.erp.orchestrator.event.DomainEvent;
@@ -246,38 +245,17 @@ class CommandDispatcherTest {
   }
 
   @Test
-  void dispatchBatchFailsClosedToCanonicalDispatchPath() {
-    DispatchRequest request = new DispatchRequest("77", "orch@bbp.com", new BigDecimal("100"));
+  void retiredDispatchShortcutIsRemovedFromCommandDispatcher() {
+    assertThat(java.util.Arrays.stream(CommandDispatcher.class.getDeclaredMethods()))
+        .extracting(java.lang.reflect.Method::getName)
+        .doesNotContain("dispatchBatch");
 
-    assertThatThrownBy(
-            () -> commandDispatcher.dispatchBatch(request, "idem-2", "req-2", "COMP", "user-1"))
-        .isInstanceOf(OrchestratorFeatureDisabledException.class)
-        .hasMessageContaining("/api/v1/dispatch/confirm");
-
-    verify(integrationCoordinator, never())
-        .updateProductionStatus(ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
-    verify(integrationCoordinator, never())
-        .updateProductionStatus(
-            ArgumentMatchers.anyString(),
-            ArgumentMatchers.anyString(),
-            ArgumentMatchers.anyString(),
-            ArgumentMatchers.anyString());
-    verify(policyEnforcer).checkDispatchPermissions("user-1", "COMP");
-    verifyNoInteractions(eventPublisherService, traceService, idempotencyService);
-  }
-
-  @Test
-  void dispatchBatchNullRequestStillFailsClosedWithoutSideEffects() {
-    assertThatThrownBy(
-            () ->
-                commandDispatcher.dispatchBatch(
-                    null, "idem-null-dispatch", "req-null-dispatch", "COMP", "user-1"))
-        .isInstanceOf(OrchestratorFeatureDisabledException.class)
-        .hasMessageContaining("/api/v1/dispatch/confirm");
-
-    verify(policyEnforcer).checkDispatchPermissions("user-1", "COMP");
     verifyNoInteractions(
-        integrationCoordinator, eventPublisherService, traceService, idempotencyService);
+        integrationCoordinator,
+        eventPublisherService,
+        traceService,
+        idempotencyService,
+        policyEnforcer);
   }
 
   @Test

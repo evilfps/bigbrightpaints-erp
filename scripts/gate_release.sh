@@ -167,6 +167,11 @@ resolve_canonical_base() {
   if [[ "$requested_ref" != origin/* ]]; then
     candidate_refs+=("origin/$requested_ref")
   fi
+  for fallback_ref in main origin/main; do
+    if [[ "$fallback_ref" != "$requested_ref" ]]; then
+      candidate_refs+=("$fallback_ref")
+    fi
+  done
 
   for candidate_ref in "${candidate_refs[@]}"; do
     if candidate_sha="$(git -C "$ROOT_DIR" rev-parse --verify --quiet "$candidate_ref" 2>/dev/null)"; then
@@ -177,7 +182,7 @@ resolve_canonical_base() {
 
   if [[ "${#resolved_refs[@]}" -eq 0 ]]; then
     if [[ "$CANONICAL_BASE_REQUIRED" == "true" ]]; then
-      echo "[gate-release] FAIL: canonical base ref '$requested_ref' was not found"
+      echo "[gate-release] FAIL: canonical base ref '$requested_ref' was not found and no usable mainline fallback was available"
       exit 2
     fi
     return 0
@@ -191,7 +196,7 @@ resolve_canonical_base() {
         CANONICAL_BASE_SHA="${resolved_shas[$idx]}"
         CANONICAL_BASE_VERIFIED="true"
         if [[ "$CANONICAL_BASE_REF" != "$requested_ref" ]]; then
-          echo "[gate-release] WARN: canonical base '$requested_ref' is stale/non-ancestor; using '$CANONICAL_BASE_REF' ($CANONICAL_BASE_SHA)"
+          echo "[gate-release] WARN: canonical base '$requested_ref' is unavailable/stale; using '$CANONICAL_BASE_REF' ($CANONICAL_BASE_SHA)"
         fi
         return 0
       fi

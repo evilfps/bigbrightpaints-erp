@@ -1,0 +1,91 @@
+{
+  "groupId": "accounting-core-round4-no-sleep-rerun",
+  "testedAt": "2026-04-03T20:10:33+05:30",
+  "credentials": {
+    "account": "n/a",
+    "namespace": "n/a"
+  },
+  "toolsUsed": ["Read", "Grep", "mvn"],
+  "assertions": [
+    {
+      "id": "VAL-ACCT-002",
+      "title": "Sales journal aliases converge on one canonical entry",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run the targeted accounting proof pack",
+          "expected": "Alias-contention proof passes in the current repo state",
+          "observed": "BUILD SUCCESS; 188 tests ran with 0 failures, including CriticalAccountingAxesIT."
+        },
+        {
+          "action": "Inspect CriticalAccountingAxesIT and the canonical sequence services",
+          "expected": "The proof path converges without sleep-based caller retries",
+          "observed": "No Thread.sleep-based retry helper remains in CriticalAccountingAxesIT, and the canonical NumberSequenceService / OrderNumberService / InvoiceNumberService implementations use lock-and-retry transaction loops instead of sleep polling."
+        },
+        {
+          "action": "Check the concurrent sales-journal contention path",
+          "expected": "One canonical journal entry is produced for the alias/concurrent sales case",
+          "observed": "CriticalAccountingAxesIT passed its concurrent sales journal dedupe coverage, and no caller-side sleep fallback remains in the canonical proof path."
+        }
+      ],
+      "evidence": {
+        "testRuns": [
+          "ROOT=/home/realnigga/Desktop/Mission-control && cd \"$ROOT/erp-domain\" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='JournalEntryE2ETest,AccountingControllerJournalEndpointsTest,AccountingControllerIdempotencyHeaderParityTest,CriticalAccountingAxesIT,TS_RuntimeAccountingReplayConflictExecutableCoverageTest,TS_RuntimeAccountingPayrollPostingExecutableCoverageTest,CR_ManualJournalSafetyTest,CR_DealerReceiptSettlementAuditTrailTest,CR_PayrollIdempotencyConcurrencyTest,CR_PurchasingToApAccountingTest,CR_SalesReturnCreditNoteIdempotencyTest,NumberSequenceServiceIntegrationTest,ReferenceNumberServiceTest,TS_RuntimeReferenceNumberServiceExecutableCoverageTest,OrderNumberServiceTest,InvoiceServiceTest,AccountingServiceTest#dealerReceiptService_routesLiveReceiptFlowThroughJournalEntryService+creditDebitNoteService_routesLiveCreditNoteFlowThroughJournalEntryService+inventoryAccountingService_routesLiveLandedCostFlowThroughJournalEntryService' test"
+        ],
+        "sourceRefs": [
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/CriticalAccountingAxesIT.java",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/core/service/NumberSequenceService.java",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/OrderNumberService.java",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/service/InvoiceNumberService.java"
+        ],
+        "evidenceFiles": [
+          "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/accounting-core/round4-no-sleep-rerun/proof-summary.txt"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    },
+    {
+      "id": "VAL-ACCT-007",
+      "title": "Sequence and accounting writes complete without sleep-based fallback loops",
+      "status": "pass",
+      "steps": [
+        {
+          "action": "Run the targeted accounting proof pack",
+          "expected": "Contention and accounting coverage remain green",
+          "observed": "BUILD SUCCESS; 188 tests ran with 0 failures."
+        },
+        {
+          "action": "Inspect the canonical accounting and sequence write-path hotspots",
+          "expected": "No Thread.sleep-based fallback loops remain in the canonical proof path",
+          "observed": "No Thread.sleep was found in NumberSequenceService, OrderNumberService, InvoiceNumberService, AccountingCoreEngineCore, or CriticalAccountingAxesIT."
+        },
+        {
+          "action": "Check the concurrent alias/convergence proof helper",
+          "expected": "No caller-side sleep retry loop remains",
+          "observed": "CriticalAccountingAxesIT now exercises the concurrent sales-journal path without any sleep-based retry helper."
+        }
+      ],
+      "evidence": {
+        "testRuns": [
+          "ROOT=/home/realnigga/Desktop/Mission-control && cd \"$ROOT/erp-domain\" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='JournalEntryE2ETest,AccountingControllerJournalEndpointsTest,AccountingControllerIdempotencyHeaderParityTest,CriticalAccountingAxesIT,TS_RuntimeAccountingReplayConflictExecutableCoverageTest,TS_RuntimeAccountingPayrollPostingExecutableCoverageTest,CR_ManualJournalSafetyTest,CR_DealerReceiptSettlementAuditTrailTest,CR_PayrollIdempotencyConcurrencyTest,CR_PurchasingToApAccountingTest,CR_SalesReturnCreditNoteIdempotencyTest,NumberSequenceServiceIntegrationTest,ReferenceNumberServiceTest,TS_RuntimeReferenceNumberServiceExecutableCoverageTest,OrderNumberServiceTest,InvoiceServiceTest,AccountingServiceTest#dealerReceiptService_routesLiveReceiptFlowThroughJournalEntryService+creditDebitNoteService_routesLiveCreditNoteFlowThroughJournalEntryService+inventoryAccountingService_routesLiveLandedCostFlowThroughJournalEntryService' test"
+        ],
+        "sourceRefs": [
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/core/service/NumberSequenceService.java",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/OrderNumberService.java",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/invoice/service/InvoiceNumberService.java",
+          "erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingCoreEngineCore.java",
+          "erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/CriticalAccountingAxesIT.java"
+        ],
+        "evidenceFiles": [
+          "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/accounting-core/round4-no-sleep-rerun/proof-summary.txt"
+        ],
+        "consoleErrors": "none"
+      },
+      "issues": null
+    }
+  ],
+  "frictions": [],
+  "blockers": [],
+  "summary": "Tested 2 assertions: 2 passed, 0 failed. The targeted accounting proof pack passed, and the canonical accounting/sequence proof path no longer contains Thread.sleep-based fallback or caller-retry loops."
+}

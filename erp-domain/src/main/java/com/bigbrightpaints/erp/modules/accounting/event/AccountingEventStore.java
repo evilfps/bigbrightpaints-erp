@@ -141,7 +141,7 @@ public class AccountingEventStore {
             correlationId));
 
     incrementJournalsCreatedMetric(entry.getCompany());
-    log.debug("Recorded {} events for journal entry {}", events.size(), entry.getReferenceNumber());
+    log.debug("Recorded {} events for journal entry", events.size());
     return events;
   }
 

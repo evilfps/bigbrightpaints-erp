@@ -1,0 +1,29 @@
+{
+  "surface": "repo-static",
+  "groupId": "docs-naming-round4",
+  "testedAt": "2026-04-02T22:34:00Z",
+  "assertions": [
+    {
+      "id": "VAL-DOCS-007",
+      "status": "pass",
+      "summary": "Canonical entrypoints and the previously failing active platform packet now use `orchestrator-erp` for current repo/product identity. The only old-name occurrence found in the checked canonical docs is `docs/platform/config-feature-toggles.md:247`, where `BigBright ERP` is explicitly documented as a legacy literal default for `security.mfa.issuer` and contrasted with current `orchestrator-erp` branding, so it remains in an explicit legacy context rather than as current identity text.",
+      "evidence": [
+        "README.md:1",
+        "README.md:4",
+        "ARCHITECTURE.md:1",
+        "ARCHITECTURE.md:5",
+        "ARCHITECTURE.md:17",
+        "docs/INDEX.md:1",
+        "docs/platform/db-migration.md:5",
+        "docs/platform/config-feature-toggles.md:247"
+      ],
+      "frictions": [],
+      "blockers": [],
+      "toolsUsed": [
+        "Read",
+        "Grep",
+        "LS"
+      ]
+    }
+  ]
+}

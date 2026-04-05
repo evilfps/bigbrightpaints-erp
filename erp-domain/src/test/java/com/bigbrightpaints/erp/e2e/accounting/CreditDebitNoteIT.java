@@ -183,14 +183,14 @@ class CreditDebitNoteIT extends AbstractIntegrationTest {
     settlementReq.put("cashAccountId", cash.getId());
     settlementReq.put("settlementDate", LocalDate.now());
     settlementReq.put("referenceNumber", settlementRef);
-    settlementReq.put("idempotencyKey", settlementRef);
     settlementReq.put("allocations", List.of(allocation));
+    HttpHeaders settlementHeaders = headersWithIdempotencyKey(settlementRef);
 
     ResponseEntity<Map> settleResp =
         rest.exchange(
             "/api/v1/accounting/settlements/dealers",
             HttpMethod.POST,
-            new HttpEntity<>(settlementReq, headers),
+            new HttpEntity<>(settlementReq, settlementHeaders),
             Map.class);
     assertThat(settleResp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
@@ -327,6 +327,13 @@ class CreditDebitNoteIT extends AbstractIntegrationTest {
     h.setContentType(MediaType.APPLICATION_JSON);
     h.set("X-Company-Code", COMPANY_CODE);
     return h;
+  }
+
+  private HttpHeaders headersWithIdempotencyKey(String idempotencyKey) {
+    HttpHeaders scoped = new HttpHeaders();
+    scoped.putAll(headers);
+    scoped.set("Idempotency-Key", idempotencyKey);
+    return scoped;
   }
 
   private Account ensureAccount(String code, String name, AccountType type) {

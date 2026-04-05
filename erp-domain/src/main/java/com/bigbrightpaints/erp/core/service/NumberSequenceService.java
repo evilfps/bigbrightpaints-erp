@@ -1,5 +1,8 @@
 package com.bigbrightpaints.erp.core.service;
 
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -20,6 +23,7 @@ import jakarta.persistence.EntityNotFoundException;
 public class NumberSequenceService {
 
   private static final Logger log = LoggerFactory.getLogger(NumberSequenceService.class);
+  private static final long RETRY_BACKOFF_MILLIS = 10L;
   private static final int MAX_RETRIES = 5;
 
   private final NumberSequenceRepository repository;
@@ -67,10 +71,7 @@ public class NumberSequenceService {
             company != null ? company.getId() : null,
             attempt,
             MAX_RETRIES);
-        try {
-          Thread.sleep(10L * attempt);
-        } catch (InterruptedException ignored) {
-          Thread.currentThread().interrupt();
+        if (attempt == MAX_RETRIES || !pauseBeforeRetry(attempt)) {
           break;
         }
       }
@@ -104,5 +105,10 @@ public class NumberSequenceService {
       return false;
     }
     return companyRepository.existsById(company.getId());
+  }
+
+  private boolean pauseBeforeRetry(int attempt) {
+    LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(RETRY_BACKOFF_MILLIS * attempt));
+    return !Thread.currentThread().isInterrupted();
   }
 }

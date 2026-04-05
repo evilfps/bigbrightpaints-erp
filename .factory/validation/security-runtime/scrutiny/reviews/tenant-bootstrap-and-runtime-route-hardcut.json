@@ -1,0 +1,139 @@
+{
+  "scrutiny_review": {
+    "feature_id": "tenant-bootstrap-and-runtime-route-hardcut",
+    "milestone": "security-runtime",
+    "review_timestamp": "2026-04-04T06:02:45.000Z",
+    "reviewer_type": "codebase-scout-assistant",
+    "commit_id": "e6b1008801c2c490952a7e2c9381587b6f55d487",
+    "worker_session_id": "fe3a1969-fc8e-432a-aeb2-1a9a14b4d90f",
+    "verdict": "PASS",
+    "confidence": "HIGH",
+    "summary": "Feature successfully aligns documentation and regression tests with the hard-cut auth/bootstrap and tenant control-plane routes. All retired aliases are consistently removed from docs, and a new characterization test prevents drift.",
+    "findings": {
+      "correctness": {
+        "status": "PASS",
+        "observations": [
+          {
+            "type": "verification",
+            "description": "New regression test auth_and_tenant_control_docs_match_the_hard_cut_route_story() validates that canonical routes remain present and retired routes stay absent across 7 key documentation files",
+            "severity": "info",
+            "evidence": {
+              "test_file": "erp-domain/src/test/java/com/bigbrightpaints/erp/OpenApiSnapshotIT.java",
+              "lines_added": 71,
+              "canonical_routes_verified": [
+                "GET /api/v1/auth/me",
+                "PUT /api/v1/superadmin/tenants/{id}/lifecycle",
+                "PUT /api/v1/superadmin/tenants/{id}/limits",
+                "POST /api/v1/superadmin/tenants/{id}/support/admin-password-reset"
+              ],
+              "retired_routes_rejected": [
+                "GET /api/v1/auth/profile",
+                "PUT /api/v1/auth/profile",
+                "PUT /api/v1/admin/tenant-runtime/policy",
+                "PUT /api/v1/companies/{id}/tenant-runtime/policy",
+                "GET /api/v1/admin/tenant-runtime/metrics"
+              ]
+            }
+          },
+          {
+            "type": "verification",
+            "description": "Test successfully executed and passed on current codebase",
+            "severity": "info",
+            "evidence": {
+              "command": "mvn -Dtest=OpenApiSnapshotIT#auth_and_tenant_control_docs_match_the_hard_cut_route_story test",
+              "exit_code": 0
+            }
+          },
+          {
+            "type": "consistency",
+            "description": "Documentation files consistently reflect canonical routes and remove retired aliases",
+            "severity": "info",
+            "files_modified": [
+              ".factory/library/auth-hardening.md",
+              ".factory/library/frontend-handoff.md",
+              ".factory/library/frontend-v2.md",
+              ".factory/library/tenant-runtime-control-plane.md",
+              "docs/flows/company-tenant-control-plane.md",
+              "docs/flows/auth-identity.md",
+              "docs/modules/auth.md"
+            ]
+          }
+        ]
+      },
+      "security": {
+        "status": "PASS",
+        "observations": [
+          {
+            "type": "route_hardening",
+            "description": "Feature reinforces security posture by ensuring retired auth/bootstrap routes stay absent from documentation and preventing accidental re-introduction",
+            "severity": "info",
+            "security_impact": "Retired routes like /api/v1/auth/profile could have been exploited if frontend teams referenced stale docs; test now prevents this drift"
+          },
+          {
+            "type": "tenant_boundary",
+            "description": "Control-plane routes correctly consolidate to /api/v1/superadmin/tenants/{id}/... pattern, maintaining tenant isolation boundaries",
+            "severity": "info",
+            "security_impact": "Prevents confusion between tenant-scoped admin paths and platform-wide superadmin control plane"
+          },
+          {
+            "type": "regression_protection",
+            "description": "Characterization test guards against future documentation drift that could mislead frontend developers about available endpoints",
+            "severity": "info",
+            "evidence": {
+              "test_name": "auth_and_tenant_control_docs_match_the_hard_cut_route_story",
+              "files_covered": 7
+            }
+          }
+        ]
+      },
+      "documentation": {
+        "status": "PASS",
+        "observations": [
+          {
+            "type": "alignment",
+            "description": "All documentation files now consistently reference canonical routes and explicitly remove retired aliases",
+            "severity": "info",
+            "key_changes": [
+              "Must-change-password corridor documentation updated to reference only GET /api/v1/auth/me (not /api/v1/auth/profile)",
+              "Frontend handoff docs remove profile endpoint table entries and update flow descriptions",
+              "Tenant control-plane docs consolidate to superadmin routes only",
+              "Auth hardening library aligns rollout caveats with current route story"
+            ]
+          },
+          {
+            "type": "completeness",
+            "description": "Feature includes both code-level test and documentation updates, following repository convention for docs-plus-test packets",
+            "severity": "info"
+          }
+        ]
+      }
+    },
+    "shared_state_observations": [],
+    "blocking_issues": [],
+    "non_blocking_issues": [
+      {
+        "type": "test_coverage",
+        "description": "Characterization test uses string matching on documentation files rather than parsing structured OpenAPI schema",
+        "severity": "low",
+        "impact": "Test could miss nuanced documentation formats or false positives, though adequate for current markdown-based docs",
+        "recommendation": "Consider future enhancement to parse OpenAPI schema directly for API route assertions if documentation structure evolves"
+      }
+    ],
+    "evidence": {
+      "files_changed": 8,
+      "lines_added": 127,
+      "lines_removed": 92,
+      "tests_added": 1,
+      "tests_passed": 1,
+      "contract_guards_passed": true,
+      "openapi_drift_guard_passed": true
+    },
+    "adjacent_flows_rechecked": [
+      "GET /api/v1/auth/me bootstrap identity",
+      "Tenant control-plane lifecycle/limits mutations",
+      "Must-change-password corridor enforcement",
+      "Superadmin tenant support reset"
+    ],
+    "recommendations": []
+  }
+}

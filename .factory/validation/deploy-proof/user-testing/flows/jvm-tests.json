@@ -1,0 +1,75 @@
+{
+  "milestone": "deploy-proof",
+  "surface": "jvm-tests",
+  "generatedAt": "2026-04-04T12:24:53Z",
+  "assertionResults": [
+    {
+      "id": "VAL-DEPLOY-004",
+      "status": "pass",
+      "reason": "CR_ProductionMonitoringContractTest, CR_HealthEndpointProdHardeningIT, and CR_ActuatorProdHardeningIT all passed (14 tests), proving prod-only health endpoints stay admin-gated and actuator exposure stays hardened."
+    },
+    {
+      "id": "VAL-DEPLOY-005",
+      "status": "pass",
+      "reason": "bash scripts/gate_release.sh passed, strict compose smoke was proven separately, and targeted dispatch/accounting/security proof packs all passed locally, matching the deploy-proof contract."
+    },
+    {
+      "id": "VAL-DEPLOY-008",
+      "status": "pass",
+      "reason": "git ls-files artifacts/* returned no tracked artifact junk, and gate_fast/gate_core/gate_release each regenerated fresh artifacts manifests during this run."
+    },
+    {
+      "id": "VAL-CROSS-006",
+      "status": "pass",
+      "reason": "bash scripts/gate_fast.sh and bash scripts/gate_core.sh both passed with their contract guards and traceability manifests, keeping CI gates aligned with the cleaned public contract."
+    }
+  ],
+  "commandsRun": [
+    {
+      "command": "MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CR_ProductionMonitoringContractTest,CR_HealthEndpointProdHardeningIT,CR_ActuatorProdHardeningIT' test",
+      "observation": "Build succeeded with 14 tests run, 0 failures, 0 errors."
+    },
+    {
+      "command": "bash ci/check-codex-review-guidelines.sh",
+      "observation": "knowledgebase lint, architecture, enterprise policy, and orchestrator-layer checks all passed; script ended with [codex-review-guidelines] OK."
+    },
+    {
+      "command": "bash scripts/guard_openapi_contract_drift.sh && bash scripts/guard_workflow_canonical_paths.sh && bash scripts/guard_dispatch_frontend_handoff_contract.sh",
+      "observation": "All three contract guards returned OK."
+    },
+    {
+      "command": "bash scripts/gate_fast.sh",
+      "observation": "Gate fast passed, ran 833 tests with 0 failures/errors, and recorded a fresh gate-fast traceability manifest."
+    },
+    {
+      "command": "bash scripts/gate_core.sh",
+      "observation": "Gate core passed, module-coverage gate passed at 97.8% line / 89.3% branch for matched active classes, and a fresh gate-core manifest was written."
+    },
+    {
+      "command": "bash scripts/gate_release.sh",
+      "observation": "Gate release passed, verify_local passed, release migration matrix succeeded, and a fresh gate-release manifest with 18 artifacts was generated."
+    },
+    {
+      "command": "MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='DispatchControllerTest,DispatchOperationalBoundaryIT,DispatchConfirmationIT,TS_O2CDispatchCanonicalPostingTest,TS_O2COrchestratorDispatchRemovalRegressionTest,OrderFulfillmentE2ETest' test && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='JournalEntryE2ETest,AccountingControllerJournalEndpointsTest,AccountingControllerIdempotencyHeaderParityTest,CriticalAccountingAxesIT,TS_RuntimeAccountingReplayConflictExecutableCoverageTest,TS_RuntimeAccountingPayrollPostingExecutableCoverageTest,CR_ManualJournalSafetyTest,CR_DealerReceiptSettlementAuditTrailTest,CR_PayrollIdempotencyConcurrencyTest,CR_PurchasingToApAccountingTest,CR_SalesReturnCreditNoteIdempotencyTest,NumberSequenceServiceIntegrationTest,ReferenceNumberServiceTest,TS_RuntimeReferenceNumberServiceExecutableCoverageTest,OrderNumberServiceTest,InvoiceServiceTest,AccountingServiceTest#dealerReceiptService_routesLiveReceiptFlowThroughJournalEntryService+creditDebitNoteService_routesLiveCreditNoteFlowThroughJournalEntryService+inventoryAccountingService_routesLiveLandedCostFlowThroughJournalEntryService' test && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CompanyContextFilterControlPlaneBindingTest,AuthTenantAuthorityIT,TenantRuntimeEnforcementAuthIT,TS_RuntimeCompanyContextFilterExecutableCoverageTest,TS_RuntimeTenantRuntimeEnforcementTest,TS_RuntimeTenantControlPlaneEnforcementTest,CompanyControllerIT,OpenApiSnapshotIT' test",
+      "observation": "Dispatch, accounting, and security targeted proof packs all completed successfully; the final security command reported 101 tests run with 0 failures/errors and the combined chained command exited 0."
+    },
+    {
+      "command": "git ls-files artifacts/*",
+      "observation": "No tracked files were returned, confirming generated artifact directories are not checked into git."
+    }
+  ],
+  "toolsUsed": [
+    "Execute",
+    "Read",
+    "Grep"
+  ],
+  "frictions": [
+    "Task-based flow-validator subagents could not be used in this session because the configured user-testing-flow-validator droid reported an invalid model (gpt-5.4); the parent validator performed equivalent checks directly and captured the same artifacts."
+  ],
+  "blockers": [],
+  "evidencePaths": [
+    "/home/realnigga/Desktop/Mission-control/artifacts/gate-fast",
+    "/home/realnigga/Desktop/Mission-control/artifacts/gate-core",
+    "/home/realnigga/Desktop/Mission-control/artifacts/gate-release"
+  ]
+}

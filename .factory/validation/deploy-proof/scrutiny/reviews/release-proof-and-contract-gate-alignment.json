@@ -1,0 +1,40 @@
+{
+  "featureId": "release-proof-and-contract-gate-alignment",
+  "reviewedAt": "2026-04-04T12:00:00Z",
+  "commitId": "53b6e4035532d2cfda1a55dedb0bb7f62ee70b67",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "Reviewed the handoff file, transcript skeleton, commit diff, and validation contracts VAL-DEPLOY-005, VAL-DEPLOY-006, VAL-DEPLOY-007, VAL-DEPLOY-008, VAL-CROSS-006. The feature correctly implements strict compose smoke before the release-proof lane. The `scripts/release_proof.sh` now boots the approved compose-backed strict runtime on the mission boundary (5433/5672/8025/8081/9090), waits for 9090 health/readiness plus GET /api/v1/auth/me, and only then continues into gate-release, targeted deploy hardening, targeted dispatch/accounting/runtime proof, and contract guards. Contract coverage is added in `CR_ProductionMonitoringContractTest` and `testing/ci/test_pr_review_ci_packet.py` to ensure the release_proof.sh cannot drift away from the strict compose smoke requirement. Library guidance in `.factory/library/local-testing-confidence.md` is updated to match the new flow.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "validation",
+      "observation": "The feature adds contract coverage at two layers (Java and Python) to ensure release_proof.sh boots strict compose smoke before gate-release, This prevents drift and as described in the validation contract VAL-DEPLOY-005.",
+      "evidence": "CR_ProductionMonitoringContractTest.releaseProofBootsStrictComposeSmokeBeforeGateReleaseLane() asserts on strict compose smoke boot, health/readiness probes on 9090, auth probe on 8081, and gate-release call. testing/ci/test_pr_review_ci_packet.py RuntimeProbeContractTest.test_release_proof_script_combines_strict_smoke_targeted_proofs_and_contract_guards() asserts the same contract elements."
+    },
+    {
+      "area": "validation",
+      "observation": "The feature aligns with VAL-CROSS-006 by ensuring CI gates (gate_fast.sh) continue to validate canonical truth without referencing retired routes or compatibility-only fallbacks. The release_proof.sh script uses the current canonical test classes and contract guards.",
+      "evidence": "release_proof.sh runs DispatchControllerTest, TS_O2CDispatchCanonicalPostingTest, JournalEntryE2ETest, CompanyContextFilterControlPlaneBindingTest, and contract guards guard_openapi_contract_drift.sh, guard_workflow_canonical_paths.sh, guard_dispatch_frontend_handoff_contract.sh"
+    },
+    {
+      "area": "validation",
+      "observation": "The feature satisfies VAL-DEPLOY-006 by keeping release-notes automation separate from deploy proof. The release.yml workflow remains focused on release notes generation and does not claim to provide deployability proof.",
+      "evidence": ".github/workflows/ci.yml contains bash scripts/release_proof.sh for deploy proof, .github/workflows/release.yml contains 'does **not** prove deployability' disclaimer."
+    },
+    {
+      "area": "validation",
+      "observation": "The feature satisfies VAL-DEPLOY-007 by preserving the docs-only governance path. The enforce_codex_review_policy.sh script correctly classifies docs-only changes and routes them through the narrow docs-only lane.",
+      "evidence": "testing/ci/test_pr_review_ci_packet.py test_docs_only_lane_includes_factory_library_guidance_packets() verifies that .factory/library/* is included in the docs-only classification."
+    },
+    {
+      "area": "validation",
+      "observation": "The feature satisfies VAL-DEPLOY-008 by ensuring release evidence is fresh. The release_proof.sh script regenerates evidence on each run rather than relying on stale artifacts. Gate artifact directories are gitignored.",
+      "evidence": ".gitignore contains artifacts/gate-core/, artifacts/gate-release/, artifacts/gate-reconciliation/. release_proof.sh runs gate_release.sh which generates fresh artifacts."
+    }
+  ],
+  "summary": "PASS: commit 53b6e4035532d2cfda1a55dedb0bb7f62ee70b67 correctly aligns release-proof with contract gates by adding strict compose smoke before gate-release, adding contract coverage at Java and Python layers to prevent drift, and updating library guidance. All validation contracts (VAL-DEPLOY-005, VAL-DEPLOY-006, VAL-DEPLOY-007, VAL-DEPLOY-008, VAL-CROSS-006) are satisfied. No blocking issues found."
+}

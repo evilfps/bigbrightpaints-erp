@@ -33,7 +33,6 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
@@ -56,6 +55,7 @@ import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProductRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.service.CompanyScopedPurchasingLookupService;
 
 @ExtendWith(MockitoExtension.class)
 @Tag("critical")
@@ -73,7 +73,8 @@ class RawMaterialServiceReceiptContextTest {
   @Mock private BatchNumberService batchNumberService;
   @Mock private ReferenceNumberService referenceNumberService;
   @Mock private CompanyClock companyClock;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedInventoryLookupService inventoryLookupService;
+  @Mock private CompanyScopedPurchasingLookupService purchasingLookupService;
   @Mock private AuditService auditService;
   @Mock private Environment environment;
 
@@ -98,7 +99,8 @@ class RawMaterialServiceReceiptContextTest {
             batchNumberService,
             referenceNumberService,
             companyClock,
-            companyEntityLookup,
+            inventoryLookupService,
+            purchasingLookupService,
             auditService,
             environment,
             new ResourcelessTransactionManager(),
@@ -131,11 +133,11 @@ class RawMaterialServiceReceiptContextTest {
     rawMaterialBrand.setName("Raw Materials");
 
     lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    lenient().when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(material);
+    lenient().when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(material);
     lenient()
         .when(rawMaterialRepository.lockByCompanyAndId(company, 20L))
         .thenReturn(Optional.of(material));
-    lenient().when(companyEntityLookup.requireSupplier(company, 10L)).thenReturn(supplier);
+    lenient().when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     lenient()
         .when(rawMaterialRepository.save(any(RawMaterial.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));

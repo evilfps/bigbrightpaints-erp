@@ -8,23 +8,24 @@ import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.dto.PackingLineRequest;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 
 @Component
 public class PackingProductSupport {
 
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedInventoryLookupService inventoryLookupService;
   private final FinishedGoodRepository finishedGoodRepository;
 
   public PackingProductSupport(
-      CompanyEntityLookup companyEntityLookup, FinishedGoodRepository finishedGoodRepository) {
-    this.companyEntityLookup = companyEntityLookup;
+      CompanyScopedInventoryLookupService inventoryLookupService,
+      FinishedGoodRepository finishedGoodRepository) {
+    this.inventoryLookupService = inventoryLookupService;
     this.finishedGoodRepository = finishedGoodRepository;
   }
 
@@ -45,7 +46,7 @@ public class PackingProductSupport {
     }
     FinishedGood target;
     try {
-      target = companyEntityLookup.lockActiveFinishedGood(company, line.childFinishedGoodId());
+      target = inventoryLookupService.lockActiveFinishedGood(company, line.childFinishedGoodId());
     } catch (IllegalArgumentException ex) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_REFERENCE,

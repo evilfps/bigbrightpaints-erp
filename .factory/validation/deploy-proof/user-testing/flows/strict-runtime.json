@@ -1,0 +1,61 @@
+{
+  "milestone": "deploy-proof",
+  "surface": "strict-runtime",
+  "generatedAt": "2026-04-04T12:24:53Z",
+  "assertionResults": [
+    {
+      "id": "VAL-DEPLOY-001",
+      "status": "pass",
+      "reason": "docker compose ps showed db/rabbit/mailhog/app on approved ports 5433/5672/8025/8081/9090, http://localhost:9090/actuator/health returned 200, and GET /api/v1/auth/me returned 403 as an allowed controlled runtime result."
+    },
+    {
+      "id": "VAL-DEPLOY-002",
+      "status": "pass",
+      "reason": "Management health and readiness returned 200 on port 9090, the app port returned 404 for /actuator/health, and management /actuator/metrics and /actuator/prometheus both returned 403."
+    },
+    {
+      "id": "VAL-DEPLOY-003",
+      "status": "pass",
+      "reason": "With valid config the compose runtime returned readiness 200/UP; after restarting the app with blank ERP_LICENSE_KEY and invalid mail credentials, /actuator/health/readiness returned HTTP 503 with {\"status\":\"DOWN\"}; the runtime was then restored to readiness 200/UP."
+    },
+    {
+      "id": "VAL-CROSS-003",
+      "status": "pass",
+      "reason": "Strict prod,flyway-v2 compose smoke passed with 9090 health/readiness and 8081 /api/v1/auth/me=403, and the negative required-config check drove readiness DOWN instead of faking green."
+    }
+  ],
+  "commandsRun": [
+    {
+      "command": "docker compose ps + curl probes for 9090/health, 9090/readiness, 8081/auth/me, 8081/actuator/health, 9090/metrics, 9090/prometheus",
+      "observation": "compose ps showed all approved services up; health=200 readiness=200 auth=403 app_actuator=404 metrics=403 prometheus=403."
+    },
+    {
+      "command": "docker compose stop app && docker compose up -d --build app with invalid ERP_LICENSE_KEY and invalid mail credentials",
+      "observation": "readiness probe returned HTTP 503 and body {\"status\":\"DOWN\"}; after restoring valid env the runtime returned health=200 readiness=200 auth=403."
+    }
+  ],
+  "toolsUsed": [
+    "Execute",
+    "docker compose",
+    "curl",
+    "Read"
+  ],
+  "frictions": [
+    "Task-based flow-validator subagents could not be used in this session because the configured user-testing-flow-validator droid reported an invalid model (gpt-5.4); the parent validator performed equivalent checks directly and captured the same artifacts."
+  ],
+  "blockers": [],
+  "evidencePaths": [
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/deploy-proof/strict-runtime/compose-ps.txt",
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/deploy-proof/strict-runtime/9090-health.status",
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/deploy-proof/strict-runtime/9090-health.body",
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/deploy-proof/strict-runtime/9090-readiness.status",
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/deploy-proof/strict-runtime/9090-readiness.body",
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/deploy-proof/strict-runtime/8081-auth-me.status",
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/deploy-proof/strict-runtime/8081-actuator-health.status",
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/deploy-proof/strict-runtime/9090-metrics.status",
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/deploy-proof/strict-runtime/9090-prometheus.status",
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/deploy-proof/strict-runtime/9090-readiness-invalid.status",
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/deploy-proof/strict-runtime/9090-readiness-invalid.body",
+    "/home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/evidence/deploy-proof/strict-runtime/compose-ps-restored.txt"
+  ]
+}

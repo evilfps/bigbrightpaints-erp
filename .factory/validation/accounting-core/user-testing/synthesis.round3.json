@@ -1,0 +1,44 @@
+{
+  "milestone": "accounting-core",
+  "round": 3,
+  "status": "fail",
+  "assertionsSummary": {
+    "total": 9,
+    "passed": 7,
+    "failed": 2,
+    "blocked": 0
+  },
+  "passedAssertions": [
+    "VAL-ACCT-001",
+    "VAL-ACCT-003",
+    "VAL-ACCT-004",
+    "VAL-ACCT-005",
+    "VAL-ACCT-006",
+    "VAL-CROSS-005",
+    "VAL-CROSS-007"
+  ],
+  "failedAssertions": [
+    {
+      "id": "VAL-ACCT-002",
+      "reason": "CriticalAccountingAxesIT still proves concurrent sales-journal alias convergence through postSalesJournalWithRetry(), which uses Thread.sleep-based caller retries, so the no-sleep contention requirement is not yet satisfied."
+    },
+    {
+      "id": "VAL-ACCT-007",
+      "reason": "Canonical write-path scans still find Thread.sleep-based fallback loops in NumberSequenceService, OrderNumberService, InvoiceNumberService, AccountingCoreEngineCore.sleepBriefly(), and the concurrent sales-journal proof helper."
+    }
+  ],
+  "blockedAssertions": [],
+  "appliedUpdates": [
+    {
+      "target": "services.yaml",
+      "description": "Corrected commands.targeted-accounting-proof to use the existing InvoiceServiceTest instead of the nonexistent InvoiceNumberServiceTest.",
+      "source": "flow-report"
+    },
+    {
+      "target": "user-testing.md",
+      "description": "Updated the accounting proof-pack guidance to reference InvoiceServiceTest as the invoice-side contention/reference proof.",
+      "source": "flow-report"
+    }
+  ],
+  "previousRound": "/home/realnigga/Desktop/Mission-control/.factory/validation/accounting-core/user-testing/synthesis.round2.json"
+}

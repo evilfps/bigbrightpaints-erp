@@ -40,9 +40,9 @@ Each module section should include:
 - 2026-03-06 `auth-token-secret-storage-hardening`: no auth/admin request or response shape changes were required. Login, refresh-token, logout, forgot-password, and reset-password payloads stay the same; only backend persistence changed so refresh-token and password-reset secrets are now stored as digests with no legacy-row backfill or fallback path.
 - 2026-03-06 `auth-session-revocation-hardening`: no auth/admin request or response shape changes were required. Logout now invalidates all previously issued access and refresh sessions for the authenticated user, and password change, password reset, disablement, lockout, and support hard-reset now consistently reject old tokens instead of letting prior sessions remain usable.
 - 2026-03-26 `auth-v2-hard-cut-canonicalization`: auth identity is now scoped to `(normalized_email, auth_scope_code)` with no email-only recovery path, no superadmin forgot-password alias, no tenant-switch session route, no caller-visible temporary-password payloads, and no compatibility DTO aliases. Public forgot-password requires `{ email, companyCode }`, reset tokens are scoped to that account only, admin/support resets use the same reset-link issuance path, and onboarding or user creation only reports provisioning status while emailing temporary credentials directly to the target user.
-- 2026-03-14 `remove-orchestrator-dispatch-journal`: `POST /api/v1/orchestrator/factory/dispatch/{batchId}` is now a fail-closed compatibility surface only. Valid requests receive `410 Gone` with `canonicalPath=/api/v1/sales/dispatch/confirm`, and orchestrator fulfillment requests for `SHIPPED`/`DISPATCHED`/`FULFILLED`/`COMPLETED` now return `409 Conflict` (`BUS_001`) instead of acknowledging or posting dispatch accounting truth.
+- 2026-03-14 `remove-orchestrator-dispatch-journal`: `POST /api/v1/orchestrator/factory/dispatch/{batchId}` is now a fail-closed compatibility surface only. Valid requests receive `410 Gone` with `canonicalPath=/api/v1/dispatch/confirm`, and orchestrator fulfillment requests for `SHIPPED`/`DISPATCHED`/`FULFILLED`/`COMPLETED` now return `409 Conflict` (`BUS_001`) instead of acknowledging or posting dispatch accounting truth.
 - 2026-03-06 `reset-token-issuance-race-hardening`: no auth/admin request or response shape changes were required. Public forgot-password and admin force-reset now serialize reset-token issuance per scoped account so duplicate or overlapping requests deterministically leave only the latest reset link usable instead of cross-deleting every valid token.
-- 2026-03-06 `must-change-password-corridor-hardening`: login, refresh-token, `/auth/me`, `GET /auth/profile`, password-change, and logout success payloads stay the same. While `mustChangePassword=true`, the backend now confines the bearer session to that corridor, denies normal protected work with a `403` `ApiResponse` carrying `reason=PASSWORD_CHANGE_REQUIRED` and `mustChangePassword=true`, and still preserves company binding on the allowed corridor endpoints.
+- 2026-03-06 `must-change-password-corridor-hardening`: login, refresh-token, `/auth/me`, password-change, and logout success payloads stay the same. While `mustChangePassword=true`, the backend now confines the bearer session to that corridor, denies normal protected work with a `403` `ApiResponse` carrying `reason=PASSWORD_CHANGE_REQUIRED` and `mustChangePassword=true`, and still preserves company binding on the allowed corridor endpoints while the retired profile surface stays absent.
 - 2026-03-06 `controlled-auth-error-contracts`: supported auth/admin success payloads stay the same, but previously raw framework/servlet failure paths are now normalized into `ApiResponse` contracts. Lockout now returns `401` with `AUTH_005`, authenticated tenant-binding mismatches now return `403` `ApiResponse` envelopes with `AUTH_004` plus `reason` / `reasonDetail`, and tenant runtime hold/block/quota denials on login or authenticated auth requests now return controlled `ApiResponse` error bodies carrying their runtime denial codes (for example `TENANT_ON_HOLD`, `TENANT_BLOCKED`, `TENANT_REQUEST_RATE_EXCEEDED`).
 - 2026-03-06 `auth-compatibility-regression-handoff`: no auth/admin request or response shape changes were required. Login, refresh-token, logout, `/auth/me`, password-change, forgot/reset, admin user-control, and admin settings payloads remain frontend-safe; contract regression coverage was refreshed across those surfaces, and the published OpenAPI contract now matches the live `204 No Content` logout response so the `AuthControllerIT.refresh_token_revoked_after_logout` regression stays aligned with runtime behavior.
 - 2026-03-26 `auth-v2-hard-cut-canonicalization`: `POST /api/v1/auth/password/forgot` still masks unknown-user and disabled-user cases behind the generic success contract, but known scoped accounts now fail closed when reset-token storage or reset-email delivery/configuration fails. Frontend callers must treat forgot-password as a scoped recovery request that can return a real error instead of assuming `200 OK`.
@@ -59,8 +59,6 @@ Each module section should include:
 | POST | `/api/v1/auth/password/change` | `isAuthenticated()` | `ChangePasswordRequest` | `ApiResponse<String>` |
 | POST | `/api/v1/auth/password/forgot` | Public | `ForgotPasswordRequest` | `ApiResponse<String>` |
 | POST | `/api/v1/auth/password/reset` | Public | `ResetPasswordRequest` | `ApiResponse<String>` |
-| GET | `/api/v1/auth/profile` | `isAuthenticated()` | None | `ApiResponse<ProfileResponse>` |
-| PUT | `/api/v1/auth/profile` | `isAuthenticated()` | `UpdateProfileRequest` | `ApiResponse<ProfileResponse>` |
 | POST | `/api/v1/auth/mfa/setup` | `isAuthenticated()` | None | `ApiResponse<MfaSetupResponse>` |
 | POST | `/api/v1/auth/mfa/activate` | `isAuthenticated()` | `MfaActivateRequest` | `ApiResponse<{ enabled: true }>` |
 | POST | `/api/v1/auth/mfa/disable` | `isAuthenticated()` | `MfaDisableRequest` | `ApiResponse<{ enabled: false }>` |
@@ -69,14 +67,14 @@ Notes:
 - Login/refresh return raw `AuthResponse` (not wrapped in `ApiResponse`).
 - Most other auth endpoints return `ApiResponse<T>`.
 - MFA verification during login is done by `POST /api/v1/auth/login` using `mfaCode` or `recoveryCode` in `LoginRequest`.
-- When `mustChangePassword=true`, only login, refresh-token, `/auth/me`, `GET /auth/profile`, `POST /auth/password/change`, and `POST /auth/logout` remain usable until the password is updated.
+- When `mustChangePassword=true`, only login, refresh-token, `/auth/me`, `POST /auth/password/change`, and `POST /auth/logout` remain usable until the password is updated.
 
 #### Auth Flows
 
 1. **Login flow (without MFA)**
    1. Submit `POST /api/v1/auth/login` with `{ email, password, companyCode }`.
    2. Receive `AuthResponse` with `accessToken`, `refreshToken`, `expiresIn`, `mustChangePassword`.
-   3. Call `GET /api/v1/auth/me` and/or `GET /api/v1/auth/profile` to hydrate UI shell.
+   3. Call `GET /api/v1/auth/me` to hydrate the UI shell and permission state.
 
 2. **Login flow (with MFA challenge)**
    1. Submit `POST /api/v1/auth/login` without MFA verifier.
@@ -189,27 +187,6 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
   - `roles: string[]`
   - `permissions: string[]`
 
-- `ProfileResponse`
-  - `email: string`
-  - `displayName: string`
-  - `preferredName?: string`
-  - `jobTitle?: string`
-  - `profilePictureUrl?: string`
-  - `phoneSecondary?: string`
-  - `secondaryEmail?: string`
-  - `mfaEnabled: boolean`
-  - `companyCode?: string` (single scoped company code; `null` only for platform-scoped super admin)
-  - `createdAt: string` (ISO-8601)
-  - `publicId: string` (UUID)
-
-- `UpdateProfileRequest`
-  - `displayName?: string` (1..255)
-  - `preferredName?: string` (max 255)
-  - `jobTitle?: string` (max 255)
-  - `profilePictureUrl?: string` (max 512)
-  - `phoneSecondary?: string` (max 64)
-  - `secondaryEmail?: string` (email, max 255)
-
 - `MfaSetupResponse`
   - `secret: string`
   - `qrUri: string` (otpauth URI)
@@ -241,10 +218,10 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
 #### Current mission note
 
 - Dedicated review tracker: see `docs/frontend-update-v2/README.md` for the per-feature frontend follow-up matrix and explicit no-op entries for this mission.
-- 2026-03-06 `privileged-user-boundary-hardening`: no admin user-management request or response shape changes were required for `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, or `DELETE /api/v1/admin/users/{id}`. The feature aligned tenant-boundary authorization and audit behavior while preserving the existing frontend payloads for authorized super-admin flows, and the company control-plane lifecycle endpoint once again accepts `HOLD`/`BLOCKED` compatibility aliases while preserving the existing path shape. The later `masked-admin-target-lookup-hardening` refinement now defines the current foreign-target masking behavior for auth-sensitive tenant-admin actions.
-- 2026-03-06 `global-security-settings-authorization`: no admin settings request or response payload shapes changed, but `PUT /api/v1/admin/settings` requires `ROLE_SUPER_ADMIN` because it mutates platform-wide CORS, mail, export, and related global settings. The current public control plane does not publish `GET /api/v1/admin/tenant-runtime/metrics` or `PUT /api/v1/admin/tenant-runtime/policy`; tenant quota and lifecycle control now live on the superadmin tenant routes below.
+- 2026-03-06 `privileged-user-boundary-hardening`: no admin user-management request or response shape changes were required for `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, or `DELETE /api/v1/admin/users/{id}`. The feature aligned tenant-boundary authorization and audit behavior while preserving the existing frontend payloads for tenant-admin operators; platform super-admins stay on the canonical `/api/v1/superadmin/tenants/{id}/...` control plane instead of tenant-admin workflow prefixes.
+- 2026-03-06 `global-security-settings-authorization`: no admin settings request or response payload shapes changed, but `PUT /api/v1/admin/settings` requires `ROLE_SUPER_ADMIN` because it mutates platform-wide CORS, mail, export, and related global settings. Legacy admin/company runtime-policy aliases are retired from the published contract; tenant lifecycle and quota control now live on the superadmin tenant routes below.
 - 2026-03-06 `auth-compatibility-regression-handoff`: no admin request or response payload shapes changed for `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, `DELETE /api/v1/admin/users/{id}`, `GET /api/v1/admin/settings`, and `PUT /api/v1/admin/settings`; the refreshed OpenAPI snapshot also documents the user-control no-content endpoints as `204 No Content` instead of stale `200` responses.
-- 2026-03-15 `lane01-canonicalize-company-runtime-writer`: both legacy public runtime-policy writers are retired from the published contract. `PUT /api/v1/admin/tenant-runtime/policy` and `PUT /api/v1/companies/{id}/tenant-runtime/policy` are not current frontend targets; superadmin tenant quota/runtime control now lives on `PUT /api/v1/superadmin/tenants/{id}/limits`, and tenant detail/limits reads come from the superadmin tenant detail routes.
+- 2026-03-15 `lane01-canonicalize-company-runtime-writer`: both legacy public runtime-policy writers are retired from the published contract. Superadmin tenant quota/runtime control now lives on `PUT /api/v1/superadmin/tenants/{id}/limits`, and tenant detail/limits reads come from the superadmin tenant detail routes.
 - 2026-03-29 `erp-11-12-13-26-29-contract-closure`: the current backend does not expose dedicated UI fields for `sessionTimeoutMinutes`, `passwordMinLength`, `maxLoginAttempts`, or `mfaRequired`. Frontend/UAT should treat those as unsupported until a real backend contract lands, use the support endpoints under `/api/v1/superadmin/tenants/{id}/support/*`, create catalog records through `/api/v1/catalog/items`, and treat `/api/v1/raw-materials/intake` plus bulk-variant catalog routes as retired.
 - 2026-03-06 `tenant-lifecycle-rollout-safety-hardening`: no auth/admin/lifecycle request or response payload shapes changed. The current public lifecycle control plane is `PUT /api/v1/superadmin/tenants/{id}/lifecycle`; the backend continues to persist Flyway-v2-compatible lifecycle storage values (`ACTIVE`, `HOLD`, `BLOCKED`), and corrupted or unrecognized stored lifecycle values now fail closed instead of being treated as active.
 - 2026-03-07 `masked-admin-target-lookup-hardening`: admin user-management request and success-response payload shapes still did not change, but tenant-admin attempts to `POST /api/v1/admin/users/{id}/force-reset-password`, `PUT /api/v1/admin/users/{id}/status`, `PATCH /api/v1/admin/users/{id}/{suspend|unsuspend}`, `PATCH /api/v1/admin/users/{id}/mfa/disable`, or `DELETE /api/v1/admin/users/{id}` against a foreign-tenant user id now return the same `400 User not found` validation envelope as a truly missing id. This masks foreign targets from enumeration while preserving internal `ACCESS_DENIED` audit evidence, and `POST /api/v1/admin/roles` remains request/response compatible while now enforcing the super-admin mutation boundary directly at the controller guard.
@@ -277,15 +254,15 @@ Password-policy failures currently surface as `VAL_001` with message prefix `Pas
 
 | Method | Path | Auth | Request | Response `data` |
 |---|---|---|---|---|
-| GET | `/api/v1/admin/users` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `List<UserDto>` |
-| POST | `/api/v1/admin/users` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | `CreateUserRequest` | `UserDto` |
-| PUT | `/api/v1/admin/users/{id}` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | `UpdateUserRequest` | `UserDto` |
-| PUT | `/api/v1/admin/users/{id}/status` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | `UpdateUserStatusRequest` | `UserDto` |
-| POST | `/api/v1/admin/users/{id}/force-reset-password` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `ApiResponse<String>` (`"OK"`) |
-| PATCH | `/api/v1/admin/users/{id}/suspend` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `204 No Content` |
-| PATCH | `/api/v1/admin/users/{id}/unsuspend` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `204 No Content` |
-| PATCH | `/api/v1/admin/users/{id}/mfa/disable` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `204 No Content` |
-| DELETE | `/api/v1/admin/users/{id}` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `204 No Content` |
+| GET | `/api/v1/admin/users` | `ROLE_ADMIN` | None | `List<UserDto>` |
+| POST | `/api/v1/admin/users` | `ROLE_ADMIN` | `CreateUserRequest` | `UserDto` |
+| PUT | `/api/v1/admin/users/{id}` | `ROLE_ADMIN` | `UpdateUserRequest` | `UserDto` |
+| PUT | `/api/v1/admin/users/{id}/status` | `ROLE_ADMIN` | `UpdateUserStatusRequest` | `UserDto` |
+| POST | `/api/v1/admin/users/{id}/force-reset-password` | `ROLE_ADMIN` | None | `ApiResponse<String>` (`"OK"`) |
+| PATCH | `/api/v1/admin/users/{id}/suspend` | `ROLE_ADMIN` | None | `204 No Content` |
+| PATCH | `/api/v1/admin/users/{id}/unsuspend` | `ROLE_ADMIN` | None | `204 No Content` |
+| PATCH | `/api/v1/admin/users/{id}/mfa/disable` | `ROLE_ADMIN` | None | `204 No Content` |
+| DELETE | `/api/v1/admin/users/{id}` | `ROLE_ADMIN` | None | `204 No Content` |
 | GET | `/api/v1/admin/audit/events` | `ROLE_ADMIN` (tenant-scoped only) | Query: `from?`, `to?`, `module?`, `action?`, `status?`, `actor?`, `entityType?`, `reference?`, `page?`, `size?` | `PageResponse<AuditFeedItemDto>` |
 | GET | `/api/v1/admin/roles` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `List<RoleDto>` |
 | GET | `/api/v1/admin/roles/{roleKey}` | `ROLE_ADMIN` or `ROLE_SUPER_ADMIN` | None | `RoleDto` |
@@ -341,16 +318,16 @@ Disabled module requests return `403` with `BUS_010` (`MODULE_DISABLED`). Runtim
 
 4. **Tenant lifecycle operations (superadmin)**
    1. Review status in `GET /api/v1/superadmin/tenants`.
-   2. Transition using suspend/activate/deactivate or explicit lifecycle endpoint.
+   2. Transition tenant state through `PUT /api/v1/superadmin/tenants/{id}/lifecycle`.
    3. Runtime enforcement: `SUSPENDED` blocks writes, `DEACTIVATED` blocks all access.
 
 #### State Machines
 
 1. **Tenant lifecycle**
-   - `ACTIVE` -> `SUSPENDED` via `POST /api/v1/superadmin/tenants/{id}/suspend`
-   - `SUSPENDED` -> `ACTIVE` via `POST /api/v1/superadmin/tenants/{id}/activate`
-   - `ACTIVE` -> `DEACTIVATED` via `POST /api/v1/superadmin/tenants/{id}/deactivate`
-   - `SUSPENDED` -> `DEACTIVATED` via `POST /api/v1/superadmin/tenants/{id}/deactivate`
+   - `ACTIVE` -> `SUSPENDED` via `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
+   - `SUSPENDED` -> `ACTIVE` via `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
+   - `ACTIVE` -> `DEACTIVATED` via `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
+   - `SUSPENDED` -> `DEACTIVATED` via `PUT /api/v1/superadmin/tenants/{id}/lifecycle`
    - `DEACTIVATED` is terminal.
 
 2. **Admin user lifecycle**
@@ -699,7 +676,6 @@ Catalog note (2026-03-21): accounting-facing stock-bearing setup now uses the ca
 | `POST` | `/api/v1/accounting/journal-entries/{entryId}/cascade-reverse` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `JournalEntryReversalRequest` | `List<JournalEntryDto>` |
 | `POST` | `/api/v1/accounting/journal-entries/{entryId}/reverse` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `JournalEntryReversalRequest` | `JournalEntryDto` |
 | `GET` | `/api/v1/accounting/journals` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `List<JournalListItemDto>` |
-| `POST` | `/api/v1/accounting/journals/manual` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `ManualJournalRequest` | `JournalEntryDto` |
 | `POST` | `/api/v1/accounting/journals/{entryId}/reverse` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `JournalEntryReversalRequest` | `JournalEntryDto` |
 | `GET` | `/api/v1/accounting/month-end/checklist` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `MonthEndChecklistDto` |
 | `POST` | `/api/v1/accounting/month-end/checklist/{periodId}` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `MonthEndChecklistUpdateRequest` | `MonthEndChecklistDto` |
@@ -737,7 +713,7 @@ Catalog note (2026-03-21): accounting-facing stock-bearing setup now uses the ca
 | `POST` | `/api/v1/accounting/suppliers/{supplierId}/auto-settle` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `AutoSettlementRequest` | `PartnerSettlementResponse` |
 | `GET` | `/api/v1/accounting/trial-balance/as-of` | `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')` | `—` | `TemporalBalanceService.TrialBalanceSnapshot` |
 
-_Total documented accounting endpoints: **82**._
+_Total documented accounting endpoints: **81**._
 
 #### Required User Flows (API call sequences)
 
@@ -750,7 +726,7 @@ _Total documented accounting endpoints: **82**._
 
 2. **Manual journal entry**
    1. Dropdown preload: `GET /api/v1/accounting/accounts`, `GET /api/v1/dealers`, `GET /api/v1/suppliers`
-   2. Create manual journal: `POST /api/v1/accounting/journals/manual` (preferred multi-line path)
+   2. Create manual journal: `POST /api/v1/accounting/journal-entries` (canonical manual write path)
    3. List and filter: `GET /api/v1/accounting/journals?fromDate&toDate&type&sourceModule`
    4. Reverse (single): `POST /api/v1/accounting/journals/{entryId}/reverse` or `/journal-entries/{entryId}/reverse`
    5. Reverse (cascade): `POST /api/v1/accounting/journal-entries/{entryId}/cascade-reverse`
@@ -896,7 +872,7 @@ _Total documented accounting endpoints: **82**._
   - `amount`: `BigDecimal` — validation `@NotNull; @DecimalMin(value = "0.01")`
   - `referenceNumber`: `String` — validation `—`
   - `memo`: `String` — validation `—`
-  - `idempotencyKey`: `String` — validation `—`
+  - Replay protection is header-only: send optional `Idempotency-Key`; body `idempotencyKey` is rejected.
 - **`DebitNoteRequest`**
   - `purchaseId`: `Long` — validation `@NotNull`
   - `amount`: `BigDecimal` — validation `@DecimalMin(value = "0.01")`
@@ -1017,14 +993,14 @@ _Total documented accounting endpoints: **82**._
   - `amount`: `BigDecimal` — validation `@NotNull; @DecimalMin(value = "0.01")`
   - `referenceNumber`: `String` — validation `—`
   - `memo`: `String` — validation `—`
-  - `idempotencyKey`: `String` — validation `—`
+  - Replay protection is header-only: send optional `Idempotency-Key`; body `idempotencyKey` is rejected.
   - `allocations`: `List<SettlementAllocationRequest>` — validation `@NotEmpty(message = "Allocations are required for dealer receipts; use settlement endpoints or include allocations"); @Valid`
 - **`DealerReceiptSplitRequest`**
   - `dealerId`: `Long` — validation `@NotNull`
   - `incomingLines`: `List<IncomingLine>` — validation `@NotEmpty; @Valid`
   - `referenceNumber`: `String` — validation `—`
   - `memo`: `String` — validation `—`
-  - `idempotencyKey`: `String` — validation `—`
+  - Replay protection is header-only: send optional `Idempotency-Key`; body `idempotencyKey` is rejected.
 - **`BankReconciliationRequest`**
   - `bankAccountId`: `Long` — validation `@NotNull`
   - `statementDate`: `LocalDate` — validation `@NotNull`
@@ -1068,7 +1044,7 @@ _Total documented accounting endpoints: **82**._
   - `settlementDate`: `LocalDate` — validation `—`
   - `referenceNumber`: `String` — validation `—`
   - `memo`: `String` — validation `—`
-  - `idempotencyKey`: `String` — validation `—`
+  - Replay protection is header-only: send optional `Idempotency-Key`; body `idempotencyKey` is rejected.
   - `adminOverride`: `Boolean` — validation `—`
   - `allocations`: `List<SettlementAllocationRequest>` — validation `@NotEmpty; @Valid`
   - `payments`: `List<SettlementPaymentRequest>` — validation `@Valid`
@@ -1082,7 +1058,7 @@ _Total documented accounting endpoints: **82**._
   - `settlementDate`: `LocalDate` — validation `—`
   - `referenceNumber`: `String` — validation `—`
   - `memo`: `String` — validation `—`
-  - `idempotencyKey`: `String` — validation `—`
+  - Replay protection is header-only: send optional `Idempotency-Key`; body `idempotencyKey` is rejected.
   - `adminOverride`: `Boolean` — validation `—`
   - `allocations`: `List<SettlementAllocationRequest>` — validation `@NotEmpty; @Valid`
 - **`multipart/form-data` (`POST /api/v1/accounting/opening-balances`)**
@@ -1615,7 +1591,7 @@ _Total documented accounting endpoints: **82**._
   - Treat `BUS_001` on update as immutable-completed-session signal; disable line selection and show read-only completed snapshot.
   - Use `GET /reconciliation/bank/sessions` for history drawer/table and show `status`, `createdAt`, `completedAt`, and `clearedItemCount` badges.
 - **Idempotency**
-  - For mutation endpoints supporting replay protection, send `Idempotency-Key` (preferred). Legacy `X-Idempotency-Key` is accepted; mismatches are rejected.
+  - For accounting receipt/settlement/auto-settle mutations, send only `Idempotency-Key` when providing a replay key. `X-Idempotency-Key` and body `idempotencyKey` are rejected, and replay drift returns `409 CONCURRENCY_CONFLICT` with partner/idempotency metadata.
   - Opening balance import uses file-content hash idempotency internally; frontend does **not** need to send idempotency header, but should preserve identical file bytes when expecting replay behavior.
   - Tally XML import also uses file-content hash idempotency internally; frontend should preserve exact file bytes for replay expectations.
 - **Opening balance import UX**
@@ -1813,7 +1789,7 @@ Auth for report controller endpoints: `hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUN
    2. Resolve slip: `GET /api/v1/dispatch/order/{orderId}` (or list via `/pending`).
    3. Show the operational preview modal with `GET /api/v1/dispatch/preview/{slipId}` and expect redacted pricing/accounting fields.
    4. Use the read-only dispatch workspace for slip detail and challan access (`GET /api/v1/dispatch/slip/{slipId}` plus `/challan/pdf`).
-   5. Sales/admin use `POST /api/v1/sales/dispatch/confirm` for the canonical shipment posting when the UI needs logistics capture plus finance posting / invoice results.
+   5. Factory/admin use `POST /api/v1/dispatch/confirm` for the canonical shipment posting. Pure factory callers should expect the redacted operational response; admin/elevated callers may retain the response's amount and journal fields, but this contract does not return invoice ids.
 
 4. **Inventory adjustment flow (finished goods)**
    1. Build adjustment payload with explicit type: `DAMAGED`, `SHRINKAGE`, `OBSOLETE`, or `RECOUNT_UP`.
@@ -1849,7 +1825,7 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 - Auto reservation path: shortages -> `PENDING_PRODUCTION`; no shortages -> `RESERVED`.
 - `PENDING_STOCK` is not an initial reservation state; it is used when dispatch confirmation results in zero shipped quantity while stock is still pending.
 - Manual status endpoint (`PATCH /dispatch/slip/{id}/status`) only allows transitions among: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVED`.
-- `POST /api/v1/sales/dispatch/confirm`:
+- `POST /api/v1/dispatch/confirm`:
   - if any quantity shipped -> current slip `DISPATCHED`.
   - if partial shipment -> backorder slip is created in `BACKORDER`.
   - if no shipment and shortage persists -> `PENDING_STOCK`.
@@ -1919,8 +1895,8 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 - `DispatchPreviewDto`: slip/order/dealer summary + `lines[]` with availability/suggested ship quantities; on the operational factory/admin surface, pricing/tax fields are redacted and `gstBreakdown` is `null`.
 - `DispatchConfirmationRequest`: `packagingSlipId*`, `lines*`, `notes`, `confirmedBy`, `overrideRequestId`.
 - `DispatchConfirmationRequest.LineConfirmation`: `lineId*`, `shippedQuantity*`, `notes`.
-- `DispatchConfirmationResponse`: operational dispatch result with slip identity, logistics metadata, challan details/path, `lines[]`, and optional `backorderSlipId`; finance-only fields such as posted journal ids and commercial totals are redacted on this surface.
-- `DispatchConfirmationResponse.LineResult`: ordered/shipped/backorder quantities plus notes; costing/price fields are intentionally redacted for factory-role consumers.
+- `DispatchConfirmationResponse`: `packagingSlipId`, `slipNumber`, `status`, `confirmedAt`, `confirmedBy`, `totalOrderedAmount`, `totalShippedAmount`, `totalBackorderAmount`, `journalEntryId`, `cogsJournalEntryId`, `lines[]`, optional `backorderSlipId`, `transporterName`, `driverName`, `vehicleNumber`, `challanReference`, `deliveryChallanNumber`, and `deliveryChallanPdfPath`. Pure factory operational views redact the amount and journal fields by returning `null`.
+- `DispatchConfirmationResponse.LineResult`: `lineId`, `productCode`, `productName`, `orderedQuantity`, `shippedQuantity`, `backorderQuantity`, `unitCost`, `lineTotal`, and `notes`. Pure factory operational views redact `unitCost` and `lineTotal`.
 
 ##### Manufacturing DTOs
 
@@ -2007,16 +1983,15 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
 | `GET` | `/api/v1/dealer-portal/invoices/{invoiceId}/pdf` | `ROLE_DEALER` | — | `application/pdf` |
 | `GET` | `/api/v1/dispatch/preview/{slipId}` | `ROLE_ADMIN`/`ROLE_FACTORY` | — | `DispatchPreviewDto` |
 | `GET` | `/api/v1/dispatch/slip/{slipId}/challan/pdf` | `ROLE_ADMIN`/`ROLE_FACTORY` | — | `application/pdf` |
-| `POST` | `/api/v1/sales/dispatch/confirm` | `ROLE_SALES`/`ROLE_ADMIN` + `dispatch.confirm` | `DispatchConfirmRequest` | `DispatchConfirmResponse` |
+| `POST` | `/api/v1/dispatch/confirm` | `ROLE_ADMIN`/`ROLE_FACTORY` + `dispatch.confirm` | `DispatchConfirmationRequest` | `DispatchConfirmationResponse` |
 | `POST` | `/api/v1/sales/dispatch/reconcile-order-markers` | `ROLE_SALES`/`ROLE_ADMIN` + `dispatch.confirm` | Query: `limit?` (default `200`) | `DispatchMarkerReconciliationResponse` |
-| `POST` | `/api/v1/orchestrator/factory/dispatch/{batchId}` | `ROLE_ADMIN` or `ROLE_FACTORY` + `factory.dispatch` | `DispatchRequest` | Deprecated compatibility path only; runtime returns `410 Gone` with `{ message, canonicalPath=/api/v1/sales/dispatch/confirm }` and does not post or release anything |
 
 #### Portal boundary notes (2026-03-08)
 
-- `/api/v1/dispatch/**` is now a read-only prepared-slip workspace for factory/operator lookup, preview, slip detail, order lookup, and challan download.
-- `/api/v1/sales/dispatch/confirm` is the only surviving dispatch-confirm write surface. Accounting denials now point back to the sales dispatch owner, and factory denials direct users to the read-only dispatch workspace for lookup/challan details only.
-- `/api/v1/orchestrator/factory/dispatch/{batchId}` must not be used for shipment posting or inventory progression. It is retained only to fail closed with `410 Gone` and `canonicalPath=/api/v1/sales/dispatch/confirm` so stale clients can be redirected safely.
-- `/api/v1/orchestrator/orders/{orderId}/fulfillment` still handles non-dispatch workflow states like `PROCESSING`, but dispatch-like target states (`SHIPPED`, `DISPATCHED`, `FULFILLED`, `COMPLETED`) now fail closed with `BUS_001` and instruct callers to use `/api/v1/sales/dispatch/confirm`.
+- `/api/v1/dispatch/**` is now the canonical dispatch workspace for factory/operator lookup, preview, slip detail, order lookup, challan download, and the single public dispatch-confirm write.
+- `/api/v1/dispatch/confirm` is the only surviving dispatch-confirm write surface. Factory/admin own the action; pure factory callers receive the redacted operational view, while admin/elevated callers retain only the DTO's permitted amount and journal fields.
+- Historical orchestrator dispatch shortcuts are retired from the active contract. Frontend shipment posting must use `/api/v1/dispatch/confirm` only.
+- `/api/v1/orchestrator/orders/{orderId}/fulfillment` still handles non-dispatch workflow states like `PROCESSING`, but dispatch-like target states (`SHIPPED`, `DISPATCHED`, `FULFILLED`, `COMPLETED`) now fail closed with `BUS_001` and instruct callers to use `/api/v1/dispatch/confirm`.
 - Credit override requests can still be created by sales/factory/admin on `/api/v1/credit/override-requests`, but approve/reject review is now limited to admin/accounting.
 - Dealer portal routes remain dealer-scoped for reads, but dealers can now submit permanent credit-limit requests on `/api/v1/dealer-portal/credit-limit-requests`. Do not surface dispatch-override actions in the dealer portal.
 - Dealer invoice PDF export stays dealer-scoped and audited; cross-dealer invoice-id guessing returns `404`, and token/header company mismatches return `403`.
@@ -2052,8 +2027,8 @@ Operational statuses: `PENDING`, `PENDING_STOCK`, `PENDING_PRODUCTION`, `RESERVE
    1. Reserve inventory during order creation/confirmation.
    2. Open modal with `GET /api/v1/dispatch/preview/{slipId}` and render operational shipment context only; do not expect price totals or GST breakdown on this factory/admin preview.
    3. Factory/admin use the read-only dispatch workspace for slip lookup, preview, challan download, and operator context.
-   4. Sales/admin complete shipment posting with `POST /api/v1/sales/dispatch/confirm`, including transporter/driver, vehicle number, challan reference, and final invoice / AR-journal linkage.
-   5. Keep sales and factory users away from the accounting-only posting surface and surface backend deny text verbatim if a stale route is hit.
+   4. Factory/admin complete shipment posting with `POST /api/v1/dispatch/confirm`, including transporter/driver, vehicle number, challan reference, and the role-appropriate dispatch result payload.
+   5. Keep sales and accounting users away from `POST /api/v1/dispatch/confirm`, and surface backend deny text verbatim if a stale or unauthorized route is hit.
 
 6. **Cancel order with reason code**
    1. UI collects structured reason code + optional free-text reason.
@@ -2161,8 +2136,10 @@ Frontend behavior: treat these as non-retryable user/action-state errors; surfac
   - Operational read response includes shipment/challan metadata, `deliveryChallanNumber`, and `deliveryChallanPdfPath`
   - `journalEntryId`, `cogsJournalEntryId`, and pricing/accounting fields remain intentionally redacted on this surface
 
-- `DispatchConfirmResponse` (`POST /api/v1/sales/dispatch/confirm`)
-  - Finance posting response includes `packingSlipId`, `salesOrderId`, `finalInvoiceId`, `arJournalEntryId`, and related accounting/posting linkage fields
+- `DispatchConfirmationResponse` (`POST /api/v1/dispatch/confirm`)
+  - Fields present in the checked-in DTO/OpenAPI schema are: `packagingSlipId`, `slipNumber`, `status`, `confirmedAt`, `confirmedBy`, `totalOrderedAmount`, `totalShippedAmount`, `totalBackorderAmount`, `journalEntryId`, `cogsJournalEntryId`, `lines[]`, optional `backorderSlipId`, `transporterName`, `driverName`, `vehicleNumber`, `challanReference`, `deliveryChallanNumber`, and `deliveryChallanPdfPath`
+  - `lines[]` entries carry `lineId`, `productCode`, `productName`, `orderedQuantity`, `shippedQuantity`, `backorderQuantity`, `unitCost`, `lineTotal`, and `notes`
+  - Do not expect `salesOrderId`, `finalInvoiceId`, `arJournalEntryId`, or other shadow invoice-link fields on this response
 
 - `SalesOrderSearchFilters` (query-model used by backend)
   - `status?: string` (canonicalized on backend)
@@ -2215,7 +2192,7 @@ Frontend behavior: treat these as non-retryable user/action-state errors; surfac
 - Dealer search table should expose independent filters: `status`, `region`, and `creditStatus`; do not derive `creditStatus` client-side.
 - Dealer portal dashboard should highlight `creditStatus` using thresholds from backend response and show `pendingOrderExposure` alongside outstanding dues.
 - Render only the permanent credit-limit request CTA in the dealer portal. Do not render dispatch-override or other tenant-internal workflow CTAs there.
-- Dispatch confirmation modal for the factory/admin operational surface should not expect price/tax cards from preview; use the accounting/admin posting surface when finance totals are required.
+- Dispatch confirmation modal for the factory/admin operational surface should not expect price/tax cards from preview; use an admin/elevated session on the same canonical route when finance-linked fields are required after confirm.
 
 #### GST Fields
 
@@ -3311,7 +3288,7 @@ These flows map complete API sequences across modules. Use them to drive wizard-
 1. Dealer onboarding: `POST /api/v1/dealers`.
 2. Create sales order: `POST /api/v1/sales/orders`.
 3. Confirm order: `POST /api/v1/sales/orders/{id}/confirm`.
-4. Dispatch + invoice creation: use the read-only factory/admin dispatch workspace for preview, slip lookup, and challan output, then use `POST /api/v1/sales/dispatch/confirm` for the canonical shipment posting when the UI needs `finalInvoiceId` and AR journal links.
+4. Dispatch + invoice creation: use the factory/admin dispatch workspace for preview, slip lookup, and challan output, then use `POST /api/v1/dispatch/confirm` for the canonical shipment posting. Pure factory sessions stay redacted; admin/elevated sessions may use the returned amount and journal fields when permitted, but invoice follow-up should come from invoice/slip reads rather than a `finalInvoiceId` on the dispatch response.
 5. Receive/allocate payment: `POST /api/v1/accounting/settlements/dealers` (or auto-settle endpoint if used).
 6. Operational reconciliation checks:
    - `GET /api/v1/portal/finance/aging?dealerId=`

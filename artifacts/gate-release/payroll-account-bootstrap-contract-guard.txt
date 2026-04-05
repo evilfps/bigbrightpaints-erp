@@ -1,1 +1,0 @@
-[guard_payroll_account_bootstrap_contract] OK

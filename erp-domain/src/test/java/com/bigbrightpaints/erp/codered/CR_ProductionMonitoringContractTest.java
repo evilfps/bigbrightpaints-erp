@@ -56,6 +56,56 @@ class CR_ProductionMonitoringContractTest {
   }
 
   @Test
+  @DisplayName("Strict compose smoke contract requires management readiness and app probe")
+  void strictComposeSmokeContractRequiresManagementReadinessAndAppProbe() {
+    String servicesManifest = readRepoFile(".factory/services.yaml");
+
+    assertThat(servicesManifest)
+        .contains("strict-runtime-smoke-check")
+        .contains("http://localhost:9090/actuator/health")
+        .contains("http://localhost:9090/actuator/health/readiness")
+        .contains("http://localhost:8081/api/v1/auth/me")
+        .contains("[ \"$auth\" = \"200\" ] || [ \"$auth\" = \"401\" ] || [ \"$auth\" = \"403\" ];")
+        .contains("backend-compose-v2:")
+        .contains("SPRING_MAIL_USERNAME='mailhog-user'")
+        .contains("SPRING_MAIL_PASSWORD='mailhog-password'")
+        .contains("SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH='false'");
+  }
+
+  @Test
+  @DisplayName("Compose defaults preserve the approved management and app boundary")
+  void composeDefaultsPreserveApprovedManagementAndAppBoundary() {
+    String composeFile = readRepoFile("docker-compose.yml");
+
+    assertThat(composeFile)
+        .contains("SERVER_PORT: 8081")
+        .contains("MANAGEMENT_SERVER_PORT: 9090")
+        .contains("SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-mailhog-user}")
+        .contains("SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-mailhog-password}")
+        .contains("SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:-false}");
+  }
+
+  @Test
+  @DisplayName("Release proof script boots strict compose smoke before the gate-release lane")
+  void releaseProofBootsStrictComposeSmokeBeforeGateReleaseLane() {
+    String releaseProof = readRepoFile("scripts/release_proof.sh");
+
+    assertThat(releaseProof)
+        .contains("echo \"[release-proof] strict compose smoke\"")
+        .contains("DB_PORT=\"5433\"")
+        .contains("strict_compose up -d db rabbitmq mailhog")
+        .contains("strict_compose up -d --build app")
+        .contains("http://localhost:9090/actuator/health")
+        .contains("http://localhost:9090/actuator/health/readiness")
+        .contains("http://localhost:8081/api/v1/auth/me")
+        .contains(
+            "[[ \"$STRICT_HEALTH_STATUS\" == \"200\" && \"$STRICT_READINESS_STATUS\" == \"200\" ]]")
+        .contains(
+            "[[ \"$STRICT_AUTH_STATUS\" == \"200\" || \"$STRICT_AUTH_STATUS\" == \"401\" || \"$STRICT_AUTH_STATUS\" == \"403\" ]]")
+        .contains("bash \"$ROOT_DIR/scripts/gate_release.sh\"");
+  }
+
+  @Test
   @DisplayName("Required configuration health indicator reports UP with complete configuration")
   void requiredConfigurationHealthIndicatorReportsUp() {
     RequiredConfigHealthIndicator indicator =
@@ -127,5 +177,18 @@ class CR_ProductionMonitoringContractTest {
         throw new IllegalStateException("Unable to read resource " + relativePath, ex);
       }
     }
+  }
+
+  private String readRepoFile(String relativePath) {
+    for (Path candidate : new Path[] {Path.of("..", relativePath), Path.of(relativePath)}) {
+      if (Files.exists(candidate)) {
+        try {
+          return Files.readString(candidate);
+        } catch (IOException ex) {
+          throw new IllegalStateException("Unable to read repo file " + candidate, ex);
+        }
+      }
+    }
+    throw new IllegalStateException("Unable to locate repo file " + relativePath);
   }
 }

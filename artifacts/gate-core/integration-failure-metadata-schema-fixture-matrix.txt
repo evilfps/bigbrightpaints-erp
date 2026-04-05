@@ -1,1 +1,0 @@
-[guard_integration_failure_metadata_schema_fixture_matrix] OK

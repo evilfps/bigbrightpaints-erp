@@ -146,13 +146,13 @@ This file inventories the controllers and services that own the current setup jo
   - expose prepared-slip and challan reads only
   - keep factory/operator dispatch views redacted where required
 
-### `SalesController` + `SalesDispatchReconciliationService`
+### `DispatchController` + `SalesDispatchReconciliationService`
 
 - canonical route:
   - `POST /api/v1/dispatch/confirm`
 - purpose:
   - own the only surviving dispatch-confirm write
-  - preserve inventory and accounting posting consequences on the sales-owned path
+  - preserve downstream inventory and accounting posting consequences on the canonical dispatch path
 
 ## Readiness Ownership
 

@@ -84,14 +84,16 @@
       "decision_point": "safe to deploy",
       "goal": "Prove the candidate artifact is deployable on the approved Flyway v2 path, not merely that tests happen to be green.",
       "prove": [
-        "The release-grade lane passes with release guards, migration checks, and the deployable-state contract attached.",
+        "The release-grade lane passes with release guards, migration checks, targeted high-risk proofs, and the deployable-state contract attached.",
         "The candidate artifact demonstrates boot, health/readiness evidence, auth, tenant isolation, one O2C path, and one P2P/accounting path.",
+        "Contract guards and shared handoff/OpenAPI parity checks stay green alongside the release-grade lane.",
         "Rollback owner, trigger, and rehearsal evidence remain explicit before promotion."
       ],
       "primary_commands": [
         "test-release-local"
       ],
       "required_scripts": [
+        "scripts/release_proof.sh",
         "scripts/gate_release.sh",
         "scripts/verify_local.sh"
       ],

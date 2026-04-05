@@ -20,6 +20,7 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -160,11 +161,11 @@ class AccountingServiceTest {
 
   private AccountingService accountingService;
   private JournalEntryService journalEntryService;
-  private AccountingIdempotencyService settlementIdempotencyService;
   private DealerReceiptService dealerReceiptService;
   private SettlementService settlementService;
   private CreditDebitNoteService creditDebitNoteService;
   private InventoryAccountingService inventoryAccountingService;
+  private PayrollAccountingService payrollAccountingService;
   private org.springframework.beans.factory.ObjectProvider<AccountingFacade>
       accountingFacadeProvider;
   private AccountingFacade accountingFacade;
@@ -206,70 +207,7 @@ class AccountingServiceTest {
                 entityManager,
                 systemSettingsService,
                 auditService,
-                accountingEventStore,
-                mock(AccountingIdempotencyService.class)));
-    settlementIdempotencyService =
-        spy(
-            new AccountingIdempotencyService(
-                companyContextService,
-                accountRepository,
-                journalEntryRepository,
-                dealerLedgerService,
-                supplierLedgerService,
-                payrollRunRepository,
-                payrollRunLineRepository,
-                accountingPeriodService,
-                referenceNumberService,
-                eventPublisher,
-                companyClock,
-                companyEntityLookup,
-                settlementAllocationRepository,
-                rawMaterialPurchaseRepository,
-                invoiceRepository,
-                rawMaterialMovementRepository,
-                rawMaterialBatchRepository,
-                finishedGoodBatchRepository,
-                dealerRepository,
-                supplierRepository,
-                invoiceSettlementPolicy,
-                journalReferenceResolver,
-                journalReferenceMappingRepository,
-                entityManager,
-                systemSettingsService,
-                auditService,
-                accountingEventStore,
-                mock(org.springframework.beans.factory.ObjectProvider.class)));
-    settlementService =
-        spy(
-            new SettlementService(
-                companyContextService,
-                accountRepository,
-                journalEntryRepository,
-                dealerLedgerService,
-                supplierLedgerService,
-                payrollRunRepository,
-                payrollRunLineRepository,
-                accountingPeriodService,
-                referenceNumberService,
-                eventPublisher,
-                companyClock,
-                companyEntityLookup,
-                settlementAllocationRepository,
-                rawMaterialPurchaseRepository,
-                invoiceRepository,
-                rawMaterialMovementRepository,
-                rawMaterialBatchRepository,
-                finishedGoodBatchRepository,
-                dealerRepository,
-                supplierRepository,
-                invoiceSettlementPolicy,
-                journalReferenceResolver,
-                journalReferenceMappingRepository,
-                entityManager,
-                systemSettingsService,
-                auditService,
-                accountingEventStore,
-                settlementIdempotencyService));
+                accountingEventStore));
     creditDebitNoteService =
         spy(
             new CreditDebitNoteService(
@@ -299,7 +237,8 @@ class AccountingServiceTest {
                 entityManager,
                 systemSettingsService,
                 auditService,
-                accountingEventStore));
+                accountingEventStore,
+                journalEntryService));
     inventoryAccountingService =
         spy(
             new InventoryAccountingService(
@@ -329,7 +268,8 @@ class AccountingServiceTest {
                 entityManager,
                 systemSettingsService,
                 auditService,
-                accountingEventStore));
+                accountingEventStore,
+                journalEntryService));
     dealerReceiptService =
         spy(
             new DealerReceiptService(
@@ -360,7 +300,70 @@ class AccountingServiceTest {
                 systemSettingsService,
                 auditService,
                 accountingEventStore,
-                settlementIdempotencyService));
+                journalEntryService));
+    settlementService =
+        spy(
+            new SettlementService(
+                companyContextService,
+                accountRepository,
+                journalEntryRepository,
+                dealerLedgerService,
+                supplierLedgerService,
+                payrollRunRepository,
+                payrollRunLineRepository,
+                accountingPeriodService,
+                referenceNumberService,
+                eventPublisher,
+                companyClock,
+                companyEntityLookup,
+                settlementAllocationRepository,
+                rawMaterialPurchaseRepository,
+                invoiceRepository,
+                rawMaterialMovementRepository,
+                rawMaterialBatchRepository,
+                finishedGoodBatchRepository,
+                dealerRepository,
+                supplierRepository,
+                invoiceSettlementPolicy,
+                journalReferenceResolver,
+                journalReferenceMappingRepository,
+                entityManager,
+                systemSettingsService,
+                auditService,
+                accountingEventStore,
+                journalEntryService,
+                dealerReceiptService));
+    payrollAccountingService =
+        spy(
+            new PayrollAccountingService(
+                companyContextService,
+                accountRepository,
+                journalEntryRepository,
+                dealerLedgerService,
+                supplierLedgerService,
+                payrollRunRepository,
+                payrollRunLineRepository,
+                accountingPeriodService,
+                referenceNumberService,
+                eventPublisher,
+                companyClock,
+                companyEntityLookup,
+                settlementAllocationRepository,
+                rawMaterialPurchaseRepository,
+                invoiceRepository,
+                rawMaterialMovementRepository,
+                rawMaterialBatchRepository,
+                finishedGoodBatchRepository,
+                dealerRepository,
+                supplierRepository,
+                invoiceSettlementPolicy,
+                journalReferenceResolver,
+                journalReferenceMappingRepository,
+                entityManager,
+                systemSettingsService,
+                auditService,
+                accountingEventStore,
+                journalEntryService));
     accountingFacadeProvider = mock(org.springframework.beans.factory.ObjectProvider.class);
     accountingService =
         new AccountingService(
@@ -395,8 +398,8 @@ class AccountingServiceTest {
             dealerReceiptService,
             settlementService,
             creditDebitNoteService,
-            mock(AccountingAuditService.class),
             inventoryAccountingService,
+            payrollAccountingService,
             accountingFacadeProvider);
     accountingFacade =
         spy(
@@ -416,11 +419,11 @@ class AccountingServiceTest {
     environment = new MockEnvironment();
     ReflectionTestUtils.setField(accountingService, "environment", environment);
     ReflectionTestUtils.setField(journalEntryService, "environment", environment);
-    ReflectionTestUtils.setField(settlementIdempotencyService, "environment", environment);
     ReflectionTestUtils.setField(dealerReceiptService, "environment", environment);
     ReflectionTestUtils.setField(settlementService, "environment", environment);
     ReflectionTestUtils.setField(creditDebitNoteService, "environment", environment);
     ReflectionTestUtils.setField(inventoryAccountingService, "environment", environment);
+    ReflectionTestUtils.setField(payrollAccountingService, "environment", environment);
     company = new Company();
     company.setBaseCurrency("INR");
     lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
@@ -658,18 +661,14 @@ class AccountingServiceTest {
     matching.setJournalType(JournalEntryType.MANUAL);
     matching.setSourceModule("MANUAL");
     matching.setSourceReference("MAN-SRC-1");
-    matching
-        .getLines()
-        .add(
+    matching.addLine(
             journalLine(
                 matching,
                 account(501L, "CASH", AccountType.ASSET),
                 "Debit",
                 new BigDecimal("125.00"),
                 BigDecimal.ZERO));
-    matching
-        .getLines()
-        .add(
+    matching.addLine(
             journalLine(
                 matching,
                 account(502L, "REV", AccountType.REVENUE),
@@ -933,7 +932,7 @@ class AccountingServiceTest {
     when(journalEntryRepository.findByCompanyAndReferenceNumber(company, "MAN-RACE-1"))
         .thenReturn(Optional.empty());
     when(journalReferenceResolver.findExistingEntry(company, "MAN-RACE-1"))
-        .thenReturn(Optional.empty(), Optional.of(existing));
+        .thenReturn(Optional.empty(), Optional.empty(), Optional.of(existing));
     when(journalReferenceMappingRepository.reserveManualReference(
             eq(88L), any(), any(), eq("JOURNAL_ENTRY"), any()))
         .thenReturn(0);
@@ -975,7 +974,7 @@ class AccountingServiceTest {
     when(journalEntryRepository.findByCompanyAndReferenceNumber(company, "MAN-RETRY-1"))
         .thenReturn(Optional.empty());
     when(journalReferenceResolver.findExistingEntry(company, "MAN-RETRY-1"))
-        .thenReturn(Optional.empty(), Optional.of(existing));
+        .thenReturn(Optional.empty(), Optional.empty(), Optional.of(existing));
     when(journalReferenceMappingRepository.reserveManualReference(
             eq(89L), any(), any(), eq("JOURNAL_ENTRY"), any()))
         .thenReturn(1);
@@ -1144,8 +1143,6 @@ class AccountingServiceTest {
 
   @Test
   void recordPayrollPayment_createsPaymentJournalForPostedRun() {
-    AccountingService service = spy(accountingService);
-
     PayrollRun run = new PayrollRun();
     ReflectionTestUtils.setField(run, "id", 44L);
     run.setStatus(PayrollRun.PayrollStatus.POSTED);
@@ -1177,12 +1174,12 @@ class AccountingServiceTest {
         .thenReturn(Optional.of(salaryPayableAccount));
     when(companyEntityLookup.requireJournalEntry(company, 501L)).thenReturn(postingJournal);
     when(companyEntityLookup.requireJournalEntry(company, 701L)).thenReturn(paymentJournal);
-    doReturn(stubEntry(701L)).when(service).createJournalEntry(any());
+    doReturn(stubEntry(701L)).when(payrollAccountingService).createJournalEntry(any());
 
     PayrollPaymentRequest request =
         new PayrollPaymentRequest(44L, 10L, 20L, new BigDecimal("100.00"), null, "payment");
 
-    JournalEntryDto result = service.recordPayrollPayment(request);
+    JournalEntryDto result = accountingService.recordPayrollPayment(request);
 
     assertThat(result.id()).isEqualTo(701L);
     assertThat(run.getPaymentJournalEntryId()).isEqualTo(701L);
@@ -1194,7 +1191,7 @@ class AccountingServiceTest {
   void resolvePayrollRunToken_appendsRunIdWhenRunNumberDoesNotContainSuffix() {
     String token =
         ReflectionTestUtils.invokeMethod(
-            accountingService, "resolvePayrollRunToken", "FEB-2026", 44L);
+            payrollAccountingService, "resolvePayrollRunToken", "FEB-2026", 44L);
 
     assertThat(token).isEqualTo("FEB-2026-44");
   }
@@ -1204,10 +1201,10 @@ class AccountingServiceTest {
   void resolvePayrollRunToken_preservesLegacyAndSuffixRunNumbers() {
     String legacyToken =
         ReflectionTestUtils.invokeMethod(
-            accountingService, "resolvePayrollRunToken", "LEGACY-44", 44L);
+            payrollAccountingService, "resolvePayrollRunToken", "LEGACY-44", 44L);
     String suffixedToken =
         ReflectionTestUtils.invokeMethod(
-            accountingService, "resolvePayrollRunToken", "FEB-2026-44", 44L);
+            payrollAccountingService, "resolvePayrollRunToken", "FEB-2026-44", 44L);
 
     assertThat(legacyToken).isEqualTo("LEGACY-44");
     assertThat(suffixedToken).isEqualTo("FEB-2026-44");
@@ -1222,7 +1219,7 @@ class AccountingServiceTest {
 
     String reference =
         ReflectionTestUtils.invokeMethod(
-            accountingService, "resolvePayrollPaymentReference", run, request, company);
+            payrollAccountingService, "resolvePayrollPaymentReference", run, request, company);
 
     assertThat(reference).isEqualTo("PAYROLL-PAY-LEGACY-77");
   }
@@ -1236,7 +1233,7 @@ class AccountingServiceTest {
 
     String reference =
         ReflectionTestUtils.invokeMethod(
-            accountingService, "resolvePayrollPaymentReference", run, request, company);
+            payrollAccountingService, "resolvePayrollPaymentReference", run, request, company);
 
     assertThat(reference).isEqualTo("PAYROLL-PAY-AUTO-1");
   }
@@ -1517,18 +1514,14 @@ class AccountingServiceTest {
     ReflectionTestUtils.setField(purchaseJournal, "id", 9703L);
     purchaseJournal.setSupplier(supplier);
     purchaseJournal.setReferenceNumber("RMP-OVERRIDE-1");
-    purchaseJournal
-        .getLines()
-        .add(
+    purchaseJournal.addLine(
             journalLine(
                 purchaseJournal,
                 cash,
                 "Purchase invoice",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    purchaseJournal
-        .getLines()
-        .add(
+    purchaseJournal.addLine(
             journalLine(
                 purchaseJournal,
                 payable,
@@ -1654,7 +1647,7 @@ class AccountingServiceTest {
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(904L)))
         .thenReturn(new JournalEntry());
     doReturn(stubEntry(904L))
-        .when(settlementIdempotencyService)
+        .when(journalEntryService)
         .createJournalEntry(any(JournalEntryRequest.class));
 
     DealerSettlementRequest request =
@@ -2010,7 +2003,6 @@ class AccountingServiceTest {
 
   @Test
   void settleDealerInvoices_postsDiscountSettlementWhenAdminOverrideApproved() {
-    AccountingIdempotencyService settlementEngine = settlementIdempotencyService();
     SettlementService settlementService =
         new SettlementService(
             companyContextService,
@@ -2040,7 +2032,8 @@ class AccountingServiceTest {
             systemSettingsService,
             auditService,
             accountingEventStore,
-            settlementEngine);
+            journalEntryService,
+            dealerReceiptService);
     ReflectionTestUtils.setField(settlementService, "environment", environment);
     ReflectionTestUtils.setField(accountingService, "settlementService", settlementService);
 
@@ -2058,7 +2051,7 @@ class AccountingServiceTest {
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(906L)))
         .thenReturn(new JournalEntry());
     doReturn(stubEntry(906L))
-        .when(settlementEngine)
+        .when(journalEntryService)
         .createJournalEntry(any(JournalEntryRequest.class));
 
     DealerSettlementRequest request =
@@ -2959,14 +2952,14 @@ class AccountingServiceTest {
     debitLine.setAccount(debitAccount);
     debitLine.setDebit(new BigDecimal("10.00"));
     debitLine.setCredit(BigDecimal.ZERO);
-    existingEntry.getLines().add(debitLine);
+    existingEntry.addLine(debitLine);
 
     var creditLine = new com.bigbrightpaints.erp.modules.accounting.domain.JournalLine();
     creditLine.setJournalEntry(existingEntry);
     creditLine.setAccount(creditAccount);
     creditLine.setDebit(BigDecimal.ZERO);
     creditLine.setCredit(new BigDecimal("10.00"));
-    existingEntry.getLines().add(creditLine);
+    existingEntry.addLine(creditLine);
 
     when(journalEntryRepository.findByCompanyAndReferenceNumber(eq(company), eq("DUP-REF")))
         .thenReturn(Optional.of(existingEntry));
@@ -3031,14 +3024,14 @@ class AccountingServiceTest {
     debitLine.setAccount(debitAccount);
     debitLine.setDebit(new BigDecimal("30.00"));
     debitLine.setCredit(BigDecimal.ZERO);
-    existingEntry.getLines().add(debitLine);
+    existingEntry.addLine(debitLine);
 
     JournalLine creditLine = new JournalLine();
     creditLine.setJournalEntry(existingEntry);
     creditLine.setAccount(creditAccount);
     creditLine.setDebit(BigDecimal.ZERO);
     creditLine.setCredit(new BigDecimal("30.00"));
-    existingEntry.getLines().add(creditLine);
+    existingEntry.addLine(creditLine);
 
     when(journalEntryRepository.findByCompanyAndReferenceNumber(
             eq(company), eq("JE-RACE-EXISTING")))
@@ -4186,18 +4179,14 @@ class AccountingServiceTest {
     JournalEntry purchaseJournal = new JournalEntry();
     ReflectionTestUtils.setField(purchaseJournal, "id", 2002L);
     purchaseJournal.setSupplier(supplier);
-    purchaseJournal
-        .getLines()
-        .add(
+    purchaseJournal.addLine(
             journalLine(
                 purchaseJournal,
                 inventory,
                 "Purchase invoice",
                 new BigDecimal("200.00"),
                 BigDecimal.ZERO));
-    purchaseJournal
-        .getLines()
-        .add(
+    purchaseJournal.addLine(
             journalLine(
                 purchaseJournal,
                 payable,
@@ -4220,7 +4209,7 @@ class AccountingServiceTest {
     ArgumentCaptor<JournalEntryRequest> journalCaptor =
         ArgumentCaptor.forClass(JournalEntryRequest.class);
     doReturn(journalEntryDto)
-        .when(settlementIdempotencyService)
+        .when(journalEntryService)
         .createJournalEntry(journalCaptor.capture());
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(55L)))
         .thenReturn(new com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry());
@@ -4315,18 +4304,14 @@ class AccountingServiceTest {
     ReflectionTestUtils.setField(purchaseJournal, "id", 9701L);
     purchaseJournal.setSupplier(supplier);
     purchaseJournal.setReferenceNumber("RMP-GST-MISS-1");
-    purchaseJournal
-        .getLines()
-        .add(
+    purchaseJournal.addLine(
             journalLine(
                 purchaseJournal,
                 inventory,
                 "Purchase invoice GST missing",
                 new BigDecimal("118.00"),
                 BigDecimal.ZERO));
-    purchaseJournal
-        .getLines()
-        .add(
+    purchaseJournal.addLine(
             journalLine(
                 purchaseJournal,
                 payable,
@@ -4416,27 +4401,21 @@ class AccountingServiceTest {
     ReflectionTestUtils.setField(purchaseJournal, "id", 9702L);
     purchaseJournal.setSupplier(supplier);
     purchaseJournal.setReferenceNumber("RMP-NONGST-MISS-1");
-    purchaseJournal
-        .getLines()
-        .add(
+    purchaseJournal.addLine(
             journalLine(
                 purchaseJournal,
                 inventory,
                 "Purchase invoice non-GST",
                 new BigDecimal("82.00"),
                 BigDecimal.ZERO));
-    purchaseJournal
-        .getLines()
-        .add(
+    purchaseJournal.addLine(
             journalLine(
                 purchaseJournal,
                 inputTax,
                 "Input tax for purchase invoice non-GST",
                 new BigDecimal("18.00"),
                 BigDecimal.ZERO));
-    purchaseJournal
-        .getLines()
-        .add(
+    purchaseJournal.addLine(
             journalLine(
                 purchaseJournal,
                 payable,
@@ -4594,18 +4573,14 @@ class AccountingServiceTest {
     JournalEntry purchaseJournal = new JournalEntry();
     ReflectionTestUtils.setField(purchaseJournal, "id", 1740L);
     purchaseJournal.setSupplier(supplier);
-    purchaseJournal
-        .getLines()
-        .add(
+    purchaseJournal.addLine(
             journalLine(
                 purchaseJournal,
                 inventory,
                 "Purchase invoice old",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    purchaseJournal
-        .getLines()
-        .add(
+    purchaseJournal.addLine(
             journalLine(
                 purchaseJournal,
                 payable,
@@ -4718,18 +4693,14 @@ class AccountingServiceTest {
     existingEntry.setDealer(dealer);
     existingEntry.setReferenceNumber("DR-REPLAY-1");
     existingEntry.setMemo("Dealer receipt replay");
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 cash,
                 "Dealer receipt replay",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 receivable,
@@ -4830,27 +4801,21 @@ class AccountingServiceTest {
     existingEntry.setDealer(dealer);
     existingEntry.setReferenceNumber("DR-SPLIT-REPLAY-1");
     existingEntry.setMemo("Dealer split replay");
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 cash,
                 "Dealer split replay",
                 new BigDecimal("70.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 bank,
                 "Dealer split replay",
                 new BigDecimal("30.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 receivable,
@@ -5100,18 +5065,14 @@ class AccountingServiceTest {
     existingEntry.setSupplier(supplier);
     existingEntry.setReferenceNumber("SUP-PAY-REPLAY-1");
     existingEntry.setMemo("Supplier payment replay");
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 payable,
                 "Supplier payment replay",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 cash,
@@ -5806,18 +5767,14 @@ class AccountingServiceTest {
     createdEntry.setDealer(dealer);
     createdEntry.setReferenceNumber("DR-RACE-NEW-1");
     createdEntry.setMemo("Dealer receipt race");
-    createdEntry
-        .getLines()
-        .add(
+    createdEntry.addLine(
             journalLine(
                 createdEntry,
                 cash,
                 "Dealer receipt race",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    createdEntry
-        .getLines()
-        .add(
+    createdEntry.addLine(
             journalLine(
                 createdEntry,
                 receivable,
@@ -5830,18 +5787,14 @@ class AccountingServiceTest {
     concurrentEntry.setDealer(dealer);
     concurrentEntry.setReferenceNumber("DR-RACE-EXIST-1");
     concurrentEntry.setMemo("Dealer receipt race");
-    concurrentEntry
-        .getLines()
-        .add(
+    concurrentEntry.addLine(
             journalLine(
                 concurrentEntry,
                 cash,
                 "Dealer receipt race",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    concurrentEntry
-        .getLines()
-        .add(
+    concurrentEntry.addLine(
             journalLine(
                 concurrentEntry,
                 receivable,
@@ -5893,7 +5846,7 @@ class AccountingServiceTest {
             eq(company), eq(createdEntry)))
         .thenReturn(List.of());
     doReturn(stubEntry(910L))
-        .when(settlementIdempotencyService)
+        .when(dealerReceiptService)
         .createJournalEntry(any(JournalEntryRequest.class));
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(910L))).thenReturn(createdEntry);
     when(settlementAllocationRepository.saveAll(any()))
@@ -5959,18 +5912,14 @@ class AccountingServiceTest {
     createdEntry.setDealer(dealer);
     createdEntry.setReferenceNumber("DR-RACE-MISMATCH-NEW-1");
     createdEntry.setMemo("Dealer receipt race");
-    createdEntry
-        .getLines()
-        .add(
+    createdEntry.addLine(
             journalLine(
                 createdEntry,
                 cash,
                 "Dealer receipt race",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    createdEntry
-        .getLines()
-        .add(
+    createdEntry.addLine(
             journalLine(
                 createdEntry,
                 receivable,
@@ -5983,18 +5932,14 @@ class AccountingServiceTest {
     concurrentEntry.setDealer(dealer);
     concurrentEntry.setReferenceNumber("DR-RACE-MISMATCH-ALLOC-1");
     concurrentEntry.setMemo("Dealer receipt race");
-    concurrentEntry
-        .getLines()
-        .add(
+    concurrentEntry.addLine(
             journalLine(
                 concurrentEntry,
                 cash,
                 "Dealer receipt race",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    concurrentEntry
-        .getLines()
-        .add(
+    concurrentEntry.addLine(
             journalLine(
                 concurrentEntry,
                 receivable,
@@ -6033,7 +5978,7 @@ class AccountingServiceTest {
             eq(company), eq(createdEntry)))
         .thenReturn(List.of());
     doReturn(stubEntry(1910L))
-        .when(settlementIdempotencyService)
+        .when(dealerReceiptService)
         .createJournalEntry(any(JournalEntryRequest.class));
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(1910L))).thenReturn(createdEntry);
     when(settlementAllocationRepository.saveAll(any()))
@@ -6096,18 +6041,14 @@ class AccountingServiceTest {
     createdEntry.setDealer(dealer);
     createdEntry.setReferenceNumber("DR-SPLIT-RACE-NEW-1");
     createdEntry.setMemo("Dealer split race");
-    createdEntry
-        .getLines()
-        .add(
+    createdEntry.addLine(
             journalLine(
                 createdEntry,
                 cash,
                 "Dealer split race",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    createdEntry
-        .getLines()
-        .add(
+    createdEntry.addLine(
             journalLine(
                 createdEntry,
                 receivable,
@@ -6120,18 +6061,14 @@ class AccountingServiceTest {
     concurrentEntry.setDealer(dealer);
     concurrentEntry.setReferenceNumber("DR-SPLIT-RACE-EXIST-1");
     concurrentEntry.setMemo("Dealer split race");
-    concurrentEntry
-        .getLines()
-        .add(
+    concurrentEntry.addLine(
             journalLine(
                 concurrentEntry,
                 cash,
                 "Dealer split race",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    concurrentEntry
-        .getLines()
-        .add(
+    concurrentEntry.addLine(
             journalLine(
                 concurrentEntry,
                 receivable,
@@ -6183,7 +6120,7 @@ class AccountingServiceTest {
             eq(company), eq(createdEntry)))
         .thenReturn(List.of());
     doReturn(stubEntry(920L))
-        .when(settlementIdempotencyService)
+        .when(dealerReceiptService)
         .createJournalEntry(any(JournalEntryRequest.class));
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(920L))).thenReturn(createdEntry);
     when(settlementAllocationRepository.saveAll(any()))
@@ -6237,18 +6174,14 @@ class AccountingServiceTest {
     createdEntry.setSupplier(supplier);
     createdEntry.setReferenceNumber("SUP-PAY-RACE-NEW-1");
     createdEntry.setMemo("Supplier payment race");
-    createdEntry
-        .getLines()
-        .add(
+    createdEntry.addLine(
             journalLine(
                 createdEntry,
                 payable,
                 "Supplier payment race",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    createdEntry
-        .getLines()
-        .add(
+    createdEntry.addLine(
             journalLine(
                 createdEntry,
                 cash,
@@ -6261,18 +6194,14 @@ class AccountingServiceTest {
     concurrentEntry.setSupplier(supplier);
     concurrentEntry.setReferenceNumber("SUP-PAY-RACE-EXIST-1");
     concurrentEntry.setMemo("Supplier payment race");
-    concurrentEntry
-        .getLines()
-        .add(
+    concurrentEntry.addLine(
             journalLine(
                 concurrentEntry,
                 payable,
                 "Supplier payment race",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    concurrentEntry
-        .getLines()
-        .add(
+    concurrentEntry.addLine(
             journalLine(
                 concurrentEntry,
                 cash,
@@ -6322,7 +6251,7 @@ class AccountingServiceTest {
     when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(603L)))
         .thenReturn(Optional.of(purchase));
     doReturn(stubEntry(930L))
-        .when(settlementIdempotencyService)
+        .when(journalEntryService)
         .createJournalEntry(any(JournalEntryRequest.class));
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(930L))).thenReturn(createdEntry);
     when(settlementAllocationRepository.saveAll(any()))
@@ -6388,18 +6317,14 @@ class AccountingServiceTest {
     createdEntry.setDealer(dealer);
     createdEntry.setReferenceNumber("DR-SETTLE-RACE-NEW-1");
     createdEntry.setMemo("Dealer settlement race");
-    createdEntry
-        .getLines()
-        .add(
+    createdEntry.addLine(
             journalLine(
                 createdEntry,
                 cash,
                 "Dealer settlement race",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    createdEntry
-        .getLines()
-        .add(
+    createdEntry.addLine(
             journalLine(
                 createdEntry,
                 receivable,
@@ -6412,18 +6337,14 @@ class AccountingServiceTest {
     concurrentEntry.setDealer(dealer);
     concurrentEntry.setReferenceNumber("DR-SETTLE-RACE-EXIST-1");
     concurrentEntry.setMemo("Dealer settlement race");
-    concurrentEntry
-        .getLines()
-        .add(
+    concurrentEntry.addLine(
             journalLine(
                 concurrentEntry,
                 cash,
                 "Dealer settlement race",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    concurrentEntry
-        .getLines()
-        .add(
+    concurrentEntry.addLine(
             journalLine(
                 concurrentEntry,
                 receivable,
@@ -6479,7 +6400,7 @@ class AccountingServiceTest {
     when(invoiceRepository.lockByCompanyAndId(eq(company), eq(702L)))
         .thenReturn(Optional.of(invoice));
     doReturn(stubEntry(950L))
-        .when(settlementIdempotencyService)
+        .when(journalEntryService)
         .createJournalEntry(any(JournalEntryRequest.class));
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(950L))).thenReturn(createdEntry);
     when(settlementAllocationRepository.saveAll(any()))
@@ -6555,18 +6476,14 @@ class AccountingServiceTest {
     ReflectionTestUtils.setField(purchaseJournal, "id", 959L);
     purchaseJournal.setSupplier(supplier);
     purchaseJournal.setReferenceNumber("RMP-SETTLE-RACE-1");
-    purchaseJournal
-        .getLines()
-        .add(
+    purchaseJournal.addLine(
             journalLine(
                 purchaseJournal,
                 inventory,
                 "Purchase invoice race",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    purchaseJournal
-        .getLines()
-        .add(
+    purchaseJournal.addLine(
             journalLine(
                 purchaseJournal,
                 payable,
@@ -6580,18 +6497,14 @@ class AccountingServiceTest {
     createdEntry.setSupplier(supplier);
     createdEntry.setReferenceNumber("SUP-SETTLE-RACE-NEW-1");
     createdEntry.setMemo("Supplier settlement race");
-    createdEntry
-        .getLines()
-        .add(
+    createdEntry.addLine(
             journalLine(
                 createdEntry,
                 payable,
                 "Supplier settlement race",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    createdEntry
-        .getLines()
-        .add(
+    createdEntry.addLine(
             journalLine(
                 createdEntry,
                 cash,
@@ -6604,18 +6517,14 @@ class AccountingServiceTest {
     concurrentEntry.setSupplier(supplier);
     concurrentEntry.setReferenceNumber("SUP-SETTLE-RACE-NEW-1");
     concurrentEntry.setMemo("Supplier settlement race");
-    concurrentEntry
-        .getLines()
-        .add(
+    concurrentEntry.addLine(
             journalLine(
                 concurrentEntry,
                 payable,
                 "Supplier settlement race",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    concurrentEntry
-        .getLines()
-        .add(
+    concurrentEntry.addLine(
             journalLine(
                 concurrentEntry,
                 cash,
@@ -6673,7 +6582,7 @@ class AccountingServiceTest {
     when(rawMaterialPurchaseRepository.lockByCompanyAndId(eq(company), eq(704L)))
         .thenReturn(Optional.of(purchase));
     doReturn(stubEntry(960L))
-        .when(settlementIdempotencyService)
+        .when(journalEntryService)
         .createJournalEntry(any(JournalEntryRequest.class));
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(960L))).thenReturn(createdEntry);
     when(settlementAllocationRepository.saveAll(any()))
@@ -7285,18 +7194,14 @@ class AccountingServiceTest {
     JournalEntry purchaseJournalA = new JournalEntry();
     ReflectionTestUtils.setField(purchaseJournalA, "id", 1801L);
     purchaseJournalA.setSupplier(supplier);
-    purchaseJournalA
-        .getLines()
-        .add(
+    purchaseJournalA.addLine(
             journalLine(
                 purchaseJournalA,
                 inventoryA,
                 "Purchase replay A",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    purchaseJournalA
-        .getLines()
-        .add(
+    purchaseJournalA.addLine(
             journalLine(
                 purchaseJournalA,
                 payable,
@@ -7308,18 +7213,14 @@ class AccountingServiceTest {
     JournalEntry purchaseJournalB = new JournalEntry();
     ReflectionTestUtils.setField(purchaseJournalB, "id", 1802L);
     purchaseJournalB.setSupplier(supplier);
-    purchaseJournalB
-        .getLines()
-        .add(
+    purchaseJournalB.addLine(
             journalLine(
                 purchaseJournalB,
                 inventoryB,
                 "Purchase replay B",
                 new BigDecimal("200.00"),
                 BigDecimal.ZERO));
-    purchaseJournalB
-        .getLines()
-        .add(
+    purchaseJournalB.addLine(
             journalLine(
                 purchaseJournalB,
                 payable,
@@ -7466,7 +7367,7 @@ class AccountingServiceTest {
     when(companyEntityLookup.requireAccount(eq(company), eq(21L))).thenReturn(discount);
 
     JournalEntryDto journalEntryDto = stubEntry(44L);
-    doReturn(journalEntryDto).when(settlementIdempotencyService).createJournalEntry(any());
+    doReturn(journalEntryDto).when(journalEntryService).createJournalEntry(any());
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(44L)))
         .thenReturn(new com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry());
 
@@ -7544,27 +7445,21 @@ class AccountingServiceTest {
     journalEntry.setEntryDate(LocalDate.of(2024, 4, 9));
     journalEntry.setReferenceNumber("DR-TEST-1");
     journalEntry.setMemo("Dealer settlement");
-    journalEntry
-        .getLines()
-        .add(
+    journalEntry.addLine(
             journalLine(
                 journalEntry,
                 cash,
                 "Dealer settlement",
                 new BigDecimal("450.00"),
                 BigDecimal.ZERO));
-    journalEntry
-        .getLines()
-        .add(
+    journalEntry.addLine(
             journalLine(
                 journalEntry,
                 discount,
                 "Settlement discount",
                 new BigDecimal("50.00"),
                 BigDecimal.ZERO));
-    journalEntry
-        .getLines()
-        .add(
+    journalEntry.addLine(
             journalLine(
                 journalEntry,
                 receivable,
@@ -7603,7 +7498,7 @@ class AccountingServiceTest {
             });
 
     doReturn(stubEntry(44L))
-        .when(settlementIdempotencyService)
+        .when(journalEntryService)
         .createJournalEntry(any(JournalEntryRequest.class));
 
     SettlementAllocationRequest allocation =
@@ -8156,18 +8051,14 @@ class AccountingServiceTest {
     ReflectionTestUtils.setField(settlementCashAccount, "id", 20L);
 
     JournalEntry existingEntry = new JournalEntry();
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 settlementCashAccount,
                 "payment-cash",
                 new BigDecimal("60.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 settlementCashAccount,
@@ -8288,27 +8179,21 @@ class AccountingServiceTest {
     ReflectionTestUtils.setField(adjustmentAssetAccount, "id", 99L);
 
     JournalEntry existingEntry = new JournalEntry();
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 settlementCashAccount,
                 "payment-cash",
                 new BigDecimal("60.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 settlementCashAccount,
                 "payment-bank",
                 new BigDecimal("40.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 adjustmentAssetAccount,
@@ -8423,18 +8308,14 @@ class AccountingServiceTest {
     ReflectionTestUtils.setField(settlementCashAccount, "id", 20L);
 
     JournalEntry existingEntry = new JournalEntry();
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 settlementCashAccount,
                 "payment-cash",
                 new BigDecimal("60.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 settlementCashAccount,
@@ -8612,9 +8493,7 @@ class AccountingServiceTest {
     ReflectionTestUtils.setField(legacyCashAccount, "id", 20L);
 
     JournalEntry existingEntry = new JournalEntry();
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 legacyCashAccount,
@@ -8711,27 +8590,21 @@ class AccountingServiceTest {
     ReflectionTestUtils.setField(receivableAccount, "id", 10L);
 
     JournalEntry existingEntry = new JournalEntry();
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 cashAccount,
                 "Dealer settlement",
                 new BigDecimal("60.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 cashAccount,
                 "Settlement discount",
                 new BigDecimal("40.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 receivableAccount,
@@ -8825,36 +8698,28 @@ class AccountingServiceTest {
     ReflectionTestUtils.setField(receivableAccount, "id", 10L);
 
     JournalEntry existingEntry = new JournalEntry();
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 cashAccount,
                 "Dealer settlement",
                 new BigDecimal("60.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 cashAccount,
                 "Settlement discount",
                 new BigDecimal("20.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 cashAccount,
                 "Settlement discount",
                 new BigDecimal("20.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 receivableAccount,
@@ -8955,27 +8820,21 @@ class AccountingServiceTest {
     ReflectionTestUtils.setField(receivableAccount, "id", 10L);
 
     JournalEntry existingEntry = new JournalEntry();
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 cashAccount,
                 "Dealer settlement",
                 new BigDecimal("80.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 discountAssetAccount,
                 "Settlement discount",
                 new BigDecimal("40.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 receivableAccount,
@@ -9068,18 +8927,14 @@ class AccountingServiceTest {
     ReflectionTestUtils.setField(receivableAccount, "id", 10L);
 
     JournalEntry existingEntry = new JournalEntry();
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 cashAccount,
                 "Settlement discount",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 receivableAccount,
@@ -9208,36 +9063,28 @@ class AccountingServiceTest {
     ReflectionTestUtils.setField(receivableAccount, "id", 10L);
 
     JournalEntry existingEntry = new JournalEntry();
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 account20,
                 "Dealer settlement",
                 new BigDecimal("40.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 account21,
                 "Dealer settlement",
                 new BigDecimal("40.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 account20,
                 "Settlement discount",
                 new BigDecimal("40.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 receivableAccount,
@@ -9366,36 +9213,28 @@ class AccountingServiceTest {
     ReflectionTestUtils.setField(receivableAccount, "id", 10L);
 
     JournalEntry existingEntry = new JournalEntry();
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 account20,
                 "Settlement discount",
                 new BigDecimal("40.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 account21,
                 "Settlement discount",
                 new BigDecimal("40.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 account20,
                 "Settlement discount",
                 new BigDecimal("40.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 receivableAccount,
@@ -9514,36 +9353,28 @@ class AccountingServiceTest {
     ReflectionTestUtils.setField(receivableAccount, "id", 10L);
 
     JournalEntry existingEntry = new JournalEntry();
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 account20,
                 "Dealer settlement",
                 new BigDecimal("40.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 account21,
                 "Dealer settlement",
                 new BigDecimal("40.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 account21,
                 "Settlement discount",
                 new BigDecimal("40.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 receivableAccount,
@@ -9862,18 +9693,14 @@ class AccountingServiceTest {
     existingEntry.setReferenceNumber("DR-SETTLE-REPLAY-1");
     existingEntry.setEntryDate(LocalDate.of(2024, 4, 9));
     existingEntry.setMemo("Dealer settlement replay");
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 cash,
                 "Dealer settlement replay",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 receivable,
@@ -9986,28 +9813,26 @@ class AccountingServiceTest {
     existingEntry.setReferenceNumber("DR-SETTLE-REPLAY-ADJ-1");
     existingEntry.setEntryDate(LocalDate.of(2024, 4, 9));
     existingEntry.setMemo("Dealer settlement replay");
-    existingEntry
-        .getLines()
-        .addAll(
-            List.of(
-                journalLine(
-                    existingEntry,
-                    cash,
-                    "Dealer settlement replay",
-                    new BigDecimal("90.00"),
-                    BigDecimal.ZERO),
-                journalLine(
-                    existingEntry,
-                    discount,
-                    "Settlement discount",
-                    new BigDecimal("10.00"),
-                    BigDecimal.ZERO),
-                journalLine(
-                    existingEntry,
-                    receivable,
-                    "Dealer settlement replay",
-                    BigDecimal.ZERO,
-                    new BigDecimal("100.00"))));
+    List.of(
+            journalLine(
+                existingEntry,
+                cash,
+                "Dealer settlement replay",
+                new BigDecimal("90.00"),
+                BigDecimal.ZERO),
+            journalLine(
+                existingEntry,
+                discount,
+                "Settlement discount",
+                new BigDecimal("10.00"),
+                BigDecimal.ZERO),
+            journalLine(
+                existingEntry,
+                receivable,
+                "Dealer settlement replay",
+                BigDecimal.ZERO,
+                new BigDecimal("100.00")))
+        .forEach(existingEntry::addLine);
 
     PartnerSettlementAllocation existingRow = new PartnerSettlementAllocation();
     existingRow.setCompany(company);
@@ -10114,18 +9939,14 @@ class AccountingServiceTest {
     existingEntry.setReferenceNumber("DR-SETTLE-DATE-REPLAY-1");
     existingEntry.setEntryDate(persistedSettlementDate);
     existingEntry.setMemo("Dealer settlement replay");
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 cash,
                 "Dealer settlement replay",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 receivable,
@@ -10224,7 +10045,7 @@ class AccountingServiceTest {
     when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
     JournalEntryDto journalEntryDto = stubEntry(87L);
     doReturn(journalEntryDto)
-        .when(settlementIdempotencyService)
+        .when(journalEntryService)
         .createJournalEntry(any(JournalEntryRequest.class));
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(87L)))
         .thenReturn(new com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry());
@@ -10284,7 +10105,7 @@ class AccountingServiceTest {
 
     JournalEntryDto journalEntryDto = stubEntry(88L);
     doReturn(journalEntryDto)
-        .when(settlementIdempotencyService)
+        .when(journalEntryService)
         .createJournalEntry(any(JournalEntryRequest.class));
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(88L)))
         .thenReturn(new com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry());
@@ -10372,7 +10193,7 @@ class AccountingServiceTest {
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(901L)))
         .thenReturn(new JournalEntry());
     doReturn(stubEntry(901L))
-        .when(settlementIdempotencyService)
+        .when(journalEntryService)
         .createJournalEntry(any(JournalEntryRequest.class));
 
     DealerSettlementRequest request =
@@ -10427,7 +10248,7 @@ class AccountingServiceTest {
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(905L)))
         .thenReturn(new JournalEntry());
     doReturn(stubEntry(905L))
-        .when(settlementIdempotencyService)
+        .when(journalEntryService)
         .createJournalEntry(any(JournalEntryRequest.class));
 
     DealerSettlementRequest request =
@@ -10500,7 +10321,7 @@ class AccountingServiceTest {
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(902L)))
         .thenReturn(new JournalEntry());
     doReturn(stubEntry(902L))
-        .when(settlementIdempotencyService)
+        .when(journalEntryService)
         .createJournalEntry(any(JournalEntryRequest.class));
 
     DealerSettlementRequest request =
@@ -10585,9 +10406,7 @@ class AccountingServiceTest {
     JournalEntry firstPosting = new JournalEntry();
     ReflectionTestUtils.setField(firstPosting, "id", 811L);
     firstPosting.setSupplier(supplier);
-    firstPosting
-        .getLines()
-        .add(
+    firstPosting.addLine(
             journalLine(
                 firstPosting, payable, "purchase 801", BigDecimal.ZERO, new BigDecimal("100.00")));
     first.setJournalEntry(firstPosting);
@@ -10602,9 +10421,7 @@ class AccountingServiceTest {
     JournalEntry secondPosting = new JournalEntry();
     ReflectionTestUtils.setField(secondPosting, "id", 812L);
     secondPosting.setSupplier(supplier);
-    secondPosting
-        .getLines()
-        .add(
+    secondPosting.addLine(
             journalLine(
                 secondPosting, payable, "purchase 802", BigDecimal.ZERO, new BigDecimal("50.00")));
     second.setJournalEntry(secondPosting);
@@ -10621,7 +10438,7 @@ class AccountingServiceTest {
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(903L)))
         .thenReturn(new JournalEntry());
     doReturn(stubEntry(903L))
-        .when(settlementIdempotencyService)
+        .when(journalEntryService)
         .createJournalEntry(any(JournalEntryRequest.class));
 
     SupplierSettlementRequest request =
@@ -10675,7 +10492,7 @@ class AccountingServiceTest {
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(907L)))
         .thenReturn(new JournalEntry());
     doReturn(stubEntry(907L))
-        .when(settlementIdempotencyService)
+        .when(journalEntryService)
         .createJournalEntry(any(JournalEntryRequest.class));
 
     SupplierSettlementRequest request =
@@ -10952,7 +10769,6 @@ class AccountingServiceTest {
 
   @Test
   void settleSupplierInvoices_postsDiscountSettlementWhenAdminOverrideApproved() {
-    AccountingIdempotencyService settlementEngine = settlementIdempotencyService();
     SettlementService settlementService =
         new SettlementService(
             companyContextService,
@@ -10982,7 +10798,8 @@ class AccountingServiceTest {
             systemSettingsService,
             auditService,
             accountingEventStore,
-            settlementEngine);
+            journalEntryService,
+            dealerReceiptService);
     ReflectionTestUtils.setField(settlementService, "environment", environment);
     ReflectionTestUtils.setField(accountingService, "settlementService", settlementService);
 
@@ -11022,7 +10839,7 @@ class AccountingServiceTest {
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(908L)))
         .thenReturn(new JournalEntry());
     doReturn(stubEntry(908L))
-        .when(settlementEngine)
+        .when(journalEntryService)
         .createJournalEntry(any(JournalEntryRequest.class));
 
     SupplierSettlementRequest request =
@@ -11272,18 +11089,14 @@ class AccountingServiceTest {
     existingEntry.setReferenceNumber("SUP-SETTLE-REPLAY-1");
     existingEntry.setEntryDate(LocalDate.of(2024, 4, 9));
     existingEntry.setMemo("Supplier settlement replay");
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 payable,
                 "Supplier settlement replay",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 cash,
@@ -11394,28 +11207,26 @@ class AccountingServiceTest {
     existingEntry.setReferenceNumber("SUP-SETTLE-REPLAY-ADJ-1");
     existingEntry.setEntryDate(LocalDate.of(2024, 4, 9));
     existingEntry.setMemo("Supplier settlement replay");
-    existingEntry
-        .getLines()
-        .addAll(
-            List.of(
-                journalLine(
-                    existingEntry,
-                    payable,
-                    "Supplier settlement replay",
-                    new BigDecimal("100.00"),
-                    BigDecimal.ZERO),
-                journalLine(
-                    existingEntry,
-                    cash,
-                    "Supplier settlement replay",
-                    BigDecimal.ZERO,
-                    new BigDecimal("90.00")),
-                journalLine(
-                    existingEntry,
-                    discount,
-                    "Settlement discount received",
-                    BigDecimal.ZERO,
-                    new BigDecimal("10.00"))));
+    List.of(
+            journalLine(
+                existingEntry,
+                payable,
+                "Supplier settlement replay",
+                new BigDecimal("100.00"),
+                BigDecimal.ZERO),
+            journalLine(
+                existingEntry,
+                cash,
+                "Supplier settlement replay",
+                BigDecimal.ZERO,
+                new BigDecimal("90.00")),
+            journalLine(
+                existingEntry,
+                discount,
+                "Settlement discount received",
+                BigDecimal.ZERO,
+                new BigDecimal("10.00")))
+        .forEach(existingEntry::addLine);
 
     com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation existingRow =
         new com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation();
@@ -11520,18 +11331,14 @@ class AccountingServiceTest {
     existingEntry.setReferenceNumber("SUP-SETTLE-DATE-REPLAY-1");
     existingEntry.setEntryDate(persistedSettlementDate);
     existingEntry.setMemo("Supplier settlement replay");
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 payable,
                 "Supplier settlement replay",
                 new BigDecimal("100.00"),
                 BigDecimal.ZERO));
-    existingEntry
-        .getLines()
-        .add(
+    existingEntry.addLine(
             journalLine(
                 existingEntry,
                 cash,
@@ -12104,8 +11911,8 @@ class AccountingServiceTest {
     ArgumentCaptor<DealerReceiptRequest> requestCaptor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
     doReturn(stubEntry(501L))
-        .when(settlementIdempotencyService)
-        .recordDealerReceipt(requestCaptor.capture());
+        .when(dealerReceiptService)
+        .recordDealerReceiptNormalized(requestCaptor.capture());
 
     AutoSettlementRequest request =
         new AutoSettlementRequest(
@@ -12171,8 +11978,8 @@ class AccountingServiceTest {
     ArgumentCaptor<SupplierPaymentRequest> requestCaptor =
         ArgumentCaptor.forClass(SupplierPaymentRequest.class);
     doReturn(stubEntry(601L))
-        .when(settlementIdempotencyService)
-        .recordSupplierPayment(requestCaptor.capture());
+        .when(settlementService)
+        .recordSupplierPaymentInternal(requestCaptor.capture());
 
     AutoSettlementRequest request =
         new AutoSettlementRequest(
@@ -12239,8 +12046,8 @@ class AccountingServiceTest {
     ArgumentCaptor<SupplierPaymentRequest> requestCaptor =
         ArgumentCaptor.forClass(SupplierPaymentRequest.class);
     doReturn(stubEntry(601L))
-        .when(settlementIdempotencyService)
-        .recordSupplierPayment(requestCaptor.capture());
+        .when(settlementService)
+        .recordSupplierPaymentInternal(requestCaptor.capture());
 
     AutoSettlementRequest request =
         new AutoSettlementRequest(
@@ -12303,7 +12110,7 @@ class AccountingServiceTest {
               persistedEntries.put(entryId, entry);
               return journalEntryDto(entryId, payload.referenceNumber());
             })
-        .when(settlementIdempotencyService)
+        .when(dealerReceiptService)
         .createJournalEntry(any(JournalEntryRequest.class));
     when(companyEntityLookup.requireJournalEntry(eq(company), any(Long.class)))
         .thenAnswer(invocation -> persistedEntries.get(invocation.getArgument(1)));
@@ -12415,7 +12222,7 @@ class AccountingServiceTest {
               persistedEntries.put(entryId, entry);
               return journalEntryDto(entryId, payload.referenceNumber());
             })
-        .when(settlementIdempotencyService)
+        .when(journalEntryService)
         .createJournalEntry(any(JournalEntryRequest.class));
     when(companyEntityLookup.requireJournalEntry(eq(company), any(Long.class)))
         .thenAnswer(invocation -> persistedEntries.get(invocation.getArgument(1)));
@@ -12542,45 +12349,14 @@ class AccountingServiceTest {
   }
 
   @Test
-  void decrementSignatureCount_handlesNullZeroSingleAndMultipleCounts() throws Exception {
-    Class<?> signatureType =
-        Class.forName(
-            "com.bigbrightpaints.erp.modules.accounting.service.AccountingService$DealerPaymentSignature");
-    java.lang.reflect.Constructor<?> constructor =
-        signatureType.getDeclaredConstructor(Long.class, BigDecimal.class);
-    constructor.setAccessible(true);
-    Object signature = constructor.newInstance(20L, new BigDecimal("100.00"));
-
-    Map<Object, Integer> counts = new java.util.HashMap<>();
-
+  void accountingService_removesDeadDealerPaymentSignatureHelperScaffold() {
     assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    accountingService, "decrementSignatureCount", counts, signature))
-        .isFalse();
-
-    counts.put(signature, 0);
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    accountingService, "decrementSignatureCount", counts, signature))
-        .isFalse();
-
-    counts.put(signature, 1);
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    accountingService, "decrementSignatureCount", counts, signature))
-        .isTrue();
-    assertThat(counts).doesNotContainKey(signature);
-
-    counts.put(signature, 3);
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    accountingService, "decrementSignatureCount", counts, signature))
-        .isTrue();
-    assertThat(counts).containsEntry(signature, 2);
+            Arrays.stream(AccountingService.class.getDeclaredMethods())
+                .map(java.lang.reflect.Method::getName)
+                .toList())
+        .doesNotContain("decrementSignatureCount");
+    assertThat(Arrays.stream(AccountingService.class.getDeclaredClasses()).map(Class::getSimpleName))
+        .doesNotContain("DealerPaymentSignature");
   }
 
   private void assertPartnerReplayDetails(
@@ -13039,7 +12815,7 @@ class AccountingServiceTest {
     invoice.setDealer(dealer);
     invoice.setInvoiceNumber("INV-801");
     invoice.setTotalAmount(new BigDecimal("100.00"));
-    invoice.getPaymentReferences().add("CN-OK");
+    invoice.addPaymentReference("CN-OK");
 
     JournalEntry source = journalEntry(9001L, "INV-801-JE");
     source.setDealer(dealer);
@@ -16354,6 +16130,174 @@ class AccountingServiceTest {
         .hasMessageContaining("already used for another reference");
   }
 
+  @Test
+  void dealerReceiptService_routesLiveReceiptFlowThroughJournalEntryService() {
+    Account cash = account(20L, "CASH-20", AccountType.ASSET);
+    cash.setActive(true);
+    when(companyEntityLookup.requireAccount(eq(company), eq(20L))).thenReturn(cash);
+    when(accountRepository.updateBalanceAtomic(any(), any(), any())).thenReturn(1);
+    when(journalEntryRepository.save(any(JournalEntry.class)))
+        .thenAnswer(
+            invocation -> {
+              JournalEntry entry = invocation.getArgument(0);
+              if (entry.getId() == null) {
+                ReflectionTestUtils.setField(entry, "id", 9701L);
+              }
+              if (entry.getEntryDate() == null) {
+                entry.setEntryDate(LocalDate.of(2024, 4, 15));
+              }
+              return entry;
+            });
+    doReturn(stubEntry(9701L))
+        .when(journalEntryService)
+        .createJournalEntry(any(JournalEntryRequest.class));
+    JournalEntry posted = journalEntry(9701L, "DR-ROUTE-1");
+    posted.setEntryDate(LocalDate.of(2024, 4, 15));
+    when(companyEntityLookup.requireJournalEntry(company, 9701L)).thenReturn(posted);
+    when(settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(
+            company, posted))
+        .thenReturn(List.of());
+    Dealer routedDealer = dealer(1L, "Dealer 1", account(10001L, "AR-1", AccountType.ASSET));
+    Invoice invoice = invoice(9702L, routedDealer, "INV-9702", new BigDecimal("100.00"));
+    when(invoiceRepository.lockByCompanyAndId(company, 9702L)).thenReturn(Optional.of(invoice));
+
+    dealerReceiptService.recordDealerReceipt(
+        new DealerReceiptRequest(
+            1L,
+            20L,
+            new BigDecimal("100.00"),
+            "DR-ROUTE-1",
+            "Dealer receipt routing",
+            "IDEMP-DR-ROUTE-1",
+            List.of(
+                new SettlementAllocationRequest(
+                    9702L,
+                    null,
+                    new BigDecimal("100.00"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    null))));
+
+    ArgumentCaptor<JournalEntryRequest> payloadCaptor =
+        ArgumentCaptor.forClass(JournalEntryRequest.class);
+    verify(journalEntryService).createJournalEntry(payloadCaptor.capture());
+    assertThat(payloadCaptor.getValue().referenceNumber()).isEqualTo("DR-ROUTE-1");
+    assertThat(payloadCaptor.getValue().dealerId()).isEqualTo(1L);
+    assertThat(payloadCaptor.getValue().lines()).hasSize(2);
+  }
+
+  @Test
+  void creditDebitNoteService_routesLiveCreditNoteFlowThroughJournalEntryService() {
+    when(accountRepository.updateBalanceAtomic(any(), any(), any())).thenReturn(1);
+    when(journalEntryRepository.save(any(JournalEntry.class)))
+        .thenAnswer(
+            invocation -> {
+              JournalEntry entry = invocation.getArgument(0);
+              if (entry.getId() == null) {
+                ReflectionTestUtils.setField(entry, "id", 9801L);
+              }
+              if (entry.getEntryDate() == null) {
+                entry.setEntryDate(LocalDate.of(2024, 6, 1));
+              }
+              return entry;
+            });
+
+    Account receivable = account(98011L, "AR-98011", AccountType.ASSET);
+    Account revenue = account(98012L, "REV-98012", AccountType.REVENUE);
+    Dealer dealer = dealer(98013L, "Dealer Route", receivable);
+    Invoice invoice = invoice(98014L, dealer, "INV-98014", new BigDecimal("100.00"));
+    JournalEntry source = journalEntry(98015L, "INV-98014-JE");
+    addJournalLine(
+        source, receivable, "Invoice receivable", new BigDecimal("100.00"), BigDecimal.ZERO);
+    addJournalLine(source, revenue, "Invoice revenue", BigDecimal.ZERO, new BigDecimal("100.00"));
+    invoice.setJournalEntry(source);
+
+    when(invoiceRepository.lockByCompanyAndId(company, 98014L)).thenReturn(Optional.of(invoice));
+    when(journalEntryRepository.findByCompanyAndReversalOfAndCorrectionReasonIgnoreCase(
+            company, source, "CREDIT_NOTE"))
+        .thenReturn(List.of());
+    doReturn(stubEntry(9801L))
+        .when(journalEntryService)
+        .createJournalEntry(any(JournalEntryRequest.class));
+    JournalEntry posted =
+        creditNoteEntry(9801L, "CN-ROUTE-1", dealer, source, receivable, revenue, "100.00");
+    posted.setEntryDate(LocalDate.of(2024, 6, 1));
+    when(companyEntityLookup.requireJournalEntry(company, 9801L)).thenReturn(posted);
+
+    creditDebitNoteService.postCreditNote(
+        new CreditNoteRequest(
+            98014L,
+            new BigDecimal("100.00"),
+            LocalDate.of(2024, 6, 1),
+            "CN-ROUTE-1",
+            "Credit note routing",
+            "IDEMP-CN-ROUTE-1",
+            Boolean.TRUE));
+
+    ArgumentCaptor<JournalEntryRequest> payloadCaptor =
+        ArgumentCaptor.forClass(JournalEntryRequest.class);
+    verify(journalEntryService).createJournalEntry(payloadCaptor.capture());
+    assertThat(payloadCaptor.getValue().referenceNumber()).isEqualTo("CN-ROUTE-1");
+    assertThat(payloadCaptor.getValue().dealerId()).isEqualTo(98013L);
+    assertThat(payloadCaptor.getValue().lines()).hasSize(2);
+  }
+
+  @Test
+  void inventoryAccountingService_routesLiveLandedCostFlowThroughJournalEntryService() {
+    when(accountRepository.updateBalanceAtomic(any(), any(), any())).thenReturn(1);
+    when(journalEntryRepository.save(any(JournalEntry.class)))
+        .thenAnswer(
+            invocation -> {
+              JournalEntry entry = invocation.getArgument(0);
+              if (entry.getId() == null) {
+                ReflectionTestUtils.setField(entry, "id", 9901L);
+              }
+              if (entry.getEntryDate() == null) {
+                entry.setEntryDate(LocalDate.of(2024, 7, 1));
+              }
+              return entry;
+            });
+
+    Account payable = account(99011L, "AP-99011", AccountType.LIABILITY);
+    Supplier supplier = supplier(99012L, "Supplier Route", payable);
+    RawMaterialPurchase purchase =
+        purchase(
+            99013L,
+            "PUR-99013",
+            supplier,
+            new BigDecimal("250.00"),
+            new BigDecimal("250.00"),
+            "POSTED");
+    Account inventory = account(99014L, "INV-99014", AccountType.ASSET);
+    Account offset = account(99015L, "OFFSET-99015", AccountType.EXPENSE);
+
+    when(companyEntityLookup.requireRawMaterialPurchase(company, 99013L)).thenReturn(purchase);
+    when(companyEntityLookup.requireAccount(company, 99014L)).thenReturn(inventory);
+    when(companyEntityLookup.requireAccount(company, 99015L)).thenReturn(offset);
+    doReturn(stubEntry(9901L))
+        .when(journalEntryService)
+        .createJournalEntry(any(JournalEntryRequest.class));
+
+    inventoryAccountingService.recordLandedCost(
+        new LandedCostRequest(
+            99013L,
+            new BigDecimal("25.00"),
+            99014L,
+            99015L,
+            LocalDate.of(2024, 7, 1),
+            "Landed cost routing",
+            "LC-ROUTE-1",
+            "IDEMP-LC-ROUTE-1",
+            Boolean.TRUE));
+
+    ArgumentCaptor<JournalEntryRequest> payloadCaptor =
+        ArgumentCaptor.forClass(JournalEntryRequest.class);
+    verify(journalEntryService).createJournalEntry(payloadCaptor.capture());
+    assertThat(payloadCaptor.getValue().referenceNumber()).isEqualTo("IDEMP-LC-ROUTE-1");
+    assertThat(payloadCaptor.getValue().lines()).hasSize(2);
+  }
+
   private Account account(Long id, String code, AccountType type) {
     Account account = new Account();
     ReflectionTestUtils.setField(account, "id", id);
@@ -16454,17 +16398,12 @@ class AccountingServiceTest {
       String description,
       BigDecimal debit,
       BigDecimal credit) {
-    entry.getLines().add(journalLine(entry, account, description, debit, credit));
+    entry.addLine(journalLine(entry, account, description, debit, credit));
   }
 
   private void setCreateJournalEntryEventTrailStrictness(boolean strict) {
     ReflectionTestUtils.setField(accountingService, "strictAccountingEventTrail", strict);
     ReflectionTestUtils.setField(journalEntryService, "strictAccountingEventTrail", strict);
-  }
-
-  private AccountingIdempotencyService settlementIdempotencyService() {
-    ReflectionTestUtils.setField(accountingService, "settlementService", settlementService);
-    return settlementIdempotencyService;
   }
 
   private AccountingPeriod openPeriod(LocalDate date) {
@@ -16568,7 +16507,7 @@ class AccountingServiceTest {
     line.setDescription("line");
     line.setDebit(new BigDecimal("10.00"));
     line.setCredit(BigDecimal.ZERO);
-    entry.getLines().add(line);
+    entry.addLine(line);
     return entry;
   }
 }

@@ -14,6 +14,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
@@ -33,14 +34,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
-import com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
-import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnPreviewDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyAccountingSettingsService;
+import com.bigbrightpaints.erp.modules.accounting.service.JournalCorrectionMetadataService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGood;
@@ -68,7 +68,7 @@ class SalesReturnServiceTest {
   @Mock private InventoryMovementRepository inventoryMovementRepository;
   @Mock private BatchNumberService batchNumberService;
   @Mock private AccountingFacade accountingFacade;
-  @Mock private JournalEntryRepository journalEntryRepository;
+  @Mock private JournalCorrectionMetadataService journalCorrectionMetadataService;
   @Mock private CompanyAccountingSettingsService companyAccountingSettingsService;
   @Mock private FinishedGoodsService finishedGoodsService;
   @Mock private InvoiceRepository invoiceRepository;
@@ -86,7 +86,7 @@ class SalesReturnServiceTest {
             inventoryMovementRepository,
             batchNumberService,
             accountingFacade,
-            journalEntryRepository,
+            journalCorrectionMetadataService,
             invoiceRepository,
             companyAccountingSettingsService,
             finishedGoodsService);
@@ -96,9 +96,6 @@ class SalesReturnServiceTest {
     lenient()
         .when(companyAccountingSettingsService.requireTaxAccounts())
         .thenReturn(new CompanyAccountingSettingsService.TaxAccountConfiguration(900L, 800L, null));
-    lenient()
-        .when(journalEntryRepository.findByCompanyAndId(any(), anyLong()))
-        .thenReturn(Optional.empty());
   }
 
   @Test
@@ -1454,7 +1451,7 @@ class SalesReturnServiceTest {
                 List.of(new SalesReturnRequest.ReturnLine(179L, BigDecimal.ONE))));
 
     assertThat(result.id()).isNull();
-    verify(journalEntryRepository, never()).findByCompanyAndId(any(), anyLong());
+    verifyNoInteractions(journalCorrectionMetadataService);
     verify(inventoryMovementRepository, never())
         .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
             any(), anyString(), anyString());
@@ -1517,7 +1514,7 @@ class SalesReturnServiceTest {
                 List.of(new SalesReturnRequest.ReturnLine(279L, BigDecimal.ONE))));
 
     assertThat(result).isNull();
-    verify(journalEntryRepository, never()).findByCompanyAndId(any(), anyLong());
+    verifyNoInteractions(journalCorrectionMetadataService);
     verify(inventoryMovementRepository, never())
         .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
             any(), anyString(), anyString());
@@ -1626,14 +1623,6 @@ class SalesReturnServiceTest {
     fg.setRevenueAccountId(714L);
     setField(fg, "id", 224L);
 
-    JournalEntry replayJournal = new JournalEntry();
-    setField(replayJournal, "id", 1202L);
-    replayJournal.setStatus("POSTED");
-    replayJournal.setCorrectionType(JournalCorrectionType.REVERSAL);
-    replayJournal.setCorrectionReason("SALES_RETURN");
-    replayJournal.setSourceModule("SALES_RETURN");
-    replayJournal.setSourceReference("INV-REPLAY-CLEAN");
-
     SalesReturnRequest request =
         new SalesReturnRequest(
             131L, "Replay clean", List.of(new SalesReturnRequest.ReturnLine(178L, BigDecimal.ONE)));
@@ -1658,8 +1647,6 @@ class SalesReturnServiceTest {
             argThat(total -> total.compareTo(new BigDecimal("100")) == 0),
             eq("Replay clean")))
         .thenReturn(stubEntry(1202L));
-    when(journalEntryRepository.findByCompanyAndId(company, 1202L))
-        .thenReturn(Optional.of(replayJournal));
     when(inventoryMovementRepository
             .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
                 eq(company), eq("SALES_RETURN"), eq("INV-REPLAY-CLEAN:")))
@@ -1668,7 +1655,9 @@ class SalesReturnServiceTest {
     JournalEntryDto result = salesReturnService.processReturn(request);
 
     assertThat(result.id()).isEqualTo(1202L);
-    verify(journalEntryRepository, never()).save(replayJournal);
+    verify(journalCorrectionMetadataService)
+        .syncReversalMetadata(
+            company, 1202L, "SALES_RETURN", "SALES_RETURN", "INV-REPLAY-CLEAN");
     verify(inventoryMovementRepository, never()).saveAll(any());
     verify(finishedGoodRepository, never()).save(any(FinishedGood.class));
     verify(finishedGoodBatchRepository, never()).save(any(FinishedGoodBatch.class));
@@ -1715,10 +1704,6 @@ class SalesReturnServiceTest {
     fg.setRevenueAccountId(713L);
     setField(fg, "id", 223L);
 
-    JournalEntry replayJournal = new JournalEntry();
-    setField(replayJournal, "id", 1201L);
-    replayJournal.setStatus("POSTED");
-
     SalesReturnRequest request =
         new SalesReturnRequest(
             130L,
@@ -1750,8 +1735,6 @@ class SalesReturnServiceTest {
             argThat(total -> total.compareTo(new BigDecimal("100")) == 0),
             eq("Replay relink")))
         .thenReturn(stubEntry(1201L));
-    when(journalEntryRepository.findByCompanyAndId(company, 1201L))
-        .thenReturn(Optional.of(replayJournal));
     when(inventoryMovementRepository
             .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
                 eq(company), eq("SALES_RETURN"), eq("INV-REPLAY-LINK:")))
@@ -1760,11 +1743,8 @@ class SalesReturnServiceTest {
     JournalEntryDto result = salesReturnService.processReturn(request);
 
     assertThat(result.id()).isEqualTo(1201L);
-    assertThat(replayJournal.getCorrectionType()).isEqualTo(JournalCorrectionType.REVERSAL);
-    assertThat(replayJournal.getCorrectionReason()).isEqualTo("SALES_RETURN");
-    assertThat(replayJournal.getSourceModule()).isEqualTo("SALES_RETURN");
-    assertThat(replayJournal.getSourceReference()).isEqualTo("INV-REPLAY-LINK");
-    verify(journalEntryRepository).save(replayJournal);
+    verify(journalCorrectionMetadataService)
+        .syncReversalMetadata(company, 1201L, "SALES_RETURN", "SALES_RETURN", "INV-REPLAY-LINK");
 
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<InventoryMovement>> movementCaptor = ArgumentCaptor.forClass(List.class);
@@ -2692,23 +2672,26 @@ class SalesReturnServiceTest {
     JournalEntryDto replay = journalEntryDto(220L, "JE-220", LocalDate.now(), null);
     invokeEnsureLinkedCorrectionJournal(company, replay, sourceWithoutId, "INV-NOOP");
 
-    verify(journalEntryRepository, never()).findByCompanyAndId(any(), anyLong());
-    verify(journalEntryRepository, never()).save(any());
+    verifyNoInteractions(journalCorrectionMetadataService);
   }
 
   @Test
-  void ensureLinkedCorrectionJournal_andRelinkHelpers_skipPersistenceWhenAlreadyAligned() {
+  void ensureLinkedCorrectionJournal_delegatesCanonicalMetadataSync() {
     JournalEntry source = new JournalEntry();
     setField(source, "id", 320L);
 
-    JournalEntry aligned = new JournalEntry();
-    setField(aligned, "id", 321L);
-    aligned.setCorrectionType(JournalCorrectionType.REVERSAL);
-    aligned.setCorrectionReason("SALES_RETURN");
-    aligned.setSourceModule("SALES_RETURN");
-    aligned.setSourceReference("INV-ALIGNED");
+    invokeEnsureLinkedCorrectionJournal(
+        company, journalEntryDto(321L, "JE-321", LocalDate.now(), null), source, "INV-ALIGNED");
 
-    when(journalEntryRepository.findByCompanyAndId(company, 321L)).thenReturn(Optional.of(aligned));
+    verify(journalCorrectionMetadataService)
+        .syncReversalMetadata(
+            company, 321L, "SALES_RETURN", "SALES_RETURN", "INV-ALIGNED");
+  }
+
+  @Test
+  void relinkHelpers_skipPersistenceWhenAlreadyAligned() {
+    JournalEntry source = new JournalEntry();
+    setField(source, "id", 320L);
 
     invokeEnsureLinkedCorrectionJournal(
         company, journalEntryDto(321L, "JE-321", LocalDate.now(), null), source, "INV-ALIGNED");
@@ -2727,7 +2710,6 @@ class SalesReturnServiceTest {
 
     invokeRelinkExistingReturnMovements(company, "INV-ALIGNED", request, 321L, "KEY");
 
-    verify(journalEntryRepository, never()).save(aligned);
     verify(inventoryMovementRepository, never()).saveAll(any());
   }
 
@@ -3727,7 +3709,7 @@ class SalesReturnServiceTest {
     invokeEnsureLinkedCorrectionJournal(
         company, journalEntryDto(420L, "JE-420", LocalDate.now(), null), null, "INV-NO-SOURCE");
 
-    verify(journalEntryRepository, never()).findByCompanyAndId(any(), eq(420L));
+    verifyNoInteractions(journalCorrectionMetadataService);
   }
 
   @Test

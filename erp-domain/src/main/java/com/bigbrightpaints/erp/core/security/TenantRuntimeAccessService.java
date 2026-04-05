@@ -16,7 +16,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
@@ -38,7 +37,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-@Service("coreTenantRuntimeAccessService")
 public class TenantRuntimeAccessService {
 
   private static final Logger log = LoggerFactory.getLogger(TenantRuntimeAccessService.class);
@@ -97,7 +95,15 @@ public class TenantRuntimeAccessService {
           HttpServletResponse.SC_FORBIDDEN, "Missing company context", "TENANT_CONTEXT_MISSING");
     }
     String normalizedCompanyCode = companyCode.trim();
-    Company company = companyRepository.findByCodeIgnoreCase(normalizedCompanyCode).orElse(null);
+    Company company;
+    try {
+      company = companyRepository.findByCodeIgnoreCase(normalizedCompanyCode).orElse(null);
+    } catch (RuntimeException ex) {
+      return AccessHandle.denied(
+          HttpServletResponse.SC_SERVICE_UNAVAILABLE,
+          "Tenant company lookup is unavailable",
+          "TENANT_COMPANY_LOOKUP_UNAVAILABLE");
+    }
     if (company == null) {
       return AccessHandle.denied(
           HttpServletResponse.SC_FORBIDDEN,
@@ -117,7 +123,18 @@ public class TenantRuntimeAccessService {
         runtimeMetrics.computeIfAbsent(metricsKey, key -> createMetrics(company.getCode()));
     metrics.totalRequests.incrementAndGet();
 
-    TenantRuntimePolicy policy = resolvePolicy(tenantToken, companyId);
+    TenantRuntimePolicy policy;
+    try {
+      policy = resolvePolicy(tenantToken, companyId);
+    } catch (TenantRuntimePolicyResolutionFailure failure) {
+      return denyUnavailable(
+          company,
+          request,
+          metrics,
+          failure.httpStatus(),
+          failure.reasonCode(),
+          failure.getMessage());
+    }
     if (policy.state() == TenantRuntimeState.BLOCKED) {
       return deny(
           company,
@@ -237,6 +254,22 @@ public class TenantRuntimeAccessService {
             : defaultMessage;
     recordDeniedAudit(company, request, policy, metrics, httpStatus, reasonCode, message);
     return AccessHandle.denied(httpStatus, message, reasonCode);
+  }
+
+  private AccessHandle denyUnavailable(
+      Company company,
+      HttpServletRequest request,
+      TenantRuntimeMetrics metrics,
+      int httpStatus,
+      String reasonCode,
+      String message) {
+    return deny(
+        company,
+        request, new TenantRuntimePolicy(TenantRuntimeState.BLOCKED, null, defaultMaxConcurrentRequests, defaultMaxRequestsPerMinute),
+        metrics,
+        httpStatus,
+        reasonCode,
+        message);
   }
 
   private void recordDeniedAudit(
@@ -451,8 +484,11 @@ public class TenantRuntimeAccessService {
     try {
       return settingsRepository.findById(key).map(SystemSetting::getValue).orElse(null);
     } catch (RuntimeException ex) {
-      log.warn("Unable to read tenant runtime setting key {}", key, ex);
-      return null;
+      throw new TenantRuntimePolicyResolutionFailure(
+          HttpServletResponse.SC_SERVICE_UNAVAILABLE,
+          "TENANT_RUNTIME_POLICY_UNAVAILABLE",
+          "Tenant runtime policy is unavailable",
+          ex);
     }
   }
 
@@ -687,6 +723,27 @@ public class TenantRuntimeAccessService {
       if (closed.compareAndSet(false, true)) {
         releaseAction.run();
       }
+    }
+  }
+
+  private static final class TenantRuntimePolicyResolutionFailure extends RuntimeException
+  {
+    private final int httpStatus;
+    private final String reasonCode;
+
+    private TenantRuntimePolicyResolutionFailure(
+        int httpStatus, String reasonCode, String message, Throwable cause) {
+      super(message, cause);
+      this.httpStatus = httpStatus;
+      this.reasonCode = reasonCode;
+    }
+
+    private int httpStatus() {
+      return httpStatus;
+    }
+
+    private String reasonCode() {
+      return reasonCode;
     }
   }
 }

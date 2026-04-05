@@ -40,6 +40,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
 
 @Tag("critical")
@@ -54,6 +55,7 @@ class ProductionLogServiceCostingFallbackTest {
   @Mock private RawMaterialMovementRepository rawMaterialMovementRepository;
   @Mock private AccountingFacade accountingFacade;
   @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedInventoryLookupService inventoryLookupService;
   @Mock private CompanyClock companyClock;
   @Mock private PackingAllowedSizeService packingAllowedSizeService;
 
@@ -71,6 +73,7 @@ class ProductionLogServiceCostingFallbackTest {
             rawMaterialMovementRepository,
             accountingFacade,
             companyEntityLookup,
+            inventoryLookupService,
             companyClock,
             packingAllowedSizeService);
   }

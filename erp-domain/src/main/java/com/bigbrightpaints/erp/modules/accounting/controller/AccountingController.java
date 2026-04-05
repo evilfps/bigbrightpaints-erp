@@ -154,7 +154,16 @@ public class AccountingController {
   @ExceptionHandler(ApplicationException.class)
   public ResponseEntity<ApiResponse<Map<String, Object>>> handleApplicationException(
       ApplicationException ex, HttpServletRequest request) {
+    if (usesMappedConcurrencyStatus(ex)) {
+      return AccountingApplicationExceptionResponses.mappedStatus(ex, request);
+    }
     return AccountingApplicationExceptionResponses.badRequest(ex, request);
+  }
+
+  private boolean usesMappedConcurrencyStatus(ApplicationException ex) {
+    return ex != null
+        && ex.getErrorCode() != null
+        && ex.getErrorCode().getCode().startsWith("CONC_");
   }
 
   @GetMapping("/accounts")
@@ -530,13 +539,14 @@ public class AccountingController {
     if (request == null) {
       return null;
     }
+    String currentRequestIdempotencyKey = requestIdempotencyKeyExtractor.apply(request);
     String resolvedKey =
         resolveHeaderOnlyIdempotencyKey(
-            requestIdempotencyKeyExtractor.apply(request),
+            currentRequestIdempotencyKey,
             idempotencyKeyHeader,
             legacyIdempotencyKeyHeader,
             canonicalPath);
-    if (!StringUtils.hasText(resolvedKey)) {
+    if (!StringUtils.hasText(resolvedKey) || StringUtils.hasText(currentRequestIdempotencyKey)) {
       return request;
     }
     return requestWithIdempotencyKey.apply(request, resolvedKey);
@@ -549,13 +559,8 @@ public class AccountingController {
       String canonicalPath) {
     IdempotencyHeaderUtils.rejectLegacyHeader(
         legacyIdempotencyKeyHeader, "accounting write requests", canonicalPath);
-    String resolvedKey =
-        IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
-            bodyIdempotencyKey, idempotencyKeyHeader, null);
-    if (!StringUtils.hasText(resolvedKey) || StringUtils.hasText(bodyIdempotencyKey)) {
-      return null;
-    }
-    return resolvedKey;
+    return IdempotencyHeaderUtils.resolveBodyOrHeaderKey(
+        bodyIdempotencyKey, idempotencyKeyHeader, null);
   }
 
   private ReconciliationDiscrepancyStatus parseDiscrepancyStatus(String rawStatus) {

@@ -9,6 +9,7 @@ com.bigbrightpaints.erp.modules.production.service.CatalogServiceBrandCrudTest
 com.bigbrightpaints.erp.modules.production.service.CatalogServiceBulkUpsertTest
 com.bigbrightpaints.erp.modules.production.service.ProductionCatalogServiceBulkVariantRaceTest
 com.bigbrightpaints.erp.core.util.CompanyEntityLookupTest
+com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupServiceTest
 com.bigbrightpaints.erp.modules.factory.service.CostAllocationServiceTest
 com.bigbrightpaints.erp.modules.factory.service.BulkPackingCostServiceTest
 com.bigbrightpaints.erp.modules.factory.controller.PackagingMappingControllerTest
@@ -59,11 +60,15 @@ com.bigbrightpaints.erp.modules.inventory.controller.FinishedGoodControllerTest
 com.bigbrightpaints.erp.modules.inventory.controller.RawMaterialControllerSecurityIT
 com.bigbrightpaints.erp.modules.inventory.controller.RawMaterialControllerTest
 com.bigbrightpaints.erp.modules.hr.service.LeaveServiceTest
+com.bigbrightpaints.erp.core.service.NumberSequenceServiceTest
 InvoiceServiceTest
+com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicyTest
+com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeInvoiceSettlementPolicyExecutableCoverageTest
 LegacyDispatchInvoiceLinkMatcherTest
 PackagingSlipEntityTest
 PurchaseInvoiceEngineLifecycleTest
 PurchaseOrderServiceTest
+com.bigbrightpaints.erp.modules.purchasing.service.CompanyScopedPurchasingLookupServiceTest
 PurchaseResponseMapperTest
 PurchaseReturnIdempotencyRegressionIT
 PurchaseReturnServiceTest
@@ -75,6 +80,7 @@ RawMaterialPurchaseControllerTest
 RawMaterialServiceReceiptContextTest
 SalesControllerIdempotencyHeaderTest
 SalesControllerIT
+com.bigbrightpaints.erp.modules.sales.service.OrderNumberServiceTest
 SalesCoreEngineCoverageTest
 SalesFulfillmentServiceTest
 SalesOrderDtoContractTest

@@ -27,8 +27,6 @@ This flow is **behavior-first** and **code-grounded**. Where the backend is inco
 | Token refresh | POST | `/api/v1/auth/refresh-token` | Public | Rotate refresh token for new access token |
 | Logout | POST | `/api/v1/auth/logout` | Authenticated | Revoke sessions and blacklist access token |
 | `/me` | GET | `/api/v1/auth/me` | Authenticated | Current user identity, roles, permissions |
-| Profile read | GET | `/api/v1/auth/profile` | Authenticated | Read user profile fields |
-| Profile update | PUT | `/api/v1/auth/profile` | Authenticated | Update profile fields |
 | Password change | POST | `/api/v1/auth/password/change` | Authenticated | Authenticated password change |
 | Password forgot | POST | `/api/v1/auth/password/forgot` | Public | Request password reset email |
 | Password reset | POST | `/api/v1/auth/password/reset` | Public | Complete password reset with token |
@@ -36,7 +34,7 @@ This flow is **behavior-first** and **code-grounded**. Where the backend is inco
 | MFA activate | POST | `/api/v1/auth/mfa/activate` | Authenticated | Confirm TOTP enrollment |
 | MFA disable | POST | `/api/v1/auth/mfa/disable` | Authenticated | Disable MFA |
 | Admin force-reset | POST | `/api/v1/admin/users/{userId}/force-reset-password` | `ROLE_ADMIN` | Admin triggers password reset for user |
-| Super-admin support reset | POST | `/api/v1/companies/{id}/support/admin-password-reset` | `ROLE_SUPER_ADMIN` | Super-admin resets tenant admin password |
+| Super-admin support reset | POST | `/api/v1/superadmin/tenants/{id}/support/admin-password-reset` | `ROLE_SUPER_ADMIN` | Super-admin issues the canonical tenant-admin reset-link recovery action |
 
 ---
 
@@ -159,9 +157,7 @@ The flow is complete when:
 
 3. **Lockout not enforced on existing tokens** — When an account is locked (`lockedUntil` set), existing bearer tokens are not invalidated. `JwtAuthenticationFilter` checks `enabled` but not `lockedUntil`.
 
-4. **Profile changes not audited** — Profile mutations (PUT `/api/v1/auth/profile`) persist changes but do not emit audit events. Identity-profile changes are durable but not first-class audit events.
-
-5. **Brute-force monitoring not active** — `SecurityMonitoringService` exists but has no production callers. Brute-force monitoring and token-revocation analytics are architectural dead weight.
+4. **Brute-force monitoring not active** — `SecurityMonitoringService` exists but has no production callers. Brute-force monitoring and token-revocation analytics are architectural dead weight.
 
 ---
 
@@ -194,7 +190,7 @@ The flow is complete when:
 | Module | Dependency | Direction |
 | --- | --- | --- |
 | `company` | Tenant context resolution, runtime policy enforcement | Read |
-| `rbac` | Role resolution for `/me` and profile endpoints | Read |
+| `rbac` | Role resolution for `/me` permissions and authorities | Read |
 | `admin` | Admin user lifecycle (force-reset, status update) | Write via service |
 | `accounting` | None directly — auth is platform boundary | N/A |
 
@@ -226,5 +222,4 @@ The flow is complete when:
 | Decision | Notes |
 | --- | --- |
 | MFA recovery code table unused | Live service uses column, not relational table. Table exists for potential future enhancement. |
-| Profile audit gap | User profile changes do not currently emit audit events. |
 | Brute-force monitoring | Service exists but has no production callers. |

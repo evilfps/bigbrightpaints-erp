@@ -1,5 +1,8 @@
 package com.bigbrightpaints.erp.modules.invoice.service;
 
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -15,10 +18,12 @@ import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceSequenceRepository;
 @Service
 public class InvoiceNumberService {
 
+  private static final long RETRY_BACKOFF_MILLIS = 10L;
+  private static final int MAX_RETRIES = 5;
+
   private final InvoiceSequenceRepository sequenceRepository;
   private final TransactionTemplate newTxTemplate;
   private final CompanyClock companyClock;
-  private static final int MAX_RETRIES = 5;
 
   public InvoiceNumberService(
       InvoiceSequenceRepository sequenceRepository,
@@ -52,10 +57,7 @@ public class InvoiceNumberService {
         }
       } catch (DataIntegrityViolationException | OptimisticLockingFailureException ex) {
         lastError = ex;
-        try {
-          Thread.sleep(10L * attempt);
-        } catch (InterruptedException ignored) {
-          Thread.currentThread().interrupt();
+        if (attempt == MAX_RETRIES || !pauseBeforeRetry(attempt)) {
           break;
         }
       }
@@ -77,5 +79,10 @@ public class InvoiceNumberService {
 
   private int resolveFiscalYear(Company company) {
     return companyClock.today(company).getYear();
+  }
+
+  private boolean pauseBeforeRetry(int attempt) {
+    LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(RETRY_BACKOFF_MILLIS * attempt));
+    return !Thread.currentThread().isInterrupted();
   }
 }

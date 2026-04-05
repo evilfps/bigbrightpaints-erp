@@ -1,0 +1,21 @@
+{
+  "featureId": "repo-artifact-purge-and-docs-only-governance-hardening",
+  "reviewedAt": "2026-04-02T21:14:47+05:30",
+  "commitId": "f072aa6e401ba0ef7a0e47338707bb0e6671ffae",
+  "transcriptSkeletonReviewed": true,
+  "diffReviewed": true,
+  "status": "pass",
+  "codeReview": {
+    "summary": "The reviewed commit satisfies the stated governance-hardening scope. The docs-only classifier is narrowed to the same explicit canonical docs/governance lane described in repo governance (`scripts/enforce_codex_review_policy.sh:39`, `AGENTS.md:29-30`), so markdown-plus-code/config/script packets are no longer misclassified as docs-only. The deleted ballast surfaces (`asyncloop`, top-level `artifacts/*-domain-map.md`, `artifacts/workflow-doc-gap-analysis.md`, `artifacts/security/*`, `artifacts/pr-jacoco-local/*`, `docs/erp-48-parallel-worker-worklog.md`, and the removed 2026-03-26 security report docs) no longer have live references in the current repo governance/docs/script surfaces I reviewed, and the related stale governance links were updated to generic packet-evidence wording. I did not find any blocking or non-blocking correctness issues in the reviewed diff.",
+    "issues": []
+  },
+  "sharedStateObservations": [
+    {
+      "area": "skills",
+      "observation": "The assigned `backend-worker` skill still hard-codes a Java TDD-first procedure that does not fit non-runtime governance/script cleanup features, so the worker had to deviate from the documented process for this feature.",
+      "evidence": "/home/realnigga/Desktop/Mission-control/.factory/skills/backend-worker/SKILL.md:32 declares Step 2 as `Write Tests First (TDD)`; /home/realnigga/.factory/missions/7b442fc0-ec79-409b-ba2e-1ff329abb078/handoffs/2026-04-02T15-36-11-814Z__repo-artifact-purge-and-docs-only-governance-hardening__88233512-d6dc-4e50-b9f7-62019f211cba.json:65-74 records `followedProcedure: false` and says the worker used existing governance validators plus policy-classification probes instead of adding Java tests for this repo-governance/artifact-hygiene change."
+    }
+  ],
+  "addressesFailureFrom": null,
+  "summary": "PASS. The feature correctly removes stale tracked ballast with no remaining live repo-surface dependencies found in the reviewed docs/scripts/config paths, and it aligns the executable docs-only classifier with the narrowed canonical docs/governance lane described in repo governance. No actionable code-review issues found; one shared-state observation notes that the assigned backend-worker skill's TDD procedure does not match governance-only cleanup work."
+}

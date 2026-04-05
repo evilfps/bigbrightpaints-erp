@@ -1,69 +1,67 @@
 # R2 Checkpoint
 
-Last reviewed: 2026-04-02
+Last reviewed: 2026-04-04
 
 ## Scope
-- Feature: `ERP failing-suite remediation — debit-note replay hardening`
-- Branch: `erp-failing-suite-remediation-20260401` under the `anas` namespace
-- PR: `#180` — https://github.com/anasibnanwar-XYE/bigbrightpaints-erp/pull/180
+- Feature: review branch regression remediation for the orchestrator code-red cleanup packet
+- Branch: external review branch `review-orchestrator-erp-code-red-cleanup` in the local review worktree
+- PR: external review candidate — https://github.com/evilfps/bigbrightpaints-erp/pull/new/review/orchestrator-erp-code-red-cleanup
 - Review candidate:
-  - harden `postDebitNote(...)` in `AccountingCoreEngineCore` so leader-path replays validate journal provenance before mutating correction metadata
-  - persist debit-note provenance early via `sourceModule=DEBIT_NOTE` and `sourceReference=<purchaseInvoiceNumber>` on journal creation
-  - expand accounting regression coverage in `AccountingServiceTest`, plus carried AP regression coverage in `ProcureToPayE2ETest` and `HighImpactRegressionIT`
-  - update canonical docs for accounting idempotency, accounting reference chains, frontend idempotency/error handling, accounting portal states/errors, and this R2 checkpoint
-- Why this is R2: the packet changes executable code under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/`, which is a high-risk accounting path guarded by enterprise policy.
+  - restore accounting controller compatibility for matching request-body and `Idempotency-Key` values on receipt and settlement endpoints while continuing to fail closed on legacy `X-Idempotency-Key`
+  - surface tenant control-plane target lookup and tenant lifecycle lookup outages as `503 SYS_002` in `CompanyContextFilter` instead of misclassifying them as `403` authorization failures
+  - expand unit and truth-suite coverage for accounting idempotency resolution plus company control-plane outage handling
+- Why this is R2: the packet modifies executable code under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/` and `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/`, both of which are high-risk accounting/company control-plane paths guarded by enterprise policy.
 
 ## Risk Trigger
 - Triggered by:
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingCoreEngineCore.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`
 - Contract surfaces affected:
-  - debit-note idempotent replay semantics in `postDebitNote(...)`
-  - correction-journal provenance fields used for replay truth: `sourceModule`, `sourceReference`, and `reversalOf`
-  - frontend-facing conflict contract for cross-purchase reference reuse, as captured in the canonical accounting docs packet
+  - accounting receipt/settlement idempotency-key resolution for matching header/body replay keys
+  - super-admin tenant control-plane error classification for target-tenant lookup and lifecycle lookup failures
+  - regression/truth-suite assertions that guard those two runtime contracts
 - Failure mode if wrong:
-  - a concurrent retry could bind an existing debit-note journal to the wrong purchase, corrupting AP correction provenance and making audit/reference-chain reads point to the wrong source document
+  - accounting clients that still send a matching body `idempotencyKey` would start failing with `400`
+  - tenant lookup outages would be misreported as permission denials, suppressing retries and obscuring real platform availability incidents
 
 ## Approval Authority
 - Mode: orchestrator
 - Approver: Droid mission orchestrator
 - Canary owner: Droid mission orchestrator
 - Approval status: approved for branch-local remediation
-- Basis: the change narrows replay behavior without widening permissions, schema, migrations, or public route surface. Targeted unit/E2E coverage and docs/policy validators provide sufficient pre-merge evidence.
+- Basis: the fixes preserve existing compatibility and narrow failure handling without widening permissions, tenant boundaries, schema, or migrations. The risk is bounded by focused controller/filter tests plus truth-suite coverage.
 
 ## Escalation Decision
 - Human escalation required: no
-- Reason: this is a compatibility-preserving correctness fix to accounting replay behavior. It does not alter auth boundaries, tenant scoping, schema, or irreversible data migration behavior, and the risk is bounded by deterministic tests around the corrected race.
+- Reason: this remediation is compatibility-preserving and fail-closed. It does not widen privileges, cross-tenant access, or irreversible data behavior, and the rollback path is a straightforward revert of the local fixes.
 
 ## Rollback Owner
 - Owner: Droid mission orchestrator
 - Rollback method:
-  - before merge: reset or revert the branch-local remediation
-  - after merge: revert the hardening commit(s) and rerun the accounting regression slice
+  - before merge: revert the local remediation in the review worktree
+  - after merge: revert the regression-fix commit(s) and rerun the same accounting/security validation slice
 - Rollback trigger:
-  - debit-note replay for the same purchase stops returning the previously posted journal
-  - AP correction journals lose correct `sourceReference` / `reversalOf` provenance
-  - accounting regression slice or enterprise policy/docs validation regresses after merge
+  - accounting receipt or settlement endpoints stop accepting matching header/body replay keys that previously worked
+  - tenant control-plane lookup outages stop returning `503 SYS_002`
+  - targeted unit/truth-suite validation regresses after merge
 
 ## Expiry
-- Valid until: 2026-04-15
-- Re-evaluate if: scope expands beyond accounting replay hardening, or if auth/company/RBAC/schema/migration files are added to the packet.
+- Valid until: 2026-04-18
+- Re-evaluate if: the packet expands beyond the accounting/controller + company/security regression fixes, or if additional auth/RBAC/schema/migration paths are added.
 
 ## Test Waiver
 - Not applicable — executable code and tests changed, and targeted validators were run.
 
 ## Verification Evidence
 - Commands run:
-  - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-failing-suite-remediation-20260401/erp-domain && mvn --settings ".mvn/settings.xml" -B -ntp -Djacoco.skip=true -Dtest=AccountingServiceTest,ProcureToPayE2ETest,HighImpactRegressionIT test`
-  - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/erp-failing-suite-remediation-20260401/erp-domain && mvn --settings ".mvn/settings.xml" -B -ntp -DspotlessFiles=src/main/java/com/bigbrightpaints/erp/modules/accounting/internal/AccountingCoreEngineCore.java,src/test/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingServiceTest.java spotless:check`
-  - `bash ci/lint-knowledgebase.sh`
-  - `bash scripts/enforce_codex_review_policy.sh`
-  - `bash ci/check-enterprise-policy.sh`
+  - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/review-orchestrator-erp-code-red-cleanup/erp-domain && MIGRATION_SET=v2 mvn -q spotless:check -DspotlessFiles='src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java,src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java,src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerIdempotencyHeaderParityTest.java,src/test/java/com/bigbrightpaints/erp/modules/auth/CompanyContextFilterControlPlaneBindingTest.java,src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/TS_AccountingControllerIdempotencyHeaderParityRuntimeCoverageTest.java,src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingReplayConflictExecutableCoverageTest.java'`
+  - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/review-orchestrator-erp-code-red-cleanup/erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='AccountingControllerIdempotencyHeaderParityTest,CompanyContextFilterControlPlaneBindingTest,TS_AccountingControllerIdempotencyHeaderParityRuntimeCoverageTest,TS_RuntimeAccountingReplayConflictExecutableCoverageTest' test`
+  - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/review-orchestrator-erp-code-red-cleanup && bash ci/check-codex-review-guidelines.sh`
+  - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/review-orchestrator-erp-code-red-cleanup && bash ci/check-enterprise-policy.sh`
 - Result summary:
-  - targeted accounting unit + E2E slice passes after the provenance hardening
-  - Spotless check passes for the edited Java files
-  - docs knowledgebase lint passes
-  - strict codex review policy passes with the carried non-doc packet
-  - enterprise policy requires this R2 checkpoint for the accounting runtime scope and passes once the scope-specific evidence is present
+  - targeted spotless validation passes for all edited production and test files
+  - targeted controller/filter/truth-suite tests pass after the compatibility and outage-classification fixes
+  - codex review policy and enterprise policy checks are expected to pass once this scope-specific R2 checkpoint update is included in the packet
 - Artifacts/links:
-  - repo checkout: local workspace
-  - remote branch: `erp-failing-suite-remediation-20260401` under the `origin` remote and `anas` namespace
+  - repo checkout: local review worktree for the external orchestrator cleanup branch
+  - review source: user-provided PR creation URL for the external review branch

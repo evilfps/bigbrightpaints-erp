@@ -50,6 +50,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchReposito
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.inventory.dto.RawMaterialBatchRequest;
+import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.inventory.service.RawMaterialService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceipt;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptLine;
@@ -83,6 +84,8 @@ class PurchasingServiceGoodsReceiptTest {
   @Mock private GoodsReceiptRepository goodsReceiptRepository;
   @Mock private AccountingFacade accountingFacade;
   @Mock private JournalEntryRepository journalEntryRepository;
+  @Mock private CompanyScopedPurchasingLookupService purchasingLookupService;
+  @Mock private CompanyScopedInventoryLookupService inventoryLookupService;
   @Mock private CompanyEntityLookup companyEntityLookup;
   @Mock private ReferenceNumberService referenceNumberService;
   @Mock private CompanyClock companyClock;
@@ -109,6 +112,8 @@ class PurchasingServiceGoodsReceiptTest {
             movementRepository,
             goodsReceiptRepository,
             accountingFacade,
+            purchasingLookupService,
+            inventoryLookupService,
             journalEntryRepository,
             companyEntityLookup,
             referenceNumberService,
@@ -500,7 +505,7 @@ class PurchasingServiceGoodsReceiptTest {
     when(goodsReceiptRepository.lockByCompanyAndReceiptNumberIgnoreCase(company, "GRN-30-01"))
         .thenReturn(Optional.empty());
     when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder)).thenReturn(List.of());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
 
     RawMaterialBatch recordedBatch = new RawMaterialBatch();
     ReflectionTestUtils.setField(recordedBatch, "id", 702L);
@@ -596,7 +601,7 @@ class PurchasingServiceGoodsReceiptTest {
     when(goodsReceiptRepository.lockByCompanyAndReceiptNumberIgnoreCase(company, "GRN-30-01"))
         .thenReturn(Optional.empty());
     when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder)).thenReturn(List.of());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L))
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L))
         .thenThrow(new IllegalArgumentException("Raw material not found: id=20"));
 
     assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
@@ -633,7 +638,7 @@ class PurchasingServiceGoodsReceiptTest {
     when(goodsReceiptRepository.lockByCompanyAndReceiptNumberIgnoreCase(company, "GRN-30-01"))
         .thenReturn(Optional.empty());
     when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder)).thenReturn(List.of());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
 
     RawMaterialBatch recordedBatch = new RawMaterialBatch();
     ReflectionTestUtils.setField(recordedBatch, "id", 701L);
@@ -730,7 +735,7 @@ class PurchasingServiceGoodsReceiptTest {
     when(goodsReceiptRepository.lockByCompanyAndReceiptNumberIgnoreCase(company, "GRN-30-01"))
         .thenReturn(Optional.empty());
     when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder)).thenReturn(List.of());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
 
     RawMaterialBatch recordedBatch = new RawMaterialBatch();
     ReflectionTestUtils.setField(recordedBatch, "id", 702L);
@@ -795,7 +800,7 @@ class PurchasingServiceGoodsReceiptTest {
     when(goodsReceiptRepository.lockByCompanyAndReceiptNumberIgnoreCase(company, "GRN-30-01"))
         .thenReturn(Optional.empty());
     when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder)).thenReturn(List.of());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 21L)).thenReturn(otherMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 21L)).thenReturn(otherMaterial);
 
     assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
         .isInstanceOfSatisfying(
@@ -834,7 +839,7 @@ class PurchasingServiceGoodsReceiptTest {
     when(goodsReceiptRepository.lockByCompanyAndReceiptNumberIgnoreCase(company, "GRN-30-01"))
         .thenReturn(Optional.empty());
     when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder)).thenReturn(List.of());
-    when(companyEntityLookup.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
+    when(inventoryLookupService.lockActiveRawMaterial(company, 20L)).thenReturn(rawMaterial);
 
     assertThatThrownBy(() -> purchasingService.createGoodsReceipt(request))
         .isInstanceOfSatisfying(

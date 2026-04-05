@@ -20,8 +20,6 @@ paths = [
   'docs/.*\.md$',
   'README\.md$',
   'AGENTS\.md$',
-  # Historical evidence ledger (contains log excerpts)
-  'asyncloop$',
 ]
 regexes = [
   # Known placeholder patterns

@@ -1,12 +1,20 @@
-# BigBright ERP — Architecture
+# orchestrator-erp — Architecture Entrypoint
 
-Last reviewed: 2026-03-29
+Last reviewed: 2026-04-02
 
-This is the root architecture document for the BigBright ERP backend. For the full code-grounded architecture reference, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+This repo-root file is a signpost into the canonical `orchestrator-erp` docs spine. Use [docs/INDEX.md](docs/INDEX.md) for navigation, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full code-grounded runtime architecture, and [docs/deprecated/INDEX.md](docs/deprecated/INDEX.md) for retired or reference-only surfaces.
+
+## Canonical Docs Spine
+
+- [docs/INDEX.md](docs/INDEX.md) — canonical documentation entrypoint
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — canonical runtime architecture reference
+- [docs/frontend-portals/README.md](docs/frontend-portals/README.md) — canonical portal ownership docs
+- [docs/frontend-api/README.md](docs/frontend-api/README.md) — canonical shared frontend/API contract docs
+- [docs/deprecated/INDEX.md](docs/deprecated/INDEX.md) — retirement and reference-only registry
 
 ## System Shape
 
-BigBright ERP is a modular monolith built with Spring Boot. The base package is `com.bigbrightpaints.erp`.
+orchestrator-erp is a modular monolith built with Spring Boot. The base package remains `com.bigbrightpaints.erp`.
 
 - **core** — shared infrastructure: security, config, exception handling, audit, idempotency, health, utilities
 - **modules** — domain modules: accounting, admin, auth, company, demo, factory, hr, inventory, invoice, portal, production, purchasing, rbac, reports, sales

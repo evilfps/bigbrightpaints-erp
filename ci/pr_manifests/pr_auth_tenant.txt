@@ -1,5 +1,6 @@
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeSecurityConfigExecutableCoverageTest
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeCompanyContextFilterExecutableCoverageTest
+com.bigbrightpaints.erp.core.security.TenantRuntimeAccessServiceTest
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeModuleGatingServiceExecutableCoverageTest
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeTenantControlPlaneEnforcementTest
 com.bigbrightpaints.erp.core.exception.GlobalExceptionHandlerTest

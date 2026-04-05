@@ -613,29 +613,12 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     controller.settleDealer(controllerDealerSettlementRequest("   "), "HDR-ADS", null);
     controller.settleSupplier(controllerSupplierSettlementRequest("   "), "HDR-APS", null);
 
-    ArgumentCaptor<DealerReceiptRequest> dealerCaptor =
-        ArgumentCaptor.forClass(DealerReceiptRequest.class);
-    verify(dealerReceiptService).recordDealerReceipt(dealerCaptor.capture());
-    assertThat(dealerCaptor.getValue().idempotencyKey()).isEqualTo("HDR-DR");
-
-    ArgumentCaptor<DealerReceiptSplitRequest> dealerSplitCaptor =
-        ArgumentCaptor.forClass(DealerReceiptSplitRequest.class);
-    verify(dealerReceiptService).recordDealerReceiptSplit(dealerSplitCaptor.capture());
-    assertThat(dealerSplitCaptor.getValue().idempotencyKey()).isEqualTo("HDR-DRS");
-
-    ArgumentCaptor<DealerSettlementRequest> dealerSettlementCaptor =
-        ArgumentCaptor.forClass(DealerSettlementRequest.class);
-    verify(settlementService).settleDealerInvoices(dealerSettlementCaptor.capture());
-    assertThat(dealerSettlementCaptor.getValue().idempotencyKey()).isEqualTo("HDR-ADS");
-
-    ArgumentCaptor<SupplierSettlementRequest> supplierSettlementCaptor =
-        ArgumentCaptor.forClass(SupplierSettlementRequest.class);
-    verify(settlementService).settleSupplierInvoices(supplierSettlementCaptor.capture());
-    assertThat(supplierSettlementCaptor.getValue().idempotencyKey()).isEqualTo("HDR-APS");
+    assertCapturedControllerIdempotencyKeys(
+        dealerReceiptService, settlementService, "HDR-DR", "HDR-DRS", "HDR-ADS", "HDR-APS");
   }
 
   @Test
-  void controllerIdempotencyResolution_bodyKeyWinsAcrossEndpoints() {
+  void controllerIdempotencyResolution_acceptsMatchingBodyKeysAcrossEndpoints() {
     AccountingService service = org.mockito.Mockito.mock(AccountingService.class);
     DealerReceiptService dealerReceiptService =
         org.mockito.Mockito.mock(DealerReceiptService.class);
@@ -651,27 +634,11 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     controller.recordDealerHybridReceipt(
         controllerDealerReceiptSplitRequest("BODY-DRS"), "BODY-DRS", null);
     controller.settleDealer(controllerDealerSettlementRequest("BODY-ADS"), "BODY-ADS", null);
-    controller.settleSupplier(controllerSupplierSettlementRequest("BODY-APS"), "BODY-APS", null);
+    controller.settleSupplier(
+        controllerSupplierSettlementRequest("BODY-APS"), "BODY-APS", null);
 
-    ArgumentCaptor<DealerReceiptRequest> dealerCaptor =
-        ArgumentCaptor.forClass(DealerReceiptRequest.class);
-    verify(dealerReceiptService).recordDealerReceipt(dealerCaptor.capture());
-    assertThat(dealerCaptor.getValue().idempotencyKey()).isEqualTo("BODY-DR");
-
-    ArgumentCaptor<DealerReceiptSplitRequest> dealerSplitCaptor =
-        ArgumentCaptor.forClass(DealerReceiptSplitRequest.class);
-    verify(dealerReceiptService).recordDealerReceiptSplit(dealerSplitCaptor.capture());
-    assertThat(dealerSplitCaptor.getValue().idempotencyKey()).isEqualTo("BODY-DRS");
-
-    ArgumentCaptor<DealerSettlementRequest> dealerSettlementCaptor =
-        ArgumentCaptor.forClass(DealerSettlementRequest.class);
-    verify(settlementService).settleDealerInvoices(dealerSettlementCaptor.capture());
-    assertThat(dealerSettlementCaptor.getValue().idempotencyKey()).isEqualTo("BODY-ADS");
-
-    ArgumentCaptor<SupplierSettlementRequest> supplierSettlementCaptor =
-        ArgumentCaptor.forClass(SupplierSettlementRequest.class);
-    verify(settlementService).settleSupplierInvoices(supplierSettlementCaptor.capture());
-    assertThat(supplierSettlementCaptor.getValue().idempotencyKey()).isEqualTo("BODY-APS");
+    assertCapturedControllerIdempotencyKeys(
+        dealerReceiptService, settlementService, "BODY-DR", "BODY-DRS", "BODY-ADS", "BODY-APS");
   }
 
   @Test
@@ -692,25 +659,8 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     controller.settleDealer(controllerDealerSettlementRequest(null), null, null);
     controller.settleSupplier(controllerSupplierSettlementRequest(null), null, null);
 
-    ArgumentCaptor<DealerReceiptRequest> dealerCaptor =
-        ArgumentCaptor.forClass(DealerReceiptRequest.class);
-    verify(dealerReceiptService).recordDealerReceipt(dealerCaptor.capture());
-    assertThat(dealerCaptor.getValue().idempotencyKey()).isNull();
-
-    ArgumentCaptor<DealerReceiptSplitRequest> dealerSplitCaptor =
-        ArgumentCaptor.forClass(DealerReceiptSplitRequest.class);
-    verify(dealerReceiptService).recordDealerReceiptSplit(dealerSplitCaptor.capture());
-    assertThat(dealerSplitCaptor.getValue().idempotencyKey()).isNull();
-
-    ArgumentCaptor<DealerSettlementRequest> dealerSettlementCaptor =
-        ArgumentCaptor.forClass(DealerSettlementRequest.class);
-    verify(settlementService).settleDealerInvoices(dealerSettlementCaptor.capture());
-    assertThat(dealerSettlementCaptor.getValue().idempotencyKey()).isNull();
-
-    ArgumentCaptor<SupplierSettlementRequest> supplierSettlementCaptor =
-        ArgumentCaptor.forClass(SupplierSettlementRequest.class);
-    verify(settlementService).settleSupplierInvoices(supplierSettlementCaptor.capture());
-    assertThat(supplierSettlementCaptor.getValue().idempotencyKey()).isNull();
+    assertCapturedControllerIdempotencyKeys(
+        dealerReceiptService, settlementService, null, null, null, null);
   }
 
   @Test
@@ -863,8 +813,8 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     replayEntry.setSupplier(supplier);
     replayEntry.setMemo("supplier settle memo");
     replayEntry.setEntryDate(LocalDate.of(2026, 2, 15));
-    replayEntry.getLines().add(journalLine(701L, "100.00", "0.00"));
-    replayEntry.getLines().add(journalLine(702L, "0.00", "100.00"));
+    replayEntry.addLine(journalLine(701L, "100.00", "0.00"));
+    replayEntry.addLine(journalLine(702L, "0.00", "100.00"));
 
     PartnerSettlementAllocation existingAllocation =
         partnerAllocationForSupplier(301L, "100.00", "alloc-1");
@@ -1200,52 +1150,19 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
         creditDebitNoteService =
             org.mockito.Mockito.mock(
                 com.bigbrightpaints.erp.modules.accounting.service.CreditDebitNoteService.class);
-    com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditService
-        accountingAuditService =
-            org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditService.class);
     com.bigbrightpaints.erp.modules.accounting.service.InventoryAccountingService
         inventoryAccountingService =
             org.mockito.Mockito.mock(
                 com.bigbrightpaints.erp.modules.accounting.service.InventoryAccountingService
                     .class);
+    com.bigbrightpaints.erp.modules.accounting.service.PayrollAccountingService
+        payrollAccountingService =
+            org.mockito.Mockito.mock(
+                com.bigbrightpaints.erp.modules.accounting.service.PayrollAccountingService.class);
     org.springframework.beans.factory.ObjectProvider<
             com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade>
         accountingFacadeProvider =
             org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class);
-    com.bigbrightpaints.erp.modules.accounting.service.AccountingIdempotencyService
-        settlementIdempotencyService =
-            org.mockito.Mockito.spy(
-                new com.bigbrightpaints.erp.modules.accounting.service.AccountingIdempotencyService(
-                    companyContextService,
-                    accountRepository,
-                    journalEntryRepository,
-                    dealerLedgerService,
-                    supplierLedgerService,
-                    payrollRunRepository,
-                    payrollRunLineRepository,
-                    accountingPeriodService,
-                    referenceNumberService,
-                    eventPublisher,
-                    companyClock,
-                    companyEntityLookup,
-                    settlementAllocationRepository,
-                    rawMaterialPurchaseRepository,
-                    invoiceRepository,
-                    rawMaterialMovementRepository,
-                    rawMaterialBatchRepository,
-                    finishedGoodBatchRepository,
-                    dealerRepository,
-                    supplierRepository,
-                    invoiceSettlementPolicy,
-                    journalReferenceResolver,
-                    journalReferenceMappingRepository,
-                    entityManager,
-                    systemSettingsService,
-                    auditService,
-                    accountingEventStore,
-                    org.mockito.Mockito.mock(
-                        org.springframework.beans.factory.ObjectProvider.class)));
     SettlementService settlementService =
         org.mockito.Mockito.spy(
             new SettlementService(
@@ -1276,7 +1193,8 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
                 systemSettingsService,
                 auditService,
                 accountingEventStore,
-                settlementIdempotencyService));
+                journalEntryService,
+                dealerReceiptService));
     return new AccountingService(
         companyContextService,
         accountRepository,
@@ -1309,8 +1227,8 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
         dealerReceiptService,
         settlementService,
         creditDebitNoteService,
-        accountingAuditService,
         inventoryAccountingService,
+        payrollAccountingService,
         accountingFacadeProvider);
   }
 
@@ -1333,7 +1251,7 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     JournalEntry entry = new JournalEntry();
     entry.setDealer(dealer(dealerId));
     entry.setMemo(memo);
-    entry.getLines().add(journalLine(accountId, debit, credit));
+    entry.addLine(journalLine(accountId, debit, credit));
     return entry;
   }
 
@@ -1342,7 +1260,7 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
     JournalEntry entry = new JournalEntry();
     entry.setSupplier(supplier(supplierId));
     entry.setMemo(memo);
-    entry.getLines().add(journalLine(accountId, debit, credit));
+    entry.addLine(journalLine(accountId, debit, credit));
     return entry;
   }
 
@@ -1504,5 +1422,36 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             "allocation"));
+  }
+
+  private void assertCapturedControllerIdempotencyKeys(
+      DealerReceiptService dealerReceiptService,
+      SettlementService settlementService,
+      String expectedDealerReceiptKey,
+      String expectedDealerReceiptSplitKey,
+      String expectedDealerSettlementKey,
+      String expectedSupplierSettlementKey) {
+    ArgumentCaptor<DealerReceiptRequest> dealerCaptor =
+        ArgumentCaptor.forClass(DealerReceiptRequest.class);
+    verify(dealerReceiptService).recordDealerReceipt(dealerCaptor.capture());
+    assertThat(dealerCaptor.getValue().idempotencyKey()).isEqualTo(expectedDealerReceiptKey);
+
+    ArgumentCaptor<DealerReceiptSplitRequest> dealerSplitCaptor =
+        ArgumentCaptor.forClass(DealerReceiptSplitRequest.class);
+    verify(dealerReceiptService).recordDealerReceiptSplit(dealerSplitCaptor.capture());
+    assertThat(dealerSplitCaptor.getValue().idempotencyKey())
+        .isEqualTo(expectedDealerReceiptSplitKey);
+
+    ArgumentCaptor<DealerSettlementRequest> dealerSettlementCaptor =
+        ArgumentCaptor.forClass(DealerSettlementRequest.class);
+    verify(settlementService).settleDealerInvoices(dealerSettlementCaptor.capture());
+    assertThat(dealerSettlementCaptor.getValue().idempotencyKey())
+        .isEqualTo(expectedDealerSettlementKey);
+
+    ArgumentCaptor<SupplierSettlementRequest> supplierSettlementCaptor =
+        ArgumentCaptor.forClass(SupplierSettlementRequest.class);
+    verify(settlementService).settleSupplierInvoices(supplierSettlementCaptor.capture());
+    assertThat(supplierSettlementCaptor.getValue().idempotencyKey())
+        .isEqualTo(expectedSupplierSettlementKey);
   }
 }

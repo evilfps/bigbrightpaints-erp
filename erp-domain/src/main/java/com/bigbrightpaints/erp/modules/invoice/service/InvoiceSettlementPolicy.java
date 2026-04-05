@@ -58,7 +58,7 @@ public class InvoiceSettlementPolicy {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Payment exceeds outstanding amount");
     }
-    invoice.getPaymentReferences().add(reference);
+    invoice.addPaymentReference(reference);
     BigDecimal newOutstanding = currentOutstanding.subtract(amount);
     invoice.setOutstandingAmount(newOutstanding);
     updateStatusFromOutstanding(invoice, newOutstanding);
@@ -94,7 +94,7 @@ public class InvoiceSettlementPolicy {
     BigDecimal newOutstanding = currentOutstanding.subtract(clearedAmount);
     invoice.setOutstandingAmount(newOutstanding);
     if (reference != null && !reference.isBlank()) {
-      invoice.getPaymentReferences().add(reference);
+      invoice.addPaymentReference(reference);
     }
     updateStatusFromOutstanding(invoice, newOutstanding);
   }
@@ -193,7 +193,7 @@ public class InvoiceSettlementPolicy {
           "Reversal exceeds original total");
     }
     invoice.setOutstandingAmount(restored);
-    invoice.getPaymentReferences().remove(reference);
+    invoice.removePaymentReference(reference);
     updateStatusFromOutstanding(invoice, restored);
   }
 
