@@ -1,6 +1,6 @@
 package com.bigbrightpaints.erp.core.config;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.core.Authentication;
@@ -12,10 +12,9 @@ import io.sentry.Hint;
 import io.sentry.SentryEvent;
 import io.sentry.SentryOptions;
 import io.sentry.protocol.User;
-import io.sentry.spring.jakarta.SentrySpringFilter;
 
 @Configuration
-@ConditionalOnProperty(name = "sentry.dsn")
+@ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText('${sentry.dsn:}')")
 public class SentryConfig {
 
   @Bean
@@ -25,11 +24,6 @@ public class SentryConfig {
       enrichWithUserContext(event);
       return event;
     };
-  }
-
-  @Bean
-  public SentrySpringFilter sentrySpringFilter() {
-    return new SentrySpringFilter();
   }
 
   private void enrichWithTenantContext(SentryEvent event) {

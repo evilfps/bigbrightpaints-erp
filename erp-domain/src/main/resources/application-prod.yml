@@ -128,7 +128,7 @@ management:
   security:
     enabled: true
 sentry:
-  dsn: ${SENTRY_DSN}
+  dsn: ${SENTRY_DSN:}
   environment: prod
   release: ${SENTRY_RELEASE:erp-domain@${project.version:unknown}}
   send-default-pii: true
