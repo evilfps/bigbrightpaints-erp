@@ -81,7 +81,14 @@ Supporting sprawl:
 - `modules/accounting/service/AccountingCoreLogic`
 - `modules/accounting/service/AccountingCoreService`
 - `modules/accounting/internal/AccountingFacadeCore`
-- `modules/accounting/controller/AccountingController`
+- focused accounting controllers under `modules/accounting/controller/`, especially:
+  - `AccountController`
+  - `JournalController`
+  - `SettlementController`
+  - `PeriodController`
+  - `ReconciliationController`
+  - `StatementReportController`
+  - `InventoryAccountingController`
 
 Cleanup direction:
 

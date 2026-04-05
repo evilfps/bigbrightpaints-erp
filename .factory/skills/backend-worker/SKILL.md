@@ -76,6 +76,8 @@ None.
 6. Check for any regressions in related modules.
 7. If the feature touches accounting or another shared seam, run the dependent proof packs from `.factory/services.yaml` that cover downstream consumers.
 8. If your change exposed stale adjacent tests in the touched control surface, either fix them in the same feature or return a clearly tracked discovered issue tied to a pending feature.
+9. If the working tree is dirty only because of pre-existing `.factory/validation/**` or other orchestrator-owned mission artifacts that AGENTS says must remain uncommitted, do not treat that dirtiness as a feature failure. Leave it alone, or if you must temporarily stash it to get a clean feature commit, say so explicitly in the handoff and identify the stash.
+10. If optional dependent-proof packs expose clearly pre-existing failures outside your feature while the required validators and `gate_fast` pass, record them as discovered issues with the most relevant pending feature/owner instead of failing an otherwise-correct packet.
 
 ### Step 5: Document Frontend Handoff
 If your feature adds or changes frontend-facing API endpoints or contracts, you MUST update `.factory/library/frontend-handoff.md` with:

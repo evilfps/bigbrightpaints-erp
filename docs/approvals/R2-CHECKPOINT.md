@@ -14,7 +14,7 @@ Last reviewed: 2026-04-04
 
 ## Risk Trigger
 - Triggered by:
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/SettlementController.java`
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java`
 - Contract surfaces affected:
   - accounting receipt/settlement idempotency-key resolution for matching header/body replay keys
@@ -54,8 +54,8 @@ Last reviewed: 2026-04-04
 
 ## Verification Evidence
 - Commands run:
-  - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/review-orchestrator-erp-code-red-cleanup/erp-domain && MIGRATION_SET=v2 mvn -q spotless:check -DspotlessFiles='src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingController.java,src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java,src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingControllerIdempotencyHeaderParityTest.java,src/test/java/com/bigbrightpaints/erp/modules/auth/CompanyContextFilterControlPlaneBindingTest.java,src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/TS_AccountingControllerIdempotencyHeaderParityRuntimeCoverageTest.java,src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingReplayConflictExecutableCoverageTest.java'`
-  - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/review-orchestrator-erp-code-red-cleanup/erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='AccountingControllerIdempotencyHeaderParityTest,CompanyContextFilterControlPlaneBindingTest,TS_AccountingControllerIdempotencyHeaderParityRuntimeCoverageTest,TS_RuntimeAccountingReplayConflictExecutableCoverageTest' test`
+  - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/review-orchestrator-erp-code-red-cleanup/erp-domain && MIGRATION_SET=v2 mvn -q spotless:check -DspotlessFiles='src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/SettlementController.java,src/main/java/com/bigbrightpaints/erp/core/security/CompanyContextFilter.java,src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/SettlementControllerIdempotencyHeaderParityTest.java,src/test/java/com/bigbrightpaints/erp/modules/auth/CompanyContextFilterControlPlaneBindingTest.java,src/test/java/com/bigbrightpaints/erp/truthsuite/accounting/TS_AccountingIdempotencyHeaderParityRuntimeCoverageTest.java,src/test/java/com/bigbrightpaints/erp/truthsuite/runtime/TS_RuntimeAccountingReplayConflictExecutableCoverageTest.java'`
+  - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/review-orchestrator-erp-code-red-cleanup/erp-domain && MIGRATION_SET=v2 mvn -q -Djacoco.skip=true -Dtest='SettlementControllerIdempotencyHeaderParityTest,CompanyContextFilterControlPlaneBindingTest,TS_AccountingIdempotencyHeaderParityRuntimeCoverageTest,TS_RuntimeAccountingReplayConflictExecutableCoverageTest' test`
   - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/review-orchestrator-erp-code-red-cleanup && bash ci/check-codex-review-guidelines.sh`
   - `cd /Users/anas/Documents/Factory/bigbrightpaints-erp_worktrees/review-orchestrator-erp-code-red-cleanup && bash ci/check-enterprise-policy.sh`
 - Result summary:

@@ -20,7 +20,13 @@ The accounting module owns financial posting, corrections, period controls, sett
 
 ## Primary Controllers
 
-- `AccountingController` — journal CRUD, account management, **period lifecycle** (list/create/update/close/lock/reopen/request-close/approve-close/reject-close), GST returns, reconciliation, bank reconciliation sessions, statements, and settlement surfaces.
+- `AccountController` — account CRUD, default-account management, and chart-of-accounts tree reads.
+- `JournalController` — journal CRUD, manual journals, accruals, payroll payment posting seam, credit/debit notes, and bad-debt write-off.
+- `SettlementController` — dealer receipts, dealer/supplier settlements, and auto-settle flows with idempotency handling.
+- `PeriodController` — period lifecycle (list/create/update/close/lock/reopen/request-close/approve-close/reject-close) and month-end controls.
+- `ReconciliationController` — bank reconciliation sessions, discrepancy workflows, and inter-company reconciliation; the legacy `POST /reconciliation/bank` route is retired.
+- `StatementReportController` — statements, aging, temporal/date-context, GST/reporting, and sales-return reporting surfaces.
+- `InventoryAccountingController` — landed cost, revaluation, and WIP accounting adjustments.
 - `OpeningBalanceImportController` — CSV opening balance import.
 - `TallyImportController` — Tally XML import.
 

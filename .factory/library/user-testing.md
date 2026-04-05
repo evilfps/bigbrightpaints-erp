@@ -89,8 +89,10 @@ Rationale:
 ### Accounting and concurrency
 
 - `JournalEntryE2ETest`
-- `AccountingControllerJournalEndpointsTest`
-- `AccountingControllerIdempotencyHeaderParityTest`
+- `AccountingEndpointContractTest`
+- `SettlementControllerIdempotencyHeaderParityTest`
+- `ReconciliationControllerSessionEndpointsTest`
+- `StatementReportControllerTaxEndpointsTest`
 - `CriticalAccountingAxesIT`
 - `TS_RuntimeAccountingReplayConflictExecutableCoverageTest`
 - `TS_RuntimeAccountingPayrollPostingExecutableCoverageTest`
