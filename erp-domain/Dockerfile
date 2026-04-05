@@ -20,5 +20,8 @@ WORKDIR /app
 
 COPY --from=build /workspace/erp-domain/target/erp-domain-*.jar /app/app.jar
 
+# Datadog Java APM agent (auto-instruments JDBC, HTTP, Spring MVC, Hibernate)
+ADD https://dtdg.co/latest-java-tracer /app/dd-java-agent.jar
+
 EXPOSE 8081
-ENTRYPOINT ["sh","-c","java $JAVA_OPTS -jar /app/app.jar"]
+ENTRYPOINT ["sh","-c","java $JAVA_OPTS $DD_JAVA_OPTS -jar /app/app.jar"]

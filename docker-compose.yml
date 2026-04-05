@@ -89,9 +89,38 @@ services:
       # Sentry observability (optional; omit SENTRY_DSN to disable)
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+      # Datadog APM (optional; omit DD_API_KEY to disable)
+      DD_JAVA_OPTS: ${DD_API_KEY:+-javaagent:/app/dd-java-agent.jar}
+      DD_AGENT_HOST: ${DD_API_KEY:+datadog-agent}
+      DD_SERVICE: erp-domain
+      DD_ENV: ${DD_ENV:-dev}
+      DD_VERSION: ${DD_VERSION:-0.1.0}
+      DD_LOGS_INJECTION: "true"
+      DD_TRACE_SAMPLE_RATE: ${DD_TRACE_SAMPLE_RATE:-0.2}
+      DD_PROFILING_ENABLED: ${DD_PROFILING_ENABLED:-false}
     ports:
       - "${APP_PORT:-8081}:8081"
       - "${MANAGEMENT_PORT:-9090}:9090"
+
+  datadog-agent:
+    image: gcr.io/datadoghq/agent:7
+    container_name: erp_datadog
+    profiles: ["datadog"]
+    environment:
+      DD_API_KEY: ${DD_API_KEY:?Set DD_API_KEY to enable Datadog}
+      DD_SITE: ${DD_SITE:-us5.datadoghq.com}
+      DD_APM_ENABLED: "true"
+      DD_APM_NON_LOCAL_TRAFFIC: "true"
+      DD_LOGS_ENABLED: "true"
+      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: "true"
+      DD_PROCESS_AGENT_ENABLED: "true"
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+    ports:
+      - "127.0.0.1:8126:8126"
 
 volumes:
   postgres_data:
