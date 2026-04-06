@@ -87,10 +87,11 @@ POST /api/v1/admin/users
 {
   "email": "newuser@example.com",
   "displayName": "New User",
-  "password": "TempPassword123!",
   "roles": ["ROLE_SALES"]
 }
 ```
+
+`CreateUserRequest` accepts only `email`, `displayName`, and `roles`.
 
 ## Dealers
 
@@ -543,23 +544,24 @@ always `GET /api/v1/admin/approvals`.
 }
 ```
 
-## Error Response Example
+## Error Response Example (`POST /api/v1/admin/users` validation)
+
+For `@Valid` request-body failures, field-level hints are returned under
+`data.errors`.
 
 ```json
 {
   "success": false,
-  "message": "Validation failed",
+  "message": "Validation failed: email must be a well-formed email address; displayName must not be blank; roles must not be empty",
   "data": {
     "code": "VAL_001",
-    "message": "Validation failed",
-    "reason": "Validation failed",
-    "path": "/api/v1/admin/users",
+    "message": "Validation failed: email must be a well-formed email address; displayName must not be blank; roles must not be empty",
+    "reason": "Validation failed: email must be a well-formed email address; displayName must not be blank; roles must not be empty",
     "traceId": "c2608f47-b9bb-4ec8-b725-c8caf7302af5",
-    "details": {
-      "fieldErrors": [
-        { "field": "email", "message": "Invalid email format" },
-        { "field": "password", "message": "Password must be at least 8 characters" }
-      ]
+    "errors": {
+      "email": "must be a well-formed email address",
+      "displayName": "must not be blank",
+      "roles": "must not be empty"
     }
   },
   "timestamp": "2026-03-31T10:00:00Z"

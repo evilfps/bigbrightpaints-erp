@@ -76,7 +76,7 @@ commands:
   audit-trail-ownership-guard: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/guard_audit_trail_ownership_contract.sh
   accounting-frontend-doc-contract-proof: >-
-    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='SettlementControllerIdempotencyHeaderParityTest,AccountingEndpointContractTest,AccountingApplicationExceptionAdviceTest,AccountingApplicationExceptionResponsesTest,OpeningStockImportControllerTest,TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest,OpenApiSnapshotIT' test
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='SettlementControllerIdempotencyHeaderParityTest,AccountingEndpointContractTest,AccountingApplicationExceptionAdviceTest,AccountingApplicationExceptionResponsesTest,OpeningStockImportControllerTest,TS_RuntimeGlobalExceptionHandlerExecutableCoverageTest,AdminUserValidationEnvelopeIT,OpenApiSnapshotIT' test
   codex-review-policy: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/enforce_codex_review_policy.sh
   docs-governance: >-
