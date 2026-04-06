@@ -44,14 +44,14 @@ class AccountControllerTest {
     CompanyDefaultAccountsService defaultAccountsService =
         mock(CompanyDefaultAccountsService.class);
     CompanyDefaultAccountsService.DefaultAccounts defaults =
-        new CompanyDefaultAccountsService.DefaultAccounts(1L, 2L, 3L, 4L, 5L);
+        new CompanyDefaultAccountsService.DefaultAccounts(1L, 2L, 3L, 4L, 4L, 5L);
     when(defaultAccountsService.getDefaults()).thenReturn(defaults);
 
     ApiResponse<CompanyDefaultAccountsResponse> body =
         controller(null, defaultAccountsService, null).defaultAccounts().getBody();
 
     assertThat(body).isNotNull();
-    assertThat(body.data()).isEqualTo(new CompanyDefaultAccountsResponse(1L, 2L, 3L, 4L, 5L));
+    assertThat(body.data()).isEqualTo(new CompanyDefaultAccountsResponse(1L, 2L, 3L, 4L, 4L, 5L));
   }
 
   @Test
@@ -59,17 +59,18 @@ class AccountControllerTest {
     CompanyDefaultAccountsService defaultAccountsService =
         mock(CompanyDefaultAccountsService.class);
     CompanyDefaultAccountsRequest request =
-        new CompanyDefaultAccountsRequest(11L, 12L, 13L, 14L, 15L);
+        new CompanyDefaultAccountsRequest(11L, 12L, 13L, 14L, 14L, 15L);
     CompanyDefaultAccountsService.DefaultAccounts updated =
-        new CompanyDefaultAccountsService.DefaultAccounts(11L, 12L, 13L, 14L, 15L);
-    when(defaultAccountsService.updateDefaults(11L, 12L, 13L, 14L, 15L)).thenReturn(updated);
+        new CompanyDefaultAccountsService.DefaultAccounts(11L, 12L, 13L, 14L, 14L, 15L);
+    when(defaultAccountsService.updateDefaults(11L, 12L, 13L, 14L, 14L, 15L)).thenReturn(updated);
 
     ApiResponse<CompanyDefaultAccountsResponse> body =
         controller(null, defaultAccountsService, null).updateDefaultAccounts(request).getBody();
 
     assertThat(body).isNotNull();
     assertThat(body.message()).isEqualTo("Default accounts updated");
-    assertThat(body.data()).isEqualTo(new CompanyDefaultAccountsResponse(11L, 12L, 13L, 14L, 15L));
+    assertThat(body.data())
+        .isEqualTo(new CompanyDefaultAccountsResponse(11L, 12L, 13L, 14L, 14L, 15L));
   }
 
   @Test

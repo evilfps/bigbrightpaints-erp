@@ -64,6 +64,7 @@ public class AccountController {
             request.cogsAccountId(),
             request.revenueAccountId(),
             request.discountAccountId(),
+            request.fgDiscountAccountId(),
             request.taxAccountId());
     return ResponseEntity.ok(ApiResponse.success("Default accounts updated", toResponse(defaults)));
   }
@@ -102,6 +103,7 @@ public class AccountController {
         defaults.cogsAccountId(),
         defaults.revenueAccountId(),
         defaults.discountAccountId(),
+        defaults.fgDiscountAccountId(),
         defaults.taxAccountId());
   }
 }

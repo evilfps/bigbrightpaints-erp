@@ -17,7 +17,9 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -422,18 +424,67 @@ class TenantOnboardingServiceTest {
 
     service.onboardTenant(request);
 
-    Account cogs =
+    Map<String, Account> accountsByCode =
         createdAccounts.stream()
-            .filter(account -> "COGS".equals(account.getCode()))
-            .findFirst()
-            .orElseThrow();
-    Account openingBalance =
-        createdAccounts.stream()
-            .filter(account -> "OPEN-BAL".equals(account.getCode()))
-            .findFirst()
-            .orElseThrow();
-    assertThat(cogs.getType()).isEqualTo(AccountType.COGS);
-    assertThat(openingBalance.getType()).isEqualTo(AccountType.EQUITY);
+            .collect(Collectors.toMap(Account::getCode, account -> account, (left, right) -> left));
+
+    assertThat(accountsByCode)
+        .containsKeys(
+            "AST",
+            "LIAB",
+            "EQ",
+            "REV",
+            "COGS",
+            "EXP",
+            "AST-CUR",
+            "AST-FIX",
+            "CASH",
+            "BANK-CURRENT",
+            "AR",
+            "INV",
+            "LIAB-CUR",
+            "AP",
+            "OWN-EQ",
+            "RET-EARN",
+            "SALES-REV",
+            "FG-COGS",
+            "OPEX");
+
+    assertThat(accountsByCode.get("AST").getParent()).isNull();
+    assertThat(accountsByCode.get("LIAB").getParent()).isNull();
+    assertThat(accountsByCode.get("EQ").getParent()).isNull();
+    assertThat(accountsByCode.get("REV").getParent()).isNull();
+    assertThat(accountsByCode.get("COGS").getParent()).isNull();
+    assertThat(accountsByCode.get("EXP").getParent()).isNull();
+
+    assertThat(accountsByCode.get("AST-CUR").getParent()).isEqualTo(accountsByCode.get("AST"));
+    assertThat(accountsByCode.get("AST-FIX").getParent()).isEqualTo(accountsByCode.get("AST"));
+    assertThat(accountsByCode.get("CASH").getParent()).isEqualTo(accountsByCode.get("AST-CUR"));
+    assertThat(accountsByCode.get("BANK-CURRENT").getParent())
+        .isEqualTo(accountsByCode.get("AST-CUR"));
+    assertThat(accountsByCode.get("AR").getParent()).isEqualTo(accountsByCode.get("AST-CUR"));
+    assertThat(accountsByCode.get("INV").getParent()).isEqualTo(accountsByCode.get("AST-CUR"));
+    assertThat(accountsByCode.get("LIAB-CUR").getParent()).isEqualTo(accountsByCode.get("LIAB"));
+    assertThat(accountsByCode.get("AP").getParent()).isEqualTo(accountsByCode.get("LIAB-CUR"));
+    assertThat(accountsByCode.get("OWN-EQ").getParent()).isEqualTo(accountsByCode.get("EQ"));
+    assertThat(accountsByCode.get("RET-EARN").getParent()).isEqualTo(accountsByCode.get("EQ"));
+    assertThat(accountsByCode.get("SALES-REV").getParent()).isEqualTo(accountsByCode.get("REV"));
+    assertThat(accountsByCode.get("FG-COGS").getParent()).isEqualTo(accountsByCode.get("COGS"));
+    assertThat(accountsByCode.get("OPEX").getParent()).isEqualTo(accountsByCode.get("EXP"));
+
+    assertThat(accountsByCode.get("COGS").getType()).isEqualTo(AccountType.COGS);
+    assertThat(accountsByCode.get("OPEN-BAL").getType()).isEqualTo(AccountType.EQUITY);
+    assertThat(accountsByCode.get("AP").getHierarchyLevel())
+        .isGreaterThan(accountsByCode.get("LIAB-CUR").getHierarchyLevel());
+
+    ArgumentCaptor<Company> savedCompanies = ArgumentCaptor.forClass(Company.class);
+    verify(companyRepository, times(3)).save(savedCompanies.capture());
+    Company savedCompany = savedCompanies.getAllValues().get(savedCompanies.getAllValues().size() - 1);
+    assertThat(savedCompany.getDefaultInventoryAccountId()).isNotNull();
+    assertThat(savedCompany.getDefaultCogsAccountId()).isNotNull();
+    assertThat(savedCompany.getDefaultRevenueAccountId()).isNotNull();
+    assertThat(savedCompany.getDefaultDiscountAccountId()).isNotNull();
+    assertThat(savedCompany.getDefaultTaxAccountId()).isNotNull();
   }
 
   @Test

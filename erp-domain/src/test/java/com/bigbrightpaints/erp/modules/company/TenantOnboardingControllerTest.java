@@ -126,7 +126,15 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
               account -> assertThat(account.getBalance()).isEqualByComparingTo(BigDecimal.ZERO));
 
       List<Account> roots = accountRepository.findByCompanyAndParentIsNullOrderByCodeAsc(company);
-      assertThat(roots).isNotEmpty();
+      assertThat(roots).hasSizeGreaterThanOrEqualTo(6);
+      assertThat(roots).extracting(Account::getType)
+          .containsExactlyInAnyOrder(
+              com.bigbrightpaints.erp.modules.accounting.domain.AccountType.ASSET,
+              com.bigbrightpaints.erp.modules.accounting.domain.AccountType.LIABILITY,
+              com.bigbrightpaints.erp.modules.accounting.domain.AccountType.EQUITY,
+              com.bigbrightpaints.erp.modules.accounting.domain.AccountType.REVENUE,
+              com.bigbrightpaints.erp.modules.accounting.domain.AccountType.COGS,
+              com.bigbrightpaints.erp.modules.accounting.domain.AccountType.EXPENSE);
       long childrenCount =
           roots.stream()
               .mapToLong(
@@ -137,6 +145,18 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
       assertThat(accounts)
           .filteredOn(account -> account.getHierarchyLevel() != null)
           .allSatisfy(account -> assertThat(account.getHierarchyLevel()).isGreaterThanOrEqualTo(1));
+      assertThat(accounts)
+          .filteredOn(account -> account.getParent() == null)
+          .allSatisfy(account -> assertThat(account.getHierarchyLevel()).isEqualTo(1));
+      assertThat(accounts)
+          .filteredOn(account -> account.getParent() != null)
+          .allSatisfy(account -> assertThat(account.getHierarchyLevel()).isGreaterThan(1));
+
+      assertThat(company.getDefaultInventoryAccountId()).isNotNull();
+      assertThat(company.getDefaultCogsAccountId()).isNotNull();
+      assertThat(company.getDefaultRevenueAccountId()).isNotNull();
+      assertThat(company.getDefaultDiscountAccountId()).isNotNull();
+      assertThat(company.getDefaultTaxAccountId()).isNotNull();
 
       assertThat(
               accountingPeriodRepository.findFirstByCompanyAndStatusOrderByStartDateDesc(

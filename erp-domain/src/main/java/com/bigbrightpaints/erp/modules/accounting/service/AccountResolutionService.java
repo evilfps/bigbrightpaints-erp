@@ -1,17 +1,13 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
 import java.time.LocalDate;
-import java.util.Locale;
-import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
-import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
-import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
@@ -25,19 +21,19 @@ class AccountResolutionService {
   private final CompanyScopedSalesLookupService salesLookupService;
   private final CompanyScopedPurchasingLookupService purchasingLookupService;
   private final CompanyScopedAccountingLookupService accountingLookupService;
-  private final AccountRepository accountRepository;
+  private final CompanyDefaultAccountsService companyDefaultAccountsService;
   private final CompanyClock companyClock;
 
   AccountResolutionService(
       CompanyScopedSalesLookupService salesLookupService,
       CompanyScopedPurchasingLookupService purchasingLookupService,
       CompanyScopedAccountingLookupService accountingLookupService,
-      AccountRepository accountRepository,
+      CompanyDefaultAccountsService companyDefaultAccountsService,
       CompanyClock companyClock) {
     this.salesLookupService = salesLookupService;
     this.purchasingLookupService = purchasingLookupService;
     this.accountingLookupService = accountingLookupService;
-    this.accountRepository = accountRepository;
+    this.companyDefaultAccountsService = companyDefaultAccountsService;
     this.companyClock = companyClock;
   }
 
@@ -92,34 +88,8 @@ class AccountResolutionService {
 
   Long resolveAutoSettlementCashAccountId(
       Company company, Long requestedCashAccountId, String operation) {
-    if (requestedCashAccountId != null) {
-      return requestedCashAccountId;
-    }
-    return accountRepository.findByCompanyOrderByCodeAsc(company).stream()
-        .filter(Account::isActive)
-        .filter(account -> account.getType() == null || account.getType() == AccountType.ASSET)
-        .filter(account -> !isReceivableAccount(account) && !isPayableAccount(account))
-        .filter(
-            account -> {
-              String code =
-                  account.getCode() == null ? "" : account.getCode().toUpperCase(Locale.ROOT);
-              String name =
-                  account.getName() == null ? "" : account.getName().toUpperCase(Locale.ROOT);
-              return code.contains("CASH")
-                  || code.contains("BANK")
-                  || name.contains("CASH")
-                  || name.contains("BANK");
-            })
-        .map(Account::getId)
-        .filter(Objects::nonNull)
-        .findFirst()
-        .orElseThrow(
-            () ->
-                new ApplicationException(
-                    ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
-                    "cashAccountId is required when no active default cash/bank account is"
-                        + " configured for "
-                        + operation));
+    return companyDefaultAccountsService.resolveAutoSettlementCashAccountId(
+        company, requestedCashAccountId, operation);
   }
 
   Account requireDealerReceivable(Dealer dealer) {
@@ -144,8 +114,10 @@ class AccountResolutionService {
     if (account == null || account.getType() != AccountType.ASSET) {
       return false;
     }
-    String code = IdempotencyUtils.normalizeUpperToken(account.getCode());
-    String name = IdempotencyUtils.normalizeUpperToken(account.getName());
+    String code =
+        account.getCode() == null ? "" : account.getCode().trim().toUpperCase(java.util.Locale.ROOT);
+    String name =
+        account.getName() == null ? "" : account.getName().trim().toUpperCase(java.util.Locale.ROOT);
     return isTokenMatch(code, "AR") || name.contains("ACCOUNTS RECEIVABLE");
   }
 
@@ -153,8 +125,10 @@ class AccountResolutionService {
     if (account == null || account.getType() != AccountType.LIABILITY) {
       return false;
     }
-    String code = IdempotencyUtils.normalizeUpperToken(account.getCode());
-    String name = IdempotencyUtils.normalizeUpperToken(account.getName());
+    String code =
+        account.getCode() == null ? "" : account.getCode().trim().toUpperCase(java.util.Locale.ROOT);
+    String name =
+        account.getName() == null ? "" : account.getName().trim().toUpperCase(java.util.Locale.ROOT);
     return isTokenMatch(code, "AP") || name.contains("ACCOUNTS PAYABLE");
   }
 

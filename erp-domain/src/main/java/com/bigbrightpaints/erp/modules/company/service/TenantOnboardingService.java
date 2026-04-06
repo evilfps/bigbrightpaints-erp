@@ -169,8 +169,8 @@ public class TenantOnboardingService {
     boolean nonGstMode = isNonGstMode(company);
     Account inventory =
         firstPresent(accountsByCode, "FINISHED-GOODS-INVENTORY", "INV", "RAW-MATERIAL-INVENTORY");
-    Account cogs = firstPresent(accountsByCode, "COGS", "FG-COGS", "RM-CONSUMPTION");
-    Account revenue = firstPresent(accountsByCode, "REV", "SERVICE-REVENUE");
+    Account cogs = firstPresent(accountsByCode, "FG-COGS", "COGS", "RM-CONSUMPTION");
+    Account revenue = firstPresent(accountsByCode, "SALES-REV", "REV", "SERVICE-REVENUE");
     Account discount = firstPresent(accountsByCode, "DISC", "SALES-RETURNS");
     Account taxOutput = firstPresent(accountsByCode, "GST-OUT", "TAX-PAYABLE");
     Account taxInput = firstPresent(accountsByCode, "GST-IN", "TDS-RECEIVABLE");
@@ -370,51 +370,73 @@ public class TenantOnboardingService {
     blueprints.add(new AccountBlueprint("LIAB", "Liabilities", AccountType.LIABILITY, null));
     blueprints.add(new AccountBlueprint("EQ", "Equity", AccountType.EQUITY, null));
     blueprints.add(new AccountBlueprint("REV", "Revenue", AccountType.REVENUE, null));
+    blueprints.add(new AccountBlueprint("COGS", "Cost of Goods Sold", AccountType.COGS, null));
     blueprints.add(new AccountBlueprint("EXP", "Expenses", AccountType.EXPENSE, null));
-    blueprints.add(new AccountBlueprint("INV", "Inventory", AccountType.ASSET, "AST"));
-    blueprints.add(new AccountBlueprint("CASH", "Cash", AccountType.ASSET, "AST"));
+
+    blueprints.add(new AccountBlueprint("AST-CUR", "Current Assets", AccountType.ASSET, "AST"));
+    blueprints.add(new AccountBlueprint("AST-FIX", "Fixed Assets", AccountType.ASSET, "AST"));
+    blueprints.add(new AccountBlueprint("CASH", "Cash", AccountType.ASSET, "AST-CUR"));
+    blueprints.add(new AccountBlueprint("BANK-CURRENT", "Bank", AccountType.ASSET, "AST-CUR"));
+    blueprints.add(new AccountBlueprint("AR", "Accounts Receivable", AccountType.ASSET, "AST-CUR"));
+    blueprints.add(new AccountBlueprint("INV", "Inventory", AccountType.ASSET, "AST-CUR"));
     blueprints.add(
-        new AccountBlueprint("BANK-CURRENT", "Bank Current Account", AccountType.ASSET, "AST"));
-    blueprints.add(new AccountBlueprint("AR", "Accounts Receivable", AccountType.ASSET, "AST"));
-    blueprints.add(new AccountBlueprint("AP", "Accounts Payable", AccountType.LIABILITY, "LIAB"));
-    blueprints.add(new AccountBlueprint("GST-OUT", "GST Output", AccountType.LIABILITY, "LIAB"));
-    blueprints.add(new AccountBlueprint("GST-IN", "GST Input", AccountType.ASSET, "AST"));
-    blueprints.add(new AccountBlueprint("GST-PAY", "GST Payable", AccountType.LIABILITY, "LIAB"));
-    blueprints.add(new AccountBlueprint("OPEN-BAL", "Opening Balance", AccountType.EQUITY, "EQ"));
-    blueprints.add(new AccountBlueprint("DISC", "Sales Discount", AccountType.EXPENSE, "EXP"));
-    blueprints.add(new AccountBlueprint("COGS", "Cost of Goods Sold", AccountType.COGS, "EXP"));
+        new AccountBlueprint(
+            "RAW-MATERIAL-INVENTORY", "Raw Material Inventory", AccountType.ASSET, "INV"));
     blueprints.add(
-        new AccountBlueprint("SALARY-EXPENSE", "Salary Expense", AccountType.EXPENSE, "EXP"));
+        new AccountBlueprint(
+            "FINISHED-GOODS-INVENTORY", "Finished Goods Inventory", AccountType.ASSET, "INV"));
+    blueprints.add(new AccountBlueprint("GST-IN", "GST Input", AccountType.ASSET, "AST-CUR"));
     blueprints.add(
-        new AccountBlueprint("OFFICE-EXPENSE", "Office Expense", AccountType.EXPENSE, "EXP"));
+        new AccountBlueprint("TDS-RECEIVABLE", "TDS Receivable", AccountType.ASSET, "AST-CUR"));
+    blueprints.add(
+        new AccountBlueprint("FIX-EQUIP", "Equipment", AccountType.ASSET, "AST-FIX"));
+    blueprints.add(
+        new AccountBlueprint("FIX-VEH", "Vehicles", AccountType.ASSET, "AST-FIX"));
+
+    blueprints.add(
+        new AccountBlueprint("LIAB-CUR", "Current Liabilities", AccountType.LIABILITY, "LIAB"));
+    blueprints.add(
+        new AccountBlueprint("AP", "Accounts Payable", AccountType.LIABILITY, "LIAB-CUR"));
+    blueprints.add(new AccountBlueprint("GST-OUT", "GST Output", AccountType.LIABILITY, "LIAB-CUR"));
+    blueprints.add(new AccountBlueprint("GST-PAY", "GST Payable", AccountType.LIABILITY, "LIAB-CUR"));
+    blueprints.add(
+        new AccountBlueprint("TAX-PAYABLE", "Tax Payable", AccountType.LIABILITY, "LIAB-CUR"));
+    blueprints.add(
+        new AccountBlueprint("TDS-PAYABLE", "TDS Payable", AccountType.LIABILITY, "LIAB-CUR"));
+
+    blueprints.add(new AccountBlueprint("OWN-EQ", "Owner's Equity", AccountType.EQUITY, "EQ"));
+    blueprints.add(
+        new AccountBlueprint("RET-EARN", "Retained Earnings", AccountType.EQUITY, "EQ"));
+    blueprints.add(
+        new AccountBlueprint("OPEN-BAL", "Opening Balance Equity", AccountType.EQUITY, "EQ"));
+
+    blueprints.add(new AccountBlueprint("SALES-REV", "Sales Revenue", AccountType.REVENUE, "REV"));
     blueprints.add(
         new AccountBlueprint("SERVICE-REVENUE", "Service Revenue", AccountType.REVENUE, "REV"));
     blueprints.add(
-        new AccountBlueprint("TAX-PAYABLE", "Tax Payable", AccountType.LIABILITY, "LIAB"));
-    blueprints.add(
-        new AccountBlueprint("TDS-RECEIVABLE", "TDS Receivable", AccountType.ASSET, "AST"));
-    blueprints.add(
-        new AccountBlueprint("TDS-PAYABLE", "TDS Payable", AccountType.LIABILITY, "LIAB"));
+        new AccountBlueprint("SALES-RETURNS", "Sales Returns", AccountType.REVENUE, "REV"));
+
+    blueprints.add(new AccountBlueprint("FG-COGS", "Finished Goods COGS", AccountType.COGS, "COGS"));
     blueprints.add(
         new AccountBlueprint(
-            "RAW-MATERIAL-INVENTORY", "Raw Material Inventory", AccountType.ASSET, "AST"));
+            "RM-CONSUMPTION", "Raw Material Consumption", AccountType.COGS, "COGS"));
     blueprints.add(
         new AccountBlueprint(
-            "FINISHED-GOODS-INVENTORY", "Finished Goods Inventory", AccountType.ASSET, "AST"));
-    blueprints.add(new AccountBlueprint("FG-COGS", "Finished Goods COGS", AccountType.COGS, "EXP"));
+            "DIRECT-MATERIAL-CONSUMPTION", "Direct Material Consumption", AccountType.COGS, "COGS"));
+
+    blueprints.add(new AccountBlueprint("OPEX", "Operating Expenses", AccountType.EXPENSE, "EXP"));
+    blueprints.add(new AccountBlueprint("DISC", "Sales Discount", AccountType.EXPENSE, "OPEX"));
     blueprints.add(
-        new AccountBlueprint(
-            "RM-CONSUMPTION", "Raw Material Consumption", AccountType.COGS, "EXP"));
+        new AccountBlueprint("SALARY-EXPENSE", "Salary Expense", AccountType.EXPENSE, "OPEX"));
     blueprints.add(
-        new AccountBlueprint(
-            "DIRECT-MATERIAL-CONSUMPTION", "Direct Material Consumption", AccountType.COGS, "EXP"));
+        new AccountBlueprint("OFFICE-EXPENSE", "Office Expense", AccountType.EXPENSE, "OPEX"));
     for (int index = 1; index <= 24; index++) {
       blueprints.add(
           new AccountBlueprint(
               "GEN-" + index,
               "Generic Account " + index,
               index % 2 == 0 ? AccountType.EXPENSE : AccountType.ASSET,
-              index % 2 == 0 ? "EXP" : "AST"));
+              index % 2 == 0 ? "OPEX" : "AST-FIX"));
     }
     return blueprints;
   }

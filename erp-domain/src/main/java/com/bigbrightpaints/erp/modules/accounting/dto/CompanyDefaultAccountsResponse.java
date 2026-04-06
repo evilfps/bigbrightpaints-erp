@@ -5,4 +5,5 @@ public record CompanyDefaultAccountsResponse(
     Long cogsAccountId,
     Long revenueAccountId,
     Long discountAccountId,
+    Long fgDiscountAccountId,
     Long taxAccountId) {}

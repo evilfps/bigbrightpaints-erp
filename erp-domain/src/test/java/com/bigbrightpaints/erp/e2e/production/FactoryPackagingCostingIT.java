@@ -135,7 +135,7 @@ public class FactoryPackagingCostingIT extends AbstractIntegrationTest {
 
     // Set company defaults so sales/dispatch flows can post
     companyDefaultAccountsService.updateDefaults(
-        fgInventory.getId(), cogs.getId(), revenue.getId(), null, tax.getId());
+        fgInventory.getId(), cogs.getId(), revenue.getId(), null, null, tax.getId());
   }
 
   @AfterEach

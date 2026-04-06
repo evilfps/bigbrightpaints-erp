@@ -111,6 +111,7 @@ class CompanyDefaultAccountsServiceTest {
     assertThat(defaults.cogsAccountId()).isEqualTo(2L);
     assertThat(defaults.revenueAccountId()).isEqualTo(3L);
     assertThat(defaults.discountAccountId()).isEqualTo(5L);
+    assertThat(defaults.fgDiscountAccountId()).isEqualTo(5L);
     assertThat(defaults.taxAccountId()).isEqualTo(4L);
   }
 
@@ -126,6 +127,7 @@ class CompanyDefaultAccountsServiceTest {
     assertThat(defaults.cogsAccountId()).isEqualTo(20L);
     assertThat(defaults.revenueAccountId()).isEqualTo(30L);
     assertThat(defaults.discountAccountId()).isEqualTo(40L);
+    assertThat(defaults.fgDiscountAccountId()).isEqualTo(40L);
     assertThat(defaults.taxAccountId()).isEqualTo(50L);
   }
 
@@ -134,7 +136,7 @@ class CompanyDefaultAccountsServiceTest {
     Account inventory = account(11L, AccountType.ASSET, "INV");
     when(accountingLookupService.requireAccount(company, 11L)).thenReturn(inventory);
     CompanyDefaultAccountsService.DefaultAccounts defaults =
-        service.updateDefaults(11L, null, null, null, null);
+        service.updateDefaults(11L, null, null, null, null, null);
     assertThat(defaults.inventoryAccountId()).isEqualTo(11L);
     verify(companyRepository).save(company);
   }
@@ -143,7 +145,7 @@ class CompanyDefaultAccountsServiceTest {
   void updateDefaults_rejectsInventoryWrongType() {
     Account inventory = account(12L, AccountType.REVENUE, "REV");
     when(accountingLookupService.requireAccount(company, 12L)).thenReturn(inventory);
-    assertThatThrownBy(() -> service.updateDefaults(12L, null, null, null, null))
+    assertThatThrownBy(() -> service.updateDefaults(12L, null, null, null, null, null))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("inventory");
   }
@@ -153,7 +155,7 @@ class CompanyDefaultAccountsServiceTest {
     Account cogs = account(21L, AccountType.COGS, "COGS");
     when(accountingLookupService.requireAccount(company, 21L)).thenReturn(cogs);
     CompanyDefaultAccountsService.DefaultAccounts defaults =
-        service.updateDefaults(null, 21L, null, null, null);
+        service.updateDefaults(null, 21L, null, null, null, null);
     assertThat(defaults.cogsAccountId()).isEqualTo(21L);
     verify(companyRepository).save(company);
   }
@@ -162,7 +164,7 @@ class CompanyDefaultAccountsServiceTest {
   void updateDefaults_rejectsCogsWrongType() {
     Account cogs = account(22L, AccountType.ASSET, "INV");
     when(accountingLookupService.requireAccount(company, 22L)).thenReturn(cogs);
-    assertThatThrownBy(() -> service.updateDefaults(null, 22L, null, null, null))
+    assertThatThrownBy(() -> service.updateDefaults(null, 22L, null, null, null, null))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("COGS");
   }
@@ -172,7 +174,7 @@ class CompanyDefaultAccountsServiceTest {
     Account revenue = account(31L, AccountType.REVENUE, "REV");
     when(accountingLookupService.requireAccount(company, 31L)).thenReturn(revenue);
     CompanyDefaultAccountsService.DefaultAccounts defaults =
-        service.updateDefaults(null, null, 31L, null, null);
+        service.updateDefaults(null, null, 31L, null, null, null);
     assertThat(defaults.revenueAccountId()).isEqualTo(31L);
     verify(companyRepository).save(company);
   }
@@ -181,7 +183,7 @@ class CompanyDefaultAccountsServiceTest {
   void updateDefaults_rejectsRevenueWrongType() {
     Account revenue = account(32L, AccountType.COGS, "COGS");
     when(accountingLookupService.requireAccount(company, 32L)).thenReturn(revenue);
-    assertThatThrownBy(() -> service.updateDefaults(null, null, 32L, null, null))
+    assertThatThrownBy(() -> service.updateDefaults(null, null, 32L, null, null, null))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("revenue");
   }
@@ -191,7 +193,7 @@ class CompanyDefaultAccountsServiceTest {
     Account discount = account(41L, AccountType.REVENUE, "DISC");
     when(accountingLookupService.requireAccount(company, 41L)).thenReturn(discount);
     CompanyDefaultAccountsService.DefaultAccounts defaults =
-        service.updateDefaults(null, null, null, 41L, null);
+        service.updateDefaults(null, null, null, 41L, null, null);
     assertThat(defaults.discountAccountId()).isEqualTo(41L);
     verify(companyRepository).save(company);
   }
@@ -201,7 +203,7 @@ class CompanyDefaultAccountsServiceTest {
     Account discount = account(42L, AccountType.EXPENSE, "DISC");
     when(accountingLookupService.requireAccount(company, 42L)).thenReturn(discount);
     CompanyDefaultAccountsService.DefaultAccounts defaults =
-        service.updateDefaults(null, null, null, 42L, null);
+        service.updateDefaults(null, null, null, 42L, null, null);
     assertThat(defaults.discountAccountId()).isEqualTo(42L);
     verify(companyRepository).save(company);
   }
@@ -210,9 +212,27 @@ class CompanyDefaultAccountsServiceTest {
   void updateDefaults_rejectsDiscountWrongType() {
     Account discount = account(43L, AccountType.ASSET, "INV");
     when(accountingLookupService.requireAccount(company, 43L)).thenReturn(discount);
-    assertThatThrownBy(() -> service.updateDefaults(null, null, null, 43L, null))
+    assertThatThrownBy(() -> service.updateDefaults(null, null, null, 43L, null, null))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Discount");
+  }
+
+  @Test
+  void updateDefaults_allowsFgDiscountAlias() {
+    Account discount = account(44L, AccountType.EXPENSE, "DISC");
+    when(accountingLookupService.requireAccount(company, 44L)).thenReturn(discount);
+    CompanyDefaultAccountsService.DefaultAccounts defaults =
+        service.updateDefaults(null, null, null, null, 44L, null);
+    assertThat(defaults.discountAccountId()).isEqualTo(44L);
+    assertThat(defaults.fgDiscountAccountId()).isEqualTo(44L);
+    verify(companyRepository).save(company);
+  }
+
+  @Test
+  void updateDefaults_rejectsDiscountAndFgDiscountMismatch() {
+    assertThatThrownBy(() -> service.updateDefaults(null, null, null, 41L, 42L, null))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("must match");
   }
 
   @Test
@@ -221,7 +241,7 @@ class CompanyDefaultAccountsServiceTest {
     Account tax = account(51L, AccountType.LIABILITY, "GST-OUT");
     when(accountingLookupService.requireAccount(company, 51L)).thenReturn(tax);
     CompanyDefaultAccountsService.DefaultAccounts defaults =
-        service.updateDefaults(null, null, null, null, 51L);
+        service.updateDefaults(null, null, null, null, null, 51L);
     assertThat(defaults.taxAccountId()).isEqualTo(51L);
     assertThat(company.getGstOutputTaxAccountId()).isEqualTo(51L);
     assertThat(company.getGstPayableAccountId()).isEqualTo(51L);
@@ -236,7 +256,7 @@ class CompanyDefaultAccountsServiceTest {
     when(accountingLookupService.requireAccount(company, 54L)).thenReturn(tax);
 
     CompanyDefaultAccountsService.DefaultAccounts defaults =
-        service.updateDefaults(null, null, null, null, 54L);
+        service.updateDefaults(null, null, null, null, null, 54L);
 
     assertThat(defaults.taxAccountId()).isEqualTo(54L);
     assertThat(company.getGstInputTaxAccountId()).isEqualTo(88L);
@@ -255,7 +275,7 @@ class CompanyDefaultAccountsServiceTest {
     when(accountingLookupService.requireAccount(company, 52L)).thenReturn(tax);
 
     CompanyDefaultAccountsService.DefaultAccounts defaults =
-        service.updateDefaults(null, null, null, null, 52L);
+        service.updateDefaults(null, null, null, null, null, 52L);
 
     assertThat(defaults.taxAccountId()).isEqualTo(52L);
     assertThat(company.getGstInputTaxAccountId()).isNull();
@@ -268,7 +288,7 @@ class CompanyDefaultAccountsServiceTest {
   void updateDefaults_rejectsTaxWrongType() {
     Account tax = account(53L, AccountType.ASSET, "INV");
     when(accountingLookupService.requireAccount(company, 53L)).thenReturn(tax);
-    assertThatThrownBy(() -> service.updateDefaults(null, null, null, null, 53L))
+    assertThatThrownBy(() -> service.updateDefaults(null, null, null, null, null, 53L))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("tax");
   }

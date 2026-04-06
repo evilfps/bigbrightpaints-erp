@@ -54,11 +54,12 @@ class TS_RuntimeCompanyDefaultAccountsExecutableCoverageTest {
             companyContextService, accountingLookupService, companyRepository);
 
     CompanyDefaultAccountsService.DefaultAccounts updated =
-        service.updateDefaults(1L, 2L, 3L, 4L, 5L);
+        service.updateDefaults(1L, 2L, 3L, 4L, null, 5L);
     assertThat(updated.inventoryAccountId()).isEqualTo(1L);
     assertThat(updated.cogsAccountId()).isEqualTo(2L);
     assertThat(updated.revenueAccountId()).isEqualTo(3L);
     assertThat(updated.discountAccountId()).isEqualTo(4L);
+    assertThat(updated.fgDiscountAccountId()).isEqualTo(4L);
     assertThat(updated.taxAccountId()).isEqualTo(5L);
     assertThat(company.getGstOutputTaxAccountId()).isEqualTo(5L);
 
@@ -69,8 +70,9 @@ class TS_RuntimeCompanyDefaultAccountsExecutableCoverageTest {
     assertThat(required.taxAccountId()).isEqualTo(5L);
 
     CompanyDefaultAccountsService.DefaultAccounts revenueDiscount =
-        service.updateDefaults(null, null, null, 6L, null);
+        service.updateDefaults(null, null, null, 6L, null, null);
     assertThat(revenueDiscount.discountAccountId()).isEqualTo(6L);
+    assertThat(revenueDiscount.fgDiscountAccountId()).isEqualTo(6L);
   }
 
   @Test
@@ -100,23 +102,23 @@ class TS_RuntimeCompanyDefaultAccountsExecutableCoverageTest {
         new CompanyDefaultAccountsService(
             companyContextService, accountingLookupService, companyRepository);
 
-    assertThatThrownBy(() -> service.updateDefaults(10L, null, null, null, null))
+    assertThatThrownBy(() -> service.updateDefaults(10L, null, null, null, null, null))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("valid inventory account");
 
-    assertThatThrownBy(() -> service.updateDefaults(null, 11L, null, null, null))
+    assertThatThrownBy(() -> service.updateDefaults(null, 11L, null, null, null, null))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("valid COGS account");
 
-    assertThatThrownBy(() -> service.updateDefaults(null, null, 12L, null, null))
+    assertThatThrownBy(() -> service.updateDefaults(null, null, 12L, null, null, null))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("valid revenue account");
 
-    assertThatThrownBy(() -> service.updateDefaults(null, null, null, 13L, null))
+    assertThatThrownBy(() -> service.updateDefaults(null, null, null, 13L, null, null))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Discount account must be revenue or expense");
 
-    assertThatThrownBy(() -> service.updateDefaults(null, null, null, null, 14L))
+    assertThatThrownBy(() -> service.updateDefaults(null, null, null, null, null, 14L))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("expected type LIABILITY");
   }

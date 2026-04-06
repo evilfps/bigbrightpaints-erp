@@ -181,9 +181,9 @@ class SalesServiceTest {
         .when(factoryTaskRepository.findByCompanyAndSalesOrderId(any(), anyLong()))
         .thenReturn(List.of());
     when(companyDefaultAccountsService.requireDefaults())
-        .thenReturn(new CompanyDefaultAccountsService.DefaultAccounts(1L, 2L, 3L, 4L, 5L));
+        .thenReturn(new CompanyDefaultAccountsService.DefaultAccounts(1L, 2L, 3L, 4L, 4L, 5L));
     when(companyDefaultAccountsService.getDefaults())
-        .thenReturn(new CompanyDefaultAccountsService.DefaultAccounts(1L, 2L, 3L, 4L, 5L));
+        .thenReturn(new CompanyDefaultAccountsService.DefaultAccounts(1L, 2L, 3L, 4L, 4L, 5L));
     company = new Company();
     company.setCode("COMP");
     company.setTimezone("UTC");

@@ -1983,13 +1983,13 @@ public class ProductionCatalogService {
             : Optional.ofNullable(companyDefaultAccountsService.getDefaults())
                 .orElse(
                     new CompanyDefaultAccountsService.DefaultAccounts(
-                        null, null, null, null, null));
+                        null, null, null, null, null, null));
 
     Map<String, Long> defaultsMap = new HashMap<>();
     defaultsMap.put("fgValuationAccountId", defaults.inventoryAccountId());
     defaultsMap.put("fgCogsAccountId", defaults.cogsAccountId());
     defaultsMap.put("fgRevenueAccountId", defaults.revenueAccountId());
-    defaultsMap.put("fgDiscountAccountId", defaults.discountAccountId());
+    defaultsMap.put("fgDiscountAccountId", defaults.fgDiscountAccountId());
     defaultsMap.put("fgTaxAccountId", defaults.taxAccountId());
 
     for (String key : FINISHED_GOOD_ACCOUNT_KEYS) {

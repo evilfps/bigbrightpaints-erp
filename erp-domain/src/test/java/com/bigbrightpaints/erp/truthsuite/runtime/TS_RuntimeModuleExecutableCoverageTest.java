@@ -114,11 +114,12 @@ class TS_RuntimeModuleExecutableCoverageTest {
             companyContextService, accountingLookupService, companyRepository);
 
     CompanyDefaultAccountsService.DefaultAccounts updated =
-        service.updateDefaults(11L, 12L, 13L, 14L, 15L);
+        service.updateDefaults(11L, 12L, 13L, 14L, null, 15L);
     assertThat(updated.inventoryAccountId()).isEqualTo(11L);
     assertThat(updated.cogsAccountId()).isEqualTo(12L);
     assertThat(updated.revenueAccountId()).isEqualTo(13L);
     assertThat(updated.discountAccountId()).isEqualTo(14L);
+    assertThat(updated.fgDiscountAccountId()).isEqualTo(14L);
     assertThat(updated.taxAccountId()).isEqualTo(15L);
 
     CompanyDefaultAccountsService.DefaultAccounts required = service.requireDefaults();
@@ -135,7 +136,7 @@ class TS_RuntimeModuleExecutableCoverageTest {
 
     Account invalidTax = account(99L, company, "BAD-TAX", AccountType.ASSET);
     when(accountingLookupService.requireAccount(company, 99L)).thenReturn(invalidTax);
-    assertThatThrownBy(() -> service.updateDefaults(null, null, null, null, 99L))
+    assertThatThrownBy(() -> service.updateDefaults(null, null, null, null, null, 99L))
         .isInstanceOfSatisfying(
             ApplicationException.class,
             ex -> {
