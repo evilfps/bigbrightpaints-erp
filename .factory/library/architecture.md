@@ -71,16 +71,17 @@ Retired routes should be absent or explicitly fail closed. Do not leave a second
 
 ### 1. Accounting core
 
-Primary hotspot:
+Primary hotspots:
 
-- `modules/accounting/internal/AccountingCoreEngineCore`
+- `modules/accounting/service/SettlementSupportService`
+- `modules/accounting/service/JournalPostingService`
+- `modules/accounting/service/AccountingFacade`
 
 Supporting sprawl:
 
-- `modules/accounting/service/AccountingCoreEngine`
-- `modules/accounting/service/AccountingCoreLogic`
-- `modules/accounting/service/AccountingCoreService`
-- `modules/accounting/internal/AccountingFacadeCore`
+- `modules/accounting/service/AccountingPeriodService`
+- `modules/accounting/service/AccountingAuditTrailService`
+- `modules/accounting/service/ReconciliationServiceCore`
 - focused accounting controllers under `modules/accounting/controller/`, especially:
   - `AccountController`
   - `JournalController`
@@ -92,6 +93,7 @@ Supporting sprawl:
 
 Cleanup direction:
 
+- Treat retired `internal/AccountingCoreEngineCore` / `AccountingFacadeCore` references as stale history, not live ownership.
 - Split by business flow, not by more wrapper layers
 - Keep one canonical write path per operation
 - Remove duplicate helper logic while preserving downstream module behavior
