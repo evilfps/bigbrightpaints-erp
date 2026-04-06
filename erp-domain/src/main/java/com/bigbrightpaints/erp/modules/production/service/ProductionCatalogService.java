@@ -945,7 +945,7 @@ public class ProductionCatalogService {
         category,
         sizeLabel,
         created,
-        context.validatedRawMaterialInventoryAccounts());
+        context.validatedFinishedGoodAccounts());
     ProductionProduct saved = productRepository.save(product);
     cacheProduct(context, saved);
     boolean cleanupMirror =
@@ -1044,7 +1044,12 @@ public class ProductionCatalogService {
       }
     }
 
-    return new ImportContext(brandsByName, productsBySku, productsByBrandName, new HashMap<>());
+    return new ImportContext(
+        brandsByName,
+        productsBySku,
+        productsByBrandName,
+        new HashMap<>(),
+        new HashMap<>());
   }
 
   private void cacheBrand(ImportContext context, ProductionBrand brand) {
@@ -1470,6 +1475,19 @@ public class ProductionCatalogService {
     if (validatedFinishedGoodAccounts != null) {
       Long cachedAccountId = validatedFinishedGoodAccounts.get(accountId);
       if (cachedAccountId != null) {
+        if (expectedType != null) {
+          var cachedAccount = accountingLookupService.requireAccount(company, cachedAccountId);
+          if (cachedAccount.getType() != expectedType) {
+            throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                "Finished good SKU "
+                    + sku
+                    + " requires "
+                    + key
+                    + " to reference a "
+                    + expectedType
+                    + " account");
+          }
+        }
         return cachedAccountId;
       }
     }
@@ -2223,7 +2241,8 @@ public class ProductionCatalogService {
       Map<String, ProductionBrand> brandsByName,
       Map<String, ProductionProduct> productsBySku,
       Map<ProductKey, ProductionProduct> productsByBrandName,
-      Map<Long, Long> validatedRawMaterialInventoryAccounts) {}
+      Map<Long, Long> validatedRawMaterialInventoryAccounts,
+      Map<Long, Long> validatedFinishedGoodAccounts) {}
 
   private record ImportRow(
       long recordNumber, CatalogRow row, String sanitizedSku, String brandKey, String productKey) {

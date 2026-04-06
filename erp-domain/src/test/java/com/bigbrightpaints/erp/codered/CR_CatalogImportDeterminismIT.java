@@ -106,6 +106,43 @@ class CR_CatalogImportDeterminismIT extends AbstractIntegrationTest {
     CompanyContextHolder.clear();
   }
 
+  @Test
+  void import_rejectsFinishedGoodAccountOverrideWhenRawMaterialCacheHasSameAccountId() {
+    String companyCode = "CR-CAT-CACHE-" + shortId();
+    Company company = ensureCompany(companyCode);
+    ensureDefaultAccounts(company);
+
+    String token = shortId().toUpperCase();
+    String rawSku = "RM-CACHE-" + token;
+    String finishedSku = "FG-CACHE-" + token;
+    Long inventoryAccountId = company.getDefaultInventoryAccountId();
+    String csv =
+        String.join(
+            "\n",
+            "brand,product_name,sku_code,category,unit_of_measure,inventory_account_id,fg_cogs_account_id",
+            "CacheBrand,Cache Primer Raw,"
+                + rawSku
+                + ",RAW_MATERIAL,KG,"
+                + inventoryAccountId
+                + ",",
+            "CacheBrand,Cache Primer FG,"
+                + finishedSku
+                + ",FINISHED_GOOD,L,,"
+                + inventoryAccountId);
+
+    CompanyContextHolder.setCompanyCode(companyCode);
+    CatalogImportResponse response = productionCatalogService.importCatalog(csvFile(csv));
+    CompanyContextHolder.clear();
+
+    assertThat(response.rowsProcessed()).isEqualTo(1);
+    assertThat(response.errors()).hasSize(1);
+    CatalogImportResponse.ImportError error = response.errors().getFirst();
+    assertThat(error.rowNumber()).isEqualTo(2L);
+    assertThat(error.message())
+        .contains("requires fgCogsAccountId to reference a COGS account");
+    assertThat(productRepository.findByCompanyAndSkuCode(company, finishedSku)).isEmpty();
+  }
+
   private Company ensureCompany(String code) {
     return companyRepository
         .findByCodeIgnoreCase(code)
@@ -154,6 +191,10 @@ class CR_CatalogImportDeterminismIT extends AbstractIntegrationTest {
             "\n",
             "brand,product_name,category,default_colour,size,unit_of_measure,base_price,gst_rate,min_discount_percent,min_selling_price",
             "Safari,Emulsion White,EMULSION,WHITE,1L,L,100.00,18,5,90.00");
+    return csvFile(csv);
+  }
+
+  private MockMultipartFile csvFile(String csv) {
     return new MockMultipartFile(
         "file", "catalog.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8));
   }
