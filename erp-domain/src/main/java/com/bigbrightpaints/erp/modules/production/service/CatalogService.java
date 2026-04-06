@@ -55,6 +55,9 @@ public class CatalogService {
   private static final String ITEM_CLASS_PACKAGING_RAW_MATERIAL = "PACKAGING_RAW_MATERIAL";
   private static final int MAX_PAGE_SIZE = 100;
   private static final String ACCOUNTING_METADATA_KEY_SUFFIX = "AccountId";
+  private static final String FG_COGS_ACCOUNT_ID_KEY = "fgCogsAccountId";
+  private static final String FG_REVENUE_ACCOUNT_ID_KEY = "fgRevenueAccountId";
+  private static final String FG_VALUATION_ACCOUNT_ID_KEY = "fgValuationAccountId";
   private static final List<String> RAW_MATERIAL_CATEGORIES =
       List.of("RAW_MATERIAL", "RAW MATERIAL", "RAW-MATERIAL");
   private static final Pattern NON_ALPHANUM = Pattern.compile("[^A-Z0-9]");
@@ -283,6 +286,7 @@ public class CatalogService {
   }
 
   private CatalogItemCreateCommand toCreateCommand(CatalogItemRequest request) {
+    Map<String, Object> metadata = requestMetadataWithFinishedGoodAccountOverrides(request);
     return new CatalogItemCreateCommand(
         request.brandId(),
         null,
@@ -299,11 +303,12 @@ public class CatalogService {
         request.gstRate(),
         request.minDiscountPercent(),
         request.minSellingPrice(),
-        request.metadata(),
+        metadata,
         request.active());
   }
 
   private CatalogItemUpdateCommand toUpdateCommand(CatalogItemRequest request) {
+    Map<String, Object> metadata = requestMetadataWithFinishedGoodAccountOverrides(request);
     return new CatalogItemUpdateCommand(
         request.name(),
         null,
@@ -316,8 +321,44 @@ public class CatalogService {
         request.gstRate(),
         request.minDiscountPercent(),
         request.minSellingPrice(),
-        request.metadata(),
+        metadata,
         request.active());
+  }
+
+  private Map<String, Object> requestMetadataWithFinishedGoodAccountOverrides(
+      CatalogItemRequest request) {
+    if (request == null || !hasExplicitFinishedGoodAccountOverrides(request)) {
+      return request != null ? request.metadata() : null;
+    }
+    if (!ITEM_CLASS_FINISHED_GOOD.equals(normalizeItemClass(request.itemClass()))) {
+      return request.metadata();
+    }
+    LinkedHashMap<String, Object> metadata =
+        request.metadata() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(request.metadata());
+    putFinishedGoodAccountOverride(
+        metadata, "cogsAccountId", FG_COGS_ACCOUNT_ID_KEY, request.cogsAccountId());
+    putFinishedGoodAccountOverride(
+        metadata, "revenueAccountId", FG_REVENUE_ACCOUNT_ID_KEY, request.revenueAccountId());
+    putFinishedGoodAccountOverride(
+        metadata, "inventoryAccountId", FG_VALUATION_ACCOUNT_ID_KEY, request.inventoryAccountId());
+    return metadata;
+  }
+
+  private boolean hasExplicitFinishedGoodAccountOverrides(CatalogItemRequest request) {
+    return request.cogsAccountId() != null
+        || request.revenueAccountId() != null
+        || request.inventoryAccountId() != null;
+  }
+
+  private void putFinishedGoodAccountOverride(
+      Map<String, Object> metadata, String requestFieldName, String metadataKey, Long accountId) {
+    if (accountId == null) {
+      return;
+    }
+    if (accountId <= 0) {
+      throw ValidationUtils.invalidInput(requestFieldName + " must be a positive account id");
+    }
+    metadata.put(metadataKey, accountId);
   }
 
   private String normalizeItemClass(String itemClass) {

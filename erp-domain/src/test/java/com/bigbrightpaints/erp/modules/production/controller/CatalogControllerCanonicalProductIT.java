@@ -34,6 +34,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterial;
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
@@ -54,6 +55,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
   @Autowired private AccountRepository accountRepository;
   @Autowired private CompanyRepository companyRepository;
   @Autowired private ProductionBrandRepository brandRepository;
+  @Autowired private FinishedGoodRepository finishedGoodRepository;
   @Autowired private RawMaterialRepository rawMaterialRepository;
 
   private Company company;
@@ -115,6 +117,9 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
     assertThat(stringList(stage(item, "salesReady").get("blockers")))
         .contains("NO_FINISHED_GOOD_BATCH_STOCK");
     assertThat(stage(item, "accountingReady").get("ready")).isEqualTo(true);
+    assertMetadataAccountId(metadata(item), "fgValuationAccountId", company.getDefaultInventoryAccountId());
+    assertMetadataAccountId(metadata(item), "fgCogsAccountId", company.getDefaultCogsAccountId());
+    assertMetadataAccountId(metadata(item), "fgRevenueAccountId", company.getDefaultRevenueAccountId());
 
     ResponseEntity<Map> salesDetail =
         getCatalogItem(((Number) item.get("id")).longValue(), true, true, salesHeaders);
@@ -129,6 +134,36 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
             "fgCogsAccountId",
             "fgRevenueAccountId",
             "fgTaxAccountId");
+  }
+
+  @Test
+  void createItem_explicitAccountFieldsOverrideCompanyDefaults() {
+    ProductionBrand brand = saveBrand("Override Accounts Brand", true);
+    Account overrideInventory =
+        ensureAccount("INV-OVR-" + shortId(), "Override Inventory", AccountType.ASSET);
+    Account overrideCogs = ensureAccount("COGS-OVR-" + shortId(), "Override COGS", AccountType.COGS);
+    Account overrideRevenue =
+        ensureAccount("REV-OVR-" + shortId(), "Override Revenue", AccountType.REVENUE);
+
+    Map<String, Object> payload = finishedGoodPayload(brand.getId(), "Override Accounts Product");
+    payload.put("inventoryAccountId", overrideInventory.getId());
+    payload.put("cogsAccountId", overrideCogs.getId());
+    payload.put("revenueAccountId", overrideRevenue.getId());
+
+    ResponseEntity<Map> createResponse = postCatalogItem(payload, adminHeaders);
+    assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<String, Object> item = data(createResponse);
+    String sku = String.valueOf(item.get("code"));
+
+    assertMetadataAccountId(metadata(item), "fgValuationAccountId", overrideInventory.getId());
+    assertMetadataAccountId(metadata(item), "fgCogsAccountId", overrideCogs.getId());
+    assertMetadataAccountId(metadata(item), "fgRevenueAccountId", overrideRevenue.getId());
+
+    var finishedGood =
+        finishedGoodRepository.findByCompanyAndProductCode(company, sku).orElseThrow();
+    assertThat(finishedGood.getValuationAccountId()).isEqualTo(overrideInventory.getId());
+    assertThat(finishedGood.getCogsAccountId()).isEqualTo(overrideCogs.getId());
+    assertThat(finishedGood.getRevenueAccountId()).isEqualTo(overrideRevenue.getId());
   }
 
   @Test
@@ -447,6 +482,12 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
   @SuppressWarnings("unchecked")
   private Map<String, Object> metadata(Map<String, Object> item) {
     return (Map<String, Object>) item.get("metadata");
+  }
+
+  private void assertMetadataAccountId(
+      Map<String, Object> metadata, String metadataKey, Long expectedAccountId) {
+    assertThat(metadata).containsKey(metadataKey);
+    assertThat(((Number) metadata.get(metadataKey)).longValue()).isEqualTo(expectedAccountId);
   }
 
   @SuppressWarnings("unchecked")

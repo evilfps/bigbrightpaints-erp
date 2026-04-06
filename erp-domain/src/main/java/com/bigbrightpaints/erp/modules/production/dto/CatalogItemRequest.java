@@ -26,5 +26,8 @@ public record CatalogItemRequest(
         BigDecimal minDiscountPercent,
     @DecimalMin(value = "0.00", message = "minSellingPrice cannot be negative")
         BigDecimal minSellingPrice,
+    Long cogsAccountId,
+    Long revenueAccountId,
+    Long inventoryAccountId,
     Map<String, Object> metadata,
     Boolean active) {}
