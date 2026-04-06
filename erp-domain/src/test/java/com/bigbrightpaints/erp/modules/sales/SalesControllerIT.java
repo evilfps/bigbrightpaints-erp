@@ -277,7 +277,8 @@ public class SalesControllerIT extends AbstractIntegrationTest {
 
     assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(replayResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Long firstOrderId = ((Number) ((Map<?, ?>) firstResponse.getBody().get("data")).get("id")).longValue();
+    Long firstOrderId =
+        ((Number) ((Map<?, ?>) firstResponse.getBody().get("data")).get("id")).longValue();
     Long replayOrderId =
         ((Number) ((Map<?, ?>) replayResponse.getBody().get("data")).get("id")).longValue();
     assertThat(replayOrderId).isEqualTo(firstOrderId);

@@ -43,12 +43,12 @@ import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepos
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyStatus;
-import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
-import com.bigbrightpaints.erp.modules.accounting.dto.PeriodStatusChangeRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistUpdateRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.PeriodStatusChangeRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyModule;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -1337,8 +1337,7 @@ class AccountingPeriodServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     var dto =
-        service.createOrUpdatePeriod(
-            new AccountingPeriodRequest(2026, 4, CostingMethod.LIFO));
+        service.createOrUpdatePeriod(new AccountingPeriodRequest(2026, 4, CostingMethod.LIFO));
 
     assertThat(dto.year()).isEqualTo(2026);
     assertThat(dto.month()).isEqualTo(4);
@@ -1387,8 +1386,7 @@ class AccountingPeriodServiceTest {
     when(accountingPeriodRepository.save(period)).thenReturn(period);
 
     var dto =
-        service.updatePeriod(
-            77L, new AccountingPeriodRequest(CostingMethod.WEIGHTED_AVERAGE));
+        service.updatePeriod(77L, new AccountingPeriodRequest(CostingMethod.WEIGHTED_AVERAGE));
 
     assertThat(dto.costingMethod()).isEqualTo("WEIGHTED_AVERAGE");
     assertThat(period.getStartDate()).isEqualTo(LocalDate.of(2026, 5, 1));

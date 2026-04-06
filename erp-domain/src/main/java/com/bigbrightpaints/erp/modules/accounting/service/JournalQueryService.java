@@ -63,13 +63,16 @@ class JournalQueryService {
               .getContent();
     } else {
       entries =
-          journalEntryRepository.findByCompanyOrderByEntryDateDescIdDesc(company, pageable).getContent();
+          journalEntryRepository
+              .findByCompanyOrderByEntryDateDescIdDesc(company, pageable)
+              .getContent();
     }
     return entries.stream()
         .map(
             entry ->
                 accountingDtoMapperService.toJournalEntryDto(
-                    entry, accountingDtoMapperService.resolveDisplayReferenceNumber(company, entry)))
+                    entry,
+                    accountingDtoMapperService.resolveDisplayReferenceNumber(company, entry)))
         .toList();
   }
 
@@ -79,7 +82,9 @@ class JournalQueryService {
 
   List<JournalEntryDto> listJournalEntriesByReferencePrefix(String prefix) {
     Company company = companyContextService.requireCurrentCompany();
-    return journalEntryRepository.findByCompanyAndReferenceNumberStartingWith(company, prefix).stream()
+    return journalEntryRepository
+        .findByCompanyAndReferenceNumberStartingWith(company, prefix)
+        .stream()
         .map(accountingDtoMapperService::toJournalEntryDto)
         .toList();
   }
@@ -112,7 +117,9 @@ class JournalQueryService {
             spec,
             PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "entryDate", "id")));
     return PageResponse.of(
-        journalPage.getContent().stream().map(accountingDtoMapperService::toJournalListItemDto).toList(),
+        journalPage.getContent().stream()
+            .map(accountingDtoMapperService::toJournalListItemDto)
+            .toList(),
         journalPage.getTotalElements(),
         safePage,
         safeSize);

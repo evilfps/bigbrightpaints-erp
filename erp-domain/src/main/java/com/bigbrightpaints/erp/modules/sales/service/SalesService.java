@@ -276,5 +276,4 @@ public class SalesService {
   public void deleteTarget(Long id, String reason) {
     salesCoreEngine.deleteTarget(id, reason);
   }
-
 }

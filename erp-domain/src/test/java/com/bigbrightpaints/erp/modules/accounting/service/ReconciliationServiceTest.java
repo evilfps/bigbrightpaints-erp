@@ -46,6 +46,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository.AccountLineTotals;
@@ -325,7 +326,7 @@ class ReconciliationServiceTest {
             anyCollection(),
             eq(openPeriod.getStartDate()),
             eq(openPeriod.getEndDate()),
-            eq("POSTED")))
+            eq(JournalEntryStatus.POSTED)))
         .thenReturn(List.of(arTotals), List.of(apTotals));
 
     when(reportService.inventoryValuationAsOf(openPeriod.getEndDate()))
@@ -353,14 +354,14 @@ class ReconciliationServiceTest {
             eq(List.of(11L)),
             eq(openPeriod.getStartDate()),
             eq(openPeriod.getEndDate()),
-            eq("POSTED"));
+            eq(JournalEntryStatus.POSTED));
     verify(journalLineRepository)
         .summarizeTotalsByCompanyAndAccountIdsWithin(
             eq(company),
             eq(List.of(12L)),
             eq(openPeriod.getStartDate()),
             eq(openPeriod.getEndDate()),
-            eq("POSTED"));
+            eq(JournalEntryStatus.POSTED));
 
     assertThat(report.dealerReconciliation().variance()).isEqualByComparingTo("70.00");
     assertThat(report.supplierReconciliation().variance()).isEqualByComparingTo("40.00");
@@ -425,7 +426,7 @@ class ReconciliationServiceTest {
             anyCollection(),
             eq(openPeriod.getStartDate()),
             eq(openPeriod.getEndDate()),
-            eq("POSTED")))
+            eq(JournalEntryStatus.POSTED)))
         .thenReturn(List.of(arTotals), List.of(apTotals));
 
     when(reportService.inventoryValuationAsOf(openPeriod.getEndDate()))

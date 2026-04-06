@@ -50,7 +50,8 @@ public class AccountController {
   @GetMapping("/default-accounts")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<CompanyDefaultAccountsResponse>> defaultAccounts() {
-    return ResponseEntity.ok(ApiResponse.success(toResponse(companyDefaultAccountsService.getDefaults())));
+    return ResponseEntity.ok(
+        ApiResponse.success(toResponse(companyDefaultAccountsService.getDefaults())));
   }
 
   @PutMapping("/default-accounts")
@@ -64,8 +65,7 @@ public class AccountController {
             request.revenueAccountId(),
             request.discountAccountId(),
             request.taxAccountId());
-    return ResponseEntity.ok(
-        ApiResponse.success("Default accounts updated", toResponse(defaults)));
+    return ResponseEntity.ok(ApiResponse.success("Default accounts updated", toResponse(defaults)));
   }
 
   @PostMapping("/accounts")
@@ -78,7 +78,8 @@ public class AccountController {
 
   @GetMapping("/accounts/tree")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-  public ResponseEntity<ApiResponse<List<AccountHierarchyService.AccountNode>>> getChartOfAccountsTree() {
+  public ResponseEntity<ApiResponse<List<AccountHierarchyService.AccountNode>>>
+      getChartOfAccountsTree() {
     return ResponseEntity.ok(
         ApiResponse.success(
             "Chart of accounts hierarchy", accountHierarchyService.getChartOfAccountsTree()));
@@ -86,8 +87,8 @@ public class AccountController {
 
   @GetMapping("/accounts/tree/{type}")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-  public ResponseEntity<ApiResponse<List<AccountHierarchyService.AccountNode>>> getAccountTreeByType(
-      @PathVariable String type) {
+  public ResponseEntity<ApiResponse<List<AccountHierarchyService.AccountNode>>>
+      getAccountTreeByType(@PathVariable String type) {
     AccountType accountType = AccountType.valueOf(type.toUpperCase());
     return ResponseEntity.ok(
         ApiResponse.success(

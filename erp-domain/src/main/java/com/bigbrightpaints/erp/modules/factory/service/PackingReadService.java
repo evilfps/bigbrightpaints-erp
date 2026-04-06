@@ -8,6 +8,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
@@ -28,8 +29,22 @@ public class PackingReadService {
   private final CompanyContextService companyContextService;
   private final ProductionLogRepository productionLogRepository;
   private final PackingRecordRepository packingRecordRepository;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedFactoryLookupService factoryLookupService;
   private final PackingAllowedSizeService packingAllowedSizeService;
+
+  @Autowired
+  public PackingReadService(
+      CompanyContextService companyContextService,
+      ProductionLogRepository productionLogRepository,
+      PackingRecordRepository packingRecordRepository,
+      CompanyScopedFactoryLookupService factoryLookupService,
+      PackingAllowedSizeService packingAllowedSizeService) {
+    this.companyContextService = companyContextService;
+    this.productionLogRepository = productionLogRepository;
+    this.packingRecordRepository = packingRecordRepository;
+    this.factoryLookupService = factoryLookupService;
+    this.packingAllowedSizeService = packingAllowedSizeService;
+  }
 
   public PackingReadService(
       CompanyContextService companyContextService,
@@ -37,11 +52,12 @@ public class PackingReadService {
       PackingRecordRepository packingRecordRepository,
       CompanyEntityLookup companyEntityLookup,
       PackingAllowedSizeService packingAllowedSizeService) {
-    this.companyContextService = companyContextService;
-    this.productionLogRepository = productionLogRepository;
-    this.packingRecordRepository = packingRecordRepository;
-    this.companyEntityLookup = companyEntityLookup;
-    this.packingAllowedSizeService = packingAllowedSizeService;
+    this(
+        companyContextService,
+        productionLogRepository,
+        packingRecordRepository,
+        CompanyScopedFactoryLookupService.fromLegacy(companyEntityLookup),
+        packingAllowedSizeService);
   }
 
   public List<UnpackedBatchDto> listUnpackedBatches() {
@@ -116,7 +132,7 @@ public class PackingReadService {
 
   public List<PackingRecordDto> packingHistory(Long productionLogId) {
     Company company = companyContextService.requireCurrentCompany();
-    ProductionLog log = companyEntityLookup.requireProductionLog(company, productionLogId);
+    ProductionLog log = factoryLookupService.requireProductionLog(company, productionLogId);
     return packingRecordRepository
         .findByCompanyAndProductionLogOrderByPackedDateAscIdAsc(company, log)
         .stream()

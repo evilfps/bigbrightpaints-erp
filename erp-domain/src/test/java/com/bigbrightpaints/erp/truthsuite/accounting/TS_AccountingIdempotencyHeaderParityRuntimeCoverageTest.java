@@ -102,7 +102,8 @@ class TS_AccountingIdempotencyHeaderParityRuntimeCoverageTest {
     DealerReceiptService dealerReceiptService = mock(DealerReceiptService.class);
     SettlementController controller = newController(dealerReceiptService);
 
-    assertThatThrownBy(() -> controller.recordDealerReceipt(dealerReceiptRequest(null), null, "legacy-001"))
+    assertThatThrownBy(
+            () -> controller.recordDealerReceipt(dealerReceiptRequest(null), null, "legacy-001"))
         .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
         .hasMessageContaining("X-Idempotency-Key");
     verifyNoInteractions(dealerReceiptService);

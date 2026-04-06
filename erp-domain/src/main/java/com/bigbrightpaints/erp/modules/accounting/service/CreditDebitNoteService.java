@@ -29,7 +29,8 @@ public class CreditDebitNoteService {
   public CreditDebitNoteService(
       com.bigbrightpaints.erp.modules.company.service.CompanyContextService companyContextService,
       com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository accountRepository,
-      com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository journalEntryRepository,
+      com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository
+          journalEntryRepository,
       DealerLedgerService dealerLedgerService,
       SupplierLedgerService supplierLedgerService,
       com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository payrollRunRepository,
@@ -52,7 +53,8 @@ public class CreditDebitNoteService {
           finishedGoodBatchRepository,
       com.bigbrightpaints.erp.modules.sales.domain.DealerRepository dealerRepository,
       com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository supplierRepository,
-      com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy invoiceSettlementPolicy,
+      com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy
+          invoiceSettlementPolicy,
       JournalReferenceResolver journalReferenceResolver,
       com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository
           journalReferenceMappingRepository,

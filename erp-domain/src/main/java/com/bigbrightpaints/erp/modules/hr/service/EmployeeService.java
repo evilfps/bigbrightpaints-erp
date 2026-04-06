@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -29,9 +30,23 @@ public class EmployeeService {
 
   private final CompanyContextService companyContextService;
   private final EmployeeRepository employeeRepository;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedHrLookupService hrLookupService;
   private final SalaryStructureTemplateRepository salaryStructureTemplateRepository;
   private final CryptoService cryptoService;
+
+  @Autowired
+  public EmployeeService(
+      CompanyContextService companyContextService,
+      EmployeeRepository employeeRepository,
+      CompanyScopedHrLookupService hrLookupService,
+      SalaryStructureTemplateRepository salaryStructureTemplateRepository,
+      CryptoService cryptoService) {
+    this.companyContextService = companyContextService;
+    this.employeeRepository = employeeRepository;
+    this.hrLookupService = hrLookupService;
+    this.salaryStructureTemplateRepository = salaryStructureTemplateRepository;
+    this.cryptoService = cryptoService;
+  }
 
   public EmployeeService(
       CompanyContextService companyContextService,
@@ -39,11 +54,12 @@ public class EmployeeService {
       CompanyEntityLookup companyEntityLookup,
       SalaryStructureTemplateRepository salaryStructureTemplateRepository,
       CryptoService cryptoService) {
-    this.companyContextService = companyContextService;
-    this.employeeRepository = employeeRepository;
-    this.companyEntityLookup = companyEntityLookup;
-    this.salaryStructureTemplateRepository = salaryStructureTemplateRepository;
-    this.cryptoService = cryptoService;
+    this(
+        companyContextService,
+        employeeRepository,
+        CompanyScopedHrLookupService.fromLegacy(companyEntityLookup),
+        salaryStructureTemplateRepository,
+        cryptoService);
   }
 
   public List<EmployeeDto> listEmployees() {
@@ -90,7 +106,7 @@ public class EmployeeService {
   @Transactional
   public void deleteEmployee(Long id) {
     Company company = companyContextService.requireCurrentCompany();
-    Employee employee = companyEntityLookup.requireEmployee(company, id);
+    Employee employee = hrLookupService.requireEmployee(company, id);
     employeeRepository.delete(employee);
   }
 

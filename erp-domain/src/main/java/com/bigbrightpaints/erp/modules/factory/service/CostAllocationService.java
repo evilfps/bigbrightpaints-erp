@@ -14,6 +14,7 @@ import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
@@ -41,8 +43,24 @@ public class CostAllocationService {
   private final ProductionLogRepository productionLogRepository;
   private final FinishedGoodBatchRepository finishedGoodBatchRepository;
   private final AccountingFacade accountingFacade;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedAccountingLookupService accountingLookupService;
   private final CompanyClock companyClock;
+
+  @Autowired
+  public CostAllocationService(
+      CompanyContextService companyContextService,
+      ProductionLogRepository productionLogRepository,
+      FinishedGoodBatchRepository finishedGoodBatchRepository,
+      AccountingFacade accountingFacade,
+      CompanyScopedAccountingLookupService accountingLookupService,
+      CompanyClock companyClock) {
+    this.companyContextService = companyContextService;
+    this.productionLogRepository = productionLogRepository;
+    this.finishedGoodBatchRepository = finishedGoodBatchRepository;
+    this.accountingFacade = accountingFacade;
+    this.accountingLookupService = accountingLookupService;
+    this.companyClock = companyClock;
+  }
 
   public CostAllocationService(
       CompanyContextService companyContextService,
@@ -51,12 +69,13 @@ public class CostAllocationService {
       AccountingFacade accountingFacade,
       CompanyEntityLookup companyEntityLookup,
       CompanyClock companyClock) {
-    this.companyContextService = companyContextService;
-    this.productionLogRepository = productionLogRepository;
-    this.finishedGoodBatchRepository = finishedGoodBatchRepository;
-    this.accountingFacade = accountingFacade;
-    this.companyEntityLookup = companyEntityLookup;
-    this.companyClock = companyClock;
+    this(
+        companyContextService,
+        productionLogRepository,
+        finishedGoodBatchRepository,
+        accountingFacade,
+        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
+        companyClock);
   }
 
   @Transactional
@@ -303,7 +322,7 @@ public class CostAllocationService {
   }
 
   private Account requireAccount(Company company, Long accountId, AccountType expectedType) {
-    Account account = companyEntityLookup.requireAccount(company, accountId);
+    Account account = accountingLookupService.requireAccount(company, accountId);
     if (account.getType() != expectedType) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
           "Account " + account.getCode() + " is not of type " + expectedType);

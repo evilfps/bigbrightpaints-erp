@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -40,9 +41,25 @@ public class LeaveService {
   private final CompanyContextService companyContextService;
   private final EmployeeRepository employeeRepository;
   private final LeaveRequestRepository leaveRequestRepository;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedHrLookupService hrLookupService;
   private final LeaveTypePolicyRepository leaveTypePolicyRepository;
   private final LeaveBalanceRepository leaveBalanceRepository;
+
+  @Autowired
+  public LeaveService(
+      CompanyContextService companyContextService,
+      EmployeeRepository employeeRepository,
+      LeaveRequestRepository leaveRequestRepository,
+      CompanyScopedHrLookupService hrLookupService,
+      LeaveTypePolicyRepository leaveTypePolicyRepository,
+      LeaveBalanceRepository leaveBalanceRepository) {
+    this.companyContextService = companyContextService;
+    this.employeeRepository = employeeRepository;
+    this.leaveRequestRepository = leaveRequestRepository;
+    this.hrLookupService = hrLookupService;
+    this.leaveTypePolicyRepository = leaveTypePolicyRepository;
+    this.leaveBalanceRepository = leaveBalanceRepository;
+  }
 
   public LeaveService(
       CompanyContextService companyContextService,
@@ -51,12 +68,13 @@ public class LeaveService {
       CompanyEntityLookup companyEntityLookup,
       LeaveTypePolicyRepository leaveTypePolicyRepository,
       LeaveBalanceRepository leaveBalanceRepository) {
-    this.companyContextService = companyContextService;
-    this.employeeRepository = employeeRepository;
-    this.leaveRequestRepository = leaveRequestRepository;
-    this.companyEntityLookup = companyEntityLookup;
-    this.leaveTypePolicyRepository = leaveTypePolicyRepository;
-    this.leaveBalanceRepository = leaveBalanceRepository;
+    this(
+        companyContextService,
+        employeeRepository,
+        leaveRequestRepository,
+        CompanyScopedHrLookupService.fromLegacy(companyEntityLookup),
+        leaveTypePolicyRepository,
+        leaveBalanceRepository);
   }
 
   public List<LeaveRequestDto> listLeaveRequests() {
@@ -77,7 +95,7 @@ public class LeaveService {
 
   public List<LeaveBalanceDto> getLeaveBalances(Long employeeId, Integer year) {
     Company company = companyContextService.requireCurrentCompany();
-    Employee employee = companyEntityLookup.requireEmployee(company, employeeId);
+    Employee employee = hrLookupService.requireEmployee(company, employeeId);
     int targetYear = year != null ? year : CompanyTime.today(company).getYear();
 
     return leaveTypePolicyRepository
@@ -146,7 +164,7 @@ public class LeaveService {
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Leave status update request is required");
     }
     Company company = companyContextService.requireCurrentCompany();
-    LeaveRequest leaveRequest = companyEntityLookup.requireLeaveRequest(company, id);
+    LeaveRequest leaveRequest = hrLookupService.requireLeaveRequest(company, id);
     LeaveStatus newStatus = parseLeaveStatus(request.status());
     LeaveStatus currentStatus = parseLeaveStatus(leaveRequest.getStatus());
 

@@ -476,7 +476,8 @@ public class TallyImportService {
       factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
     } catch (ParserConfigurationException ex) {
       log.warn(
-          "XML parser does not support one or more XXE-hardening features; continuing with best-effort configuration",
+          "XML parser does not support one or more XXE-hardening features; continuing with"
+              + " best-effort configuration",
           ex);
     }
     try {

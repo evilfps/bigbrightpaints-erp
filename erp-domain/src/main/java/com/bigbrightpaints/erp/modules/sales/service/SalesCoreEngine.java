@@ -61,6 +61,7 @@ import com.bigbrightpaints.erp.modules.accounting.service.AccountingComplianceAu
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyAccountingSettingsService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -209,7 +210,8 @@ public class SalesCoreEngine {
   private final FinishedGoodRepository finishedGoodRepository;
   private final DealerLedgerService dealerLedgerService;
   private final AccountRepository accountRepository;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedSalesLookupService salesLookupService;
+  private final CompanyScopedAccountingLookupService accountingLookupService;
   private final CompanyClock companyClock;
   private final PackagingSlipRepository packagingSlipRepository;
   private final FinishedGoodsService finishedGoodsService;
@@ -233,6 +235,7 @@ public class SalesCoreEngine {
   @Autowired(required = false)
   private AccountingComplianceAuditService accountingComplianceAuditService;
 
+  @Autowired
   public SalesCoreEngine(
       CompanyContextService companyContextService,
       DealerRepository dealerRepository,
@@ -248,7 +251,8 @@ public class SalesCoreEngine {
       FinishedGoodRepository finishedGoodRepository,
       FinishedGoodBatchRepository finishedGoodBatchRepository,
       AccountRepository accountRepository,
-      CompanyEntityLookup companyEntityLookup,
+      CompanyScopedSalesLookupService salesLookupService,
+      CompanyScopedAccountingLookupService accountingLookupService,
       PackagingSlipRepository packagingSlipRepository,
       FinishedGoodsService finishedGoodsService,
       AccountingFacade accountingFacade,
@@ -277,7 +281,8 @@ public class SalesCoreEngine {
     this.dealerLedgerService = dealerLedgerService;
     this.finishedGoodRepository = finishedGoodRepository;
     this.accountRepository = accountRepository;
-    this.companyEntityLookup = companyEntityLookup;
+    this.salesLookupService = salesLookupService;
+    this.accountingLookupService = accountingLookupService;
     this.packagingSlipRepository = packagingSlipRepository;
     this.finishedGoodsService = finishedGoodsService;
     this.accountingFacade = accountingFacade;
@@ -311,6 +316,71 @@ public class SalesCoreEngine {
             finishedGoodBatchRepository,
             factoryTaskRepository,
             companyClock);
+  }
+
+  public SalesCoreEngine(
+      CompanyContextService companyContextService,
+      DealerRepository dealerRepository,
+      SalesOrderRepository salesOrderRepository,
+      SalesOrderStatusHistoryRepository salesOrderStatusHistoryRepository,
+      PromotionRepository promotionRepository,
+      SalesTargetRepository salesTargetRepository,
+      CreditRequestRepository creditRequestRepository,
+      OrderNumberService orderNumberService,
+      ApplicationEventPublisher eventPublisher,
+      ProductionProductRepository productionProductRepository,
+      DealerLedgerService dealerLedgerService,
+      FinishedGoodRepository finishedGoodRepository,
+      FinishedGoodBatchRepository finishedGoodBatchRepository,
+      AccountRepository accountRepository,
+      CompanyEntityLookup companyEntityLookup,
+      PackagingSlipRepository packagingSlipRepository,
+      FinishedGoodsService finishedGoodsService,
+      AccountingFacade accountingFacade,
+      JournalEntryRepository journalEntryRepository,
+      InvoiceNumberService invoiceNumberService,
+      InvoiceRepository invoiceRepository,
+      FactoryTaskRepository factoryTaskRepository,
+      CompanyDefaultAccountsService companyDefaultAccountsService,
+      CompanyAccountingSettingsService companyAccountingSettingsService,
+      GstService gstService,
+      CreditLimitOverrideService creditLimitOverrideService,
+      AuditService auditService,
+      CompanyClock companyClock,
+      PlatformTransactionManager transactionManager,
+      MeterRegistry meterRegistry) {
+    this(
+        companyContextService,
+        dealerRepository,
+        salesOrderRepository,
+        salesOrderStatusHistoryRepository,
+        promotionRepository,
+        salesTargetRepository,
+        creditRequestRepository,
+        orderNumberService,
+        eventPublisher,
+        productionProductRepository,
+        dealerLedgerService,
+        finishedGoodRepository,
+        finishedGoodBatchRepository,
+        accountRepository,
+        CompanyScopedSalesLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
+        packagingSlipRepository,
+        finishedGoodsService,
+        accountingFacade,
+        journalEntryRepository,
+        invoiceNumberService,
+        invoiceRepository,
+        factoryTaskRepository,
+        companyDefaultAccountsService,
+        companyAccountingSettingsService,
+        gstService,
+        creditLimitOverrideService,
+        auditService,
+        companyClock,
+        transactionManager,
+        meterRegistry);
   }
 
   /* Dealers */
@@ -470,7 +540,7 @@ public class SalesCoreEngine {
 
   private Dealer requireDealer(Long id) {
     Company company = companyContextService.requireCurrentCompany();
-    return companyEntityLookup.requireDealer(company, id);
+    return salesLookupService.requireDealer(company, id);
   }
 
   /* Sales Orders */
@@ -1355,7 +1425,7 @@ public class SalesCoreEngine {
 
   private SalesOrder requireOrder(Long id) {
     Company company = companyContextService.requireCurrentCompany();
-    return companyEntityLookup.requireSalesOrder(company, id);
+    return salesLookupService.requireSalesOrder(company, id);
   }
 
   private SalesOrder requireOrderForUpdate(Company company, Long id) {
@@ -1364,7 +1434,7 @@ public class SalesCoreEngine {
     if (lockedOrder != null && lockedOrder.isPresent()) {
       return lockedOrder.get();
     }
-    return companyEntityLookup.requireSalesOrder(company, id);
+    return salesLookupService.requireSalesOrder(company, id);
   }
 
   private List<PackagingSlip> findOrderSlips(Company company, Long orderId, boolean forUpdate) {
@@ -2219,7 +2289,7 @@ public class SalesCoreEngine {
 
   private Promotion requirePromotion(Long id) {
     Company company = companyContextService.requireCurrentCompany();
-    return companyEntityLookup.requirePromotion(company, id);
+    return salesLookupService.requirePromotion(company, id);
   }
 
   /* Sales Targets */
@@ -2297,7 +2367,7 @@ public class SalesCoreEngine {
 
   private SalesTarget requireTarget(Long id) {
     Company company = companyContextService.requireCurrentCompany();
-    return companyEntityLookup.requireSalesTarget(company, id);
+    return salesLookupService.requireSalesTarget(company, id);
   }
 
   private void requireSalesTargetAdminAuthority() {
@@ -3457,7 +3527,8 @@ public class SalesCoreEngine {
     if (arJournalEntryId != null
         && (invoice.getJournalEntry() == null
             || !arJournalEntryId.equals(invoice.getJournalEntry().getId()))) {
-      invoice.setJournalEntry(companyEntityLookup.requireJournalEntry(company, arJournalEntryId));
+      invoice.setJournalEntry(
+          accountingLookupService.requireJournalEntry(company, arJournalEntryId));
     }
     invoice = invoiceRepository.save(invoice);
     dealerLedgerService.syncInvoiceLedger(invoice, null);
@@ -3536,7 +3607,7 @@ public class SalesCoreEngine {
     if (journalEntryId == null || dealer == null || dealer.getReceivableAccount() == null) {
       return;
     }
-    JournalEntry entry = companyEntityLookup.requireJournalEntry(company, journalEntryId);
+    JournalEntry entry = accountingLookupService.requireJournalEntry(company, journalEntryId);
     Long receivableAccountId = dealer.getReceivableAccount().getId();
     if (receivableAccountId == null || entry.getLines() == null || entry.getLines().isEmpty()) {
       return;

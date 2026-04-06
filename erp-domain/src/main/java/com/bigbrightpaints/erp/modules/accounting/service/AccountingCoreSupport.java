@@ -54,7 +54,6 @@ import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
@@ -101,6 +100,7 @@ import com.bigbrightpaints.erp.modules.accounting.event.AccountCacheInvalidatedE
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.factory.service.CompanyScopedFactoryLookupService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
@@ -117,8 +117,10 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
+import com.bigbrightpaints.erp.modules.purchasing.service.CompanyScopedPurchasingLookupService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 import jakarta.persistence.EntityManager;
@@ -167,7 +169,10 @@ class AccountingCoreSupport {
   protected final ReferenceNumberService referenceNumberService;
   protected final ApplicationEventPublisher eventPublisher;
   protected final CompanyClock companyClock;
-  protected final CompanyEntityLookup companyEntityLookup;
+  protected final CompanyScopedAccountingLookupService accountingLookupService;
+  protected final CompanyScopedSalesLookupService salesLookupService;
+  protected final CompanyScopedPurchasingLookupService purchasingLookupService;
+  protected final CompanyScopedFactoryLookupService factoryLookupService;
   protected final PartnerSettlementAllocationRepository settlementAllocationRepository;
   protected final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
   protected final InvoiceRepository invoiceRepository;
@@ -210,6 +215,7 @@ class AccountingCoreSupport {
   @Value("${erp.accounting.event-trail.strict:true}")
   private boolean strictAccountingEventTrail = true;
 
+  @Autowired
   public AccountingCoreSupport(
       CompanyContextService companyContextService,
       AccountRepository accountRepository,
@@ -222,7 +228,10 @@ class AccountingCoreSupport {
       ReferenceNumberService referenceNumberService,
       ApplicationEventPublisher eventPublisher,
       CompanyClock companyClock,
-      CompanyEntityLookup companyEntityLookup,
+      CompanyScopedAccountingLookupService accountingLookupService,
+      CompanyScopedSalesLookupService salesLookupService,
+      CompanyScopedPurchasingLookupService purchasingLookupService,
+      CompanyScopedFactoryLookupService factoryLookupService,
       PartnerSettlementAllocationRepository settlementAllocationRepository,
       RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
       InvoiceRepository invoiceRepository,
@@ -249,7 +258,10 @@ class AccountingCoreSupport {
     this.referenceNumberService = referenceNumberService;
     this.eventPublisher = eventPublisher;
     this.companyClock = companyClock;
-    this.companyEntityLookup = companyEntityLookup;
+    this.accountingLookupService = accountingLookupService;
+    this.salesLookupService = salesLookupService;
+    this.purchasingLookupService = purchasingLookupService;
+    this.factoryLookupService = factoryLookupService;
     this.settlementAllocationRepository = settlementAllocationRepository;
     this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
     this.invoiceRepository = invoiceRepository;
@@ -265,6 +277,67 @@ class AccountingCoreSupport {
     this.systemSettingsService = systemSettingsService;
     this.auditService = auditService;
     this.accountingEventStore = accountingEventStore;
+  }
+
+  protected AccountingCoreSupport(
+      CompanyContextService companyContextService,
+      AccountRepository accountRepository,
+      JournalEntryRepository journalEntryRepository,
+      DealerLedgerService dealerLedgerService,
+      SupplierLedgerService supplierLedgerService,
+      PayrollRunRepository payrollRunRepository,
+      PayrollRunLineRepository payrollRunLineRepository,
+      AccountingPeriodService accountingPeriodService,
+      ReferenceNumberService referenceNumberService,
+      ApplicationEventPublisher eventPublisher,
+      CompanyClock companyClock,
+      com.bigbrightpaints.erp.core.util.CompanyEntityLookup companyEntityLookup,
+      PartnerSettlementAllocationRepository settlementAllocationRepository,
+      RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
+      InvoiceRepository invoiceRepository,
+      RawMaterialMovementRepository rawMaterialMovementRepository,
+      RawMaterialBatchRepository rawMaterialBatchRepository,
+      FinishedGoodBatchRepository finishedGoodBatchRepository,
+      DealerRepository dealerRepository,
+      SupplierRepository supplierRepository,
+      InvoiceSettlementPolicy invoiceSettlementPolicy,
+      JournalReferenceResolver journalReferenceResolver,
+      JournalReferenceMappingRepository journalReferenceMappingRepository,
+      EntityManager entityManager,
+      SystemSettingsService systemSettingsService,
+      AuditService auditService,
+      AccountingEventStore accountingEventStore) {
+    this(
+        companyContextService,
+        accountRepository,
+        journalEntryRepository,
+        dealerLedgerService,
+        supplierLedgerService,
+        payrollRunRepository,
+        payrollRunLineRepository,
+        accountingPeriodService,
+        referenceNumberService,
+        eventPublisher,
+        companyClock,
+        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedSalesLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedPurchasingLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedFactoryLookupService.fromLegacy(companyEntityLookup),
+        settlementAllocationRepository,
+        rawMaterialPurchaseRepository,
+        invoiceRepository,
+        rawMaterialMovementRepository,
+        rawMaterialBatchRepository,
+        finishedGoodBatchRepository,
+        dealerRepository,
+        supplierRepository,
+        invoiceSettlementPolicy,
+        journalReferenceResolver,
+        journalReferenceMappingRepository,
+        entityManager,
+        systemSettingsService,
+        auditService,
+        accountingEventStore);
   }
 
   /* Accounts */
@@ -1084,7 +1157,7 @@ class AccountingCoreSupport {
   @Transactional
   public JournalEntryDto reverseJournalEntry(Long entryId, JournalEntryReversalRequest request) {
     Company company = companyContextService.requireCurrentCompany();
-    JournalEntry entry = companyEntityLookup.requireJournalEntry(company, entryId);
+    JournalEntry entry = accountingLookupService.requireJournalEntry(company, entryId);
     return reverseJournalEntryInternal(company, entry, request);
   }
 
@@ -1215,7 +1288,7 @@ class AccountingCoreSupport {
       JournalEntryDto reversalDto =
           createJournalEntryForReversal(payload, systemEntryDateOverrideActive);
       JournalEntry reversalEntry =
-          companyEntityLookup.requireJournalEntry(company, reversalDto.id());
+          accountingLookupService.requireJournalEntry(company, reversalDto.id());
       reversalEntry.setReversalOf(entry);
       reversalEntry.setAccountingPeriod(postingPeriod);
       reversalEntry.setCorrectionType(JournalCorrectionType.VOID);
@@ -1264,7 +1337,8 @@ class AccountingCoreSupport {
     }
     JournalEntryDto reversalDto =
         createJournalEntryForReversal(payload, systemEntryDateOverrideActive);
-    JournalEntry reversalEntry = companyEntityLookup.requireJournalEntry(company, reversalDto.id());
+    JournalEntry reversalEntry =
+        accountingLookupService.requireJournalEntry(company, reversalDto.id());
     reversalEntry.setReversalOf(entry);
     reversalEntry.setAccountingPeriod(postingPeriod);
     reversalEntry.setCorrectionType(JournalCorrectionType.REVERSAL);
@@ -1403,7 +1477,7 @@ class AccountingCoreSupport {
                 new JournalEntryRequest.JournalLineRequest(
                     receivableAccount.getId(), memo, BigDecimal.ZERO, amount)));
     JournalEntryDto entryDto = createJournalEntry(payload);
-    JournalEntry entry = companyEntityLookup.requireJournalEntry(company, entryDto.id());
+    JournalEntry entry = accountingLookupService.requireJournalEntry(company, entryDto.id());
     linkReferenceMapping(company, idempotencyKey, entry, ENTITY_TYPE_DEALER_RECEIPT);
     existingAllocations = findAllocationsByIdempotencyKey(company, idempotencyKey);
     if (!existingAllocations.isEmpty()) {
@@ -1604,7 +1678,7 @@ class AccountingCoreSupport {
         new JournalEntryRequest(
             reference, currentDate(company), memo, dealer.getId(), null, Boolean.FALSE, lines);
     JournalEntryDto entryDto = createJournalEntry(payload);
-    JournalEntry entry = companyEntityLookup.requireJournalEntry(company, entryDto.id());
+    JournalEntry entry = accountingLookupService.requireJournalEntry(company, entryDto.id());
     linkReferenceMapping(company, idempotencyKey, entry, ENTITY_TYPE_DEALER_RECEIPT_SPLIT);
     existingAllocations = findAllocationsByIdempotencyKey(company, idempotencyKey);
     if (!existingAllocations.isEmpty()) {
@@ -1962,15 +2036,15 @@ class AccountingCoreSupport {
   }
 
   protected Dealer requireDealer(Company company, Long dealerId) {
-    return companyEntityLookup.requireDealer(company, dealerId);
+    return salesLookupService.requireDealer(company, dealerId);
   }
 
   protected Supplier requireSupplier(Company company, Long supplierId) {
-    return companyEntityLookup.requireSupplier(company, supplierId);
+    return purchasingLookupService.requireSupplier(company, supplierId);
   }
 
   protected Account requireAccount(Company company, Long accountId) {
-    return companyEntityLookup.requireAccount(company, accountId);
+    return accountingLookupService.requireAccount(company, accountId);
   }
 
   protected Account requireCashAccountForSettlement(
@@ -2353,7 +2427,7 @@ class AccountingCoreSupport {
   protected PartnerSettlementResponse buildAutoSettlementResponse(
       Company company, JournalEntryDto journalEntry) {
     JournalEntry persistedEntry =
-        companyEntityLookup.requireJournalEntry(company, journalEntry.id());
+        accountingLookupService.requireJournalEntry(company, journalEntry.id());
     List<PartnerSettlementAllocation> allocations =
         settlementAllocationRepository.findByCompanyAndJournalEntryOrderByCreatedAtAsc(
             company, persistedEntry);
@@ -2820,10 +2894,7 @@ class AccountingCoreSupport {
   }
 
   protected String resolveSupplierSettlementReference(
-      Company company,
-      Supplier supplier,
-      PartnerSettlementRequest request,
-      String idempotencyKey) {
+      Company company, Supplier supplier, PartnerSettlementRequest request, String idempotencyKey) {
     if (request != null && StringUtils.hasText(request.referenceNumber())) {
       return request.referenceNumber().trim();
     }
@@ -5362,7 +5433,7 @@ class AccountingCoreSupport {
                 null,
                 request.adminOverride(),
                 lines));
-    JournalEntry saved = companyEntityLookup.requireJournalEntry(company, dto.id());
+    JournalEntry saved = accountingLookupService.requireJournalEntry(company, dto.id());
     saved.setReversalOf(source);
     saved.setCorrectionType(JournalCorrectionType.REVERSAL);
     saved.setCorrectionReason("CREDIT_NOTE");
@@ -5480,7 +5551,7 @@ class AccountingCoreSupport {
                 ENTITY_TYPE_DEBIT_NOTE,
                 purchase.getInvoiceNumber(),
                 null));
-    JournalEntry saved = companyEntityLookup.requireJournalEntry(company, dto.id());
+    JournalEntry saved = accountingLookupService.requireJournalEntry(company, dto.id());
     validateDebitNoteReplay(reference, purchase, source, saved, request.amount());
     saved.setReversalOf(source);
     saved.setCorrectionType(JournalCorrectionType.REVERSAL);
@@ -5686,8 +5757,8 @@ class AccountingCoreSupport {
                           credit.getId(), "Auto-reverse " + memo, amount, BigDecimal.ZERO),
                       new JournalEntryRequest.JournalLineRequest(
                           debit.getId(), "Auto-reverse " + memo, BigDecimal.ZERO, amount))));
-      JournalEntry accrualJe = companyEntityLookup.requireJournalEntry(company, accrual.id());
-      JournalEntry reversalJe = companyEntityLookup.requireJournalEntry(company, reversal.id());
+      JournalEntry accrualJe = accountingLookupService.requireJournalEntry(company, accrual.id());
+      JournalEntry reversalJe = accountingLookupService.requireJournalEntry(company, reversal.id());
       reversalJe.setReversalOf(accrualJe);
       reversalJe.setCorrectionType(JournalCorrectionType.REVERSAL);
       reversalJe.setCorrectionReason("AUTO_REVERSAL");
@@ -5761,7 +5832,7 @@ class AccountingCoreSupport {
                 reference,
                 null,
                 List.of()));
-    JournalEntry saved = companyEntityLookup.requireJournalEntry(company, je.id());
+    JournalEntry saved = accountingLookupService.requireJournalEntry(company, je.id());
     BigDecimal postedAmount = calculateEntryTotal(saved);
     applyBadDebtSettlement(invoice, postedAmount, reference, entryDate);
     return je;
@@ -5783,7 +5854,8 @@ class AccountingCoreSupport {
   public JournalEntryDto recordLandedCost(LandedCostRequest request) {
     Company company = companyContextService.requireCurrentCompany();
     RawMaterialPurchase purchase =
-        companyEntityLookup.requireRawMaterialPurchase(company, request.rawMaterialPurchaseId());
+        purchasingLookupService.requireRawMaterialPurchase(
+            company, request.rawMaterialPurchaseId());
     String reference =
         resolveJournalReference(
             company,
@@ -5875,7 +5947,7 @@ class AccountingCoreSupport {
   @Transactional
   public JournalEntryDto adjustWip(WipAdjustmentRequest request) {
     Company company = companyContextService.requireCurrentCompany();
-    companyEntityLookup.requireProductionLog(company, request.productionLogId());
+    factoryLookupService.requireProductionLog(company, request.productionLogId());
     String reference =
         resolveJournalReference(
             company,

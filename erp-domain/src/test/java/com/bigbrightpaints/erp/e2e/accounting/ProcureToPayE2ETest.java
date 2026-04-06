@@ -520,7 +520,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(duplicateReq, headers),
             Map.class);
-    assertThat(duplicateResp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(duplicateResp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
   }
 
   @Test
@@ -731,7 +731,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(debitNoteReq, headers),
             Map.class);
-    assertThat(debitResp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(debitResp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
 
     RawMaterialPurchase refreshed = purchaseRepository.findById(purchaseId).orElseThrow();
     assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
@@ -964,14 +964,14 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     gstLine.setAccount(gstOutput);
     gstLine.setDebit(BigDecimal.ZERO);
     gstLine.setCredit(new BigDecimal("12.34"));
-    draft.getLines().add(gstLine);
+    draft.addLine(gstLine);
 
     JournalLine offsetLine = new JournalLine();
     offsetLine.setJournalEntry(draft);
     offsetLine.setAccount(cash);
     offsetLine.setDebit(new BigDecimal("12.34"));
     offsetLine.setCredit(BigDecimal.ZERO);
-    draft.getLines().add(offsetLine);
+    draft.addLine(offsetLine);
     journalEntryRepository.saveAndFlush(draft);
 
     BigDecimal afterOutput = gstOutputTax(period);

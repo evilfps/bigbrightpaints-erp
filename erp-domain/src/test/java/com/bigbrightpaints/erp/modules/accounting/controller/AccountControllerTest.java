@@ -32,7 +32,8 @@ class AccountControllerTest {
                 1L, UUID.randomUUID(), "1000", "Cash", AccountType.ASSET, BigDecimal.TEN));
     when(accountingService.listAccounts()).thenReturn(expected);
 
-    ApiResponse<List<AccountDto>> body = controller(accountingService, null, null).accounts().getBody();
+    ApiResponse<List<AccountDto>> body =
+        controller(accountingService, null, null).accounts().getBody();
 
     assertThat(body).isNotNull();
     assertThat(body.data()).isEqualTo(expected);
@@ -40,7 +41,8 @@ class AccountControllerTest {
 
   @Test
   void defaultAccounts_mapsConfiguredDefaults() {
-    CompanyDefaultAccountsService defaultAccountsService = mock(CompanyDefaultAccountsService.class);
+    CompanyDefaultAccountsService defaultAccountsService =
+        mock(CompanyDefaultAccountsService.class);
     CompanyDefaultAccountsService.DefaultAccounts defaults =
         new CompanyDefaultAccountsService.DefaultAccounts(1L, 2L, 3L, 4L, 5L);
     when(defaultAccountsService.getDefaults()).thenReturn(defaults);
@@ -49,14 +51,15 @@ class AccountControllerTest {
         controller(null, defaultAccountsService, null).defaultAccounts().getBody();
 
     assertThat(body).isNotNull();
-    assertThat(body.data())
-        .isEqualTo(new CompanyDefaultAccountsResponse(1L, 2L, 3L, 4L, 5L));
+    assertThat(body.data()).isEqualTo(new CompanyDefaultAccountsResponse(1L, 2L, 3L, 4L, 5L));
   }
 
   @Test
   void updateDefaultAccounts_delegatesToService() {
-    CompanyDefaultAccountsService defaultAccountsService = mock(CompanyDefaultAccountsService.class);
-    CompanyDefaultAccountsRequest request = new CompanyDefaultAccountsRequest(11L, 12L, 13L, 14L, 15L);
+    CompanyDefaultAccountsService defaultAccountsService =
+        mock(CompanyDefaultAccountsService.class);
+    CompanyDefaultAccountsRequest request =
+        new CompanyDefaultAccountsRequest(11L, 12L, 13L, 14L, 15L);
     CompanyDefaultAccountsService.DefaultAccounts updated =
         new CompanyDefaultAccountsService.DefaultAccounts(11L, 12L, 13L, 14L, 15L);
     when(defaultAccountsService.updateDefaults(11L, 12L, 13L, 14L, 15L)).thenReturn(updated);
@@ -66,8 +69,7 @@ class AccountControllerTest {
 
     assertThat(body).isNotNull();
     assertThat(body.message()).isEqualTo("Default accounts updated");
-    assertThat(body.data())
-        .isEqualTo(new CompanyDefaultAccountsResponse(11L, 12L, 13L, 14L, 15L));
+    assertThat(body.data()).isEqualTo(new CompanyDefaultAccountsResponse(11L, 12L, 13L, 14L, 15L));
   }
 
   @Test
@@ -75,10 +77,12 @@ class AccountControllerTest {
     AccountingService accountingService = mock(AccountingService.class);
     AccountRequest request = new AccountRequest("4000", "Sales", AccountType.REVENUE, 7L);
     AccountDto expected =
-        new AccountDto(44L, UUID.randomUUID(), "4000", "Sales", AccountType.REVENUE, BigDecimal.ZERO);
+        new AccountDto(
+            44L, UUID.randomUUID(), "4000", "Sales", AccountType.REVENUE, BigDecimal.ZERO);
     when(accountingService.createAccount(request)).thenReturn(expected);
 
-    ApiResponse<AccountDto> body = controller(accountingService, null, null).createAccount(request).getBody();
+    ApiResponse<AccountDto> body =
+        controller(accountingService, null, null).createAccount(request).getBody();
 
     assertThat(body).isNotNull();
     assertThat(body.message()).isEqualTo("Account created");

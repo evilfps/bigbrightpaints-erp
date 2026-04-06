@@ -67,7 +67,8 @@ class DashboardWindowTest {
 
   @Test
   void resolve_hugeParseableWindow_clampsToMaximumDays() {
-    DashboardWindow window = DashboardWindow.resolve(minLocalDateWindowSpec("UTC"), null, "UTC", null);
+    DashboardWindow window =
+        DashboardWindow.resolve(minLocalDateWindowSpec("UTC"), null, "UTC", null);
 
     assertThat(windowLength(window)).isEqualTo(MAX_DASHBOARD_WINDOW_DAYS);
     assertThat(window.start()).isAfter(LocalDate.MIN);
@@ -144,8 +145,7 @@ class DashboardWindowTest {
   }
 
   private static String minLocalDateWindowSpec(String timezone) {
-    long days =
-        ChronoUnit.DAYS.between(LocalDate.MIN, LocalDate.now(ZoneId.of(timezone))) + 1;
+    long days = ChronoUnit.DAYS.between(LocalDate.MIN, LocalDate.now(ZoneId.of(timezone))) + 1;
     return days + "d";
   }
 }

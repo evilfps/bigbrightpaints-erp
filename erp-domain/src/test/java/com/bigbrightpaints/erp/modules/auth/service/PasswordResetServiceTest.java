@@ -284,12 +284,12 @@ class PasswordResetServiceTest {
     ReflectionTestUtils.setField(monitoringService, "auditService", auditService);
     ReflectionTestUtils.setField(
         monitoringService, "auditLogRepository", mock(AuditLogRepository.class));
-    ReflectionTestUtils.setField(
-        monitoringService, "tokenBlacklistService", tokenBlacklistService);
+    ReflectionTestUtils.setField(monitoringService, "tokenBlacklistService", tokenBlacklistService);
     ReflectionTestUtils.setField(monitoringService, "emailService", emailService);
     ReflectionTestUtils.setField(monitoringService, "maxRequestsPerMinute", 0);
     ReflectionTestUtils.setField(monitoringService, "suspiciousActivityThreshold", 3);
-    ReflectionTestUtils.setField(monitoringService, "securityNotificationEmail", "alerts@acme.test");
+    ReflectionTestUtils.setField(
+        monitoringService, "securityNotificationEmail", "alerts@acme.test");
     ReflectionTestUtils.setField(monitoringService, "suspiciousActivityAlertWindowMinutes", 60);
 
     PasswordResetService rateLimitedService =

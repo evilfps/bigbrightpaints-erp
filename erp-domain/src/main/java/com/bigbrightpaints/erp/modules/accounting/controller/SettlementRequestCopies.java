@@ -9,8 +9,7 @@ final class SettlementRequestCopies {
 
   private SettlementRequestCopies() {}
 
-  static DealerReceiptRequest dealerReceipt(
-      DealerReceiptRequest request, String idempotencyKey) {
+  static DealerReceiptRequest dealerReceipt(DealerReceiptRequest request, String idempotencyKey) {
     return new DealerReceiptRequest(
         request.dealerId(),
         request.cashAccountId(),
@@ -61,5 +60,4 @@ final class SettlementRequestCopies {
         request.memo(),
         idempotencyKey);
   }
-
 }

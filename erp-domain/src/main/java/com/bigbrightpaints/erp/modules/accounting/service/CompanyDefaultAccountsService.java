@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 
 import java.math.BigDecimal;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
@@ -21,16 +22,27 @@ import jakarta.transaction.Transactional;
 public class CompanyDefaultAccountsService {
 
   private final CompanyContextService companyContextService;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedAccountingLookupService accountingLookupService;
   private final CompanyRepository companyRepository;
+
+  @Autowired
+  public CompanyDefaultAccountsService(
+      CompanyContextService companyContextService,
+      CompanyScopedAccountingLookupService accountingLookupService,
+      CompanyRepository companyRepository) {
+    this.companyContextService = companyContextService;
+    this.accountingLookupService = accountingLookupService;
+    this.companyRepository = companyRepository;
+  }
 
   public CompanyDefaultAccountsService(
       CompanyContextService companyContextService,
       CompanyEntityLookup companyEntityLookup,
       CompanyRepository companyRepository) {
-    this.companyContextService = companyContextService;
-    this.companyEntityLookup = companyEntityLookup;
-    this.companyRepository = companyRepository;
+    this(
+        companyContextService,
+        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
+        companyRepository);
   }
 
   public DefaultAccounts requireDefaults() {
@@ -71,22 +83,22 @@ public class CompanyDefaultAccountsService {
       Long taxAccountId) {
     Company company = companyContextService.requireCurrentCompany();
     if (inventoryAccountId != null) {
-      Account account = companyEntityLookup.requireAccount(company, inventoryAccountId);
+      Account account = accountingLookupService.requireAccount(company, inventoryAccountId);
       requireType(account, AccountType.ASSET, "inventory");
       company.setDefaultInventoryAccountId(account.getId());
     }
     if (cogsAccountId != null) {
-      Account account = companyEntityLookup.requireAccount(company, cogsAccountId);
+      Account account = accountingLookupService.requireAccount(company, cogsAccountId);
       requireType(account, AccountType.COGS, "COGS");
       company.setDefaultCogsAccountId(account.getId());
     }
     if (revenueAccountId != null) {
-      Account account = companyEntityLookup.requireAccount(company, revenueAccountId);
+      Account account = accountingLookupService.requireAccount(company, revenueAccountId);
       requireType(account, AccountType.REVENUE, "revenue");
       company.setDefaultRevenueAccountId(account.getId());
     }
     if (discountAccountId != null) {
-      Account account = companyEntityLookup.requireAccount(company, discountAccountId);
+      Account account = accountingLookupService.requireAccount(company, discountAccountId);
       if (!(AccountType.REVENUE.equals(account.getType())
           || AccountType.EXPENSE.equals(account.getType()))) {
         throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
@@ -95,7 +107,7 @@ public class CompanyDefaultAccountsService {
       company.setDefaultDiscountAccountId(account.getId());
     }
     if (taxAccountId != null) {
-      Account account = companyEntityLookup.requireAccount(company, taxAccountId);
+      Account account = accountingLookupService.requireAccount(company, taxAccountId);
       requireType(account, AccountType.LIABILITY, "tax");
       company.setDefaultTaxAccountId(account.getId());
       if (isNonGstMode(company)) {

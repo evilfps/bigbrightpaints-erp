@@ -85,7 +85,9 @@ class EnterpriseDashboardServiceTest {
         .thenReturn(List.of());
     when(accountRepository.findByCompanyOrderByCodeAsc(company)).thenReturn(List.of());
     when(reportService.inventoryValuation())
-        .thenReturn(new InventoryValuationDto(BigDecimal.ZERO, 0L, "FIFO", List.of(), List.of(), List.of(), null));
+        .thenReturn(
+            new InventoryValuationDto(
+                BigDecimal.ZERO, 0L, "FIFO", List.of(), List.of(), List.of(), null));
     when(salesOrderRepository.findByCompanyOrderByCreatedAtDesc(company)).thenReturn(List.of());
     when(productionLogRepository.findByCompanyAndProducedAtBetween(eq(company), any(), any()))
         .thenReturn(List.of());
@@ -97,17 +99,20 @@ class EnterpriseDashboardServiceTest {
     when(settlementAllocationRepository.findByCompanyAndPartnerTypeAndSettlementDateBetween(
             eq(company), any(), any(LocalDate.class), any(LocalDate.class)))
         .thenReturn(List.of());
-    when(packagingSlipRepository.countByCompanyAndStatusInAndCreatedAtBefore(eq(company), any(), any()))
+    when(packagingSlipRepository.countByCompanyAndStatusInAndCreatedAtBefore(
+            eq(company), any(), any()))
         .thenReturn(0L);
   }
 
   @Test
   void snapshot_prevComparisonClampsHugeParseableWindowBeforeQueries() {
-    EnterpriseDashboardSnapshot snapshot = service.snapshot(hugeParseableWindowSpec(), "prev", "UTC");
+    EnterpriseDashboardSnapshot snapshot =
+        service.snapshot(hugeParseableWindowSpec(), "prev", "UTC");
 
     assertThat(windowLength(snapshot.window())).isEqualTo(MAX_DASHBOARD_WINDOW_DAYS);
     assertThat(snapshot.window().compareStart()).isNotNull();
-    assertThat(snapshot.window().compareEnd()).isEqualTo(snapshot.window().currentWindowStart().minusDays(1));
+    assertThat(snapshot.window().compareEnd())
+        .isEqualTo(snapshot.window().currentWindowStart().minusDays(1));
     assertThat(snapshot.trends().revenue()).hasSize(53);
 
     ArgumentCaptor<LocalDate> startCaptor = ArgumentCaptor.forClass(LocalDate.class);
@@ -122,7 +127,8 @@ class EnterpriseDashboardServiceTest {
 
   @Test
   void snapshot_yoyComparisonClampsHugeParseableWindowBeforeQueries() {
-    EnterpriseDashboardSnapshot snapshot = service.snapshot(hugeParseableWindowSpec(), "yoy", "UTC");
+    EnterpriseDashboardSnapshot snapshot =
+        service.snapshot(hugeParseableWindowSpec(), "yoy", "UTC");
 
     assertThat(windowLength(snapshot.window())).isEqualTo(MAX_DASHBOARD_WINDOW_DAYS);
     assertThat(snapshot.window().compareStart())

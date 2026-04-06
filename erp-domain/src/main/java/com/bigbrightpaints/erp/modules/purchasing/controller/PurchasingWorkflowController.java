@@ -113,6 +113,12 @@ public class PurchasingWorkflowController {
             "Goods receipt recorded", purchasingService.createGoodsReceipt(resolved)));
   }
 
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+  public ResponseEntity<ApiResponse<GoodsReceiptResponse>> createGoodsReceipt(
+      String ignoredCompanyId, String idempotencyKey, GoodsReceiptRequest request) {
+    return createGoodsReceipt(idempotencyKey, request);
+  }
+
   private GoodsReceiptRequest applyIdempotencyKey(
       GoodsReceiptRequest request, String idempotencyKeyHeader) {
     if (request == null) {

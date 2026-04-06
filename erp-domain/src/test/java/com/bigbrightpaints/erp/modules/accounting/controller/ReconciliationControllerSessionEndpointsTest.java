@@ -33,7 +33,8 @@ class ReconciliationControllerSessionEndpointsTest {
     MockMvc mvc =
         MockMvcBuilders.standaloneSetup(
                 controller(
-                    mock(ReconciliationService.class), mock(BankReconciliationSessionService.class)))
+                    mock(ReconciliationService.class),
+                    mock(BankReconciliationSessionService.class)))
             .build();
 
     mvc.perform(post("/api/v1/accounting/reconciliation/bank")).andExpect(status().isNotFound());
@@ -42,7 +43,8 @@ class ReconciliationControllerSessionEndpointsTest {
   @Test
   void startBankReconciliationSession_delegates() {
     BankReconciliationSessionService sessionService = mock(BankReconciliationSessionService.class);
-    ReconciliationController controller = controller(mock(ReconciliationService.class), sessionService);
+    ReconciliationController controller =
+        controller(mock(ReconciliationService.class), sessionService);
     BankReconciliationSessionCreateRequest request =
         new BankReconciliationSessionCreateRequest(
             8L,
@@ -67,7 +69,8 @@ class ReconciliationControllerSessionEndpointsTest {
   @Test
   void updateBankReconciliationSessionItems_delegates() {
     BankReconciliationSessionService sessionService = mock(BankReconciliationSessionService.class);
-    ReconciliationController controller = controller(mock(ReconciliationService.class), sessionService);
+    ReconciliationController controller =
+        controller(mock(ReconciliationService.class), sessionService);
     BankReconciliationSessionItemsUpdateRequest request =
         new BankReconciliationSessionItemsUpdateRequest(List.of(11L, 12L), List.of(13L), "matched");
     BankReconciliationSessionDetailDto expected = sessionDetail(21L);
@@ -85,7 +88,8 @@ class ReconciliationControllerSessionEndpointsTest {
   @Test
   void completeBankReconciliationSession_delegates() {
     BankReconciliationSessionService sessionService = mock(BankReconciliationSessionService.class);
-    ReconciliationController controller = controller(mock(ReconciliationService.class), sessionService);
+    ReconciliationController controller =
+        controller(mock(ReconciliationService.class), sessionService);
     BankReconciliationSessionCompletionRequest request =
         new BankReconciliationSessionCompletionRequest("ready to close", 9L);
     BankReconciliationSessionDetailDto expected = sessionDetail(22L);
@@ -103,10 +107,12 @@ class ReconciliationControllerSessionEndpointsTest {
   @Test
   void listAndGetBankReconciliationSessions_delegate() {
     BankReconciliationSessionService sessionService = mock(BankReconciliationSessionService.class);
-    ReconciliationController controller = controller(mock(ReconciliationService.class), sessionService);
+    ReconciliationController controller =
+        controller(mock(ReconciliationService.class), sessionService);
     BankReconciliationSessionSummaryDto summary = sessionSummary(30L);
     BankReconciliationSessionDetailDto detail = sessionDetail(30L);
-    PageResponse<BankReconciliationSessionSummaryDto> page = PageResponse.of(List.of(summary), 1, 0, 20);
+    PageResponse<BankReconciliationSessionSummaryDto> page =
+        PageResponse.of(List.of(summary), 1, 0, 20);
     when(sessionService.listSessions(0, 20)).thenReturn(page);
     when(sessionService.getSessionDetail(30L)).thenReturn(detail);
 

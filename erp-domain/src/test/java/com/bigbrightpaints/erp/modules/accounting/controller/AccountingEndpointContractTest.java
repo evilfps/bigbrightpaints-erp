@@ -17,16 +17,16 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
-import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
-import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccrualRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.AgingSummaryResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.BadDebtWriteOffRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.CreditNoteRequest;
@@ -44,18 +44,13 @@ import com.bigbrightpaints.erp.modules.accounting.dto.PartnerStatementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnPreviewDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.SalesReturnRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationApplication;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountHierarchyService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
-import com.bigbrightpaints.erp.modules.accounting.service.AgingReportService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyAccountingSettingsService;
-import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
 import com.bigbrightpaints.erp.modules.accounting.service.CreditDebitNoteService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerReceiptService;
 import com.bigbrightpaints.erp.modules.accounting.service.JournalEntryService;
 import com.bigbrightpaints.erp.modules.accounting.service.JournalReferenceResolver;
-import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import com.bigbrightpaints.erp.modules.accounting.service.SettlementService;
 import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
@@ -747,14 +742,7 @@ class AccountingEndpointContractTest {
     CreditDebitNoteService creditDebitNoteService = mock(CreditDebitNoteService.class);
     BadDebtWriteOffRequest request =
         new BadDebtWriteOffRequest(
-            5L,
-            6L,
-            new BigDecimal("14.00"),
-            LocalDate.of(2026, 3, 5),
-            "BD-1",
-            "memo",
-            null,
-            false);
+            5L, 6L, new BigDecimal("14.00"), LocalDate.of(2026, 3, 5), "BD-1", "memo", null, false);
     JournalEntryDto expected = expectedJournal(86L, "BD-1");
     when(creditDebitNoteService.writeOffBadDebt(request)).thenReturn(expected);
 
@@ -1106,7 +1094,8 @@ class AccountingEndpointContractTest {
             mock(AuditService.class)));
   }
 
-  private StatementReportController controllerWithStatementService(StatementService statementService) {
+  private StatementReportController controllerWithStatementService(
+      StatementService statementService) {
     return new StatementReportController(
         new StatementReportControllerSupport(
             mock(TaxService.class),

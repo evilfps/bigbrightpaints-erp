@@ -174,7 +174,9 @@ class SettlementControllerIdempotencyHeaderParityTest {
 
     assertForwardedIdempotencyKey(
         com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest.class,
-        () -> controller.autoSettleDealer(1001L, autoSettlementRequest("body-001"), "hdr-auto-002", null),
+        () ->
+            controller.autoSettleDealer(
+                1001L, autoSettlementRequest("body-001"), "hdr-auto-002", null),
         captor -> verify(settlementService).autoSettleDealer(any(), captor.capture()),
         com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest::idempotencyKey,
         "hdr-auto-002");
@@ -187,7 +189,9 @@ class SettlementControllerIdempotencyHeaderParityTest {
 
     assertForwardedIdempotencyKey(
         com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest.class,
-        () -> controller.autoSettleSupplier(3001L, autoSettlementRequest("body-001"), "hdr-auto-003", null),
+        () ->
+            controller.autoSettleSupplier(
+                3001L, autoSettlementRequest("body-001"), "hdr-auto-003", null),
         captor -> verify(settlementService).autoSettleSupplier(any(), captor.capture()),
         com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest::idempotencyKey,
         "hdr-auto-003");

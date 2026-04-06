@@ -9,40 +9,47 @@ import org.springframework.stereotype.Service;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.service.CompanyScopedPurchasingLookupService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
+import com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService;
 
 @Service
 class AccountResolutionService {
 
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedSalesLookupService salesLookupService;
+  private final CompanyScopedPurchasingLookupService purchasingLookupService;
+  private final CompanyScopedAccountingLookupService accountingLookupService;
   private final AccountRepository accountRepository;
   private final CompanyClock companyClock;
 
   AccountResolutionService(
-      CompanyEntityLookup companyEntityLookup,
+      CompanyScopedSalesLookupService salesLookupService,
+      CompanyScopedPurchasingLookupService purchasingLookupService,
+      CompanyScopedAccountingLookupService accountingLookupService,
       AccountRepository accountRepository,
       CompanyClock companyClock) {
-    this.companyEntityLookup = companyEntityLookup;
+    this.salesLookupService = salesLookupService;
+    this.purchasingLookupService = purchasingLookupService;
+    this.accountingLookupService = accountingLookupService;
     this.accountRepository = accountRepository;
     this.companyClock = companyClock;
   }
 
   Dealer requireDealer(Company company, Long dealerId) {
-    return companyEntityLookup.requireDealer(company, dealerId);
+    return salesLookupService.requireDealer(company, dealerId);
   }
 
   Supplier requireSupplier(Company company, Long supplierId) {
-    return companyEntityLookup.requireSupplier(company, supplierId);
+    return purchasingLookupService.requireSupplier(company, supplierId);
   }
 
   Account requireAccount(Company company, Long accountId) {
-    return companyEntityLookup.requireAccount(company, accountId);
+    return accountingLookupService.requireAccount(company, accountId);
   }
 
   Account requireCashAccountForSettlement(Company company, Long accountId, String operation) {
@@ -136,7 +143,8 @@ class AccountResolutionService {
     if (account == null) {
       return false;
     }
-    String code = account.getCode() == null ? "" : account.getCode().trim().toUpperCase(Locale.ROOT);
+    String code =
+        account.getCode() == null ? "" : account.getCode().trim().toUpperCase(Locale.ROOT);
     return code.startsWith("AR") || code.contains("RECEIVABLE");
   }
 
@@ -144,7 +152,8 @@ class AccountResolutionService {
     if (account == null) {
       return false;
     }
-    String code = account.getCode() == null ? "" : account.getCode().trim().toUpperCase(Locale.ROOT);
+    String code =
+        account.getCode() == null ? "" : account.getCode().trim().toUpperCase(Locale.ROOT);
     return code.startsWith("AP") || code.contains("PAYABLE");
   }
 

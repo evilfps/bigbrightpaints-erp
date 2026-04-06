@@ -4,8 +4,8 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -349,10 +349,15 @@ public class SecurityMonitoringService {
     // Clean up expired blocks
     blockedUsers.entrySet().removeIf(entry -> entry.getValue().isBefore(now));
     blockedIPs.entrySet().removeIf(entry -> entry.getValue().isBefore(now));
-    suspiciousActivityNotificationTimes.entrySet().removeIf(
-        entry ->
-            suspiciousActivityAlertWindowMinutes <= 0
-                || !entry.getValue().plusMinutes(suspiciousActivityAlertWindowMinutes).isAfter(now));
+    suspiciousActivityNotificationTimes
+        .entrySet()
+        .removeIf(
+            entry ->
+                suspiciousActivityAlertWindowMinutes <= 0
+                    || !entry
+                        .getValue()
+                        .plusMinutes(suspiciousActivityAlertWindowMinutes)
+                        .isAfter(now));
 
     // Clean up old failed login attempts
     // In a production implementation, you would track timestamps for each attempt

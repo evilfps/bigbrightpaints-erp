@@ -562,17 +562,17 @@ class InvoiceServiceTest {
     firstSlip.setSalesOrder(firstOrder);
     firstSlip.setSlipNumber("PS-201");
     firstSlip.setStatus("DISPATCHED");
+    firstSlip.setInvoiceId(11L);
 
     PackagingSlip secondSlip = new PackagingSlip();
     ReflectionTestUtils.setField(secondSlip, "id", 202L);
     secondSlip.setSalesOrder(secondOrder);
     secondSlip.setSlipNumber("PS-202");
     secondSlip.setStatus("DISPATCHED");
+    secondSlip.setInvoiceId(12L);
 
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderIdIn(company, List.of(101L, 102L)))
         .thenReturn(List.of(firstSlip, secondSlip));
-    when(invoiceRepository.findByCompanyAndSalesOrder_IdIn(company, List.of(101L, 102L)))
-        .thenReturn(List.of(firstInvoice, secondInvoice));
 
     com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation allocation =
         new com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation();
@@ -594,11 +594,12 @@ class InvoiceServiceTest {
         .contains("SOURCE_ORDER", "DISPATCH", "SETTLEMENT");
 
     verify(packagingSlipRepository).findAllByCompanyAndSalesOrderIdIn(company, List.of(101L, 102L));
-    verify(invoiceRepository).findByCompanyAndSalesOrder_IdIn(company, List.of(101L, 102L));
     verify(settlementAllocationRepository)
         .findByCompanyAndInvoice_IdInOrderByCreatedAtDesc(company, List.of(11L, 12L));
     verify(packagingSlipRepository, org.mockito.Mockito.never())
         .findAllByCompanyAndSalesOrderId(any(), anyLong());
+    verify(invoiceRepository, org.mockito.Mockito.never())
+        .findByCompanyAndSalesOrder_IdIn(company, List.of(101L, 102L));
     verify(invoiceRepository, org.mockito.Mockito.never())
         .findAllByCompanyAndSalesOrderId(any(), anyLong());
     verify(settlementAllocationRepository, org.mockito.Mockito.never())
@@ -778,7 +779,7 @@ class InvoiceServiceTest {
   }
 
   @Test
-  void getInvoice_keepsSingleLegacyDispatchReferenceWhenLinkageIsUnambiguous() {
+  void getInvoice_omitsLegacyDispatchReferenceWithoutExplicitSlipInvoiceLink() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
 
     SalesOrder order = new SalesOrder();
@@ -810,8 +811,7 @@ class InvoiceServiceTest {
 
     assertThat(invoiceService.getInvoice(1812L).linkedReferences())
         .filteredOn(reference -> "DISPATCH".equals(reference.relationType()))
-        .extracting(LinkedBusinessReferenceDto::documentNumber)
-        .containsExactly("PS-1813");
+        .isEmpty();
   }
 
   @Test
@@ -858,7 +858,7 @@ class InvoiceServiceTest {
   }
 
   @Test
-  void getInvoice_keepsSingleLegacyDispatchReferenceWhenHistoricalInvoicesAreNotCurrent() {
+  void getInvoice_omitsLegacyDispatchReferenceWhenOnlyHistoricalFallbackWouldMatch() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
 
     SalesOrder order = new SalesOrder();
@@ -896,13 +896,12 @@ class InvoiceServiceTest {
 
       assertThat(invoiceService.getInvoice(1832L).linkedReferences())
           .filteredOn(reference -> "DISPATCH".equals(reference.relationType()))
-          .extracting(LinkedBusinessReferenceDto::documentNumber)
-          .containsExactly("PS-1833");
+          .isEmpty();
     }
   }
 
   @Test
-  void getInvoice_keepsLegacyDispatchWhenBatchInvoiceLookupReturnsNullForCurrentInvoice() {
+  void getInvoice_omitsLegacyDispatchWhenBatchInvoiceLookupReturnsNullForCurrentInvoice() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
 
     SalesOrder order = new SalesOrder();
@@ -934,8 +933,7 @@ class InvoiceServiceTest {
 
     assertThat(invoiceService.getInvoice(1842L).linkedReferences())
         .filteredOn(reference -> "DISPATCH".equals(reference.relationType()))
-        .extracting(LinkedBusinessReferenceDto::documentNumber)
-        .containsExactly("PS-1843");
+        .isEmpty();
   }
 
   @Test
@@ -1294,6 +1292,7 @@ class InvoiceServiceTest {
     slip.setSalesOrder(order);
     slip.setSlipNumber("PS-290");
     slip.setStatus("DISPATCHED");
+    slip.setInvoiceId(invoiceId);
 
     com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation allocation =
         new com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation();
@@ -1488,6 +1487,7 @@ class InvoiceServiceTest {
     cogsSlip.setSalesOrder(order);
     cogsSlip.setSlipNumber("PS-1607");
     cogsSlip.setStatus("DISPATCHED");
+    cogsSlip.setInvoiceId(1605L);
     cogsSlip.setCogsJournalEntryId(1707L);
 
     when(companyContextService.requireCurrentCompany()).thenReturn(company);

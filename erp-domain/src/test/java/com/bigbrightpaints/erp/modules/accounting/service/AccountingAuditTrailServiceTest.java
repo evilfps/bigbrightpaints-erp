@@ -588,6 +588,7 @@ class AccountingAuditTrailServiceTest {
     slip.setSalesOrder(order);
     slip.setSlipNumber("PS-402");
     slip.setStatus("DISPATCHED");
+    slip.setInvoiceId(502L);
     slip.setJournalEntryId(92L);
 
     PartnerSettlementAllocation allocation = new PartnerSettlementAllocation();
@@ -833,7 +834,7 @@ class AccountingAuditTrailServiceTest {
   }
 
   @Test
-  void transactionDetail_keepsLegacyDispatchWhenHistoricalInvoicesAreNotCurrent() {
+  void transactionDetail_omitsLegacyDispatchWhenOnlyHistoricalFallbackWouldMatch() {
     Company company = new Company();
     company.setCode("BBP");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
@@ -893,8 +894,7 @@ class AccountingAuditTrailServiceTest {
 
       assertThat(detail.linkedReferenceChain())
           .filteredOn(reference -> "DISPATCH".equals(reference.relationType()))
-          .extracting(LinkedBusinessReferenceDto::documentNumber)
-          .containsExactly("PS-696");
+          .isEmpty();
     }
   }
 
@@ -1788,6 +1788,7 @@ class AccountingAuditTrailServiceTest {
     slip.setSalesOrder(order);
     slip.setSlipNumber("PS-1002");
     slip.setStatus("DISPATCHED");
+    slip.setInvoiceId(1003L);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(scopedCompany, 1001L))
         .thenReturn(List.of(slip));
 

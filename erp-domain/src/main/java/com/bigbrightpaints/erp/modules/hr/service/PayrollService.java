@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -80,6 +81,7 @@ public class PayrollService {
   private final PayrollCalculationService payrollCalculationService;
   private final PayrollPostingService payrollPostingService;
 
+  @Autowired
   public PayrollService(
       PayrollRunRepository payrollRunRepository,
       PayrollRunLineRepository payrollRunLineRepository,

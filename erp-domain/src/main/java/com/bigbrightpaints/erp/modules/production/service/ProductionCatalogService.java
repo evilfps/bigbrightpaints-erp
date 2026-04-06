@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -50,6 +51,7 @@ import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.CostingMethodUtils;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
@@ -139,7 +141,8 @@ public class ProductionCatalogService {
   private final PackingRecordRepository packingRecordRepository;
   private final ProductionLogMaterialRepository productionLogMaterialRepository;
   private final SalesOrderItemRepository salesOrderItemRepository;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedProductionLookupService productionLookupService;
+  private final CompanyScopedAccountingLookupService accountingLookupService;
   private final CompanyDefaultAccountsService companyDefaultAccountsService;
   private final CatalogImportRepository catalogImportRepository;
   private final AuditService auditService;
@@ -148,6 +151,61 @@ public class ProductionCatalogService {
   private final TransactionTemplate rowTransactionTemplate;
   private final IdempotencyReservationService idempotencyReservationService =
       new IdempotencyReservationService();
+
+  @Autowired
+  public ProductionCatalogService(
+      CompanyContextService companyContextService,
+      ProductionBrandRepository brandRepository,
+      ProductionProductRepository productRepository,
+      FinishedGoodRepository finishedGoodRepository,
+      RawMaterialRepository rawMaterialRepository,
+      FinishedGoodBatchRepository finishedGoodBatchRepository,
+      InventoryMovementRepository inventoryMovementRepository,
+      InventoryReservationRepository inventoryReservationRepository,
+      RawMaterialBatchRepository rawMaterialBatchRepository,
+      RawMaterialMovementRepository rawMaterialMovementRepository,
+      PurchaseOrderRepository purchaseOrderRepository,
+      GoodsReceiptRepository goodsReceiptRepository,
+      RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
+      PackagingSizeMappingRepository packagingSizeMappingRepository,
+      PackingRecordRepository packingRecordRepository,
+      ProductionLogMaterialRepository productionLogMaterialRepository,
+      SalesOrderItemRepository salesOrderItemRepository,
+      CompanyScopedProductionLookupService productionLookupService,
+      CompanyScopedAccountingLookupService accountingLookupService,
+      CompanyDefaultAccountsService companyDefaultAccountsService,
+      CatalogImportRepository catalogImportRepository,
+      AuditService auditService,
+      SkuReadinessService skuReadinessService,
+      PlatformTransactionManager transactionManager) {
+    this.companyContextService = companyContextService;
+    this.brandRepository = brandRepository;
+    this.productRepository = productRepository;
+    this.finishedGoodRepository = finishedGoodRepository;
+    this.rawMaterialRepository = rawMaterialRepository;
+    this.finishedGoodBatchRepository = finishedGoodBatchRepository;
+    this.inventoryMovementRepository = inventoryMovementRepository;
+    this.inventoryReservationRepository = inventoryReservationRepository;
+    this.rawMaterialBatchRepository = rawMaterialBatchRepository;
+    this.rawMaterialMovementRepository = rawMaterialMovementRepository;
+    this.purchaseOrderRepository = purchaseOrderRepository;
+    this.goodsReceiptRepository = goodsReceiptRepository;
+    this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
+    this.packagingSizeMappingRepository = packagingSizeMappingRepository;
+    this.packingRecordRepository = packingRecordRepository;
+    this.productionLogMaterialRepository = productionLogMaterialRepository;
+    this.salesOrderItemRepository = salesOrderItemRepository;
+    this.productionLookupService = productionLookupService;
+    this.accountingLookupService = accountingLookupService;
+    this.companyDefaultAccountsService = companyDefaultAccountsService;
+    this.catalogImportRepository = catalogImportRepository;
+    this.auditService = auditService;
+    this.skuReadinessService = skuReadinessService;
+    this.transactionTemplate = new TransactionTemplate(transactionManager);
+    this.rowTransactionTemplate = new TransactionTemplate(transactionManager);
+    this.rowTransactionTemplate.setPropagationBehavior(
+        TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+  }
 
   public ProductionCatalogService(
       CompanyContextService companyContextService,
@@ -173,32 +231,31 @@ public class ProductionCatalogService {
       AuditService auditService,
       SkuReadinessService skuReadinessService,
       PlatformTransactionManager transactionManager) {
-    this.companyContextService = companyContextService;
-    this.brandRepository = brandRepository;
-    this.productRepository = productRepository;
-    this.finishedGoodRepository = finishedGoodRepository;
-    this.rawMaterialRepository = rawMaterialRepository;
-    this.finishedGoodBatchRepository = finishedGoodBatchRepository;
-    this.inventoryMovementRepository = inventoryMovementRepository;
-    this.inventoryReservationRepository = inventoryReservationRepository;
-    this.rawMaterialBatchRepository = rawMaterialBatchRepository;
-    this.rawMaterialMovementRepository = rawMaterialMovementRepository;
-    this.purchaseOrderRepository = purchaseOrderRepository;
-    this.goodsReceiptRepository = goodsReceiptRepository;
-    this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
-    this.packagingSizeMappingRepository = packagingSizeMappingRepository;
-    this.packingRecordRepository = packingRecordRepository;
-    this.productionLogMaterialRepository = productionLogMaterialRepository;
-    this.salesOrderItemRepository = salesOrderItemRepository;
-    this.companyEntityLookup = companyEntityLookup;
-    this.companyDefaultAccountsService = companyDefaultAccountsService;
-    this.catalogImportRepository = catalogImportRepository;
-    this.auditService = auditService;
-    this.skuReadinessService = skuReadinessService;
-    this.transactionTemplate = new TransactionTemplate(transactionManager);
-    this.rowTransactionTemplate = new TransactionTemplate(transactionManager);
-    this.rowTransactionTemplate.setPropagationBehavior(
-        TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    this(
+        companyContextService,
+        brandRepository,
+        productRepository,
+        finishedGoodRepository,
+        rawMaterialRepository,
+        finishedGoodBatchRepository,
+        inventoryMovementRepository,
+        inventoryReservationRepository,
+        rawMaterialBatchRepository,
+        rawMaterialMovementRepository,
+        purchaseOrderRepository,
+        goodsReceiptRepository,
+        rawMaterialPurchaseRepository,
+        packagingSizeMappingRepository,
+        packingRecordRepository,
+        productionLogMaterialRepository,
+        salesOrderItemRepository,
+        CompanyScopedProductionLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
+        companyDefaultAccountsService,
+        catalogImportRepository,
+        auditService,
+        skuReadinessService,
+        transactionManager);
   }
 
   public CatalogImportResponse importCatalog(MultipartFile file) {
@@ -780,7 +837,8 @@ public class ProductionCatalogService {
   @Transactional
   public ProductionProductDto updateCatalogItem(Long productId, CatalogItemUpdateCommand request) {
     Company company = companyContextService.requireCurrentCompany();
-    ProductionProduct product = companyEntityLookup.requireProductionProduct(company, productId);
+    ProductionProduct product =
+        productionLookupService.requireProductionProduct(company, productId);
     String currentItemClass = itemClassForProduct(product);
     if (StringUtils.hasText(request.productName())) {
       product.setProductName(
@@ -1148,7 +1206,7 @@ public class ProductionCatalogService {
   private BrandResolution resolveBrand(
       Company company, Long brandId, String brandName, String providedCode) {
     if (brandId != null) {
-      ProductionBrand brand = companyEntityLookup.requireProductionBrand(company, brandId);
+      ProductionBrand brand = productionLookupService.requireProductionBrand(company, brandId);
       if (StringUtils.hasText(brandName) && !brandName.equalsIgnoreCase(brand.getName())) {
         brand.setName(brandName.trim());
       }
@@ -1434,7 +1492,7 @@ public class ProductionCatalogService {
       }
     }
     try {
-      Long validatedAccountId = companyEntityLookup.requireAccount(company, accountId).getId();
+      Long validatedAccountId = accountingLookupService.requireAccount(company, accountId).getId();
       if (validatedRawMaterialInventoryAccounts != null) {
         validatedRawMaterialInventoryAccounts.put(accountId, validatedAccountId);
       }
@@ -1461,7 +1519,7 @@ public class ProductionCatalogService {
       }
     }
     try {
-      Long validatedAccountId = companyEntityLookup.requireAccount(company, accountId).getId();
+      Long validatedAccountId = accountingLookupService.requireAccount(company, accountId).getId();
       if (validatedFinishedGoodAccounts != null) {
         validatedFinishedGoodAccounts.put(accountId, validatedAccountId);
       }

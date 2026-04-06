@@ -63,7 +63,8 @@ public class StatementReportControllerSupport {
   }
 
   GstReturnDto generateGstReturn(String period) {
-    return taxService.generateGstReturn(StringUtils.hasText(period) ? YearMonth.parse(period.trim()) : null);
+    return taxService.generateGstReturn(
+        StringUtils.hasText(period) ? YearMonth.parse(period.trim()) : null);
   }
 
   GstReconciliationDto getGstReconciliation(String period) {

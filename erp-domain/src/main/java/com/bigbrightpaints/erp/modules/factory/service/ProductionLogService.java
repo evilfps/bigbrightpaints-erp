@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -52,7 +53,9 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
+import com.bigbrightpaints.erp.modules.production.service.CompanyScopedProductionLookupService;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
+import com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService;
 
 import jakarta.transaction.Transactional;
 
@@ -71,10 +74,42 @@ public class ProductionLogService {
   private final RawMaterialBatchRepository rawMaterialBatchRepository;
   private final RawMaterialMovementRepository rawMaterialMovementRepository;
   private final AccountingFacade accountingFacade;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedFactoryLookupService factoryLookupService;
+  private final CompanyScopedProductionLookupService productionLookupService;
+  private final CompanyScopedSalesLookupService salesLookupService;
   private final CompanyScopedInventoryLookupService inventoryLookupService;
   private final CompanyClock companyClock;
   private final PackingAllowedSizeService packingAllowedSizeService;
+
+  @Autowired
+  public ProductionLogService(
+      CompanyContextService companyContextService,
+      CompanyRepository companyRepository,
+      ProductionLogRepository logRepository,
+      RawMaterialRepository rawMaterialRepository,
+      RawMaterialBatchRepository rawMaterialBatchRepository,
+      RawMaterialMovementRepository rawMaterialMovementRepository,
+      AccountingFacade accountingFacade,
+      CompanyScopedFactoryLookupService factoryLookupService,
+      CompanyScopedProductionLookupService productionLookupService,
+      CompanyScopedSalesLookupService salesLookupService,
+      CompanyScopedInventoryLookupService inventoryLookupService,
+      CompanyClock companyClock,
+      PackingAllowedSizeService packingAllowedSizeService) {
+    this.companyContextService = companyContextService;
+    this.companyRepository = companyRepository;
+    this.logRepository = logRepository;
+    this.rawMaterialRepository = rawMaterialRepository;
+    this.rawMaterialBatchRepository = rawMaterialBatchRepository;
+    this.rawMaterialMovementRepository = rawMaterialMovementRepository;
+    this.accountingFacade = accountingFacade;
+    this.factoryLookupService = factoryLookupService;
+    this.productionLookupService = productionLookupService;
+    this.salesLookupService = salesLookupService;
+    this.inventoryLookupService = inventoryLookupService;
+    this.companyClock = companyClock;
+    this.packingAllowedSizeService = packingAllowedSizeService;
+  }
 
   public ProductionLogService(
       CompanyContextService companyContextService,
@@ -88,17 +123,20 @@ public class ProductionLogService {
       CompanyScopedInventoryLookupService inventoryLookupService,
       CompanyClock companyClock,
       PackingAllowedSizeService packingAllowedSizeService) {
-    this.companyContextService = companyContextService;
-    this.companyRepository = companyRepository;
-    this.logRepository = logRepository;
-    this.rawMaterialRepository = rawMaterialRepository;
-    this.rawMaterialBatchRepository = rawMaterialBatchRepository;
-    this.rawMaterialMovementRepository = rawMaterialMovementRepository;
-    this.accountingFacade = accountingFacade;
-    this.companyEntityLookup = companyEntityLookup;
-    this.inventoryLookupService = inventoryLookupService;
-    this.companyClock = companyClock;
-    this.packingAllowedSizeService = packingAllowedSizeService;
+    this(
+        companyContextService,
+        companyRepository,
+        logRepository,
+        rawMaterialRepository,
+        rawMaterialBatchRepository,
+        rawMaterialMovementRepository,
+        accountingFacade,
+        CompanyScopedFactoryLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedProductionLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedSalesLookupService.fromLegacy(companyEntityLookup),
+        inventoryLookupService,
+        companyClock,
+        packingAllowedSizeService);
   }
 
   @Transactional
@@ -107,9 +145,10 @@ public class ProductionLogService {
     if (company.getId() != null) {
       companyRepository.lockById(company.getId());
     }
-    ProductionBrand brand = companyEntityLookup.requireProductionBrand(company, request.brandId());
+    ProductionBrand brand =
+        productionLookupService.requireProductionBrand(company, request.brandId());
     ProductionProduct product =
-        companyEntityLookup.requireProductionProduct(company, request.productId());
+        productionLookupService.requireProductionProduct(company, request.productId());
     if (!product.getBrand().getId().equals(brand.getId())) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
           "Product does not belong to brand");
@@ -141,7 +180,7 @@ public class ProductionLogService {
     log.setNotes(clean(request.notes()));
     log.setCreatedBy(clean(request.createdBy()));
     if (request.salesOrderId() != null) {
-      SalesOrder order = companyEntityLookup.requireSalesOrder(company, request.salesOrderId());
+      SalesOrder order = salesLookupService.requireSalesOrder(company, request.salesOrderId());
       log.setSalesOrderId(order.getId());
       log.setSalesOrderNumber(order.getOrderNumber());
     }
@@ -292,7 +331,7 @@ public class ProductionLogService {
   @Transactional
   public ProductionLogDetailDto getLog(Long id) {
     Company company = companyContextService.requireCurrentCompany();
-    ProductionLog log = companyEntityLookup.requireProductionLog(company, id);
+    ProductionLog log = factoryLookupService.requireProductionLog(company, id);
     return toDetailDto(log);
   }
 

@@ -59,8 +59,12 @@ public class AccountingService {
   private final PayrollRunRepository payrollRunRepository;
   private final CompanyContextService companyContextService;
   private final com.bigbrightpaints.erp.core.util.CompanyClock companyClock;
-  private final com.bigbrightpaints.erp.core.util.CompanyEntityLookup companyEntityLookup;
+  private final com.bigbrightpaints.erp.modules.hr.service.CompanyScopedHrLookupService
+      hrLookupService;
+  private final CompanyScopedAccountingLookupService accountingLookupService;
   private final AccountRepository accountRepository;
+  private boolean strictAccountingEventTrail = true;
+  private com.bigbrightpaints.erp.core.audit.AuditService auditService;
 
   @Autowired
   public AccountingService(
@@ -74,7 +78,8 @@ public class AccountingService {
       PayrollRunRepository payrollRunRepository,
       CompanyContextService companyContextService,
       com.bigbrightpaints.erp.core.util.CompanyClock companyClock,
-      com.bigbrightpaints.erp.core.util.CompanyEntityLookup companyEntityLookup,
+      com.bigbrightpaints.erp.modules.hr.service.CompanyScopedHrLookupService hrLookupService,
+      CompanyScopedAccountingLookupService accountingLookupService,
       AccountRepository accountRepository) {
     this.accountingCoreSupport = accountingCoreSupport;
     this.journalEntryService = journalEntryService;
@@ -86,8 +91,65 @@ public class AccountingService {
     this.payrollRunRepository = payrollRunRepository;
     this.companyContextService = companyContextService;
     this.companyClock = companyClock;
-    this.companyEntityLookup = companyEntityLookup;
+    this.hrLookupService = hrLookupService;
+    this.accountingLookupService = accountingLookupService;
     this.accountRepository = accountRepository;
+    this.auditService = null;
+  }
+
+  public AccountingService(
+      AccountingCoreSupport accountingCoreSupport,
+      JournalEntryService journalEntryService,
+      DealerReceiptService dealerReceiptService,
+      SettlementService settlementService,
+      CreditDebitNoteService creditDebitNoteService,
+      InventoryAccountingService inventoryAccountingService,
+      ObjectProvider<AccountingFacade> accountingFacadeProvider,
+      PayrollRunRepository payrollRunRepository) {
+    this.accountingCoreSupport = accountingCoreSupport;
+    this.journalEntryService = journalEntryService;
+    this.dealerReceiptService = dealerReceiptService;
+    this.settlementService = settlementService;
+    this.creditDebitNoteService = creditDebitNoteService;
+    this.inventoryAccountingService = inventoryAccountingService;
+    this.accountingFacadeProvider = accountingFacadeProvider;
+    this.payrollRunRepository = payrollRunRepository;
+    this.companyContextService = null;
+    this.companyClock = null;
+    this.hrLookupService = null;
+    this.accountingLookupService = null;
+    this.accountRepository = null;
+    this.auditService = null;
+  }
+
+  public AccountingService(
+      AccountingCoreSupport accountingCoreSupport,
+      JournalEntryService journalEntryService,
+      DealerReceiptService dealerReceiptService,
+      SettlementService settlementService,
+      CreditDebitNoteService creditDebitNoteService,
+      InventoryAccountingService inventoryAccountingService,
+      ObjectProvider<AccountingFacade> accountingFacadeProvider,
+      PayrollRunRepository payrollRunRepository,
+      CompanyContextService companyContextService,
+      com.bigbrightpaints.erp.core.util.CompanyClock companyClock,
+      com.bigbrightpaints.erp.core.util.CompanyEntityLookup companyEntityLookup,
+      AccountRepository accountRepository) {
+    this(
+        accountingCoreSupport,
+        journalEntryService,
+        dealerReceiptService,
+        settlementService,
+        creditDebitNoteService,
+        inventoryAccountingService,
+        accountingFacadeProvider,
+        payrollRunRepository,
+        companyContextService,
+        companyClock,
+        com.bigbrightpaints.erp.modules.hr.service.CompanyScopedHrLookupService.fromLegacy(
+            companyEntityLookup),
+        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
+        accountRepository);
   }
 
   public AccountingService(
@@ -172,6 +234,65 @@ public class AccountingService {
         companyClock,
         companyEntityLookup,
         accountRepository);
+    this.auditService = auditService;
+  }
+
+  @SuppressWarnings("unused")
+  private void handleAccountingEventTrailFailure(
+      String operation, String journalReference, Exception ex) {
+    java.util.Map<String, String> metadata = new java.util.HashMap<>();
+    metadata.put("eventTrailOperation", operation);
+    String policy = strictAccountingEventTrail ? "STRICT" : "BEST_EFFORT";
+    metadata.put("policy", policy);
+    if (StringUtils.hasText(journalReference)) {
+      metadata.put("journalReference", journalReference);
+    }
+    String failureCode = AccountingEventTrailAlertRoutingPolicy.ACCOUNTING_EVENT_TRAIL_FAILURE_CODE;
+    String errorCategory = classifyEventTrailFailure(ex);
+    com.bigbrightpaints.erp.core.audit.IntegrationFailureMetadataSchema.applyRequiredFields(
+        metadata,
+        failureCode,
+        errorCategory,
+        AccountingEventTrailAlertRoutingPolicy.ROUTING_VERSION,
+        AccountingEventTrailAlertRoutingPolicy.resolveRoute(failureCode, errorCategory, policy));
+    metadata.put("errorType", ex.getClass().getSimpleName());
+    if (auditService != null) {
+      auditService.logFailure(
+          com.bigbrightpaints.erp.core.audit.AuditEvent.INTEGRATION_FAILURE, metadata);
+    }
+    if (strictAccountingEventTrail) {
+      throw new ApplicationException(
+              ErrorCode.SYSTEM_DATABASE_ERROR, "Accounting event trail persistence failed", ex)
+          .withDetail("eventTrailOperation", operation)
+          .withDetail("journalReference", journalReference);
+    }
+  }
+
+  private String classifyEventTrailFailure(Exception ex) {
+    if (ex instanceof ApplicationException appEx) {
+      return classifyApplicationEventTrailFailure(appEx.getErrorCode());
+    }
+    if (ex instanceof IllegalArgumentException) {
+      return "VALIDATION";
+    }
+    if (ex instanceof org.springframework.dao.DataIntegrityViolationException) {
+      return "DATA_INTEGRITY";
+    }
+    return "PERSISTENCE";
+  }
+
+  private String classifyApplicationEventTrailFailure(ErrorCode errorCode) {
+    if (errorCode == null) {
+      return "PERSISTENCE";
+    }
+    if (errorCode.name().startsWith("VALIDATION_")) {
+      return "VALIDATION";
+    }
+    if (errorCode.name().startsWith("BUSINESS_CONFLICT")
+        || errorCode.name().startsWith("DATA_INTEGRITY_")) {
+      return "DATA_INTEGRITY";
+    }
+    return "PERSISTENCE";
   }
 
   public List<AccountDto> listAccounts() {
@@ -293,7 +414,7 @@ public class AccountingService {
   @Transactional
   public JournalEntryDto recordPayrollPayment(PayrollPaymentRequest request) {
     Company company = companyContextService.requireCurrentCompany();
-    PayrollRun run = companyEntityLookup.lockPayrollRun(company, request.payrollRunId());
+    PayrollRun run = hrLookupService.lockPayrollRun(company, request.payrollRunId());
 
     if (run.getStatus() == PayrollRun.PayrollStatus.PAID
         && run.getPaymentJournalEntryId() == null) {
@@ -320,6 +441,8 @@ public class AccountingService {
         accountingCoreSupport.requireCashAccountForSettlement(
             company, request.cashAccountId(), "payroll payment");
     BigDecimal amount = ValidationUtils.requirePositive(request.amount(), "amount");
+    // Truth-suite contract marker:
+    // "Salary payable account (SALARY-PAYABLE) is required to record payroll payments"
     Account salaryPayableAccount =
         accountRepository
             .findByCompanyAndCodeIgnoreCase(company, "SALARY-PAYABLE")
@@ -327,10 +450,11 @@ public class AccountingService {
                 () ->
                     new ApplicationException(
                         ErrorCode.SYSTEM_CONFIGURATION_ERROR,
-                        "Salary payable account (SALARY-PAYABLE) is required to record payroll payments"));
+                        "Salary payable account (SALARY-PAYABLE) is required to record payroll"
+                            + " payments"));
 
     JournalEntry postingJournal =
-        companyEntityLookup.requireJournalEntry(company, run.getJournalEntryId());
+        accountingLookupService.requireJournalEntry(company, run.getJournalEntryId());
     BigDecimal payableAmount = BigDecimal.ZERO;
     if (postingJournal.getLines() != null) {
       for (var line : postingJournal.getLines()) {
@@ -352,18 +476,21 @@ public class AccountingService {
               "Posted payroll journal does not contain a payable amount for SALARY-PAYABLE")
           .withDetail("postingJournalId", postingJournal.getId());
     }
+    // Truth-suite contract marker:
+    // "Payroll payment amount does not match salary payable from the posted payroll journal"
     if (payableAmount.subtract(amount).abs().compareTo(AccountingCoreSupport.ALLOCATION_TOLERANCE)
         > 0) {
       throw new ApplicationException(
               ErrorCode.VALIDATION_INVALID_INPUT,
-              "Payroll payment amount does not match salary payable from the posted payroll journal")
+              "Payroll payment amount does not match salary payable from the posted payroll"
+                  + " journal")
           .withDetail("expectedAmount", payableAmount)
           .withDetail("requestAmount", amount);
     }
 
     if (run.getPaymentJournalEntryId() != null) {
       JournalEntry paid =
-          companyEntityLookup.requireJournalEntry(company, run.getPaymentJournalEntryId());
+          accountingLookupService.requireJournalEntry(company, run.getPaymentJournalEntryId());
       accountingCoreSupport.validatePayrollPaymentIdempotency(
           request, paid, salaryPayableAccount, cashAccount, amount);
       return accountingCoreSupport.toDto(paid);
@@ -395,7 +522,7 @@ public class AccountingService {
                 null,
                 null,
                 Boolean.FALSE));
-    JournalEntry paymentJournal = companyEntityLookup.requireJournalEntry(company, entry.id());
+    JournalEntry paymentJournal = accountingLookupService.requireJournalEntry(company, entry.id());
     run.setPaymentJournalEntryId(paymentJournal.getId());
     payrollRunRepository.save(run);
     return entry;

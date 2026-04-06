@@ -20,8 +20,7 @@ class PeriodControllerCostingMethodEndpointsTest {
   void createOrUpdatePeriod_delegatesWithCostingMethod() {
     AccountingPeriodService periodService = mock(AccountingPeriodService.class);
     PeriodController controller = controller(periodService);
-    AccountingPeriodRequest request =
-        new AccountingPeriodRequest(2026, 2, CostingMethod.LIFO);
+    AccountingPeriodRequest request = new AccountingPeriodRequest(2026, 2, CostingMethod.LIFO);
     AccountingPeriodDto expected = dto(10L, "LIFO");
     when(periodService.createOrUpdatePeriod(request)).thenReturn(expected);
 
@@ -36,8 +35,7 @@ class PeriodControllerCostingMethodEndpointsTest {
   void updatePeriod_delegatesCostingMethodChange() {
     AccountingPeriodService periodService = mock(AccountingPeriodService.class);
     PeriodController controller = controller(periodService);
-    AccountingPeriodRequest request =
-        new AccountingPeriodRequest(CostingMethod.WEIGHTED_AVERAGE);
+    AccountingPeriodRequest request = new AccountingPeriodRequest(CostingMethod.WEIGHTED_AVERAGE);
     AccountingPeriodDto expected = dto(11L, "WEIGHTED_AVERAGE");
     when(periodService.updatePeriod(11L, request)).thenReturn(expected);
 

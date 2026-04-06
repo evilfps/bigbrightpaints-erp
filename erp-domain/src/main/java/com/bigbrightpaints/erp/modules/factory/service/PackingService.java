@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -46,7 +47,7 @@ public class PackingService {
   private final PackingRecordRepository packingRecordRepository;
   private final CompanyClock companyClock;
   private final AccountingFacade accountingFacade;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedFactoryLookupService factoryLookupService;
   private final PackagingMaterialService packagingMaterialService;
   private final PackingProductSupport packingProductSupport;
   private final PackingAllowedSizeService packingAllowedSizeService;
@@ -60,6 +61,44 @@ public class PackingService {
   private final PackingReadService packingReadService;
   private final IdempotencyReservationService idempotencyReservationService =
       new IdempotencyReservationService();
+
+  @Autowired
+  public PackingService(
+      CompanyContextService companyContextService,
+      ProductionLogRepository productionLogRepository,
+      PackingRecordRepository packingRecordRepository,
+      ProductionLogService productionLogService,
+      CompanyClock companyClock,
+      AccountingFacade accountingFacade,
+      CompanyScopedFactoryLookupService factoryLookupService,
+      PackagingMaterialService packagingMaterialService,
+      PackingProductSupport packingProductSupport,
+      PackingAllowedSizeService packingAllowedSizeService,
+      PackingLineResolver packingLineResolver,
+      PackingIdempotencyService packingIdempotencyService,
+      PackingInventoryService packingInventoryService,
+      PackingBatchService packingBatchService,
+      PackingJournalBuilder packingJournalBuilder,
+      PackingJournalLinkHelper packingJournalLinkHelper,
+      PackingReadService packingReadService) {
+    this.companyContextService = companyContextService;
+    this.productionLogRepository = productionLogRepository;
+    this.packingRecordRepository = packingRecordRepository;
+    this.productionLogService = productionLogService;
+    this.companyClock = companyClock;
+    this.accountingFacade = accountingFacade;
+    this.factoryLookupService = factoryLookupService;
+    this.packagingMaterialService = packagingMaterialService;
+    this.packingProductSupport = packingProductSupport;
+    this.packingAllowedSizeService = packingAllowedSizeService;
+    this.packingLineResolver = packingLineResolver;
+    this.packingIdempotencyService = packingIdempotencyService;
+    this.packingInventoryService = packingInventoryService;
+    this.packingBatchService = packingBatchService;
+    this.packingJournalBuilder = packingJournalBuilder;
+    this.packingJournalLinkHelper = packingJournalLinkHelper;
+    this.packingReadService = packingReadService;
+  }
 
   public PackingService(
       CompanyContextService companyContextService,
@@ -79,29 +118,30 @@ public class PackingService {
       PackingJournalBuilder packingJournalBuilder,
       PackingJournalLinkHelper packingJournalLinkHelper,
       PackingReadService packingReadService) {
-    this.companyContextService = companyContextService;
-    this.productionLogRepository = productionLogRepository;
-    this.packingRecordRepository = packingRecordRepository;
-    this.productionLogService = productionLogService;
-    this.companyClock = companyClock;
-    this.accountingFacade = accountingFacade;
-    this.companyEntityLookup = companyEntityLookup;
-    this.packagingMaterialService = packagingMaterialService;
-    this.packingProductSupport = packingProductSupport;
-    this.packingAllowedSizeService = packingAllowedSizeService;
-    this.packingLineResolver = packingLineResolver;
-    this.packingIdempotencyService = packingIdempotencyService;
-    this.packingInventoryService = packingInventoryService;
-    this.packingBatchService = packingBatchService;
-    this.packingJournalBuilder = packingJournalBuilder;
-    this.packingJournalLinkHelper = packingJournalLinkHelper;
-    this.packingReadService = packingReadService;
+    this(
+        companyContextService,
+        productionLogRepository,
+        packingRecordRepository,
+        productionLogService,
+        companyClock,
+        accountingFacade,
+        CompanyScopedFactoryLookupService.fromLegacy(companyEntityLookup),
+        packagingMaterialService,
+        packingProductSupport,
+        packingAllowedSizeService,
+        packingLineResolver,
+        packingIdempotencyService,
+        packingInventoryService,
+        packingBatchService,
+        packingJournalBuilder,
+        packingJournalLinkHelper,
+        packingReadService);
   }
 
   @Transactional
   public ProductionLogDetailDto recordPacking(PackingRequest request) {
     Company company = companyContextService.requireCurrentCompany();
-    ProductionLog log = companyEntityLookup.lockProductionLog(company, request.productionLogId());
+    ProductionLog log = factoryLookupService.lockProductionLog(company, request.productionLogId());
     validateLogAndRequest(log, request);
 
     LocalDate packedDate =
@@ -357,7 +397,7 @@ public class PackingService {
 
   private void updateLogState(Long logId, LocalDate packedDate, boolean closeResidualWastage) {
     Company company = companyContextService.requireCurrentCompany();
-    ProductionLog refreshedLog = companyEntityLookup.requireProductionLog(company, logId);
+    ProductionLog refreshedLog = factoryLookupService.requireProductionLog(company, logId);
     if (closeResidualWastage) {
       closeResidualWastage(refreshedLog, packedDate);
       return;

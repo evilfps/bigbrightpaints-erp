@@ -22,7 +22,6 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
@@ -46,6 +45,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.factory.service.CompanyScopedFactoryLookupService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
@@ -58,8 +58,10 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
+import com.bigbrightpaints.erp.modules.purchasing.service.CompanyScopedPurchasingLookupService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService;
 
 import jakarta.persistence.EntityManager;
 
@@ -82,7 +84,10 @@ class SettlementCoreSupport extends AccountingCoreSupport {
       ReferenceNumberService referenceNumberService,
       ApplicationEventPublisher eventPublisher,
       CompanyClock companyClock,
-      CompanyEntityLookup companyEntityLookup,
+      CompanyScopedAccountingLookupService accountingLookupService,
+      CompanyScopedSalesLookupService salesLookupService,
+      CompanyScopedPurchasingLookupService purchasingLookupService,
+      CompanyScopedFactoryLookupService factoryLookupService,
       PartnerSettlementAllocationRepository settlementAllocationRepository,
       RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
       InvoiceRepository invoiceRepository,
@@ -112,7 +117,10 @@ class SettlementCoreSupport extends AccountingCoreSupport {
         referenceNumberService,
         eventPublisher,
         companyClock,
-        companyEntityLookup,
+        accountingLookupService,
+        salesLookupService,
+        purchasingLookupService,
+        factoryLookupService,
         settlementAllocationRepository,
         rawMaterialPurchaseRepository,
         invoiceRepository,
@@ -130,6 +138,71 @@ class SettlementCoreSupport extends AccountingCoreSupport {
         accountingEventStore);
     this.journalEntryService = journalEntryService;
     this.dealerReceiptService = dealerReceiptService;
+  }
+
+  public SettlementCoreSupport(
+      CompanyContextService companyContextService,
+      AccountRepository accountRepository,
+      JournalEntryRepository journalEntryRepository,
+      DealerLedgerService dealerLedgerService,
+      SupplierLedgerService supplierLedgerService,
+      PayrollRunRepository payrollRunRepository,
+      PayrollRunLineRepository payrollRunLineRepository,
+      AccountingPeriodService accountingPeriodService,
+      ReferenceNumberService referenceNumberService,
+      ApplicationEventPublisher eventPublisher,
+      CompanyClock companyClock,
+      com.bigbrightpaints.erp.core.util.CompanyEntityLookup companyEntityLookup,
+      PartnerSettlementAllocationRepository settlementAllocationRepository,
+      RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
+      InvoiceRepository invoiceRepository,
+      RawMaterialMovementRepository rawMaterialMovementRepository,
+      RawMaterialBatchRepository rawMaterialBatchRepository,
+      FinishedGoodBatchRepository finishedGoodBatchRepository,
+      DealerRepository dealerRepository,
+      SupplierRepository supplierRepository,
+      InvoiceSettlementPolicy invoiceSettlementPolicy,
+      JournalReferenceResolver journalReferenceResolver,
+      JournalReferenceMappingRepository journalReferenceMappingRepository,
+      EntityManager entityManager,
+      SystemSettingsService systemSettingsService,
+      AuditService auditService,
+      AccountingEventStore accountingEventStore,
+      JournalEntryService journalEntryService,
+      DealerReceiptService dealerReceiptService) {
+    this(
+        companyContextService,
+        accountRepository,
+        journalEntryRepository,
+        dealerLedgerService,
+        supplierLedgerService,
+        payrollRunRepository,
+        payrollRunLineRepository,
+        accountingPeriodService,
+        referenceNumberService,
+        eventPublisher,
+        companyClock,
+        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedSalesLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedPurchasingLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedFactoryLookupService.fromLegacy(companyEntityLookup),
+        settlementAllocationRepository,
+        rawMaterialPurchaseRepository,
+        invoiceRepository,
+        rawMaterialMovementRepository,
+        rawMaterialBatchRepository,
+        finishedGoodBatchRepository,
+        dealerRepository,
+        supplierRepository,
+        invoiceSettlementPolicy,
+        journalReferenceResolver,
+        journalReferenceMappingRepository,
+        entityManager,
+        systemSettingsService,
+        auditService,
+        accountingEventStore,
+        journalEntryService,
+        dealerReceiptService);
   }
 
   @Retryable(
@@ -274,7 +347,7 @@ class SettlementCoreSupport extends AccountingCoreSupport {
                 new JournalEntryRequest.JournalLineRequest(
                     cashAccount.getId(), memo, BigDecimal.ZERO, amount)));
     JournalEntryDto entryDto = createJournalEntry(payload);
-    JournalEntry entry = companyEntityLookup.requireJournalEntry(company, entryDto.id());
+    JournalEntry entry = accountingLookupService.requireJournalEntry(company, entryDto.id());
     linkReferenceMapping(company, idempotencyKey, entry, ENTITY_TYPE_SUPPLIER_PAYMENT);
     existingAllocations = findAllocationsByIdempotencyKey(company, idempotencyKey);
     if (!existingAllocations.isEmpty()) {
@@ -671,7 +744,7 @@ class SettlementCoreSupport extends AccountingCoreSupport {
                 List.of()));
 
     JournalEntry journalEntry =
-        companyEntityLookup.requireJournalEntry(company, journalEntryDto.id());
+        accountingLookupService.requireJournalEntry(company, journalEntryDto.id());
     linkReferenceMapping(
         company, trimmedIdempotencyKey, journalEntry, ENTITY_TYPE_DEALER_SETTLEMENT);
     for (PartnerSettlementAllocation allocation : settlementRows) {
@@ -947,7 +1020,7 @@ class SettlementCoreSupport extends AccountingCoreSupport {
                 null,
                 List.of()));
     JournalEntry journalEntry =
-        companyEntityLookup.requireJournalEntry(company, journalEntryDto.id());
+        accountingLookupService.requireJournalEntry(company, journalEntryDto.id());
     linkReferenceMapping(
         company, trimmedIdempotencyKey, journalEntry, ENTITY_TYPE_SUPPLIER_SETTLEMENT);
     for (PartnerSettlementAllocation allocation : settlementRows) {

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,8 +39,22 @@ public class AttendanceService {
   private final CompanyContextService companyContextService;
   private final AttendanceRepository attendanceRepository;
   private final EmployeeRepository employeeRepository;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedHrLookupService hrLookupService;
   private final CompanyClock companyClock;
+
+  @Autowired
+  public AttendanceService(
+      CompanyContextService companyContextService,
+      AttendanceRepository attendanceRepository,
+      EmployeeRepository employeeRepository,
+      CompanyScopedHrLookupService hrLookupService,
+      CompanyClock companyClock) {
+    this.companyContextService = companyContextService;
+    this.attendanceRepository = attendanceRepository;
+    this.employeeRepository = employeeRepository;
+    this.hrLookupService = hrLookupService;
+    this.companyClock = companyClock;
+  }
 
   public AttendanceService(
       CompanyContextService companyContextService,
@@ -47,11 +62,12 @@ public class AttendanceService {
       EmployeeRepository employeeRepository,
       CompanyEntityLookup companyEntityLookup,
       CompanyClock companyClock) {
-    this.companyContextService = companyContextService;
-    this.attendanceRepository = attendanceRepository;
-    this.employeeRepository = employeeRepository;
-    this.companyEntityLookup = companyEntityLookup;
-    this.companyClock = companyClock;
+    this(
+        companyContextService,
+        attendanceRepository,
+        employeeRepository,
+        CompanyScopedHrLookupService.fromLegacy(companyEntityLookup),
+        companyClock);
   }
 
   public List<AttendanceDto> listAttendanceByDate(LocalDate date) {
@@ -68,7 +84,7 @@ public class AttendanceService {
     validateDateRange(startDate, endDate);
 
     Company company = companyContextService.requireCurrentCompany();
-    Employee employee = companyEntityLookup.requireEmployee(company, employeeId);
+    Employee employee = hrLookupService.requireEmployee(company, employeeId);
     return attendanceRepository
         .findByCompanyAndEmployeeAndAttendanceDateBetweenOrderByAttendanceDateAsc(
             company, employee, startDate, endDate)
@@ -84,7 +100,7 @@ public class AttendanceService {
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD, "Attendance request is required");
     }
     Company company = companyContextService.requireCurrentCompany();
-    Employee employee = companyEntityLookup.requireEmployee(company, employeeId);
+    Employee employee = hrLookupService.requireEmployee(company, employeeId);
     LocalDate date = request.date() != null ? request.date() : companyClock.today(company);
 
     Attendance attendance =

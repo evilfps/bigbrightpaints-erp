@@ -43,17 +43,17 @@ import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestStatu
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyStatus;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodDto;
-import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistDto;
-import com.bigbrightpaints.erp.modules.accounting.dto.PeriodStatusChangeRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistItemDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistUpdateRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.PeriodStatusChangeRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyModule;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -98,7 +98,7 @@ public class AccountingPeriodService {
   private final AccountingPeriodRepository accountingPeriodRepository;
   private final CompanyContextService companyContextService;
   private final JournalEntryRepository journalEntryRepository;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedAccountingLookupService accountingLookupService;
   private final JournalLineRepository journalLineRepository;
   private final AccountRepository accountRepository;
   private final CompanyClock companyClock;
@@ -120,6 +120,46 @@ public class AccountingPeriodService {
   @Autowired(required = false)
   private ClosedPeriodPostingExceptionService closedPeriodPostingExceptionService;
 
+  @Autowired
+  public AccountingPeriodService(
+      AccountingPeriodRepository accountingPeriodRepository,
+      CompanyContextService companyContextService,
+      JournalEntryRepository journalEntryRepository,
+      CompanyScopedAccountingLookupService accountingLookupService,
+      JournalLineRepository journalLineRepository,
+      AccountRepository accountRepository,
+      CompanyClock companyClock,
+      ReportService reportService,
+      ReconciliationService reconciliationService,
+      InvoiceRepository invoiceRepository,
+      GoodsReceiptRepository goodsReceiptRepository,
+      RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
+      PayrollRunRepository payrollRunRepository,
+      ReconciliationDiscrepancyRepository reconciliationDiscrepancyRepository,
+      PeriodCloseRequestRepository periodCloseRequestRepository,
+      ObjectProvider<AccountingFacade> accountingFacadeProvider,
+      PeriodCloseHook periodCloseHook,
+      AccountingPeriodSnapshotService snapshotService) {
+    this.accountingPeriodRepository = accountingPeriodRepository;
+    this.companyContextService = companyContextService;
+    this.journalEntryRepository = journalEntryRepository;
+    this.accountingLookupService = accountingLookupService;
+    this.journalLineRepository = journalLineRepository;
+    this.accountRepository = accountRepository;
+    this.companyClock = companyClock;
+    this.reportService = reportService;
+    this.reconciliationService = reconciliationService;
+    this.invoiceRepository = invoiceRepository;
+    this.goodsReceiptRepository = goodsReceiptRepository;
+    this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
+    this.payrollRunRepository = payrollRunRepository;
+    this.reconciliationDiscrepancyRepository = reconciliationDiscrepancyRepository;
+    this.periodCloseRequestRepository = periodCloseRequestRepository;
+    this.accountingFacadeProvider = accountingFacadeProvider;
+    this.periodCloseHook = periodCloseHook;
+    this.snapshotService = snapshotService;
+  }
+
   public AccountingPeriodService(
       AccountingPeriodRepository accountingPeriodRepository,
       CompanyContextService companyContextService,
@@ -139,24 +179,25 @@ public class AccountingPeriodService {
       ObjectProvider<AccountingFacade> accountingFacadeProvider,
       PeriodCloseHook periodCloseHook,
       AccountingPeriodSnapshotService snapshotService) {
-    this.accountingPeriodRepository = accountingPeriodRepository;
-    this.companyContextService = companyContextService;
-    this.journalEntryRepository = journalEntryRepository;
-    this.companyEntityLookup = companyEntityLookup;
-    this.journalLineRepository = journalLineRepository;
-    this.accountRepository = accountRepository;
-    this.companyClock = companyClock;
-    this.reportService = reportService;
-    this.reconciliationService = reconciliationService;
-    this.invoiceRepository = invoiceRepository;
-    this.goodsReceiptRepository = goodsReceiptRepository;
-    this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
-    this.payrollRunRepository = payrollRunRepository;
-    this.reconciliationDiscrepancyRepository = reconciliationDiscrepancyRepository;
-    this.periodCloseRequestRepository = periodCloseRequestRepository;
-    this.accountingFacadeProvider = accountingFacadeProvider;
-    this.periodCloseHook = periodCloseHook;
-    this.snapshotService = snapshotService;
+    this(
+        accountingPeriodRepository,
+        companyContextService,
+        journalEntryRepository,
+        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
+        journalLineRepository,
+        accountRepository,
+        companyClock,
+        reportService,
+        reconciliationService,
+        invoiceRepository,
+        goodsReceiptRepository,
+        rawMaterialPurchaseRepository,
+        payrollRunRepository,
+        reconciliationDiscrepancyRepository,
+        periodCloseRequestRepository,
+        accountingFacadeProvider,
+        periodCloseHook,
+        snapshotService);
   }
 
   public List<AccountingPeriodDto> listPeriods() {
@@ -169,7 +210,7 @@ public class AccountingPeriodService {
 
   public AccountingPeriodDto getPeriod(Long periodId) {
     Company company = companyContextService.requireCurrentCompany();
-    AccountingPeriod period = companyEntityLookup.requireAccountingPeriod(company, periodId);
+    AccountingPeriod period = accountingLookupService.requireAccountingPeriod(company, periodId);
     return toDto(period);
   }
 
@@ -912,7 +953,7 @@ public class AccountingPeriodService {
 
   private AccountingPeriod resolvePeriod(Company company, Long periodId, LocalDate referenceDate) {
     if (periodId != null) {
-      return companyEntityLookup.requireAccountingPeriod(company, periodId);
+      return accountingLookupService.requireAccountingPeriod(company, periodId);
     }
     LocalDate effectiveDate = referenceDate == null ? resolveCurrentDate(company) : referenceDate;
     return ensurePeriod(company, effectiveDate);
@@ -1046,7 +1087,7 @@ public class AccountingPeriodService {
 
   private AccountingPeriod resolvePeriod(Company company, Long periodId) {
     if (periodId != null) {
-      return companyEntityLookup.requireAccountingPeriod(company, periodId);
+      return accountingLookupService.requireAccountingPeriod(company, periodId);
     }
     return accountingPeriodRepository
         .findFirstByCompanyAndStatusOrderByStartDateDesc(company, AccountingPeriodStatus.OPEN)

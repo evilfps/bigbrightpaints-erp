@@ -79,7 +79,9 @@ class CriticalFixtureServiceTest {
         .when(productRepository.save(any(ProductionProduct.class)))
         .thenAnswer(invocation -> invocation.getArgument(0, ProductionProduct.class));
     org.mockito.Mockito.lenient()
-        .when(finishedGoodBatchRepository.existsByFinishedGoodAndBatchCodeIgnoreCase(any(), anyString()))
+        .when(
+            finishedGoodBatchRepository.existsByFinishedGoodAndBatchCodeIgnoreCase(
+                any(), anyString()))
         .thenReturn(true);
   }
 

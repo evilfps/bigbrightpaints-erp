@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -52,6 +53,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService;
 import com.bigbrightpaints.erp.modules.sales.util.SalesOrderReference;
 
 /**
@@ -128,7 +130,8 @@ public class AccountingFacade {
   private final DealerRepository dealerRepository;
   private final SupplierRepository supplierRepository;
   private final CompanyClock companyClock;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedSalesLookupService salesLookupService;
+  private final CompanyScopedAccountingLookupService accountingLookupService;
   private final CompanyAccountingSettingsService companyAccountingSettingsService;
   private final JournalReferenceResolver journalReferenceResolver;
   private final JournalReferenceMappingRepository journalReferenceMappingRepository;
@@ -140,6 +143,36 @@ public class AccountingFacade {
     boolean isExpired() {
       return System.currentTimeMillis() - cachedAt > CACHE_TTL_MILLIS;
     }
+  }
+
+  @Autowired
+  public AccountingFacade(
+      CompanyContextService companyContextService,
+      AccountRepository accountRepository,
+      AccountingService accountingService,
+      JournalEntryRepository journalEntryRepository,
+      ReferenceNumberService referenceNumberService,
+      DealerRepository dealerRepository,
+      SupplierRepository supplierRepository,
+      CompanyClock companyClock,
+      CompanyScopedSalesLookupService salesLookupService,
+      CompanyScopedAccountingLookupService accountingLookupService,
+      CompanyAccountingSettingsService companyAccountingSettingsService,
+      JournalReferenceResolver journalReferenceResolver,
+      JournalReferenceMappingRepository journalReferenceMappingRepository) {
+    this.companyContextService = companyContextService;
+    this.accountRepository = accountRepository;
+    this.accountingService = accountingService;
+    this.journalEntryRepository = journalEntryRepository;
+    this.referenceNumberService = referenceNumberService;
+    this.dealerRepository = dealerRepository;
+    this.supplierRepository = supplierRepository;
+    this.companyClock = companyClock;
+    this.salesLookupService = salesLookupService;
+    this.accountingLookupService = accountingLookupService;
+    this.companyAccountingSettingsService = companyAccountingSettingsService;
+    this.journalReferenceResolver = journalReferenceResolver;
+    this.journalReferenceMappingRepository = journalReferenceMappingRepository;
   }
 
   public AccountingFacade(
@@ -155,18 +188,20 @@ public class AccountingFacade {
       CompanyAccountingSettingsService companyAccountingSettingsService,
       JournalReferenceResolver journalReferenceResolver,
       JournalReferenceMappingRepository journalReferenceMappingRepository) {
-    this.companyContextService = companyContextService;
-    this.accountRepository = accountRepository;
-    this.accountingService = accountingService;
-    this.journalEntryRepository = journalEntryRepository;
-    this.referenceNumberService = referenceNumberService;
-    this.dealerRepository = dealerRepository;
-    this.supplierRepository = supplierRepository;
-    this.companyClock = companyClock;
-    this.companyEntityLookup = companyEntityLookup;
-    this.companyAccountingSettingsService = companyAccountingSettingsService;
-    this.journalReferenceResolver = journalReferenceResolver;
-    this.journalReferenceMappingRepository = journalReferenceMappingRepository;
+    this(
+        companyContextService,
+        accountRepository,
+        accountingService,
+        journalEntryRepository,
+        referenceNumberService,
+        dealerRepository,
+        supplierRepository,
+        companyClock,
+        CompanyScopedSalesLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
+        companyAccountingSettingsService,
+        journalReferenceResolver,
+        journalReferenceMappingRepository);
   }
 
   /**
@@ -244,7 +279,7 @@ public class AccountingFacade {
     Objects.requireNonNull(totalAmount, "Total amount is required");
 
     Company company = companyContextService.requireCurrentCompany();
-    Dealer dealer = companyEntityLookup.requireDealer(company, dealerId);
+    Dealer dealer = salesLookupService.requireDealer(company, dealerId);
 
     // Validate dealer has receivable account
     if (dealer.getReceivableAccount() == null) {
@@ -355,7 +390,7 @@ public class AccountingFacade {
       JournalEntryDto replay = createStandardJournal(request);
       JournalEntry mappedEntry = existing.get();
       if (replay != null && replay.id() != null) {
-        mappedEntry = companyEntityLookup.requireJournalEntry(company, replay.id());
+        mappedEntry = accountingLookupService.requireJournalEntry(company, replay.id());
       }
       ensureSalesJournalReferenceMapping(company, mappedEntry, canonicalReference, aliasReference);
       return replay;
@@ -369,7 +404,7 @@ public class AccountingFacade {
 
     JournalEntryDto created = createStandardJournal(request);
     if (created != null && created.id() != null) {
-      JournalEntry entry = companyEntityLookup.requireJournalEntry(company, created.id());
+      JournalEntry entry = accountingLookupService.requireJournalEntry(company, created.id());
       ensureSalesJournalReferenceMapping(company, entry, canonicalReference, aliasReference);
     }
     return created;
@@ -561,7 +596,7 @@ public class AccountingFacade {
         totalAmount);
 
     JournalEntryDto entry = createStandardJournal(request);
-    JournalEntry saved = companyEntityLookup.requireJournalEntry(company, entry.id());
+    JournalEntry saved = accountingLookupService.requireJournalEntry(company, entry.id());
     ensurePurchaseReferenceMapping(company, baseReference, saved);
     return entry;
   }
@@ -1183,7 +1218,7 @@ public class AccountingFacade {
     Objects.requireNonNull(totalAmount, "Total amount is required");
 
     Company company = companyContextService.requireCurrentCompany();
-    Dealer dealer = companyEntityLookup.requireDealer(company, dealerId);
+    Dealer dealer = salesLookupService.requireDealer(company, dealerId);
 
     if (dealer.getReceivableAccount() == null) {
       throw new ApplicationException(
@@ -2149,7 +2184,7 @@ public class AccountingFacade {
 
   private Account fetchAccount(Company company, Long accountId, String accountType) {
     try {
-      return companyEntityLookup.requireAccount(company, accountId);
+      return accountingLookupService.requireAccount(company, accountId);
     } catch (IllegalArgumentException ex) {
       throw new ApplicationException(
               ErrorCode.BUSINESS_ENTITY_NOT_FOUND, accountType + " not found")

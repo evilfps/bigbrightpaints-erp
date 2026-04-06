@@ -22,6 +22,8 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryReversalRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalListItemDto;
+import com.bigbrightpaints.erp.modules.purchasing.service.CompanyScopedPurchasingLookupService;
+import com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 @Service
@@ -108,8 +110,19 @@ public class JournalEntryService {
             systemSettingsService,
             auditService,
             accountingEventStore);
+    CompanyScopedAccountingLookupService accountingLookupService =
+        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup);
+    CompanyScopedSalesLookupService salesLookupService =
+        CompanyScopedSalesLookupService.fromLegacy(companyEntityLookup);
+    CompanyScopedPurchasingLookupService purchasingLookupService =
+        CompanyScopedPurchasingLookupService.fromLegacy(companyEntityLookup);
     AccountResolutionService accountResolutionService =
-        new AccountResolutionService(companyEntityLookup, accountRepository, companyClock);
+        new AccountResolutionService(
+            salesLookupService,
+            purchasingLookupService,
+            accountingLookupService,
+            accountRepository,
+            companyClock);
     AccountingDtoMapperService accountingDtoMapperService =
         new AccountingDtoMapperService(journalReferenceMappingRepository);
     return new LegacyBundle(

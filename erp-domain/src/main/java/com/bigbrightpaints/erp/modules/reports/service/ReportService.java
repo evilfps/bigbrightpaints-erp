@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +39,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -52,6 +54,7 @@ import com.bigbrightpaints.erp.modules.factory.dto.MonthlyProductionCostDto;
 import com.bigbrightpaints.erp.modules.factory.dto.PackedBatchTraceDto;
 import com.bigbrightpaints.erp.modules.factory.dto.RawMaterialTraceDto;
 import com.bigbrightpaints.erp.modules.factory.dto.WastageReportDto;
+import com.bigbrightpaints.erp.modules.factory.service.CompanyScopedFactoryLookupService;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovement;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryMovementRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
@@ -84,7 +87,8 @@ public class ReportService {
   private final PackingRecordRepository packingRecordRepository;
   private final InventoryMovementRepository inventoryMovementRepository;
   private final RawMaterialMovementRepository rawMaterialMovementRepository;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedAccountingLookupService accountingLookupService;
+  private final CompanyScopedFactoryLookupService factoryLookupService;
   private final CompanyClock companyClock;
   private final InventoryValuationQueryService inventoryValuationService;
   private final TrialBalanceReportQueryService trialBalanceReportQueryService;
@@ -95,6 +99,60 @@ public class ReportService {
   private final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
   private final GstService gstService;
   private static final BigDecimal BALANCE_TOLERANCE = new BigDecimal("0.01");
+
+  @Autowired
+  public ReportService(
+      CompanyContextService companyContextService,
+      AccountRepository accountRepository,
+      AccountingPeriodRepository accountingPeriodRepository,
+      AccountingPeriodSnapshotRepository snapshotRepository,
+      AccountingPeriodTrialBalanceLineRepository snapshotLineRepository,
+      DealerRepository dealerRepository,
+      DealerLedgerService dealerLedgerService,
+      DealerLedgerRepository dealerLedgerRepository,
+      JournalEntryRepository journalEntryRepository,
+      JournalLineRepository journalLineRepository,
+      ProductionLogRepository productionLogRepository,
+      PackingRecordRepository packingRecordRepository,
+      InventoryMovementRepository inventoryMovementRepository,
+      RawMaterialMovementRepository rawMaterialMovementRepository,
+      CompanyScopedAccountingLookupService accountingLookupService,
+      CompanyScopedFactoryLookupService factoryLookupService,
+      CompanyClock companyClock,
+      InventoryValuationQueryService inventoryValuationService,
+      TrialBalanceReportQueryService trialBalanceReportQueryService,
+      ProfitLossReportQueryService profitLossReportQueryService,
+      BalanceSheetReportQueryService balanceSheetReportQueryService,
+      AgedDebtorsReportQueryService agedDebtorsReportQueryService,
+      InvoiceRepository invoiceRepository,
+      RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
+      GstService gstService) {
+    this.companyContextService = companyContextService;
+    this.accountRepository = accountRepository;
+    this.accountingPeriodRepository = accountingPeriodRepository;
+    this.snapshotRepository = snapshotRepository;
+    this.snapshotLineRepository = snapshotLineRepository;
+    this.dealerRepository = dealerRepository;
+    this.dealerLedgerService = dealerLedgerService;
+    this.dealerLedgerRepository = dealerLedgerRepository;
+    this.journalEntryRepository = journalEntryRepository;
+    this.journalLineRepository = journalLineRepository;
+    this.productionLogRepository = productionLogRepository;
+    this.packingRecordRepository = packingRecordRepository;
+    this.inventoryMovementRepository = inventoryMovementRepository;
+    this.rawMaterialMovementRepository = rawMaterialMovementRepository;
+    this.accountingLookupService = accountingLookupService;
+    this.factoryLookupService = factoryLookupService;
+    this.companyClock = companyClock;
+    this.inventoryValuationService = inventoryValuationService;
+    this.trialBalanceReportQueryService = trialBalanceReportQueryService;
+    this.profitLossReportQueryService = profitLossReportQueryService;
+    this.balanceSheetReportQueryService = balanceSheetReportQueryService;
+    this.agedDebtorsReportQueryService = agedDebtorsReportQueryService;
+    this.invoiceRepository = invoiceRepository;
+    this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
+    this.gstService = gstService;
+  }
 
   public ReportService(
       CompanyContextService companyContextService,
@@ -121,30 +179,32 @@ public class ReportService {
       InvoiceRepository invoiceRepository,
       RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
       GstService gstService) {
-    this.companyContextService = companyContextService;
-    this.accountRepository = accountRepository;
-    this.accountingPeriodRepository = accountingPeriodRepository;
-    this.snapshotRepository = snapshotRepository;
-    this.snapshotLineRepository = snapshotLineRepository;
-    this.dealerRepository = dealerRepository;
-    this.dealerLedgerService = dealerLedgerService;
-    this.dealerLedgerRepository = dealerLedgerRepository;
-    this.journalEntryRepository = journalEntryRepository;
-    this.journalLineRepository = journalLineRepository;
-    this.productionLogRepository = productionLogRepository;
-    this.packingRecordRepository = packingRecordRepository;
-    this.inventoryMovementRepository = inventoryMovementRepository;
-    this.rawMaterialMovementRepository = rawMaterialMovementRepository;
-    this.companyEntityLookup = companyEntityLookup;
-    this.companyClock = companyClock;
-    this.inventoryValuationService = inventoryValuationService;
-    this.trialBalanceReportQueryService = trialBalanceReportQueryService;
-    this.profitLossReportQueryService = profitLossReportQueryService;
-    this.balanceSheetReportQueryService = balanceSheetReportQueryService;
-    this.agedDebtorsReportQueryService = agedDebtorsReportQueryService;
-    this.invoiceRepository = invoiceRepository;
-    this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
-    this.gstService = gstService;
+    this(
+        companyContextService,
+        accountRepository,
+        accountingPeriodRepository,
+        snapshotRepository,
+        snapshotLineRepository,
+        dealerRepository,
+        dealerLedgerService,
+        dealerLedgerRepository,
+        journalEntryRepository,
+        journalLineRepository,
+        productionLogRepository,
+        packingRecordRepository,
+        inventoryMovementRepository,
+        rawMaterialMovementRepository,
+        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedFactoryLookupService.fromLegacy(companyEntityLookup),
+        companyClock,
+        inventoryValuationService,
+        trialBalanceReportQueryService,
+        profitLossReportQueryService,
+        balanceSheetReportQueryService,
+        agedDebtorsReportQueryService,
+        invoiceRepository,
+        rawMaterialPurchaseRepository,
+        gstService);
   }
 
   @Transactional(readOnly = true)
@@ -746,7 +806,7 @@ public class ReportService {
   public ReconciliationDashboardDto reconciliationDashboard(
       Long bankAccountId, BigDecimal statementBalance) {
     Company company = companyContextService.requireCurrentCompany();
-    Account bankAccount = companyEntityLookup.requireAccount(company, bankAccountId);
+    Account bankAccount = accountingLookupService.requireAccount(company, bankAccountId);
     InventoryValuationQueryService.InventorySnapshot totals =
         inventoryValuationService.currentSnapshot(company);
     BigDecimal ledgerInventoryBalance = resolveInventoryLedgerBalance(company);
@@ -1202,7 +1262,7 @@ public class ReportService {
   private BigDecimal resolveInventoryLedgerBalance(Company company) {
     Long defaultInventoryAccountId = company.getDefaultInventoryAccountId();
     if (defaultInventoryAccountId != null) {
-      Account account = companyEntityLookup.requireAccount(company, defaultInventoryAccountId);
+      Account account = accountingLookupService.requireAccount(company, defaultInventoryAccountId);
       return safe(account.getBalance());
     }
     return accountRepository.findByCompanyOrderByCodeAsc(company).stream()
@@ -1258,7 +1318,7 @@ public class ReportService {
   @Transactional(readOnly = true)
   public CostBreakdownDto costBreakdown(Long productionLogId) {
     Company company = companyContextService.requireCurrentCompany();
-    ProductionLog log = companyEntityLookup.requireProductionLog(company, productionLogId);
+    ProductionLog log = factoryLookupService.requireProductionLog(company, productionLogId);
 
     BigDecimal materialCost = safe(log.getMaterialCostTotal());
     BigDecimal laborCost = safe(log.getLaborCostTotal());

@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -19,7 +20,6 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -28,6 +28,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest.JournalLineRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.Attendance;
@@ -75,10 +76,12 @@ public class PayrollPostingService {
   private final AccountingService accountingService;
   private final AccountRepository accountRepository;
   private final CompanyContextService companyContextService;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedHrLookupService hrLookupService;
+  private final CompanyScopedAccountingLookupService accountingLookupService;
   private final CompanyClock companyClock;
   private final AuditService auditService;
 
+  @Autowired
   public PayrollPostingService(
       PayrollRunRepository payrollRunRepository,
       PayrollRunLineRepository payrollRunLineRepository,
@@ -87,7 +90,8 @@ public class PayrollPostingService {
       AccountingService accountingService,
       AccountRepository accountRepository,
       CompanyContextService companyContextService,
-      CompanyEntityLookup companyEntityLookup,
+      CompanyScopedHrLookupService hrLookupService,
+      CompanyScopedAccountingLookupService accountingLookupService,
       CompanyClock companyClock,
       AuditService auditService) {
     this.payrollRunRepository = payrollRunRepository;
@@ -97,9 +101,35 @@ public class PayrollPostingService {
     this.accountingService = accountingService;
     this.accountRepository = accountRepository;
     this.companyContextService = companyContextService;
-    this.companyEntityLookup = companyEntityLookup;
+    this.hrLookupService = hrLookupService;
+    this.accountingLookupService = accountingLookupService;
     this.companyClock = companyClock;
     this.auditService = auditService;
+  }
+
+  public PayrollPostingService(
+      PayrollRunRepository payrollRunRepository,
+      PayrollRunLineRepository payrollRunLineRepository,
+      EmployeeRepository employeeRepository,
+      AttendanceRepository attendanceRepository,
+      AccountingService accountingService,
+      AccountRepository accountRepository,
+      CompanyContextService companyContextService,
+      com.bigbrightpaints.erp.core.util.CompanyEntityLookup companyEntityLookup,
+      CompanyClock companyClock,
+      AuditService auditService) {
+    this(
+        payrollRunRepository,
+        payrollRunLineRepository,
+        employeeRepository,
+        attendanceRepository,
+        accountingService,
+        accountRepository,
+        companyContextService,
+        CompanyScopedHrLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
+        companyClock,
+        auditService);
   }
 
   @Transactional
@@ -138,7 +168,7 @@ public class PayrollPostingService {
   @Transactional
   public PayrollRunDto postPayrollToAccounting(Long payrollRunId) {
     Company company = companyContextService.requireCurrentCompany();
-    PayrollRun run = companyEntityLookup.lockPayrollRun(company, payrollRunId);
+    PayrollRun run = hrLookupService.lockPayrollRun(company, payrollRunId);
     boolean hasPostingJournalLink = hasPostingJournalLink(run);
     boolean statusPosted = run.getStatus() == PayrollRun.PayrollStatus.POSTED;
 
@@ -298,7 +328,7 @@ public class PayrollPostingService {
       updated = true;
     }
     if (run.getJournalEntry() == null) {
-      run.setJournalEntry(companyEntityLookup.requireJournalEntry(company, journal.id()));
+      run.setJournalEntry(accountingLookupService.requireJournalEntry(company, journal.id()));
       updated = true;
     }
     if (run.getStatus() != PayrollRun.PayrollStatus.POSTED) {
@@ -362,7 +392,7 @@ public class PayrollPostingService {
   @Transactional
   public PayrollRunDto markAsPaid(Long payrollRunId, String paymentReference) {
     Company company = companyContextService.requireCurrentCompany();
-    PayrollRun run = companyEntityLookup.lockPayrollRun(company, payrollRunId);
+    PayrollRun run = hrLookupService.lockPayrollRun(company, payrollRunId);
 
     if (run.getPaymentJournalEntryId() == null) {
       throw new ApplicationException(
@@ -372,7 +402,7 @@ public class PayrollPostingService {
     }
 
     var paymentJournal =
-        companyEntityLookup.requireJournalEntry(company, run.getPaymentJournalEntryId());
+        accountingLookupService.requireJournalEntry(company, run.getPaymentJournalEntryId());
     String canonicalPaymentReference = paymentJournal.getReferenceNumber();
     if (!StringUtils.hasText(canonicalPaymentReference)) {
       throw new ApplicationException(

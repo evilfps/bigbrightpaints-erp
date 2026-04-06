@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -22,6 +23,7 @@ import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -68,13 +70,51 @@ public class PurchaseInvoiceEngine {
   private final AccountingFacade accountingFacade;
   private final CompanyScopedPurchasingLookupService purchasingLookupService;
   private final CompanyScopedInventoryLookupService inventoryLookupService;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedAccountingLookupService accountingLookupService;
   private final ReferenceNumberService referenceNumberService;
   private final CompanyClock companyClock;
   private final GstService gstService;
   private final PurchaseResponseMapper responseMapper;
   private final PurchaseTaxPolicy purchaseTaxPolicy;
   private PurchaseOrderService purchaseOrderService;
+
+  @Autowired
+  public PurchaseInvoiceEngine(
+      CompanyContextService companyContextService,
+      RawMaterialPurchaseRepository purchaseRepository,
+      PurchaseOrderRepository purchaseOrderRepository,
+      GoodsReceiptRepository goodsReceiptRepository,
+      RawMaterialRepository rawMaterialRepository,
+      RawMaterialBatchRepository rawMaterialBatchRepository,
+      RawMaterialService rawMaterialService,
+      RawMaterialMovementRepository movementRepository,
+      AccountingFacade accountingFacade,
+      CompanyScopedPurchasingLookupService purchasingLookupService,
+      CompanyScopedInventoryLookupService inventoryLookupService,
+      CompanyScopedAccountingLookupService accountingLookupService,
+      ReferenceNumberService referenceNumberService,
+      CompanyClock companyClock,
+      GstService gstService,
+      PurchaseResponseMapper responseMapper,
+      PurchaseTaxPolicy purchaseTaxPolicy) {
+    this.companyContextService = companyContextService;
+    this.purchaseRepository = purchaseRepository;
+    this.purchaseOrderRepository = purchaseOrderRepository;
+    this.goodsReceiptRepository = goodsReceiptRepository;
+    this.rawMaterialRepository = rawMaterialRepository;
+    this.rawMaterialBatchRepository = rawMaterialBatchRepository;
+    this.rawMaterialService = rawMaterialService;
+    this.movementRepository = movementRepository;
+    this.accountingFacade = accountingFacade;
+    this.purchasingLookupService = purchasingLookupService;
+    this.inventoryLookupService = inventoryLookupService;
+    this.accountingLookupService = accountingLookupService;
+    this.referenceNumberService = referenceNumberService;
+    this.companyClock = companyClock;
+    this.gstService = gstService;
+    this.responseMapper = responseMapper;
+    this.purchaseTaxPolicy = purchaseTaxPolicy;
+  }
 
   public PurchaseInvoiceEngine(
       CompanyContextService companyContextService,
@@ -94,23 +134,24 @@ public class PurchaseInvoiceEngine {
       GstService gstService,
       PurchaseResponseMapper responseMapper,
       PurchaseTaxPolicy purchaseTaxPolicy) {
-    this.companyContextService = companyContextService;
-    this.purchaseRepository = purchaseRepository;
-    this.purchaseOrderRepository = purchaseOrderRepository;
-    this.goodsReceiptRepository = goodsReceiptRepository;
-    this.rawMaterialRepository = rawMaterialRepository;
-    this.rawMaterialBatchRepository = rawMaterialBatchRepository;
-    this.rawMaterialService = rawMaterialService;
-    this.movementRepository = movementRepository;
-    this.accountingFacade = accountingFacade;
-    this.purchasingLookupService = purchasingLookupService;
-    this.inventoryLookupService = inventoryLookupService;
-    this.companyEntityLookup = companyEntityLookup;
-    this.referenceNumberService = referenceNumberService;
-    this.companyClock = companyClock;
-    this.gstService = gstService;
-    this.responseMapper = responseMapper;
-    this.purchaseTaxPolicy = purchaseTaxPolicy;
+    this(
+        companyContextService,
+        purchaseRepository,
+        purchaseOrderRepository,
+        goodsReceiptRepository,
+        rawMaterialRepository,
+        rawMaterialBatchRepository,
+        rawMaterialService,
+        movementRepository,
+        accountingFacade,
+        purchasingLookupService,
+        inventoryLookupService,
+        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
+        referenceNumberService,
+        companyClock,
+        gstService,
+        responseMapper,
+        purchaseTaxPolicy);
   }
 
   void setPurchaseOrderService(PurchaseOrderService purchaseOrderService) {
@@ -461,7 +502,7 @@ public class PurchaseInvoiceEngine {
 
     com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry linkedJournal = null;
     if (entry != null) {
-      linkedJournal = companyEntityLookup.requireJournalEntry(company, entry.id());
+      linkedJournal = accountingLookupService.requireJournalEntry(company, entry.id());
     }
 
     RawMaterialPurchase purchase = new RawMaterialPurchase();

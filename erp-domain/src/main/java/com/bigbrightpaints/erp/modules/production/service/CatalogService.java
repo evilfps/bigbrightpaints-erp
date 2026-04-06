@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -68,6 +69,7 @@ public class CatalogService {
   private final SkuReadinessService skuReadinessService;
   private final ProductionCatalogService productionCatalogService;
 
+  @Autowired
   public CatalogService(
       CompanyContextService companyContextService,
       CompanyEntityLookup companyEntityLookup,

@@ -24,7 +24,6 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.BusinessDocumentTruths;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
-import com.bigbrightpaints.erp.core.util.LegacyDispatchInvoiceLinkMatcher;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
@@ -476,9 +475,7 @@ public class AccountingAuditTrailService {
             packagingSlipRepository.findAllByCompanyAndSalesOrderId(
                 invoice.getCompany(), invoice.getSalesOrder().getId());
         int salesOrderInvoiceCount =
-            LegacyDispatchInvoiceLinkMatcher.hasExplicitInvoiceLinks(slips)
-                ? 0
-                : resolveCurrentSalesOrderInvoiceCount(invoice);
+            hasExplicitInvoiceLinks(slips) ? 0 : resolveCurrentSalesOrderInvoiceCount(invoice);
         chain.add(
             BusinessDocumentTruths.reference(
                 "SOURCE_ORDER",
@@ -582,8 +579,11 @@ public class AccountingAuditTrailService {
       Invoice invoice,
       List<PackagingSlip> candidateSlips,
       int salesOrderInvoiceCount) {
-    return LegacyDispatchInvoiceLinkMatcher.isSlipLinkedToInvoice(
-        slip, invoice, candidateSlips, salesOrderInvoiceCount);
+    return slip != null
+        && invoice != null
+        && slip.getInvoiceId() != null
+        && invoice.getId() != null
+        && slip.getInvoiceId().equals(invoice.getId());
   }
 
   private int resolveCurrentSalesOrderInvoiceCount(Invoice invoice) {
@@ -596,11 +596,37 @@ public class AccountingAuditTrailService {
     List<Invoice> orderInvoices =
         invoiceRepository.findAllByCompanyAndSalesOrderId(
             invoice.getCompany(), invoice.getSalesOrder().getId());
-    int knownCount = LegacyDispatchInvoiceLinkMatcher.countCurrentInvoices(orderInvoices);
+    int knownCount = countCurrentInvoices(orderInvoices);
     if (knownCount > 0) {
       return knownCount;
     }
-    return LegacyDispatchInvoiceLinkMatcher.isCurrentInvoiceStatus(invoice.getStatus()) ? 1 : 0;
+    return isCurrentInvoiceStatus(invoice.getStatus()) ? 1 : 0;
+  }
+
+  private static boolean hasExplicitInvoiceLinks(List<PackagingSlip> slips) {
+    return slips != null
+        && slips.stream().anyMatch(slip -> slip != null && slip.getInvoiceId() != null);
+  }
+
+  private static int countCurrentInvoices(List<Invoice> invoices) {
+    if (invoices == null) {
+      return 0;
+    }
+    return (int)
+        invoices.stream()
+            .filter(Objects::nonNull)
+            .filter(invoice -> isCurrentInvoiceStatus(invoice.getStatus()))
+            .count();
+  }
+
+  private static boolean isCurrentInvoiceStatus(String status) {
+    if (status == null) {
+      return true;
+    }
+    String normalized = status.trim().toUpperCase(Locale.ROOT);
+    return !normalized.equals("DRAFT")
+        && !normalized.equals("VOID")
+        && !normalized.equals("REVERSED");
   }
 
   private Specification<JournalEntry> byCompany(Company company) {

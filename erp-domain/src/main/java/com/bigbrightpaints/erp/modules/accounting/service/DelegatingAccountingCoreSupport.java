@@ -1,11 +1,11 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
@@ -14,6 +14,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.factory.service.CompanyScopedFactoryLookupService;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
@@ -23,7 +24,9 @@ import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
+import com.bigbrightpaints.erp.modules.purchasing.service.CompanyScopedPurchasingLookupService;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService;
 
 import jakarta.persistence.EntityManager;
 
@@ -31,6 +34,7 @@ class DelegatingAccountingCoreSupport extends AccountingCoreSupport {
 
   private JournalEntryService journalEntryService;
 
+  @Autowired
   DelegatingAccountingCoreSupport(
       CompanyContextService companyContextService,
       AccountRepository accountRepository,
@@ -43,7 +47,10 @@ class DelegatingAccountingCoreSupport extends AccountingCoreSupport {
       ReferenceNumberService referenceNumberService,
       ApplicationEventPublisher eventPublisher,
       CompanyClock companyClock,
-      CompanyEntityLookup companyEntityLookup,
+      CompanyScopedAccountingLookupService accountingLookupService,
+      CompanyScopedSalesLookupService salesLookupService,
+      CompanyScopedPurchasingLookupService purchasingLookupService,
+      CompanyScopedFactoryLookupService factoryLookupService,
       PartnerSettlementAllocationRepository settlementAllocationRepository,
       RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
       InvoiceRepository invoiceRepository,
@@ -72,7 +79,10 @@ class DelegatingAccountingCoreSupport extends AccountingCoreSupport {
         referenceNumberService,
         eventPublisher,
         companyClock,
-        companyEntityLookup,
+        accountingLookupService,
+        salesLookupService,
+        purchasingLookupService,
+        factoryLookupService,
         settlementAllocationRepository,
         rawMaterialPurchaseRepository,
         invoiceRepository,
@@ -89,6 +99,69 @@ class DelegatingAccountingCoreSupport extends AccountingCoreSupport {
         auditService,
         accountingEventStore);
     this.journalEntryService = journalEntryService;
+  }
+
+  DelegatingAccountingCoreSupport(
+      CompanyContextService companyContextService,
+      AccountRepository accountRepository,
+      JournalEntryRepository journalEntryRepository,
+      DealerLedgerService dealerLedgerService,
+      SupplierLedgerService supplierLedgerService,
+      PayrollRunRepository payrollRunRepository,
+      PayrollRunLineRepository payrollRunLineRepository,
+      AccountingPeriodService accountingPeriodService,
+      ReferenceNumberService referenceNumberService,
+      ApplicationEventPublisher eventPublisher,
+      CompanyClock companyClock,
+      com.bigbrightpaints.erp.core.util.CompanyEntityLookup companyEntityLookup,
+      PartnerSettlementAllocationRepository settlementAllocationRepository,
+      RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
+      InvoiceRepository invoiceRepository,
+      RawMaterialMovementRepository rawMaterialMovementRepository,
+      RawMaterialBatchRepository rawMaterialBatchRepository,
+      FinishedGoodBatchRepository finishedGoodBatchRepository,
+      DealerRepository dealerRepository,
+      SupplierRepository supplierRepository,
+      InvoiceSettlementPolicy invoiceSettlementPolicy,
+      JournalReferenceResolver journalReferenceResolver,
+      JournalReferenceMappingRepository journalReferenceMappingRepository,
+      EntityManager entityManager,
+      SystemSettingsService systemSettingsService,
+      AuditService auditService,
+      AccountingEventStore accountingEventStore,
+      JournalEntryService journalEntryService) {
+    this(
+        companyContextService,
+        accountRepository,
+        journalEntryRepository,
+        dealerLedgerService,
+        supplierLedgerService,
+        payrollRunRepository,
+        payrollRunLineRepository,
+        accountingPeriodService,
+        referenceNumberService,
+        eventPublisher,
+        companyClock,
+        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedSalesLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedPurchasingLookupService.fromLegacy(companyEntityLookup),
+        CompanyScopedFactoryLookupService.fromLegacy(companyEntityLookup),
+        settlementAllocationRepository,
+        rawMaterialPurchaseRepository,
+        invoiceRepository,
+        rawMaterialMovementRepository,
+        rawMaterialBatchRepository,
+        finishedGoodBatchRepository,
+        dealerRepository,
+        supplierRepository,
+        invoiceSettlementPolicy,
+        journalReferenceResolver,
+        journalReferenceMappingRepository,
+        entityManager,
+        systemSettingsService,
+        auditService,
+        accountingEventStore,
+        journalEntryService);
   }
 
   void bindJournalEntryService(JournalEntryService journalEntryService) {

@@ -110,7 +110,8 @@ class ReconciliationControllerDiscrepancyEndpointsTest {
   }
 
   private ReconciliationController controller(ReconciliationService reconciliationService) {
-    return new ReconciliationController(reconciliationService, mock(BankReconciliationSessionService.class));
+    return new ReconciliationController(
+        reconciliationService, mock(BankReconciliationSessionService.class));
   }
 
   private ReconciliationDiscrepancyDto discrepancyDto(

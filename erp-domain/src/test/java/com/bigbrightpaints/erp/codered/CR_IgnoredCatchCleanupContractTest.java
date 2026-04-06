@@ -22,7 +22,8 @@ class CR_IgnoredCatchCleanupContractTest {
   void productionSourcesDoNotContainIgnoredCatchPatterns() throws IOException {
     try (var paths = Files.walk(Path.of("src/main/java"))) {
       List<String> offenders =
-          paths.filter(path -> path.toString().endsWith(".java"))
+          paths
+              .filter(path -> path.toString().endsWith(".java"))
               .filter(this::containsIgnoredCatchPattern)
               .map(path -> path.toString().replace('\\', '/'))
               .sorted()

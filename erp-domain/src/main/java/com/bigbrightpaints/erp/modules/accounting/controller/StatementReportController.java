@@ -60,14 +60,16 @@ public class StatementReportController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<SalesReturnPreviewDto>> previewSalesReturn(
       @Valid @RequestBody SalesReturnRequest request) {
-    return ResponseEntity.ok(ApiResponse.success("Sales return preview", support.previewSalesReturn(request)));
+    return ResponseEntity.ok(
+        ApiResponse.success("Sales return preview", support.previewSalesReturn(request)));
   }
 
   @PostMapping("/sales/returns")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<JournalEntryDto>> recordSalesReturn(
       @Valid @RequestBody SalesReturnRequest request) {
-    return ResponseEntity.ok(ApiResponse.success("Credit note posted", support.recordSalesReturn(request)));
+    return ResponseEntity.ok(
+        ApiResponse.success("Credit note posted", support.recordSalesReturn(request)));
   }
 
   @GetMapping("/statements/suppliers/{supplierId}")
@@ -144,7 +146,8 @@ public class StatementReportController {
   @GetMapping("/date-context")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<Map<String, Object>>> getAccountingDateContext() {
-    return ResponseEntity.ok(ApiResponse.success("Accounting date context", support.getAccountingDateContext()));
+    return ResponseEntity.ok(
+        ApiResponse.success("Accounting date context", support.getAccountingDateContext()));
   }
 
   @GetMapping("/accounts/{accountId}/balance/compare")
@@ -152,6 +155,7 @@ public class StatementReportController {
   public ResponseEntity<ApiResponse<TemporalBalanceService.BalanceComparison>> compareBalances(
       @PathVariable Long accountId, @RequestParam String date1, @RequestParam String date2) {
     return ResponseEntity.ok(
-        ApiResponse.success("Balance comparison", support.compareBalances(accountId, date1, date2)));
+        ApiResponse.success(
+            "Balance comparison", support.compareBalances(accountId, date1, date2)));
   }
 }

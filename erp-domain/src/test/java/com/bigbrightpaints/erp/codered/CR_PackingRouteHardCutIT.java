@@ -26,6 +26,8 @@ import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
       "spring.mail.username=test-smtp-user",
       "spring.mail.password=test-smtp-password",
       "ERP_LICENSE_KEY=test-license-key",
+      "ERP_SECURITY_AUDIT_PRIVATE_KEY=test-audit-signing-key",
+      "ERP_SECURITY_ENCRYPTION_KEY=12345678901234567890123456789012",
       "ERP_DISPATCH_DEBIT_ACCOUNT_ID=1",
       "ERP_DISPATCH_CREDIT_ACCOUNT_ID=2",
       "management.endpoint.health.validate-group-membership=false",

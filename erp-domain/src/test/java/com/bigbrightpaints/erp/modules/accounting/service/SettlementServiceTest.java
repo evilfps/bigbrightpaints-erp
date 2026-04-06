@@ -95,8 +95,7 @@ class SettlementServiceTest {
             org.mockito.Mockito.mock(
                 com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository.class),
             org.mockito.Mockito.mock(
-                com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository
-                    .class),
+                com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository.class),
             dealerRepository,
             supplierRepository,
             org.mockito.Mockito.mock(
@@ -107,7 +106,8 @@ class SettlementServiceTest {
                 com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository
                     .class),
             org.mockito.Mockito.mock(jakarta.persistence.EntityManager.class),
-            org.mockito.Mockito.mock(com.bigbrightpaints.erp.core.config.SystemSettingsService.class),
+            org.mockito.Mockito.mock(
+                com.bigbrightpaints.erp.core.config.SystemSettingsService.class),
             org.mockito.Mockito.mock(com.bigbrightpaints.erp.core.audit.AuditService.class),
             org.mockito.Mockito.mock(
                 com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore.class),

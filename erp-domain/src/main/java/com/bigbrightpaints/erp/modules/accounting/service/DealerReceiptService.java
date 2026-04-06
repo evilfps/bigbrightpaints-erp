@@ -31,7 +31,8 @@ public class DealerReceiptService {
   public DealerReceiptService(
       com.bigbrightpaints.erp.modules.company.service.CompanyContextService companyContextService,
       com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository accountRepository,
-      com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository journalEntryRepository,
+      com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository
+          journalEntryRepository,
       DealerLedgerService dealerLedgerService,
       SupplierLedgerService supplierLedgerService,
       com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository payrollRunRepository,
@@ -54,7 +55,8 @@ public class DealerReceiptService {
           finishedGoodBatchRepository,
       com.bigbrightpaints.erp.modules.sales.domain.DealerRepository dealerRepository,
       com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository supplierRepository,
-      com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy invoiceSettlementPolicy,
+      com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy
+          invoiceSettlementPolicy,
       JournalReferenceResolver journalReferenceResolver,
       com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository
           journalReferenceMappingRepository,
@@ -105,12 +107,14 @@ public class DealerReceiptService {
   }
 
   public JournalEntryDto recordDealerReceiptSplit(DealerReceiptSplitRequest request) {
-    return accountingCoreSupport.recordDealerReceiptSplit(normalizeDealerReceiptSplitRequest(request));
+    return accountingCoreSupport.recordDealerReceiptSplit(
+        normalizeDealerReceiptSplitRequest(request));
   }
 
   public List<JournalEntryDto> listDealerReceipts(Long dealerId, int page, int size) {
     ValidationUtils.requireNotNull(dealerId, "dealerId");
-    return accountingCoreSupport.listJournalEntries(dealerId, null, Math.max(page, 0), Math.max(1, Math.min(size, 200)));
+    return accountingCoreSupport.listJournalEntries(
+        dealerId, null, Math.max(page, 0), Math.max(1, Math.min(size, 200)));
   }
 
   JournalEntryDto createJournalEntry(JournalEntryRequest request) {
@@ -173,7 +177,11 @@ public class DealerReceiptService {
           "dealer-receipt-split-" + IdempotencyUtils.sha256Hex(seed, 24).toUpperCase(Locale.ROOT);
     }
     return new DealerReceiptSplitRequest(
-        request.dealerId(), normalizedIncoming, reference, normalizeText(request.memo()), idempotencyKey);
+        request.dealerId(),
+        normalizedIncoming,
+        reference,
+        normalizeText(request.memo()),
+        idempotencyKey);
   }
 
   private DealerReceiptSplitRequest.IncomingLine normalizeIncomingLine(

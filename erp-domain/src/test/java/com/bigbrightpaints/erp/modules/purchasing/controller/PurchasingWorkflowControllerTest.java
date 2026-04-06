@@ -41,8 +41,7 @@ class PurchasingWorkflowControllerTest {
   void createGoodsReceipt_rejectsWhenIdempotencyMissing() {
     PurchasingWorkflowController controller = new PurchasingWorkflowController(purchasingService);
 
-    assertThatThrownBy(
-            () -> controller.createGoodsReceipt(null, requestWithoutIdempotencyKey()))
+    assertThatThrownBy(() -> controller.createGoodsReceipt(null, requestWithoutIdempotencyKey()))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Idempotency-Key header is required");
   }
@@ -64,8 +63,7 @@ class PurchasingWorkflowControllerTest {
     PurchasingWorkflowController controller = new PurchasingWorkflowController(purchasingService);
 
     assertThatThrownBy(
-            () ->
-                controller.createGoodsReceipt("hdr-001", requestWithIdempotencyKey("body-001")))
+            () -> controller.createGoodsReceipt("hdr-001", requestWithIdempotencyKey("body-001")))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Idempotency key mismatch");
   }

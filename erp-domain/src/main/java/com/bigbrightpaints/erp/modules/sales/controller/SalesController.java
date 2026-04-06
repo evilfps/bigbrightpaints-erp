@@ -30,7 +30,6 @@ import jakarta.validation.Valid;
 public class SalesController {
   private static final String CANONICAL_SALES_ORDER_PATH = "/api/v1/sales/orders";
 
-
   private final SalesService salesService;
   private final SalesOrderCrudService salesOrderCrudService;
   private final SalesOrderLifecycleService salesOrderLifecycleService;
@@ -122,8 +121,7 @@ public class SalesController {
   @PreAuthorize("hasAnyAuthority('ROLE_SALES','ROLE_ADMIN')")
   public ResponseEntity<ApiResponse<SalesOrderDto>> createOrder(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-      @Parameter(hidden = true)
-          @RequestHeader(value = "X-Idempotency-Key", required = false)
+      @Parameter(hidden = true) @RequestHeader(value = "X-Idempotency-Key", required = false)
           String legacyIdempotencyKey,
       @Valid @RequestBody SalesOrderRequest request) {
     SalesOrderRequest resolved =

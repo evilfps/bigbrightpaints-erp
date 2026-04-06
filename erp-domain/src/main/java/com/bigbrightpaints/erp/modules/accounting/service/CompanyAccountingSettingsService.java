@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
@@ -20,15 +19,15 @@ public class CompanyAccountingSettingsService {
 
   private final CompanyContextService companyContextService;
   private final CompanyRepository companyRepository;
-  private final CompanyEntityLookup companyEntityLookup;
+  private final CompanyScopedAccountingLookupService accountingLookupService;
 
   public CompanyAccountingSettingsService(
       CompanyContextService companyContextService,
       CompanyRepository companyRepository,
-      CompanyEntityLookup companyEntityLookup) {
+      CompanyScopedAccountingLookupService accountingLookupService) {
     this.companyContextService = companyContextService;
     this.companyRepository = companyRepository;
-    this.companyEntityLookup = companyEntityLookup;
+    this.accountingLookupService = accountingLookupService;
   }
 
   public PayrollAccountDefaults requirePayrollDefaults() {
@@ -46,11 +45,11 @@ public class CompanyAccountingSettingsService {
   public void updatePayrollDefaults(Long expenseAccountId, Long cashAccountId) {
     Company company = companyContextService.requireCurrentCompany();
     if (expenseAccountId != null) {
-      Account expense = companyEntityLookup.requireAccount(company, expenseAccountId);
+      Account expense = accountingLookupService.requireAccount(company, expenseAccountId);
       company.setPayrollExpenseAccount(expense);
     }
     if (cashAccountId != null) {
-      Account cash = companyEntityLookup.requireAccount(company, cashAccountId);
+      Account cash = accountingLookupService.requireAccount(company, cashAccountId);
       company.setPayrollCashAccount(cash);
     }
     companyRepository.save(company);
