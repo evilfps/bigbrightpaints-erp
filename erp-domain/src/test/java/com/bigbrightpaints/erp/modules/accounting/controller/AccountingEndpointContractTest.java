@@ -159,6 +159,45 @@ class AccountingEndpointContractTest {
   }
 
   @Test
+  void createJournalEntry_allowsNullSupplierForApAdjacentManualPosting() {
+    AccountingService accountingService = mock(AccountingService.class);
+    JournalController controller =
+        newJournalController(accountingService, mock(JournalEntryService.class), null, null);
+    JournalEntryRequest request =
+        new JournalEntryRequest(
+            "client-ap-accrual-001",
+            LocalDate.of(2026, 4, 1),
+            "AP accrual adjustment",
+            null,
+            null,
+            Boolean.FALSE,
+            List.of(
+                new JournalEntryRequest.JournalLineRequest(
+                    101L, "Expense accrual", new BigDecimal("500.00"), BigDecimal.ZERO),
+                new JournalEntryRequest.JournalLineRequest(
+                    202L, "AP accrual", BigDecimal.ZERO, new BigDecimal("500.00"))));
+    JournalEntryDto expected = expectedJournal(612L, "JRN-612");
+    when(accountingService.createManualJournalEntry(
+            any(JournalEntryRequest.class), eq("client-ap-accrual-001")))
+        .thenReturn(expected);
+
+    ApiResponse<JournalEntryDto> body = controller.createJournalEntry(request).getBody();
+
+    assertThat(body).isNotNull();
+    assertThat(body.success()).isTrue();
+    assertThat(body.data()).isEqualTo(expected);
+
+    ArgumentCaptor<JournalEntryRequest> requestCaptor =
+        ArgumentCaptor.forClass(JournalEntryRequest.class);
+    verify(accountingService)
+        .createManualJournalEntry(requestCaptor.capture(), eq("client-ap-accrual-001"));
+    JournalEntryRequest sanitized = requestCaptor.getValue();
+    assertThat(sanitized.supplierId()).isNull();
+    assertThat(sanitized.dealerId()).isNull();
+    assertThat(sanitized.lines()).hasSize(2);
+  }
+
+  @Test
   void listJournals_appliesFilterArguments() {
     AccountingService accountingService = mock(AccountingService.class);
     JournalController controller =

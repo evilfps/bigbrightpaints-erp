@@ -158,16 +158,26 @@ class JournalPartnerContextService {
     }
     for (Supplier owner :
         supplierRepository.findByCompanyAndPayableAccountIn(company, payableAccounts)) {
-      if (owner.getPayableAccount() == null
-          || owner.getPayableAccount().getId() == null
+      Account payableAccount = owner.getPayableAccount();
+      if (!isSupplierOwnedPayableAccount(payableAccount)
+          || payableAccount.getId() == null
           || owner.getId() == null) {
         continue;
       }
       supplierOwnerByPayableAccountId
-          .computeIfAbsent(owner.getPayableAccount().getId(), ignored -> new HashSet<>())
+          .computeIfAbsent(payableAccount.getId(), ignored -> new HashSet<>())
           .add(owner.getId());
     }
-    return true;
+    return !supplierOwnerByPayableAccountId.isEmpty();
+  }
+
+  private boolean isSupplierOwnedPayableAccount(Account payableAccount) {
+    if (payableAccount == null) {
+      return false;
+    }
+    // Supplier-owned AP context applies to supplier payable subaccounts, not the shared AP
+    // control account used for generic accrual/adjustment postings.
+    return payableAccount.getParent() != null;
   }
 
   private void validatePartnerContexts(

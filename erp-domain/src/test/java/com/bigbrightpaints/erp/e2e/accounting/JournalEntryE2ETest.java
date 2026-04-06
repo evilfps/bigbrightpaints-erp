@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -716,6 +717,57 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+  }
+
+  @Test
+  @DisplayName("Manual AP-adjacent accrual allows null supplier context")
+  void manualApAdjacentAccrual_allowsNullSupplierContext() {
+    Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    Account expenseAccount =
+        accountRepository.findByCompanyAndCodeIgnoreCase(company, "EXPENSE").orElseThrow();
+    Account apAccount =
+        accountRepository.findByCompanyAndCodeIgnoreCase(company, "AP").orElseThrow();
+
+    BigDecimal amount = new BigDecimal("1800.00");
+
+    Map<String, Object> debitLine =
+        Map.of(
+            "accountId",
+            expenseAccount.getId(),
+            "debit",
+            amount,
+            "credit",
+            BigDecimal.ZERO,
+            "description",
+            "Accrual expense");
+    Map<String, Object> creditLine =
+        Map.of(
+            "accountId",
+            apAccount.getId(),
+            "debit",
+            BigDecimal.ZERO,
+            "credit",
+            amount,
+            "description",
+            "Accrual payable");
+
+    Map<String, Object> jeRequest = new HashMap<>();
+    jeRequest.put("entryDate", LocalDate.now());
+    jeRequest.put("memo", "AP accrual adjustment without supplier");
+    jeRequest.put("supplierId", null);
+    jeRequest.put("lines", List.of(debitLine, creditLine));
+
+    ResponseEntity<Map> response =
+        rest.exchange(
+            "/api/v1/accounting/journal-entries",
+            HttpMethod.POST,
+            new HttpEntity<>(jeRequest, headers),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> data = (Map<?, ?>) response.getBody().get("data");
+    assertThat(data).isNotNull();
+    assertThat(data.get("id")).isNotNull();
   }
 
   @Test
