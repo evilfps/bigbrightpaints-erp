@@ -39,6 +39,7 @@ import com.bigbrightpaints.erp.modules.hr.domain.PayrollRun;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLine;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
+import com.bigbrightpaints.erp.modules.hr.service.CompanyScopedHrLookupService;
 
 class PayrollPostingServiceIndianLiabilityTest {
 
@@ -74,7 +75,9 @@ class PayrollPostingServiceIndianLiabilityTest {
             accountingFacade,
             accountRepository,
             companyContextService,
-            companyEntityLookup,
+            CompanyScopedHrLookupService.fromLegacy(companyEntityLookup),
+            com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService
+                .fromLegacy(companyEntityLookup),
             companyClock,
             auditService);
 

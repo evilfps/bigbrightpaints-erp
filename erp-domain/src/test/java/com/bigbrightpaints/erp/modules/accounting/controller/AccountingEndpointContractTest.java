@@ -892,7 +892,7 @@ class AccountingEndpointContractTest {
   @Test
   void accountingFacade_createManualJournal_requiresReason() {
     AccountingFacade facade =
-        new AccountingFacade(
+        com.bigbrightpaints.erp.modules.accounting.service.AccountingFacadeTestFactory.create(
             mock(CompanyContextService.class),
             mock(AccountRepository.class),
             mock(AccountingService.class),
@@ -901,7 +901,10 @@ class AccountingEndpointContractTest {
             mock(DealerRepository.class),
             mock(SupplierRepository.class),
             mock(CompanyClock.class),
-            mock(CompanyEntityLookup.class),
+            com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
+                .fromLegacy(mock(CompanyEntityLookup.class)),
+            com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService
+                .fromLegacy(mock(CompanyEntityLookup.class)),
             mock(CompanyAccountingSettingsService.class),
             mock(JournalReferenceResolver.class),
             mock(JournalReferenceMappingRepository.class));
@@ -932,26 +935,28 @@ class AccountingEndpointContractTest {
 
   @Test
   void accountingFacade_createManualJournalEntry_forwardsAttachmentReferences() {
+    AccountingService accountingService = mock(AccountingService.class);
     AccountingFacade facade =
-        org.mockito.Mockito.spy(
-            new AccountingFacade(
-                mock(CompanyContextService.class),
-                mock(AccountRepository.class),
-                mock(AccountingService.class),
-                mock(JournalEntryRepository.class),
-                mock(ReferenceNumberService.class),
-                mock(DealerRepository.class),
-                mock(SupplierRepository.class),
-                mock(CompanyClock.class),
-                mock(CompanyEntityLookup.class),
-                mock(CompanyAccountingSettingsService.class),
-                mock(JournalReferenceResolver.class),
-                mock(JournalReferenceMappingRepository.class)));
+        com.bigbrightpaints.erp.modules.accounting.service.AccountingFacadeTestFactory.create(
+            mock(CompanyContextService.class),
+            mock(AccountRepository.class),
+            accountingService,
+            mock(JournalEntryRepository.class),
+            mock(ReferenceNumberService.class),
+            mock(DealerRepository.class),
+            mock(SupplierRepository.class),
+            mock(CompanyClock.class),
+            com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
+                .fromLegacy(mock(CompanyEntityLookup.class)),
+            com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService
+                .fromLegacy(mock(CompanyEntityLookup.class)),
+            mock(CompanyAccountingSettingsService.class),
+            mock(JournalReferenceResolver.class),
+            mock(JournalReferenceMappingRepository.class));
     ArgumentCaptor<JournalCreationRequest> requestCaptor =
         ArgumentCaptor.forClass(JournalCreationRequest.class);
-    doReturn(expectedJournal(703L, "MANUAL-FACADE-1"))
-        .when(facade)
-        .createStandardJournal(requestCaptor.capture());
+    when(accountingService.createStandardJournal(requestCaptor.capture()))
+        .thenReturn(expectedJournal(703L, "MANUAL-FACADE-1"));
 
     facade.createManualJournalEntry(
         new JournalEntryRequest(
@@ -980,26 +985,28 @@ class AccountingEndpointContractTest {
 
   @Test
   void accountingFacade_createManualJournal_forwardsAttachmentReferencesAndIdempotencyKey() {
+    AccountingService accountingService = mock(AccountingService.class);
     AccountingFacade facade =
-        org.mockito.Mockito.spy(
-            new AccountingFacade(
-                mock(CompanyContextService.class),
-                mock(AccountRepository.class),
-                mock(AccountingService.class),
-                mock(JournalEntryRepository.class),
-                mock(ReferenceNumberService.class),
-                mock(DealerRepository.class),
-                mock(SupplierRepository.class),
-                mock(CompanyClock.class),
-                mock(CompanyEntityLookup.class),
-                mock(CompanyAccountingSettingsService.class),
-                mock(JournalReferenceResolver.class),
-                mock(JournalReferenceMappingRepository.class)));
+        com.bigbrightpaints.erp.modules.accounting.service.AccountingFacadeTestFactory.create(
+            mock(CompanyContextService.class),
+            mock(AccountRepository.class),
+            accountingService,
+            mock(JournalEntryRepository.class),
+            mock(ReferenceNumberService.class),
+            mock(DealerRepository.class),
+            mock(SupplierRepository.class),
+            mock(CompanyClock.class),
+            com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
+                .fromLegacy(mock(CompanyEntityLookup.class)),
+            com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService
+                .fromLegacy(mock(CompanyEntityLookup.class)),
+            mock(CompanyAccountingSettingsService.class),
+            mock(JournalReferenceResolver.class),
+            mock(JournalReferenceMappingRepository.class));
     ArgumentCaptor<JournalCreationRequest> requestCaptor =
         ArgumentCaptor.forClass(JournalCreationRequest.class);
-    doReturn(expectedJournal(704L, "MANUAL-FACADE-2"))
-        .when(facade)
-        .createStandardJournal(requestCaptor.capture());
+    when(accountingService.createStandardJournal(requestCaptor.capture()))
+        .thenReturn(expectedJournal(704L, "MANUAL-FACADE-2"));
 
     facade.createManualJournal(
         new ManualJournalRequest(
@@ -1023,7 +1030,7 @@ class AccountingEndpointContractTest {
   @Test
   void accountingFacade_createManualJournalEntry_requiresReason() {
     AccountingFacade facade =
-        new AccountingFacade(
+        com.bigbrightpaints.erp.modules.accounting.service.AccountingFacadeTestFactory.create(
             mock(CompanyContextService.class),
             mock(AccountRepository.class),
             mock(AccountingService.class),
@@ -1032,7 +1039,10 @@ class AccountingEndpointContractTest {
             mock(DealerRepository.class),
             mock(SupplierRepository.class),
             mock(CompanyClock.class),
-            mock(CompanyEntityLookup.class),
+            com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
+                .fromLegacy(mock(CompanyEntityLookup.class)),
+            com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService
+                .fromLegacy(mock(CompanyEntityLookup.class)),
             mock(CompanyAccountingSettingsService.class),
             mock(JournalReferenceResolver.class),
             mock(JournalReferenceMappingRepository.class));

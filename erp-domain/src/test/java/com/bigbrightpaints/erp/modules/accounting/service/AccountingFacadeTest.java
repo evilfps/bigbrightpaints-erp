@@ -60,6 +60,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService;
 import com.bigbrightpaints.erp.modules.sales.util.SalesOrderReference;
 
 @ExtendWith(MockitoExtension.class)
@@ -85,7 +86,7 @@ class AccountingFacadeTest {
   @BeforeEach
   void setup() {
     accountingFacade =
-        new AccountingFacade(
+        AccountingFacadeTestFactory.create(
             companyContextService,
             accountRepository,
             accountingService,
@@ -94,7 +95,8 @@ class AccountingFacadeTest {
             dealerRepository,
             supplierRepository,
             companyClock,
-            companyEntityLookup,
+            CompanyScopedSalesLookupService.fromLegacy(companyEntityLookup),
+            CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
             companyAccountingSettingsService,
             journalReferenceResolver,
             journalReferenceMappingRepository);
@@ -248,11 +250,6 @@ class AccountingFacadeTest {
         .thenReturn(Optional.of(supplier));
 
     Long inventoryAccountId = 201L;
-    Account inventory = new Account();
-    ReflectionTestUtils.setField(inventory, "id", inventoryAccountId);
-    when(companyEntityLookup.requireAccount(eq(company), eq(inventoryAccountId)))
-        .thenReturn(inventory);
-
     String baseReference = "RMP-ACME-SUP-INV100";
     String canonicalReference = baseReference + "-0005";
     when(referenceNumberService.purchaseReferenceKey(eq(company), eq(supplier), eq("INV-100")))
@@ -433,11 +430,6 @@ class AccountingFacadeTest {
         .thenReturn(Optional.of(supplier));
 
     Long inventoryAccountId = 203L;
-    Account inventory = new Account();
-    ReflectionTestUtils.setField(inventory, "id", inventoryAccountId);
-    when(companyEntityLookup.requireAccount(eq(company), eq(inventoryAccountId)))
-        .thenReturn(inventory);
-
     String baseReference = "RMP-ACME-SUP-INV103";
     String canonicalReference = baseReference + "-0001";
     when(referenceNumberService.purchaseReferenceKey(eq(company), eq(supplier), eq("INV-103")))

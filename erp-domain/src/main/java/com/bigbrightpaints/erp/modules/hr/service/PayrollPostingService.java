@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -60,14 +59,8 @@ public class PayrollPostingService {
           Map.entry("PROFESSIONAL-TAX-PAYABLE", AccountType.LIABILITY));
   private static final List<String> REQUIRED_PAYROLL_ACCOUNTS =
       List.of(
-          "SALARY-EXP",
-          "WAGE-EXP",
-          "SALARY-PAYABLE",
-          "EMP-ADV",
-          "PF-PAYABLE",
-          "ESI-PAYABLE",
-          "TDS-PAYABLE",
-          "PROFESSIONAL-TAX-PAYABLE");
+          "SALARY-EXP", "WAGE-EXP", "SALARY-PAYABLE", "EMP-ADV", "PF-PAYABLE", "ESI-PAYABLE",
+          "TDS-PAYABLE", "PROFESSIONAL-TAX-PAYABLE");
 
   private final PayrollRunRepository payrollRunRepository;
   private final PayrollRunLineRepository payrollRunLineRepository;
@@ -80,8 +73,8 @@ public class PayrollPostingService {
   private final CompanyScopedAccountingLookupService accountingLookupService;
   private final CompanyClock companyClock;
   private final AuditService auditService;
+  private final PayrollRunApprovalOperations payrollRunApprovalOperations;
 
-  @Autowired
   public PayrollPostingService(
       PayrollRunRepository payrollRunRepository,
       PayrollRunLineRepository payrollRunLineRepository,
@@ -105,64 +98,14 @@ public class PayrollPostingService {
     this.accountingLookupService = accountingLookupService;
     this.companyClock = companyClock;
     this.auditService = auditService;
-  }
-
-  public PayrollPostingService(
-      PayrollRunRepository payrollRunRepository,
-      PayrollRunLineRepository payrollRunLineRepository,
-      EmployeeRepository employeeRepository,
-      AttendanceRepository attendanceRepository,
-      AccountingFacade accountingFacade,
-      AccountRepository accountRepository,
-      CompanyContextService companyContextService,
-      com.bigbrightpaints.erp.core.util.CompanyEntityLookup companyEntityLookup,
-      CompanyClock companyClock,
-      AuditService auditService) {
-    this(
-        payrollRunRepository,
-        payrollRunLineRepository,
-        employeeRepository,
-        attendanceRepository,
-        accountingFacade,
-        accountRepository,
-        companyContextService,
-        CompanyScopedHrLookupService.fromLegacy(companyEntityLookup),
-        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
-        companyClock,
-        auditService);
+    this.payrollRunApprovalOperations =
+        new PayrollRunApprovalOperations(
+            payrollRunRepository, payrollRunLineRepository, companyContextService);
   }
 
   @Transactional
   public PayrollRunDto approvePayroll(Long payrollRunId) {
-    Company company = companyContextService.requireCurrentCompany();
-    PayrollRun run =
-        payrollRunRepository
-            .findByCompanyAndId(company, payrollRunId)
-            .orElseThrow(
-                () ->
-                    com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                        "Payroll run not found"));
-
-    if (run.getStatus() != PayrollRun.PayrollStatus.CALCULATED) {
-      throw new ApplicationException(
-              ErrorCode.BUSINESS_INVALID_STATE, "Can only approve payroll in CALCULATED status")
-          .withDetail("payrollRunId", payrollRunId)
-          .withDetail("currentStatus", run.getStatus().name());
-    }
-    if (payrollRunLineRepository.findByPayrollRun(run).isEmpty()) {
-      throw new ApplicationException(
-              ErrorCode.BUSINESS_INVALID_STATE,
-              "Cannot approve payroll run with no calculated lines")
-          .withDetail("payrollRunId", payrollRunId);
-    }
-
-    run.setStatus(PayrollRun.PayrollStatus.APPROVED);
-    run.setApprovedBy(getCurrentUser());
-    run.setApprovedAt(CompanyTime.now(company));
-    run.setProcessedBy(getCurrentUser());
-
-    payrollRunRepository.save(run);
-    return PayrollService.toDto(run);
+    return payrollRunApprovalOperations.approvePayroll(payrollRunId, getCurrentUser());
   }
 
   @Transactional

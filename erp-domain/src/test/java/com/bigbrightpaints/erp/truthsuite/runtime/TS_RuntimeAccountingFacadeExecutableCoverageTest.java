@@ -68,7 +68,7 @@ class TS_RuntimeAccountingFacadeExecutableCoverageTest {
   @BeforeEach
   void setUp() {
     accountingFacade =
-        new AccountingFacade(
+        com.bigbrightpaints.erp.modules.accounting.service.AccountingFacadeTestFactory.create(
             companyContextService,
             accountRepository,
             accountingService,
@@ -77,7 +77,10 @@ class TS_RuntimeAccountingFacadeExecutableCoverageTest {
             dealerRepository,
             supplierRepository,
             companyClock,
-            companyEntityLookup,
+            com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
+                .fromLegacy(companyEntityLookup),
+            com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService
+                .fromLegacy(companyEntityLookup),
             companyAccountingSettingsService,
             journalReferenceResolver,
             journalReferenceMappingRepository);
@@ -100,10 +103,6 @@ class TS_RuntimeAccountingFacadeExecutableCoverageTest {
         .thenReturn(Optional.of(supplier));
 
     Long inventoryAccountId = 201L;
-    Account inventory = new Account();
-    ReflectionTestUtils.setField(inventory, "id", inventoryAccountId);
-    when(companyEntityLookup.requireAccount(eq(company), eq(inventoryAccountId)))
-        .thenReturn(inventory);
 
     String baseReference = "RMP-ACME-SUP-INV100";
     String canonicalReference = baseReference + "-0005";
