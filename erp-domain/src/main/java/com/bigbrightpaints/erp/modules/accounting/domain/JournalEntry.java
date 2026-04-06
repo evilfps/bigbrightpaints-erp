@@ -57,8 +57,9 @@ public class JournalEntry extends VersionedEntity {
 
   private String memo;
 
+  @Enumerated(EnumType.STRING)
   @Column(nullable = false)
-  private String status = "DRAFT";
+  private JournalEntryStatus status = JournalEntryStatus.DRAFT;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "dealer_id")
@@ -147,7 +148,7 @@ public class JournalEntry extends VersionedEntity {
     if (updatedAt == null) {
       updatedAt = now;
     }
-    if (postedAt == null && "POSTED".equalsIgnoreCase(status)) {
+    if (postedAt == null && status == JournalEntryStatus.POSTED) {
       postedAt = now;
     }
   }
@@ -197,12 +198,16 @@ public class JournalEntry extends VersionedEntity {
     this.memo = memo;
   }
 
-  public String getStatus() {
+  public JournalEntryStatus getStatus() {
     return status;
   }
 
+  public void setStatus(JournalEntryStatus status) {
+    this.status = status == null ? JournalEntryStatus.DRAFT : status;
+  }
+
   public void setStatus(String status) {
-    this.status = status;
+    setStatus(JournalEntryStatus.from(status));
   }
 
   public Dealer getDealer() {

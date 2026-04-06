@@ -10,7 +10,7 @@ import com.bigbrightpaints.erp.truthsuite.support.TruthSuiteFileAssert;
 class TS_SubledgerControlReconciliationContractTest {
 
   private static final String ACCOUNTING_SERVICE =
-      "src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java";
+      "src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingCoreSupport.java";
   private static final String REPORT_SERVICE =
       "src/main/java/com/bigbrightpaints/erp/modules/reports/service/ReportService.java";
   private static final String SCAN_SQL = "../scripts/db_predeploy_scans.sql";

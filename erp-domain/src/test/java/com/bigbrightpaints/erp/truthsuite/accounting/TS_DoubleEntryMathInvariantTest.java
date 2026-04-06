@@ -18,7 +18,7 @@ import com.bigbrightpaints.erp.truthsuite.support.TruthSuiteFileAssert;
 class TS_DoubleEntryMathInvariantTest {
 
   private static final String ACCOUNTING_SERVICE =
-      "src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java";
+      "src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingCoreSupport.java";
 
   @RepeatedTest(20)
   void generatedJournalStaysBalancedWhenCreditsMirrorDebits() {

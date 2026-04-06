@@ -108,7 +108,7 @@ class TS_PayrollLiabilityClearingPolicyTest {
     TruthSuiteFileAssert.assertContains(
         ACCOUNTING_SERVICE,
         "\"Salary payable account (SALARY-PAYABLE) is required to record payroll payments\"",
-        "if (payableAmount.subtract(amount).abs().compareTo(ALLOCATION_TOLERANCE) > 0) {",
+        "if (payableAmount.subtract(amount).abs().compareTo(AccountingCoreSupport.ALLOCATION_TOLERANCE) > 0) {",
         "\"Payroll payment amount does not match salary payable from the posted payroll journal\"");
   }
 

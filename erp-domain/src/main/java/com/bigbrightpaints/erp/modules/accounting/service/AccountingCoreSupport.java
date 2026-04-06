@@ -37,6 +37,7 @@ import org.springframework.retry.annotation.Retryable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -65,6 +66,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMapping;
@@ -122,9 +124,10 @@ import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 import jakarta.persistence.EntityManager;
 
-abstract class AccountingCoreEngineCore {
+@Component
+class AccountingCoreSupport {
 
-  protected static final Logger log = LoggerFactory.getLogger(AccountingCoreEngineCore.class);
+  protected static final Logger log = LoggerFactory.getLogger(AccountingCoreSupport.class);
 
   // Exact zero tolerance enforced for double-entry accounting integrity.
   // All amounts must be properly rounded before posting to ensure perfect balance.
@@ -208,7 +211,7 @@ abstract class AccountingCoreEngineCore {
   @Value("${erp.accounting.event-trail.strict:true}")
   private boolean strictAccountingEventTrail = true;
 
-  public AccountingCoreEngineCore(
+  public AccountingCoreSupport(
       CompanyContextService companyContextService,
       AccountRepository accountRepository,
       JournalEntryRepository journalEntryRepository,
@@ -673,7 +676,7 @@ abstract class AccountingCoreEngineCore {
       }
       entry.setEntryDate(entryDate);
       entry.setMemo(request.memo());
-      entry.setStatus("POSTED");
+      entry.setStatus(JournalEntryStatus.POSTED);
       Dealer dealer = null;
       Account dealerReceivableAccount = null;
       Supplier supplier = null;
@@ -1053,7 +1056,7 @@ abstract class AccountingCoreEngineCore {
       if (saved.getId() != null) {
         auditMetadata.put("journalEntryId", saved.getId().toString());
       }
-      auditMetadata.put("status", saved.getStatus());
+      auditMetadata.put("status", saved.getStatus() != null ? saved.getStatus().name() : null);
       if (postedEventTrailRecorded) {
         logAuditSuccessAfterCommit(AuditEvent.JOURNAL_ENTRY_POSTED, auditMetadata);
       }
@@ -1117,10 +1120,10 @@ abstract class AccountingCoreEngineCore {
   private JournalEntryDto reverseJournalEntryInternal(
       Company company, JournalEntry entry, JournalEntryReversalRequest request) {
     // Validate entry state
-    if ("VOIDED".equalsIgnoreCase(entry.getStatus())) {
+    if (entry.getStatus() == JournalEntryStatus.VOIDED) {
       throw new ApplicationException(ErrorCode.BUSINESS_INVALID_STATE, "Entry is already voided");
     }
-    if ("REVERSED".equalsIgnoreCase(entry.getStatus())) {
+    if (entry.getStatus() == JournalEntryStatus.REVERSED) {
       throw new ApplicationException(
           ErrorCode.BUSINESS_INVALID_STATE, "Entry has already been reversed");
     }
@@ -1221,7 +1224,7 @@ abstract class AccountingCoreEngineCore {
       reversalEntry.setLastModifiedBy(resolveCurrentUsername());
       journalEntryRepository.save(reversalEntry);
 
-      entry.setStatus("VOIDED");
+      entry.setStatus(JournalEntryStatus.VOIDED);
       entry.setCorrectionType(JournalCorrectionType.VOID);
       entry.setCorrectionReason(sanitizedReason);
       entry.setVoidReason(sanitizedReason);
@@ -1269,7 +1272,7 @@ abstract class AccountingCoreEngineCore {
     reversalEntry.setCorrectionReason(sanitizedReason);
     reversalEntry.setLastModifiedBy(resolveCurrentUsername());
     journalEntryRepository.save(reversalEntry);
-    entry.setStatus("REVERSED");
+    entry.setStatus(JournalEntryStatus.REVERSED);
     entry.setCorrectionType(JournalCorrectionType.REVERSAL);
     entry.setCorrectionReason(sanitizedReason);
     entry.setVoidReason(null);
@@ -1858,7 +1861,7 @@ abstract class AccountingCoreEngineCore {
         entry.getReferenceNumber(),
         entry.getEntryDate(),
         entry.getMemo(),
-        entry.getStatus(),
+        entry.getStatus() != null ? entry.getStatus().name() : null,
         entry.getJournalType() != null
             ? entry.getJournalType().name()
             : JournalEntryType.AUTOMATED.name(),
@@ -1912,7 +1915,7 @@ abstract class AccountingCoreEngineCore {
         displayReferenceNumber,
         entry.getEntryDate(),
         entry.getMemo(),
-        entry.getStatus(),
+        entry.getStatus() != null ? entry.getStatus().name() : null,
         dealer != null ? dealer.getId() : null,
         dealerName,
         supplier != null ? supplier.getId() : null,
@@ -4177,7 +4180,7 @@ abstract class AccountingCoreEngineCore {
     }
   }
 
-  private JournalEntryDto createJournalEntryForReversal(
+  JournalEntryDto createJournalEntryForReversal(
       JournalEntryRequest payload, boolean allowClosedPeriodOverride) {
     if (!allowClosedPeriodOverride) {
       return createJournalEntry(payload);
@@ -4185,7 +4188,7 @@ abstract class AccountingCoreEngineCore {
     return runWithSystemEntryDateOverride(() -> createJournalEntry(payload));
   }
 
-  private <T> T runWithSystemEntryDateOverride(java.util.function.Supplier<T> action) {
+  <T> T runWithSystemEntryDateOverride(java.util.function.Supplier<T> action) {
     Boolean previous = SYSTEM_ENTRY_DATE_OVERRIDE.get();
     SYSTEM_ENTRY_DATE_OVERRIDE.set(Boolean.TRUE);
     try {
@@ -4370,8 +4373,8 @@ abstract class AccountingCoreEngineCore {
         processedIds.add(related.getId());
         continue; // Skip reversal entries to avoid reversing reversals
       }
-      if (!"REVERSED".equalsIgnoreCase(related.getStatus())
-          && !"VOIDED".equalsIgnoreCase(related.getStatus())) {
+      if (related.getStatus() != JournalEntryStatus.REVERSED
+          && related.getStatus() != JournalEntryStatus.VOIDED) {
         try {
           JournalEntryReversalRequest relatedRequest =
               request.forCascadeChild(cascadeReason, "Cascade from " + baseRef);
@@ -4397,8 +4400,8 @@ abstract class AccountingCoreEngineCore {
         try {
           // Validate the entry exists and is reversible
           JournalEntry relatedEntry = companyEntityLookup.requireJournalEntry(company, relatedId);
-          if ("REVERSED".equalsIgnoreCase(relatedEntry.getStatus())
-              || "VOIDED".equalsIgnoreCase(relatedEntry.getStatus())) {
+          if (relatedEntry.getStatus() == JournalEntryStatus.REVERSED
+              || relatedEntry.getStatus() == JournalEntryStatus.VOIDED) {
             log.info("Skipping already reversed/voided entry {}", relatedId);
             processedIds.add(relatedId);
             continue;

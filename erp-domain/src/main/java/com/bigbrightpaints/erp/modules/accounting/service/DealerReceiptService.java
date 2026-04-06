@@ -5,137 +5,116 @@ import java.util.List;
 import java.util.Locale;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
-import com.bigbrightpaints.erp.core.audit.AuditService;
-import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
-import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
-import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
-import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
-import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
-import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptSplitRequest;
-import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
-import com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore;
-import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
-import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository;
-import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository;
-import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository;
-import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
-import com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy;
-import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
-import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
-import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
-
-import jakarta.persistence.EntityManager;
 
 @Service
-public class DealerReceiptService extends AccountingCoreEngineCore {
+public class DealerReceiptService {
 
-  private final JournalEntryService journalEntryService;
+  @SuppressWarnings("unused")
+  private Environment environment;
+
+  private final AccountingCoreSupport accountingCoreSupport;
 
   @Autowired
-  public DealerReceiptService(
-      CompanyContextService companyContextService,
-      AccountRepository accountRepository,
-      JournalEntryRepository journalEntryRepository,
-      DealerLedgerService dealerLedgerService,
-      SupplierLedgerService supplierLedgerService,
-      PayrollRunRepository payrollRunRepository,
-      PayrollRunLineRepository payrollRunLineRepository,
-      AccountingPeriodService accountingPeriodService,
-      ReferenceNumberService referenceNumberService,
-      ApplicationEventPublisher eventPublisher,
-      CompanyClock companyClock,
-      CompanyEntityLookup companyEntityLookup,
-      PartnerSettlementAllocationRepository settlementAllocationRepository,
-      RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
-      InvoiceRepository invoiceRepository,
-      RawMaterialMovementRepository rawMaterialMovementRepository,
-      RawMaterialBatchRepository rawMaterialBatchRepository,
-      FinishedGoodBatchRepository finishedGoodBatchRepository,
-      DealerRepository dealerRepository,
-      SupplierRepository supplierRepository,
-      InvoiceSettlementPolicy invoiceSettlementPolicy,
-      JournalReferenceResolver journalReferenceResolver,
-      JournalReferenceMappingRepository journalReferenceMappingRepository,
-      EntityManager entityManager,
-      SystemSettingsService systemSettingsService,
-      AuditService auditService,
-      AccountingEventStore accountingEventStore,
-      JournalEntryService journalEntryService) {
-    super(
-        companyContextService,
-        accountRepository,
-        journalEntryRepository,
-        dealerLedgerService,
-        supplierLedgerService,
-        payrollRunRepository,
-        payrollRunLineRepository,
-        accountingPeriodService,
-        referenceNumberService,
-        eventPublisher,
-        companyClock,
-        companyEntityLookup,
-        settlementAllocationRepository,
-        rawMaterialPurchaseRepository,
-        invoiceRepository,
-        rawMaterialMovementRepository,
-        rawMaterialBatchRepository,
-        finishedGoodBatchRepository,
-        dealerRepository,
-        supplierRepository,
-        invoiceSettlementPolicy,
-        journalReferenceResolver,
-        journalReferenceMappingRepository,
-        entityManager,
-        systemSettingsService,
-        auditService,
-        accountingEventStore);
-    this.journalEntryService = journalEntryService;
+  public DealerReceiptService(AccountingCoreSupport accountingCoreSupport) {
+    this.accountingCoreSupport = accountingCoreSupport;
   }
 
-  @Override
+  public DealerReceiptService(
+      com.bigbrightpaints.erp.modules.company.service.CompanyContextService companyContextService,
+      com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository accountRepository,
+      com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository journalEntryRepository,
+      DealerLedgerService dealerLedgerService,
+      SupplierLedgerService supplierLedgerService,
+      com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository payrollRunRepository,
+      com.bigbrightpaints.erp.modules.hr.domain.PayrollRunLineRepository payrollRunLineRepository,
+      AccountingPeriodService accountingPeriodService,
+      ReferenceNumberService referenceNumberService,
+      org.springframework.context.ApplicationEventPublisher eventPublisher,
+      com.bigbrightpaints.erp.core.util.CompanyClock companyClock,
+      com.bigbrightpaints.erp.core.util.CompanyEntityLookup companyEntityLookup,
+      com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository
+          settlementAllocationRepository,
+      com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository
+          rawMaterialPurchaseRepository,
+      com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository invoiceRepository,
+      com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepository
+          rawMaterialMovementRepository,
+      com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialBatchRepository
+          rawMaterialBatchRepository,
+      com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatchRepository
+          finishedGoodBatchRepository,
+      com.bigbrightpaints.erp.modules.sales.domain.DealerRepository dealerRepository,
+      com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository supplierRepository,
+      com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy invoiceSettlementPolicy,
+      JournalReferenceResolver journalReferenceResolver,
+      com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository
+          journalReferenceMappingRepository,
+      jakarta.persistence.EntityManager entityManager,
+      com.bigbrightpaints.erp.core.config.SystemSettingsService systemSettingsService,
+      com.bigbrightpaints.erp.core.audit.AuditService auditService,
+      com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore accountingEventStore,
+      JournalEntryService journalEntryService) {
+    this(
+        new DelegatingAccountingCoreSupport(
+            companyContextService,
+            accountRepository,
+            journalEntryRepository,
+            dealerLedgerService,
+            supplierLedgerService,
+            payrollRunRepository,
+            payrollRunLineRepository,
+            accountingPeriodService,
+            referenceNumberService,
+            eventPublisher,
+            companyClock,
+            companyEntityLookup,
+            settlementAllocationRepository,
+            rawMaterialPurchaseRepository,
+            invoiceRepository,
+            rawMaterialMovementRepository,
+            rawMaterialBatchRepository,
+            finishedGoodBatchRepository,
+            dealerRepository,
+            supplierRepository,
+            invoiceSettlementPolicy,
+            journalReferenceResolver,
+            journalReferenceMappingRepository,
+            entityManager,
+            systemSettingsService,
+            auditService,
+            accountingEventStore,
+            journalEntryService));
+  }
+
   public JournalEntryDto recordDealerReceipt(DealerReceiptRequest request) {
-    DealerReceiptRequest normalized = normalizeDealerReceiptRequest(request);
-    return super.recordDealerReceipt(normalized);
+    return accountingCoreSupport.recordDealerReceipt(normalizeDealerReceiptRequest(request));
   }
 
   JournalEntryDto recordDealerReceiptNormalized(DealerReceiptRequest request) {
     ValidationUtils.requireNotNull(request, "request");
-    return super.recordDealerReceipt(request);
+    return accountingCoreSupport.recordDealerReceipt(request);
   }
 
-  @Override
   public JournalEntryDto recordDealerReceiptSplit(DealerReceiptSplitRequest request) {
-    DealerReceiptSplitRequest normalized = normalizeDealerReceiptSplitRequest(request);
-    return super.recordDealerReceiptSplit(normalized);
+    return accountingCoreSupport.recordDealerReceiptSplit(normalizeDealerReceiptSplitRequest(request));
   }
 
   public List<JournalEntryDto> listDealerReceipts(Long dealerId, int page, int size) {
     ValidationUtils.requireNotNull(dealerId, "dealerId");
-    int safePage = Math.max(page, 0);
-    int safeSize = Math.max(1, Math.min(size, 200));
-    return super.listJournalEntries(dealerId, null, safePage, safeSize);
+    return accountingCoreSupport.listJournalEntries(dealerId, null, Math.max(page, 0), Math.max(1, Math.min(size, 200)));
   }
 
-  @Override
-  public JournalEntryDto createJournalEntry(JournalEntryRequest request) {
-    return journalEntryService.createJournalEntry(request);
-  }
-
-  @Override
-  public JournalEntryDto createStandardJournal(JournalCreationRequest request) {
-    return journalEntryService.createStandardJournal(request);
+  JournalEntryDto createJournalEntry(JournalEntryRequest request) {
+    return accountingCoreSupport.createJournalEntry(request);
   }
 
   private DealerReceiptRequest normalizeDealerReceiptRequest(DealerReceiptRequest request) {
@@ -194,11 +173,7 @@ public class DealerReceiptService extends AccountingCoreEngineCore {
           "dealer-receipt-split-" + IdempotencyUtils.sha256Hex(seed, 24).toUpperCase(Locale.ROOT);
     }
     return new DealerReceiptSplitRequest(
-        request.dealerId(),
-        normalizedIncoming,
-        reference,
-        normalizeText(request.memo()),
-        idempotencyKey);
+        request.dealerId(), normalizedIncoming, reference, normalizeText(request.memo()), idempotencyKey);
   }
 
   private DealerReceiptSplitRequest.IncomingLine normalizeIncomingLine(

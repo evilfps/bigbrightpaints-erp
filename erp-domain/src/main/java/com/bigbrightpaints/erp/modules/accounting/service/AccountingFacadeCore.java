@@ -35,6 +35,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMapping;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
@@ -2021,7 +2022,7 @@ class AccountingFacadeCore {
         entry.getReferenceNumber(),
         entry.getEntryDate(),
         entry.getMemo(),
-        entry.getStatus(),
+        entry.getStatus() != null ? entry.getStatus().name() : null,
         entry.getDealer() != null ? entry.getDealer().getId() : null,
         entry.getDealer() != null ? entry.getDealer().getName() : null,
         entry.getSupplier() != null ? entry.getSupplier().getId() : null,

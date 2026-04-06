@@ -35,6 +35,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
@@ -175,7 +176,7 @@ public class ReportService {
     BigDecimal investing = BigDecimal.ZERO;
     BigDecimal financing = BigDecimal.ZERO;
     for (JournalEntry entry : entries) {
-      if (!"POSTED".equalsIgnoreCase(entry.getStatus())) {
+      if (entry.getStatus() != JournalEntryStatus.POSTED) {
         continue;
       }
       List<JournalLine> lines = entry.getLines();

@@ -5,6 +5,7 @@ import java.util.Locale;
 import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceipt;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
@@ -71,7 +72,7 @@ public final class BusinessDocumentTruths {
 
   public static DocumentLifecycleDto journalLifecycle(JournalEntry journalEntry) {
     String workflowStatus =
-        normalizeWorkflow(journalEntry != null ? journalEntry.getStatus() : null, "DRAFT");
+        normalizeWorkflow(journalEntry != null ? journalStatus(journalEntry) : null, "DRAFT");
     return new DocumentLifecycleDto(
         workflowStatus, deriveAccountingStatus(workflowStatus, journalEntry, true));
   }
@@ -99,12 +100,15 @@ public final class BusinessDocumentTruths {
     if (journalEntry == null) {
       return accountingEligible ? "PENDING" : "NOT_ELIGIBLE";
     }
-    String normalizedJournalStatus = normalizeWorkflow(journalEntry.getStatus(), "DRAFT");
-    return switch (normalizedJournalStatus) {
-      case "POSTED", "PAID", "SETTLED", "CLOSED" -> "POSTED";
-      case "REVERSED", "VOID", "VOIDED", "CANCELLED" -> "REVERSED";
-      case "BLOCKED", "FAILED" -> "BLOCKED";
-      default -> accountingEligible ? "PENDING" : "NOT_ELIGIBLE";
+    JournalEntryStatus status = journalEntry.getStatus();
+    if (status == null) {
+      return accountingEligible ? "PENDING" : "NOT_ELIGIBLE";
+    }
+    return switch (status) {
+      case POSTED, PAID, SETTLED, CLOSED -> "POSTED";
+      case REVERSED, VOID, VOIDED, CANCELLED -> "REVERSED";
+      case BLOCKED, FAILED -> "BLOCKED";
+      case DRAFT -> accountingEligible ? "PENDING" : "NOT_ELIGIBLE";
     };
   }
 
@@ -120,5 +124,9 @@ public final class BusinessDocumentTruths {
       return defaultValue;
     }
     return value.trim().toUpperCase(Locale.ROOT);
+  }
+
+  private static String journalStatus(JournalEntry journalEntry) {
+    return journalEntry.getStatus() == null ? null : journalEntry.getStatus().name();
   }
 }

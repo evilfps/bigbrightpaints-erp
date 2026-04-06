@@ -1,4 +1,4 @@
-package com.bigbrightpaints.erp.modules.accounting.internal;
+package com.bigbrightpaints.erp.modules.accounting.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -25,6 +25,7 @@ import com.bigbrightpaints.erp.core.util.BusinessDocumentTruths;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.core.util.LegacyDispatchInvoiceLinkMatcher;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
@@ -165,7 +166,7 @@ public class AccountingAuditTrailServiceCore {
                       entry.getId(),
                       entry.getReferenceNumber(),
                       entry.getEntryDate(),
-                      entry.getStatus(),
+                      entry.getStatus() != null ? entry.getStatus().name() : null,
                       resolvedModule,
                       transactionType,
                       entry.getMemo(),
@@ -348,7 +349,7 @@ public class AccountingAuditTrailServiceCore {
         entry.getPublicId(),
         entry.getReferenceNumber(),
         entry.getEntryDate(),
-        entry.getStatus(),
+        entry.getStatus() != null ? entry.getStatus().name() : null,
         module,
         transactionType,
         entry.getMemo(),
@@ -770,17 +771,17 @@ public class AccountingAuditTrailServiceCore {
       notes.add("Journal is not balanced: total debit and credit differ.");
       status = "ERROR";
     }
-    if ("POSTED".equalsIgnoreCase(entry.getStatus()) && entry.getPostedAt() == null) {
+    if (entry.getStatus() == JournalEntryStatus.POSTED && entry.getPostedAt() == null) {
       notes.add("Entry is POSTED but postedAt is null.");
       if (!"ERROR".equals(status)) {
         status = "WARNING";
       }
     }
-    if ("REVERSED".equalsIgnoreCase(entry.getStatus()) && entry.getReversalEntry() == null) {
+    if (entry.getStatus() == JournalEntryStatus.REVERSED && entry.getReversalEntry() == null) {
       notes.add("Entry status is REVERSED but reversal link is missing.");
       status = "ERROR";
     }
-    if ("VOIDED".equalsIgnoreCase(entry.getStatus()) && entry.getReversalEntry() == null) {
+    if (entry.getStatus() == JournalEntryStatus.VOIDED && entry.getReversalEntry() == null) {
       notes.add("Entry status is VOIDED but void reversal link is missing.");
       status = "ERROR";
     }

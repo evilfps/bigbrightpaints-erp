@@ -34,6 +34,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodReposit
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
@@ -576,7 +577,7 @@ public class ReconciliationServiceCore {
 
     Collection<JournalLineRepository.AccountLineTotals> totalsByAccount =
         journalLineRepository.summarizeTotalsByCompanyAndAccountIdsWithin(
-            company, accountIds, start, end, "POSTED");
+            company, accountIds, start, end, JournalEntryStatus.POSTED.name());
     if (totalsByAccount == null || totalsByAccount.isEmpty()) {
       return BigDecimal.ZERO;
     }

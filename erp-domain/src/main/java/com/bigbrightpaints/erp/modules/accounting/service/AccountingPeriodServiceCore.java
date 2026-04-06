@@ -1,4 +1,4 @@
-package com.bigbrightpaints.erp.modules.accounting.internal;
+package com.bigbrightpaints.erp.modules.accounting.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -30,6 +30,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodReposit
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.CostingMethod;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
@@ -855,9 +856,9 @@ public class AccountingPeriodServiceCore {
     if (closing == null) {
       return;
     }
-    String status = closing.getStatus() != null ? closing.getStatus().toUpperCase() : null;
-    if ("REVERSED".equals(status)
-        || "VOIDED".equals(status)
+    JournalEntryStatus status = closing.getStatus();
+    if (status == JournalEntryStatus.REVERSED
+        || status == JournalEntryStatus.VOIDED
         || closing.getReversalEntry() != null) {
       return;
     }

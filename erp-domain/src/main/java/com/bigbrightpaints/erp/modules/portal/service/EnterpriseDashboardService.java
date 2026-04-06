@@ -24,6 +24,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
@@ -274,7 +275,7 @@ public class EnterpriseDashboardService {
   private BigDecimal computeCogs(List<JournalEntry> entries) {
     BigDecimal total = ZERO;
     for (JournalEntry entry : entries) {
-      if (!"POSTED".equalsIgnoreCase(entry.getStatus())) {
+      if (entry.getStatus() != JournalEntryStatus.POSTED) {
         continue;
       }
       for (JournalLine line : entry.getLines()) {
@@ -308,7 +309,7 @@ public class EnterpriseDashboardService {
         inventoryById.values().stream().map(Account::getBalance).reduce(ZERO, BigDecimal::add);
     BigDecimal netChangeWithinWindow = ZERO;
     for (JournalEntry entry : entries) {
-      if (!"POSTED".equalsIgnoreCase(entry.getStatus())) {
+      if (entry.getStatus() != JournalEntryStatus.POSTED) {
         continue;
       }
       for (JournalLine line : entry.getLines()) {
@@ -323,7 +324,7 @@ public class EnterpriseDashboardService {
     }
     BigDecimal netChangeAfterWindow = ZERO;
     for (JournalEntry entry : entriesAfterWindow) {
-      if (!"POSTED".equalsIgnoreCase(entry.getStatus())) {
+      if (entry.getStatus() != JournalEntryStatus.POSTED) {
         continue;
       }
       for (JournalLine line : entry.getLines()) {
@@ -507,7 +508,7 @@ public class EnterpriseDashboardService {
   private Map<LocalDate, BigDecimal> aggregateCogsByDate(List<JournalEntry> entries) {
     Map<LocalDate, BigDecimal> totals = new HashMap<>();
     for (JournalEntry entry : entries) {
-      if (!"POSTED".equalsIgnoreCase(entry.getStatus())) {
+      if (entry.getStatus() != JournalEntryStatus.POSTED) {
         continue;
       }
       LocalDate date = entry.getEntryDate();
@@ -534,7 +535,7 @@ public class EnterpriseDashboardService {
     Set<Long> cashIds = cashAccounts.stream().map(Account::getId).collect(Collectors.toSet());
     Map<LocalDate, BigDecimal> movements = new HashMap<>();
     for (JournalEntry entry : entries) {
-      if (!"POSTED".equalsIgnoreCase(entry.getStatus())) {
+      if (entry.getStatus() != JournalEntryStatus.POSTED) {
         continue;
       }
       LocalDate date = entry.getEntryDate();
