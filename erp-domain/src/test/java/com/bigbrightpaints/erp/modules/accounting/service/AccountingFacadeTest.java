@@ -38,11 +38,19 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMapping;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
+import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptSplitRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalLineDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.ManualJournalRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
+import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationApplication;
+import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.dto.PayrollPaymentRequest;
@@ -915,6 +923,158 @@ class AccountingFacadeTest {
   }
 
   @Test
+  void postPayrollRun_delegatesToAccountingService() {
+    List<JournalEntryRequest.JournalLineRequest> lines =
+        List.of(
+            new JournalEntryRequest.JournalLineRequest(
+                11L, "Payroll expense", new BigDecimal("800.00"), BigDecimal.ZERO),
+            new JournalEntryRequest.JournalLineRequest(
+                12L, "Payroll payable", BigDecimal.ZERO, new BigDecimal("800.00")));
+    JournalEntryDto expected = expectedJournal(89L, "PAYROLL-PR-2026-03");
+    when(accountingService.postPayrollRun(
+            "PR-2026-03", 19L, LocalDate.of(2026, 3, 31), "Payroll - PR-2026-03", lines))
+        .thenReturn(expected);
+
+    JournalEntryDto actual =
+        accountingFacade.postPayrollRun(
+            "PR-2026-03", 19L, LocalDate.of(2026, 3, 31), "Payroll - PR-2026-03", lines);
+
+    assertThat(actual).isSameAs(expected);
+    verify(accountingService)
+        .postPayrollRun(
+            "PR-2026-03", 19L, LocalDate.of(2026, 3, 31), "Payroll - PR-2026-03", lines);
+  }
+
+  @Test
+  void settlementAndReceiptFlows_delegateToAccountingService() {
+    DealerReceiptRequest dealerReceiptRequest =
+        new DealerReceiptRequest(
+            7L, 3L, new BigDecimal("125.00"), "RCPT-7", "Dealer receipt", "receipt-key", List.of());
+    DealerReceiptSplitRequest splitRequest =
+        new DealerReceiptSplitRequest(
+            7L,
+            List.of(new DealerReceiptSplitRequest.IncomingLine(3L, new BigDecimal("125.00"))),
+            "RCPT-SPLIT-7",
+            "Dealer split receipt",
+            "split-key");
+    SupplierPaymentRequest supplierPaymentRequest =
+        new SupplierPaymentRequest(
+            8L,
+            4L,
+            new BigDecimal("90.00"),
+            "SUP-8",
+            "Supplier payment",
+            "supplier-key",
+            List.of());
+    PartnerSettlementRequest dealerSettlementRequest =
+        new PartnerSettlementRequest(
+            7L,
+            3L,
+            null,
+            null,
+            null,
+            null,
+            LocalDate.of(2026, 3, 31),
+            "SET-DEALER-7",
+            "Dealer settlement",
+            "dealer-settlement-key",
+            Boolean.FALSE,
+            List.of(
+                new SettlementAllocationRequest(
+                    70L,
+                    null,
+                    new BigDecimal("125.00"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    SettlementAllocationApplication.DOCUMENT,
+                    "allocation")),
+            null);
+    PartnerSettlementRequest supplierSettlementRequest =
+        new PartnerSettlementRequest(
+            8L,
+            4L,
+            null,
+            null,
+            null,
+            null,
+            LocalDate.of(2026, 3, 31),
+            "SET-SUP-8",
+            "Supplier settlement",
+            "supplier-settlement-key",
+            Boolean.FALSE,
+            List.of(
+                new SettlementAllocationRequest(
+                    null,
+                    80L,
+                    new BigDecimal("90.00"),
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    SettlementAllocationApplication.DOCUMENT,
+                    "allocation")));
+    AutoSettlementRequest autoSettlementRequest =
+        new AutoSettlementRequest(
+            3L, new BigDecimal("150.00"), "AUTO-SET", "Auto settlement", "auto-key");
+    JournalEntryDto receiptJournal = expectedJournal(90L, "RCPT-7");
+    JournalEntryDto splitJournal = expectedJournal(91L, "RCPT-SPLIT-7");
+    JournalEntryDto supplierJournal = expectedJournal(92L, "SUP-8");
+    PartnerSettlementResponse dealerResponse =
+        new PartnerSettlementResponse(
+            receiptJournal,
+            new BigDecimal("125.00"),
+            new BigDecimal("125.00"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            List.of());
+    PartnerSettlementResponse supplierResponse =
+        new PartnerSettlementResponse(
+            supplierJournal,
+            new BigDecimal("90.00"),
+            new BigDecimal("90.00"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            BigDecimal.ZERO,
+            List.of());
+
+    when(accountingService.recordDealerReceipt(dealerReceiptRequest)).thenReturn(receiptJournal);
+    when(accountingService.recordDealerReceiptSplit(splitRequest)).thenReturn(splitJournal);
+    when(accountingService.recordSupplierPayment(supplierPaymentRequest))
+        .thenReturn(supplierJournal);
+    when(accountingService.settleDealerInvoices(dealerSettlementRequest))
+        .thenReturn(dealerResponse);
+    when(accountingService.settleSupplierInvoices(supplierSettlementRequest))
+        .thenReturn(supplierResponse);
+    when(accountingService.autoSettleDealer(7L, autoSettlementRequest)).thenReturn(dealerResponse);
+    when(accountingService.autoSettleSupplier(8L, autoSettlementRequest))
+        .thenReturn(supplierResponse);
+
+    assertThat(accountingFacade.recordDealerReceipt(dealerReceiptRequest)).isSameAs(receiptJournal);
+    assertThat(accountingFacade.recordDealerReceiptSplit(splitRequest)).isSameAs(splitJournal);
+    assertThat(accountingFacade.recordSupplierPayment(supplierPaymentRequest))
+        .isSameAs(supplierJournal);
+    assertThat(accountingFacade.settleDealerInvoices(dealerSettlementRequest))
+        .isSameAs(dealerResponse);
+    assertThat(accountingFacade.settleSupplierInvoices(supplierSettlementRequest))
+        .isSameAs(supplierResponse);
+    assertThat(accountingFacade.autoSettleDealer(7L, autoSettlementRequest))
+        .isSameAs(dealerResponse);
+    assertThat(accountingFacade.autoSettleSupplier(8L, autoSettlementRequest))
+        .isSameAs(supplierResponse);
+
+    verify(accountingService).recordDealerReceipt(dealerReceiptRequest);
+    verify(accountingService).recordDealerReceiptSplit(splitRequest);
+    verify(accountingService).recordSupplierPayment(supplierPaymentRequest);
+    verify(accountingService).settleDealerInvoices(dealerSettlementRequest);
+    verify(accountingService).settleSupplierInvoices(supplierSettlementRequest);
+    verify(accountingService).autoSettleDealer(7L, autoSettlementRequest);
+    verify(accountingService).autoSettleSupplier(8L, autoSettlementRequest);
+  }
+
+  @Test
   void upsertJournalReferenceMapping_updatesExistingReservationWithoutEntityId() {
     JournalReferenceMapping mapping = journalReferenceMapping("LEGACY-100", null, null);
     JournalEntry entry = journalEntry(1001L, "SALES-100");
@@ -1082,6 +1242,35 @@ class AccountingFacadeTest {
       return "0";
     }
     return value.stripTrailingZeros().toPlainString();
+  }
+
+  private JournalEntryDto expectedJournal(Long id, String referenceNumber) {
+    return new JournalEntryDto(
+        id,
+        null,
+        referenceNumber,
+        LocalDate.of(2026, 3, 31),
+        "memo",
+        "POSTED",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        List.<JournalLineDto>of(),
+        null,
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   private JournalEntry journalEntry(Long id, String referenceNumber) {

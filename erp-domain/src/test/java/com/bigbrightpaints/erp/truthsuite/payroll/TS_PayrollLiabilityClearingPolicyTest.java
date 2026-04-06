@@ -19,12 +19,12 @@ class TS_PayrollLiabilityClearingPolicyTest {
       "src/main/java/com/bigbrightpaints/erp/modules/accounting/service/PayrollAccountingService.java";
 
   @Test
-  void payrollPostingUsesCanonicalAccountingServiceAndSalaryPayableAccount() {
+  void payrollPostingUsesCanonicalAccountingFacadeAndSalaryPayableAccount() {
     TruthSuiteFileAssert.assertContains(
         PAYROLL_SERVICE,
         "PayrollRun run = companyEntityLookup.lockPayrollRun(company, payrollRunId);",
         "Account salaryPayableAccount = findAccountByCode(company, \"SALARY-PAYABLE\");",
-        "JournalEntryDto journal = accountingService.postPayrollRun(runNumber, run.getId(),"
+        "JournalEntryDto journal = accountingFacade.postPayrollRun(runNumber, run.getId(),"
             + " postingDate, memo, lines);",
         "run.setJournalEntryId(journal.id());",
         "run.setStatus(PayrollRun.PayrollStatus.POSTED);");
@@ -38,7 +38,7 @@ class TS_PayrollLiabilityClearingPolicyTest {
         "LocalDate today = companyClock.today(company);",
         "if (postingDate == null || postingDate.isAfter(today)) {",
         "postingDate = today;",
-        "JournalEntryDto journal = accountingService.postPayrollRun(runNumber, run.getId(),"
+        "JournalEntryDto journal = accountingFacade.postPayrollRun(runNumber, run.getId(),"
             + " postingDate, memo, lines);");
   }
 

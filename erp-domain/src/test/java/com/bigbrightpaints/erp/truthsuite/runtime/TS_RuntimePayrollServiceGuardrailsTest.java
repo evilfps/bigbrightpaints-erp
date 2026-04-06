@@ -23,7 +23,7 @@ import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.AttendanceRepository;
@@ -44,7 +44,7 @@ class TS_RuntimePayrollServiceGuardrailsTest {
     PayrollRunLineRepository payrollRunLineRepository = mock(PayrollRunLineRepository.class);
     EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
     AttendanceRepository attendanceRepository = mock(AttendanceRepository.class);
-    AccountingService accountingService = mock(AccountingService.class);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
     AccountRepository accountRepository = mock(AccountRepository.class);
     CompanyContextService companyContextService = mock(CompanyContextService.class);
     CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
@@ -57,7 +57,7 @@ class TS_RuntimePayrollServiceGuardrailsTest {
             payrollRunLineRepository,
             employeeRepository,
             attendanceRepository,
-            accountingService,
+            accountingFacade,
             accountRepository,
             companyContextService,
             companyEntityLookup,
@@ -91,7 +91,7 @@ class TS_RuntimePayrollServiceGuardrailsTest {
     PayrollRunLineRepository payrollRunLineRepository = mock(PayrollRunLineRepository.class);
     EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
     AttendanceRepository attendanceRepository = mock(AttendanceRepository.class);
-    AccountingService accountingService = mock(AccountingService.class);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
     AccountRepository accountRepository = mock(AccountRepository.class);
     CompanyContextService companyContextService = mock(CompanyContextService.class);
     CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
@@ -104,7 +104,7 @@ class TS_RuntimePayrollServiceGuardrailsTest {
             payrollRunLineRepository,
             employeeRepository,
             attendanceRepository,
-            accountingService,
+            accountingFacade,
             accountRepository,
             companyContextService,
             companyEntityLookup,
@@ -146,7 +146,7 @@ class TS_RuntimePayrollServiceGuardrailsTest {
     PayrollRunLineRepository payrollRunLineRepository = mock(PayrollRunLineRepository.class);
     EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
     AttendanceRepository attendanceRepository = mock(AttendanceRepository.class);
-    AccountingService accountingService = mock(AccountingService.class);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
     AccountRepository accountRepository = mock(AccountRepository.class);
     CompanyContextService companyContextService = mock(CompanyContextService.class);
     CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
@@ -159,7 +159,7 @@ class TS_RuntimePayrollServiceGuardrailsTest {
             payrollRunLineRepository,
             employeeRepository,
             attendanceRepository,
-            accountingService,
+            accountingFacade,
             accountRepository,
             companyContextService,
             companyEntityLookup,
@@ -201,7 +201,7 @@ class TS_RuntimePayrollServiceGuardrailsTest {
     PayrollRunLineRepository payrollRunLineRepository = mock(PayrollRunLineRepository.class);
     EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
     AttendanceRepository attendanceRepository = mock(AttendanceRepository.class);
-    AccountingService accountingService = mock(AccountingService.class);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
     AccountRepository accountRepository = mock(AccountRepository.class);
     CompanyContextService companyContextService = mock(CompanyContextService.class);
     CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
@@ -214,7 +214,7 @@ class TS_RuntimePayrollServiceGuardrailsTest {
             payrollRunLineRepository,
             employeeRepository,
             attendanceRepository,
-            accountingService,
+            accountingFacade,
             accountRepository,
             companyContextService,
             companyEntityLookup,

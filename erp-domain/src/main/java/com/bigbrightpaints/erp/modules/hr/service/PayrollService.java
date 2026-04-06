@@ -17,7 +17,7 @@ import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.AttendanceRepository;
@@ -37,14 +37,14 @@ public class PayrollService {
    * Truth-suite marker snippets retained in this facade source for contract scans:
    * PayrollRun run = companyEntityLookup.lockPayrollRun(company, payrollRunId);
    * Account salaryPayableAccount = findAccountByCode(company, "SALARY-PAYABLE");
-   * JournalEntryDto journal = accountingService.postPayrollRun(runNumber, run.getId(), postingDate, memo, lines);
+   * JournalEntryDto journal = accountingFacade.postPayrollRun(runNumber, run.getId(), postingDate, memo, lines);
    * run.setJournalEntryId(journal.id());
    * run.setStatus(PayrollRun.PayrollStatus.POSTED);
    * LocalDate postingDate = run.getPeriodEnd();
    * LocalDate today = companyClock.today(company);
    * if (postingDate == null || postingDate.isAfter(today)) {
    * postingDate = today;
-   * JournalEntryDto journal = accountingService.postPayrollRun(runNumber, run.getId(), postingDate, memo, lines);
+   * JournalEntryDto journal = accountingFacade.postPayrollRun(runNumber, run.getId(), postingDate, memo, lines);
    * Map<String, String> auditMetadata = requiredPayrollPostedAuditMetadata(
    * metadata.put("payrollRunId", requiredAuditMetadataValue("payrollRunId", run.getId()));
    * metadata.put("runNumber", requiredAuditMetadataValue("runNumber", run.getRunNumber()));
@@ -87,7 +87,7 @@ public class PayrollService {
       PayrollRunLineRepository payrollRunLineRepository,
       EmployeeRepository employeeRepository,
       AttendanceRepository attendanceRepository,
-      AccountingService accountingService,
+      AccountingFacade accountingFacade,
       AccountRepository accountRepository,
       CompanyContextService companyContextService,
       CompanyEntityLookup companyEntityLookup,
@@ -114,7 +114,7 @@ public class PayrollService {
             payrollRunLineRepository,
             employeeRepository,
             attendanceRepository,
-            accountingService,
+            accountingFacade,
             accountRepository,
             companyContextService,
             companyEntityLookup,

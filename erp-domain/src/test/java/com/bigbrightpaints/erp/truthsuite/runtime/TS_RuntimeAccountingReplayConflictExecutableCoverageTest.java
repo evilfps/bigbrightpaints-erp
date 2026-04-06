@@ -90,8 +90,7 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
             .map(field -> field.getType().getSimpleName())
             .collect(Collectors.toSet());
 
-    assertThat(fieldTypes)
-        .contains("ManualJournalService", "ClosingEntryReversalService");
+    assertThat(fieldTypes).contains("ManualJournalService", "ClosingEntryReversalService");
   }
 
   @Test

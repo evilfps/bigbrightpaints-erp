@@ -23,7 +23,6 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalLineDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.LandedCostRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.ManualJournalRequest;
-import com.bigbrightpaints.erp.modules.hr.domain.PayrollRunRepository;
 
 @ExtendWith(MockitoExtension.class)
 class AccountingServiceTest {

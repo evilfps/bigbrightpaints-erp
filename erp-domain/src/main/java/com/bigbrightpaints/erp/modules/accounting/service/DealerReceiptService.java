@@ -13,7 +13,6 @@ import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptSplitRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
-import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 
 @Service
 public class DealerReceiptService {
@@ -46,10 +45,6 @@ public class DealerReceiptService {
     ValidationUtils.requireNotNull(dealerId, "dealerId");
     return accountingCoreSupport.listJournalEntries(
         dealerId, null, Math.max(page, 0), Math.max(1, Math.min(size, 200)));
-  }
-
-  JournalEntryDto createJournalEntry(JournalEntryRequest request) {
-    return accountingCoreSupport.createJournalEntry(request);
   }
 
   private DealerReceiptRequest normalizeDealerReceiptRequest(DealerReceiptRequest request) {

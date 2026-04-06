@@ -18,8 +18,7 @@ import org.mockito.ArgumentCaptor;
 import com.bigbrightpaints.erp.modules.accounting.controller.SettlementController;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
-import com.bigbrightpaints.erp.modules.accounting.service.DealerReceiptService;
-import com.bigbrightpaints.erp.modules.accounting.service.SettlementService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 
 @Tag("critical")
 @Tag("reconciliation")
@@ -28,67 +27,66 @@ class TS_AccountingIdempotencyHeaderParityRuntimeCoverageTest {
 
   @Test
   void recordDealerReceipt_noBodyAndNoHeaders_clearsIdempotencyKeyOnCopiedRequest() {
-    DealerReceiptService dealerReceiptService = mock(DealerReceiptService.class);
-    SettlementController controller = newController(dealerReceiptService);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
+    SettlementController controller = newController(accountingFacade);
     DealerReceiptRequest request = dealerReceiptRequest(null);
-    when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
+    when(accountingFacade.recordDealerReceipt(any())).thenReturn(null);
 
     controller.recordDealerReceipt(request, null, null);
 
     ArgumentCaptor<DealerReceiptRequest> captor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
-    verify(dealerReceiptService).recordDealerReceipt(captor.capture());
+    verify(accountingFacade).recordDealerReceipt(captor.capture());
     assertThat(captor.getValue()).isNotSameAs(request);
     assertThat(captor.getValue().idempotencyKey()).isNull();
   }
 
   @Test
   void recordDealerReceipt_appliesHeaderKeyWhenBodyMissing() {
-    DealerReceiptService dealerReceiptService = mock(DealerReceiptService.class);
-    SettlementController controller = newController(dealerReceiptService);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
+    SettlementController controller = newController(accountingFacade);
     DealerReceiptRequest request = dealerReceiptRequest(null);
-    when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
+    when(accountingFacade.recordDealerReceipt(any())).thenReturn(null);
 
     controller.recordDealerReceipt(request, "hdr-001", null);
 
     ArgumentCaptor<DealerReceiptRequest> captor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
-    verify(dealerReceiptService).recordDealerReceipt(captor.capture());
+    verify(accountingFacade).recordDealerReceipt(captor.capture());
     assertThat(captor.getValue()).isNotSameAs(request);
     assertThat(captor.getValue().idempotencyKey()).isEqualTo("hdr-001");
   }
 
   @Test
   void recordDealerReceipt_bodyKeyWithoutCanonicalHeader_isCleared() {
-    DealerReceiptService dealerReceiptService = mock(DealerReceiptService.class);
-    SettlementController controller = newController(dealerReceiptService);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
+    SettlementController controller = newController(accountingFacade);
     DealerReceiptRequest request = dealerReceiptRequest("body-001");
-    when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
+    when(accountingFacade.recordDealerReceipt(any())).thenReturn(null);
 
     controller.recordDealerReceipt(request, null, null);
 
     ArgumentCaptor<DealerReceiptRequest> captor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
-    verify(dealerReceiptService).recordDealerReceipt(captor.capture());
+    verify(accountingFacade).recordDealerReceipt(captor.capture());
     assertThat(captor.getValue()).isNotSameAs(request);
     assertThat(captor.getValue().idempotencyKey()).isNull();
   }
 
   @Test
   void recordDealerReceipt_trimsNonBlankHeaders_andTreatsBlankHeadersAsMissing() {
-    DealerReceiptService dealerReceiptService = mock(DealerReceiptService.class);
-    SettlementController controller = newController(dealerReceiptService);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
+    SettlementController controller = newController(accountingFacade);
     DealerReceiptRequest nonBlankHeaderRequest = dealerReceiptRequest(null);
     DealerReceiptRequest blankHeaderRequest = dealerReceiptRequest(null);
-    when(dealerReceiptService.recordDealerReceipt(any())).thenReturn(null);
+    when(accountingFacade.recordDealerReceipt(any())).thenReturn(null);
 
     controller.recordDealerReceipt(nonBlankHeaderRequest, "  hdr-trim-001  ", null);
     controller.recordDealerReceipt(blankHeaderRequest, "   ", null);
 
     ArgumentCaptor<DealerReceiptRequest> captor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
-    verify(dealerReceiptService, org.mockito.Mockito.times(2))
-        .recordDealerReceipt(captor.capture());
+    verify(accountingFacade, org.mockito.Mockito.times(2)).recordDealerReceipt(captor.capture());
     List<DealerReceiptRequest> captured = captor.getAllValues();
 
     assertThat(captured.get(0)).isNotSameAs(nonBlankHeaderRequest);
@@ -99,18 +97,18 @@ class TS_AccountingIdempotencyHeaderParityRuntimeCoverageTest {
 
   @Test
   void recordDealerReceipt_rejectsLegacyHeader() {
-    DealerReceiptService dealerReceiptService = mock(DealerReceiptService.class);
-    SettlementController controller = newController(dealerReceiptService);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
+    SettlementController controller = newController(accountingFacade);
 
     assertThatThrownBy(
             () -> controller.recordDealerReceipt(dealerReceiptRequest(null), null, "legacy-001"))
         .isInstanceOf(com.bigbrightpaints.erp.core.exception.ApplicationException.class)
         .hasMessageContaining("X-Idempotency-Key");
-    verifyNoInteractions(dealerReceiptService);
+    verifyNoInteractions(accountingFacade);
   }
 
-  private SettlementController newController(DealerReceiptService dealerReceiptService) {
-    return new SettlementController(dealerReceiptService, mock(SettlementService.class));
+  private SettlementController newController(AccountingFacade accountingFacade) {
+    return new SettlementController(accountingFacade);
   }
 
   private DealerReceiptRequest dealerReceiptRequest(String idempotencyKey) {

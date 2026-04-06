@@ -48,11 +48,9 @@ import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyAccountingSettingsService;
 import com.bigbrightpaints.erp.modules.accounting.service.CreditDebitNoteService;
-import com.bigbrightpaints.erp.modules.accounting.service.DealerReceiptService;
 import com.bigbrightpaints.erp.modules.accounting.service.JournalEntryService;
 import com.bigbrightpaints.erp.modules.accounting.service.JournalReferenceResolver;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
-import com.bigbrightpaints.erp.modules.accounting.service.SettlementService;
 import com.bigbrightpaints.erp.modules.accounting.service.StatementService;
 import com.bigbrightpaints.erp.modules.accounting.service.TaxService;
 import com.bigbrightpaints.erp.modules.accounting.service.TemporalBalanceService;
@@ -761,8 +759,8 @@ class AccountingEndpointContractTest {
 
   @Test
   void settleDealer_preservesAmountAndUnappliedApplicationWhenApplyingHeaderIdempotency() {
-    SettlementService settlementService = mock(SettlementService.class);
-    SettlementController controller = controllerWithSettlementService(settlementService);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
+    SettlementController controller = controllerWithSettlementFacade(accountingFacade);
     PartnerSettlementRequest request =
         new PartnerSettlementRequest(
             9L,
@@ -790,14 +788,14 @@ class AccountingEndpointContractTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             List.of());
-    when(settlementService.settleDealerInvoices(any(PartnerSettlementRequest.class)))
+    when(accountingFacade.settleDealerInvoices(any(PartnerSettlementRequest.class)))
         .thenReturn(expected);
 
     controller.settleDealer(request, "IDEMP-DEALER-HDR-1", null);
 
     ArgumentCaptor<PartnerSettlementRequest> requestCaptor =
         ArgumentCaptor.forClass(PartnerSettlementRequest.class);
-    verify(settlementService).settleDealerInvoices(requestCaptor.capture());
+    verify(accountingFacade).settleDealerInvoices(requestCaptor.capture());
     PartnerSettlementRequest resolved = requestCaptor.getValue();
     assertThat(resolved.amount()).isEqualByComparingTo("180.00");
     assertThat(resolved.unappliedAmountApplication())
@@ -807,8 +805,8 @@ class AccountingEndpointContractTest {
 
   @Test
   void settleSupplier_preservesAmountAndUnappliedApplicationWhenApplyingHeaderIdempotency() {
-    SettlementService settlementService = mock(SettlementService.class);
-    SettlementController controller = controllerWithSettlementService(settlementService);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
+    SettlementController controller = controllerWithSettlementFacade(accountingFacade);
     PartnerSettlementRequest request =
         new PartnerSettlementRequest(
             8L,
@@ -835,14 +833,14 @@ class AccountingEndpointContractTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             List.of());
-    when(settlementService.settleSupplierInvoices(any(PartnerSettlementRequest.class)))
+    when(accountingFacade.settleSupplierInvoices(any(PartnerSettlementRequest.class)))
         .thenReturn(expected);
 
     controller.settleSupplier(request, "IDEMP-SUP-HDR-1", null);
 
     ArgumentCaptor<PartnerSettlementRequest> requestCaptor =
         ArgumentCaptor.forClass(PartnerSettlementRequest.class);
-    verify(settlementService).settleSupplierInvoices(requestCaptor.capture());
+    verify(accountingFacade).settleSupplierInvoices(requestCaptor.capture());
     PartnerSettlementRequest resolved = requestCaptor.getValue();
     assertThat(resolved.amount()).isEqualByComparingTo("95.00");
     assertThat(resolved.unappliedAmountApplication())
@@ -852,8 +850,8 @@ class AccountingEndpointContractTest {
 
   @Test
   void autoSettleSupplier_appliesHeaderOnlyIdempotencyKey() {
-    SettlementService settlementService = mock(SettlementService.class);
-    SettlementController controller = controllerWithSettlementService(settlementService);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
+    SettlementController controller = controllerWithSettlementFacade(accountingFacade);
     AutoSettlementRequest request =
         new AutoSettlementRequest(
             42L, new BigDecimal("75.00"), "AUTO-SUP-1", "auto supplier settlement", null);
@@ -867,14 +865,14 @@ class AccountingEndpointContractTest {
             BigDecimal.ZERO,
             BigDecimal.ZERO,
             List.of());
-    when(settlementService.autoSettleSupplier(eq(8L), any(AutoSettlementRequest.class)))
+    when(accountingFacade.autoSettleSupplier(eq(8L), any(AutoSettlementRequest.class)))
         .thenReturn(expected);
 
     controller.autoSettleSupplier(8L, request, "IDEMP-SUP-AUTO-1", null);
 
     ArgumentCaptor<AutoSettlementRequest> requestCaptor =
         ArgumentCaptor.forClass(AutoSettlementRequest.class);
-    verify(settlementService).autoSettleSupplier(eq(8L), requestCaptor.capture());
+    verify(accountingFacade).autoSettleSupplier(eq(8L), requestCaptor.capture());
     AutoSettlementRequest resolved = requestCaptor.getValue();
     assertThat(resolved.amount()).isEqualByComparingTo("75.00");
     assertThat(resolved.idempotencyKey()).isEqualTo("IDEMP-SUP-AUTO-1");
@@ -1075,9 +1073,8 @@ class AccountingEndpointContractTest {
         accountingFacade != null ? accountingFacade : mock(AccountingFacade.class));
   }
 
-  private SettlementController controllerWithSettlementService(
-      SettlementService settlementService) {
-    return new SettlementController(mock(DealerReceiptService.class), settlementService);
+  private SettlementController controllerWithSettlementFacade(AccountingFacade accountingFacade) {
+    return new SettlementController(accountingFacade);
   }
 
   private StatementReportController newStatementController(

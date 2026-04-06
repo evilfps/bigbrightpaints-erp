@@ -17,8 +17,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptSplitRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
-import com.bigbrightpaints.erp.modules.accounting.service.DealerReceiptService;
-import com.bigbrightpaints.erp.modules.accounting.service.SettlementService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
 import jakarta.validation.Valid;
@@ -27,13 +26,10 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/v1/accounting")
 public class SettlementController {
 
-  private final DealerReceiptService dealerReceiptService;
-  private final SettlementService settlementService;
+  private final AccountingFacade accountingFacade;
 
-  public SettlementController(
-      DealerReceiptService dealerReceiptService, SettlementService settlementService) {
-    this.dealerReceiptService = dealerReceiptService;
-    this.settlementService = settlementService;
+  public SettlementController(AccountingFacade accountingFacade) {
+    this.accountingFacade = accountingFacade;
   }
 
   @PostMapping("/receipts/dealer")
@@ -45,7 +41,7 @@ public class SettlementController {
     return ResponseEntity.ok(
         ApiResponse.success(
             "Receipt recorded",
-            dealerReceiptService.recordDealerReceipt(
+            accountingFacade.recordDealerReceipt(
                 applyHeaderOnlyIdempotencyKey(
                     request,
                     SettlementRequestCopies::dealerReceipt,
@@ -64,7 +60,7 @@ public class SettlementController {
     return ResponseEntity.ok(
         ApiResponse.success(
             "Receipt recorded",
-            dealerReceiptService.recordDealerReceiptSplit(
+            accountingFacade.recordDealerReceiptSplit(
                 applyHeaderOnlyIdempotencyKey(
                     request,
                     SettlementRequestCopies::dealerReceiptSplit,
@@ -83,7 +79,7 @@ public class SettlementController {
     return ResponseEntity.ok(
         ApiResponse.success(
             "Settlement recorded",
-            settlementService.settleDealerInvoices(
+            accountingFacade.settleDealerInvoices(
                 applyHeaderOnlyIdempotencyKey(
                     normalizePartnerSettlementRequest(request, PartnerType.DEALER),
                     SettlementRequestCopies::partnerSettlement,
@@ -103,7 +99,7 @@ public class SettlementController {
     return ResponseEntity.ok(
         ApiResponse.success(
             "Auto-settlement recorded",
-            settlementService.autoSettleDealer(
+            accountingFacade.autoSettleDealer(
                 dealerId,
                 applyHeaderOnlyIdempotencyKey(
                     request,
@@ -123,7 +119,7 @@ public class SettlementController {
     return ResponseEntity.ok(
         ApiResponse.success(
             "Settlement recorded",
-            settlementService.settleSupplierInvoices(
+            accountingFacade.settleSupplierInvoices(
                 applyHeaderOnlyIdempotencyKey(
                     normalizePartnerSettlementRequest(request, PartnerType.SUPPLIER),
                     SettlementRequestCopies::partnerSettlement,
@@ -143,7 +139,7 @@ public class SettlementController {
     return ResponseEntity.ok(
         ApiResponse.success(
             "Auto-settlement recorded",
-            settlementService.autoSettleSupplier(
+            accountingFacade.autoSettleSupplier(
                 supplierId,
                 applyHeaderOnlyIdempotencyKey(
                     request,

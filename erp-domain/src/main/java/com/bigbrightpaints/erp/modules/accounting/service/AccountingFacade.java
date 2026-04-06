@@ -40,10 +40,16 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMapping;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
+import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptSplitRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.ManualJournalRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
+import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.event.AccountCacheInvalidatedEvent;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyAccountingSettingsService.TaxAccountConfiguration;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -1487,6 +1493,44 @@ public class AccountingFacade {
 
   public JournalEntryDto createStandardJournal(JournalCreationRequest request) {
     return accountingService.createStandardJournal(request);
+  }
+
+  public JournalEntryDto postPayrollRun(
+      String runNumber,
+      Long runId,
+      LocalDate postingDate,
+      String memo,
+      List<JournalEntryRequest.JournalLineRequest> lines) {
+    return accountingService.postPayrollRun(runNumber, runId, postingDate, memo, lines);
+  }
+
+  public JournalEntryDto recordDealerReceipt(DealerReceiptRequest request) {
+    return accountingService.recordDealerReceipt(request);
+  }
+
+  public JournalEntryDto recordDealerReceiptSplit(DealerReceiptSplitRequest request) {
+    return accountingService.recordDealerReceiptSplit(request);
+  }
+
+  public JournalEntryDto recordSupplierPayment(SupplierPaymentRequest request) {
+    return accountingService.recordSupplierPayment(request);
+  }
+
+  public PartnerSettlementResponse settleDealerInvoices(PartnerSettlementRequest request) {
+    return accountingService.settleDealerInvoices(request);
+  }
+
+  public PartnerSettlementResponse autoSettleDealer(Long dealerId, AutoSettlementRequest request) {
+    return accountingService.autoSettleDealer(dealerId, request);
+  }
+
+  public PartnerSettlementResponse settleSupplierInvoices(PartnerSettlementRequest request) {
+    return accountingService.settleSupplierInvoices(request);
+  }
+
+  public PartnerSettlementResponse autoSettleSupplier(
+      Long supplierId, AutoSettlementRequest request) {
+    return accountingService.autoSettleSupplier(supplierId, request);
   }
 
   /**

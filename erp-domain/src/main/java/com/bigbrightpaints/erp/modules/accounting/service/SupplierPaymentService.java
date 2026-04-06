@@ -9,6 +9,7 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
@@ -23,14 +24,18 @@ import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerType;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
-import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
+import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
+import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 
 @Service
 class SupplierPaymentService {
@@ -38,12 +43,28 @@ class SupplierPaymentService {
   private static final Logger log = LoggerFactory.getLogger(SupplierPaymentService.class);
 
   private final AccountingCoreSupport accountingCoreSupport;
-  private final JournalEntryService journalEntryService;
+  private final CompanyContextService companyContextService;
+  private final ObjectProvider<AccountingFacade> accountingFacadeProvider;
+  private final SupplierRepository supplierRepository;
+  private final CompanyScopedAccountingLookupService accountingLookupService;
+  private final PartnerSettlementAllocationRepository settlementAllocationRepository;
+  private final RawMaterialPurchaseRepository rawMaterialPurchaseRepository;
 
   SupplierPaymentService(
-      AccountingCoreSupport accountingCoreSupport, JournalEntryService journalEntryService) {
+      AccountingCoreSupport accountingCoreSupport,
+      CompanyContextService companyContextService,
+      ObjectProvider<AccountingFacade> accountingFacadeProvider,
+      SupplierRepository supplierRepository,
+      CompanyScopedAccountingLookupService accountingLookupService,
+      PartnerSettlementAllocationRepository settlementAllocationRepository,
+      RawMaterialPurchaseRepository rawMaterialPurchaseRepository) {
     this.accountingCoreSupport = accountingCoreSupport;
-    this.journalEntryService = journalEntryService;
+    this.companyContextService = companyContextService;
+    this.accountingFacadeProvider = accountingFacadeProvider;
+    this.supplierRepository = supplierRepository;
+    this.accountingLookupService = accountingLookupService;
+    this.settlementAllocationRepository = settlementAllocationRepository;
+    this.rawMaterialPurchaseRepository = rawMaterialPurchaseRepository;
   }
 
   @Retryable(
@@ -56,10 +77,9 @@ class SupplierPaymentService {
   }
 
   JournalEntryDto recordSupplierPaymentInternal(SupplierPaymentRequest request) {
-    Company company = accountingCoreSupport.companyContextService.requireCurrentCompany();
+    Company company = companyContextService.requireCurrentCompany();
     Supplier supplier =
-        accountingCoreSupport
-            .supplierRepository
+        supplierRepository
             .lockByCompanyAndId(company, request.supplierId())
             .orElseThrow(
                 () ->
@@ -139,22 +159,27 @@ class SupplierPaymentService {
     cashAccount =
         accountingCoreSupport.requireCashAccountForSettlement(
             company, request.cashAccountId(), "supplier payment", true);
-    JournalEntryRequest payload =
-        new JournalEntryRequest(
-            reference,
-            accountingCoreSupport.currentDate(company),
-            memo,
-            null,
-            supplier.getId(),
-            Boolean.FALSE,
-            List.of(
-                new JournalEntryRequest.JournalLineRequest(
-                    payableAccount.getId(), memo, amount, BigDecimal.ZERO),
-                new JournalEntryRequest.JournalLineRequest(
-                    cashAccount.getId(), memo, BigDecimal.ZERO, amount)));
-    JournalEntryDto entryDto = journalEntryService.createJournalEntry(payload);
-    JournalEntry entry =
-        accountingCoreSupport.accountingLookupService.requireJournalEntry(company, entryDto.id());
+    JournalEntryDto entryDto =
+        resolveAccountingFacade()
+            .createStandardJournal(
+                new JournalCreationRequest(
+                    amount,
+                    payableAccount.getId(),
+                    cashAccount.getId(),
+                    memo,
+                    AccountingCoreSupport.ENTITY_TYPE_SUPPLIER_PAYMENT,
+                    reference,
+                    null,
+                    List.of(
+                        new JournalCreationRequest.LineRequest(
+                            payableAccount.getId(), amount, BigDecimal.ZERO, memo),
+                        new JournalCreationRequest.LineRequest(
+                            cashAccount.getId(), BigDecimal.ZERO, amount, memo)),
+                    accountingCoreSupport.currentDate(company),
+                    null,
+                    supplier.getId(),
+                    Boolean.FALSE));
+    JournalEntry entry = accountingLookupService.requireJournalEntry(company, entryDto.id());
     accountingCoreSupport.linkReferenceMapping(
         company, idempotencyKey, entry, AccountingCoreSupport.ENTITY_TYPE_SUPPLIER_PAYMENT);
     existingAllocations =
@@ -189,8 +214,7 @@ class SupplierPaymentService {
       RawMaterialPurchase purchase = null;
       if (allocation.purchaseId() != null) {
         purchase =
-            accountingCoreSupport
-                .rawMaterialPurchaseRepository
+            rawMaterialPurchaseRepository
                 .lockByCompanyAndId(company, allocation.purchaseId())
                 .orElseThrow(
                     () ->
@@ -234,7 +258,7 @@ class SupplierPaymentService {
       settlementRows.add(row);
     }
     try {
-      accountingCoreSupport.settlementAllocationRepository.saveAll(settlementRows);
+      settlementAllocationRepository.saveAll(settlementRows);
     } catch (DataIntegrityViolationException ex) {
       log.info(
           "Concurrent supplier payment allocation conflict for idempotency key hash={} detected;"
@@ -252,8 +276,17 @@ class SupplierPaymentService {
       touchedPurchases.add(purchase);
     }
     if (!touchedPurchases.isEmpty()) {
-      accountingCoreSupport.rawMaterialPurchaseRepository.saveAll(touchedPurchases);
+      rawMaterialPurchaseRepository.saveAll(touchedPurchases);
     }
     return entryDto;
+  }
+
+  private AccountingFacade resolveAccountingFacade() {
+    AccountingFacade facade =
+        accountingFacadeProvider != null ? accountingFacadeProvider.getIfAvailable() : null;
+    if (facade == null) {
+      throw new IllegalStateException("AccountingFacade is required");
+    }
+    return facade;
   }
 }

@@ -22,6 +22,7 @@ import java.util.concurrent.locks.LockSupport;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -191,6 +192,9 @@ class AccountingCoreSupport {
 
   @Autowired(required = false)
   private Environment environment;
+
+  @Autowired(required = false)
+  private ObjectProvider<AccountingFacade> accountingFacadeProvider;
 
   private final IdempotencyReservationService idempotencyReservationService =
       new IdempotencyReservationService();
@@ -1385,6 +1389,45 @@ class AccountingCoreSupport {
     return toDto(reversalEntry);
   }
 
+  private JournalEntryDto createFacadeJournal(
+      JournalEntryRequest request, String defaultSourceModule, String defaultSourceReference) {
+    AccountingFacade facade =
+        accountingFacadeProvider != null ? accountingFacadeProvider.getIfAvailable() : null;
+    if (facade == null) {
+      throw new IllegalStateException("AccountingFacade is required");
+    }
+    List<JournalEntryRequest.JournalLineRequest> lines = request.lines();
+    return facade.createStandardJournal(
+        new JournalCreationRequest(
+            lines.stream()
+                .map(line -> roundedAmount(MoneyUtils.zeroIfNull(line.debit())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add),
+            null,
+            null,
+            request.memo(),
+            StringUtils.hasText(request.sourceModule())
+                ? request.sourceModule()
+                : defaultSourceModule,
+            StringUtils.hasText(request.sourceReference())
+                ? request.sourceReference()
+                : defaultSourceReference,
+            null,
+            lines.stream()
+                .map(
+                    line ->
+                        new JournalCreationRequest.LineRequest(
+                            line.accountId(),
+                            roundedAmount(MoneyUtils.zeroIfNull(line.debit())),
+                            roundedAmount(MoneyUtils.zeroIfNull(line.credit())),
+                            line.description()))
+                .toList(),
+            request.entryDate(),
+            request.dealerId(),
+            request.supplierId(),
+            request.adminOverride(),
+            request.attachmentReferences()));
+  }
+
   @Retryable(
       value = DataIntegrityViolationException.class,
       maxAttempts = 3,
@@ -1476,7 +1519,7 @@ class AccountingCoreSupport {
                     cashAccount.getId(), memo, amount, BigDecimal.ZERO),
                 new JournalEntryRequest.JournalLineRequest(
                     receivableAccount.getId(), memo, BigDecimal.ZERO, amount)));
-    JournalEntryDto entryDto = createJournalEntry(payload);
+    JournalEntryDto entryDto = createFacadeJournal(payload, ENTITY_TYPE_DEALER_RECEIPT, reference);
     JournalEntry entry = accountingLookupService.requireJournalEntry(company, entryDto.id());
     linkReferenceMapping(company, idempotencyKey, entry, ENTITY_TYPE_DEALER_RECEIPT);
     existingAllocations = findAllocationsByIdempotencyKey(company, idempotencyKey);
@@ -1677,7 +1720,8 @@ class AccountingCoreSupport {
     JournalEntryRequest payload =
         new JournalEntryRequest(
             reference, currentDate(company), memo, dealer.getId(), null, Boolean.FALSE, lines);
-    JournalEntryDto entryDto = createJournalEntry(payload);
+    JournalEntryDto entryDto =
+        createFacadeJournal(payload, ENTITY_TYPE_DEALER_RECEIPT_SPLIT, reference);
     JournalEntry entry = accountingLookupService.requireJournalEntry(company, entryDto.id());
     linkReferenceMapping(company, idempotencyKey, entry, ENTITY_TYPE_DEALER_RECEIPT_SPLIT);
     existingAllocations = findAllocationsByIdempotencyKey(company, idempotencyKey);

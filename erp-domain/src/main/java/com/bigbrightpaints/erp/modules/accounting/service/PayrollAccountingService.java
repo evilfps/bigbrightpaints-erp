@@ -102,7 +102,8 @@ class PayrollAccountingService {
     Company company = companyContextService.requireCurrentCompany();
     PayrollRun run = hrLookupService.lockPayrollRun(company, request.payrollRunId());
 
-    if (run.getStatus() == PayrollRun.PayrollStatus.PAID && run.getPaymentJournalEntryId() == null) {
+    if (run.getStatus() == PayrollRun.PayrollStatus.PAID
+        && run.getPaymentJournalEntryId() == null) {
       throw new ApplicationException(
               ErrorCode.BUSINESS_INVALID_STATE,
               "Payroll run already marked PAID but payment journal reference is missing")

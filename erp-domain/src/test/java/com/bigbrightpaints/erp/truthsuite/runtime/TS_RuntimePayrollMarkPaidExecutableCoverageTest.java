@@ -17,7 +17,7 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.AttendanceRepository;
@@ -38,7 +38,7 @@ class TS_RuntimePayrollMarkPaidExecutableCoverageTest {
     PayrollRunLineRepository payrollRunLineRepository = mock(PayrollRunLineRepository.class);
     EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
     AttendanceRepository attendanceRepository = mock(AttendanceRepository.class);
-    AccountingService accountingService = mock(AccountingService.class);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
     com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository accountRepository =
         mock(com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository.class);
     CompanyContextService companyContextService = mock(CompanyContextService.class);
@@ -53,7 +53,7 @@ class TS_RuntimePayrollMarkPaidExecutableCoverageTest {
             payrollRunLineRepository,
             employeeRepository,
             attendanceRepository,
-            accountingService,
+            accountingFacade,
             accountRepository,
             companyContextService,
             companyEntityLookup,
@@ -78,7 +78,7 @@ class TS_RuntimePayrollMarkPaidExecutableCoverageTest {
     PayrollRunLineRepository payrollRunLineRepository = mock(PayrollRunLineRepository.class);
     EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
     AttendanceRepository attendanceRepository = mock(AttendanceRepository.class);
-    AccountingService accountingService = mock(AccountingService.class);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
     com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository accountRepository =
         mock(com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository.class);
     CompanyContextService companyContextService = mock(CompanyContextService.class);
@@ -93,7 +93,7 @@ class TS_RuntimePayrollMarkPaidExecutableCoverageTest {
             payrollRunLineRepository,
             employeeRepository,
             attendanceRepository,
-            accountingService,
+            accountingFacade,
             accountRepository,
             companyContextService,
             companyEntityLookup,
@@ -122,7 +122,7 @@ class TS_RuntimePayrollMarkPaidExecutableCoverageTest {
     PayrollRunLineRepository payrollRunLineRepository = mock(PayrollRunLineRepository.class);
     EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
     AttendanceRepository attendanceRepository = mock(AttendanceRepository.class);
-    AccountingService accountingService = mock(AccountingService.class);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
     com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository accountRepository =
         mock(com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository.class);
     CompanyContextService companyContextService = mock(CompanyContextService.class);
@@ -137,7 +137,7 @@ class TS_RuntimePayrollMarkPaidExecutableCoverageTest {
             payrollRunLineRepository,
             employeeRepository,
             attendanceRepository,
-            accountingService,
+            accountingFacade,
             accountRepository,
             companyContextService,
             companyEntityLookup,
@@ -178,7 +178,7 @@ class TS_RuntimePayrollMarkPaidExecutableCoverageTest {
     PayrollRunLineRepository payrollRunLineRepository = mock(PayrollRunLineRepository.class);
     EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
     AttendanceRepository attendanceRepository = mock(AttendanceRepository.class);
-    AccountingService accountingService = mock(AccountingService.class);
+    AccountingFacade accountingFacade = mock(AccountingFacade.class);
     com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository accountRepository =
         mock(com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository.class);
     CompanyContextService companyContextService = mock(CompanyContextService.class);
@@ -193,7 +193,7 @@ class TS_RuntimePayrollMarkPaidExecutableCoverageTest {
             payrollRunLineRepository,
             employeeRepository,
             attendanceRepository,
-            accountingService,
+            accountingFacade,
             accountRepository,
             companyContextService,
             companyEntityLookup,

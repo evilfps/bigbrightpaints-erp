@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
@@ -21,9 +22,11 @@ import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerType;
 import com.bigbrightpaints.erp.modules.accounting.dto.AutoSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementRequest;
@@ -31,23 +34,48 @@ import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationApplication;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
+import com.bigbrightpaints.erp.modules.invoice.service.InvoiceSettlementPolicy;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
+import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 
 @Service
 class DealerSettlementService {
 
   private final AccountingCoreSupport accountingCoreSupport;
-  private final JournalEntryService journalEntryService;
-  private final DealerReceiptService dealerReceiptService;
+  private final CompanyContextService companyContextService;
+  private final ObjectProvider<AccountingFacade> accountingFacadeProvider;
+  private final DealerRepository dealerRepository;
+  private final ReferenceNumberService referenceNumberService;
+  private final CompanyScopedAccountingLookupService accountingLookupService;
+  private final PartnerSettlementAllocationRepository settlementAllocationRepository;
+  private final InvoiceSettlementPolicy invoiceSettlementPolicy;
+  private final DealerLedgerService dealerLedgerService;
+  private final InvoiceRepository invoiceRepository;
 
   DealerSettlementService(
       AccountingCoreSupport accountingCoreSupport,
-      JournalEntryService journalEntryService,
-      DealerReceiptService dealerReceiptService) {
+      CompanyContextService companyContextService,
+      ObjectProvider<AccountingFacade> accountingFacadeProvider,
+      DealerRepository dealerRepository,
+      ReferenceNumberService referenceNumberService,
+      CompanyScopedAccountingLookupService accountingLookupService,
+      PartnerSettlementAllocationRepository settlementAllocationRepository,
+      InvoiceSettlementPolicy invoiceSettlementPolicy,
+      DealerLedgerService dealerLedgerService,
+      InvoiceRepository invoiceRepository) {
     this.accountingCoreSupport = accountingCoreSupport;
-    this.journalEntryService = journalEntryService;
-    this.dealerReceiptService = dealerReceiptService;
+    this.companyContextService = companyContextService;
+    this.accountingFacadeProvider = accountingFacadeProvider;
+    this.dealerRepository = dealerRepository;
+    this.referenceNumberService = referenceNumberService;
+    this.accountingLookupService = accountingLookupService;
+    this.settlementAllocationRepository = settlementAllocationRepository;
+    this.invoiceSettlementPolicy = invoiceSettlementPolicy;
+    this.dealerLedgerService = dealerLedgerService;
+    this.invoiceRepository = invoiceRepository;
   }
 
   @Retryable(
@@ -56,10 +84,9 @@ class DealerSettlementService {
       backoff = @Backoff(delay = 50, maxDelay = 250, multiplier = 2.0))
   @Transactional
   PartnerSettlementResponse settleDealerInvoices(PartnerSettlementRequest request) {
-    Company company = accountingCoreSupport.companyContextService.requireCurrentCompany();
+    Company company = companyContextService.requireCurrentCompany();
     Dealer dealer =
-        accountingCoreSupport
-            .dealerRepository
+        dealerRepository
             .lockByCompanyAndId(company, request.dealerId())
             .orElseThrow(
                 () ->
@@ -130,8 +157,7 @@ class DealerSettlementService {
     if (reservation.leader()
         && !StringUtils.hasText(request.referenceNumber())
         && accountingCoreSupport.isReservedReference(reference)) {
-      reference =
-          accountingCoreSupport.referenceNumberService.dealerReceiptReference(company, dealer);
+      reference = referenceNumberService.dealerReceiptReference(company, dealer);
     }
     AccountingCoreSupport.SettlementLineDraft lineDraft =
         accountingCoreSupport.buildDealerSettlementLines(
@@ -242,8 +268,7 @@ class DealerSettlementService {
       Invoice invoice = null;
       if (!applicationType.isUnapplied()) {
         invoice =
-            accountingCoreSupport
-                .invoiceRepository
+            invoiceRepository
                 .lockByCompanyAndId(company, allocation.invoiceId())
                 .orElseThrow(
                     () ->
@@ -292,25 +317,25 @@ class DealerSettlementService {
     }
 
     JournalEntryDto journalEntryDto =
-        journalEntryService.createJournalEntry(
-            new JournalEntryRequest(
-                reference,
-                entryDate,
-                memo,
-                dealer.getId(),
-                null,
-                request.adminOverride(),
-                lineDraft.lines(),
-                null,
-                null,
-                AccountingCoreSupport.ENTITY_TYPE_DEALER_SETTLEMENT,
-                reference,
-                null,
-                List.of()));
+        resolveAccountingFacade()
+            .createStandardJournal(
+                new JournalCreationRequest(
+                    totalJournalAmount(lineDraft.lines()),
+                    null,
+                    null,
+                    memo,
+                    AccountingCoreSupport.ENTITY_TYPE_DEALER_SETTLEMENT,
+                    reference,
+                    null,
+                    toCreationLines(lineDraft.lines()),
+                    entryDate,
+                    dealer.getId(),
+                    null,
+                    request.adminOverride(),
+                    List.of()));
 
     JournalEntry journalEntry =
-        accountingCoreSupport.accountingLookupService.requireJournalEntry(
-            company, journalEntryDto.id());
+        accountingLookupService.requireJournalEntry(company, journalEntryDto.id());
     accountingCoreSupport.linkReferenceMapping(
         company,
         trimmedIdempotencyKey,
@@ -319,20 +344,19 @@ class DealerSettlementService {
     for (PartnerSettlementAllocation allocation : settlementRows) {
       allocation.setJournalEntry(journalEntry);
     }
-    accountingCoreSupport.settlementAllocationRepository.saveAll(settlementRows);
+    settlementAllocationRepository.saveAll(settlementRows);
     for (PartnerSettlementAllocation row : settlementRows) {
       Invoice invoice = row.getInvoice();
       if (invoice == null) {
         continue;
       }
       String settlementRef = reference + "-INV-" + invoice.getId();
-      accountingCoreSupport.invoiceSettlementPolicy.applySettlement(
-          invoice, row.getAllocationAmount(), settlementRef);
-      accountingCoreSupport.dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
+      invoiceSettlementPolicy.applySettlement(invoice, row.getAllocationAmount(), settlementRef);
+      dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
       touchedInvoices.add(invoice);
     }
     if (!touchedInvoices.isEmpty()) {
-      accountingCoreSupport.invoiceRepository.saveAll(touchedInvoices);
+      invoiceRepository.saveAll(touchedInvoices);
     }
 
     List<PartnerSettlementResponse.Allocation> allocationSummaries =
@@ -375,7 +399,7 @@ class DealerSettlementService {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_INPUT, "Auto-settlement request is required");
     }
-    Company company = accountingCoreSupport.companyContextService.requireCurrentCompany();
+    Company company = companyContextService.requireCurrentCompany();
     Dealer dealer =
         accountingCoreSupport
             .dealerRepository
@@ -403,8 +427,32 @@ class DealerSettlementService {
             memo,
             request.idempotencyKey(),
             allocations);
-    JournalEntryDto journalEntry =
-        dealerReceiptService.recordDealerReceiptNormalized(receiptRequest);
+    JournalEntryDto journalEntry = resolveAccountingFacade().recordDealerReceipt(receiptRequest);
     return accountingCoreSupport.buildAutoSettlementResponse(company, journalEntry);
+  }
+
+  private AccountingFacade resolveAccountingFacade() {
+    AccountingFacade facade =
+        accountingFacadeProvider != null ? accountingFacadeProvider.getIfAvailable() : null;
+    if (facade == null) {
+      throw new IllegalStateException("AccountingFacade is required");
+    }
+    return facade;
+  }
+
+  private List<JournalCreationRequest.LineRequest> toCreationLines(
+      List<JournalEntryRequest.JournalLineRequest> lines) {
+    return lines.stream()
+        .map(
+            line ->
+                new JournalCreationRequest.LineRequest(
+                    line.accountId(), line.debit(), line.credit(), line.description()))
+        .toList();
+  }
+
+  private BigDecimal totalJournalAmount(List<JournalEntryRequest.JournalLineRequest> lines) {
+    return lines.stream()
+        .map(line -> line.debit() == null ? BigDecimal.ZERO : line.debit())
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 }

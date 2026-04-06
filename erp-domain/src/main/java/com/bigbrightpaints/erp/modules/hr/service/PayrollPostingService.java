@@ -27,7 +27,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest.JournalLineRequest;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -73,7 +73,7 @@ public class PayrollPostingService {
   private final PayrollRunLineRepository payrollRunLineRepository;
   private final EmployeeRepository employeeRepository;
   private final AttendanceRepository attendanceRepository;
-  private final AccountingService accountingService;
+  private final AccountingFacade accountingFacade;
   private final AccountRepository accountRepository;
   private final CompanyContextService companyContextService;
   private final CompanyScopedHrLookupService hrLookupService;
@@ -87,7 +87,7 @@ public class PayrollPostingService {
       PayrollRunLineRepository payrollRunLineRepository,
       EmployeeRepository employeeRepository,
       AttendanceRepository attendanceRepository,
-      AccountingService accountingService,
+      AccountingFacade accountingFacade,
       AccountRepository accountRepository,
       CompanyContextService companyContextService,
       CompanyScopedHrLookupService hrLookupService,
@@ -98,7 +98,7 @@ public class PayrollPostingService {
     this.payrollRunLineRepository = payrollRunLineRepository;
     this.employeeRepository = employeeRepository;
     this.attendanceRepository = attendanceRepository;
-    this.accountingService = accountingService;
+    this.accountingFacade = accountingFacade;
     this.accountRepository = accountRepository;
     this.companyContextService = companyContextService;
     this.hrLookupService = hrLookupService;
@@ -112,7 +112,7 @@ public class PayrollPostingService {
       PayrollRunLineRepository payrollRunLineRepository,
       EmployeeRepository employeeRepository,
       AttendanceRepository attendanceRepository,
-      AccountingService accountingService,
+      AccountingFacade accountingFacade,
       AccountRepository accountRepository,
       CompanyContextService companyContextService,
       com.bigbrightpaints.erp.core.util.CompanyEntityLookup companyEntityLookup,
@@ -123,7 +123,7 @@ public class PayrollPostingService {
         payrollRunLineRepository,
         employeeRepository,
         attendanceRepository,
-        accountingService,
+        accountingFacade,
         accountRepository,
         companyContextService,
         CompanyScopedHrLookupService.fromLegacy(companyEntityLookup),
@@ -309,7 +309,7 @@ public class PayrollPostingService {
     lines = standardizedPayrollRequest.resolvedLines();
 
     JournalEntryDto journal =
-        accountingService.postPayrollRun(runNumber, run.getId(), postingDate, memo, lines);
+        accountingFacade.postPayrollRun(runNumber, run.getId(), postingDate, memo, lines);
 
     if (hasPostingJournalLink
         && run.getJournalEntryId() != null
