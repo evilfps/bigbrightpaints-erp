@@ -122,6 +122,6 @@ class TS_PayrollLiabilityClearingPolicyTest {
     TruthSuiteFileAssert.assertContains(
         ACCOUNTING_FACADE,
         "public JournalEntryDto recordPayrollPayment(PayrollPaymentRequest request) {",
-        "return accountingService.recordPayrollPayment(request);");
+        "return payrollAccountingService.recordPayrollPayment(request);");
   }
 }

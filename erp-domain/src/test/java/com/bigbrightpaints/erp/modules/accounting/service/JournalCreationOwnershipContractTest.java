@@ -45,8 +45,13 @@ class JournalCreationOwnershipContractTest {
             DealerReceiptService.class,
             SettlementService.class,
             CreditDebitNoteService.class,
-            InventoryAccountingService.class,
-            PayrollAccountingService.class);
+            InventoryAccountingService.class)
+        .doesNotContain(PayrollAccountingService.class);
+  }
+
+  @Test
+  void accountingFacadeOwnsPayrollBoundaryDirectlyThroughFocusedService() {
+    assertThat(fieldTypes(AccountingFacade.class)).contains(PayrollAccountingService.class);
   }
 
   @Test

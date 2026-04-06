@@ -34,7 +34,6 @@ class AccountingServiceBenchmarkTest {
   @Mock private CreditDebitNoteService creditDebitNoteService;
   @Mock private InventoryAccountingService inventoryAccountingService;
   @Mock private ObjectProvider<AccountingFacade> accountingFacadeProvider;
-  @Mock private PayrollAccountingService payrollAccountingService;
 
   private AccountingService accountingService;
 
@@ -48,8 +47,7 @@ class AccountingServiceBenchmarkTest {
             settlementService,
             creditDebitNoteService,
             inventoryAccountingService,
-            accountingFacadeProvider,
-            payrollAccountingService);
+            accountingFacadeProvider);
 
     AtomicLong ids = new AtomicLong(1);
     when(journalEntryService.createJournalEntry(any()))

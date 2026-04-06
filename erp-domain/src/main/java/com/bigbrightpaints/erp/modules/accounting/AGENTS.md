@@ -32,10 +32,11 @@ The accounting module owns financial posting, corrections, period controls, sett
 
 ## Key Services/Facades
 
-- `AccountingService` — centralized journal creation and module-owned accounting workflows behind the live accounting facade/service boundary.
+- `AccountingService` — accounting-host service entrypoint for chart/journal/settlement/note/inventory workflows.
 - `AccountingPeriodService` — public period lifecycle entrypoint that delegates close/reopen ownership to `AccountingPeriodCloseWorkflow` + `AccountingPeriodStatusWorkflow`, and checklist diagnostics to `AccountingPeriodChecklistService` + `AccountingPeriodChecklistDiagnosticsService`.
 - `AccountingAuditTrailService` — public audit-trail read entrypoint that delegates classification/query/detail behavior to `AccountingAuditTrailClassifier`, `AccountingAuditTrailTransactionQueryService`, `AccountingAuditTrailTransactionDetailService`, and `SettlementAuditMemoDecoder`.
 - `AccountingFacade` — cross-module facade for financial side effects, including payroll posting entry and accounting-host payroll payment recording.
+- `PayrollAccountingService` — canonical payroll journal owner invoked directly by `AccountingFacade` for `postPayrollRun` and `recordPayrollPayment`.
 - `ReconciliationService` — reconciliation and discrepancy resolution at the module boundary.
 - `OpeningBalanceImportService` — opening balance import processing.
 - `TallyImportService` — Tally XML import processing.
@@ -54,7 +55,7 @@ Canonical module-boundary guidance: route new cross-module work through `Account
 - **Sales → Accounting:** dispatch-linked journals, invoice-linked journals, AR settlements.
 - **Purchasing → Accounting:** GRN-linked journals, purchase return journals, AP settlements.
 - **Factory → Accounting:** WIP/consumption journals, packaging material journals.
-- **HR → Accounting:** payroll posting enters via `PayrollPostingService` → `AccountingFacade.postPayrollRun`, while payroll payment references are recorded through the accounting payroll-payment journal seam.
+- **HR → Accounting:** payroll posting enters via `PayrollPostingService` → `AccountingFacade.postPayrollRun` → `PayrollAccountingService`, while payroll payment references are recorded through `AccountingFacade.recordPayrollPayment` on the accounting payroll-payment journal seam.
 - **Inventory -.events.→ Accounting:** `InventoryMovementEvent` → `InventoryAccountingEventListener`.
 
 ## Canonical Documentation

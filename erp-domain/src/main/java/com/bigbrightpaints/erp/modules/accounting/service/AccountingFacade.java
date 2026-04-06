@@ -61,6 +61,7 @@ public class AccountingFacade {
   private final InventoryAdjustmentFacadeOperations inventoryAdjustmentOperations;
   private final ManualJournalFacadeOperations manualJournalOperations;
   private final AccountingFacadeAccountResolver accountResolver;
+  private final PayrollAccountingService payrollAccountingService;
 
   public AccountingFacade(
       AccountingService accountingService,
@@ -71,7 +72,8 @@ public class AccountingFacade {
       FactoryJournalFacadeOperations factoryJournalOperations,
       InventoryAdjustmentFacadeOperations inventoryAdjustmentOperations,
       ManualJournalFacadeOperations manualJournalOperations,
-      AccountingFacadeAccountResolver accountResolver) {
+      AccountingFacadeAccountResolver accountResolver,
+      PayrollAccountingService payrollAccountingService) {
     this.accountingService = accountingService;
     this.dealerReceiptService = dealerReceiptService;
     this.salesJournalOperations = salesJournalOperations;
@@ -81,6 +83,7 @@ public class AccountingFacade {
     this.inventoryAdjustmentOperations = inventoryAdjustmentOperations;
     this.manualJournalOperations = manualJournalOperations;
     this.accountResolver = accountResolver;
+    this.payrollAccountingService = payrollAccountingService;
   }
 
   public static boolean isReservedReferenceNamespace(String referenceNumber) {
@@ -415,7 +418,7 @@ public class AccountingFacade {
       LocalDate postingDate,
       String memo,
       List<JournalEntryRequest.JournalLineRequest> lines) {
-    return accountingService.postPayrollRun(runNumber, runId, postingDate, memo, lines);
+    return payrollAccountingService.postPayrollRun(runNumber, runId, postingDate, memo, lines);
   }
 
   public JournalEntryDto recordDealerReceipt(DealerReceiptRequest request) {
@@ -462,7 +465,7 @@ public class AccountingFacade {
   }
 
   public JournalEntryDto recordPayrollPayment(PayrollPaymentRequest request) {
-    return accountingService.recordPayrollPayment(request);
+    return payrollAccountingService.recordPayrollPayment(request);
   }
 
   public void clearAccountCache() {

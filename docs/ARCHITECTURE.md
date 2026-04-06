@@ -40,7 +40,7 @@ Most operational modules post financial effects through accounting service/facad
 - Purchasing/GRN/returns → inventory movements + accounting entries (`GoodsReceiptService`, `PurchaseReturnService`, `InventoryAccountingEventListener`).
 - Factory/production/packing → WIP/consumption/value journals (`ProductionLogService`, `PackingService`, `BulkPackingService`).
 - Accounting also performs company-scoped factory lookups when reconciling production/packing-linked financial references, but those reads stay behind `CompanyScopedFactoryLookupService` while journal writes still enter through the accounting service/facade seams rather than factory-owned workflows.
-- Payroll run posting/payment → payroll journals (`PayrollPostingService`, `AccountingFacade.postPayrollRun`, `JournalController.recordPayrollPayment`).
+- Payroll run posting/payment → payroll journals (`PayrollPostingService`, `AccountingFacade.postPayrollRun`, `PayrollAccountingService`, `JournalController.recordPayrollPayment`).
 
 Canonical seam rule after Wave 3:
 
@@ -161,13 +161,15 @@ sequenceDiagram
     participant PR as PayrollRunService
     participant PC as PayrollCalculationService
     participant PP as PayrollPostingService
-    participant AC as AccountingService/Facade
+    participant AF as AccountingFacade
+    participant PAS as PayrollAccountingService
 
     HC->>PR: createPayrollRun()
     HC->>PC: calculatePayroll()
     HC->>PP: approvePayroll()
     HC->>PP: postPayrollToAccounting()
-    PP->>AC: postPayrollRun(...)
+    PP->>AF: postPayrollRun(...)
+    AF->>PAS: postPayrollRun(...)
     HC->>PP: markAsPaid()
 ```
 
@@ -176,7 +178,7 @@ Evidence and invariants:
 - Payroll run identity/idempotency is period+type keyed with signature checks (`PayrollRunService.createPayrollRun`, `buildIdempotencyKey`, `assertRunSignatureMatches`).
 - Calculation derives line-level earnings/deductions from attendance + statutory engines (`PayrollCalculationService.calculatePayroll`, `calculateEmployeePay`).
 - Posting enforces required payroll account availability, deduction classification constraints, and posted-status/journal-link invariants (`PayrollPostingService.postPayrollToAccounting`).
-- Journal posting path goes through standardized lines into `AccountingFacade.postPayrollRun`, which keeps payroll on the live accounting facade/service seam without reopening retired core-class boundaries.
+- Journal posting path goes through standardized lines into `AccountingFacade.postPayrollRun`, which delegates directly to `PayrollAccountingService` as the canonical payroll journal owner (no `AccountingService` fallback seam) while preserving posted-audit metadata and `sourceModule=PAYROLL`.
 
 Primary files:
 
@@ -185,6 +187,7 @@ Primary files:
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/PayrollCalculationService.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/service/PayrollPostingService.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingFacade.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/PayrollAccountingService.java`
 
 ### 2.5 Tenant onboarding / lifecycle / runtime controls
 

@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.CreditDebitNoteService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerReceiptService;
@@ -79,8 +80,17 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
             DealerReceiptService.class.getSimpleName(),
             SettlementService.class.getSimpleName(),
             CreditDebitNoteService.class.getSimpleName(),
-            InventoryAccountingService.class.getSimpleName(),
-            "PayrollAccountingService");
+            InventoryAccountingService.class.getSimpleName());
+  }
+
+  @Test
+  void payroll_specific_accounting_writes_are_owned_by_payroll_accounting_service_via_facade() {
+    Set<String> fieldTypes =
+        Arrays.stream(AccountingFacade.class.getDeclaredFields())
+            .map(field -> field.getType().getSimpleName())
+            .collect(Collectors.toSet());
+
+    assertThat(fieldTypes).contains("PayrollAccountingService");
   }
 
   @Test

@@ -29,7 +29,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
-import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
+import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.hr.domain.Employee;
@@ -55,7 +55,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
   @Autowired private PayrollRunLineRepository payrollRunLineRepository;
   @Autowired private EmployeeRepository employeeRepository;
   @Autowired private JournalEntryRepository journalEntryRepository;
-  @Autowired private AccountingService accountingService;
+  @Autowired private AccountingFacade accountingFacade;
   @Autowired private JdbcTemplate jdbcTemplate;
 
   @AfterEach
@@ -473,7 +473,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     BigDecimal expectedPayable = new BigDecimal("2000");
     CompanyContextHolder.setCompanyCode(companyCode);
     var payment =
-        accountingService.recordPayrollPayment(
+        accountingFacade.recordPayrollPayment(
             new PayrollPaymentRequest(
                 posted.getId(),
                 cash.getId(),
@@ -585,7 +585,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
                 () -> {
                   CompanyContextHolder.setCompanyCode(companyCode);
                   try {
-                    return accountingService.recordPayrollPayment(request);
+                    return accountingFacade.recordPayrollPayment(request);
                   } finally {
                     CompanyContextHolder.clear();
                   }
@@ -636,7 +636,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
 
     CompanyContextHolder.setCompanyCode(companyCode);
     payrollService.postPayrollToAccounting(run.getId());
-    accountingService.recordPayrollPayment(
+    accountingFacade.recordPayrollPayment(
         new PayrollPaymentRequest(
             run.getId(),
             cash.getId(),
@@ -649,7 +649,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
     CompanyContextHolder.setCompanyCode(companyCode);
     assertThatThrownBy(
             () ->
-                accountingService.recordPayrollPayment(
+                accountingFacade.recordPayrollPayment(
                     new PayrollPaymentRequest(
                         run.getId(),
                         altCash.getId(),
@@ -698,7 +698,7 @@ class CR_PayrollIdempotencyConcurrencyTest extends AbstractIntegrationTest {
 
     CompanyContextHolder.setCompanyCode(companyCode);
     payrollService.postPayrollToAccounting(run.getId());
-    accountingService.recordPayrollPayment(
+    accountingFacade.recordPayrollPayment(
         new PayrollPaymentRequest(
             run.getId(),
             cash.getId(),

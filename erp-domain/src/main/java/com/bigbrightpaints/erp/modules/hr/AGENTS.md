@@ -32,7 +32,7 @@ The HR module owns employee management, leave, attendance, and payroll lifecycle
 
 ## Cross-Module Boundaries
 
-- **HR → Accounting:** payroll posting via `PayrollPostingService` → `AccountingFacade.postPayrollRun`, while payroll payment recording stays on the canonical accounting payroll-payments surface (`POST /api/v1/accounting/payroll/payments`).
+- **HR → Accounting:** payroll posting via `PayrollPostingService` → `AccountingFacade.postPayrollRun` (directly owned by accounting `PayrollAccountingService`), while payroll payment recording stays on the canonical accounting payroll-payments surface (`POST /api/v1/accounting/payroll/payments`).
 - **HR → Company:** payroll module gating via `ModuleGatingService` (`HR_PAYROLL` is an optional module).
 - **HR → Admin:** payroll-related admin settings and approvals.
 
@@ -78,7 +78,7 @@ The HR/Payroll module is paused by default for new tenants (ERP-33). This is an 
 ### Accounting-Host Payment Seam
 
 Payroll is not fully self-contained - it depends on the accounting module for:
-- **Payroll posting**: `PayrollPostingService` → `AccountingFacade.postPayrollRun()`
+- **Payroll posting**: `PayrollPostingService` → `AccountingFacade.postPayrollRun()` → accounting `PayrollAccountingService`
 - **Payroll payment**: Bank payment reference recording via the canonical accounting payroll-payments journal surface (`POST /api/v1/accounting/payroll/payments`)
 
 There is no replacement for this seam - this is the canonical design. The HR module calculates payroll, but accounting owns the financial truth.

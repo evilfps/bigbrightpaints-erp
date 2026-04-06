@@ -34,7 +34,6 @@ class AccountingServiceTest {
   @Mock private CreditDebitNoteService creditDebitNoteService;
   @Mock private InventoryAccountingService inventoryAccountingService;
   @Mock private ObjectProvider<AccountingFacade> accountingFacadeProvider;
-  @Mock private PayrollAccountingService payrollAccountingService;
   @Mock private AccountingFacade accountingFacade;
 
   private AccountingService accountingService;
@@ -49,8 +48,7 @@ class AccountingServiceTest {
             settlementService,
             creditDebitNoteService,
             inventoryAccountingService,
-            accountingFacadeProvider,
-            payrollAccountingService);
+            accountingFacadeProvider);
   }
 
   @Test

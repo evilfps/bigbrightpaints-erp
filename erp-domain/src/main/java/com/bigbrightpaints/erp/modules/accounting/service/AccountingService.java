@@ -30,7 +30,6 @@ import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierPaymentRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.WipAdjustmentRequest;
-import com.bigbrightpaints.erp.modules.hr.dto.PayrollPaymentRequest;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 @Service
@@ -43,7 +42,6 @@ public class AccountingService {
   private final CreditDebitNoteService creditDebitNoteService;
   private final InventoryAccountingService inventoryAccountingService;
   private final ObjectProvider<AccountingFacade> accountingFacadeProvider;
-  private final PayrollAccountingService payrollAccountingService;
 
   @Autowired
   public AccountingService(
@@ -53,8 +51,7 @@ public class AccountingService {
       SettlementService settlementService,
       CreditDebitNoteService creditDebitNoteService,
       InventoryAccountingService inventoryAccountingService,
-      ObjectProvider<AccountingFacade> accountingFacadeProvider,
-      PayrollAccountingService payrollAccountingService) {
+      ObjectProvider<AccountingFacade> accountingFacadeProvider) {
     this.accountCatalogService = accountCatalogService;
     this.journalEntryService = journalEntryService;
     this.dealerReceiptService = dealerReceiptService;
@@ -62,7 +59,6 @@ public class AccountingService {
     this.creditDebitNoteService = creditDebitNoteService;
     this.inventoryAccountingService = inventoryAccountingService;
     this.accountingFacadeProvider = accountingFacadeProvider;
-    this.payrollAccountingService = payrollAccountingService;
   }
 
   public List<AccountDto> listAccounts() {
@@ -109,15 +105,6 @@ public class AccountingService {
         fromDate, toDate, journalType, sourceModule, page, size);
   }
 
-  public JournalEntryDto postPayrollRun(
-      String runNumber,
-      Long runId,
-      LocalDate postingDate,
-      String memo,
-      List<JournalEntryRequest.JournalLineRequest> lines) {
-    return payrollAccountingService.postPayrollRun(runNumber, runId, postingDate, memo, lines);
-  }
-
   public JournalEntryDto reverseJournalEntry(Long entryId, JournalEntryReversalRequest request) {
     return journalEntryService.reverseJournalEntry(entryId, request);
   }
@@ -142,10 +129,6 @@ public class AccountingService {
 
   public JournalEntryDto recordSupplierPayment(SupplierPaymentRequest request) {
     return settlementService.recordSupplierPayment(request);
-  }
-
-  public JournalEntryDto recordPayrollPayment(PayrollPaymentRequest request) {
-    return payrollAccountingService.recordPayrollPayment(request);
   }
 
   public PartnerSettlementResponse settleDealerInvoices(PartnerSettlementRequest request) {

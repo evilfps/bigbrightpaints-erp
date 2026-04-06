@@ -78,6 +78,7 @@ class AccountingFacadeTest {
   @Mock private CompanyAccountingSettingsService companyAccountingSettingsService;
   @Mock private JournalReferenceResolver journalReferenceResolver;
   @Mock private JournalReferenceMappingRepository journalReferenceMappingRepository;
+  @Mock private PayrollAccountingService payrollAccountingService;
 
   private AccountingFacade accountingFacade;
   private Company company;
@@ -89,6 +90,7 @@ class AccountingFacadeTest {
             companyContextService,
             accountRepository,
             accountingService,
+            payrollAccountingService,
             dealerReceiptService,
             journalEntryRepository,
             referenceNumberService,
@@ -876,7 +878,7 @@ class AccountingFacadeTest {
   }
 
   @Test
-  void recordPayrollPayment_delegatesToAccountingService() {
+  void recordPayrollPayment_delegatesToPayrollAccountingService() {
     PayrollPaymentRequest request =
         new PayrollPaymentRequest(
             9L, 2L, 1L, new BigDecimal("800.00"), "PAYROLL-PAY-9", "Payroll clear");
@@ -907,16 +909,16 @@ class AccountingFacadeTest {
             null,
             null,
             null);
-    when(accountingService.recordPayrollPayment(request)).thenReturn(expected);
+    when(payrollAccountingService.recordPayrollPayment(request)).thenReturn(expected);
 
     JournalEntryDto actual = accountingFacade.recordPayrollPayment(request);
 
     assertThat(actual).isSameAs(expected);
-    verify(accountingService).recordPayrollPayment(request);
+    verify(payrollAccountingService).recordPayrollPayment(request);
   }
 
   @Test
-  void postPayrollRun_delegatesToAccountingService() {
+  void postPayrollRun_delegatesToPayrollAccountingService() {
     List<JournalEntryRequest.JournalLineRequest> lines =
         List.of(
             new JournalEntryRequest.JournalLineRequest(
@@ -924,7 +926,7 @@ class AccountingFacadeTest {
             new JournalEntryRequest.JournalLineRequest(
                 12L, "Payroll payable", BigDecimal.ZERO, new BigDecimal("800.00")));
     JournalEntryDto expected = expectedJournal(89L, "PAYROLL-PR-2026-03");
-    when(accountingService.postPayrollRun(
+    when(payrollAccountingService.postPayrollRun(
             "PR-2026-03", 19L, LocalDate.of(2026, 3, 31), "Payroll - PR-2026-03", lines))
         .thenReturn(expected);
 
@@ -933,7 +935,7 @@ class AccountingFacadeTest {
             "PR-2026-03", 19L, LocalDate.of(2026, 3, 31), "Payroll - PR-2026-03", lines);
 
     assertThat(actual).isSameAs(expected);
-    verify(accountingService)
+    verify(payrollAccountingService)
         .postPayrollRun(
             "PR-2026-03", 19L, LocalDate.of(2026, 3, 31), "Payroll - PR-2026-03", lines);
   }

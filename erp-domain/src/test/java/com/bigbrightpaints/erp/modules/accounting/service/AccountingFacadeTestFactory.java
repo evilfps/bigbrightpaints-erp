@@ -31,6 +31,72 @@ public final class AccountingFacadeTestFactory {
         companyContextService,
         accountRepository,
         accountingService,
+        org.mockito.Mockito.mock(PayrollAccountingService.class),
+        journalEntryRepository,
+        referenceNumberService,
+        dealerRepository,
+        supplierRepository,
+        companyClock,
+        salesLookupService,
+        accountingLookupService,
+        companyAccountingSettingsService,
+        journalReferenceResolver,
+        journalReferenceMappingRepository);
+  }
+
+  public static AccountingFacade create(
+      CompanyContextService companyContextService,
+      AccountRepository accountRepository,
+      AccountingService accountingService,
+      DealerReceiptService dealerReceiptService,
+      JournalEntryRepository journalEntryRepository,
+      ReferenceNumberService referenceNumberService,
+      DealerRepository dealerRepository,
+      SupplierRepository supplierRepository,
+      CompanyClock companyClock,
+      CompanyScopedSalesLookupService salesLookupService,
+      CompanyScopedAccountingLookupService accountingLookupService,
+      CompanyAccountingSettingsService companyAccountingSettingsService,
+      JournalReferenceResolver journalReferenceResolver,
+      JournalReferenceMappingRepository journalReferenceMappingRepository) {
+    return create(
+        companyContextService,
+        accountRepository,
+        accountingService,
+        org.mockito.Mockito.mock(PayrollAccountingService.class),
+        dealerReceiptService,
+        journalEntryRepository,
+        referenceNumberService,
+        dealerRepository,
+        supplierRepository,
+        companyClock,
+        salesLookupService,
+        accountingLookupService,
+        companyAccountingSettingsService,
+        journalReferenceResolver,
+        journalReferenceMappingRepository);
+  }
+
+  public static AccountingFacade create(
+      CompanyContextService companyContextService,
+      AccountRepository accountRepository,
+      AccountingService accountingService,
+      PayrollAccountingService payrollAccountingService,
+      JournalEntryRepository journalEntryRepository,
+      ReferenceNumberService referenceNumberService,
+      DealerRepository dealerRepository,
+      SupplierRepository supplierRepository,
+      CompanyClock companyClock,
+      CompanyScopedSalesLookupService salesLookupService,
+      CompanyScopedAccountingLookupService accountingLookupService,
+      CompanyAccountingSettingsService companyAccountingSettingsService,
+      JournalReferenceResolver journalReferenceResolver,
+      JournalReferenceMappingRepository journalReferenceMappingRepository) {
+    return create(
+        companyContextService,
+        accountRepository,
+        accountingService,
+        payrollAccountingService,
         org.mockito.Mockito.mock(DealerReceiptService.class),
         journalEntryRepository,
         referenceNumberService,
@@ -48,6 +114,7 @@ public final class AccountingFacadeTestFactory {
       CompanyContextService companyContextService,
       AccountRepository accountRepository,
       AccountingService accountingService,
+      PayrollAccountingService payrollAccountingService,
       DealerReceiptService dealerReceiptService,
       JournalEntryRepository journalEntryRepository,
       ReferenceNumberService referenceNumberService,
@@ -110,6 +177,7 @@ public final class AccountingFacadeTestFactory {
             journalEntryRepository,
             accountResolver),
         new ManualJournalFacadeOperations(accountingService, companyContextService, companyClock),
-        accountResolver);
+        accountResolver,
+        payrollAccountingService);
   }
 }
