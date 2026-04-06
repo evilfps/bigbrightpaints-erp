@@ -75,6 +75,8 @@ class AccountingFacadeTest {
   @Mock private SupplierRepository supplierRepository;
   @Mock private CompanyClock companyClock;
   @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedSalesLookupService salesLookupService;
+  @Mock private CompanyScopedAccountingLookupService accountingLookupService;
   @Mock private CompanyAccountingSettingsService companyAccountingSettingsService;
   @Mock private JournalReferenceResolver journalReferenceResolver;
   @Mock private JournalReferenceMappingRepository journalReferenceMappingRepository;
@@ -97,8 +99,8 @@ class AccountingFacadeTest {
             dealerRepository,
             supplierRepository,
             companyClock,
-            CompanyScopedSalesLookupService.fromLegacy(companyEntityLookup),
-            CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
+            salesLookupService,
+            accountingLookupService,
             companyAccountingSettingsService,
             journalReferenceResolver,
             journalReferenceMappingRepository);
@@ -107,6 +109,30 @@ class AccountingFacadeTest {
     company.setBaseCurrency("INR");
     lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
     lenient().when(companyClock.today(company)).thenReturn(LocalDate.of(2024, 4, 9));
+    lenient()
+        .when(salesLookupService.requireDealer(any(), any()))
+        .thenAnswer(
+            invocation ->
+                companyEntityLookup.requireDealer(
+                    invocation.getArgument(0), invocation.getArgument(1)));
+    lenient()
+        .when(salesLookupService.requireSalesOrder(any(), any()))
+        .thenAnswer(
+            invocation ->
+                companyEntityLookup.requireSalesOrder(
+                    invocation.getArgument(0), invocation.getArgument(1)));
+    lenient()
+        .when(accountingLookupService.requireJournalEntry(any(), any()))
+        .thenAnswer(
+            invocation ->
+                companyEntityLookup.requireJournalEntry(
+                    invocation.getArgument(0), invocation.getArgument(1)));
+    lenient()
+        .when(accountingLookupService.requireAccount(any(), any()))
+        .thenAnswer(
+            invocation ->
+                companyEntityLookup.requireAccount(
+                    invocation.getArgument(0), invocation.getArgument(1)));
   }
 
   @Test

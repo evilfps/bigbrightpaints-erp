@@ -9,12 +9,12 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyAccountingSettingsService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -92,7 +92,8 @@ public class SalesService {
       FinishedGoodRepository finishedGoodRepository,
       FinishedGoodBatchRepository finishedGoodBatchRepository,
       AccountRepository accountRepository,
-      CompanyEntityLookup companyEntityLookup,
+      CompanyScopedSalesLookupService salesLookupService,
+      CompanyScopedAccountingLookupService accountingLookupService,
       PackagingSlipRepository packagingSlipRepository,
       FinishedGoodsService finishedGoodsService,
       AccountingFacade accountingFacade,
@@ -124,7 +125,8 @@ public class SalesService {
             finishedGoodRepository,
             finishedGoodBatchRepository,
             accountRepository,
-            companyEntityLookup,
+            salesLookupService,
+            accountingLookupService,
             packagingSlipRepository,
             finishedGoodsService,
             accountingFacade,

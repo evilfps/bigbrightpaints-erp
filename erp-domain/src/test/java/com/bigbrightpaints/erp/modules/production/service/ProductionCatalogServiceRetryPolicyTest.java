@@ -31,6 +31,7 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.factory.domain.PackagingSizeMappingRepository;
@@ -80,6 +81,7 @@ class ProductionCatalogServiceRetryPolicyTest {
   @Mock private ProductionLogMaterialRepository productionLogMaterialRepository;
   @Mock private SalesOrderItemRepository salesOrderItemRepository;
   @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedAccountingLookupService accountingLookupService;
   @Mock private CompanyDefaultAccountsService companyDefaultAccountsService;
   @Mock private CatalogImportRepository catalogImportRepository;
   @Mock private AuditService auditService;
@@ -110,6 +112,7 @@ class ProductionCatalogServiceRetryPolicyTest {
             productionLogMaterialRepository,
             salesOrderItemRepository,
             companyEntityLookup,
+            accountingLookupService,
             companyDefaultAccountsService,
             catalogImportRepository,
             auditService,

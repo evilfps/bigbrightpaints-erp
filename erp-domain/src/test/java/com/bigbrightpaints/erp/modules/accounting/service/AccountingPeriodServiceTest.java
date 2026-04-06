@@ -28,7 +28,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
@@ -70,7 +69,7 @@ class AccountingPeriodServiceTest {
   @Mock private AccountingPeriodRepository accountingPeriodRepository;
   @Mock private CompanyContextService companyContextService;
   @Mock private JournalEntryRepository journalEntryRepository;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedAccountingLookupService accountingLookupService;
   @Mock private JournalLineRepository journalLineRepository;
   @Mock private AccountRepository accountRepository;
   @Mock private CompanyClock companyClock;
@@ -103,7 +102,7 @@ class AccountingPeriodServiceTest {
             accountingPeriodRepository,
             companyContextService,
             journalEntryRepository,
-            companyEntityLookup,
+            accountingLookupService,
             journalLineRepository,
             accountRepository,
             companyClock,
@@ -734,7 +733,7 @@ class AccountingPeriodServiceTest {
     period.setInventoryCounted(true);
 
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireAccountingPeriod(company, 99L)).thenReturn(period);
+    when(accountingLookupService.requireAccountingPeriod(company, 99L)).thenReturn(period);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
             company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING")))
         .thenReturn(0L);
@@ -821,7 +820,7 @@ class AccountingPeriodServiceTest {
     AccountingPeriod period = openPeriod(company, 2026, 2);
 
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireAccountingPeriod(company, 100L)).thenReturn(period);
+    when(accountingLookupService.requireAccountingPeriod(company, 100L)).thenReturn(period);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
             company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING")))
         .thenReturn(0L);
@@ -971,7 +970,7 @@ class AccountingPeriodServiceTest {
     correctionEntry.setSourceReference(null);
 
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireAccountingPeriod(company, 199L)).thenReturn(period);
+    when(accountingLookupService.requireAccountingPeriod(company, 199L)).thenReturn(period);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
             company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING")))
         .thenReturn(0L);
@@ -1151,7 +1150,7 @@ class AccountingPeriodServiceTest {
     regularEntry.setReferenceNumber("GEN-2003");
 
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireAccountingPeriod(company, 200L)).thenReturn(period);
+    when(accountingLookupService.requireAccountingPeriod(company, 200L)).thenReturn(period);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
             company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING")))
         .thenReturn(0L);
@@ -1240,7 +1239,7 @@ class AccountingPeriodServiceTest {
     Company company = company(1L, "ACME");
     AccountingPeriod period = openPeriod(company, 2026, 2);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireAccountingPeriod(company, 40L)).thenReturn(period);
+    when(accountingLookupService.requireAccountingPeriod(company, 40L)).thenReturn(period);
     when(accountingPeriodRepository.save(period)).thenReturn(period);
 
     assertThat(service.confirmBankReconciliation(40L, null, "  bank done  ").bankReconciled())
@@ -1254,7 +1253,7 @@ class AccountingPeriodServiceTest {
     Company company = company(1L, "ACME");
     AccountingPeriod period = openPeriod(company, 2026, 2);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireAccountingPeriod(company, 41L)).thenReturn(period);
+    when(accountingLookupService.requireAccountingPeriod(company, 41L)).thenReturn(period);
     when(accountingPeriodRepository.save(period)).thenReturn(period);
 
     assertThat(service.confirmInventoryCount(41L, null, "  counted  ").inventoryCounted()).isTrue();
@@ -1267,7 +1266,7 @@ class AccountingPeriodServiceTest {
     Company company = company(1L, "ACME");
     AccountingPeriod period = openPeriod(company, 2026, 2);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireAccountingPeriod(company, 42L)).thenReturn(period);
+    when(accountingLookupService.requireAccountingPeriod(company, 42L)).thenReturn(period);
     when(accountingPeriodRepository.save(period)).thenReturn(period);
     when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
             company, period.getStartDate(), period.getEndDate()))
@@ -1462,7 +1461,7 @@ class AccountingPeriodServiceTest {
     AccountingPeriod period = openPeriod(company, 2026, 2);
     period.setStatus(AccountingPeriodStatus.LOCKED);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireAccountingPeriod(company, 43L)).thenReturn(period);
+    when(accountingLookupService.requireAccountingPeriod(company, 43L)).thenReturn(period);
 
     assertThatThrownBy(() -> service.confirmBankReconciliation(43L, null, "locked mutation"))
         .isInstanceOf(ApplicationException.class)

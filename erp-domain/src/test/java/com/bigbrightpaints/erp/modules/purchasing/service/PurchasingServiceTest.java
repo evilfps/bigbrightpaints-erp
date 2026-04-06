@@ -28,7 +28,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
@@ -37,6 +36,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAlloca
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -85,7 +85,7 @@ class PurchasingServiceTest {
   @Mock private JournalEntryRepository journalEntryRepository;
   @Mock private CompanyScopedPurchasingLookupService purchasingLookupService;
   @Mock private CompanyScopedInventoryLookupService inventoryLookupService;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedAccountingLookupService accountingLookupService;
   @Mock private ReferenceNumberService referenceNumberService;
   @Mock private CompanyClock companyClock;
   @Mock private AccountingPeriodService accountingPeriodService;
@@ -115,7 +115,7 @@ class PurchasingServiceTest {
             purchasingLookupService,
             inventoryLookupService,
             journalEntryRepository,
-            companyEntityLookup,
+            accountingLookupService,
             referenceNumberService,
             companyClock,
             accountingPeriodService,
@@ -638,7 +638,7 @@ class PurchasingServiceTest {
     when(accountingFacade.postPurchaseJournal(
             any(), any(), any(), any(), any(), any(), any(), any(), any()))
         .thenReturn(journalDto);
-    when(companyEntityLookup.requireJournalEntry(company, 999L)).thenReturn(journalEntry);
+    when(accountingLookupService.requireJournalEntry(company, 999L)).thenReturn(journalEntry);
 
     when(purchaseRepository.save(any()))
         .thenAnswer(

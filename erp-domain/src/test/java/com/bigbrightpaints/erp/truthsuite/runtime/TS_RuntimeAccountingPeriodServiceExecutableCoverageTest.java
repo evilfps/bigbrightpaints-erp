@@ -22,7 +22,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -33,8 +32,8 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequest;
-import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
@@ -43,6 +42,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRe
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodSnapshotService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.PeriodCloseHook;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -68,7 +68,8 @@ class TS_RuntimeAccountingPeriodServiceExecutableCoverageTest {
     AccountingPeriodRepository periodRepository = mock(AccountingPeriodRepository.class);
     CompanyContextService companyContextService = mock(CompanyContextService.class);
     JournalEntryRepository journalEntryRepository = mock(JournalEntryRepository.class);
-    CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
+    CompanyScopedAccountingLookupService accountingLookupService =
+        mock(CompanyScopedAccountingLookupService.class);
     JournalLineRepository journalLineRepository = mock(JournalLineRepository.class);
     AccountRepository accountRepository = mock(AccountRepository.class);
     CompanyClock companyClock = mock(CompanyClock.class);
@@ -95,7 +96,7 @@ class TS_RuntimeAccountingPeriodServiceExecutableCoverageTest {
             periodRepository,
             companyContextService,
             journalEntryRepository,
-            companyEntityLookup,
+            accountingLookupService,
             journalLineRepository,
             accountRepository,
             companyClock,
@@ -207,7 +208,8 @@ class TS_RuntimeAccountingPeriodServiceExecutableCoverageTest {
     AccountingPeriodRepository periodRepository = mock(AccountingPeriodRepository.class);
     CompanyContextService companyContextService = mock(CompanyContextService.class);
     JournalEntryRepository journalEntryRepository = mock(JournalEntryRepository.class);
-    CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
+    CompanyScopedAccountingLookupService accountingLookupService =
+        mock(CompanyScopedAccountingLookupService.class);
     JournalLineRepository journalLineRepository = mock(JournalLineRepository.class);
     AccountRepository accountRepository = mock(AccountRepository.class);
     CompanyClock companyClock = mock(CompanyClock.class);
@@ -234,7 +236,7 @@ class TS_RuntimeAccountingPeriodServiceExecutableCoverageTest {
             periodRepository,
             companyContextService,
             journalEntryRepository,
-            companyEntityLookup,
+            accountingLookupService,
             journalLineRepository,
             accountRepository,
             companyClock,

@@ -48,7 +48,6 @@ import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencySignatureBuilder;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
@@ -316,71 +315,6 @@ public class SalesCoreEngine {
             finishedGoodBatchRepository,
             factoryTaskRepository,
             companyClock);
-  }
-
-  public SalesCoreEngine(
-      CompanyContextService companyContextService,
-      DealerRepository dealerRepository,
-      SalesOrderRepository salesOrderRepository,
-      SalesOrderStatusHistoryRepository salesOrderStatusHistoryRepository,
-      PromotionRepository promotionRepository,
-      SalesTargetRepository salesTargetRepository,
-      CreditRequestRepository creditRequestRepository,
-      OrderNumberService orderNumberService,
-      ApplicationEventPublisher eventPublisher,
-      ProductionProductRepository productionProductRepository,
-      DealerLedgerService dealerLedgerService,
-      FinishedGoodRepository finishedGoodRepository,
-      FinishedGoodBatchRepository finishedGoodBatchRepository,
-      AccountRepository accountRepository,
-      CompanyEntityLookup companyEntityLookup,
-      PackagingSlipRepository packagingSlipRepository,
-      FinishedGoodsService finishedGoodsService,
-      AccountingFacade accountingFacade,
-      JournalEntryRepository journalEntryRepository,
-      InvoiceNumberService invoiceNumberService,
-      InvoiceRepository invoiceRepository,
-      FactoryTaskRepository factoryTaskRepository,
-      CompanyDefaultAccountsService companyDefaultAccountsService,
-      CompanyAccountingSettingsService companyAccountingSettingsService,
-      GstService gstService,
-      CreditLimitOverrideService creditLimitOverrideService,
-      AuditService auditService,
-      CompanyClock companyClock,
-      PlatformTransactionManager transactionManager,
-      MeterRegistry meterRegistry) {
-    this(
-        companyContextService,
-        dealerRepository,
-        salesOrderRepository,
-        salesOrderStatusHistoryRepository,
-        promotionRepository,
-        salesTargetRepository,
-        creditRequestRepository,
-        orderNumberService,
-        eventPublisher,
-        productionProductRepository,
-        dealerLedgerService,
-        finishedGoodRepository,
-        finishedGoodBatchRepository,
-        accountRepository,
-        CompanyScopedSalesLookupService.fromLegacy(companyEntityLookup),
-        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
-        packagingSlipRepository,
-        finishedGoodsService,
-        accountingFacade,
-        journalEntryRepository,
-        invoiceNumberService,
-        invoiceRepository,
-        factoryTaskRepository,
-        companyDefaultAccountsService,
-        companyAccountingSettingsService,
-        gstService,
-        creditLimitOverrideService,
-        auditService,
-        companyClock,
-        transactionManager,
-        meterRegistry);
   }
 
   /* Dealers */

@@ -19,7 +19,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
@@ -60,22 +59,6 @@ public class CostAllocationService {
     this.accountingFacade = accountingFacade;
     this.accountingLookupService = accountingLookupService;
     this.companyClock = companyClock;
-  }
-
-  public CostAllocationService(
-      CompanyContextService companyContextService,
-      ProductionLogRepository productionLogRepository,
-      FinishedGoodBatchRepository finishedGoodBatchRepository,
-      AccountingFacade accountingFacade,
-      CompanyEntityLookup companyEntityLookup,
-      CompanyClock companyClock) {
-    this(
-        companyContextService,
-        productionLogRepository,
-        finishedGoodBatchRepository,
-        accountingFacade,
-        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
-        companyClock);
   }
 
   @Transactional

@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.BusinessDocumentTruths;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocation;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -66,25 +65,6 @@ public class InvoiceService {
     this.invoiceLookupService = invoiceLookupService;
     this.packagingSlipRepository = packagingSlipRepository;
     this.settlementAllocationRepository = settlementAllocationRepository;
-  }
-
-  public InvoiceService(
-      CompanyContextService companyContextService,
-      InvoiceRepository invoiceRepository,
-      SalesOrderCrudService salesOrderCrudService,
-      SalesOrderRepository salesOrderRepository,
-      CompanyEntityLookup companyEntityLookup,
-      PackagingSlipRepository packagingSlipRepository,
-      PartnerSettlementAllocationRepository settlementAllocationRepository) {
-    this(
-        companyContextService,
-        invoiceRepository,
-        salesOrderCrudService,
-        salesOrderRepository,
-        CompanyScopedSalesLookupService.fromLegacy(companyEntityLookup),
-        CompanyScopedInvoiceLookupService.fromLegacy(companyEntityLookup),
-        packagingSlipRepository,
-        settlementAllocationRepository);
   }
 
   @Transactional

@@ -34,11 +34,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -86,7 +86,7 @@ class PurchasingServiceGoodsReceiptTest {
   @Mock private JournalEntryRepository journalEntryRepository;
   @Mock private CompanyScopedPurchasingLookupService purchasingLookupService;
   @Mock private CompanyScopedInventoryLookupService inventoryLookupService;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedAccountingLookupService accountingLookupService;
   @Mock private ReferenceNumberService referenceNumberService;
   @Mock private CompanyClock companyClock;
   @Mock private AccountingPeriodService accountingPeriodService;
@@ -115,7 +115,7 @@ class PurchasingServiceGoodsReceiptTest {
             purchasingLookupService,
             inventoryLookupService,
             journalEntryRepository,
-            companyEntityLookup,
+            accountingLookupService,
             referenceNumberService,
             companyClock,
             accountingPeriodService,

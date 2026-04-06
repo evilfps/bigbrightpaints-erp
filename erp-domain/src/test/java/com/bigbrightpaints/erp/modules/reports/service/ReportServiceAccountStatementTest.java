@@ -30,6 +30,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -60,6 +61,7 @@ class ReportServiceAccountStatementTest {
   @Mock private PackingRecordRepository packingRecordRepository;
   @Mock private InventoryMovementRepository inventoryMovementRepository;
   @Mock private RawMaterialMovementRepository rawMaterialMovementRepository;
+  @Mock private CompanyScopedAccountingLookupService accountingLookupService;
   @Mock private CompanyEntityLookup companyEntityLookup;
   @Mock private CompanyClock companyClock;
   @Mock private InventoryValuationQueryService inventoryValuationService;
@@ -92,6 +94,7 @@ class ReportServiceAccountStatementTest {
             packingRecordRepository,
             inventoryMovementRepository,
             rawMaterialMovementRepository,
+            accountingLookupService,
             companyEntityLookup,
             companyClock,
             inventoryValuationService,

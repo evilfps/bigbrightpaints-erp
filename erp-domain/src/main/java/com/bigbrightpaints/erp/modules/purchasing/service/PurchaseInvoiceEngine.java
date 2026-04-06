@@ -18,7 +18,6 @@ import org.springframework.util.StringUtils;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
@@ -114,44 +113,6 @@ public class PurchaseInvoiceEngine {
     this.gstService = gstService;
     this.responseMapper = responseMapper;
     this.purchaseTaxPolicy = purchaseTaxPolicy;
-  }
-
-  public PurchaseInvoiceEngine(
-      CompanyContextService companyContextService,
-      RawMaterialPurchaseRepository purchaseRepository,
-      PurchaseOrderRepository purchaseOrderRepository,
-      GoodsReceiptRepository goodsReceiptRepository,
-      RawMaterialRepository rawMaterialRepository,
-      RawMaterialBatchRepository rawMaterialBatchRepository,
-      RawMaterialService rawMaterialService,
-      RawMaterialMovementRepository movementRepository,
-      AccountingFacade accountingFacade,
-      CompanyScopedPurchasingLookupService purchasingLookupService,
-      CompanyScopedInventoryLookupService inventoryLookupService,
-      CompanyEntityLookup companyEntityLookup,
-      ReferenceNumberService referenceNumberService,
-      CompanyClock companyClock,
-      GstService gstService,
-      PurchaseResponseMapper responseMapper,
-      PurchaseTaxPolicy purchaseTaxPolicy) {
-    this(
-        companyContextService,
-        purchaseRepository,
-        purchaseOrderRepository,
-        goodsReceiptRepository,
-        rawMaterialRepository,
-        rawMaterialBatchRepository,
-        rawMaterialService,
-        movementRepository,
-        accountingFacade,
-        purchasingLookupService,
-        inventoryLookupService,
-        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
-        referenceNumberService,
-        companyClock,
-        gstService,
-        responseMapper,
-        purchaseTaxPolicy);
   }
 
   void setPurchaseOrderService(PurchaseOrderService purchaseOrderService) {

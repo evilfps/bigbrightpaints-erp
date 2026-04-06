@@ -18,7 +18,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
@@ -29,6 +28,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyAccountingSettingsService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.JournalReferenceResolver;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -37,6 +37,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierStatus;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService;
 
 @Tag("critical")
 @Tag("reconciliation")
@@ -45,7 +46,10 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
   @Test
   void reverseClosingEntryForPeriodReopen_delegatesToAccountingService() {
     AccountingService accountingService = mock(AccountingService.class);
-    CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
+    CompanyScopedSalesLookupService salesLookupService =
+        mock(CompanyScopedSalesLookupService.class);
+    CompanyScopedAccountingLookupService accountingLookupService =
+        mock(CompanyScopedAccountingLookupService.class);
     AccountingFacade facade =
         com.bigbrightpaints.erp.modules.accounting.service.AccountingFacadeTestFactory.create(
             mock(CompanyContextService.class),
@@ -56,10 +60,8 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
             mock(DealerRepository.class),
             mock(SupplierRepository.class),
             mock(CompanyClock.class),
-            com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
-                .fromLegacy(companyEntityLookup),
-            com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService
-                .fromLegacy(companyEntityLookup),
+            salesLookupService,
+            accountingLookupService,
             mock(CompanyAccountingSettingsService.class),
             mock(JournalReferenceResolver.class),
             mock(JournalReferenceMappingRepository.class));
@@ -87,7 +89,10 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
     AccountingService accountingService = mock(AccountingService.class);
     JournalEntryRepository journalEntryRepository = mock(JournalEntryRepository.class);
     ReferenceNumberService referenceNumberService = mock(ReferenceNumberService.class);
-    CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
+    CompanyScopedSalesLookupService salesLookupService =
+        mock(CompanyScopedSalesLookupService.class);
+    CompanyScopedAccountingLookupService accountingLookupService =
+        mock(CompanyScopedAccountingLookupService.class);
     JournalReferenceResolver journalReferenceResolver = mock(JournalReferenceResolver.class);
     JournalReferenceMappingRepository journalReferenceMappingRepository =
         mock(JournalReferenceMappingRepository.class);
@@ -103,10 +108,8 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
             mock(DealerRepository.class),
             supplierRepository,
             mock(CompanyClock.class),
-            com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
-                .fromLegacy(companyEntityLookup),
-            com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService
-                .fromLegacy(companyEntityLookup),
+            salesLookupService,
+            accountingLookupService,
             mock(CompanyAccountingSettingsService.class),
             journalReferenceResolver,
             journalReferenceMappingRepository);
@@ -124,7 +127,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
 
     Account inventory = new Account();
     ReflectionTestUtils.setField(inventory, "id", 201L);
-    when(companyEntityLookup.requireAccount(company, 201L)).thenReturn(inventory);
+    when(accountingLookupService.requireAccount(company, 201L)).thenReturn(inventory);
 
     String baseReference = "RMP-SUP-INV100";
     String generatedReference = baseReference + "-0003";
@@ -170,7 +173,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
     JournalEntry saved = new JournalEntry();
     ReflectionTestUtils.setField(saved, "id", 501L);
     saved.setReferenceNumber(generatedReference);
-    when(companyEntityLookup.requireJournalEntry(company, 501L)).thenReturn(saved);
+    when(accountingLookupService.requireJournalEntry(company, 501L)).thenReturn(saved);
 
     assertThat(
             facade
@@ -196,7 +199,10 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
     AccountingService accountingService = mock(AccountingService.class);
     JournalEntryRepository journalEntryRepository = mock(JournalEntryRepository.class);
     ReferenceNumberService referenceNumberService = mock(ReferenceNumberService.class);
-    CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
+    CompanyScopedSalesLookupService salesLookupService =
+        mock(CompanyScopedSalesLookupService.class);
+    CompanyScopedAccountingLookupService accountingLookupService =
+        mock(CompanyScopedAccountingLookupService.class);
     JournalReferenceResolver journalReferenceResolver = mock(JournalReferenceResolver.class);
     SupplierRepository supplierRepository = mock(SupplierRepository.class);
 
@@ -210,10 +216,8 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
             mock(DealerRepository.class),
             supplierRepository,
             mock(CompanyClock.class),
-            com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
-                .fromLegacy(companyEntityLookup),
-            com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService
-                .fromLegacy(companyEntityLookup),
+            salesLookupService,
+            accountingLookupService,
             mock(CompanyAccountingSettingsService.class),
             journalReferenceResolver,
             mock(JournalReferenceMappingRepository.class));
@@ -231,7 +235,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
 
     Account inventory = new Account();
     ReflectionTestUtils.setField(inventory, "id", 501L);
-    when(companyEntityLookup.requireAccount(company, 501L)).thenReturn(inventory);
+    when(accountingLookupService.requireAccount(company, 501L)).thenReturn(inventory);
 
     String baseReference = "RMP-LEGACY-REF";
     when(referenceNumberService.purchaseReferenceKey(company, supplier, "INV-777"))
@@ -268,7 +272,10 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
     AccountingService accountingService = mock(AccountingService.class);
     JournalEntryRepository journalEntryRepository = mock(JournalEntryRepository.class);
     ReferenceNumberService referenceNumberService = mock(ReferenceNumberService.class);
-    CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
+    CompanyScopedSalesLookupService salesLookupService =
+        mock(CompanyScopedSalesLookupService.class);
+    CompanyScopedAccountingLookupService accountingLookupService =
+        mock(CompanyScopedAccountingLookupService.class);
     JournalReferenceResolver journalReferenceResolver = mock(JournalReferenceResolver.class);
     JournalReferenceMappingRepository journalReferenceMappingRepository =
         mock(JournalReferenceMappingRepository.class);
@@ -284,10 +291,8 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
             mock(DealerRepository.class),
             supplierRepository,
             mock(CompanyClock.class),
-            com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
-                .fromLegacy(companyEntityLookup),
-            com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService
-                .fromLegacy(companyEntityLookup),
+            salesLookupService,
+            accountingLookupService,
             mock(CompanyAccountingSettingsService.class),
             journalReferenceResolver,
             journalReferenceMappingRepository);
@@ -305,7 +310,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
 
     Account inventory = new Account();
     ReflectionTestUtils.setField(inventory, "id", 701L);
-    when(companyEntityLookup.requireAccount(company, 701L)).thenReturn(inventory);
+    when(accountingLookupService.requireAccount(company, 701L)).thenReturn(inventory);
 
     String baseReference = "RMP-NEW-INV";
     String generatedReference = baseReference + "-0004";
@@ -358,7 +363,7 @@ class TS_RuntimeAccountingFacadePeriodCloseBoundaryTest {
     JournalEntry saved = new JournalEntry();
     ReflectionTestUtils.setField(saved, "id", 456L);
     saved.setReferenceNumber(generatedReference);
-    when(companyEntityLookup.requireJournalEntry(company, 456L)).thenReturn(saved);
+    when(accountingLookupService.requireJournalEntry(company, 456L)).thenReturn(saved);
 
     assertThat(
             facade

@@ -40,7 +40,6 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.CreditLimitExceededException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
@@ -50,6 +49,7 @@ import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyAccountingSettingsService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -108,7 +108,8 @@ class SalesServiceTest {
   @Mock private FinishedGoodRepository finishedGoodRepository;
   @Mock private FinishedGoodBatchRepository finishedGoodBatchRepository;
   @Mock private AccountRepository accountRepository;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedSalesLookupService salesLookupService;
+  @Mock private CompanyScopedAccountingLookupService accountingLookupService;
   @Mock private PackagingSlipRepository packagingSlipRepository;
   @Mock private FinishedGoodsService finishedGoodsService;
   @Mock private AccountingService accountingService;
@@ -151,7 +152,8 @@ class SalesServiceTest {
             finishedGoodRepository,
             finishedGoodBatchRepository,
             accountRepository,
-            companyEntityLookup,
+            salesLookupService,
+            accountingLookupService,
             packagingSlipRepository,
             finishedGoodsService,
             accountingFacade,
@@ -297,7 +299,7 @@ class SalesServiceTest {
     order.setStatus("BOOKED");
     setField(order, "id", 921L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 921L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 921L)).thenReturn(order);
 
     ApplicationException ex =
         assertThrows(ApplicationException.class, () -> salesService.updateStatus(921L, "archived"));
@@ -314,7 +316,7 @@ class SalesServiceTest {
     order.setStatus("BOOKED");
     setField(order, "id", 920L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 920L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 920L)).thenReturn(order);
 
     ApplicationException ex =
         assertThrows(ApplicationException.class, () -> salesService.updateStatus(920L, " "));
@@ -330,7 +332,7 @@ class SalesServiceTest {
     order.setStatus("BOOKED");
     setField(order, "id", 922L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 922L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 922L)).thenReturn(order);
 
     ApplicationException ex =
         assertThrows(
@@ -348,7 +350,7 @@ class SalesServiceTest {
     order.setStatus("BOOKED");
     setField(order, "id", 923L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 923L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 923L)).thenReturn(order);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 923L))
         .thenReturn(List.of());
 
@@ -365,7 +367,7 @@ class SalesServiceTest {
     order.setStatus("BOOKED");
     setField(order, "id", 924L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 924L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 924L)).thenReturn(order);
 
     ApplicationException ex =
         assertThrows(
@@ -384,7 +386,7 @@ class SalesServiceTest {
     order.setStatus("BOOKED");
     setField(order, "id", 926L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 926L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 926L)).thenReturn(order);
 
     ApplicationException ex =
         assertThrows(
@@ -402,7 +404,7 @@ class SalesServiceTest {
     order.setStatus("BOOKED");
     setField(order, "id", 925L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 925L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 925L)).thenReturn(order);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 925L))
         .thenReturn(List.of());
 
@@ -418,7 +420,7 @@ class SalesServiceTest {
     order.setStatus("REJECTED");
     setField(order, "id", 927L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 927L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 927L)).thenReturn(order);
 
     ApplicationException ex =
         assertThrows(
@@ -438,7 +440,7 @@ class SalesServiceTest {
     order.setStatus("ON_HOLD");
     setField(order, "id", 928L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 928L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 928L)).thenReturn(order);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 928L))
         .thenReturn(List.of());
 
@@ -454,7 +456,7 @@ class SalesServiceTest {
     order.setStatus("   ");
     setField(order, "id", 929L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 929L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 929L)).thenReturn(order);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 929L))
         .thenReturn(List.of());
 
@@ -470,7 +472,7 @@ class SalesServiceTest {
     order.setStatus("BOOKED");
     setField(order, "id", 933L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 933L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 933L)).thenReturn(order);
 
     salesService.attachTraceId(933L, "   ");
     assertNull(order.getTraceId());
@@ -493,7 +495,7 @@ class SalesServiceTest {
     SalesOrder order = new SalesOrder();
     setField(order, "id", 930L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 930L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 930L)).thenReturn(order);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 930L))
         .thenReturn(List.of());
 
@@ -509,7 +511,7 @@ class SalesServiceTest {
     slip.setStatus("DISPATCHED");
     slip.setInvoiceId(11L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 931L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 931L)).thenReturn(order);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 931L))
         .thenReturn(List.of(slip));
 
@@ -527,7 +529,7 @@ class SalesServiceTest {
     slip.setInvoiceId(12L);
     slip.setJournalEntryId(13L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 932L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 932L)).thenReturn(order);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 932L))
         .thenReturn(List.of(slip));
     when(accountingFacade.hasCogsJournalFor("PS-932")).thenReturn(true);
@@ -576,7 +578,7 @@ class SalesServiceTest {
     order.setOrderNumber("SO-942");
     setField(order, "id", 942L);
 
-    when(companyEntityLookup.requireDealer(company, 501L)).thenReturn(dealer);
+    when(salesLookupService.requireDealer(company, 501L)).thenReturn(dealer);
     when(salesOrderRepository.findIdsByCompanyAndDealerAndStatusOrderByCreatedAtDescIdDesc(
             eq(company), eq(dealer), eq("CONFIRMED"), any(PageRequest.class)))
         .thenReturn(new PageImpl<>(List.of(942L)));
@@ -622,7 +624,7 @@ class SalesServiceTest {
     order.setOrderNumber("SO-943");
     setField(order, "id", 943L);
 
-    when(companyEntityLookup.requireDealer(company, 502L)).thenReturn(dealer);
+    when(salesLookupService.requireDealer(company, 502L)).thenReturn(dealer);
     when(salesOrderRepository.findByCompanyAndDealerOrderByCreatedAtDesc(company, dealer))
         .thenReturn(List.of(order));
 
@@ -712,7 +714,7 @@ class SalesServiceTest {
     receivable.setName("Old Dealer Receivable");
     dealer.setReceivableAccount(receivable);
 
-    when(companyEntityLookup.requireDealer(company, 813L)).thenReturn(dealer);
+    when(salesLookupService.requireDealer(company, 813L)).thenReturn(dealer);
     when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "AR-NEW-1"))
         .thenReturn(Optional.empty());
     when(dealerLedgerService.currentBalance(813L)).thenReturn(BigDecimal.ZERO);
@@ -743,7 +745,7 @@ class SalesServiceTest {
     receivable.setName("Same Name Receivable");
     dealer.setReceivableAccount(receivable);
 
-    when(companyEntityLookup.requireDealer(company, 814L)).thenReturn(dealer);
+    when(salesLookupService.requireDealer(company, 814L)).thenReturn(dealer);
     when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "AR-NEW-2"))
         .thenReturn(Optional.of(new Account()));
     when(dealerLedgerService.currentBalance(814L)).thenReturn(BigDecimal.ZERO);
@@ -769,7 +771,7 @@ class SalesServiceTest {
     setField(dealer, "id", 815L);
     dealer.setReceivableAccount(null);
 
-    when(companyEntityLookup.requireDealer(company, 815L)).thenReturn(dealer);
+    when(salesLookupService.requireDealer(company, 815L)).thenReturn(dealer);
     when(dealerLedgerService.currentBalance(815L)).thenReturn(BigDecimal.ZERO);
 
     DealerDto dto =
@@ -799,7 +801,7 @@ class SalesServiceTest {
     receivable.setActive(true);
     dealer.setReceivableAccount(receivable);
 
-    when(companyEntityLookup.requireDealer(company, 816L)).thenReturn(dealer);
+    when(salesLookupService.requireDealer(company, 816L)).thenReturn(dealer);
 
     salesService.deleteDealer(816L);
 
@@ -880,7 +882,7 @@ class SalesServiceTest {
         .thenReturn(List.of(slip));
     when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company))
         .thenReturn(Optional.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(cancelled);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(cancelled);
 
     DispatchConfirmRequest request =
         new DispatchConfirmRequest(null, 10L, List.of(), null, null, false, null, null);
@@ -922,7 +924,7 @@ class SalesServiceTest {
     order.setStatus("READY_TO_SHIP");
     order.setTotalAmount(new BigDecimal("100.00"));
 
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(), List.of());
     when(finishedGoodsService.reserveForOrder(order))
@@ -950,7 +952,7 @@ class SalesServiceTest {
     order.setCompany(company);
     order.setStatus("DISPATCHED");
 
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of());
 
@@ -975,7 +977,7 @@ class SalesServiceTest {
     order.setCompany(company);
     order.setStatus("DRAFT");
 
-    when(companyEntityLookup.requireSalesOrder(company, 11L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 11L)).thenReturn(order);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 11L))
         .thenReturn(List.of());
 
@@ -1049,7 +1051,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(dealerLedgerService.currentBalance(dealer.getId())).thenReturn(BigDecimal.ZERO);
@@ -1117,7 +1119,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-55");
@@ -1214,7 +1216,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
 
@@ -1305,7 +1307,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(creditLimitOverrideService.isOverrideApproved(
@@ -1397,7 +1399,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
 
@@ -1473,7 +1475,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-55");
@@ -1602,7 +1604,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
 
@@ -1691,7 +1693,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(dealerLedgerService.currentBalance(dealer.getId())).thenReturn(BigDecimal.ZERO);
@@ -1822,7 +1824,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(dealerLedgerService.currentBalance(dealer.getId())).thenReturn(BigDecimal.valueOf(50));
@@ -1848,7 +1850,7 @@ class SalesServiceTest {
 
     when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company))
         .thenReturn(Optional.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
 
     DispatchConfirmRequest request =
         new DispatchConfirmRequest(
@@ -1881,7 +1883,7 @@ class SalesServiceTest {
 
     when(packagingSlipRepository.findAndLockByIdAndCompany(55L, company))
         .thenReturn(Optional.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
 
     DispatchConfirmRequest request =
         new DispatchConfirmRequest(
@@ -1926,7 +1928,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip, otherSlip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
 
     DispatchConfirmRequest request =
         new DispatchConfirmRequest(
@@ -1973,7 +1975,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip, cancelledSlip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
 
     DispatchConfirmRequest request =
         new DispatchConfirmRequest(
@@ -2014,7 +2016,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
 
     DispatchConfirmRequest request =
         new DispatchConfirmRequest(
@@ -2106,8 +2108,8 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
-    when(companyEntityLookup.requireJournalEntry(company, 222L)).thenReturn(existingEntry);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(accountingLookupService.requireJournalEntry(company, 222L)).thenReturn(existingEntry);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-55");
@@ -2236,8 +2238,8 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
-    when(companyEntityLookup.requireJournalEntry(company, 222L)).thenReturn(existingEntry);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(accountingLookupService.requireJournalEntry(company, 222L)).thenReturn(existingEntry);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(creditLimitOverrideService.isOverrideApproved(
@@ -2307,7 +2309,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(invoiceRepository.findByCompanyAndId(company, 777L))
         .thenReturn(Optional.of(existingInvoice));
     when(creditLimitOverrideService.isOverrideApproved(
@@ -2389,7 +2391,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(invoiceRepository.findByCompanyAndId(company, 777L))
         .thenReturn(Optional.of(existingInvoice));
     when(accountingFacade.hasCogsJournalFor("PS-55")).thenReturn(true);
@@ -2472,7 +2474,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip, otherSlip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(invoiceRepository.findByCompanyAndId(company, 777L))
         .thenReturn(Optional.of(existingInvoice));
     when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class)))
@@ -2547,7 +2549,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip, cancelledSlip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(invoiceRepository.findByCompanyAndId(company, 777L))
         .thenReturn(Optional.of(existingInvoice));
     when(salesOrderRepository.save(ArgumentMatchers.any(SalesOrder.class)))
@@ -2909,8 +2911,8 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip, cancelledSlip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
-    when(companyEntityLookup.requireJournalEntry(company, 222L)).thenReturn(existingEntry);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(accountingLookupService.requireJournalEntry(company, 222L)).thenReturn(existingEntry);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-55");
@@ -3010,8 +3012,8 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
-    when(companyEntityLookup.requireJournalEntry(company, 222L)).thenReturn(existingEntry);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(accountingLookupService.requireJournalEntry(company, 222L)).thenReturn(existingEntry);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-55");
@@ -3109,7 +3111,7 @@ class SalesServiceTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip), List.of(slip, otherSlip), List.of(slip, otherSlip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-55");
@@ -3150,7 +3152,7 @@ class SalesServiceTest {
     when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU3"))
         .thenReturn(Optional.of(finishedGood));
     Dealer dealer = dealerWithCreditLimit(42L, BigDecimal.valueOf(1000));
-    when(companyEntityLookup.requireDealer(company, 42L)).thenReturn(dealer);
+    when(salesLookupService.requireDealer(company, 42L)).thenReturn(dealer);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(orderNumberService.nextOrderNumber(company)).thenReturn("SO-42");
@@ -3181,7 +3183,7 @@ class SalesServiceTest {
     when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU3-EXPOSURE"))
         .thenReturn(Optional.of(finishedGood));
     Dealer dealer = dealerWithCreditLimit(422L, BigDecimal.valueOf(1000));
-    when(companyEntityLookup.requireDealer(company, 422L)).thenReturn(dealer);
+    when(salesLookupService.requireDealer(company, 422L)).thenReturn(dealer);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(orderNumberService.nextOrderNumber(company)).thenReturn("SO-EXPOSURE-42");
@@ -3219,7 +3221,7 @@ class SalesServiceTest {
     when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU3-RACE"))
         .thenReturn(Optional.of(finishedGood));
     Dealer dealer = dealerWithCreditLimit(423L, BigDecimal.valueOf(1000));
-    when(companyEntityLookup.requireDealer(company, 423L)).thenReturn(dealer);
+    when(salesLookupService.requireDealer(company, 423L)).thenReturn(dealer);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(orderNumberService.nextOrderNumber(company)).thenReturn("SO-RACE-42");
@@ -3288,7 +3290,7 @@ class SalesServiceTest {
     when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU3-CASH"))
         .thenReturn(Optional.of(finishedGood));
     Dealer dealer = dealerWithCreditLimit(420L, BigDecimal.valueOf(100));
-    when(companyEntityLookup.requireDealer(company, 420L)).thenReturn(dealer);
+    when(salesLookupService.requireDealer(company, 420L)).thenReturn(dealer);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(orderNumberService.nextOrderNumber(company)).thenReturn("SO-CASH-42");
@@ -3345,7 +3347,7 @@ class SalesServiceTest {
     existing.setGstRoundingAdjustment(BigDecimal.ZERO);
     existing.setTotalAmount(BigDecimal.valueOf(200));
 
-    when(companyEntityLookup.requireSalesOrder(company, 4300L)).thenReturn(existing);
+    when(salesLookupService.requireSalesOrder(company, 4300L)).thenReturn(existing);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(dealerLedgerService.currentBalance(430L)).thenReturn(BigDecimal.valueOf(950));
@@ -3396,7 +3398,7 @@ class SalesServiceTest {
     existing.setGstRoundingAdjustment(BigDecimal.ZERO);
     existing.setTotalAmount(BigDecimal.valueOf(200));
 
-    when(companyEntityLookup.requireSalesOrder(company, 4303L)).thenReturn(existing);
+    when(salesLookupService.requireSalesOrder(company, 4303L)).thenReturn(existing);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(dealerLedgerService.currentBalance(431L)).thenReturn(BigDecimal.ZERO);
@@ -3447,7 +3449,7 @@ class SalesServiceTest {
     existing.setGstRoundingAdjustment(BigDecimal.ZERO);
     existing.setTotalAmount(BigDecimal.valueOf(100));
 
-    when(companyEntityLookup.requireSalesOrder(company, 4301L)).thenReturn(existing);
+    when(salesLookupService.requireSalesOrder(company, 4301L)).thenReturn(existing);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 4301L))
         .thenReturn(List.of());
     when(factoryTaskRepository.findByCompanyAndSalesOrderId(company, 4301L)).thenReturn(List.of());
@@ -3499,7 +3501,7 @@ class SalesServiceTest {
     existing.setGstRoundingAdjustment(BigDecimal.ZERO);
     existing.setTotalAmount(BigDecimal.valueOf(100));
 
-    when(companyEntityLookup.requireSalesOrder(company, 4302L)).thenReturn(existing);
+    when(salesLookupService.requireSalesOrder(company, 4302L)).thenReturn(existing);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 4302L))
         .thenReturn(List.of());
     when(factoryTaskRepository.findByCompanyAndSalesOrderId(company, 4302L)).thenReturn(List.of());
@@ -3534,7 +3536,7 @@ class SalesServiceTest {
     when(finishedGoodRepository.findByCompanyAndProductCode(company, "SKU3-SPLIT"))
         .thenReturn(Optional.of(finishedGood));
     Dealer dealer = dealerWithCreditLimit(421L, BigDecimal.valueOf(1000));
-    when(companyEntityLookup.requireDealer(company, 421L)).thenReturn(dealer);
+    when(salesLookupService.requireDealer(company, 421L)).thenReturn(dealer);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(orderNumberService.nextOrderNumber(company)).thenReturn("SO-SPLIT-42");
@@ -4152,7 +4154,7 @@ class SalesServiceTest {
     setField(existing, "id", 412L);
     setField(existing, "publicId", publicId);
 
-    when(companyEntityLookup.requirePromotion(company, 412L)).thenReturn(existing);
+    when(salesLookupService.requirePromotion(company, 412L)).thenReturn(existing);
 
     PromotionRequest request =
         new PromotionRequest(
@@ -4356,7 +4358,7 @@ class SalesServiceTest {
     requirement.setStatus("PENDING");
     requirement.setSalesOrderId(904L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 904L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 904L)).thenReturn(order);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 904L))
         .thenReturn(List.of());
     when(factoryTaskRepository.findByCompanyAndSalesOrderId(company, 904L))
@@ -4397,7 +4399,7 @@ class SalesServiceTest {
     slip.setStatus("RESERVED");
     slip.getLines().add(line);
 
-    when(companyEntityLookup.requireSalesOrder(company, 905L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 905L)).thenReturn(order);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 905L))
         .thenReturn(List.of(slip));
 
@@ -4415,7 +4417,7 @@ class SalesServiceTest {
     order.setCompany(company);
     order.setStatus("CONFIRMED");
     setField(order, "id", 42L);
-    when(companyEntityLookup.requireSalesOrder(company, 42L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 42L)).thenReturn(order);
 
     SalesOrderDto dto = salesService.cancelOrder(42L, "CUSTOMER_REQUEST|Customer cancelled");
 
@@ -4429,7 +4431,7 @@ class SalesServiceTest {
     order.setCompany(company);
     order.setStatus("DISPATCHED");
     setField(order, "id", 43L);
-    when(companyEntityLookup.requireSalesOrder(company, 43L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 43L)).thenReturn(order);
 
     ApplicationException ex =
         assertThrows(
@@ -4464,7 +4466,7 @@ class SalesServiceTest {
             1,
             10);
 
-    when(companyEntityLookup.requireDealer(company, 777L)).thenReturn(dealer);
+    when(salesLookupService.requireDealer(company, 777L)).thenReturn(dealer);
     when(salesOrderRepository.searchIdsByCompany(
             eq(company),
             eq("DRAFT"),
@@ -4517,7 +4519,7 @@ class SalesServiceTest {
     confirmed.setChangedAt(java.time.Instant.parse("2026-01-01T10:05:00Z"));
     setField(confirmed, "id", 2L);
 
-    when(companyEntityLookup.requireSalesOrder(company, 911L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 911L)).thenReturn(order);
     when(salesOrderStatusHistoryRepository.findTimeline(company, order))
         .thenReturn(List.of(created, confirmed));
 

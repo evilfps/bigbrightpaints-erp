@@ -20,7 +20,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
@@ -33,6 +32,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequ
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodSnapshotService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.PeriodCloseHook;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -56,7 +56,7 @@ class TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest {
   @Mock private AccountingPeriodRepository accountingPeriodRepository;
   @Mock private CompanyContextService companyContextService;
   @Mock private JournalEntryRepository journalEntryRepository;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedAccountingLookupService accountingLookupService;
   @Mock private JournalLineRepository journalLineRepository;
   @Mock private AccountRepository accountRepository;
   @Mock private CompanyClock companyClock;
@@ -79,7 +79,7 @@ class TS_RuntimeAccountingPeriodPolicyExecutableCoverageTest {
             accountingPeriodRepository,
             companyContextService,
             journalEntryRepository,
-            companyEntityLookup,
+            accountingLookupService,
             journalLineRepository,
             accountRepository,
             companyClock,

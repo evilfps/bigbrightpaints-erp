@@ -26,7 +26,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
@@ -59,7 +58,7 @@ class AccountingPeriodServicePolicyTest {
   @Mock private AccountingPeriodRepository accountingPeriodRepository;
   @Mock private CompanyContextService companyContextService;
   @Mock private JournalEntryRepository journalEntryRepository;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedAccountingLookupService accountingLookupService;
   @Mock private JournalLineRepository journalLineRepository;
   @Mock private AccountRepository accountRepository;
   @Mock private CompanyClock companyClock;
@@ -85,7 +84,7 @@ class AccountingPeriodServicePolicyTest {
             accountingPeriodRepository,
             companyContextService,
             journalEntryRepository,
-            companyEntityLookup,
+            accountingLookupService,
             journalLineRepository,
             accountRepository,
             companyClock,
@@ -408,7 +407,7 @@ class AccountingPeriodServicePolicyTest {
     AccountingPeriod period = openPeriod(company, 2026, 2);
     period.setStatus(AccountingPeriodStatus.CLOSED);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireAccountingPeriod(company, 20L)).thenReturn(period);
+    when(accountingLookupService.requireAccountingPeriod(company, 20L)).thenReturn(period);
 
     assertThatThrownBy(() -> service.confirmBankReconciliation(20L, null, "post-close mutation"))
         .isInstanceOf(ApplicationException.class)
@@ -422,7 +421,7 @@ class AccountingPeriodServicePolicyTest {
     AccountingPeriod period = openPeriod(company, 2026, 2);
     period.setStatus(AccountingPeriodStatus.CLOSED);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireAccountingPeriod(company, 21L)).thenReturn(period);
+    when(accountingLookupService.requireAccountingPeriod(company, 21L)).thenReturn(period);
 
     assertThatThrownBy(() -> service.confirmInventoryCount(21L, null, "post-close mutation"))
         .isInstanceOf(ApplicationException.class)
@@ -436,7 +435,7 @@ class AccountingPeriodServicePolicyTest {
     AccountingPeriod period = openPeriod(company, 2026, 2);
     period.setStatus(AccountingPeriodStatus.CLOSED);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireAccountingPeriod(company, 22L)).thenReturn(period);
+    when(accountingLookupService.requireAccountingPeriod(company, 22L)).thenReturn(period);
 
     assertThatThrownBy(
             () ->

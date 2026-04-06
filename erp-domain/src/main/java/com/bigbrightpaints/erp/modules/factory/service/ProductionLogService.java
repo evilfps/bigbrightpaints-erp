@@ -120,6 +120,7 @@ public class ProductionLogService {
       RawMaterialMovementRepository rawMaterialMovementRepository,
       AccountingFacade accountingFacade,
       CompanyEntityLookup companyEntityLookup,
+      CompanyScopedSalesLookupService salesLookupService,
       CompanyScopedInventoryLookupService inventoryLookupService,
       CompanyClock companyClock,
       PackingAllowedSizeService packingAllowedSizeService) {
@@ -133,7 +134,7 @@ public class ProductionLogService {
         accountingFacade,
         CompanyScopedFactoryLookupService.fromLegacy(companyEntityLookup),
         CompanyScopedProductionLookupService.fromLegacy(companyEntityLookup),
-        CompanyScopedSalesLookupService.fromLegacy(companyEntityLookup),
+        salesLookupService,
         inventoryLookupService,
         companyClock,
         packingAllowedSizeService);

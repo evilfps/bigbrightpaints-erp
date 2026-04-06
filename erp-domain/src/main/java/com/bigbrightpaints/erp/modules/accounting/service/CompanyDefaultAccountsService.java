@@ -5,7 +5,6 @@ import java.math.BigDecimal;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -33,16 +32,6 @@ public class CompanyDefaultAccountsService {
     this.companyContextService = companyContextService;
     this.accountingLookupService = accountingLookupService;
     this.companyRepository = companyRepository;
-  }
-
-  public CompanyDefaultAccountsService(
-      CompanyContextService companyContextService,
-      CompanyEntityLookup companyEntityLookup,
-      CompanyRepository companyRepository) {
-    this(
-        companyContextService,
-        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
-        companyRepository);
   }
 
   public DefaultAccounts requireDefaults() {

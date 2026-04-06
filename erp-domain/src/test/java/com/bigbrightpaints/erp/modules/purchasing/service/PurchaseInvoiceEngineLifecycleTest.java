@@ -29,11 +29,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -80,7 +80,7 @@ class PurchaseInvoiceEngineLifecycleTest {
   @Mock private AccountingFacade accountingFacade;
   @Mock private CompanyScopedPurchasingLookupService purchasingLookupService;
   @Mock private CompanyScopedInventoryLookupService inventoryLookupService;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedAccountingLookupService accountingLookupService;
   @Mock private ReferenceNumberService referenceNumberService;
   @Mock private com.bigbrightpaints.erp.core.util.CompanyClock companyClock;
   @Mock private GstService gstService;
@@ -108,7 +108,7 @@ class PurchaseInvoiceEngineLifecycleTest {
             accountingFacade,
             purchasingLookupService,
             inventoryLookupService,
-            companyEntityLookup,
+            accountingLookupService,
             referenceNumberService,
             companyClock,
             gstService,
@@ -265,7 +265,9 @@ class PurchaseInvoiceEngineLifecycleTest {
     ReflectionTestUtils.setField(linkedEntry, "id", 700L);
     linkedEntry.setStatus("POSTED");
     linkedEntry.setReferenceNumber("RMP-SUP10-INV40");
-    lenient().when(companyEntityLookup.requireJournalEntry(company, 700L)).thenReturn(linkedEntry);
+    lenient()
+        .when(accountingLookupService.requireJournalEntry(company, 700L))
+        .thenReturn(linkedEntry);
 
     lenient()
         .when(purchaseRepository.save(any(RawMaterialPurchase.class)))

@@ -20,7 +20,6 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
@@ -900,10 +899,12 @@ class AccountingEndpointContractTest {
             mock(DealerRepository.class),
             mock(SupplierRepository.class),
             mock(CompanyClock.class),
-            com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
-                .fromLegacy(mock(CompanyEntityLookup.class)),
-            com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService
-                .fromLegacy(mock(CompanyEntityLookup.class)),
+            mock(
+                com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
+                    .class),
+            mock(
+                com.bigbrightpaints.erp.modules.accounting.service
+                    .CompanyScopedAccountingLookupService.class),
             mock(CompanyAccountingSettingsService.class),
             mock(JournalReferenceResolver.class),
             mock(JournalReferenceMappingRepository.class));
@@ -945,10 +946,12 @@ class AccountingEndpointContractTest {
             mock(DealerRepository.class),
             mock(SupplierRepository.class),
             mock(CompanyClock.class),
-            com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
-                .fromLegacy(mock(CompanyEntityLookup.class)),
-            com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService
-                .fromLegacy(mock(CompanyEntityLookup.class)),
+            mock(
+                com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
+                    .class),
+            mock(
+                com.bigbrightpaints.erp.modules.accounting.service
+                    .CompanyScopedAccountingLookupService.class),
             mock(CompanyAccountingSettingsService.class),
             mock(JournalReferenceResolver.class),
             mock(JournalReferenceMappingRepository.class));
@@ -995,10 +998,12 @@ class AccountingEndpointContractTest {
             mock(DealerRepository.class),
             mock(SupplierRepository.class),
             mock(CompanyClock.class),
-            com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
-                .fromLegacy(mock(CompanyEntityLookup.class)),
-            com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService
-                .fromLegacy(mock(CompanyEntityLookup.class)),
+            mock(
+                com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
+                    .class),
+            mock(
+                com.bigbrightpaints.erp.modules.accounting.service
+                    .CompanyScopedAccountingLookupService.class),
             mock(CompanyAccountingSettingsService.class),
             mock(JournalReferenceResolver.class),
             mock(JournalReferenceMappingRepository.class));
@@ -1038,10 +1043,12 @@ class AccountingEndpointContractTest {
             mock(DealerRepository.class),
             mock(SupplierRepository.class),
             mock(CompanyClock.class),
-            com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
-                .fromLegacy(mock(CompanyEntityLookup.class)),
-            com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService
-                .fromLegacy(mock(CompanyEntityLookup.class)),
+            mock(
+                com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService
+                    .class),
+            mock(
+                com.bigbrightpaints.erp.modules.accounting.service
+                    .CompanyScopedAccountingLookupService.class),
             mock(CompanyAccountingSettingsService.class),
             mock(JournalReferenceResolver.class),
             mock(JournalReferenceMappingRepository.class));

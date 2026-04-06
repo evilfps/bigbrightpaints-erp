@@ -7,12 +7,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.accounting.service.JournalCorrectionMetadataService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
@@ -120,7 +120,7 @@ public class PurchasingService {
       CompanyScopedPurchasingLookupService purchasingLookupService,
       CompanyScopedInventoryLookupService inventoryLookupService,
       JournalEntryRepository journalEntryRepository,
-      CompanyEntityLookup companyEntityLookup,
+      CompanyScopedAccountingLookupService accountingLookupService,
       ReferenceNumberService referenceNumberService,
       CompanyClock companyClock,
       AccountingPeriodService accountingPeriodService,
@@ -165,7 +165,7 @@ public class PurchasingService {
                 accountingFacade,
                 purchasingLookupService,
                 inventoryLookupService,
-                companyEntityLookup,
+                accountingLookupService,
                 referenceNumberService,
                 companyClock,
                 gstService,

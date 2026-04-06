@@ -134,6 +134,7 @@ public class PayrollService {
       AccountRepository accountRepository,
       CompanyContextService companyContextService,
       CompanyEntityLookup companyEntityLookup,
+      CompanyScopedAccountingLookupService accountingLookupService,
       CompanyClock companyClock,
       AuditService auditService) {
     this(
@@ -145,7 +146,7 @@ public class PayrollService {
         accountRepository,
         companyContextService,
         CompanyScopedHrLookupService.fromLegacy(companyEntityLookup),
-        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
+        accountingLookupService,
         companyClock,
         auditService);
   }

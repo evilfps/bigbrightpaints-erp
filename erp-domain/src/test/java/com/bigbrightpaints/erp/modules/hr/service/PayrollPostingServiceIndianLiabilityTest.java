@@ -30,6 +30,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalLineDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.hr.domain.AttendanceRepository;
@@ -62,6 +63,8 @@ class PayrollPostingServiceIndianLiabilityTest {
     AccountRepository accountRepository = mock(AccountRepository.class);
     CompanyContextService companyContextService = mock(CompanyContextService.class);
     CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
+    CompanyScopedAccountingLookupService accountingLookupService =
+        mock(CompanyScopedAccountingLookupService.class);
     CompanyClock companyClock = mock(CompanyClock.class);
     AuditService auditService = mock(AuditService.class);
 
@@ -75,8 +78,7 @@ class PayrollPostingServiceIndianLiabilityTest {
             accountRepository,
             companyContextService,
             CompanyScopedHrLookupService.fromLegacy(companyEntityLookup),
-            com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService
-                .fromLegacy(companyEntityLookup),
+            accountingLookupService,
             companyClock,
             auditService);
 

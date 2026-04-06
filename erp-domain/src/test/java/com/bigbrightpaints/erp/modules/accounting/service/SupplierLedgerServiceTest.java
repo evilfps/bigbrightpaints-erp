@@ -17,7 +17,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.SupplierLedgerEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.SupplierLedgerRepository;
@@ -25,6 +24,7 @@ import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
+import com.bigbrightpaints.erp.modules.purchasing.service.CompanyScopedPurchasingLookupService;
 
 @ExtendWith(MockitoExtension.class)
 class SupplierLedgerServiceTest {
@@ -32,7 +32,7 @@ class SupplierLedgerServiceTest {
   @Mock private SupplierLedgerRepository supplierLedgerRepository;
   @Mock private SupplierRepository supplierRepository;
   @Mock private CompanyContextService companyContextService;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedPurchasingLookupService purchasingLookupService;
 
   private SupplierLedgerService supplierLedgerService;
 
@@ -43,7 +43,7 @@ class SupplierLedgerServiceTest {
             supplierLedgerRepository,
             supplierRepository,
             companyContextService,
-            companyEntityLookup);
+            purchasingLookupService);
   }
 
   @Test

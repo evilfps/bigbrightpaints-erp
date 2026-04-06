@@ -23,7 +23,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.JournalReferenceResolver;
@@ -37,6 +36,7 @@ import com.bigbrightpaints.erp.modules.invoice.dto.InvoiceDto;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
+import com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesDispatchReconciliationService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesOrderCrudService;
 import com.bigbrightpaints.erp.shared.dto.LinkedBusinessReferenceDto;
@@ -51,7 +51,8 @@ class InvoiceServiceTest {
   @Mock private SalesDispatchReconciliationService salesDispatchReconciliationService;
   @Mock private SalesOrderRepository salesOrderRepository;
   @Mock private InvoiceNumberService invoiceNumberService;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedSalesLookupService salesLookupService;
+  @Mock private CompanyScopedInvoiceLookupService invoiceLookupService;
   @Mock private JournalReferenceResolver journalReferenceResolver;
   @Mock private DealerLedgerService dealerLedgerService;
   @Mock private PackagingSlipRepository packagingSlipRepository;
@@ -69,7 +70,8 @@ class InvoiceServiceTest {
             invoiceRepository,
             salesOrderCrudService,
             salesOrderRepository,
-            companyEntityLookup,
+            salesLookupService,
+            invoiceLookupService,
             packagingSlipRepository,
             settlementAllocationRepository);
     company = new Company();
@@ -611,7 +613,7 @@ class InvoiceServiceTest {
     Dealer dealer = new Dealer();
     ReflectionTestUtils.setField(dealer, "id", 901L);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireDealer(company, 901L)).thenReturn(dealer);
+    when(salesLookupService.requireDealer(company, 901L)).thenReturn(dealer);
     when(invoiceRepository.findIdsByCompanyAndDealerOrderByIssueDateDescIdDesc(
             company, dealer, PageRequest.of(0, 25)))
         .thenReturn(new PageImpl<>(List.of(81L)));
@@ -1052,7 +1054,7 @@ class InvoiceServiceTest {
     Dealer dealer = new Dealer();
     ReflectionTestUtils.setField(dealer, "id", 902L);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireDealer(company, 902L)).thenReturn(dealer);
+    when(salesLookupService.requireDealer(company, 902L)).thenReturn(dealer);
     when(invoiceRepository.findIdsByCompanyAndDealerOrderByIssueDateDescIdDesc(
             company, dealer, PageRequest.of(0, 10)))
         .thenReturn(new PageImpl<>(List.of()));
@@ -1119,7 +1121,7 @@ class InvoiceServiceTest {
     company.setName("BigBright 1500");
 
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireDealer(company, 1500L)).thenReturn(dealer);
+    when(salesLookupService.requireDealer(company, 1500L)).thenReturn(dealer);
 
     Invoice invoice = new Invoice();
     ReflectionTestUtils.setField(invoice, "id", 1501L);
@@ -1153,7 +1155,7 @@ class InvoiceServiceTest {
     when(invoiceRepository.findByCompanyAndDealerOrderByIssueDateDesc(company, dealer))
         .thenReturn(List.of(invoice));
     when(invoiceRepository.findByCompanyAndId(company, 1501L)).thenReturn(Optional.empty());
-    when(companyEntityLookup.requireInvoice(company, 1501L)).thenReturn(invoice);
+    when(invoiceLookupService.requireInvoice(company, 1501L)).thenReturn(invoice);
     when(settlementAllocationRepository.findByCompanyAndInvoice_IdInOrderByCreatedAtDesc(
             company, List.of(1501L)))
         .thenReturn(List.of(orphanAllocation));

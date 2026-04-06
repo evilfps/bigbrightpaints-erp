@@ -8,7 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.core.validation.ValidationUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
@@ -107,46 +106,6 @@ public class AccountingPeriodService {
             snapshotService,
             lifecycleService,
             checklistService);
-  }
-
-  public AccountingPeriodService(
-      AccountingPeriodRepository accountingPeriodRepository,
-      CompanyContextService companyContextService,
-      JournalEntryRepository journalEntryRepository,
-      CompanyEntityLookup companyEntityLookup,
-      JournalLineRepository journalLineRepository,
-      com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository accountRepository,
-      CompanyClock companyClock,
-      ReportService reportService,
-      ReconciliationService reconciliationService,
-      InvoiceRepository invoiceRepository,
-      GoodsReceiptRepository goodsReceiptRepository,
-      RawMaterialPurchaseRepository rawMaterialPurchaseRepository,
-      PayrollRunRepository payrollRunRepository,
-      ReconciliationDiscrepancyRepository reconciliationDiscrepancyRepository,
-      PeriodCloseRequestRepository periodCloseRequestRepository,
-      ObjectProvider<AccountingFacade> accountingFacadeProvider,
-      PeriodCloseHook periodCloseHook,
-      AccountingPeriodSnapshotService snapshotService) {
-    this(
-        accountingPeriodRepository,
-        companyContextService,
-        journalEntryRepository,
-        CompanyScopedAccountingLookupService.fromLegacy(companyEntityLookup),
-        journalLineRepository,
-        accountRepository,
-        companyClock,
-        reportService,
-        reconciliationService,
-        invoiceRepository,
-        goodsReceiptRepository,
-        rawMaterialPurchaseRepository,
-        payrollRunRepository,
-        reconciliationDiscrepancyRepository,
-        periodCloseRequestRepository,
-        accountingFacadeProvider,
-        periodCloseHook,
-        snapshotService);
   }
 
   public List<AccountingPeriodDto> listPeriods() {

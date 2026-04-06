@@ -11,7 +11,6 @@ import java.util.Objects;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.SupplierLedgerEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.SupplierLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierBalanceView;
@@ -42,18 +41,6 @@ public class SupplierLedgerService
     this.supplierRepository = supplierRepository;
     this.companyContextService = companyContextService;
     this.purchasingLookupService = purchasingLookupService;
-  }
-
-  public SupplierLedgerService(
-      SupplierLedgerRepository supplierLedgerRepository,
-      SupplierRepository supplierRepository,
-      CompanyContextService companyContextService,
-      CompanyEntityLookup companyEntityLookup) {
-    this(
-        supplierLedgerRepository,
-        supplierRepository,
-        companyContextService,
-        CompanyScopedPurchasingLookupService.fromLegacy(companyEntityLookup));
   }
 
   @Transactional

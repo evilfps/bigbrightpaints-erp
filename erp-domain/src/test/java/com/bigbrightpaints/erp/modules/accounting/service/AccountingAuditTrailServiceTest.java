@@ -989,8 +989,7 @@ class AccountingAuditTrailServiceTest {
 
     assertThat(referenceChainService.resolveCurrentSalesOrderInvoiceCount(companyMissing)).isZero();
     assertThat(referenceChainService.resolveCurrentSalesOrderInvoiceCount(orderMissing)).isZero();
-    assertThat(referenceChainService.resolveCurrentSalesOrderInvoiceCount(orderIdMissing))
-        .isZero();
+    assertThat(referenceChainService.resolveCurrentSalesOrderInvoiceCount(orderIdMissing)).isZero();
   }
 
   @Test

@@ -46,6 +46,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialMovementRepos
 import com.bigbrightpaints.erp.modules.inventory.domain.RawMaterialRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.CompanyScopedInventoryLookupService;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionProduct;
+import com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService;
 
 @Tag("critical")
 @ExtendWith(MockitoExtension.class)
@@ -59,6 +60,7 @@ class ProductionLogServiceCostingFallbackTest {
   @Mock private RawMaterialMovementRepository rawMaterialMovementRepository;
   @Mock private AccountingFacade accountingFacade;
   @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedSalesLookupService salesLookupService;
   @Mock private CompanyScopedInventoryLookupService inventoryLookupService;
   @Mock private CompanyClock companyClock;
   @Mock private PackingAllowedSizeService packingAllowedSizeService;
@@ -77,6 +79,7 @@ class ProductionLogServiceCostingFallbackTest {
             rawMaterialMovementRepository,
             accountingFacade,
             companyEntityLookup,
+            salesLookupService,
             inventoryLookupService,
             companyClock,
             packingAllowedSizeService);

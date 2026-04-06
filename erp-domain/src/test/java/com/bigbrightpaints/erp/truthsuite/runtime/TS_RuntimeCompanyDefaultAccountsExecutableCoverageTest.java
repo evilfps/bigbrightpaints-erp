@@ -11,10 +11,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -28,29 +28,30 @@ class TS_RuntimeCompanyDefaultAccountsExecutableCoverageTest {
     Company company = company(100L, "DEF");
     company.setDefaultGstRate(new java.math.BigDecimal("18.00"));
     CompanyContextService companyContextService = mock(CompanyContextService.class);
-    CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
+    CompanyScopedAccountingLookupService accountingLookupService =
+        mock(CompanyScopedAccountingLookupService.class);
     CompanyRepository companyRepository = mock(CompanyRepository.class);
 
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(companyRepository.save(any(Company.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
-    when(companyEntityLookup.requireAccount(company, 1L))
+    when(accountingLookupService.requireAccount(company, 1L))
         .thenReturn(account(1L, company, "INV", AccountType.ASSET));
-    when(companyEntityLookup.requireAccount(company, 2L))
+    when(accountingLookupService.requireAccount(company, 2L))
         .thenReturn(account(2L, company, "COGS", AccountType.COGS));
-    when(companyEntityLookup.requireAccount(company, 3L))
+    when(accountingLookupService.requireAccount(company, 3L))
         .thenReturn(account(3L, company, "REV", AccountType.REVENUE));
-    when(companyEntityLookup.requireAccount(company, 4L))
+    when(accountingLookupService.requireAccount(company, 4L))
         .thenReturn(account(4L, company, "DISC", AccountType.EXPENSE));
-    when(companyEntityLookup.requireAccount(company, 5L))
+    when(accountingLookupService.requireAccount(company, 5L))
         .thenReturn(account(5L, company, "GST", AccountType.LIABILITY));
-    when(companyEntityLookup.requireAccount(company, 6L))
+    when(accountingLookupService.requireAccount(company, 6L))
         .thenReturn(account(6L, company, "DISC-REV", AccountType.REVENUE));
 
     CompanyDefaultAccountsService service =
         new CompanyDefaultAccountsService(
-            companyContextService, companyEntityLookup, companyRepository);
+            companyContextService, accountingLookupService, companyRepository);
 
     CompanyDefaultAccountsService.DefaultAccounts updated =
         service.updateDefaults(1L, 2L, 3L, 4L, 5L);
@@ -76,27 +77,28 @@ class TS_RuntimeCompanyDefaultAccountsExecutableCoverageTest {
   void update_defaults_rejects_invalid_types_for_each_account_purpose() {
     Company company = company(200L, "DEF2");
     CompanyContextService companyContextService = mock(CompanyContextService.class);
-    CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
+    CompanyScopedAccountingLookupService accountingLookupService =
+        mock(CompanyScopedAccountingLookupService.class);
     CompanyRepository companyRepository = mock(CompanyRepository.class);
 
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(companyRepository.save(any(Company.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
-    when(companyEntityLookup.requireAccount(company, 10L))
+    when(accountingLookupService.requireAccount(company, 10L))
         .thenReturn(account(10L, company, "BAD-INV", AccountType.LIABILITY));
-    when(companyEntityLookup.requireAccount(company, 11L))
+    when(accountingLookupService.requireAccount(company, 11L))
         .thenReturn(account(11L, company, "BAD-COGS", AccountType.ASSET));
-    when(companyEntityLookup.requireAccount(company, 12L))
+    when(accountingLookupService.requireAccount(company, 12L))
         .thenReturn(account(12L, company, "BAD-REV", AccountType.ASSET));
-    when(companyEntityLookup.requireAccount(company, 13L))
+    when(accountingLookupService.requireAccount(company, 13L))
         .thenReturn(account(13L, company, "BAD-DISC", AccountType.LIABILITY));
-    when(companyEntityLookup.requireAccount(company, 14L))
+    when(accountingLookupService.requireAccount(company, 14L))
         .thenReturn(account(14L, company, "BAD-TAX", AccountType.ASSET));
 
     CompanyDefaultAccountsService service =
         new CompanyDefaultAccountsService(
-            companyContextService, companyEntityLookup, companyRepository);
+            companyContextService, accountingLookupService, companyRepository);
 
     assertThatThrownBy(() -> service.updateDefaults(10L, null, null, null, null))
         .isInstanceOf(ApplicationException.class)
@@ -132,7 +134,9 @@ class TS_RuntimeCompanyDefaultAccountsExecutableCoverageTest {
 
     CompanyDefaultAccountsService service =
         new CompanyDefaultAccountsService(
-            companyContextService, mock(CompanyEntityLookup.class), mock(CompanyRepository.class));
+            companyContextService,
+            mock(CompanyScopedAccountingLookupService.class),
+            mock(CompanyRepository.class));
 
     assertThatThrownBy(service::requireDefaults)
         .isInstanceOf(ApplicationException.class)

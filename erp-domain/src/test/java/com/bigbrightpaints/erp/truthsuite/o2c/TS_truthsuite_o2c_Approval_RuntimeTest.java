@@ -39,12 +39,12 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyAccountingSettingsService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -74,6 +74,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderStatusHistoryRepos
 import com.bigbrightpaints.erp.modules.sales.domain.SalesTargetRepository;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DispatchConfirmResponse;
+import com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService;
 import com.bigbrightpaints.erp.modules.sales.service.CreditLimitOverrideService;
 import com.bigbrightpaints.erp.modules.sales.service.OrderNumberService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesService;
@@ -99,7 +100,8 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
   @Mock private FinishedGoodRepository finishedGoodRepository;
   @Mock private FinishedGoodBatchRepository finishedGoodBatchRepository;
   @Mock private AccountRepository accountRepository;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedSalesLookupService salesLookupService;
+  @Mock private CompanyScopedAccountingLookupService accountingLookupService;
   @Mock private PackagingSlipRepository packagingSlipRepository;
   @Mock private FinishedGoodsService finishedGoodsService;
   @Mock private AccountingFacade accountingFacade;
@@ -142,7 +144,8 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
             finishedGoodRepository,
             finishedGoodBatchRepository,
             accountRepository,
-            companyEntityLookup,
+            salesLookupService,
+            accountingLookupService,
             packagingSlipRepository,
             finishedGoodsService,
             accountingFacade,
@@ -230,7 +233,7 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
 
@@ -278,7 +281,7 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(dealerRepository.lockByCompanyAndId(company, dealer.getId()))
         .thenReturn(Optional.of(dealer));
     when(creditLimitOverrideService.isOverrideApproved(
@@ -339,7 +342,7 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(invoiceRepository.findByCompanyAndId(company, 777L))
         .thenReturn(Optional.of(existingInvoice));
     when(creditLimitOverrideService.isOverrideApproved(
@@ -383,7 +386,7 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
 
     ApplicationException ex =
         assertThrows(
@@ -482,7 +485,7 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
     rejected.setCompany(company);
     rejected.setStatus("REJECTED");
     setField(rejected, "id", 701L);
-    when(companyEntityLookup.requireSalesOrder(company, 701L)).thenReturn(rejected);
+    when(salesLookupService.requireSalesOrder(company, 701L)).thenReturn(rejected);
 
     ApplicationException rejectedStatus =
         assertThrows(
@@ -494,7 +497,7 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
     blank.setCompany(company);
     blank.setStatus("   ");
     setField(blank, "id", 702L);
-    when(companyEntityLookup.requireSalesOrder(company, 702L)).thenReturn(blank);
+    when(salesLookupService.requireSalesOrder(company, 702L)).thenReturn(blank);
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 702L))
         .thenReturn(List.of());
 
@@ -508,7 +511,7 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
     order.setCompany(company);
     order.setStatus("BOOKED");
     setField(order, "id", 703L);
-    when(companyEntityLookup.requireSalesOrder(company, 703L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 703L)).thenReturn(order);
 
     salesService.attachTraceId(703L, "   ");
     assertNull(order.getTraceId());
@@ -576,7 +579,7 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(invoiceRepository.findByCompanyAndId(company, 777L))
         .thenReturn(Optional.of(existingInvoice));
 
@@ -610,7 +613,7 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(invoiceRepository.findByCompanyAndId(company, 777L)).thenReturn(Optional.empty());
 
     DispatchConfirmResponse response =
@@ -695,7 +698,7 @@ class TS_truthsuite_o2c_Approval_RuntimeTest {
         .thenReturn(Optional.of(slip));
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 10L))
         .thenReturn(List.of(slip));
-    when(companyEntityLookup.requireSalesOrder(company, 10L)).thenReturn(order);
+    when(salesLookupService.requireSalesOrder(company, 10L)).thenReturn(order);
     when(invoiceNumberService.nextInvoiceNumber(company)).thenReturn("INV-55");
     when(invoiceRepository.save(any(Invoice.class)))
         .thenAnswer(

@@ -22,7 +22,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
@@ -40,6 +39,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.PeriodStatusChangeRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodSnapshotService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.PeriodCloseHook;
 import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -61,7 +61,7 @@ class TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest {
   @Mock private AccountingPeriodRepository accountingPeriodRepository;
   @Mock private CompanyContextService companyContextService;
   @Mock private JournalEntryRepository journalEntryRepository;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedAccountingLookupService accountingLookupService;
   @Mock private JournalLineRepository journalLineRepository;
   @Mock private AccountRepository accountRepository;
   @Mock private CompanyClock companyClock;
@@ -159,7 +159,7 @@ class TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest {
     AccountingPeriod period = openPeriod(company, 2026, 2);
 
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireAccountingPeriod(company, 31L)).thenReturn(period);
+    when(accountingLookupService.requireAccountingPeriod(company, 31L)).thenReturn(period);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
             company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING")))
         .thenReturn(0L);
@@ -263,7 +263,7 @@ class TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest {
     AccountingPeriod period = openPeriod(company, 2026, 2);
 
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
-    when(companyEntityLookup.requireAccountingPeriod(company, 32L)).thenReturn(period);
+    when(accountingLookupService.requireAccountingPeriod(company, 32L)).thenReturn(period);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
             company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING")))
         .thenReturn(0L);
@@ -349,7 +349,7 @@ class TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest {
         accountingPeriodRepository,
         companyContextService,
         journalEntryRepository,
-        companyEntityLookup,
+        accountingLookupService,
         journalLineRepository,
         accountRepository,
         companyClock,

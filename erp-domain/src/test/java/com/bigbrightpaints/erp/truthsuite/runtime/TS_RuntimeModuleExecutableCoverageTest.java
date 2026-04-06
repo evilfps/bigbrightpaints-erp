@@ -20,11 +20,11 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.service.NumberSequenceService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.ReferenceNumberService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
@@ -90,7 +90,8 @@ class TS_RuntimeModuleExecutableCoverageTest {
   void companyDefaultAccountsService_validates_account_types_and_requires_defaults() {
     Company company = company("DEF", "UTC");
     CompanyContextService companyContextService = mock(CompanyContextService.class);
-    CompanyEntityLookup companyEntityLookup = mock(CompanyEntityLookup.class);
+    CompanyScopedAccountingLookupService accountingLookupService =
+        mock(CompanyScopedAccountingLookupService.class);
     CompanyRepository companyRepository = mock(CompanyRepository.class);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(companyRepository.save(any(Company.class)))
@@ -102,15 +103,15 @@ class TS_RuntimeModuleExecutableCoverageTest {
     Account discountExpense = account(14L, company, "DISC", AccountType.EXPENSE);
     Account tax = account(15L, company, "GST-OUT", AccountType.LIABILITY);
 
-    when(companyEntityLookup.requireAccount(company, 11L)).thenReturn(inventory);
-    when(companyEntityLookup.requireAccount(company, 12L)).thenReturn(cogs);
-    when(companyEntityLookup.requireAccount(company, 13L)).thenReturn(revenue);
-    when(companyEntityLookup.requireAccount(company, 14L)).thenReturn(discountExpense);
-    when(companyEntityLookup.requireAccount(company, 15L)).thenReturn(tax);
+    when(accountingLookupService.requireAccount(company, 11L)).thenReturn(inventory);
+    when(accountingLookupService.requireAccount(company, 12L)).thenReturn(cogs);
+    when(accountingLookupService.requireAccount(company, 13L)).thenReturn(revenue);
+    when(accountingLookupService.requireAccount(company, 14L)).thenReturn(discountExpense);
+    when(accountingLookupService.requireAccount(company, 15L)).thenReturn(tax);
 
     CompanyDefaultAccountsService service =
         new CompanyDefaultAccountsService(
-            companyContextService, companyEntityLookup, companyRepository);
+            companyContextService, accountingLookupService, companyRepository);
 
     CompanyDefaultAccountsService.DefaultAccounts updated =
         service.updateDefaults(11L, 12L, 13L, 14L, 15L);
@@ -133,7 +134,7 @@ class TS_RuntimeModuleExecutableCoverageTest {
             });
 
     Account invalidTax = account(99L, company, "BAD-TAX", AccountType.ASSET);
-    when(companyEntityLookup.requireAccount(company, 99L)).thenReturn(invalidTax);
+    when(accountingLookupService.requireAccount(company, 99L)).thenReturn(invalidTax);
     assertThatThrownBy(() -> service.updateDefaults(null, null, null, null, 99L))
         .isInstanceOfSatisfying(
             ApplicationException.class,

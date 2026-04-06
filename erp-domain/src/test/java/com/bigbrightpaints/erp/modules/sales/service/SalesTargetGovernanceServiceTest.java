@@ -39,11 +39,11 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
-import com.bigbrightpaints.erp.core.util.CompanyEntityLookup;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyAccountingSettingsService;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyDefaultAccountsService;
+import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
 import com.bigbrightpaints.erp.modules.accounting.service.GstService;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -84,7 +84,8 @@ class SalesTargetGovernanceServiceTest {
   @Mock private FinishedGoodRepository finishedGoodRepository;
   @Mock private FinishedGoodBatchRepository finishedGoodBatchRepository;
   @Mock private AccountRepository accountRepository;
-  @Mock private CompanyEntityLookup companyEntityLookup;
+  @Mock private CompanyScopedSalesLookupService salesLookupService;
+  @Mock private CompanyScopedAccountingLookupService accountingLookupService;
   @Mock private PackagingSlipRepository packagingSlipRepository;
   @Mock private FinishedGoodsService finishedGoodsService;
   @Mock private AccountingFacade accountingFacade;
@@ -127,7 +128,8 @@ class SalesTargetGovernanceServiceTest {
             finishedGoodRepository,
             finishedGoodBatchRepository,
             accountRepository,
-            companyEntityLookup,
+            salesLookupService,
+            accountingLookupService,
             packagingSlipRepository,
             finishedGoodsService,
             accountingFacade,
@@ -263,7 +265,7 @@ class SalesTargetGovernanceServiceTest {
   void updateTargetRejectsSelfApprovalByAssigneeActor() {
     authenticate("owner@comp.com", "ROLE_ADMIN");
     SalesTarget existing = existingTarget(501L, "owner@comp.com");
-    when(companyEntityLookup.requireSalesTarget(company, 501L)).thenReturn(existing);
+    when(salesLookupService.requireSalesTarget(company, 501L)).thenReturn(existing);
 
     assertThrows(
         AccessDeniedException.class,
@@ -281,7 +283,7 @@ class SalesTargetGovernanceServiceTest {
             salesService.updateTarget(
                 502L, requestFor("owner@comp.com", "Attempted self assignment in request")));
 
-    verify(companyEntityLookup, never()).requireSalesTarget(company, 502L);
+    verify(salesLookupService, never()).requireSalesTarget(company, 502L);
   }
 
   @Test
@@ -299,7 +301,7 @@ class SalesTargetGovernanceServiceTest {
   void deleteTargetAuditsActorAndReason() {
     authenticate("admin@comp.com", "ROLE_ADMIN");
     SalesTarget existing = existingTarget(601L, "rep@comp.com");
-    when(companyEntityLookup.requireSalesTarget(company, 601L)).thenReturn(existing);
+    when(salesLookupService.requireSalesTarget(company, 601L)).thenReturn(existing);
 
     salesService.deleteTarget(601L, "Duplicate target cleanup");
 
