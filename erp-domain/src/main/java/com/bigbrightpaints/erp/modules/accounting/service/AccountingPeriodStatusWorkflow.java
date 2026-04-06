@@ -148,7 +148,8 @@ final class AccountingPeriodStatusWorkflow {
           note,
           false);
     }
-    lifecycleService.ensurePeriod(company, period.getEndDate().plusDays(1));
+    lifecycleService.ensurePeriod(
+        company, period.getEndDate().plusDays(1), accountingComplianceAuditService);
     return lifecycleService.toDto(saved);
   }
 

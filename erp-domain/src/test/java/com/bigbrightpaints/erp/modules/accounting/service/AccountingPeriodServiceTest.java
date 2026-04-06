@@ -3,6 +3,8 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -85,6 +87,7 @@ class AccountingPeriodServiceTest {
   @Mock private PeriodCloseHook periodCloseHook;
   @Mock private AccountingPeriodSnapshotService snapshotService;
   @Mock private ClosedPeriodPostingExceptionService closedPeriodPostingExceptionService;
+  @Mock private AccountingComplianceAuditService accountingComplianceAuditService;
 
   private AccountingPeriodService service;
 
@@ -370,6 +373,49 @@ class AccountingPeriodServiceTest {
     verify(periodCloseHook).onPeriodCloseLocked(company, period);
     verify(snapshotService).captureSnapshot(company, period, "checker.user");
     verify(journalEntryRepository, never()).findByCompanyAndReferenceNumber(any(), anyString());
+  }
+
+  @Test
+  void approvePeriodClose_createsNextPeriodWithOpenedAuditEvent() {
+    Company company = company(1L, "ACME");
+    AccountingPeriod period = openPeriod(company, 2026, 2);
+    ReflectionTestUtils.setField(period, "id", 311L);
+    PeriodCloseRequest pending = pendingCloseRequest(company, period, 511L, "maker.user");
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(accountingPeriodRepository.lockByCompanyAndId(company, 311L))
+        .thenReturn(Optional.of(period), Optional.of(period));
+    when(periodCloseRequestRepository.lockByCompanyAndAccountingPeriodAndStatus(
+            company, period, PeriodCloseRequestStatus.PENDING))
+        .thenReturn(Optional.of(pending));
+    when(goodsReceiptRepository.countByCompanyAndReceiptDateBetweenAndStatusNot(
+            company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED))
+        .thenReturn(0L);
+    when(journalLineRepository.summarizeByAccountType(
+            company, period.getStartDate(), period.getEndDate()))
+        .thenReturn(List.of());
+    when(accountingPeriodRepository.save(any(AccountingPeriod.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(periodCloseRequestRepository.save(pending)).thenReturn(pending);
+    when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
+        .thenReturn(Optional.empty());
+    ReflectionTestUtils.setField(
+        service, "accountingComplianceAuditService", accountingComplianceAuditService);
+    authenticate("checker.user", "ROLE_ADMIN");
+
+    assertThat(
+            service
+                .approvePeriodClose(
+                    311L, new PeriodCloseRequestActionRequest("close and open next", true))
+                .status())
+        .isEqualTo("CLOSED");
+    verify(accountingComplianceAuditService)
+        .recordPeriodTransition(
+            eq(company),
+            any(AccountingPeriod.class),
+            eq("PERIOD_OPENED"),
+            eq(null),
+            eq("OPEN"),
+            contains("Period opened"));
   }
 
   @Test
@@ -1311,6 +1357,30 @@ class AccountingPeriodServiceTest {
     assertThat(dto.year()).isEqualTo(2026);
     assertThat(dto.month()).isEqualTo(4);
     assertThat(dto.costingMethod()).isEqualTo("LIFO");
+  }
+
+  @Test
+  void createOrUpdatePeriod_recordsOpenedAuditWhenCreatingNewPeriod() {
+    Company company = company(1L, "ACME");
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 7))
+        .thenReturn(Optional.empty());
+    when(accountingPeriodRepository.save(any(AccountingPeriod.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    ReflectionTestUtils.setField(
+        service, "accountingComplianceAuditService", accountingComplianceAuditService);
+
+    var dto = service.createOrUpdatePeriod(new AccountingPeriodRequest(2026, 7, CostingMethod.FIFO));
+
+    assertThat(dto.status()).isEqualTo("OPEN");
+    verify(accountingComplianceAuditService)
+        .recordPeriodTransition(
+            eq(company),
+            any(AccountingPeriod.class),
+            eq("PERIOD_OPENED"),
+            eq(null),
+            eq("OPEN"),
+            contains("Period opened"));
   }
 
   @Test

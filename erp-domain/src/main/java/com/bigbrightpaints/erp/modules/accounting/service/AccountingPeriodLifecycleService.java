@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
@@ -66,24 +67,34 @@ final class AccountingPeriodLifecycleService {
           ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period month must be between 1 and 12");
     }
     Company company = companyContextService.requireCurrentCompany();
+    Optional<AccountingPeriod> existing =
+        accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, request.year(), request.month());
+    boolean createdNew = existing.isEmpty();
     AccountingPeriod period =
-        accountingPeriodRepository
-            .lockByCompanyAndYearAndMonth(company, request.year(), request.month())
-            .orElseGet(
-                () -> {
-                  AccountingPeriod created = new AccountingPeriod();
-                  created.setCompany(company);
-                  created.setYear(request.year());
-                  created.setMonth(request.month());
-                  LocalDate start = LocalDate.of(request.year(), request.month(), 1);
-                  created.setStartDate(start);
-                  created.setEndDate(start.plusMonths(1).minusDays(1));
-                  created.setStatus(AccountingPeriodStatus.OPEN);
-                  return created;
-                });
+        existing.orElseGet(
+            () -> {
+              AccountingPeriod created = new AccountingPeriod();
+              created.setCompany(company);
+              created.setYear(request.year());
+              created.setMonth(request.month());
+              LocalDate start = LocalDate.of(request.year(), request.month(), 1);
+              created.setStartDate(start);
+              created.setEndDate(start.plusMonths(1).minusDays(1));
+              created.setStatus(AccountingPeriodStatus.OPEN);
+              return created;
+            });
     CostingMethod beforeCostingMethod = period.getCostingMethod();
     period.setCostingMethod(resolveCostingMethodOrDefault(request.costingMethod()));
     AccountingPeriod saved = accountingPeriodRepository.save(period);
+    if (accountingComplianceAuditService != null && createdNew) {
+      accountingComplianceAuditService.recordPeriodTransition(
+          company,
+          saved,
+          "PERIOD_OPENED",
+          null,
+          saved.getStatus() != null ? saved.getStatus().name() : null,
+          "Period opened");
+    }
     if (accountingComplianceAuditService != null
         && beforeCostingMethod != saved.getCostingMethod()) {
       accountingComplianceAuditService.recordCostingMethodChange(
@@ -160,6 +171,13 @@ final class AccountingPeriodLifecycleService {
   }
 
   AccountingPeriod ensurePeriod(Company company, LocalDate referenceDate) {
+    return ensurePeriod(company, referenceDate, null);
+  }
+
+  AccountingPeriod ensurePeriod(
+      Company company,
+      LocalDate referenceDate,
+      AccountingComplianceAuditService accountingComplianceAuditService) {
     LocalDate baseDate = referenceDate == null ? resolveCurrentDate(company) : referenceDate;
     LocalDate safeDate = baseDate.withDayOfMonth(1);
     int year = safeDate.getYear();
@@ -176,7 +194,17 @@ final class AccountingPeriodLifecycleService {
               period.setEndDate(safeDate.plusMonths(1).minusDays(1));
               period.setStatus(AccountingPeriodStatus.OPEN);
               period.setCostingMethod(CostingMethod.FIFO);
-              return accountingPeriodRepository.save(period);
+              AccountingPeriod saved = accountingPeriodRepository.save(period);
+              if (accountingComplianceAuditService != null) {
+                accountingComplianceAuditService.recordPeriodTransition(
+                    company,
+                    saved,
+                    "PERIOD_OPENED",
+                    null,
+                    saved.getStatus() != null ? saved.getStatus().name() : null,
+                    "Period opened");
+              }
+              return saved;
             });
   }
 

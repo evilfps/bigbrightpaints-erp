@@ -6,12 +6,16 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistItemDto;
+import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistUpdateRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestDto;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
@@ -86,6 +90,37 @@ class PeriodControllerCloseWorkflowEndpointsTest {
     assertThat(body.data()).isEqualTo(expected);
   }
 
+  @Test
+  void checklist_delegatesToService() {
+    AccountingPeriodService periodService = mock(AccountingPeriodService.class);
+    PeriodController controller = controller(periodService);
+    MonthEndChecklistDto expected = checklistDto(77L, false, true, "pre-close notes");
+    when(periodService.getMonthEndChecklist(77L)).thenReturn(expected);
+
+    ApiResponse<MonthEndChecklistDto> body = controller.checklist(77L).getBody();
+
+    assertThat(body).isNotNull();
+    assertThat(body.success()).isTrue();
+    assertThat(body.data()).isEqualTo(expected);
+  }
+
+  @Test
+  void updateChecklist_delegatesToService() {
+    AccountingPeriodService periodService = mock(AccountingPeriodService.class);
+    PeriodController controller = controller(periodService);
+    MonthEndChecklistUpdateRequest request =
+        new MonthEndChecklistUpdateRequest(true, true, "close-ready notes");
+    MonthEndChecklistDto expected = checklistDto(77L, true, true, "close-ready notes");
+    when(periodService.updateMonthEndChecklist(77L, request)).thenReturn(expected);
+
+    ApiResponse<MonthEndChecklistDto> body = controller.updateChecklist(77L, request).getBody();
+
+    assertThat(body).isNotNull();
+    assertThat(body.success()).isTrue();
+    assertThat(body.message()).isEqualTo("Checklist updated");
+    assertThat(body.data()).isEqualTo(expected);
+  }
+
   private PeriodController controller(AccountingPeriodService periodService) {
     return new PeriodController(periodService);
   }
@@ -135,5 +170,51 @@ class PeriodControllerCloseWorkflowEndpointsTest {
         status.equals("PENDING") ? null : Instant.parse("2026-02-28T12:00:00Z"),
         status.equals("REJECTED") ? "needs correction" : null,
         status.equals("REJECTED") ? null : "approved");
+  }
+
+  private MonthEndChecklistDto checklistDto(
+      Long periodId, boolean bankReconciled, boolean inventoryCounted, String notes) {
+    AccountingPeriodDto period = periodDto(periodId, "OPEN");
+    period =
+        new AccountingPeriodDto(
+            period.id(),
+            period.year(),
+            period.month(),
+            period.startDate(),
+            period.endDate(),
+            period.label(),
+            period.status(),
+            bankReconciled,
+            bankReconciled ? Instant.parse("2026-02-28T09:00:00Z") : null,
+            bankReconciled ? "accounting.user" : null,
+            inventoryCounted,
+            inventoryCounted ? Instant.parse("2026-02-28T09:30:00Z") : null,
+            inventoryCounted ? "accounting.user" : null,
+            period.closedAt(),
+            period.closedBy(),
+            period.closedReason(),
+            period.lockedAt(),
+            period.lockedBy(),
+            period.lockReason(),
+            period.reopenedAt(),
+            period.reopenedBy(),
+            period.reopenReason(),
+            period.closingJournalEntryId(),
+            notes,
+            period.costingMethod());
+    return new MonthEndChecklistDto(
+        period,
+        List.of(
+            new MonthEndChecklistItemDto(
+                "bankReconciled",
+                "Bank accounts reconciled",
+                bankReconciled,
+                bankReconciled ? "Confirmed" : "Pending review"),
+            new MonthEndChecklistItemDto(
+                "inventoryCounted",
+                "Inventory counted",
+                inventoryCounted,
+                inventoryCounted ? "Counts logged" : "Awaiting stock count")),
+        bankReconciled && inventoryCounted);
   }
 }
