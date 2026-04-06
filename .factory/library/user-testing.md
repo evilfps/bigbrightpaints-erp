@@ -166,6 +166,7 @@ Rationale:
 ## Known Constraints
 
 - The current strict compose path is a smoke surface only; authenticated business-flow proof still depends on targeted Maven suites unless a later feature introduces a clean bootstrap/auth fixture path.
+- `bash scripts/reset_final_validation_runtime.sh` reliably rebuilds the local compose boundary, but the compose-built app still comes up without seeded `app_users` in the database (`select count(*) from app_users;` returned `0` during M2 validation). Treat its seeded-actor banner as non-authoritative for now and verify auth fixtures before planning authenticated runtime proof.
 - Direct `docker compose up` still parses the app service, so missing env values can break even dependency-only starts; export `ERP_SECURITY_AUDIT_PRIVATE_KEY` even when starting only `db`, `rabbitmq`, or `mailhog`.
 - Old library/docs guidance may still reference retired routes until the mission cleans them; prefer `validation-contract.md`, `openapi.json`, and current controller annotations if guidance disagrees.
 - Running Maven outside `erp-domain/` can break `.mvn` resolution.
