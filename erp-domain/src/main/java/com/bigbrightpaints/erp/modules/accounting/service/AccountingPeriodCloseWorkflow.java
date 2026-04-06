@@ -1,14 +1,11 @@
 package com.bigbrightpaints.erp.modules.accounting.service;
 
-import java.math.BigDecimal;
-
 import org.springframework.beans.factory.ObjectProvider;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
-import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequest;
@@ -18,7 +15,6 @@ import com.bigbrightpaints.erp.modules.accounting.dto.AccountingPeriodReopenRequ
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodStatusChangeRequest;
-import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 
 final class AccountingPeriodCloseWorkflow {
@@ -103,18 +99,5 @@ final class AccountingPeriodCloseWorkflow {
       AccountingPeriodReopenRequest request,
       AccountingComplianceAuditService accountingComplianceAuditService) {
     return statusWorkflow.reopenPeriod(periodId, request, accountingComplianceAuditService);
-  }
-
-  JournalEntry createSystemJournal(
-      Company company,
-      AccountingPeriod period,
-      String reference,
-      String note,
-      BigDecimal netIncome) {
-    return statusWorkflow.createSystemJournal(company, period, reference, note, netIncome);
-  }
-
-  void reverseClosingJournalIfNeeded(JournalEntry closing, AccountingPeriod period, String reason) {
-    statusWorkflow.reverseClosingJournalIfNeeded(closing, period, reason);
   }
 }

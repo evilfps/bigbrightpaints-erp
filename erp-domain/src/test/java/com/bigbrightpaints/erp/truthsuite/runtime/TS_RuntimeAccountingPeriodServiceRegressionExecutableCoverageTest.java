@@ -344,24 +344,6 @@ class TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest {
                 PayrollRun.PayrollStatus.APPROVED));
   }
 
-  @Test
-  void isHrPayrollEnabled_requiresCompanyAndEnabledModules() {
-    AccountingPeriodService service = newService();
-    Company company = company(5L, "TRUTH5");
-    company.setEnabledModules(null);
-
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(service, "isHrPayrollEnabled", (Company) null))
-        .isFalse();
-    assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isHrPayrollEnabled", company))
-        .isFalse();
-
-    company.setEnabledModules(Set.of(CompanyModule.HR_PAYROLL.name()));
-    assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isHrPayrollEnabled", company))
-        .isTrue();
-  }
-
   private AccountingPeriodService newService() {
     return new AccountingPeriodService(
         accountingPeriodRepository,

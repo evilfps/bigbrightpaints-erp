@@ -72,9 +72,27 @@ class AccountingAuditTrailServiceTest {
   @Mock private PackagingSlipRepository packagingSlipRepository;
 
   private AccountingAuditTrailService service;
+  private AccountingAuditTrailClassifier classifier;
+  private SettlementAuditMemoDecoder settlementAuditMemoDecoder;
+  private AccountingAuditTrailReferenceChainService referenceChainService;
+  private AccountingAuditTrailTransactionQueryService transactionQueryService;
 
   @BeforeEach
   void setUp() {
+    classifier = new AccountingAuditTrailClassifier();
+    settlementAuditMemoDecoder = new SettlementAuditMemoDecoder();
+    referenceChainService =
+        new AccountingAuditTrailReferenceChainService(
+            invoiceRepository, settlementAllocationRepository, packagingSlipRepository);
+    transactionQueryService =
+        new AccountingAuditTrailTransactionQueryService(
+            companyContextService,
+            journalEntryRepository,
+            journalLineRepository,
+            settlementAllocationRepository,
+            invoiceRepository,
+            rawMaterialPurchaseRepository,
+            classifier);
     service =
         new AccountingAuditTrailService(
             companyContextService,
@@ -919,21 +937,11 @@ class AccountingAuditTrailServiceTest {
     when(invoiceRepository.findAllByCompanyAndSalesOrderId(historicalCompany, 902L))
         .thenReturn(null);
 
-    assertThat(
-            (Integer)
-                ReflectionTestUtils.invokeMethod(
-                    service, "resolveCurrentSalesOrderInvoiceCount", currentInvoice))
+    assertThat(referenceChainService.resolveCurrentSalesOrderInvoiceCount(currentInvoice))
         .isEqualTo(1);
-    assertThat(
-            (Integer)
-                ReflectionTestUtils.invokeMethod(
-                    service, "resolveCurrentSalesOrderInvoiceCount", historicalInvoice))
+    assertThat(referenceChainService.resolveCurrentSalesOrderInvoiceCount(historicalInvoice))
         .isZero();
-    assertThat(
-            (Integer)
-                ReflectionTestUtils.invokeMethod(
-                    service, "resolveCurrentSalesOrderInvoiceCount", new Object[] {null}))
-        .isZero();
+    assertThat(referenceChainService.resolveCurrentSalesOrderInvoiceCount(null)).isZero();
   }
 
   @Test
@@ -961,11 +969,7 @@ class AccountingAuditTrailServiceTest {
     when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, 903L))
         .thenReturn(List.of(invoice, currentPeer, historicalPeer));
 
-    assertThat(
-            (Integer)
-                ReflectionTestUtils.invokeMethod(
-                    service, "resolveCurrentSalesOrderInvoiceCount", invoice))
-        .isEqualTo(2);
+    assertThat(referenceChainService.resolveCurrentSalesOrderInvoiceCount(invoice)).isEqualTo(2);
   }
 
   @Test
@@ -983,20 +987,9 @@ class AccountingAuditTrailServiceTest {
     orderIdMissing.setStatus("ISSUED");
     orderIdMissing.setSalesOrder(new SalesOrder());
 
-    assertThat(
-            (Integer)
-                ReflectionTestUtils.invokeMethod(
-                    service, "resolveCurrentSalesOrderInvoiceCount", companyMissing))
-        .isZero();
-    assertThat(
-            (Integer)
-                ReflectionTestUtils.invokeMethod(
-                    service, "resolveCurrentSalesOrderInvoiceCount", orderMissing))
-        .isZero();
-    assertThat(
-            (Integer)
-                ReflectionTestUtils.invokeMethod(
-                    service, "resolveCurrentSalesOrderInvoiceCount", orderIdMissing))
+    assertThat(referenceChainService.resolveCurrentSalesOrderInvoiceCount(companyMissing)).isZero();
+    assertThat(referenceChainService.resolveCurrentSalesOrderInvoiceCount(orderMissing)).isZero();
+    assertThat(referenceChainService.resolveCurrentSalesOrderInvoiceCount(orderIdMissing))
         .isZero();
   }
 
@@ -1246,14 +1239,11 @@ class AccountingAuditTrailServiceTest {
 
   @Test
   void helperMethods_decodeSettlementAuditMemo_defaultsDocumentForNullAllocation() {
-    Object decoded =
-        ReflectionTestUtils.invokeMethod(service, "decodeSettlementAuditMemo", new Object[] {null});
+    SettlementAuditMemoDecoder.DecodedSettlementAuditMemo decoded =
+        settlementAuditMemoDecoder.decode(null);
 
-    assertThat(
-            (SettlementAllocationApplication)
-                ReflectionTestUtils.invokeMethod(decoded, "applicationType"))
-        .isEqualTo(SettlementAllocationApplication.DOCUMENT);
-    assertThat((String) ReflectionTestUtils.invokeMethod(decoded, "memo")).isNull();
+    assertThat(decoded.applicationType()).isEqualTo(SettlementAllocationApplication.DOCUMENT);
+    assertThat(decoded.memo()).isNull();
   }
 
   @Test
@@ -1261,14 +1251,11 @@ class AccountingAuditTrailServiceTest {
     PartnerSettlementAllocation allocation = new PartnerSettlementAllocation();
     allocation.setMemo("   ");
 
-    Object decoded =
-        ReflectionTestUtils.invokeMethod(service, "decodeSettlementAuditMemo", allocation);
+    SettlementAuditMemoDecoder.DecodedSettlementAuditMemo decoded =
+        settlementAuditMemoDecoder.decode(allocation);
 
-    assertThat(
-            (SettlementAllocationApplication)
-                ReflectionTestUtils.invokeMethod(decoded, "applicationType"))
-        .isEqualTo(SettlementAllocationApplication.ON_ACCOUNT);
-    assertThat((String) ReflectionTestUtils.invokeMethod(decoded, "memo")).isNull();
+    assertThat(decoded.applicationType()).isEqualTo(SettlementAllocationApplication.ON_ACCOUNT);
+    assertThat(decoded.memo()).isNull();
   }
 
   @Test
@@ -1277,15 +1264,11 @@ class AccountingAuditTrailServiceTest {
     allocation.setMemo("  purchase linked memo  ");
     allocation.setPurchase(new RawMaterialPurchase());
 
-    Object decoded =
-        ReflectionTestUtils.invokeMethod(service, "decodeSettlementAuditMemo", allocation);
+    SettlementAuditMemoDecoder.DecodedSettlementAuditMemo decoded =
+        settlementAuditMemoDecoder.decode(allocation);
 
-    assertThat(
-            (SettlementAllocationApplication)
-                ReflectionTestUtils.invokeMethod(decoded, "applicationType"))
-        .isEqualTo(SettlementAllocationApplication.DOCUMENT);
-    assertThat((String) ReflectionTestUtils.invokeMethod(decoded, "memo"))
-        .isEqualTo("purchase linked memo");
+    assertThat(decoded.applicationType()).isEqualTo(SettlementAllocationApplication.DOCUMENT);
+    assertThat(decoded.memo()).isEqualTo("purchase linked memo");
   }
 
   @Test
@@ -1293,15 +1276,11 @@ class AccountingAuditTrailServiceTest {
     PartnerSettlementAllocation allocation = new PartnerSettlementAllocation();
     allocation.setMemo("[SETTLEMENT-APPLICATION:ON_ACCOUNT carry forward");
 
-    Object decoded =
-        ReflectionTestUtils.invokeMethod(service, "decodeSettlementAuditMemo", allocation);
+    SettlementAuditMemoDecoder.DecodedSettlementAuditMemo decoded =
+        settlementAuditMemoDecoder.decode(allocation);
 
-    assertThat(
-            (SettlementAllocationApplication)
-                ReflectionTestUtils.invokeMethod(decoded, "applicationType"))
-        .isEqualTo(SettlementAllocationApplication.ON_ACCOUNT);
-    assertThat((String) ReflectionTestUtils.invokeMethod(decoded, "memo"))
-        .isEqualTo("[SETTLEMENT-APPLICATION:ON_ACCOUNT carry forward");
+    assertThat(decoded.applicationType()).isEqualTo(SettlementAllocationApplication.ON_ACCOUNT);
+    assertThat(decoded.memo()).isEqualTo("[SETTLEMENT-APPLICATION:ON_ACCOUNT carry forward");
   }
 
   @Test
@@ -1309,15 +1288,11 @@ class AccountingAuditTrailServiceTest {
     PartnerSettlementAllocation allocation = new PartnerSettlementAllocation();
     allocation.setMemo("  carry forward plain memo  ");
 
-    Object decoded =
-        ReflectionTestUtils.invokeMethod(service, "decodeSettlementAuditMemo", allocation);
+    SettlementAuditMemoDecoder.DecodedSettlementAuditMemo decoded =
+        settlementAuditMemoDecoder.decode(allocation);
 
-    assertThat(
-            (SettlementAllocationApplication)
-                ReflectionTestUtils.invokeMethod(decoded, "applicationType"))
-        .isEqualTo(SettlementAllocationApplication.ON_ACCOUNT);
-    assertThat((String) ReflectionTestUtils.invokeMethod(decoded, "memo"))
-        .isEqualTo("carry forward plain memo");
+    assertThat(decoded.applicationType()).isEqualTo(SettlementAllocationApplication.ON_ACCOUNT);
+    assertThat(decoded.memo()).isEqualTo("carry forward plain memo");
   }
 
   @Test
@@ -1423,33 +1398,18 @@ class AccountingAuditTrailServiceTest {
     entry.setReferenceNumber("MISC-777");
     entry.setStatus("POSTED");
 
-    Object consistency =
-        ReflectionTestUtils.invokeMethod(
-            service,
-            "assessConsistency",
-            entry,
-            List.of(),
-            new BigDecimal("10.00"),
-            new BigDecimal("5.00"));
+    AccountingAuditTrailClassifier.ConsistencyResult consistency =
+        classifier.assessConsistency(
+            entry, List.of(), new BigDecimal("10.00"), new BigDecimal("5.00"));
 
-    assertThat((String) ReflectionTestUtils.invokeMethod(consistency, "status")).isEqualTo("ERROR");
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveModule", "GENERAL_JOURNAL", "MISC-777"))
-        .isEqualTo("ACCOUNTING");
-    assertThat(
-            (Object)
-                ReflectionTestUtils.invokeMethod(
-                    service, "resolveDrivingDocument", null, null, List.of()))
-        .isNull();
+    assertThat(consistency.status()).isEqualTo("ERROR");
+    assertThat(classifier.deriveModule("GENERAL_JOURNAL", "MISC-777")).isEqualTo("ACCOUNTING");
+    assertThat(referenceChainService.resolveDrivingDocument(null, null, List.of())).isNull();
 
     when(rawMaterialPurchaseRepository.findByCompanyAndJournalEntry_IdIn(any(), eq(List.of())))
         .thenReturn(List.of());
-    @SuppressWarnings("unchecked")
     Map<Long, RawMaterialPurchase> purchasesByJournal =
-        ReflectionTestUtils.invokeMethod(
-            service, "findPurchasesByJournalEntryIds", new Company(), List.of());
+        transactionQueryService.findPurchasesByJournalEntryIds(new Company(), List.of());
     assertThat(purchasesByJournal).isEmpty();
   }
 
@@ -1490,11 +1450,9 @@ class AccountingAuditTrailServiceTest {
         .thenReturn(List.of(allocation));
 
     List<LinkedBusinessReferenceDto> invoiceChain = new java.util.ArrayList<>();
-    ReflectionTestUtils.invokeMethod(
-        service, "appendSettlementReferences", invoiceChain, company, invoice, null);
+    referenceChainService.appendSettlementReferences(invoiceChain, company, invoice, null);
     List<LinkedBusinessReferenceDto> purchaseChain = new java.util.ArrayList<>();
-    ReflectionTestUtils.invokeMethod(
-        service, "appendSettlementReferences", purchaseChain, company, null, purchase);
+    referenceChainService.appendSettlementReferences(purchaseChain, company, null, purchase);
 
     assertThat(invoiceChain)
         .extracting(LinkedBusinessReferenceDto::relationType)
@@ -1527,8 +1485,7 @@ class AccountingAuditTrailServiceTest {
     Invoice invoice = new Invoice();
     List<LinkedBusinessReferenceDto> chain = new java.util.ArrayList<>();
 
-    ReflectionTestUtils.invokeMethod(
-        service, "appendSettlementReferences", chain, null, invoice, null);
+    referenceChainService.appendSettlementReferences(chain, null, invoice, null);
     assertThat(chain).isEmpty();
 
     Company company = new Company();
@@ -1537,8 +1494,7 @@ class AccountingAuditTrailServiceTest {
             company, invoice))
         .thenReturn(null);
 
-    ReflectionTestUtils.invokeMethod(
-        service, "appendSettlementReferences", chain, company, invoice, null);
+    referenceChainService.appendSettlementReferences(chain, company, invoice, null);
     assertThat(chain).isEmpty();
 
     JournalEntry entry = new JournalEntry();
@@ -1559,10 +1515,8 @@ class AccountingAuditTrailServiceTest {
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, null))
         .thenReturn(List.of());
 
-    @SuppressWarnings("unchecked")
     List<LinkedBusinessReferenceDto> filteredChain =
-        ReflectionTestUtils.invokeMethod(
-            service, "buildReferenceChain", entry, filteredInvoice, null, List.of(), null);
+        referenceChainService.buildReferenceChain(entry, filteredInvoice, null, List.of(), null);
 
     assertThat(filteredChain)
         .extracting(LinkedBusinessReferenceDto::relationType)
@@ -1586,51 +1540,25 @@ class AccountingAuditTrailServiceTest {
     JournalEntry general = new JournalEntry();
     general.setReferenceNumber("GEN-1");
 
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveTransactionType", reversal, null, null, List.of()))
+    assertThat(classifier.deriveTransactionType(reversal, null, null, List.of()))
         .isEqualTo("REVERSAL_ENTRY");
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveTransactionType", reversedOriginal, null, null, List.of()))
+    assertThat(classifier.deriveTransactionType(reversedOriginal, null, null, List.of()))
         .isEqualTo("REVERSED_ORIGINAL");
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveTransactionType", payroll, null, null, List.of()))
+    assertThat(classifier.deriveTransactionType(payroll, null, null, List.of()))
         .isEqualTo("PAYROLL_ENTRY");
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveTransactionType", inventory, null, null, List.of()))
+    assertThat(classifier.deriveTransactionType(inventory, null, null, List.of()))
         .isEqualTo("INVENTORY_ADJUSTMENT");
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveTransactionType", supplierSettlement, null, null, List.of()))
+    assertThat(classifier.deriveTransactionType(supplierSettlement, null, null, List.of()))
         .isEqualTo("SETTLEMENT_SUPPLIER");
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveTransactionType", general, null, null, List.of()))
+    assertThat(classifier.deriveTransactionType(general, null, null, List.of()))
         .isEqualTo("GENERAL_JOURNAL");
 
-    @SuppressWarnings("unchecked")
-    List<String> inventoryPrefixes =
-        ReflectionTestUtils.invokeMethod(service, "moduleReferencePrefixes", "INVENTORY");
-    @SuppressWarnings("unchecked")
-    List<String> unknownPrefixes =
-        ReflectionTestUtils.invokeMethod(service, "moduleReferencePrefixes", "UNKNOWN");
+    List<String> inventoryPrefixes = classifier.moduleReferencePrefixes("INVENTORY");
+    List<String> unknownPrefixes = classifier.moduleReferencePrefixes("UNKNOWN");
 
     assertThat(inventoryPrefixes).contains("REVAL", "WIP");
     assertThat(unknownPrefixes).isEmpty();
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveModule", "REVERSAL_ENTRY", "REV-1"))
-        .isEqualTo("ADJUSTMENT");
+    assertThat(classifier.deriveModule("REVERSAL_ENTRY", "REV-1")).isEqualTo("ADJUSTMENT");
   }
 
   @Test
@@ -1650,64 +1578,29 @@ class AccountingAuditTrailServiceTest {
     PartnerSettlementAllocation supplierAllocation = new PartnerSettlementAllocation();
     supplierAllocation.setPartnerType(PartnerType.SUPPLIER);
 
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveTransactionType", dealerJournal, null, null, List.of()))
+    assertThat(classifier.deriveTransactionType(dealerJournal, null, null, List.of()))
         .isEqualTo("DEALER_JOURNAL");
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveTransactionType", supplierJournal, null, null, List.of()))
+    assertThat(classifier.deriveTransactionType(supplierJournal, null, null, List.of()))
         .isEqualTo("SUPPLIER_JOURNAL");
     assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service,
-                    "deriveTransactionType",
-                    mixedSettlement,
-                    null,
-                    null,
-                    List.of(dealerAllocation, supplierAllocation)))
+            classifier.deriveTransactionType(
+                mixedSettlement, null, null, List.of(dealerAllocation, supplierAllocation)))
         .isEqualTo("SETTLEMENT_MIXED");
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(service, "deriveModule", "PAYROLL_ENTRY", "PAY-1"))
-        .isEqualTo("PAYROLL");
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveModule", "INVENTORY_ADJUSTMENT", "REVAL-1"))
-        .isEqualTo("INVENTORY");
+    assertThat(classifier.deriveModule("PAYROLL_ENTRY", "PAY-1")).isEqualTo("PAYROLL");
+    assertThat(classifier.deriveModule("INVENTORY_ADJUSTMENT", "REVAL-1")).isEqualTo("INVENTORY");
 
-    Object warning =
-        ReflectionTestUtils.invokeMethod(
-            service,
-            "assessConsistency",
-            mixedSettlement,
-            List.of(),
-            BigDecimal.TEN,
-            BigDecimal.TEN);
-    assertThat((String) ReflectionTestUtils.invokeMethod(warning, "status")).isEqualTo("WARNING");
+    AccountingAuditTrailClassifier.ConsistencyResult warning =
+        classifier.assessConsistency(mixedSettlement, List.of(), BigDecimal.TEN, BigDecimal.TEN);
+    assertThat(warning.status()).isEqualTo("WARNING");
   }
 
   @Test
   void helperMethods_coverModulePrefixAndClassificationBranches() {
-    @SuppressWarnings("unchecked")
-    List<String> salesPrefixes =
-        ReflectionTestUtils.invokeMethod(service, "moduleReferencePrefixes", "SALES");
-    @SuppressWarnings("unchecked")
-    List<String> purchasingPrefixes =
-        ReflectionTestUtils.invokeMethod(service, "moduleReferencePrefixes", "PURCHASING");
-    @SuppressWarnings("unchecked")
-    List<String> settlementPrefixes =
-        ReflectionTestUtils.invokeMethod(service, "moduleReferencePrefixes", "SETTLEMENT");
-    @SuppressWarnings("unchecked")
-    List<String> payrollPrefixes =
-        ReflectionTestUtils.invokeMethod(service, "moduleReferencePrefixes", "PAYROLL");
-    @SuppressWarnings("unchecked")
-    List<String> reversalPrefixes =
-        ReflectionTestUtils.invokeMethod(service, "moduleReferencePrefixes", "REVERSAL");
+    List<String> salesPrefixes = classifier.moduleReferencePrefixes("SALES");
+    List<String> purchasingPrefixes = classifier.moduleReferencePrefixes("PURCHASING");
+    List<String> settlementPrefixes = classifier.moduleReferencePrefixes("SETTLEMENT");
+    List<String> payrollPrefixes = classifier.moduleReferencePrefixes("PAYROLL");
+    List<String> reversalPrefixes = classifier.moduleReferencePrefixes("REVERSAL");
 
     assertThat(salesPrefixes).contains("INV", "CRN", "SR");
     assertThat(purchasingPrefixes).contains("RMP", "DBN", "PUR", "GRN");
@@ -1728,44 +1621,22 @@ class AccountingAuditTrailServiceTest {
     JournalEntry payroll = new JournalEntry();
     payroll.setReferenceNumber("PAY-1");
 
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveTransactionType", reversal, null, null, List.of()))
+    assertThat(classifier.deriveTransactionType(reversal, null, null, List.of()))
         .isEqualTo("REVERSAL_ENTRY");
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveTransactionType", reversedOriginal, null, null, List.of()))
+    assertThat(classifier.deriveTransactionType(reversedOriginal, null, null, List.of()))
         .isEqualTo("REVERSED_ORIGINAL");
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveTransactionType", supplierPrefixed, null, null, List.of()))
+    assertThat(classifier.deriveTransactionType(supplierPrefixed, null, null, List.of()))
         .isEqualTo("SETTLEMENT_SUPPLIER");
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveTransactionType", dealerPrefixed, null, null, List.of()))
+    assertThat(classifier.deriveTransactionType(dealerPrefixed, null, null, List.of()))
         .isEqualTo("SETTLEMENT_DEALER");
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(
-                    service, "deriveTransactionType", payroll, null, null, List.of()))
+    assertThat(classifier.deriveTransactionType(payroll, null, null, List.of()))
         .isEqualTo("PAYROLL_ENTRY");
 
-    assertThat((String) ReflectionTestUtils.invokeMethod(service, "deriveModule", null, "INV-1"))
-        .isEqualTo("SALES");
-    assertThat((String) ReflectionTestUtils.invokeMethod(service, "deriveModule", null, "RMP-1"))
-        .isEqualTo("PURCHASING");
-    assertThat((String) ReflectionTestUtils.invokeMethod(service, "deriveModule", null, "SUP-1"))
-        .isEqualTo("SETTLEMENT");
-    assertThat(
-            (String)
-                ReflectionTestUtils.invokeMethod(service, "deriveModule", null, "SETTLEMENT-1"))
-        .isEqualTo("SETTLEMENT");
-    assertThat((String) ReflectionTestUtils.invokeMethod(service, "deriveModule", null, "GEN-1"))
-        .isEqualTo("ACCOUNTING");
+    assertThat(classifier.deriveModule(null, "INV-1")).isEqualTo("SALES");
+    assertThat(classifier.deriveModule(null, "RMP-1")).isEqualTo("PURCHASING");
+    assertThat(classifier.deriveModule(null, "SUP-1")).isEqualTo("SETTLEMENT");
+    assertThat(classifier.deriveModule(null, "SETTLEMENT-1")).isEqualTo("SETTLEMENT");
+    assertThat(classifier.deriveModule(null, "GEN-1")).isEqualTo("ACCOUNTING");
   }
 
   @Test
@@ -1833,43 +1704,25 @@ class AccountingAuditTrailServiceTest {
         .thenReturn(List.of(purchaseAllocation));
 
     LinkedBusinessReferenceDto invoiceDrivingDocument =
-        ReflectionTestUtils.invokeMethod(
-            service, "resolveDrivingDocument", invoice, null, List.of());
+        referenceChainService.resolveDrivingDocument(invoice, null, List.of());
     LinkedBusinessReferenceDto purchaseDrivingDocument =
-        ReflectionTestUtils.invokeMethod(
-            service, "resolveDrivingDocument", null, purchase, List.of());
+        referenceChainService.resolveDrivingDocument(null, purchase, List.of());
     LinkedBusinessReferenceDto allocationDrivingDocument =
-        ReflectionTestUtils.invokeMethod(
-            service, "resolveDrivingDocument", null, null, List.of(invoiceAllocation));
+        referenceChainService.resolveDrivingDocument(null, null, List.of(invoiceAllocation));
     LinkedBusinessReferenceDto purchaseAllocationDrivingDocument =
-        ReflectionTestUtils.invokeMethod(
-            service, "resolveDrivingDocument", null, null, List.of(purchaseAllocation));
+        referenceChainService.resolveDrivingDocument(null, null, List.of(purchaseAllocation));
 
     assertThat(invoiceDrivingDocument.documentType()).isEqualTo("INVOICE");
     assertThat(purchaseDrivingDocument.documentType()).isEqualTo("PURCHASE_INVOICE");
     assertThat(allocationDrivingDocument.documentType()).isEqualTo("INVOICE");
     assertThat(purchaseAllocationDrivingDocument.documentType()).isEqualTo("PURCHASE_INVOICE");
 
-    @SuppressWarnings("unchecked")
     List<LinkedBusinessReferenceDto> invoiceChain =
-        ReflectionTestUtils.invokeMethod(
-            service,
-            "buildReferenceChain",
-            entry,
-            invoice,
-            null,
-            List.of(invoiceAllocation),
-            invoiceDrivingDocument);
-    @SuppressWarnings("unchecked")
+        referenceChainService.buildReferenceChain(
+            entry, invoice, null, List.of(invoiceAllocation), invoiceDrivingDocument);
     List<LinkedBusinessReferenceDto> purchaseChain =
-        ReflectionTestUtils.invokeMethod(
-            service,
-            "buildReferenceChain",
-            entry,
-            null,
-            purchase,
-            List.of(purchaseAllocation),
-            purchaseDrivingDocument);
+        referenceChainService.buildReferenceChain(
+            entry, null, purchase, List.of(purchaseAllocation), purchaseDrivingDocument);
 
     assertThat(invoiceChain)
         .extracting(LinkedBusinessReferenceDto::relationType)
@@ -1896,22 +1749,18 @@ class AccountingAuditTrailServiceTest {
               assertThat(reference.journalEntryId()).isEqualTo(2006L);
             });
 
-    Object reversedError =
-        ReflectionTestUtils.invokeMethod(
-            service, "assessConsistency", entry, List.of(), BigDecimal.ONE, BigDecimal.ONE);
-    assertThat((String) ReflectionTestUtils.invokeMethod(reversedError, "status"))
-        .isEqualTo("ERROR");
+    AccountingAuditTrailClassifier.ConsistencyResult reversedError =
+        classifier.assessConsistency(entry, List.of(), BigDecimal.ONE, BigDecimal.ONE);
+    assertThat(reversedError.status()).isEqualTo("ERROR");
 
     entry.setStatus("REVERSED");
-    Object stillError =
-        ReflectionTestUtils.invokeMethod(
-            service, "assessConsistency", entry, List.of(), BigDecimal.TEN, BigDecimal.ONE);
-    assertThat((String) ReflectionTestUtils.invokeMethod(stillError, "status")).isEqualTo("ERROR");
+    AccountingAuditTrailClassifier.ConsistencyResult stillError =
+        classifier.assessConsistency(entry, List.of(), BigDecimal.TEN, BigDecimal.ONE);
+    assertThat(stillError.status()).isEqualTo("ERROR");
   }
 
   @Test
   void specificationHelpers_coverBlankReferenceAndModulePrefixBranches() {
-    Class<?> coreClass = service.getClass();
     @SuppressWarnings("rawtypes")
     jakarta.persistence.criteria.Root root =
         org.mockito.Mockito.mock(jakarta.persistence.criteria.Root.class);
@@ -1941,56 +1790,28 @@ class AccountingAuditTrailServiceTest {
     when(cb.conjunction()).thenReturn(predicate);
     when(cb.or(any(jakarta.persistence.criteria.Predicate[].class))).thenReturn(predicate);
 
-    try {
-      java.lang.reflect.Method byStatusMethod =
-          coreClass.getDeclaredMethod("byStatus", String.class);
-      java.lang.reflect.Method byReferenceMethod =
-          coreClass.getDeclaredMethod("byReference", String.class);
-      java.lang.reflect.Method byModuleMethod =
-          coreClass.getDeclaredMethod("byModule", String.class);
-      byStatusMethod.setAccessible(true);
-      byReferenceMethod.setAccessible(true);
-      byModuleMethod.setAccessible(true);
+    Specification<JournalEntry> blankStatus = transactionQueryService.byStatus(" ");
+    Specification<JournalEntry> populatedStatus = transactionQueryService.byStatus(" posted ");
+    Specification<JournalEntry> blankReference = transactionQueryService.byReference(null);
+    Specification<JournalEntry> populatedReference = transactionQueryService.byReference("inv");
+    Specification<JournalEntry> blankModule = transactionQueryService.byModule("  ");
+    Specification<JournalEntry> unknownModule = transactionQueryService.byModule("unknown");
+    Specification<JournalEntry> salesModule = transactionQueryService.byModule("sales");
 
-      @SuppressWarnings("unchecked")
-      Specification<JournalEntry> blankStatus =
-          (Specification<JournalEntry>) byStatusMethod.invoke(service, " ");
-      @SuppressWarnings("unchecked")
-      Specification<JournalEntry> populatedStatus =
-          (Specification<JournalEntry>) byStatusMethod.invoke(service, " posted ");
-      @SuppressWarnings("unchecked")
-      Specification<JournalEntry> blankReference =
-          (Specification<JournalEntry>) byReferenceMethod.invoke(service, new Object[] {null});
-      @SuppressWarnings("unchecked")
-      Specification<JournalEntry> populatedReference =
-          (Specification<JournalEntry>) byReferenceMethod.invoke(service, "inv");
-      @SuppressWarnings("unchecked")
-      Specification<JournalEntry> blankModule =
-          (Specification<JournalEntry>) byModuleMethod.invoke(service, "  ");
-      @SuppressWarnings("unchecked")
-      Specification<JournalEntry> unknownModule =
-          (Specification<JournalEntry>) byModuleMethod.invoke(service, "unknown");
-      @SuppressWarnings("unchecked")
-      Specification<JournalEntry> salesModule =
-          (Specification<JournalEntry>) byModuleMethod.invoke(service, "sales");
-
-      blankStatus.toPredicate(root, query, cb);
-      populatedStatus.toPredicate(root, query, cb);
-      blankReference.toPredicate(root, query, cb);
-      populatedReference.toPredicate(root, query, cb);
-      blankModule.toPredicate(root, query, cb);
-      unknownModule.toPredicate(root, query, cb);
-      salesModule.toPredicate(root, query, cb);
-      org.mockito.Mockito.verify(cb, org.mockito.Mockito.atLeast(3)).conjunction();
-      org.mockito.Mockito.verify(cb, org.mockito.Mockito.atLeastOnce())
-          .like(
-              org.mockito.ArgumentMatchers.<jakarta.persistence.criteria.Expression<String>>any(),
-              any(String.class));
-      org.mockito.Mockito.verify(cb, org.mockito.Mockito.atLeastOnce())
-          .or(any(jakarta.persistence.criteria.Predicate[].class));
-    } catch (ReflectiveOperationException ex) {
-      throw new RuntimeException(ex);
-    }
+    blankStatus.toPredicate(root, query, cb);
+    populatedStatus.toPredicate(root, query, cb);
+    blankReference.toPredicate(root, query, cb);
+    populatedReference.toPredicate(root, query, cb);
+    blankModule.toPredicate(root, query, cb);
+    unknownModule.toPredicate(root, query, cb);
+    salesModule.toPredicate(root, query, cb);
+    org.mockito.Mockito.verify(cb, org.mockito.Mockito.atLeast(3)).conjunction();
+    org.mockito.Mockito.verify(cb, org.mockito.Mockito.atLeastOnce())
+        .like(
+            org.mockito.ArgumentMatchers.<jakarta.persistence.criteria.Expression<String>>any(),
+            any(String.class));
+    org.mockito.Mockito.verify(cb, org.mockito.Mockito.atLeastOnce())
+        .or(any(jakarta.persistence.criteria.Predicate[].class));
   }
 
   private static JournalLine line(String accountCode, String debitAmount, String creditAmount) {

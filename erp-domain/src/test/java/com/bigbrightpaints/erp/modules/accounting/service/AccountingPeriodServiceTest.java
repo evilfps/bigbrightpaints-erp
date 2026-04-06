@@ -1059,29 +1059,24 @@ class AccountingPeriodServiceTest {
   void correctionLinkageHelpers_coverEmptyBlankAndCnReferencePaths() {
     Company company = company(1L, "ACME");
     AccountingPeriod period = openPeriod(company, 2026, 2);
+    AccountingPeriodCorrectionJournalClassifier classifier =
+        new AccountingPeriodCorrectionJournalClassifier();
+    AccountingPeriodChecklistDiagnosticsService diagnosticsService =
+        checklistDiagnosticsService(classifier);
 
     when(journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
             company, period.getStartDate(), period.getEndDate()))
         .thenReturn(List.of());
 
-    assertThat(
-            (Long)
-                ReflectionTestUtils.invokeMethod(
-                    service, "countCorrectionLinkageGaps", company, period))
-        .isZero();
+    assertThat(diagnosticsService.countCorrectionLinkageGaps(company, period)).isZero();
 
     JournalEntry blankReference = new JournalEntry();
     blankReference.setReferenceNumber("   ");
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(service, "isCorrectionJournal", blankReference))
-        .isFalse();
+    assertThat(classifier.isCorrectionJournal(blankReference)).isFalse();
 
     JournalEntry cnReference = new JournalEntry();
     cnReference.setReferenceNumber(" cn-2201 ");
-    assertThat(
-            (Boolean) ReflectionTestUtils.invokeMethod(service, "isCorrectionJournal", cnReference))
-        .isTrue();
+    assertThat(classifier.isCorrectionJournal(cnReference)).isTrue();
 
     JournalEntry missingReason = new JournalEntry();
     missingReason.setCorrectionType(
@@ -1089,41 +1084,27 @@ class AccountingPeriodServiceTest {
     missingReason.setCorrectionReason(" ");
     missingReason.setSourceModule("SALES_RETURN");
     missingReason.setSourceReference("SR-2201");
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    service, "isMissingCorrectionLinkage", missingReason))
-        .isTrue();
+    assertThat(classifier.isMissingCorrectionLinkage(missingReason)).isTrue();
   }
 
   @Test
   void correctionLinkageHelpers_coverNullEntriesReversalFlagsAndCompleteLinkage() {
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    service, "isCorrectionJournal", new Object[] {null}))
-        .isFalse();
+    AccountingPeriodCorrectionJournalClassifier classifier =
+        new AccountingPeriodCorrectionJournalClassifier();
+
+    assertThat(classifier.isCorrectionJournal(null)).isFalse();
 
     JournalEntry reversalLinked = new JournalEntry();
     reversalLinked.setReversalOf(new JournalEntry());
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(service, "isCorrectionJournal", reversalLinked))
-        .isTrue();
+    assertThat(classifier.isCorrectionJournal(reversalLinked)).isTrue();
 
     JournalEntry debitNote = new JournalEntry();
     debitNote.setReferenceNumber(" dn-3301 ");
-    assertThat(
-            (Boolean) ReflectionTestUtils.invokeMethod(service, "isCorrectionJournal", debitNote))
-        .isTrue();
+    assertThat(classifier.isCorrectionJournal(debitNote)).isTrue();
 
     JournalEntry purchaseReturnNote = new JournalEntry();
     purchaseReturnNote.setReferenceNumber(" prn-3302 ");
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    service, "isCorrectionJournal", purchaseReturnNote))
-        .isTrue();
+    assertThat(classifier.isCorrectionJournal(purchaseReturnNote)).isTrue();
 
     JournalEntry complete = new JournalEntry();
     complete.setCorrectionType(
@@ -1131,10 +1112,7 @@ class AccountingPeriodServiceTest {
     complete.setCorrectionReason("SALES_RETURN");
     complete.setSourceModule("SALES_RETURN");
     complete.setSourceReference("SR-3301");
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(service, "isMissingCorrectionLinkage", complete))
-        .isFalse();
+    assertThat(classifier.isMissingCorrectionLinkage(complete)).isFalse();
 
     JournalEntry missingSourceModule = new JournalEntry();
     missingSourceModule.setCorrectionType(
@@ -1142,11 +1120,7 @@ class AccountingPeriodServiceTest {
     missingSourceModule.setCorrectionReason("SALES_RETURN");
     missingSourceModule.setSourceModule(" ");
     missingSourceModule.setSourceReference("SR-3302");
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    service, "isMissingCorrectionLinkage", missingSourceModule))
-        .isTrue();
+    assertThat(classifier.isMissingCorrectionLinkage(missingSourceModule)).isTrue();
 
     JournalEntry missingSourceReference = new JournalEntry();
     missingSourceReference.setCorrectionType(
@@ -1154,11 +1128,7 @@ class AccountingPeriodServiceTest {
     missingSourceReference.setCorrectionReason("SALES_RETURN");
     missingSourceReference.setSourceModule("SALES_RETURN");
     missingSourceReference.setSourceReference(" ");
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    service, "isMissingCorrectionLinkage", missingSourceReference))
-        .isTrue();
+    assertThat(classifier.isMissingCorrectionLinkage(missingSourceReference)).isTrue();
   }
 
   @Test
@@ -1503,6 +1473,8 @@ class AccountingPeriodServiceTest {
   void countCorrectionLinkageGaps_ignoresLegacyReturnJournalsWhenDealerOrSupplierLinkExists() {
     Company company = company(1L, "ACME");
     AccountingPeriod period = openPeriod(company, 2026, 3);
+    AccountingPeriodChecklistDiagnosticsService diagnosticsService =
+        checklistDiagnosticsService(new AccountingPeriodCorrectionJournalClassifier());
 
     JournalEntry salesReturn = new JournalEntry();
     salesReturn.setCompany(company);
@@ -1532,30 +1504,38 @@ class AccountingPeriodServiceTest {
             company, period.getStartDate(), period.getEndDate()))
         .thenReturn(List.of(salesReturn, purchaseReturn, malformedCorrection));
 
-    long gaps =
-        ReflectionTestUtils.invokeMethod(service, "countCorrectionLinkageGaps", company, period);
+    long gaps = diagnosticsService.countCorrectionLinkageGaps(company, period);
 
     assertThat(gaps).isEqualTo(1L);
   }
 
   @Test
   void isMissingCorrectionLinkage_flagsLegacyReturnJournalsWithoutDealerOrSupplierAssociation() {
+    AccountingPeriodCorrectionJournalClassifier classifier =
+        new AccountingPeriodCorrectionJournalClassifier();
+
     JournalEntry orphanedSalesReturn = new JournalEntry();
     orphanedSalesReturn.setReferenceNumber("CRN-ORPHAN-1");
 
     JournalEntry orphanedPurchaseReturn = new JournalEntry();
     orphanedPurchaseReturn.setReferenceNumber("PRN-ORPHAN-1");
 
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    service, "isMissingCorrectionLinkage", orphanedSalesReturn))
-        .isTrue();
-    assertThat(
-            (Boolean)
-                ReflectionTestUtils.invokeMethod(
-                    service, "isMissingCorrectionLinkage", orphanedPurchaseReturn))
-        .isTrue();
+    assertThat(classifier.isMissingCorrectionLinkage(orphanedSalesReturn)).isTrue();
+    assertThat(classifier.isMissingCorrectionLinkage(orphanedPurchaseReturn)).isTrue();
+  }
+
+  private AccountingPeriodChecklistDiagnosticsService checklistDiagnosticsService(
+      AccountingPeriodCorrectionJournalClassifier classifier) {
+    return new AccountingPeriodChecklistDiagnosticsService(
+        journalEntryRepository,
+        reportService,
+        reconciliationService,
+        invoiceRepository,
+        goodsReceiptRepository,
+        rawMaterialPurchaseRepository,
+        payrollRunRepository,
+        reconciliationDiscrepancyRepository,
+        classifier);
   }
 
   private com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto gstReconciliation(

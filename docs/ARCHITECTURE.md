@@ -236,7 +236,8 @@ Primary files:
 ### 2.7 Period close, reopen, and reconciliation coupling
 
 - Period close uses request/approve/reject maker-checker workflow (`AccountingPeriodService.requestPeriodClose`, `approvePeriodClose`, `rejectPeriodClose`).
-- Checklist and reconciliation gates are validated before closure; close creates closing journal and snapshot, reopen reverses closing journal and drops snapshot (`closePeriod`, `reopenPeriod`, `createSystemJournal`, `reverseClosingJournalIfNeeded`).
+- `AccountingPeriodService` remains the public entrypoint while ownership is split into focused collaborators: `AccountingPeriodCloseWorkflow` and `AccountingPeriodStatusWorkflow` own close/reopen transitions, and `AccountingPeriodChecklistService` + `AccountingPeriodChecklistDiagnosticsService` own checklist diagnostics.
+- Checklist and reconciliation gates are validated before closure; close creates closing journal and snapshot, reopen reverses closing journal and drops snapshot through `AccountingPeriodStatusWorkflow.closePeriod(...)` / `reopenPeriod(...)`.
 - Reconciliation discrepancy resolution supports acknowledged / adjustment journal / write-off with typed control account selection through the live `ReconciliationService.resolveDiscrepancy(...)` boundary.
 - Reopen endpoint is super-admin-only through service override (`AccountingPeriodService.reopenPeriod`).
 
@@ -340,7 +341,7 @@ Representative entities used by the major flows:
 Journal anchor/reference conventions are explicit in source-module posting calls, e.g.:
 
 - payroll: `PAYROLL-<runToken>` (`AccountingFacade.postPayrollRun`)
-- period close: `PERIOD-CLOSE-<year><month>` (`AccountingPeriodService.postClosingJournal`)
+- period close: `PERIOD-CLOSE-<year><month>` (`AccountingPeriodStatusWorkflow.closePeriod` closing-journal path)
 - discrepancy resolution: `RECON-<resolution>-<id>` (reconciliation resolution journal flow)
 - opening data migration: `OPEN-BAL-...`, `OPEN-STOCK-...` (import services)
 

@@ -33,7 +33,8 @@ The accounting module owns financial posting, corrections, period controls, sett
 ## Key Services/Facades
 
 - `AccountingService` — centralized journal creation and module-owned accounting workflows behind the live accounting facade/service boundary.
-- `AccountingPeriodService` — period lifecycle management, close/reopen orchestration, and closing-journal ownership.
+- `AccountingPeriodService` — public period lifecycle entrypoint that delegates close/reopen ownership to `AccountingPeriodCloseWorkflow` + `AccountingPeriodStatusWorkflow`, and checklist diagnostics to `AccountingPeriodChecklistService` + `AccountingPeriodChecklistDiagnosticsService`.
+- `AccountingAuditTrailService` — public audit-trail read entrypoint that delegates classification/query/detail behavior to `AccountingAuditTrailClassifier`, `AccountingAuditTrailTransactionQueryService`, `AccountingAuditTrailTransactionDetailService`, and `SettlementAuditMemoDecoder`.
 - `AccountingFacade` — cross-module facade for financial side effects, including payroll posting entry and accounting-host payroll payment recording.
 - `ReconciliationService` — reconciliation and discrepancy resolution at the module boundary.
 - `OpeningBalanceImportService` — opening balance import processing.

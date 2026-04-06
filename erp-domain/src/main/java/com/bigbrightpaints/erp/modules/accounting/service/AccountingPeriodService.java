@@ -250,38 +250,4 @@ public class AccountingPeriodService {
   public AccountingPeriod ensurePeriod(Company company, LocalDate referenceDate) {
     return lifecycleService.ensurePeriod(company, referenceDate);
   }
-
-  long countCorrectionLinkageGaps(Company company, AccountingPeriod period) {
-    return checklistService.countCorrectionLinkageGaps(company, period);
-  }
-
-  boolean isCorrectionJournal(
-      com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry entry) {
-    return correctionJournalClassifier.isCorrectionJournal(entry);
-  }
-
-  boolean isMissingCorrectionLinkage(
-      com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry entry) {
-    return correctionJournalClassifier.isMissingCorrectionLinkage(entry);
-  }
-
-  boolean isHrPayrollEnabled(Company company) {
-    return checklistService.isHrPayrollEnabled(company);
-  }
-
-  com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry createSystemJournal(
-      Company company,
-      AccountingPeriod period,
-      String reference,
-      String note,
-      java.math.BigDecimal netIncome) {
-    return closeWorkflow.createSystemJournal(company, period, reference, note, netIncome);
-  }
-
-  void reverseClosingJournalIfNeeded(
-      com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry closing,
-      AccountingPeriod period,
-      String reason) {
-    closeWorkflow.reverseClosingJournalIfNeeded(closing, period, reason);
-  }
 }
