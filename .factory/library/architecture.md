@@ -73,7 +73,7 @@ Retired routes should be absent or explicitly fail closed. Do not leave a second
 
 Primary hotspots:
 
-- `modules/accounting/service/SettlementRequestResolutionService`
+- `modules/accounting/service/{SettlementAllocationResolutionService,SettlementTotalsValidationService,SettlementJournalLineDraftService}`
 - `modules/accounting/service/JournalPostingService`
 - `modules/accounting/service/AccountingFacade`
 
