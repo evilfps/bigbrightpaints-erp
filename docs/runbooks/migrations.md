@@ -2,6 +2,18 @@
 
 Last reviewed: 2026-03-29
 
+## 2026-04-06 — `erp-domain/src/main/resources/db/migration_v2/V177__backfill_packaging_slip_invoice_links.sql`
+
+- **Purpose:** move the packaging-slip invoice-link backfill onto the active Flyway v2 track so upgraded tenants recover persisted `packaging_slips.invoice_id` values from canonical sales-order and invoice truth after the dispatch hard cut.
+- **Release-guard posture:** the legacy-track V167 packaging-slip backfill copy is deleted in the same packet. The active v2 track already uses `V167` for the ERP-37 tenant-control migration, so this backfill is reissued as `V177` to preserve Flyway history/checksum safety instead of mutating an already-active v2 version.
+- **Forward plan:** apply `V177__backfill_packaging_slip_invoice_links.sql`, then keep the current dispatch/invoice runtime packet live so invoice/read-model code continues reading the persisted `packaging_slips.invoice_id` link without reviving any implicit matcher fallback. Confirm the only remaining packaging-slip invoice-link backfill file lives under `erp-domain/src/main/resources/db/migration_v2`.
+- **Dry-run commands:**
+  - `find erp-domain/src/main/resources -name '*backfill_packaging_slip_invoice_links.sql'`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='TS_PackagingSlipInvoiceLinkV2MigrationContractTest,CR_PackingRouteHardCutIT,OrderFulfillmentE2ETest,InvoiceServiceTest' test`
+  - `bash ci/check-enterprise-policy.sh`
+  - `bash scripts/gate_fast.sh`
+- **Rollback strategy:** treat `V177` as a forward-only upgrade-path backfill. If rollout must be abandoned after the migration is applied, keep the hard-cut-compatible backend live or restore the database from a pre-`V177` snapshot/PITR before reverting application code. Do not null out `packaging_slips.invoice_id` by hand after the backfill has converged on canonical invoice ownership.
+
 ## 2026-03-29 — `erp-domain/src/main/resources/db/migration_v2/V176__opening_stock_content_fingerprint.sql`
 
 - **Purpose:** add a canonical `content_fingerprint` to `opening_stock_imports` so the ERP-39 opening-stock replay guard can detect the same imported content even when callers change `opening_stock_batch_key` or `idempotency_key`.

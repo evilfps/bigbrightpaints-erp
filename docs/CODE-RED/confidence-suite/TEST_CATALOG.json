@@ -376,6 +376,24 @@
       "cross_module_critical": false
     },
     {
+      "id": "test-catalog::o2c-ts-packagingslipinvoicelinkv2migrationcontracttest-java",
+      "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_PackagingSlipInvoiceLinkV2MigrationContractTest.java",
+      "module": "o2c",
+      "owner": "lane03-sales-dispatch-orders",
+      "class": "critical",
+      "tags": [
+        "critical"
+      ],
+      "gate_membership": [
+        "gate-fast",
+        "gate-core",
+        "gate-release",
+        "gate-quality"
+      ],
+      "accounting_math_critical": false,
+      "cross_module_critical": false
+    },
+    {
       "id": "test-catalog::o2c-ts-o2cdispatchcanonicalpostingtest-java",
       "test_path": "erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_O2CDispatchCanonicalPostingTest.java",
       "module": "o2c",

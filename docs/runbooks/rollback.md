@@ -2,6 +2,18 @@
 
 Last reviewed: 2026-03-29
 
+## 2026-04-06 — `m3.packaging-slip-invoice-link-backfill-v2`
+
+- **Scope:** revert `erp-domain/src/main/resources/db/migration_v2/V177__backfill_packaging_slip_invoice_links.sql` together with the M3 dispatch/invoice hard-cut packet that now depends on persisted `packaging_slips.invoice_id` links for upgraded data.
+- **Application rollback:** do not redeploy a pre-backfill runtime against a database where `V177` has already populated packaging-slip invoice links unless the database is first restored to a pre-`V177` state or the reverted build is known to tolerate those persisted links.
+- **Database rollback:** preferred path is snapshot/PITR restore to a point before `V177`. Ad hoc reverse SQL is intentionally unsupported because the migration backfills canonical invoice ownership onto historical packaging slips and selectively nulling those links can reintroduce silent drift across invoice, dispatch, and read-model flows.
+- **Guard note:** the legacy-track V167 packaging-slip backfill file is intentionally deleted in this packet because the active application runs only `erp-domain/src/main/resources/db/migration_v2`. Keep rollback reasoning focused on the v2 migration and runtime pair, not on reviving the inactive legacy track.
+- **Verification:** after restore or coordinated packet revert, rerun:
+  - `find erp-domain/src/main/resources -name '*backfill_packaging_slip_invoice_links.sql'`
+  - `cd erp-domain && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='TS_PackagingSlipInvoiceLinkV2MigrationContractTest,CR_PackingRouteHardCutIT,OrderFulfillmentE2ETest,InvoiceServiceTest' test`
+  - `bash ci/check-enterprise-policy.sh`
+  - `bash scripts/gate_fast.sh`
+
 ## 2026-03-29 — `erp-39.opening-stock-fingerprint-and-replay-hard-cut`
 
 - **Scope:** revert `erp-domain/src/main/resources/db/migration_v2/V176__opening_stock_content_fingerprint.sql` together with the ERP-39 runtime packet that now uses persisted opening-stock content fingerprints plus stricter settlement replay and audit hardening.
