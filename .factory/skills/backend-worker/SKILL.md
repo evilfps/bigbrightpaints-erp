@@ -52,12 +52,13 @@ None.
    - Event-driven cross-module communication
    - If you retire a legacy header/parameter/alias, enforce fail-closed runtime behavior; never just stop binding it in one controller while downstream code still accepts a null canonical value
    - No fallbacks or duplicate helper paths unless the feature explicitly says otherwise
-3. While touching O2C/P2P hotspots, remove dead code, unused branches, stale helpers, and retired duplicate-truth paths that are made obsolete by your feature. Do not leave known dead logic behind in the touched area.
+3. While touching O2C/P2P hotspots, remove dead code, unused branches, stale helpers, retired duplicate-truth paths, and obsolete tests that are made obsolete by your feature. Do not leave known dead logic or dead regression files behind in the touched area.
 4. If the feature touches accounting, preserve dependent-module behavior across sales, inventory, purchasing, invoice, and reporting. Do not relocate duplicate accounting logic into new classes.
 5. For service decomposition:
    - Create new focused service classes
    - Move methods from the god service to appropriate new services
    - Make the extracted service the canonical owner of the migrated behavior; deleting wrapper shells is not enough if real logic still lives behind `super` calls or dependency hops back into the god class
+   - Delete the retired service/helper/test files once the new owner is live; a renamed monolith or compatibility shim still in the production write path does not count as a completed hard cut
    - Update the god service to delegate to the new services only as a thin facade/shim if needed; do not leave business logic ownership in the god service
    - Update all controllers and other services that call the moved methods
    - Update all test imports and references
