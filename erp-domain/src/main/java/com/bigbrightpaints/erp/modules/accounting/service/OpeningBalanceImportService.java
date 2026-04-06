@@ -254,6 +254,7 @@ public class OpeningBalanceImportService {
     List<ImportError> errors = new ArrayList<>();
     List<ValidatedOpeningBalanceRow> validatedRows = new ArrayList<>();
     List<JournalCreationRequest.LineRequest> lines = new ArrayList<>();
+    List<Long> resolvedRowNumbers = new ArrayList<>();
     BigDecimal totalDebit = BigDecimal.ZERO;
     BigDecimal totalCredit = BigDecimal.ZERO;
 
@@ -293,13 +294,13 @@ public class OpeningBalanceImportService {
     }
 
     if (totalDebit.subtract(totalCredit).compareTo(BigDecimal.ZERO) != 0) {
-      errors.add(
-          new ImportError(
-              0,
-              "Import totals are unbalanced: totalDebit="
-                  + totalDebit
-                  + ", totalCredit="
-                  + totalCredit));
+      addRowLevelUnbalancedErrors(
+          errors,
+          validatedRows.stream().map(ValidatedOpeningBalanceRow::rowNumber).toList(),
+          "Import totals are unbalanced: totalDebit="
+              + totalDebit
+              + ", totalCredit="
+              + totalCredit);
       return new ImportResult(new OpeningBalanceImportResponse(0, accountsCreated, errors), null);
     }
 
@@ -319,6 +320,7 @@ public class OpeningBalanceImportService {
                 row.debitAmount(),
                 row.creditAmount(),
                 row.narration()));
+        resolvedRowNumbers.add(row.rowNumber());
         postedDebit = postedDebit.add(row.debitAmount());
         postedCredit = postedCredit.add(row.creditAmount());
       } catch (RuntimeException ex) {
@@ -331,13 +333,13 @@ public class OpeningBalanceImportService {
     }
 
     if (postedDebit.subtract(postedCredit).compareTo(BigDecimal.ZERO) != 0) {
-      errors.add(
-          new ImportError(
-              0,
-              "Import totals became unbalanced during account resolution: totalDebit="
-                  + postedDebit
-                  + ", totalCredit="
-                  + postedCredit));
+      addRowLevelUnbalancedErrors(
+          errors,
+          resolvedRowNumbers,
+          "Import totals became unbalanced during account resolution: totalDebit="
+              + postedDebit
+              + ", totalCredit="
+              + postedCredit);
       return new ImportResult(new OpeningBalanceImportResponse(0, accountsCreated, errors), null);
     }
 
@@ -568,6 +570,19 @@ public class OpeningBalanceImportService {
 
   private boolean isDataIntegrityViolation(Throwable error) {
     return idempotencyReservationService.isDataIntegrityViolation(error);
+  }
+
+  private void addRowLevelUnbalancedErrors(
+      List<ImportError> errors, List<Long> rowNumbers, String message) {
+    if (rowNumbers == null || rowNumbers.isEmpty()) {
+      return;
+    }
+    for (Long rowNumber : rowNumbers) {
+      if (rowNumber == null || rowNumber <= 0) {
+        continue;
+      }
+      errors.add(new ImportError(rowNumber, message));
+    }
   }
 
   private record ResolvedAccount(Account account, boolean created) {}

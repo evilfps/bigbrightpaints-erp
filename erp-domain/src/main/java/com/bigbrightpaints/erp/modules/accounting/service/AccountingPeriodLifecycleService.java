@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
@@ -22,16 +23,20 @@ final class AccountingPeriodLifecycleService {
   private final CompanyContextService companyContextService;
   private final CompanyScopedAccountingLookupService accountingLookupService;
   private final CompanyClock companyClock;
+  private final Supplier<AccountingComplianceAuditService> auditServiceSupplier;
 
   AccountingPeriodLifecycleService(
       AccountingPeriodRepository accountingPeriodRepository,
       CompanyContextService companyContextService,
       CompanyScopedAccountingLookupService accountingLookupService,
-      CompanyClock companyClock) {
+      CompanyClock companyClock,
+      Supplier<AccountingComplianceAuditService> auditServiceSupplier) {
     this.accountingPeriodRepository = accountingPeriodRepository;
     this.companyContextService = companyContextService;
     this.accountingLookupService = accountingLookupService;
     this.companyClock = companyClock;
+    this.auditServiceSupplier =
+        auditServiceSupplier != null ? auditServiceSupplier : () -> null;
   }
 
   List<AccountingPeriodDto> listPeriods() {
@@ -50,6 +55,8 @@ final class AccountingPeriodLifecycleService {
   AccountingPeriodDto createOrUpdatePeriod(
       AccountingPeriodRequest request,
       AccountingComplianceAuditService accountingComplianceAuditService) {
+    AccountingComplianceAuditService auditService =
+        resolveAuditService(accountingComplianceAuditService);
     if (request == null) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_INPUT, "Accounting period request is required");
@@ -86,8 +93,8 @@ final class AccountingPeriodLifecycleService {
     CostingMethod beforeCostingMethod = period.getCostingMethod();
     period.setCostingMethod(resolveCostingMethodOrDefault(request.costingMethod()));
     AccountingPeriod saved = accountingPeriodRepository.save(period);
-    if (accountingComplianceAuditService != null && createdNew) {
-      accountingComplianceAuditService.recordPeriodTransition(
+    if (auditService != null && createdNew) {
+      auditService.recordPeriodTransition(
           company,
           saved,
           "PERIOD_OPENED",
@@ -95,9 +102,9 @@ final class AccountingPeriodLifecycleService {
           saved.getStatus() != null ? saved.getStatus().name() : null,
           "Period opened");
     }
-    if (accountingComplianceAuditService != null
+    if (auditService != null
         && beforeCostingMethod != saved.getCostingMethod()) {
-      accountingComplianceAuditService.recordCostingMethodChange(
+      auditService.recordCostingMethodChange(
           company, saved, beforeCostingMethod, saved.getCostingMethod());
     }
     return toDto(saved);
@@ -107,6 +114,8 @@ final class AccountingPeriodLifecycleService {
       Long periodId,
       AccountingPeriodRequest request,
       AccountingComplianceAuditService accountingComplianceAuditService) {
+    AccountingComplianceAuditService auditService =
+        resolveAuditService(accountingComplianceAuditService);
     if (request == null || request.costingMethod() == null) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_INPUT, "Costing method is required");
@@ -122,9 +131,9 @@ final class AccountingPeriodLifecycleService {
     CostingMethod beforeCostingMethod = period.getCostingMethod();
     period.setCostingMethod(resolveCostingMethodOrDefault(request.costingMethod()));
     AccountingPeriod saved = accountingPeriodRepository.save(period);
-    if (accountingComplianceAuditService != null
+    if (auditService != null
         && beforeCostingMethod != saved.getCostingMethod()) {
-      accountingComplianceAuditService.recordCostingMethodChange(
+      auditService.recordCostingMethodChange(
           company, saved, beforeCostingMethod, saved.getCostingMethod());
     }
     return toDto(saved);
@@ -171,7 +180,7 @@ final class AccountingPeriodLifecycleService {
   }
 
   AccountingPeriod ensurePeriod(Company company, LocalDate referenceDate) {
-    return ensurePeriod(company, referenceDate, null);
+    return ensurePeriod(company, referenceDate, resolveAuditService(null));
   }
 
   AccountingPeriod ensurePeriod(
@@ -195,8 +204,10 @@ final class AccountingPeriodLifecycleService {
               period.setStatus(AccountingPeriodStatus.OPEN);
               period.setCostingMethod(CostingMethod.FIFO);
               AccountingPeriod saved = accountingPeriodRepository.save(period);
-              if (accountingComplianceAuditService != null) {
-                accountingComplianceAuditService.recordPeriodTransition(
+              AccountingComplianceAuditService auditService =
+                  resolveAuditService(accountingComplianceAuditService);
+              if (auditService != null) {
+                auditService.recordPeriodTransition(
                     company,
                     saved,
                     "PERIOD_OPENED",
@@ -277,5 +288,13 @@ final class AccountingPeriodLifecycleService {
 
   private CostingMethod resolveCostingMethodOrDefault(CostingMethod costingMethod) {
     return costingMethod != null ? costingMethod : CostingMethod.FIFO;
+  }
+
+  private AccountingComplianceAuditService resolveAuditService(
+      AccountingComplianceAuditService explicitAuditService) {
+    if (explicitAuditService != null) {
+      return explicitAuditService;
+    }
+    return auditServiceSupplier.get();
   }
 }

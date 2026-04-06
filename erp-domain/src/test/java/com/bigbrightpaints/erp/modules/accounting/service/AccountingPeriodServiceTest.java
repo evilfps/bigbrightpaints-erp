@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -1340,6 +1341,65 @@ class AccountingPeriodServiceTest {
     AccountingPeriod created = service.ensurePeriod(company, LocalDate.of(2026, 2, 9));
 
     assertThat(created.getCostingMethod()).isEqualTo(CostingMethod.FIFO);
+  }
+
+  @Test
+  void ensurePeriod_recordsOpenedAuditWhenAutoCreatingMissingPeriod() {
+    Company company = company(1L, "ACME");
+    when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 2))
+        .thenReturn(Optional.empty());
+    when(accountingPeriodRepository.save(any(AccountingPeriod.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    ReflectionTestUtils.setField(
+        service, "accountingComplianceAuditService", accountingComplianceAuditService);
+
+    AccountingPeriod created = service.ensurePeriod(company, LocalDate.of(2026, 2, 9));
+
+    assertThat(created.getStatus()).isEqualTo(AccountingPeriodStatus.OPEN);
+    verify(accountingComplianceAuditService)
+        .recordPeriodTransition(
+            eq(company),
+            any(AccountingPeriod.class),
+            eq("PERIOD_OPENED"),
+            eq(null),
+            eq("OPEN"),
+            contains("Period opened"));
+  }
+
+  @Test
+  void listPeriods_recordsOpenedAuditForEachAutoCreatedSurroundingPeriod() {
+    Company company = company(1L, "ACME");
+    LocalDate today = LocalDate.of(2026, 4, 9);
+    List<AccountingPeriod> persisted = new ArrayList<>();
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(companyClock.today(company)).thenReturn(today);
+    when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 4))
+        .thenReturn(Optional.empty());
+    when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
+        .thenReturn(Optional.empty());
+    when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 5))
+        .thenReturn(Optional.empty());
+    when(accountingPeriodRepository.save(any(AccountingPeriod.class)))
+        .thenAnswer(
+            invocation -> {
+              AccountingPeriod period = invocation.getArgument(0);
+              persisted.add(period);
+              return period;
+            });
+    when(accountingPeriodRepository.findByCompanyOrderByYearDescMonthDesc(company))
+        .thenAnswer(invocation -> persisted);
+    ReflectionTestUtils.setField(
+        service, "accountingComplianceAuditService", accountingComplianceAuditService);
+
+    assertThat(service.listPeriods()).hasSize(3);
+    verify(accountingComplianceAuditService, org.mockito.Mockito.times(3))
+        .recordPeriodTransition(
+            eq(company),
+            any(AccountingPeriod.class),
+            eq("PERIOD_OPENED"),
+            eq(null),
+            eq("OPEN"),
+            contains("Period opened"));
   }
 
   @Test

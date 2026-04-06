@@ -72,7 +72,8 @@ public class AccountingPeriodService {
             accountingPeriodRepository,
             companyContextService,
             accountingLookupService,
-            companyClock);
+            companyClock,
+            () -> accountingComplianceAuditService);
     this.correctionJournalClassifier = new AccountingPeriodCorrectionJournalClassifier();
     AccountingPeriodChecklistDiagnosticsService diagnosticsService =
         new AccountingPeriodChecklistDiagnosticsService(

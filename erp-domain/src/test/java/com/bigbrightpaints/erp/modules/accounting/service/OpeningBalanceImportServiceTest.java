@@ -153,7 +153,7 @@ class OpeningBalanceImportServiceTest {
   }
 
   @Test
-  void importOpeningBalances_unbalancedTotalsRecordedAsRowErrorWithoutJournalPosting() {
+  void importOpeningBalances_unbalancedTotalsRecordedPerRejectedRowWithoutJournalPosting() {
     Account cash = existingAccount(11L, "BANK-001", "Main Bank", AccountType.ASSET);
     Account debtors = existingAccount(12L, "AR-001", "Debtors", AccountType.ASSET);
     stubIdempotencyDefaults();
@@ -179,11 +179,56 @@ class OpeningBalanceImportServiceTest {
                     + "AR-001,Debtors,ASSET,0,100.00,Wrong side\n"));
 
     assertThat(response.successCount()).isZero();
-    assertThat(response.failureCount()).isEqualTo(1);
+    assertThat(response.failureCount()).isEqualTo(2);
     assertThat(response.rowsProcessed()).isZero();
+    assertThat(response.errors()).hasSize(2);
+    assertThat(response.errors())
+        .extracting(OpeningBalanceImportResponse.ImportError::rowNumber)
+        .containsExactlyInAnyOrder(1L, 2L);
     assertThat(response.errors())
         .extracting(OpeningBalanceImportResponse.ImportError::message)
         .anyMatch(message -> message.contains("Import totals are unbalanced"));
+    verify(accountingFacade, never()).createStandardJournal(any(JournalCreationRequest.class));
+  }
+
+  @Test
+  void importOpeningBalances_accountResolutionImbalanceRecordsResolvedRowsByNumber() {
+    Account cash = existingAccount(11L, "BANK-001", "Main Bank", AccountType.ASSET);
+    stubIdempotencyDefaults();
+    when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "BANK-001"))
+        .thenReturn(Optional.of(cash));
+    when(accountRepository.findByCompanyAndCodeIgnoreCase(company, "NEW-EQ-01"))
+        .thenReturn(Optional.empty());
+    when(accountRepository.save(any(Account.class)))
+        .thenThrow(new RuntimeException("account create failed"));
+
+    when(openingBalanceImportRepository.saveAndFlush(any(OpeningBalanceImport.class)))
+        .thenAnswer(
+            invocation -> {
+              OpeningBalanceImport importRecord = invocation.getArgument(0);
+              ReflectionTestUtils.setField(importRecord, "id", 1021L);
+              return importRecord;
+            });
+    when(openingBalanceImportRepository.save(any(OpeningBalanceImport.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    OpeningBalanceImportResponse response =
+        service.importOpeningBalances(
+            csvFile(
+                "BANK-001,Main Bank,ASSET,200.00,0,Opening cash\n"
+                    + "NEW-EQ-01,Opening Capital,EQUITY,0,200.00,Opening capital\n"));
+
+    assertThat(response.successCount()).isZero();
+    assertThat(response.failureCount()).isEqualTo(2);
+    assertThat(response.rowsProcessed()).isZero();
+    assertThat(response.errors()).hasSize(2);
+    assertThat(response.errors())
+        .extracting(OpeningBalanceImportResponse.ImportError::rowNumber)
+        .containsExactlyInAnyOrder(1L, 2L);
+    assertThat(response.errors())
+        .extracting(OpeningBalanceImportResponse.ImportError::message)
+        .anyMatch(message -> message.contains("account create failed"))
+        .anyMatch(message -> message.contains("became unbalanced during account resolution"));
     verify(accountingFacade, never()).createStandardJournal(any(JournalCreationRequest.class));
   }
 

@@ -144,10 +144,13 @@ class OpeningBalanceImportControllerSecurityIT extends AbstractIntegrationTest {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
-    assertThat(data).containsEntry("successCount", 0).containsEntry("failureCount", 1);
+    assertThat(data).containsEntry("successCount", 0).containsEntry("failureCount", 2);
     List<Map<String, Object>> errors = (List<Map<String, Object>>) data.get("errors");
-    assertThat(errors).hasSize(1);
-    assertThat(errors.getFirst()).containsEntry("rowNumber", 0).containsKey("message");
+    assertThat(errors).hasSize(2);
+    assertThat(errors)
+        .extracting(error -> ((Number) error.get("rowNumber")).longValue())
+        .containsExactlyInAnyOrder(1L, 2L);
+    assertThat(errors).allSatisfy(error -> assertThat(error).containsKey("message"));
   }
 
   private ResponseEntity<Map> importOpeningBalances(
