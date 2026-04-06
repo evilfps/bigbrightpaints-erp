@@ -376,14 +376,9 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
         .hasSize(movementIds.size());
     List<Long> repeatMovementIds = repeatMovements.stream().map(InventoryMovement::getId).toList();
     assertThat(repeatMovementIds).containsExactlyElementsOf(movementIds);
-    long arReferenceCount =
-        journalEntryRepository.findAll().stream()
-            .filter(entry -> entry.getCompany().getId().equals(company.getId()))
-            .filter(entry -> arReference.equals(entry.getReferenceNumber()))
-            .count();
-    assertThat(arReferenceCount)
+    assertThat(journalEntryRepository.findByCompanyAndReferenceNumber(company, arReference))
         .as("AR journal reference should be unique for dispatch")
-        .isEqualTo(1);
+        .isPresent();
 
     Map<String, Object> allocation =
         Map.of("invoiceId", invoiceId, "appliedAmount", invoice.getTotalAmount());

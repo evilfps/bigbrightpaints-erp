@@ -59,6 +59,9 @@ public interface JournalEntryRepository
   List<JournalEntry> findByCompanyAndReversalOfAndCorrectionReasonIgnoreCase(
       Company company, JournalEntry reversalOf, String correctionReason);
 
+  @EntityGraph(attributePaths = {"lines", "lines.account"})
+  List<JournalEntry> findByCompanyAndReversalOf(Company company, JournalEntry reversalOf);
+
   // Find all related entries for cascade reversal (e.g., INV-001 finds INV-001-COGS, INV-001-TAX)
   List<JournalEntry> findByCompanyAndReferenceNumberStartingWith(
       Company company, String referencePrefix);
@@ -73,10 +76,6 @@ public interface JournalEntryRepository
   @EntityGraph(attributePaths = {"lines", "lines.account"})
   List<JournalEntry> findByCompanyAndEntryDateAfterOrderByEntryDateAsc(
       Company company, LocalDate end);
-
-  @EntityGraph(attributePaths = {"lines"})
-  List<JournalEntry> findAll();
-
   @Query("select je.company.id from JournalEntry je where je.id = :id")
   Optional<Long> findCompanyIdById(@Param("id") Long id);
 }

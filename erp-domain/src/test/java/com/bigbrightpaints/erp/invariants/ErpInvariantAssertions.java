@@ -201,9 +201,7 @@ public class ErpInvariantAssertions {
             .orElseThrow(
                 () -> new AssertionError("Original journal entry missing: " + originalEntryId));
     Optional<JournalEntry> reversal =
-        journalEntryRepository.findAll().stream()
-            .filter(entry -> entry.getReversalOf() != null)
-            .filter(entry -> originalEntryId.equals(entry.getReversalOf().getId()))
+        journalEntryRepository.findByCompanyAndReversalOf(original.getCompany(), original).stream()
             .findFirst();
     JournalEntry reversalEntry =
         reversal.orElseThrow(

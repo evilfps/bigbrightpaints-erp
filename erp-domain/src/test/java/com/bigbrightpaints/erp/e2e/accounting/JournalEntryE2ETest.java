@@ -366,7 +366,7 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
     assertThat(journalEntryRepository.findByCompanyAndId(company, id1)).isPresent();
 
     long memoCount =
-        journalEntryRepository.findAll().stream()
+        journalEntryRepository.findByCompanyOrderByEntryDateDesc(company).stream()
             .filter(entry -> memo.equals(entry.getMemo()))
             .count();
     assertThat(memoCount).isEqualTo(1);
@@ -616,13 +616,8 @@ public class JournalEntryE2ETest extends AbstractIntegrationTest {
     assertThat(relatedEntry.getStatus()).isEqualTo(JournalEntryStatus.REVERSED);
 
     long reversalCount =
-        journalEntryRepository.findAll().stream()
-            .filter(entry -> entry.getReversalOf() != null)
-            .filter(
-                entry ->
-                    entry.getReversalOf().getId().equals(baseEntryId)
-                        || entry.getReversalOf().getId().equals(relatedEntryId))
-            .count();
+        journalEntryRepository.findByCompanyAndReversalOf(company, baseEntry).size()
+            + journalEntryRepository.findByCompanyAndReversalOf(company, relatedEntry).size();
     assertThat(reversalCount).isEqualTo(2);
   }
 
