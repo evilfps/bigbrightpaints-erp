@@ -6,11 +6,13 @@ import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -26,6 +28,9 @@ import com.bigbrightpaints.erp.modules.purchasing.dto.SupplierImportResponse;
 import com.bigbrightpaints.erp.modules.purchasing.dto.SupplierImportResponse.ImportError;
 import com.bigbrightpaints.erp.modules.purchasing.dto.SupplierRequest;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
+
 @Service
 public class SupplierImportService {
 
@@ -33,9 +38,11 @@ public class SupplierImportService {
       Set.of("name", "email", "creditlimit", "paymentterms");
 
   private final SupplierService supplierService;
+  private final Validator validator;
 
-  public SupplierImportService(SupplierService supplierService) {
+  public SupplierImportService(SupplierService supplierService, Validator validator) {
     this.supplierService = supplierService;
+    this.validator = validator;
   }
 
   public SupplierImportResponse importSuppliers(MultipartFile file) {
@@ -66,6 +73,7 @@ public class SupplierImportService {
           if (request == null) {
             continue;
           }
+          validateRequest(request);
           supplierService.createSupplier(request);
           successCount++;
         } catch (RuntimeException ex) {
@@ -104,6 +112,8 @@ public class SupplierImportService {
     String address = readValue(values, "address");
     String creditLimitValue = readValue(values, "creditlimit");
     String paymentTermsValue = readValue(values, "paymentterms");
+    String gstNumber = readValue(values, "gstnumber", "gst", "gstin");
+    String stateCode = readValue(values, "statecode", "state");
 
     if (!StringUtils.hasText(name)
         && !StringUtils.hasText(code)
@@ -111,7 +121,9 @@ public class SupplierImportService {
         && !StringUtils.hasText(phone)
         && !StringUtils.hasText(address)
         && !StringUtils.hasText(creditLimitValue)
-        && !StringUtils.hasText(paymentTermsValue)) {
+        && !StringUtils.hasText(paymentTermsValue)
+        && !StringUtils.hasText(gstNumber)
+        && !StringUtils.hasText(stateCode)) {
       return null;
     }
 
@@ -129,14 +141,28 @@ public class SupplierImportService {
         StringUtils.hasText(phone) ? phone.trim() : null,
         StringUtils.hasText(address) ? address.trim() : null,
         creditLimit,
-        null,
-        null,
+        StringUtils.hasText(gstNumber) ? gstNumber.trim() : null,
+        StringUtils.hasText(stateCode) ? stateCode.trim() : null,
         null,
         paymentTerms,
         null,
         null,
         null,
         null);
+  }
+
+  private void validateRequest(SupplierRequest request) {
+    Set<ConstraintViolation<SupplierRequest>> violations = validator.validate(request);
+    if (!violations.isEmpty()) {
+      throw ValidationUtils.invalidInput(formatViolations(violations));
+    }
+  }
+
+  private String formatViolations(Set<ConstraintViolation<SupplierRequest>> violations) {
+    return violations.stream()
+        .sorted(Comparator.comparing(violation -> violation.getPropertyPath().toString()))
+        .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
+        .collect(Collectors.joining("; "));
   }
 
   private BigDecimal parseDecimal(String value, String fieldName) {

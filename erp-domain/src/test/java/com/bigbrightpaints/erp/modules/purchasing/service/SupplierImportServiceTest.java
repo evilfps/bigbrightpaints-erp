@@ -20,11 +20,16 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.purchasing.dto.SupplierImportResponse;
 import com.bigbrightpaints.erp.modules.purchasing.dto.SupplierRequest;
 
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+
 @Tag("critical")
 class SupplierImportServiceTest {
 
   private final SupplierService supplierService = mock(SupplierService.class);
-  private final SupplierImportService service = new SupplierImportService(supplierService);
+  private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+  private final SupplierImportService service =
+      new SupplierImportService(supplierService, validator);
 
   @Test
   void importSuppliers_returnsRowLevelErrorForInvalidPaymentTerms() {
@@ -42,6 +47,27 @@ class SupplierImportServiceTest {
     assertThat(response.errors().getFirst().rowNumber()).isEqualTo(2L);
     assertThat(response.errors().getFirst().message())
         .contains("paymentTerms must be one of NET_30, NET_60, NET_90");
+    verify(supplierService, times(1)).createSupplier(any(SupplierRequest.class));
+  }
+
+  @Test
+  void importSuppliers_returnsRowLevelErrorForBeanValidationViolations() {
+    MockMultipartFile file =
+        csvFile(
+            "name,email,creditLimit,paymentTerms,code,gstNumber,stateCode\n"
+                + "Supplier One,one@example.com,1000,NET_30,SUP-001,27ABCDE1234F1Z5,KA\n"
+                + "Supplier Two,invalid-email,1200,NET_30,SUP-002,INVALID,123\n");
+
+    SupplierImportResponse response = service.importSuppliers(file);
+
+    assertThat(response.successCount()).isEqualTo(1);
+    assertThat(response.failureCount()).isEqualTo(1);
+    assertThat(response.errors()).hasSize(1);
+    assertThat(response.errors().getFirst().rowNumber()).isEqualTo(2L);
+    assertThat(response.errors().getFirst().message())
+        .contains("contactEmail: must be a well-formed email address")
+        .contains("gstNumber: GST number must be a valid 15-character GSTIN")
+        .contains("stateCode: State code must be exactly 2 characters");
     verify(supplierService, times(1)).createSupplier(any(SupplierRequest.class));
   }
 

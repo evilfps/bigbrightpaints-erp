@@ -67,11 +67,11 @@ class OnboardingPartnerImportIT extends AbstractIntegrationTest {
         postCsvImport(
             "/api/v1/dealers/import",
             "dealers.csv",
-            "name,email,creditLimit,region,paymentTerms\n"
+            "name,email,creditLimit,region,paymentTerms,gstNumber,stateCode\n"
                 + "Dealer One,"
                 + dealerEmail
-                + ",10000,NORTH,NET_30\n"
-                + "Dealer Broken,broken@example.com,2000,SOUTH,NET_15\n");
+                + ",10000,NORTH,NET_30,27ABCDE1234F1Z5,KA\n"
+                + "Dealer Broken,broken-at-example.com,2000,SOUTH,NET_30,INVALID,123\n");
 
     assertThat(dealerImportResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     @SuppressWarnings("unchecked")
@@ -83,21 +83,26 @@ class OnboardingPartnerImportIT extends AbstractIntegrationTest {
     assertThat(dealerErrors).hasSize(1);
     assertThat(((Number) dealerErrors.getFirst().get("rowNumber")).longValue()).isEqualTo(2L);
     assertThat(String.valueOf(dealerErrors.getFirst().get("message")))
-        .contains("paymentTerms must be one of NET_30, NET_60, NET_90");
+        .contains("contactEmail: Provide a valid contact email")
+        .contains("gstNumber: GST number must be a valid 15-character GSTIN")
+        .contains("stateCode: State code must be exactly 2 characters");
     assertThat(dealerRepository.findByCompanyAndEmailIgnoreCase(company, dealerEmail)).isPresent();
+    assertThat(
+            dealerRepository.findByCompanyAndEmailIgnoreCase(company, "broken-at-example.com"))
+        .isNotPresent();
 
     String supplierCode = "SUP-" + shortId();
     ResponseEntity<Map> supplierImportResponse =
         postCsvImport(
             "/api/v1/suppliers/import",
             "suppliers.csv",
-            "name,email,creditLimit,paymentTerms,code\n"
+            "name,email,creditLimit,paymentTerms,code,gstNumber,stateCode\n"
                 + "Supplier One,supplier-"
                 + shortId()
                 + "@example.com,5000,NET_30,"
                 + supplierCode
-                + "\n"
-                + "Supplier Broken,supplier-broken@example.com,3000,NET_45,SUP-BROKEN\n");
+                + ",27ABCDE1234F1Z5,KA\n"
+                + "Supplier Broken,invalid-email,3000,NET_30,SUP-BROKEN,INVALID,123\n");
 
     assertThat(supplierImportResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     @SuppressWarnings("unchecked")
@@ -111,8 +116,12 @@ class OnboardingPartnerImportIT extends AbstractIntegrationTest {
     assertThat(supplierErrors).hasSize(1);
     assertThat(((Number) supplierErrors.getFirst().get("rowNumber")).longValue()).isEqualTo(2L);
     assertThat(String.valueOf(supplierErrors.getFirst().get("message")))
-        .contains("paymentTerms must be one of NET_30, NET_60, NET_90");
+        .contains("contactEmail: must be a well-formed email address")
+        .contains("gstNumber: GST number must be a valid 15-character GSTIN")
+        .contains("stateCode: State code must be exactly 2 characters");
     assertThat(supplierRepository.findByCompanyAndCodeIgnoreCase(company, supplierCode)).isPresent();
+    assertThat(supplierRepository.findByCompanyAndCodeIgnoreCase(company, "SUP-BROKEN"))
+        .isNotPresent();
 
     String catalogProductName = "OnboardPaint" + shortId();
     ResponseEntity<Map> catalogImportResponse =

@@ -6,11 +6,13 @@ import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -26,6 +28,9 @@ import com.bigbrightpaints.erp.modules.sales.dto.CreateDealerRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerImportResponse;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerImportResponse.ImportError;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
+
 @Service
 public class DealerImportService {
 
@@ -33,9 +38,11 @@ public class DealerImportService {
       Set.of("name", "email", "creditlimit", "region", "paymentterms");
 
   private final DealerService dealerService;
+  private final Validator validator;
 
-  public DealerImportService(DealerService dealerService) {
+  public DealerImportService(DealerService dealerService, Validator validator) {
     this.dealerService = dealerService;
+    this.validator = validator;
   }
 
   public DealerImportResponse importDealers(MultipartFile file) {
@@ -66,6 +73,7 @@ public class DealerImportService {
           if (request == null) {
             continue;
           }
+          validateRequest(request);
           dealerService.createDealer(request);
           successCount++;
         } catch (RuntimeException ex) {
@@ -105,6 +113,8 @@ public class DealerImportService {
     String companyName = readValue(values, "companyname");
     String contactPhone = readValue(values, "contactphone", "phone", "mobile");
     String address = readValue(values, "address");
+    String gstNumber = readValue(values, "gstnumber", "gst", "gstin");
+    String stateCode = readValue(values, "statecode", "state");
 
     if (!StringUtils.hasText(name)
         && !StringUtils.hasText(email)
@@ -113,7 +123,9 @@ public class DealerImportService {
         && !StringUtils.hasText(paymentTermsValue)
         && !StringUtils.hasText(companyName)
         && !StringUtils.hasText(contactPhone)
-        && !StringUtils.hasText(address)) {
+        && !StringUtils.hasText(address)
+        && !StringUtils.hasText(gstNumber)
+        && !StringUtils.hasText(stateCode)) {
       return null;
     }
 
@@ -137,11 +149,25 @@ public class DealerImportService {
         resolvedContactPhone,
         StringUtils.hasText(address) ? address.trim() : null,
         creditLimit,
-        null,
-        null,
+        StringUtils.hasText(gstNumber) ? gstNumber.trim() : null,
+        StringUtils.hasText(stateCode) ? stateCode.trim() : null,
         null,
         paymentTerms,
         StringUtils.hasText(region) ? region.trim() : null);
+  }
+
+  private void validateRequest(CreateDealerRequest request) {
+    Set<ConstraintViolation<CreateDealerRequest>> violations = validator.validate(request);
+    if (!violations.isEmpty()) {
+      throw ValidationUtils.invalidInput(formatViolations(violations));
+    }
+  }
+
+  private String formatViolations(Set<ConstraintViolation<CreateDealerRequest>> violations) {
+    return violations.stream()
+        .sorted(Comparator.comparing(violation -> violation.getPropertyPath().toString()))
+        .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
+        .collect(Collectors.joining("; "));
   }
 
   private BigDecimal parseDecimal(String value, String fieldName) {

@@ -20,11 +20,15 @@ import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.sales.dto.CreateDealerRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerImportResponse;
 
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+
 @Tag("critical")
 class DealerImportServiceTest {
 
   private final DealerService dealerService = mock(DealerService.class);
-  private final DealerImportService service = new DealerImportService(dealerService);
+  private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+  private final DealerImportService service = new DealerImportService(dealerService, validator);
 
   @Test
   void importDealers_returnsRowLevelErrorForInvalidPaymentTerms() {
@@ -42,6 +46,27 @@ class DealerImportServiceTest {
     assertThat(response.errors().getFirst().rowNumber()).isEqualTo(2L);
     assertThat(response.errors().getFirst().message())
         .contains("paymentTerms must be one of NET_30, NET_60, NET_90");
+    verify(dealerService, times(1)).createDealer(any(CreateDealerRequest.class));
+  }
+
+  @Test
+  void importDealers_returnsRowLevelErrorForBeanValidationViolations() {
+    MockMultipartFile file =
+        csvFile(
+            "name,email,creditLimit,region,paymentTerms,gstNumber,stateCode\n"
+                + "Dealer One,one@example.com,1000,NORTH,NET_30,27ABCDE1234F1Z5,KA\n"
+                + "Dealer Two,invalid-email,2500,SOUTH,NET_30,INVALID,123\n");
+
+    DealerImportResponse response = service.importDealers(file);
+
+    assertThat(response.successCount()).isEqualTo(1);
+    assertThat(response.failureCount()).isEqualTo(1);
+    assertThat(response.errors()).hasSize(1);
+    assertThat(response.errors().getFirst().rowNumber()).isEqualTo(2L);
+    assertThat(response.errors().getFirst().message())
+        .contains("contactEmail: Provide a valid contact email")
+        .contains("gstNumber: GST number must be a valid 15-character GSTIN")
+        .contains("stateCode: State code must be exactly 2 characters");
     verify(dealerService, times(1)).createDealer(any(CreateDealerRequest.class));
   }
 
