@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -113,6 +114,7 @@ public interface FinishedGoodBatchRepository extends JpaRepository<FinishedGoodB
   java.util.Optional<FinishedGoodBatch> lockByCompanyAndId(
       @Param("company") Company company, @Param("id") Long id);
 
+  @EntityGraph(attributePaths = "finishedGood")
   java.util.Optional<FinishedGoodBatch> findByFinishedGood_CompanyAndId(Company company, Long id);
 
   // Used to ensure idempotency when creating batches (e.g. Tally sync, fixture seeding)

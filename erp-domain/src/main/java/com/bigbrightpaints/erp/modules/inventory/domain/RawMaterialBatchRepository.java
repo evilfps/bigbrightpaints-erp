@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -18,6 +19,7 @@ import jakarta.persistence.LockModeType;
 public interface RawMaterialBatchRepository extends JpaRepository<RawMaterialBatch, Long> {
   List<RawMaterialBatch> findByRawMaterial(RawMaterial rawMaterial);
 
+  @EntityGraph(attributePaths = "rawMaterial")
   java.util.Optional<RawMaterialBatch> findByRawMaterial_CompanyAndId(Company company, Long id);
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)
