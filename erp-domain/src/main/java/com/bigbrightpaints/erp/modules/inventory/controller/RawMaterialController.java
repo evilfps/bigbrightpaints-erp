@@ -11,7 +11,11 @@ import org.springframework.web.bind.annotation.*;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.util.IdempotencyHeaderUtils;
-import com.bigbrightpaints.erp.modules.inventory.dto.*;
+import com.bigbrightpaints.erp.modules.inventory.dto.InventoryExpiringBatchDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.InventoryStockSnapshot;
+import com.bigbrightpaints.erp.modules.inventory.dto.RawMaterialAdjustmentDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.RawMaterialAdjustmentRequest;
+import com.bigbrightpaints.erp.modules.inventory.dto.RawMaterialStockEntryDto;
 import com.bigbrightpaints.erp.modules.inventory.service.InventoryBatchQueryService;
 import com.bigbrightpaints.erp.modules.inventory.service.RawMaterialService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
@@ -42,8 +46,8 @@ public class RawMaterialController {
   }
 
   @GetMapping("/raw-materials/stock")
-  public ResponseEntity<ApiResponse<StockSummaryDto>> stockSummary() {
-    return ResponseEntity.ok(ApiResponse.success(rawMaterialService.summarizeStock()));
+  public ResponseEntity<ApiResponse<List<RawMaterialStockEntryDto>>> stock() {
+    return ResponseEntity.ok(ApiResponse.success(rawMaterialService.listStockEntries()));
   }
 
   @GetMapping("/raw-materials/stock/inventory")

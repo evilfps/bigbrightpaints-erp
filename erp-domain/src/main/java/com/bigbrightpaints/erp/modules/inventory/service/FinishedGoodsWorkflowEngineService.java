@@ -17,12 +17,13 @@ import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationResponse;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchPreviewDto;
-import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchInventoryDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodLowStockThresholdDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodStockSummaryDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
-import com.bigbrightpaints.erp.modules.inventory.dto.StockSummaryDto;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
+import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 import jakarta.transaction.Transactional;
 
@@ -51,6 +52,19 @@ class FinishedGoodsWorkflowEngineService {
     this.reservationEngine = reservationEngine;
     this.dispatchEngine = dispatchEngine;
     this.packagingSlipService = packagingSlipService;
+  }
+
+  public PageResponse<FinishedGoodDto> listFinishedGoods(int page, int size) {
+    Company company = companyContextService.requireCurrentCompany();
+    List<FinishedGoodDto> allGoods =
+        finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company).stream()
+            .map(this::toDto)
+            .toList();
+    int safePage = Math.max(page, 0);
+    int safeSize = Math.max(size, 1);
+    int start = Math.min(safePage * safeSize, allGoods.size());
+    int end = Math.min(start + safeSize, allGoods.size());
+    return PageResponse.of(allGoods.subList(start, end), allGoods.size(), safePage, safeSize);
   }
 
   public List<FinishedGoodDto> listFinishedGoods() {
@@ -86,7 +100,7 @@ class FinishedGoodsWorkflowEngineService {
     return inventoryValuationService.currentWeightedAverageCost(fg);
   }
 
-  public List<FinishedGoodBatchDto> listBatchesForFinishedGood(Long finishedGoodId) {
+  public List<FinishedGoodBatchInventoryDto> listBatchesForFinishedGood(Long finishedGoodId) {
     Company company = companyContextService.requireCurrentCompany();
     FinishedGood fg =
         finishedGoodRepository
@@ -96,18 +110,17 @@ class FinishedGoodsWorkflowEngineService {
                     com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                         "Finished good not found"));
     return finishedGoodBatchRepository.findByFinishedGoodOrderByManufacturedAtAsc(fg).stream()
-        .map(this::toBatchDto)
+        .map(this::toBatchInventoryDto)
         .toList();
   }
 
-  public List<StockSummaryDto> getStockSummary() {
+  public List<FinishedGoodStockSummaryDto> getStockSummary() {
     Company company = companyContextService.requireCurrentCompany();
     return finishedGoodRepository.findByCompanyOrderByProductCodeAsc(company).stream()
         .map(
             fg ->
-                new StockSummaryDto(
+                new FinishedGoodStockSummaryDto(
                     fg.getId(),
-                    fg.getPublicId(),
                     fg.getProductCode(),
                     fg.getName(),
                     inventoryValuationService.safeQuantity(fg.getCurrentStock()),
@@ -115,11 +128,7 @@ class FinishedGoodsWorkflowEngineService {
                     inventoryValuationService
                         .safeQuantity(fg.getCurrentStock())
                         .subtract(inventoryValuationService.safeQuantity(fg.getReservedStock())),
-                    inventoryValuationService.stockSummaryUnitCost(fg),
-                    null,
-                    null,
-                    null,
-                    null))
+                    inventoryValuationService.stockSummaryUnitCost(fg)))
         .toList();
   }
 
@@ -282,15 +291,8 @@ class FinishedGoodsWorkflowEngineService {
         finishedGood.getTaxAccountId());
   }
 
-  private FinishedGoodBatchDto toBatchDto(FinishedGoodBatch batch) {
-    return new FinishedGoodBatchDto(
-        batch.getId(),
-        batch.getPublicId(),
-        batch.getBatchCode(),
-        batch.getQuantityTotal(),
-        batch.getQuantityAvailable(),
-        batch.getUnitCost(),
-        batch.getManufacturedAt(),
-        batch.getExpiryDate());
+  private FinishedGoodBatchInventoryDto toBatchInventoryDto(FinishedGoodBatch batch) {
+    return new FinishedGoodBatchInventoryDto(
+        batch.getId(), batch.getBatchCode(), batch.getQuantityAvailable(), batch.getExpiryDate());
   }
 }

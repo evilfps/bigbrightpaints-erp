@@ -11,12 +11,13 @@ import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationRequest;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchConfirmationResponse;
 import com.bigbrightpaints.erp.modules.inventory.dto.DispatchPreviewDto;
-import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchInventoryDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodLowStockThresholdDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodStockSummaryDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.PackagingSlipDto;
-import com.bigbrightpaints.erp.modules.inventory.dto.StockSummaryDto;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
+import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 @Service
 public class FinishedGoodsService {
@@ -39,6 +40,10 @@ public class FinishedGoodsService {
     this.workflowEngine = workflowEngine;
   }
 
+  public PageResponse<FinishedGoodDto> listFinishedGoods(int page, int size) {
+    return workflowEngine.listFinishedGoods(page, size);
+  }
+
   public List<FinishedGoodDto> listFinishedGoods() {
     return workflowEngine.listFinishedGoods();
   }
@@ -55,11 +60,11 @@ public class FinishedGoodsService {
     return workflowEngine.currentWeightedAverageCost(fg);
   }
 
-  public List<FinishedGoodBatchDto> listBatchesForFinishedGood(Long finishedGoodId) {
+  public List<FinishedGoodBatchInventoryDto> listBatchesForFinishedGood(Long finishedGoodId) {
     return workflowEngine.listBatchesForFinishedGood(finishedGoodId);
   }
 
-  public List<StockSummaryDto> getStockSummary() {
+  public List<FinishedGoodStockSummaryDto> getStockSummary() {
     return workflowEngine.getStockSummary();
   }
 

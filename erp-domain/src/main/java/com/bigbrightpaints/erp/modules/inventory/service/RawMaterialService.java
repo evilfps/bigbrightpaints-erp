@@ -228,6 +228,19 @@ public class RawMaterialService {
         null, null, null, null, null, null, null, null, total, lowStock, criticalStock, batches);
   }
 
+  public List<RawMaterialStockEntryDto> listStockEntries() {
+    Company company = companyContextService.requireCurrentCompany();
+    return rawMaterialRepository.findByCompanyOrderByNameAsc(company).stream()
+        .map(
+            material ->
+                new RawMaterialStockEntryDto(
+                    material.getId(),
+                    material.getSku(),
+                    material.getName(),
+                    safeQuantity(material.getCurrentStock())))
+        .toList();
+  }
+
   public List<InventoryStockSnapshot> listInventory() {
     Company company = companyContextService.requireCurrentCompany();
     return rawMaterialRepository.findByCompanyOrderByNameAsc(company).stream()
@@ -726,11 +739,18 @@ public class RawMaterialService {
 
   private InventoryStockSnapshot toSnapshot(RawMaterial material) {
     return new InventoryStockSnapshot(
+        material.getId(),
         material.getName(),
         material.getSku(),
-        material.getCurrentStock(),
-        material.getReorderLevel(),
+        safeQuantity(material.getCurrentStock()),
+        safeQuantity(material.getReorderLevel()),
+        safeQuantity(material.getMinStock()),
+        safeQuantity(material.getMaxStock()),
         stockStatus(material));
+  }
+
+  private BigDecimal safeQuantity(BigDecimal quantity) {
+    return quantity == null ? BigDecimal.ZERO : quantity;
   }
 
   private String stockStatus(RawMaterial material) {

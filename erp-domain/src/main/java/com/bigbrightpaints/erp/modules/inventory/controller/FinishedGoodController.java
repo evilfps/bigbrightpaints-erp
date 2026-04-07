@@ -6,9 +6,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import com.bigbrightpaints.erp.modules.inventory.dto.*;
+import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodBatchInventoryDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodLowStockThresholdDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodLowStockThresholdRequest;
+import com.bigbrightpaints.erp.modules.inventory.dto.FinishedGoodStockSummaryDto;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
+import com.bigbrightpaints.erp.shared.dto.PageResponse;
 
 import jakarta.validation.Valid;
 
@@ -27,8 +32,9 @@ public class FinishedGoodController {
 
   @GetMapping
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES','ROLE_ACCOUNTING')")
-  public ResponseEntity<ApiResponse<List<FinishedGoodDto>>> listFinishedGoods() {
-    List<FinishedGoodDto> goods = finishedGoodsService.listFinishedGoods();
+  public ResponseEntity<ApiResponse<PageResponse<FinishedGoodDto>>> listFinishedGoods(
+      @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+    PageResponse<FinishedGoodDto> goods = finishedGoodsService.listFinishedGoods(page, size);
     return ResponseEntity.ok(ApiResponse.success("Finished goods inventory", goods));
   }
 
@@ -40,22 +46,22 @@ public class FinishedGoodController {
   }
 
   @GetMapping("/{id}/batches")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES')")
-  public ResponseEntity<ApiResponse<List<FinishedGoodBatchDto>>> listBatches(
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES','ROLE_ACCOUNTING')")
+  public ResponseEntity<ApiResponse<List<FinishedGoodBatchInventoryDto>>> listBatches(
       @PathVariable Long id) {
-    List<FinishedGoodBatchDto> batches = finishedGoodsService.listBatchesForFinishedGood(id);
+    List<FinishedGoodBatchInventoryDto> batches = finishedGoodsService.listBatchesForFinishedGood(id);
     return ResponseEntity.ok(ApiResponse.success("Finished good batches", batches));
   }
 
   @GetMapping("/stock-summary")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES','ROLE_ACCOUNTING')")
-  public ResponseEntity<ApiResponse<List<StockSummaryDto>>> getStockSummary() {
-    List<StockSummaryDto> summary = finishedGoodsService.getStockSummary();
+  public ResponseEntity<ApiResponse<List<FinishedGoodStockSummaryDto>>> getStockSummary() {
+    List<FinishedGoodStockSummaryDto> summary = finishedGoodsService.getStockSummary();
     return ResponseEntity.ok(ApiResponse.success("Stock summary", summary));
   }
 
   @GetMapping("/low-stock")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES')")
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<List<FinishedGoodDto>>> getLowStockItems(
       @RequestParam(required = false) Integer threshold) {
     List<FinishedGoodDto> lowStock = finishedGoodsService.getLowStockItems(threshold);

@@ -22,7 +22,7 @@ import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryExpiringBatchDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.RawMaterialAdjustmentRequest;
-import com.bigbrightpaints.erp.modules.inventory.dto.StockSummaryDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.RawMaterialStockEntryDto;
 import com.bigbrightpaints.erp.modules.inventory.service.InventoryBatchQueryService;
 import com.bigbrightpaints.erp.modules.inventory.service.RawMaterialService;
 
@@ -121,27 +121,17 @@ class RawMaterialControllerTest {
   }
 
   @Test
-  void stockSummary_delegatesToRawMaterialService() {
+  void stock_delegatesToRawMaterialService() {
     RawMaterialController controller = controller();
-    StockSummaryDto summary =
-        new StockSummaryDto(
-            11L,
-            UUID.randomUUID(),
-            "RM-SUMMARY",
-            "Summary",
-            new BigDecimal("12.00"),
-            BigDecimal.ONE,
-            new BigDecimal("11.00"),
-            new BigDecimal("120.00"),
-            10L,
-            2L,
-            1L,
-            5L);
-    when(rawMaterialService.summarizeStock()).thenReturn(summary);
+    List<RawMaterialStockEntryDto> stockEntries =
+        List.of(
+            new RawMaterialStockEntryDto(
+                11L, "RM-SUMMARY", "Summary", new BigDecimal("12.00")));
+    when(rawMaterialService.listStockEntries()).thenReturn(stockEntries);
 
-    assertThat(controller.stockSummary().getBody()).isNotNull();
+    assertThat(controller.stock().getBody()).isNotNull();
 
-    verify(rawMaterialService).summarizeStock();
+    verify(rawMaterialService).listStockEntries();
   }
 
   @Test
