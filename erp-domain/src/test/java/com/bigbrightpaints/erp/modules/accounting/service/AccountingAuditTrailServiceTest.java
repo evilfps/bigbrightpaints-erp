@@ -900,7 +900,7 @@ class AccountingAuditTrailServiceTest {
     when(accountingEventRepository.findByJournalEntryIdOrderByEventTimestampAsc(195L))
         .thenReturn(List.of());
 
-    for (String historicalStatus : List.of("DRAFT", "VOID", "REVERSED")) {
+    for (String historicalStatus : List.of("DRAFT", "VOID", "REVERSED", "WRITTEN_OFF")) {
       Invoice historicalInvoice = new Invoice();
       historicalInvoice.setCompany(company);
       historicalInvoice.setSalesOrder(order);
@@ -928,7 +928,7 @@ class AccountingAuditTrailServiceTest {
     when(invoiceRepository.findAllByCompanyAndSalesOrderId(currentCompany, 901L)).thenReturn(null);
 
     Invoice historicalInvoice = new Invoice();
-    historicalInvoice.setStatus("VOID");
+    historicalInvoice.setStatus("WRITTEN_OFF");
     SalesOrder historicalOrder = new SalesOrder();
     setField(historicalOrder, "id", 902L);
     historicalInvoice.setSalesOrder(historicalOrder);
@@ -964,7 +964,7 @@ class AccountingAuditTrailServiceTest {
     Invoice historicalPeer = new Invoice();
     historicalPeer.setCompany(company);
     historicalPeer.setSalesOrder(order);
-    historicalPeer.setStatus("VOID");
+    historicalPeer.setStatus("WRITTEN_OFF");
 
     when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, 903L))
         .thenReturn(List.of(invoice, currentPeer, historicalPeer));

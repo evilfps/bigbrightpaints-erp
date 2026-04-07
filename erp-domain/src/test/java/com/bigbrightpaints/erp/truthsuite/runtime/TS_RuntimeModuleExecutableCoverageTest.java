@@ -223,7 +223,7 @@ class TS_RuntimeModuleExecutableCoverageTest {
             ApplicationException.class,
             ex -> {
               assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_STATE);
-              assertThat(ex.getMessage()).contains("Cannot pay a void invoice");
+              assertThat(ex.getMessage()).contains("Cannot pay a void or written-off invoice");
             });
 
     Invoice bad = new Invoice();

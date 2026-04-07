@@ -234,6 +234,49 @@ class CreditDebitNoteIT extends AbstractIntegrationTest {
     assertThat(data.get("status")).isEqualTo("PAID");
   }
 
+  @Test
+  @DisplayName("Bad debt write-off exposes distinct WRITTEN_OFF invoice status")
+  void badDebtWriteOff_marksInvoiceWrittenOffInReads() {
+    Invoice invoice = createDispatchedInvoice(new BigDecimal("1"), new BigDecimal("220.00"));
+    String writeOffRef = "BDE-" + invoice.getInvoiceNumber();
+    Map<String, Object> writeOffReq =
+        Map.of(
+            "invoiceId",
+            invoice.getId(),
+            "expenseAccountId",
+            discount.getId(),
+            "amount",
+            new BigDecimal("220.00"),
+            "referenceNumber",
+            writeOffRef,
+            "memo",
+            "Write off uncollectible invoice");
+
+    ResponseEntity<Map> writeOffResp =
+        rest.exchange(
+            "/api/v1/accounting/bad-debts/write-off",
+            HttpMethod.POST,
+            new HttpEntity<>(writeOffReq, headers),
+            Map.class);
+    assertThat(writeOffResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    Invoice refreshed = invoiceRepository.findById(invoice.getId()).orElseThrow();
+    assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(refreshed.getStatus()).isEqualTo("WRITTEN_OFF");
+
+    ResponseEntity<Map> invoiceResp =
+        rest.exchange(
+            "/api/v1/invoices/" + invoice.getId(),
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(invoiceResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> data = (Map<?, ?>) invoiceResp.getBody().get("data");
+    assertThat(data.get("status")).isEqualTo("WRITTEN_OFF");
+    assertThat(new BigDecimal(data.get("outstandingAmount").toString()))
+        .isEqualByComparingTo(BigDecimal.ZERO);
+  }
+
   private Invoice createDispatchedInvoice(BigDecimal quantity, BigDecimal unitPrice) {
     return createDispatchedInvoice(quantity, unitPrice, BigDecimal.ZERO, "NONE");
   }

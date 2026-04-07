@@ -331,6 +331,40 @@ class SettlementOutcomeService {
     dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
   }
 
+  void applyBadDebtWriteOffToInvoice(
+      Invoice invoice, BigDecimal writeOffAmount, String reference, LocalDate entryDate) {
+    if (invoice == null) {
+      return;
+    }
+    BigDecimal amount = MoneyUtils.zeroIfNull(writeOffAmount);
+    if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+      return;
+    }
+    if (!StringUtils.hasText(reference)) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_INPUT, "Bad debt write-off reference is required");
+    }
+    if (invoice.getPaymentReferences().contains(reference)) {
+      invoiceSettlementPolicy.markWrittenOff(invoice);
+      dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
+      return;
+    }
+    BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
+    if (amount.subtract(currentOutstanding).compareTo(ALLOCATION_TOLERANCE) > 0) {
+      throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT,
+              "Bad debt write-off exceeds remaining invoice outstanding amount")
+          .withDetail("invoiceId", invoice.getId())
+          .withDetail("outstandingAmount", currentOutstanding)
+          .withDetail("requested", amount);
+    }
+    BigDecimal newOutstanding = currentOutstanding.subtract(amount);
+    invoice.setOutstandingAmount(newOutstanding);
+    invoice.addPaymentReference(reference);
+    invoiceSettlementPolicy.markWrittenOff(invoice);
+    dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
+  }
+
   void applyDebitNoteToPurchase(
       RawMaterialPurchase purchase, BigDecimal debitAmount, BigDecimal totalDebited) {
     if (purchase == null) {

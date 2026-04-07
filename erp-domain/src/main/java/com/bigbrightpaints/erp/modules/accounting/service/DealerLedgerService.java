@@ -203,6 +203,9 @@ public class DealerLedgerService extends AbstractPartnerLedgerService<Dealer, De
       if ("REVERSED".equalsIgnoreCase(invoice.getStatus())) {
         return "REVERSED";
       }
+      if ("WRITTEN_OFF".equalsIgnoreCase(invoice.getStatus())) {
+        return "WRITTEN_OFF";
+      }
     }
     if (outstanding.compareTo(BigDecimal.ZERO) <= 0) {
       return "PAID";

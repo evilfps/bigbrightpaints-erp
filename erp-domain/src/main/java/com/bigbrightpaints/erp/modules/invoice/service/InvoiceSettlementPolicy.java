@@ -21,6 +21,7 @@ public class InvoiceSettlementPolicy {
     ISSUED,
     PARTIAL,
     PAID,
+    WRITTEN_OFF,
     VOID,
     REVERSED
   }
@@ -45,9 +46,9 @@ public class InvoiceSettlementPolicy {
   public void applyPayment(Invoice invoice, BigDecimal amount, String reference) {
     validatePositive(amount, "payment amount");
     validateReference(reference);
-    if (isVoid(invoice)) {
+    if (isSettlementClosed(invoice)) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
-          "Cannot pay a void invoice");
+          "Cannot pay a void or written-off invoice");
     }
     if (invoice.getPaymentReferences().contains(reference)) {
       return; // idempotent reprocessing
@@ -76,9 +77,9 @@ public class InvoiceSettlementPolicy {
     if (clearedAmount == null || clearedAmount.compareTo(BigDecimal.ZERO) <= 0) {
       return;
     }
-    if (isVoid(invoice)) {
+    if (isSettlementClosed(invoice)) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidState(
-          "Cannot settle a void invoice");
+          "Cannot settle a void or written-off invoice");
     }
     if (reference != null
         && !reference.isBlank()
@@ -158,7 +159,7 @@ public class InvoiceSettlementPolicy {
    * Call this after any modification to outstanding amount.
    */
   public void updateStatusFromOutstanding(Invoice invoice, BigDecimal outstanding) {
-    if (isVoid(invoice)) {
+    if (isSettlementClosed(invoice)) {
       return; // Don't change void status
     }
     if (outstanding == null || outstanding.compareTo(BigDecimal.ZERO) <= 0) {
@@ -202,15 +203,20 @@ public class InvoiceSettlementPolicy {
     invoice.setStatus(InvoiceStatus.VOID.name());
   }
 
+  public void markWrittenOff(Invoice invoice) {
+    invoice.setStatus(InvoiceStatus.WRITTEN_OFF.name());
+  }
+
   public boolean isPastDue(Invoice invoice, LocalDate asOf) {
     LocalDate dueDate = invoice.getDueDate();
     return dueDate != null && asOf.isAfter(dueDate);
   }
 
-  private boolean isVoid(Invoice invoice) {
+  private boolean isSettlementClosed(Invoice invoice) {
     String status = invoice.getStatus();
     return InvoiceStatus.VOID.name().equalsIgnoreCase(status)
-        || InvoiceStatus.REVERSED.name().equalsIgnoreCase(status);
+        || InvoiceStatus.REVERSED.name().equalsIgnoreCase(status)
+        || InvoiceStatus.WRITTEN_OFF.name().equalsIgnoreCase(status);
   }
 
   private void validatePositive(BigDecimal amount, String label) {

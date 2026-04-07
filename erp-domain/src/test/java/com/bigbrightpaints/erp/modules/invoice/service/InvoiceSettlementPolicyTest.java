@@ -205,4 +205,21 @@ class InvoiceSettlementPolicyTest {
                 Instant.parse("2026-02-20T00:00:00Z"),
                 Map.of("ticket", "TKT-ERP-STAGE-095")));
   }
+
+  @Test
+  void writtenOffInvoicesStayDistinctAndRejectFurtherSettlement() {
+    policy.ensureIssuable(invoice);
+    policy.markWrittenOff(invoice);
+
+    assertEquals(InvoiceSettlementPolicy.InvoiceStatus.WRITTEN_OFF.name(), invoice.getStatus());
+    assertThrows(
+        ApplicationException.class,
+        () -> policy.applyPayment(invoice, BigDecimal.ONE, "PAY-WRITTEN-OFF"));
+    assertThrows(
+        ApplicationException.class,
+        () -> policy.applySettlement(invoice, BigDecimal.ONE, "SET-WRITTEN-OFF"));
+
+    policy.updateStatusFromOutstanding(invoice, BigDecimal.ZERO);
+    assertEquals(InvoiceSettlementPolicy.InvoiceStatus.WRITTEN_OFF.name(), invoice.getStatus());
+  }
 }

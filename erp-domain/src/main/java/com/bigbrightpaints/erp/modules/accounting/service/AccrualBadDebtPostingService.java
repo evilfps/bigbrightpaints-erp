@@ -155,8 +155,8 @@ class AccrualBadDebtPostingService {
                 null,
                 List.of()));
     JournalEntry saved = accountingLookupService.requireJournalEntry(company, journalEntry.id());
-    settlementOutcomeService.applyCreditNoteToInvoice(
-        invoice, amount, amount, saved.getReferenceNumber() + "-BADDEBT", entryDate);
+    settlementOutcomeService.applyBadDebtWriteOffToInvoice(
+        invoice, amount, saved.getReferenceNumber() + "-BADDEBT", entryDate);
     return journalEntry;
   }
 }

@@ -39,7 +39,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
       where i.company = :company
         and i.salesOrder is not null
         and i.salesOrder.dealer = :dealer
-        and (i.status is null or upper(trim(i.status)) not in ('DRAFT', 'VOID', 'REVERSED'))
+        and (i.status is null or upper(trim(i.status)) not in ('DRAFT', 'VOID', 'REVERSED', 'WRITTEN_OFF'))
       """)
   Set<Long> findActiveSalesOrderIdsByCompanyAndDealer(
       @Param("company") Company company, @Param("dealer") Dealer dealer);
@@ -106,7 +106,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
       where i.company = :company
         and i.dealer = :dealer
         and i.outstandingAmount > 0
-        and (i.status is null or i.status not in ('VOID','REVERSED','DRAFT'))
+        and (i.status is null or i.status not in ('VOID','REVERSED','DRAFT','WRITTEN_OFF'))
       order by case when i.dueDate is null then 1 else 0 end, i.dueDate, i.issueDate, i.id
       """)
   List<Invoice> lockOpenInvoicesForSettlement(

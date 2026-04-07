@@ -888,7 +888,7 @@ class InvoiceServiceTest {
             company, List.of(1832L)))
         .thenReturn(List.of());
 
-    for (String historicalStatus : List.of("DRAFT", "VOID", "REVERSED")) {
+    for (String historicalStatus : List.of("DRAFT", "VOID", "REVERSED", "WRITTEN_OFF")) {
       Invoice historicalInvoice = new Invoice();
       historicalInvoice.setCompany(company);
       historicalInvoice.setSalesOrder(order);
@@ -952,7 +952,7 @@ class InvoiceServiceTest {
     invoice.setCompany(company);
     invoice.setSalesOrder(order);
     invoice.setInvoiceNumber("INV-1852");
-    invoice.setStatus("VOID");
+    invoice.setStatus("WRITTEN_OFF");
 
     PackagingSlip legacySlip = new PackagingSlip();
     ReflectionTestUtils.setField(legacySlip, "id", 1853L);

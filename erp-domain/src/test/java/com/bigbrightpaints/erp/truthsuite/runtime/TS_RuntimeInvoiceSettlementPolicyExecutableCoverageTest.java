@@ -111,10 +111,10 @@ class TS_RuntimeInvoiceSettlementPolicyExecutableCoverageTest {
 
     assertThatThrownBy(() -> policy.applySettlement(payable, new BigDecimal("1.00"), "SET-VOID"))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Cannot settle a void invoice");
+        .hasMessageContaining("Cannot settle a void or written-off invoice");
     assertThatThrownBy(() -> policy.applyPayment(payable, new BigDecimal("1.00"), "PAY-VOID"))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Cannot pay a void invoice");
+        .hasMessageContaining("Cannot pay a void or written-off invoice");
   }
 
   @Test
@@ -154,10 +154,19 @@ class TS_RuntimeInvoiceSettlementPolicyExecutableCoverageTest {
     Invoice reversed = invoice("REVERSED", "100.00", "100.00");
     assertThatThrownBy(() -> policy.applyPayment(reversed, new BigDecimal("1.00"), "PAY-REV"))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Cannot pay a void invoice");
+        .hasMessageContaining("Cannot pay a void or written-off invoice");
     assertThatThrownBy(() -> policy.applySettlement(reversed, new BigDecimal("1.00"), "SET-REV"))
         .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("Cannot settle a void invoice");
+        .hasMessageContaining("Cannot settle a void or written-off invoice");
+
+    Invoice writtenOff = invoice("WRITTEN_OFF", "100.00", "0.00");
+    assertThatThrownBy(() -> policy.applyPayment(writtenOff, new BigDecimal("1.00"), "PAY-WR"))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Cannot pay a void or written-off invoice");
+    assertThatThrownBy(
+            () -> policy.applySettlement(writtenOff, new BigDecimal("1.00"), "SET-WR"))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Cannot settle a void or written-off invoice");
 
     Invoice nullTotal = invoice("PARTIAL", "100.00", "40.00");
     nullTotal.setTotalAmount(null);

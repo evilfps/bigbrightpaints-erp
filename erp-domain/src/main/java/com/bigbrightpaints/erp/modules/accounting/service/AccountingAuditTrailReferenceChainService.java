@@ -254,6 +254,7 @@ final class AccountingAuditTrailReferenceChainService {
     String normalized = status.trim().toUpperCase(java.util.Locale.ROOT);
     return !normalized.equals("DRAFT")
         && !normalized.equals("VOID")
-        && !normalized.equals("REVERSED");
+        && !normalized.equals("REVERSED")
+        && !normalized.equals("WRITTEN_OFF");
   }
 }

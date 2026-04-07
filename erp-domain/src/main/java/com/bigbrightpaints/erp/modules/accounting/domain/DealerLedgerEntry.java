@@ -71,7 +71,7 @@ public class DealerLedgerEntry extends VersionedEntity {
   private String invoiceNumber;
 
   @Column(name = "payment_status")
-  private String paymentStatus = "UNPAID"; // UNPAID, PARTIAL, PAID, VOID, REVERSED
+  private String paymentStatus = "UNPAID"; // UNPAID, PARTIAL, PAID, WRITTEN_OFF, VOID, REVERSED
 
   @Column(name = "amount_paid")
   private BigDecimal amountPaid = BigDecimal.ZERO;
@@ -215,6 +215,7 @@ public class DealerLedgerEntry extends VersionedEntity {
     }
     String status = paymentStatus != null ? paymentStatus : "";
     return !"PAID".equalsIgnoreCase(status)
+        && !"WRITTEN_OFF".equalsIgnoreCase(status)
         && !"VOID".equalsIgnoreCase(status)
         && !"REVERSED".equalsIgnoreCase(status);
   }

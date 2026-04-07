@@ -248,5 +248,8 @@ public class AccrualBadDebtIT extends AbstractIntegrationTest {
             new HttpEntity<>(payload, headers),
             Map.class);
     assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Invoice refreshed = invoiceRepository.findById(invoice.getId()).orElseThrow();
+    assertThat(refreshed.getStatus()).isEqualTo("WRITTEN_OFF");
+    assertThat(refreshed.getOutstandingAmount()).isEqualByComparingTo("700.00");
   }
 }
