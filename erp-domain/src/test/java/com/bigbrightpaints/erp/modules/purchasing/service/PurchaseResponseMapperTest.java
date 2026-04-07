@@ -251,6 +251,27 @@ class PurchaseResponseMapperTest {
   }
 
   @Test
+  void toPurchaseOrderResponse_mapsVoidStatusToVoided() {
+    PurchaseOrder order = new PurchaseOrder();
+    ReflectionTestUtils.setField(order, "id", 102L);
+    order.setCompany(company);
+    order.setSupplier(supplier);
+    order.setOrderNumber("PO-102");
+    order.setStatus("VOID");
+
+    PurchaseOrderLine line = new PurchaseOrderLine();
+    line.setPurchaseOrder(order);
+    line.setRawMaterial(rawMaterial);
+    line.setQuantity(new BigDecimal("1.00"));
+    line.setUnit("KG");
+    line.setCostPerUnit(new BigDecimal("10.00"));
+    line.setLineTotal(new BigDecimal("10.00"));
+    order.getLines().add(line);
+
+    assertThat(mapper.toPurchaseOrderResponse(order).status()).isEqualTo("VOIDED");
+  }
+
+  @Test
   void toGoodsReceiptResponse_usesSingleReceiptLookupAndAddsLinkedPurchaseReferences() {
     GoodsReceipt receipt = goodsReceipt(611L, "GRN-611");
     RawMaterialPurchase linkedPurchase = new RawMaterialPurchase();

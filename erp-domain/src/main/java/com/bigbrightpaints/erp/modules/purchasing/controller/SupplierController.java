@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.purchasing.controller;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -61,7 +62,7 @@ public class SupplierController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<SupplierResponse>> createSupplier(
       @Valid @RequestBody SupplierRequest request) {
-    return ResponseEntity.ok(
+    return ResponseEntity.status(HttpStatus.CREATED).body(
         ApiResponse.success("Supplier created", supplierService.createSupplier(request)));
   }
 

@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.purchasing.controller;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
@@ -51,7 +52,7 @@ public class PurchasingWorkflowController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<PurchaseOrderResponse>> createPurchaseOrder(
       @Valid @RequestBody PurchaseOrderRequest request) {
-    return ResponseEntity.ok(
+    return ResponseEntity.status(HttpStatus.CREATED).body(
         ApiResponse.success(
             "Purchase order recorded", purchasingService.createPurchaseOrder(request)));
   }

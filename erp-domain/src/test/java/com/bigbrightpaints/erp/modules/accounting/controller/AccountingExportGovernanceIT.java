@@ -143,7 +143,7 @@ class AccountingExportGovernanceIT extends AbstractIntegrationTest {
     ResponseEntity<Map> createResponse =
         rest.exchange(
             "/api/v1/suppliers", HttpMethod.POST, new HttpEntity<>(request, headers), Map.class);
-    assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> createBody = createResponse.getBody();
     assertThat(createBody).isNotNull();
     Long supplierId =

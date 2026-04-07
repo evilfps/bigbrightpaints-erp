@@ -156,13 +156,20 @@ public class PurchaseResponseMapper {
         order.getOrderNumber(),
         order.getOrderDate(),
         totalAmount,
-        order.getStatusValue(),
+        canonicalPurchaseOrderStatus(order.getStatusValue()),
         order.getMemo(),
         supplier != null ? supplier.getId() : null,
         supplier != null ? supplier.getCode() : null,
         supplier != null ? supplier.getName() : null,
         order.getCreatedAt(),
         lines);
+  }
+
+  private String canonicalPurchaseOrderStatus(String status) {
+    if ("VOID".equalsIgnoreCase(status)) {
+      return "VOIDED";
+    }
+    return status;
   }
 
   public PurchaseOrderLineResponse toPurchaseOrderLineResponse(PurchaseOrderLine line) {

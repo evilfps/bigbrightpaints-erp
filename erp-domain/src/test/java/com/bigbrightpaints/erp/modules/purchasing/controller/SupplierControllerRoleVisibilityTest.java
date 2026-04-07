@@ -8,15 +8,18 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.nio.charset.StandardCharsets;
+import java.math.BigDecimal;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import com.bigbrightpaints.erp.modules.purchasing.dto.SupplierImportResponse;
+import com.bigbrightpaints.erp.modules.purchasing.dto.SupplierRequest;
 import com.bigbrightpaints.erp.modules.purchasing.dto.SupplierResponse;
 import com.bigbrightpaints.erp.modules.purchasing.service.SupplierImportService;
 import com.bigbrightpaints.erp.modules.purchasing.service.SupplierService;
@@ -114,6 +117,22 @@ class SupplierControllerRoleVisibilityTest {
     var response = controller.importSuppliers(file);
 
     verify(supplierImportService).importSuppliers(file);
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().data()).isEqualTo(payload);
+  }
+
+  @Test
+  void createSupplier_returnsCreatedStatus() {
+    SupplierRequest request =
+        new SupplierRequest(
+            "Supplier", "SUP-001", "supplier@example.com", "9999999999", "Address", BigDecimal.TEN);
+    SupplierResponse payload = sampleSupplier();
+    when(supplierService.createSupplier(request)).thenReturn(payload);
+
+    var response = controller.createSupplier(request);
+
+    verify(supplierService).createSupplier(request);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     assertThat(response.getBody()).isNotNull();
     assertThat(response.getBody().data()).isEqualTo(payload);
   }

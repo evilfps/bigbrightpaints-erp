@@ -311,7 +311,7 @@ public class FullCycleE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(poReq, headers),
             Map.class);
-    assertThat(poResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(poResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Long purchaseOrderId = ((Number) requireData(poResp, "purchase order").get("id")).longValue();
 
     Map<String, Object> grLine =

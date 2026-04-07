@@ -1102,9 +1102,21 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     ResponseEntity<Map> resp =
         rest.exchange(
             "/api/v1/suppliers", HttpMethod.POST, new HttpEntity<>(req, headers), Map.class);
-    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> data = (Map<String, Object>) resp.getBody().get("data");
+    assertThat(data).containsKey("outstandingBalance");
     Long supplierId = ((Number) data.get("id")).longValue();
+
+    ResponseEntity<Map> supplierDetailResp =
+        rest.exchange(
+            "/api/v1/suppliers/" + supplierId,
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(supplierDetailResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<String, Object> supplierDetailData =
+        (Map<String, Object>) supplierDetailResp.getBody().get("data");
+    assertThat(supplierDetailData).containsKey("outstandingBalance");
 
     ResponseEntity<Map> approveResp =
         rest.exchange(
@@ -1177,7 +1189,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(poReq, headers),
             Map.class);
-    assertThat(poResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(poResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> poData = (Map<String, Object>) poResp.getBody().get("data");
     Long purchaseOrderId = ((Number) poData.get("id")).longValue();
 
@@ -1188,6 +1200,22 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             new HttpEntity<>(headers),
             Map.class);
     assertThat(approveResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    ResponseEntity<Map> timelineResp =
+        rest.exchange(
+            "/api/v1/purchasing/purchase-orders/" + purchaseOrderId + "/timeline",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(timelineResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    List<Map<String, Object>> timeline = (List<Map<String, Object>>) timelineResp.getBody().get("data");
+    assertThat(timeline).isNotEmpty();
+    assertThat(timeline)
+        .allSatisfy(
+            event -> {
+              assertThat(event).containsKeys("status", "timestamp", "actor");
+            });
+    assertThat(timeline).anySatisfy(event -> assertThat(event.get("status")).isEqualTo("APPROVED"));
 
     return purchaseOrderId;
   }

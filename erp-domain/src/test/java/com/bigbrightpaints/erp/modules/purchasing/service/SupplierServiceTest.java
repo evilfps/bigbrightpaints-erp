@@ -319,6 +319,7 @@ class SupplierServiceTest {
 
     assertThat(response).hasSize(1);
     SupplierResponse supplierResponse = response.getFirst();
+    assertThat(supplierResponse.outstandingBalance()).isEqualByComparingTo(BigDecimal.ZERO);
     assertThat(supplierResponse.balance()).isEqualByComparingTo(BigDecimal.ZERO);
     assertThat(supplierResponse.bankAccountName()).isEqualTo("Primary Supplier");
     assertThat(supplierResponse.bankAccountNumber()).isEqualTo("1234567890");

@@ -269,7 +269,7 @@ class PurchaseOrderServiceTest {
         purchaseOrderService.voidPurchaseOrder(
             3001L, new PurchaseOrderVoidRequest("SUPPLIER_CANCELLED", "Supplier cancelled"));
 
-    assertThat(response.status()).isEqualTo("VOID");
+    assertThat(response.status()).isEqualTo("VOIDED");
 
     ArgumentCaptor<PurchaseOrderStatusHistory> historyCaptor =
         ArgumentCaptor.forClass(PurchaseOrderStatusHistory.class);
@@ -384,6 +384,9 @@ class PurchaseOrderServiceTest {
     assertThat(timeline).hasSize(2);
     assertThat(timeline.get(0).toStatus()).isEqualTo("DRAFT");
     assertThat(timeline.get(1).toStatus()).isEqualTo("APPROVED");
+    assertThat(timeline.get(1).status()).isEqualTo("APPROVED");
+    assertThat(timeline.get(1).timestamp()).isEqualTo(timeline.get(1).changedAt());
+    assertThat(timeline.get(1).actor()).isEqualTo("bob");
     assertThat(timeline.get(1).changedBy()).isEqualTo("bob");
   }
 
