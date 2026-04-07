@@ -215,6 +215,65 @@ public class AccountingEventStore {
     return saveWithSequenceRetry(event, aggregateId);
   }
 
+  @Transactional
+  public AccountingEvent recordDealerReceiptPosted(
+      JournalEntry entry, Long dealerId, BigDecimal amount, String idempotencyKey) {
+    return recordPartnerPaymentEvent(
+        entry,
+        AccountingEventType.DEALER_RECEIPT_POSTED,
+        "DEALER",
+        dealerId,
+        amount,
+        idempotencyKey);
+  }
+
+  @Transactional
+  public AccountingEvent recordSupplierPaymentPosted(
+      JournalEntry entry, Long supplierId, BigDecimal amount, String idempotencyKey) {
+    return recordPartnerPaymentEvent(
+        entry,
+        AccountingEventType.SUPPLIER_PAYMENT_POSTED,
+        "SUPPLIER",
+        supplierId,
+        amount,
+        idempotencyKey);
+  }
+
+  private AccountingEvent recordPartnerPaymentEvent(
+      JournalEntry entry,
+      AccountingEventType eventType,
+      String partnerType,
+      Long partnerId,
+      BigDecimal amount,
+      String idempotencyKey) {
+    if (entry == null) {
+      throw new IllegalArgumentException("entry is required");
+    }
+    UUID aggregateId =
+        entry.getPublicId() != null
+            ? entry.getPublicId()
+            : UUID.nameUUIDFromBytes(("JournalEntry-" + entry.getId()).getBytes());
+    AccountingEvent event = new AccountingEvent();
+    event.setCompany(entry.getCompany());
+    event.setEventType(eventType);
+    event.setAggregateId(aggregateId);
+    event.setAggregateType("JournalEntry");
+    event.setSequenceNumber(eventRepository.getNextSequenceNumber(aggregateId));
+    event.setEffectiveDate(entry.getEntryDate());
+    event.setJournalEntryId(entry.getId());
+    event.setJournalReference(entry.getReferenceNumber());
+    event.setDescription(entry.getMemo());
+    event.setUserId(getCurrentUserId());
+    Map<String, Object> payload = new HashMap<>();
+    payload.put("partnerType", partnerType);
+    payload.put("partnerId", partnerId);
+    payload.put("amount", amount != null ? amount : BigDecimal.ZERO);
+    payload.put("idempotencyKey", idempotencyKey != null ? idempotencyKey : "");
+    payload.put("sourceModule", entry.getSourceModule());
+    event.setPayload(serializePayload(payload));
+    return saveWithSequenceRetry(event, aggregateId);
+  }
+
   private AccountingEvent saveWithSequenceRetry(AccountingEvent event, UUID aggregateId) {
     DataIntegrityViolationException lastError = null;
     for (int attempt = 1; attempt <= MAX_SEQUENCE_RETRIES; attempt++) {

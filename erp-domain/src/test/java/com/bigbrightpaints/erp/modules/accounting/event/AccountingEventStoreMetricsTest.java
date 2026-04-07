@@ -86,6 +86,54 @@ class AccountingEventStoreMetricsTest {
             AccountingEventType.ACCOUNT_CREDIT_POSTED);
   }
 
+  @Test
+  void recordDealerReceiptPosted_persistsDealerReceiptEventType() {
+    AccountingEventStore store =
+        new AccountingEventStore(
+            eventRepository, eventPublisher, new ObjectMapper(), companyClock, null);
+    JournalEntry entry = buildJournalEntry();
+    when(eventRepository.getNextSequenceNumber(any(UUID.class))).thenReturn(3L);
+    when(eventRepository.save(any(AccountingEvent.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    store.recordDealerReceiptPosted(
+        entry, 501L, new BigDecimal("150.00"), "dealer-idempotency-key");
+
+    ArgumentCaptor<AccountingEvent> eventCaptor = ArgumentCaptor.forClass(AccountingEvent.class);
+    verify(eventRepository).save(eventCaptor.capture());
+    AccountingEvent persisted = eventCaptor.getValue();
+    assertThat(persisted.getEventType()).isEqualTo(AccountingEventType.DEALER_RECEIPT_POSTED);
+    assertThat(persisted.getJournalEntryId()).isEqualTo(entry.getId());
+    assertThat(persisted.getPayload())
+        .contains("\"partnerType\":\"DEALER\"")
+        .contains("\"partnerId\":501")
+        .contains("\"idempotencyKey\":\"dealer-idempotency-key\"");
+  }
+
+  @Test
+  void recordSupplierPaymentPosted_persistsSupplierPaymentEventType() {
+    AccountingEventStore store =
+        new AccountingEventStore(
+            eventRepository, eventPublisher, new ObjectMapper(), companyClock, null);
+    JournalEntry entry = buildJournalEntry();
+    when(eventRepository.getNextSequenceNumber(any(UUID.class))).thenReturn(4L);
+    when(eventRepository.save(any(AccountingEvent.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    store.recordSupplierPaymentPosted(
+        entry, 902L, new BigDecimal("80.00"), "supplier-idempotency-key");
+
+    ArgumentCaptor<AccountingEvent> eventCaptor = ArgumentCaptor.forClass(AccountingEvent.class);
+    verify(eventRepository).save(eventCaptor.capture());
+    AccountingEvent persisted = eventCaptor.getValue();
+    assertThat(persisted.getEventType()).isEqualTo(AccountingEventType.SUPPLIER_PAYMENT_POSTED);
+    assertThat(persisted.getJournalEntryId()).isEqualTo(entry.getId());
+    assertThat(persisted.getPayload())
+        .contains("\"partnerType\":\"SUPPLIER\"")
+        .contains("\"partnerId\":902")
+        .contains("\"idempotencyKey\":\"supplier-idempotency-key\"");
+  }
+
   private JournalEntry buildJournalEntry() {
     Company company = new Company();
     ReflectionTestUtils.setField(company, "id", 10L);

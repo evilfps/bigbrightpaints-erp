@@ -49,6 +49,7 @@ class SettlementE2ETest extends AbstractIntegrationTest {
   private Company company;
   private Account cash;
   private Account discount;
+  private Account receivable;
   private Dealer dealer;
   private Invoice invoice;
 
@@ -63,7 +64,8 @@ class SettlementE2ETest extends AbstractIntegrationTest {
     company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
     cash = ensureAccount("CASH", "Cash", AccountType.ASSET);
     discount = ensureAccount("DISC", "Settlement Discounts", AccountType.EXPENSE);
-    dealer = ensureDealer();
+    receivable = ensureAccount("AR", "Accounts Receivable", AccountType.ASSET);
+    dealer = ensureDealer(receivable);
     headers = authHeaders();
     invoice = ensureInvoice();
   }
@@ -152,7 +154,7 @@ class SettlementE2ETest extends AbstractIntegrationTest {
             });
   }
 
-  private Dealer ensureDealer() {
+  private Dealer ensureDealer(Account receivableAccount) {
     Dealer persisted =
         dealerRepository
             .findByCompanyAndCodeIgnoreCase(company, "D-CODEX")
@@ -163,8 +165,12 @@ class SettlementE2ETest extends AbstractIntegrationTest {
                   created.setCode("D-CODEX");
                   created.setName("Codex Dealer");
                   created.setCreditLimit(new BigDecimal("200000"));
+                  created.setReceivableAccount(receivableAccount);
                   return dealerRepository.save(created);
                 });
+    if (persisted.getReceivableAccount() == null) {
+      persisted.setReceivableAccount(receivableAccount);
+    }
     persisted.setOutstandingBalance(new BigDecimal("800.00"));
     return dealerRepository.saveAndFlush(persisted);
   }

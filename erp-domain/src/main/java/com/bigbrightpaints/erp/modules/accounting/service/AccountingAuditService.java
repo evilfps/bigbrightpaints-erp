@@ -154,6 +154,36 @@ public class AccountingAuditService {
     logAuditSuccessAfterCommit(AuditEvent.SETTLEMENT_RECORDED, auditMetadata);
   }
 
+  void recordDealerReceiptPostedEventSafe(
+      JournalEntry journalEntry, Long dealerId, BigDecimal amount, String idempotencyKey) {
+    if (journalEntry == null) {
+      return;
+    }
+    validateSettlementEventPayloadCompatibility(journalEntry, "DEALER_RECEIPT_POSTED");
+    try {
+      accountingEventStore.recordDealerReceiptPosted(
+          journalEntry, dealerId, amount, normalizeAuditValue(idempotencyKey));
+    } catch (Exception ex) {
+      handleAccountingEventTrailFailure(
+          "DEALER_RECEIPT_POSTED", journalEntry.getReferenceNumber(), ex);
+    }
+  }
+
+  void recordSupplierPaymentPostedEventSafe(
+      JournalEntry journalEntry, Long supplierId, BigDecimal amount, String idempotencyKey) {
+    if (journalEntry == null) {
+      return;
+    }
+    validateSettlementEventPayloadCompatibility(journalEntry, "SUPPLIER_PAYMENT_POSTED");
+    try {
+      accountingEventStore.recordSupplierPaymentPosted(
+          journalEntry, supplierId, amount, normalizeAuditValue(idempotencyKey));
+    } catch (Exception ex) {
+      handleAccountingEventTrailFailure(
+          "SUPPLIER_PAYMENT_POSTED", journalEntry.getReferenceNumber(), ex);
+    }
+  }
+
   String resolveCurrentUsername() {
     return SecurityActorResolver.resolveActorWithSystemProcessFallback();
   }
@@ -267,6 +297,24 @@ public class AccountingAuditService {
         reason,
         ACCOUNTING_EVENT_DESCRIPTION_MAX_LENGTH,
         "JOURNAL_ENTRY_REVERSED");
+  }
+
+  private void validateSettlementEventPayloadCompatibility(
+      JournalEntry journalEntry, String operation) {
+    ensureEventFieldWithinLimit(
+        "journalReference",
+        journalEntry.getReferenceNumber(),
+        ACCOUNTING_EVENT_JOURNAL_REFERENCE_MAX_LENGTH,
+        operation);
+    ensureEventFieldWithinLimit(
+        "journalMemo", journalEntry.getMemo(), ACCOUNTING_EVENT_DESCRIPTION_MAX_LENGTH, operation);
+  }
+
+  private String normalizeAuditValue(String value) {
+    if (!StringUtils.hasText(value)) {
+      return null;
+    }
+    return value.trim();
   }
 
   private void ensureEventFieldWithinLimit(

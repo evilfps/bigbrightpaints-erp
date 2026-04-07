@@ -371,6 +371,8 @@ class DealerSettlementService {
     if (!touchedInvoices.isEmpty()) {
       invoiceRepository.saveAll(touchedInvoices);
     }
+    accountingAuditService.recordDealerReceiptPostedEventSafe(
+        journalEntry, dealer.getId(), cashAmount, trimmedIdempotencyKey);
 
     List<PartnerSettlementResponse.Allocation> allocationSummaries =
         settlementOutcomeService.toSettlementAllocationSummaries(settlementRows);

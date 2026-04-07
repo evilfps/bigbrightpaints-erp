@@ -55,6 +55,7 @@ class DealerReceiptPostingService {
   private final InvoiceSettlementPolicy invoiceSettlementPolicy;
   private final DealerLedgerService dealerLedgerService;
   private final AccountingDtoMapperService dtoMapperService;
+  private final AccountingAuditService accountingAuditService;
 
   DealerReceiptPostingService(
       CompanyContextService companyContextService,
@@ -69,7 +70,8 @@ class DealerReceiptPostingService {
       InvoiceRepository invoiceRepository,
       InvoiceSettlementPolicy invoiceSettlementPolicy,
       DealerLedgerService dealerLedgerService,
-      AccountingDtoMapperService dtoMapperService) {
+      AccountingDtoMapperService dtoMapperService,
+      AccountingAuditService accountingAuditService) {
     this.companyContextService = companyContextService;
     this.dealerRepository = dealerRepository;
     this.accountingFacadeProvider = accountingFacadeProvider;
@@ -83,6 +85,7 @@ class DealerReceiptPostingService {
     this.invoiceSettlementPolicy = invoiceSettlementPolicy;
     this.dealerLedgerService = dealerLedgerService;
     this.dtoMapperService = dtoMapperService;
+    this.accountingAuditService = accountingAuditService;
   }
 
   @Retryable(
@@ -215,6 +218,8 @@ class DealerReceiptPostingService {
     JournalEntry entry = accountingLookupService.requireJournalEntry(company, entryDto.id());
     journalReplayService.linkReferenceMapping(company, idempotencyKey, entry, "DEALER_RECEIPT");
     applyDealerAllocations(company, dealer, reference, entry, idempotencyKey, allocations);
+    accountingAuditService.recordDealerReceiptPostedEventSafe(
+        entry, dealer.getId(), amount, idempotencyKey);
     return entryDto;
   }
 
@@ -313,6 +318,8 @@ class DealerReceiptPostingService {
     journalReplayService.linkReferenceMapping(
         company, idempotencyKey, entry, "DEALER_RECEIPT_SPLIT");
     autoApplyDealerSplitAllocations(company, dealer, entry, total, idempotencyKey);
+    accountingAuditService.recordDealerReceiptPostedEventSafe(
+        entry, dealer.getId(), total, idempotencyKey);
     return entryDto;
   }
 

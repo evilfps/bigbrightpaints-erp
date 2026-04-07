@@ -366,6 +366,8 @@ class SupplierSettlementService {
     if (!touchedPurchases.isEmpty()) {
       rawMaterialPurchaseRepository.saveAll(touchedPurchases);
     }
+    accountingAuditService.recordSupplierPaymentPostedEventSafe(
+        journalEntry, supplier.getId(), cashAmount, trimmedIdempotencyKey);
 
     List<PartnerSettlementResponse.Allocation> allocationSummaries =
         settlementOutcomeService.toSettlementAllocationSummaries(settlementRows);

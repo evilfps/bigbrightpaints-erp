@@ -55,6 +55,7 @@ class SupplierPaymentService {
   private final SettlementTotalsValidationService settlementTotalsValidationService;
   private final SettlementOutcomeService settlementOutcomeService;
   private final AccountingDtoMapperService dtoMapperService;
+  private final AccountingAuditService accountingAuditService;
 
   SupplierPaymentService(
       CompanyContextService companyContextService,
@@ -69,7 +70,8 @@ class SupplierPaymentService {
       SettlementReplayValidationService settlementReplayValidationService,
       SettlementTotalsValidationService settlementTotalsValidationService,
       SettlementOutcomeService settlementOutcomeService,
-      AccountingDtoMapperService dtoMapperService) {
+      AccountingDtoMapperService dtoMapperService,
+      AccountingAuditService accountingAuditService) {
     this.companyContextService = companyContextService;
     this.accountingFacadeProvider = accountingFacadeProvider;
     this.supplierRepository = supplierRepository;
@@ -83,6 +85,7 @@ class SupplierPaymentService {
     this.settlementTotalsValidationService = settlementTotalsValidationService;
     this.settlementOutcomeService = settlementOutcomeService;
     this.dtoMapperService = dtoMapperService;
+    this.accountingAuditService = accountingAuditService;
   }
 
   @Retryable(
@@ -294,6 +297,8 @@ class SupplierPaymentService {
     if (!touchedPurchases.isEmpty()) {
       rawMaterialPurchaseRepository.saveAll(touchedPurchases);
     }
+    accountingAuditService.recordSupplierPaymentPostedEventSafe(
+        entry, supplier.getId(), amount, idempotencyKey);
     return entryDto;
   }
 
