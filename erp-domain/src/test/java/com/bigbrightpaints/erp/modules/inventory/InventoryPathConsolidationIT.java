@@ -174,7 +174,7 @@ class InventoryPathConsolidationIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> movementResponse =
         rest.exchange(
-            "/api/v1/inventory/batches/" + finishedGoodBatchId + "/movements?batchType=FINISHED_GOOD",
+            "/api/v1/inventory/batches/" + finishedGoodBatchId + "/movements",
             HttpMethod.GET,
             new HttpEntity<>(headers),
             Map.class);

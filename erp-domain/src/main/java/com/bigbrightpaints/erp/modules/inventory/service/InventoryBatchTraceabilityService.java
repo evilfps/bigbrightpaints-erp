@@ -8,8 +8,6 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import com.bigbrightpaints.erp.core.exception.ApplicationException;
-import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodBatch;
@@ -63,12 +61,7 @@ public class InventoryBatchTraceabilityService {
             : Optional.empty();
 
     if (requestedType == RequestedBatchType.AUTO && finished.isPresent() && raw.isPresent()) {
-      throw new ApplicationException(
-              ErrorCode.VALIDATION_INVALID_INPUT,
-              "Batch id is ambiguous across raw material and finished good batches; specify"
-                  + " batchType")
-          .withDetail("batchId", batchId)
-          .withDetail("supportedBatchTypes", "RAW_MATERIAL,FINISHED_GOOD");
+      return resolveAmbiguousAutoLookup(finished.get(), raw.get());
     }
 
     if (finished.isPresent()) {
@@ -223,6 +216,17 @@ public class InventoryBatchTraceabilityService {
 
   private BigDecimal safe(BigDecimal value) {
     return value == null ? BigDecimal.ZERO : value;
+  }
+
+  private InventoryBatchTraceabilityDto resolveAmbiguousAutoLookup(
+      FinishedGoodBatch finishedBatch, RawMaterialBatch rawBatch) {
+    // Canonical no-query movement lookups use batch ids from finished-good read surfaces.
+    // When ids collide across raw and finished tables, prefer the finished-good batch
+    // deterministically for AUTO resolution.
+    if (finishedBatch != null) {
+      return toFinishedBatchDto(finishedBatch);
+    }
+    return toRawMaterialBatchDto(rawBatch);
   }
 
   private enum RequestedBatchType {

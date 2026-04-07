@@ -183,7 +183,7 @@ class InventoryBatchTraceabilityServiceTest {
   }
 
   @Test
-  void autoLookup_rejectsAmbiguousIdAcrossRawAndFinished_whenBothDomainsShareId() {
+  void autoLookup_prefersFinishedGoodWhenIdCollidesAcrossRawAndFinishedBatches() {
     FinishedGood fg = new FinishedGood();
     fg.setCompany(company);
     fg.setProductCode("FG-BTRACE-1L");
@@ -216,10 +216,15 @@ class InventoryBatchTraceabilityServiceTest {
         .thenReturn(Optional.of(finishedBatch));
     when(rawMaterialBatchRepository.findByRawMaterial_CompanyAndId(company, 31L))
         .thenReturn(Optional.of(rawBatch));
+    when(inventoryMovementRepository.findByFinishedGoodBatchOrderByCreatedAtAsc(finishedBatch))
+        .thenReturn(List.of());
 
-    assertThatThrownBy(() -> inventoryBatchTraceabilityService.getBatchMovementHistory(31L, null))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("ambiguous");
+    InventoryBatchTraceabilityDto trace =
+        inventoryBatchTraceabilityService.getBatchMovementHistory(31L, null);
+
+    assertThat(trace.batchType()).isEqualTo("FINISHED_GOOD");
+    assertThat(trace.batchNumber()).isEqualTo("FG-TRACE-31");
+    assertThat(trace.itemCode()).isEqualTo("FG-BTRACE-1L");
   }
 
   @Test
@@ -254,17 +259,7 @@ class InventoryBatchTraceabilityServiceTest {
   }
 
   @Test
-  void autoLookup_rejectsAmbiguousIdAcrossRawAndFinishedWhenNotSemiFinished() {
-    FinishedGood fg = new FinishedGood();
-    fg.setCompany(company);
-    fg.setProductCode("FG-TRACE-1L");
-    fg.setName("Sellable");
-
-    FinishedGoodBatch finishedBatch = new FinishedGoodBatch();
-    ReflectionTestUtils.setField(finishedBatch, "id", 33L);
-    finishedBatch.setFinishedGood(fg);
-    finishedBatch.setBatchCode("FG-TRACE-33");
-
+  void explicitBatchType_canResolveRawMaterialWhenIdCollidesAcrossBatchTables() {
     RawMaterial raw = new RawMaterial();
     raw.setCompany(company);
     raw.setSku("RM-TRACE-33");
@@ -276,14 +271,17 @@ class InventoryBatchTraceabilityServiceTest {
     rawBatch.setRawMaterial(raw);
     rawBatch.setBatchCode("RM-TRACE-33");
 
-    when(finishedGoodBatchRepository.findByFinishedGood_CompanyAndId(company, 33L))
-        .thenReturn(Optional.of(finishedBatch));
     when(rawMaterialBatchRepository.findByRawMaterial_CompanyAndId(company, 33L))
         .thenReturn(Optional.of(rawBatch));
+    when(rawMaterialMovementRepository.findByRawMaterialBatchOrderByCreatedAtAsc(rawBatch))
+        .thenReturn(List.of());
 
-    assertThatThrownBy(() -> inventoryBatchTraceabilityService.getBatchMovementHistory(33L, null))
-        .isInstanceOf(ApplicationException.class)
-        .hasMessageContaining("ambiguous");
+    InventoryBatchTraceabilityDto trace =
+        inventoryBatchTraceabilityService.getBatchMovementHistory(33L, "RAW_MATERIAL");
+
+    assertThat(trace.batchType()).isEqualTo("RAW_MATERIAL");
+    assertThat(trace.batchNumber()).isEqualTo("RM-TRACE-33");
+    assertThat(trace.itemCode()).isEqualTo("RM-TRACE-33");
   }
 
   @Test
