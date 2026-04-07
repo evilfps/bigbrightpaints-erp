@@ -836,6 +836,7 @@ class HighImpactRegressionIT extends AbstractIntegrationTest {
   // 10. PDF invoice generation (end-to-end)
   // =========================================================================
   @Test
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
   @Order(11)
   @DisplayName("PDF invoice generation returns valid PDF with invoice data")
   void pdfInvoiceGeneration() {

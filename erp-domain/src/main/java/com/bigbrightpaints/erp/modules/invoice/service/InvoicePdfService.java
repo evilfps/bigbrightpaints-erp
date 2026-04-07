@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Objects;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
@@ -35,6 +36,7 @@ public class InvoicePdfService {
     this.templateEngine = templateEngine;
   }
 
+  @Transactional(readOnly = true)
   public PdfDocument renderInvoicePdf(Long invoiceId) {
     Company company = companyContextService.requireCurrentCompany();
     Invoice invoice = invoiceLookupService.requireInvoice(company, invoiceId);
