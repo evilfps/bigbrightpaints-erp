@@ -50,6 +50,7 @@ public class PurchasingWorkflowController {
 
   @PostMapping("/purchase-orders")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+  @ResponseStatus(HttpStatus.CREATED)
   public ResponseEntity<ApiResponse<PurchaseOrderResponse>> createPurchaseOrder(
       @Valid @RequestBody PurchaseOrderRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED).body(
@@ -105,6 +106,7 @@ public class PurchasingWorkflowController {
 
   @PostMapping("/goods-receipts")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+  @ResponseStatus(HttpStatus.CREATED)
   public ResponseEntity<ApiResponse<GoodsReceiptResponse>> createGoodsReceipt(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
       @Valid @RequestBody GoodsReceiptRequest request) {

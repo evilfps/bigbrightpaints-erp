@@ -44,6 +44,7 @@ public class InventoryAdjustmentController {
 
   @PostMapping
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
+  @ResponseStatus(HttpStatus.CREATED)
   public ResponseEntity<ApiResponse<InventoryAdjustmentDto>> createAdjustment(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
       @RequestBody InventoryAdjustmentRequest request) {

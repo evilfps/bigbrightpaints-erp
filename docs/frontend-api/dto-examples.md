@@ -1,6 +1,6 @@
 # DTO Examples
 
-Last reviewed: 2026-04-06
+Last reviewed: 2026-04-07
 
 ## Overview
 
@@ -153,6 +153,200 @@ GET /api/v1/dealers?status=ALL&page=0&size=50
 >   `totalElements`.
 
 > **Note**: There is no `GET /api/v1/dealers/{dealerId}` endpoint for fetching a single dealer by ID. Dealer details are available through the list endpoint with filters, or via search endpoints.
+
+## Inventory and purchasing (M6 contract refresh)
+
+### Finished goods list (paginated)
+
+```json
+GET /api/v1/finished-goods?page=0&size=20
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "id": 501,
+        "name": "Premium White 20L",
+        "productCode": "FG-PRM-WHT-20L"
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1
+  }
+}
+```
+
+### Raw material stock list
+
+```json
+GET /api/v1/raw-materials/stock
+{
+  "success": true,
+  "data": [
+    {
+      "materialId": 1001,
+      "sku": "RM-TIO2-25KG",
+      "name": "Titanium Dioxide",
+      "quantity": 245.5
+    }
+  ]
+}
+```
+
+### Finished-goods stock summary and batches
+
+```json
+GET /api/v1/finished-goods/stock-summary
+{
+  "success": true,
+  "data": [
+    {
+      "finishedGoodId": 501,
+      "productCode": "FG-PRM-WHT-20L",
+      "name": "Premium White 20L",
+      "totalStock": 120,
+      "reservedStock": 15,
+      "availableStock": 105,
+      "weightedAverageCost": 832.45
+    }
+  ]
+}
+```
+
+```json
+GET /api/v1/finished-goods/501/batches
+{
+  "success": true,
+  "data": [
+    {
+      "batchId": 9001,
+      "batchCode": "FG-501-20260401-A",
+      "expiryDate": "2027-04-01",
+      "quantity": 80
+    }
+  ]
+}
+```
+
+### Inventory batch movement history
+
+```json
+GET /api/v1/inventory/batches/9001/movements
+{
+  "success": true,
+  "data": [
+    {
+      "movementType": "IN",
+      "quantity": 80,
+      "timestamp": "2026-04-01T09:30:00Z"
+    }
+  ]
+}
+```
+
+### Inventory adjustment create (`201 Created`)
+
+```json
+POST /api/v1/inventory/adjustments
+→ 201 Created
+{
+  "success": true,
+  "message": "Inventory adjustment posted",
+  "data": {
+    "id": 701,
+    "adjustmentDate": "2026-04-07",
+    "reason": "Cycle count correction",
+    "status": "POSTED",
+    "referenceNumber": "INV-ADJ-2026-00701"
+  }
+}
+```
+
+### Opening stock import response (`importedCount`)
+
+```json
+POST /api/v1/inventory/opening-stock
+{
+  "success": true,
+  "data": {
+    "openingStockBatchKey": "FY26-OPENING-STOCK-01",
+    "rowsProcessed": 24,
+    "importedCount": 24,
+    "finishedGoodBatchesCreated": 8,
+    "rawMaterialBatchesCreated": 16,
+    "errors": []
+  }
+}
+```
+
+### Supplier create (`201 Created`) and supplier detail
+
+```json
+POST /api/v1/suppliers
+→ 201 Created
+{
+  "success": true,
+  "message": "Supplier created",
+  "data": {
+    "id": 301,
+    "name": "ABC Chemicals",
+    "status": "PENDING",
+    "outstandingBalance": 0
+  }
+}
+```
+
+```json
+GET /api/v1/suppliers/301
+{
+  "success": true,
+  "data": {
+    "id": 301,
+    "name": "ABC Chemicals",
+    "status": "APPROVED",
+    "outstandingBalance": 45250.0
+  }
+}
+```
+
+### Purchase order create (`201 Created`) and timeline
+
+```json
+POST /api/v1/purchasing/purchase-orders
+→ 201 Created
+{
+  "success": true,
+  "message": "Purchase order recorded",
+  "data": {
+    "id": 8801,
+    "status": "DRAFT",
+    "supplierId": 301
+  }
+}
+```
+
+```json
+GET /api/v1/purchasing/purchase-orders/8801/timeline
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "fromStatus": "DRAFT",
+      "toStatus": "APPROVED",
+      "status": "APPROVED",
+      "changedAt": "2026-04-07T09:45:10Z",
+      "timestamp": "2026-04-07T09:45:10Z",
+      "actor": "controller@acme.test",
+      "changedBy": "controller@acme.test",
+      "reasonCode": "MANUAL_APPROVAL",
+      "reason": "Approved after review"
+    }
+  ]
+}
+```
 
 ## Invoices
 

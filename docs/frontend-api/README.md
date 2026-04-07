@@ -2,7 +2,7 @@
 
 `docs/frontend-api/` documents the shared API contracts and rules that apply across all frontend portal shells. This is the canonical source for cross-portal frontend contracts and replaces any older handoff docs that referenced deprecated routes or tenant-scoping assumptions.
 
-Last reviewed: 2026-04-06
+Last reviewed: 2026-04-07
 
 ## Purpose
 
@@ -44,6 +44,11 @@ See [`docs/frontend-portals/README.md`](../frontend-portals/README.md) for detai
 
 - **Manual journals:** `POST /api/v1/accounting/journal-entries` is the only public manual journal create route.
 - **Reversals:** `POST /api/v1/accounting/journal-entries/{entryId}/reverse` is the only public reversal route.
+- **Inventory reads:** `GET /api/v1/raw-materials/stock` returns `RawMaterialStockEntryDto[]`; `GET /api/v1/finished-goods` returns a paginated `PageResponse<FinishedGoodDto>`; `GET /api/v1/finished-goods/stock-summary` returns `FinishedGoodStockSummaryDto[]`; `GET /api/v1/finished-goods/{id}/batches` returns `FinishedGoodBatchInventoryDto[]`; and `GET /api/v1/inventory/batches/{id}/movements` returns `InventoryBatchMovementHistoryDto[]`.
+- **M6 create status codes:** `POST /api/v1/inventory/adjustments`, `POST /api/v1/suppliers`, `POST /api/v1/purchasing/purchase-orders`, and `POST /api/v1/purchasing/goods-receipts` return **`201 Created`**.
+- **Opening stock import response:** `OpeningStockImportResponse` includes `importedCount` alongside row/batch counts.
+- **Supplier read model:** `SupplierResponse` includes `outstandingBalance`.
+- **Purchase-order timeline shape:** timeline rows include `status`, `timestamp`, and `actor` (in addition to transition metadata).
 - **Settlement writes:** dealer and supplier settlement routes both accept the same `PartnerSettlementRequest` body; use `partnerType` + `partnerId`, not retired dealer/supplier-specific request DTOs, and do not send a separate `payments` list.
 - **Period writes:** both `POST /api/v1/accounting/periods` and `PUT /api/v1/accounting/periods/{periodId}` use `AccountingPeriodRequest`; close request/approve/reject use `PeriodCloseRequestActionRequest`, and reopen uses `AccountingPeriodReopenRequest`.
 - **Period close:** frontend must follow maker-checker flow: request close → tenant-admin approvals inbox → approve/reject close.
