@@ -99,6 +99,9 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
   Optional<Invoice> findByCompanyAndId(Company company, Long id);
 
   @EntityGraph(attributePaths = {"lines", "dealer", "salesOrder"})
+  Optional<Invoice> findPdfViewByCompanyAndId(Company company, Long id);
+
+  @EntityGraph(attributePaths = {"lines", "dealer", "salesOrder"})
   Optional<Invoice> findByCompanyAndJournalEntry(Company company, JournalEntry journalEntry);
 
   @EntityGraph(attributePaths = {"dealer", "salesOrder"})

@@ -42,11 +42,11 @@ class InvoiceControllerExportGovernanceTest {
   }
 
   @Test
-  void downloadInvoicePdf_hasAdminOnlyPreAuthorize() throws Exception {
+  void downloadInvoicePdf_hasAdminOrAccountingPreAuthorize() throws Exception {
     Method method = InvoiceController.class.getMethod("downloadInvoicePdf", Long.class);
     PreAuthorize preAuthorize = method.getAnnotation(PreAuthorize.class);
     assertThat(preAuthorize).isNotNull();
-    assertThat(preAuthorize.value()).isEqualTo("hasAuthority('ROLE_ADMIN')");
+    assertThat(preAuthorize.value()).isEqualTo("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')");
   }
 
   @Test

@@ -39,7 +39,7 @@ public class InvoicePdfService {
   @Transactional(readOnly = true)
   public PdfDocument renderInvoicePdf(Long invoiceId) {
     Company company = companyContextService.requireCurrentCompany();
-    Invoice invoice = invoiceLookupService.requireInvoice(company, invoiceId);
+    Invoice invoice = invoiceLookupService.requireInvoicePdf(company, invoiceId);
     Dealer dealer = invoice.getDealer();
     SalesOrder order = invoice.getSalesOrder();
 

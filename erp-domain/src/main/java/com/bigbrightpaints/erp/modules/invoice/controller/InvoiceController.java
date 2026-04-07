@@ -69,7 +69,7 @@ public class InvoiceController {
           @Content(
               mediaType = MediaType.APPLICATION_PDF_VALUE,
               schema = @Schema(type = "string", format = "binary")))
-  @PreAuthorize(PortalRoleActionMatrix.ADMIN_ONLY)
+  @PreAuthorize(PortalRoleActionMatrix.ADMIN_OR_ACCOUNTING)
   public ResponseEntity<byte[]> downloadInvoicePdf(@PathVariable Long id) {
     InvoicePdfService.PdfDocument pdf = invoicePdfService.renderInvoicePdf(id);
     logInvoiceExport(id, pdf.fileName(), "pdf");

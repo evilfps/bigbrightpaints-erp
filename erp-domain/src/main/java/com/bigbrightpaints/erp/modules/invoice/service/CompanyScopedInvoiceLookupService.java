@@ -25,4 +25,9 @@ public class CompanyScopedInvoiceLookupService {
     return companyScopedLookupService.require(
         company, invoiceId, invoiceRepository::findByCompanyAndId, "Invoice");
   }
+
+  public Invoice requireInvoicePdf(Company company, Long invoiceId) {
+    return companyScopedLookupService.require(
+        company, invoiceId, invoiceRepository::findPdfViewByCompanyAndId, "Invoice");
+  }
 }
