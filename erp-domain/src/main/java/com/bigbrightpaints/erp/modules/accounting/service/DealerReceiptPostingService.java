@@ -30,6 +30,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.DealerReceiptSplitRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
+import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationApplication;
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -56,6 +57,7 @@ class DealerReceiptPostingService {
   private final DealerLedgerService dealerLedgerService;
   private final AccountingDtoMapperService dtoMapperService;
   private final AccountingAuditService accountingAuditService;
+  private final SettlementTotalsValidationService settlementTotalsValidationService;
 
   DealerReceiptPostingService(
       CompanyContextService companyContextService,
@@ -71,7 +73,8 @@ class DealerReceiptPostingService {
       InvoiceSettlementPolicy invoiceSettlementPolicy,
       DealerLedgerService dealerLedgerService,
       AccountingDtoMapperService dtoMapperService,
-      AccountingAuditService accountingAuditService) {
+      AccountingAuditService accountingAuditService,
+      SettlementTotalsValidationService settlementTotalsValidationService) {
     this.companyContextService = companyContextService;
     this.dealerRepository = dealerRepository;
     this.accountingFacadeProvider = accountingFacadeProvider;
@@ -86,6 +89,7 @@ class DealerReceiptPostingService {
     this.dealerLedgerService = dealerLedgerService;
     this.dtoMapperService = dtoMapperService;
     this.accountingAuditService = accountingAuditService;
+    this.settlementTotalsValidationService = settlementTotalsValidationService;
   }
 
   @Retryable(
@@ -111,6 +115,7 @@ class DealerReceiptPostingService {
     if (allocations == null) {
       allocations = List.of();
     }
+    validateDealerReceiptAllocations(allocations, amount);
     String memo =
         StringUtils.hasText(request.memo())
             ? request.memo().trim()
@@ -131,10 +136,10 @@ class DealerReceiptPostingService {
           journalReplayService.awaitJournalEntry(company, reference, idempotencyKey);
       List<PartnerSettlementAllocation> existingAllocations =
           resolveAllocationsForReplay(company, idempotencyKey, existingEntry);
-      if (!existingAllocations.isEmpty()) {
-        JournalEntry entry =
-            journalReplayService.resolveReplayJournalEntry(
-                idempotencyKey, existingEntry, existingAllocations);
+      JournalEntry entry =
+          journalReplayService.resolveReplayJournalEntry(
+              idempotencyKey, existingEntry, existingAllocations);
+      if (entry != null) {
         journalReplayService.linkReferenceMapping(company, idempotencyKey, entry, "DEALER_RECEIPT");
         settlementReplayValidationService.validateDealerReceiptIdempotency(
             idempotencyKey,
@@ -175,9 +180,12 @@ class DealerReceiptPostingService {
         journalReplayService.findExistingEntry(company, reference, idempotencyKey);
     if (existingEntry != null) {
       existingAllocations = resolveAllocationsForReplay(company, idempotencyKey, existingEntry);
-      if (!existingAllocations.isEmpty()) {
+      JournalEntry entry =
+          journalReplayService.resolveReplayJournalEntry(
+              idempotencyKey, existingEntry, existingAllocations);
+      if (entry != null) {
         journalReplayService.linkReferenceMapping(
-            company, idempotencyKey, existingEntry, "DEALER_RECEIPT");
+            company, idempotencyKey, entry, "DEALER_RECEIPT");
         settlementReplayValidationService.validateDealerReceiptIdempotency(
             idempotencyKey,
             dealer,
@@ -185,10 +193,10 @@ class DealerReceiptPostingService {
             receivableAccount,
             amount,
             memo,
-            existingEntry,
+            entry,
             existingAllocations,
             allocations);
-        return dtoMapperService.toJournalEntryDto(existingEntry);
+        return dtoMapperService.toJournalEntryDto(entry);
       }
     }
 
@@ -359,37 +367,53 @@ class DealerReceiptPostingService {
     List<Invoice> touchedInvoices = new ArrayList<>();
     Map<Long, BigDecimal> remainingByInvoice = new HashMap<>();
     for (SettlementAllocationRequest allocation : allocations) {
-      if (allocation.invoiceId() == null) {
+      if (allocation.purchaseId() != null) {
         throw new ApplicationException(
-            ErrorCode.VALIDATION_INVALID_INPUT,
-            "Invoice allocation is required for dealer settlements");
+            ErrorCode.VALIDATION_INVALID_INPUT, "Dealer receipts cannot allocate to purchases");
       }
+      SettlementAllocationApplication applicationType =
+          settlementTotalsValidationService.resolveSettlementApplicationType(allocation);
       BigDecimal applied =
           ValidationUtils.requirePositive(allocation.appliedAmount(), "appliedAmount");
-      Invoice invoice =
-          invoiceRepository
-              .lockByCompanyAndId(company, allocation.invoiceId())
-              .orElseThrow(
-                  () ->
-                      new ApplicationException(
-                          ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice not found"));
-      if (invoice.getDealer() == null
-          || !Objects.equals(invoice.getDealer().getId(), dealer.getId())) {
-        throw new ApplicationException(
-            ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice does not belong to the dealer");
+      Invoice invoice = null;
+      if (applicationType.isUnapplied()) {
+        if (allocation.invoiceId() != null) {
+          throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT,
+              "Unapplied dealer receipt rows cannot reference an invoice");
+        }
+      } else {
+        if (allocation.invoiceId() == null) {
+          throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT,
+              "Invoice allocation is required for dealer receipts unless unapplied");
+        }
+        invoice =
+            invoiceRepository
+                .lockByCompanyAndId(company, allocation.invoiceId())
+                .orElseThrow(
+                    () ->
+                        new ApplicationException(
+                            ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice not found"));
+        if (invoice.getDealer() == null
+            || !Objects.equals(invoice.getDealer().getId(), dealer.getId())) {
+          throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_REFERENCE, "Invoice does not belong to the dealer");
+        }
+        BigDecimal currentOutstanding =
+            remainingByInvoice.getOrDefault(
+                invoice.getId(), MoneyUtils.zeroIfNull(invoice.getOutstandingAmount()));
+        if (applied.compareTo(currentOutstanding) > 0) {
+          throw new ApplicationException(
+                  ErrorCode.VALIDATION_INVALID_INPUT,
+                  "Allocation exceeds invoice outstanding amount")
+              .withDetail("invoiceId", invoice.getId())
+              .withDetail("outstanding", currentOutstanding)
+              .withDetail("applied", applied);
+        }
+        remainingByInvoice.put(
+            invoice.getId(), currentOutstanding.subtract(applied).max(BigDecimal.ZERO));
       }
-      BigDecimal currentOutstanding =
-          remainingByInvoice.getOrDefault(
-              invoice.getId(), MoneyUtils.zeroIfNull(invoice.getOutstandingAmount()));
-      if (applied.compareTo(currentOutstanding) > 0) {
-        throw new ApplicationException(
-                ErrorCode.VALIDATION_INVALID_INPUT, "Allocation exceeds invoice outstanding amount")
-            .withDetail("invoiceId", invoice.getId())
-            .withDetail("outstanding", currentOutstanding)
-            .withDetail("applied", applied);
-      }
-      remainingByInvoice.put(
-          invoice.getId(), currentOutstanding.subtract(applied).max(BigDecimal.ZERO));
       PartnerSettlementAllocation row = new PartnerSettlementAllocation();
       row.setCompany(company);
       row.setPartnerType(PartnerType.DEALER);
@@ -402,10 +426,12 @@ class DealerReceiptPostingService {
       row.setWriteOffAmount(BigDecimal.ZERO);
       row.setFxDifferenceAmount(BigDecimal.ZERO);
       row.setIdempotencyKey(idempotencyKey);
-      if (invoice.getCurrency() != null) {
+      if (invoice != null && invoice.getCurrency() != null) {
         row.setCurrency(invoice.getCurrency());
       }
-      row.setMemo(allocation.memo());
+      row.setMemo(
+          settlementTotalsValidationService.encodeSettlementAllocationMemo(
+              applicationType, allocation.memo()));
       settlementRows.add(row);
     }
     settlementAllocationRepository.saveAll(settlementRows);
@@ -424,14 +450,14 @@ class DealerReceiptPostingService {
           idempotencyKey);
     }
     for (PartnerSettlementAllocation row : settlementRows) {
-      if (row.getInvoice() == null) {
+      Invoice invoice = row.getInvoice();
+      if (invoice == null) {
         continue;
       }
-      String settlementRef = reference + "-INV-" + row.getInvoice().getId();
-      invoiceSettlementPolicy.applySettlement(
-          row.getInvoice(), row.getAllocationAmount(), settlementRef);
-      dealerLedgerService.syncInvoiceLedger(row.getInvoice(), entryDate);
-      touchedInvoices.add(row.getInvoice());
+      String settlementRef = reference + "-INV-" + invoice.getId();
+      invoiceSettlementPolicy.applySettlement(invoice, row.getAllocationAmount(), settlementRef);
+      dealerLedgerService.syncInvoiceLedger(invoice, entryDate);
+      touchedInvoices.add(invoice);
     }
     if (!touchedInvoices.isEmpty()) {
       invoiceRepository.saveAll(touchedInvoices);
@@ -490,6 +516,42 @@ class DealerReceiptPostingService {
       invoiceSettlementPolicy.applySettlement(
           row.getInvoice(), row.getAllocationAmount(), settlementRef);
       dealerLedgerService.syncInvoiceLedger(row.getInvoice(), entryDate);
+    }
+  }
+
+  private void validateDealerReceiptAllocations(
+      List<SettlementAllocationRequest> allocations, BigDecimal amount) {
+    if (allocations == null || allocations.isEmpty()) {
+      return;
+    }
+    settlementTotalsValidationService.validateDealerSettlementAllocations(allocations);
+    BigDecimal totalApplied = BigDecimal.ZERO;
+    for (SettlementAllocationRequest allocation : allocations) {
+      BigDecimal discount =
+          settlementTotalsValidationService.normalizeNonNegative(
+              allocation.discountAmount(), "discountAmount");
+      BigDecimal writeOff =
+          settlementTotalsValidationService.normalizeNonNegative(
+              allocation.writeOffAmount(), "writeOffAmount");
+      BigDecimal fxAdjustment = MoneyUtils.zeroIfNull(allocation.fxAdjustment());
+      if (discount.compareTo(BigDecimal.ZERO) > 0
+          || writeOff.compareTo(BigDecimal.ZERO) > 0
+          || fxAdjustment.compareTo(BigDecimal.ZERO) != 0) {
+        throw new ApplicationException(
+            ErrorCode.VALIDATION_INVALID_INPUT,
+            "Discount/write-off/FX adjustments are not supported for dealer receipts");
+      }
+      totalApplied =
+          totalApplied.add(
+              ValidationUtils.requirePositive(allocation.appliedAmount(), "appliedAmount"));
+    }
+    if (totalApplied.subtract(amount).abs().compareTo(AccountingConstants.ALLOCATION_TOLERANCE)
+        > 0) {
+      throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT,
+              "Dealer receipt allocations must add up to the receipt amount")
+          .withDetail("receiptAmount", amount)
+          .withDetail("allocationTotal", totalApplied);
     }
   }
 }

@@ -400,6 +400,49 @@ Public route:
 
 - `POST /api/v1/accounting/journal-entries`
 
+## Dealer receipt request
+
+`POST /api/v1/accounting/receipts/dealer` now supports true on-account receipts
+without forcing invoice allocations.
+
+### Unallocated on-account receipt (no allocations)
+
+```json
+{
+  "dealerId": 101,
+  "cashAccountId": 1101,
+  "amount": 1250.00,
+  "referenceNumber": "DR-ON-2026-0042",
+  "memo": "On-account receipt"
+}
+```
+
+### Explicit unapplied carry row
+
+```json
+{
+  "dealerId": 101,
+  "cashAccountId": 1101,
+  "amount": 1250.00,
+  "referenceNumber": "DR-ON-2026-0043",
+  "memo": "On-account receipt",
+  "allocations": [
+    {
+      "appliedAmount": 1250.00,
+      "applicationType": "ON_ACCOUNT",
+      "memo": "Carry on account"
+    }
+  ]
+}
+```
+
+Rules:
+
+- `allocations` is optional for dealer receipts.
+- If `allocations` is provided, `appliedAmount` totals must equal `amount`.
+- Unapplied rows must not include `invoiceId`; use `applicationType` values
+  `ON_ACCOUNT` or `FUTURE_APPLICATION`.
+
 ## Partner settlement request
 
 Dealer and supplier settlement routes now share the same request body.

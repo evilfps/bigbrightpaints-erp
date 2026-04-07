@@ -5,7 +5,6 @@ import java.util.List;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
 public record DealerReceiptRequest(
@@ -15,8 +14,4 @@ public record DealerReceiptRequest(
     String referenceNumber,
     String memo,
     String idempotencyKey,
-    @NotEmpty(
-            message =
-                "Allocations are required for dealer receipts; use settlement endpoints or include"
-                    + " allocations")
-        List<@Valid SettlementAllocationRequest> allocations) {}
+    List<@Valid SettlementAllocationRequest> allocations) {}
