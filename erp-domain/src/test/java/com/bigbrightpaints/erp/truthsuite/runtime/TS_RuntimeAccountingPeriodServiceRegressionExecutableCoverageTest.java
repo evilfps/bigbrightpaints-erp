@@ -28,6 +28,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodReposit
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequest;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepository;
@@ -161,7 +162,10 @@ class TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(accountingLookupService.requireAccountingPeriod(company, 31L)).thenReturn(period);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING")))
+            company,
+            period.getStartDate(),
+            period.getEndDate(),
+            List.of(JournalEntryStatus.DRAFT)))
         .thenReturn(0L);
     when(reportService.inventoryReconciliation())
         .thenReturn(
@@ -265,7 +269,10 @@ class TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(accountingLookupService.requireAccountingPeriod(company, 32L)).thenReturn(period);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING")))
+            company,
+            period.getStartDate(),
+            period.getEndDate(),
+            List.of(JournalEntryStatus.DRAFT)))
         .thenReturn(0L);
     when(reportService.inventoryReconciliation())
         .thenReturn(

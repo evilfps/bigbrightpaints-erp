@@ -33,6 +33,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequest;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepository;
@@ -182,7 +183,10 @@ class AccountingPeriodServicePolicyTest {
             company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED))
         .thenReturn(0L);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING")))
+            company,
+            period.getStartDate(),
+            period.getEndDate(),
+            List.of(JournalEntryStatus.DRAFT)))
         .thenReturn(0L);
     when(reportService.inventoryReconciliation()).thenReturn(null);
     when(reconciliationService.reconcileSubledgersForPeriod(
@@ -265,7 +269,10 @@ class AccountingPeriodServicePolicyTest {
             company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED))
         .thenReturn(0L);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING")))
+            company,
+            period.getStartDate(),
+            period.getEndDate(),
+            List.of(JournalEntryStatus.DRAFT)))
         .thenReturn(0L);
     when(reportService.inventoryReconciliation()).thenReturn(null);
     when(reconciliationService.reconcileSubledgersForPeriod(
@@ -345,7 +352,10 @@ class AccountingPeriodServicePolicyTest {
             company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED))
         .thenReturn(0L);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING")))
+            company,
+            period.getStartDate(),
+            period.getEndDate(),
+            List.of(JournalEntryStatus.DRAFT)))
         .thenReturn(0L);
     when(reportService.inventoryReconciliation())
         .thenReturn(inventoryReconciliation(BigDecimal.ZERO));

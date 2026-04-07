@@ -67,7 +67,7 @@ public interface JournalEntryRepository
       Company company, String referencePrefix);
 
   long countByCompanyAndEntryDateBetweenAndStatusIn(
-      Company company, LocalDate start, LocalDate end, Collection<String> statuses);
+      Company company, LocalDate start, LocalDate end, Collection<JournalEntryStatus> statuses);
 
   @EntityGraph(attributePaths = {"lines", "lines.account"})
   List<JournalEntry> findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(

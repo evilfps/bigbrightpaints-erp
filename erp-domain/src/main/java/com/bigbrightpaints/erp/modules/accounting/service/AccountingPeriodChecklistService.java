@@ -14,6 +14,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriod;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryStatus;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistItemDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.MonthEndChecklistUpdateRequest;
@@ -22,6 +23,8 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 
 final class AccountingPeriodChecklistService {
 
+  private static final List<JournalEntryStatus> DRAFT_CHECKLIST_STATUSES =
+      List.of(JournalEntryStatus.DRAFT);
   private static final String UNRESOLVED_CONTROLS_PREFIX =
       "Checklist controls unresolved for this period: ";
   private static final Map<String, String> UNRESOLVED_CONTROL_GUIDANCE =
@@ -118,7 +121,7 @@ final class AccountingPeriodChecklistService {
     }
     long drafts =
         journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING"));
+            company, period.getStartDate(), period.getEndDate(), DRAFT_CHECKLIST_STATUSES);
     if (drafts > 0) {
       throw ValidationUtils.invalidState("There are " + drafts + " draft entries in this period");
     }
@@ -205,7 +208,7 @@ final class AccountingPeriodChecklistService {
   private MonthEndChecklistDto buildChecklist(Company company, AccountingPeriod period) {
     long draftEntries =
         journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company, period.getStartDate(), period.getEndDate(), List.of("DRAFT", "PENDING"));
+            company, period.getStartDate(), period.getEndDate(), DRAFT_CHECKLIST_STATUSES);
     boolean draftsCleared = draftEntries == 0;
     AccountingPeriodChecklistDiagnostics diagnostics =
         diagnosticsService.evaluateChecklistDiagnostics(company, period);
