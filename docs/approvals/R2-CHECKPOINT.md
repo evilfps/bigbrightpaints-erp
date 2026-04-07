@@ -62,8 +62,8 @@ Last reviewed: 2026-04-07
   - `cd "/home/realnigga/Desktop/Mission-control" && bash ci/check-codex-review-guidelines.sh`
   - `cd "/home/realnigga/Desktop/Mission-control" && bash ci/check-enterprise-policy.sh`
 - Result summary:
-  - draft-lifecycle confirm now reserves stock and lifecycle tests cover reserve-on-confirm plus release-on-cancel behavior
-  - OpenAPI snapshot and canonical docs reflect `paymentTerms`, `finishedGoodId`, timeline aliases, and create-order status semantics
+  - draft-lifecycle confirm now reserves stock and fails closed when reservation-backed slip state is missing; lifecycle tests cover reserve-on-confirm plus release-on-cancel behavior
+  - OpenAPI snapshot and canonical docs (`docs/endpoint-inventory.md`, `docs/frontend-portals/sales/api-contracts.md`, and `docs/frontend-portals/sales/frontend-engineer-handoff.md`) reflect `paymentTerms`, `finishedGoodId`, timeline aliases, and create-order HTTP 200 and 201 semantics
   - governance checkpoint now records migration-v2 risk handling and verification proof for V179 scope
 
 ---

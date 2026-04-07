@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -4098,6 +4099,12 @@ public class SalesCoreEngine {
                 "Order cannot be confirmed because production is still required for shortage items")
             .withDetail("productionRequirementSkus", requirementSkus);
       }
+      if (isDraftLifecycleOrder(order)) {
+        throw new ApplicationException(
+                ErrorCode.BUSINESS_INVALID_STATE,
+                "Order cannot be confirmed because no stock is reserved for line items")
+            .withDetail("unreservedSkus", draftLifecycleLineSkus(order));
+      }
       return;
     }
     List<String> shortages = new ArrayList<>();
@@ -4140,6 +4147,26 @@ public class SalesCoreEngine {
               "Order cannot be confirmed because no stock is reserved for line items")
           .withDetail("unreservedSkus", shortages);
     }
+  }
+
+  private List<String> draftLifecycleLineSkus(SalesOrder order) {
+    if (order == null || order.getItems() == null) {
+      return List.of();
+    }
+    List<String> skus =
+        order.getItems().stream()
+            .filter(Objects::nonNull)
+            .filter(item -> item.getFinishedGoodId() != null)
+            .map(
+                item -> {
+                  if (StringUtils.hasText(item.getProductCode())) {
+                    return item.getProductCode().trim();
+                  }
+                  return "FG#" + item.getFinishedGoodId();
+                })
+            .distinct()
+            .toList();
+    return skus.isEmpty() ? List.of("UNKNOWN") : skus;
   }
 
   private void assertDraftLifecycleReservationBacked(

@@ -4396,6 +4396,39 @@ class SalesServiceTest {
   }
 
   @Test
+  void confirmOrderRejectsDraftLifecycleWhenNoReservedSlipExists() {
+    SalesOrder order = new SalesOrder();
+    order.setCompany(company);
+    order.setStatus("READY_TO_SHIP");
+    order.setTotalAmount(new BigDecimal("100.00"));
+    order.setPaymentMode("CASH");
+    setField(order, "id", 9051L);
+
+    SalesOrderItem item = new SalesOrderItem();
+    item.setSalesOrder(order);
+    item.setFinishedGoodId(9051L);
+    item.setProductCode("SKU-NO-SLIP");
+    item.setDescription("Draft lifecycle item without reservation");
+    item.setQuantity(BigDecimal.ONE);
+    item.setUnitPrice(new BigDecimal("100.00"));
+    item.setGstRate(BigDecimal.ZERO);
+    order.getItems().add(item);
+
+    when(salesLookupService.requireSalesOrder(company, 9051L)).thenReturn(order);
+    when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 9051L))
+        .thenReturn(List.of());
+    when(factoryTaskRepository.findByCompanyAndSalesOrderId(company, 9051L)).thenReturn(List.of());
+
+    ApplicationException ex =
+        assertThrows(ApplicationException.class, () -> salesService.confirmOrder(9051L));
+
+    assertEquals(ErrorCode.BUSINESS_INVALID_STATE, ex.getErrorCode());
+    assertTrue(ex.getMessage().contains("no stock is reserved"));
+    assertEquals(List.of("SKU-NO-SLIP"), ex.getDetails().get("unreservedSkus"));
+    verify(finishedGoodsService, never()).reserveForOrder(order);
+  }
+
+  @Test
   void confirmOrderReservesInventoryForDraftLifecycleOrdersBeforeConfirming() {
     SalesOrder order = new SalesOrder();
     order.setCompany(company);
