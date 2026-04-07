@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.bigbrightpaints.erp.core.auditaccess.AuditAccessService;
 import com.bigbrightpaints.erp.core.auditaccess.AuditControllerSupport;
@@ -52,11 +54,21 @@ public class AccountingAuditController extends AuditControllerSupport {
       @RequestParam(required = false) String reference,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "50") int size) {
+    String resolvedModule = resolveModuleOrCategory(module);
     return ResponseEntity.ok(
         ApiResponse.success(
             auditAccessService.queryAccountingFeed(
                 buildFilter(
-                    from, to, module, action, status, actor, entityType, reference, page, size))));
+                    from,
+                    to,
+                    resolvedModule,
+                    action,
+                    status,
+                    actor,
+                    entityType,
+                    reference,
+                    page,
+                    size))));
   }
 
   @GetMapping("/transactions")
@@ -88,5 +100,19 @@ public class AccountingAuditController extends AuditControllerSupport {
       @PathVariable Long journalEntryId) {
     return ResponseEntity.ok(
         ApiResponse.success(auditAccessService.getAccountingTransactionDetail(journalEntryId)));
+  }
+
+  private String resolveModuleOrCategory(String module) {
+    if (module != null && !module.trim().isEmpty()) {
+      return module;
+    }
+    if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs)) {
+      return module;
+    }
+    String category = attrs.getRequest().getParameter("category");
+    if (category == null || category.trim().isEmpty()) {
+      return module;
+    }
+    return category;
   }
 }

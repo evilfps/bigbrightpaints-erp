@@ -366,6 +366,7 @@ public class RawMaterialService {
       receiptMovement.setJournalEntryId(journalEntryId);
       movementRepository.save(receiptMovement);
     }
+    logGoodsReceiptAuditEvent(material, supplier, receiptMovement, effectiveContext, journalEntryId);
     return new ReceiptResult(savedBatch, receiptMovement, journalEntryId);
   }
 
@@ -569,6 +570,7 @@ public class RawMaterialService {
     movements.forEach(movement -> movement.setJournalEntryId(journalEntry.id()));
     movementRepository.saveAll(movements);
     RawMaterialAdjustment posted = rawMaterialAdjustmentRepository.save(saved);
+    logInventoryAdjustmentAuditEvent(posted, increaseInventory);
 
     return toAdjustmentDto(posted);
   }
@@ -1068,6 +1070,68 @@ public class RawMaterialService {
 
   private boolean isProdProfile() {
     return environment != null && environment.acceptsProfiles(Profiles.of("prod"));
+  }
+
+  private void logInventoryAdjustmentAuditEvent(
+      RawMaterialAdjustment adjustment, boolean increaseInventory) {
+    if (adjustment == null || adjustment.getCompany() == null || adjustment.getCompany().getId() == null) {
+      return;
+    }
+    Map<String, String> metadata = new HashMap<>();
+    metadata.put("resourceType", "INVENTORY");
+    metadata.put("referenceType", InventoryReference.RAW_MATERIAL_ADJUSTMENT);
+    metadata.put("adjustmentDirection", increaseInventory ? "INCREASE" : "DECREASE");
+    if (adjustment.getReferenceNumber() != null) {
+      metadata.put("referenceNumber", adjustment.getReferenceNumber());
+    }
+    if (adjustment.getId() != null) {
+      metadata.put("adjustmentId", adjustment.getId().toString());
+    }
+    if (adjustment.getJournalEntryId() != null) {
+      metadata.put("journalEntryId", adjustment.getJournalEntryId().toString());
+    }
+    if (adjustment.getTotalAmount() != null) {
+      metadata.put("totalAmount", adjustment.getTotalAmount().toPlainString());
+    }
+    if (adjustment.getLines() != null) {
+      metadata.put("lineCount", Integer.toString(adjustment.getLines().size()));
+    }
+    auditService.logSuccess(AuditEvent.INVENTORY_ADJUSTMENT, metadata);
+  }
+
+  private void logGoodsReceiptAuditEvent(
+      RawMaterial material,
+      Supplier supplier,
+      RawMaterialMovement movement,
+      ReceiptContext context,
+      Long journalEntryId) {
+    if (material == null
+        || material.getCompany() == null
+        || material.getCompany().getId() == null
+        || context == null
+        || !InventoryReference.GOODS_RECEIPT.equalsIgnoreCase(context.referenceType())) {
+      return;
+    }
+    Map<String, String> metadata = new HashMap<>();
+    metadata.put("resourceType", "INVENTORY");
+    metadata.put("referenceType", InventoryReference.GOODS_RECEIPT);
+    if (context.referenceId() != null) {
+      metadata.put("referenceNumber", context.referenceId());
+      metadata.put("goodsReceiptNumber", context.referenceId());
+    }
+    if (material.getId() != null) {
+      metadata.put("rawMaterialId", material.getId().toString());
+    }
+    if (supplier != null && supplier.getId() != null) {
+      metadata.put("supplierId", supplier.getId().toString());
+    }
+    if (movement != null && movement.getId() != null) {
+      metadata.put("rawMaterialMovementId", movement.getId().toString());
+    }
+    if (journalEntryId != null) {
+      metadata.put("journalEntryId", journalEntryId.toString());
+    }
+    auditService.logSuccess(AuditEvent.GOODS_RECEIPT, metadata);
   }
 
   public record ReceiptContext(

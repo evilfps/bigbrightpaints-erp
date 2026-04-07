@@ -2364,6 +2364,7 @@ class SalesServiceTest {
     assertEquals("DISCOUNT_OVERRIDE", metadata.get("dispatchOverrideReasonCode"));
     assertEquals("805", metadata.get("overrideRequestId"));
     assertEquals("TRACE-FASTPATH-805", metadata.get("traceId"));
+    assertEquals("INVENTORY", metadata.get("resourceType"));
   }
 
   @Test

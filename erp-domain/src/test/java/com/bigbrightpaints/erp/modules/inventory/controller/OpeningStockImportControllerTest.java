@@ -53,6 +53,7 @@ class OpeningStockImportControllerTest {
 
     verify(openingStockImportService)
         .importOpeningStock(file, "import-key", batchKey("import-key"));
+    assertThat(response.importedCount()).isEqualTo(response.rowsProcessed());
   }
 
   @Test

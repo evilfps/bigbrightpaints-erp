@@ -15,6 +15,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditLog;
+import com.bigbrightpaints.erp.core.audit.AuditLogRepository;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
@@ -54,6 +57,7 @@ class RawMaterialAdjustmentServiceTest extends AbstractIntegrationTest {
   @Autowired private AccountRepository accountRepository;
 
   @Autowired private JournalEntryRepository journalEntryRepository;
+  @Autowired private AuditLogRepository auditLogRepository;
 
   @AfterEach
   void clearCompanyContext() {
@@ -143,6 +147,19 @@ class RawMaterialAdjustmentServiceTest extends AbstractIntegrationTest {
                 line.getAccount().getId().equals(accounts.get("VAR").getId())
                     && line.getCredit().compareTo(new BigDecimal("37.5000")) == 0
                     && line.getDebit().compareTo(BigDecimal.ZERO) == 0);
+
+    List<AuditLog> adjustmentAuditLogs =
+        auditLogRepository.findByEventTypeWithMetadataOrderByTimestampDesc(
+            AuditEvent.INVENTORY_ADJUSTMENT);
+    assertThat(adjustmentAuditLogs)
+        .anySatisfy(
+            log -> {
+              assertThat(log.getCompanyId()).isEqualTo(company.getId());
+              assertThat(log.getMetadata())
+                  .containsEntry("resourceType", "INVENTORY")
+                  .containsEntry("referenceType", "RAW_MATERIAL_ADJUSTMENT")
+                  .containsEntry("referenceNumber", storedAdjustment.getReferenceNumber());
+            });
   }
 
   @Test

@@ -9,15 +9,19 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryAdjustmentType;
+import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentDto;
+import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentLineDto;
 import com.bigbrightpaints.erp.modules.inventory.dto.InventoryAdjustmentRequest;
 import com.bigbrightpaints.erp.modules.inventory.service.InventoryAdjustmentService;
 
@@ -79,6 +83,34 @@ class InventoryAdjustmentControllerTest {
 
     assertThatThrownBy(() -> controller.createAdjustment("header-key", invalid))
         .isInstanceOf(ConstraintViolationException.class);
+  }
+
+  @Test
+  void createAdjustment_returnsCreatedStatus() {
+    InventoryAdjustmentController controller = controller();
+    when(inventoryAdjustmentService.createAdjustment(any()))
+        .thenReturn(
+            new InventoryAdjustmentDto(
+                17L,
+                UUID.randomUUID(),
+                "INV-ADJ-17",
+                LocalDate.of(2026, 2, 9),
+                InventoryAdjustmentType.DAMAGED.name(),
+                "POSTED",
+                "reason",
+                new BigDecimal("10.00"),
+                88L,
+                List.of(
+                    new InventoryAdjustmentLineDto(
+                        1001L,
+                        "FG-1",
+                        new BigDecimal("1.00"),
+                        new BigDecimal("10.00"),
+                        new BigDecimal("10.00"),
+                        "note"))));
+
+    assertThat(controller.createAdjustment("header-key", validRequest(null)).getStatusCode())
+        .isEqualTo(HttpStatus.CREATED);
   }
 
   private InventoryAdjustmentController controller() {

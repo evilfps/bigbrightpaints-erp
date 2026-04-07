@@ -68,6 +68,8 @@ class AuditVisibilityPolicyTest {
 
     assertThat(policy.isAccountingModule("ACCOUNTING")).isTrue();
     assertThat(policy.isAccountingModule("accounting")).isTrue();
+    assertThat(policy.isAccountingModule("INVENTORY")).isTrue();
+    assertThat(policy.isAccountingModule("inventory")).isTrue();
     assertThat(policy.isAccountingModule("sales")).isFalse();
   }
 

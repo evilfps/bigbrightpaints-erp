@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.inventory.controller;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
@@ -48,7 +49,8 @@ public class InventoryAdjustmentController {
       @RequestBody InventoryAdjustmentRequest request) {
     InventoryAdjustmentRequest resolved = applyIdempotencyKey(request, idempotencyKey);
     validateRequest(resolved);
-    return ResponseEntity.ok(
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(
         ApiResponse.success(
             "Inventory adjustment posted", inventoryAdjustmentService.createAdjustment(resolved)));
   }

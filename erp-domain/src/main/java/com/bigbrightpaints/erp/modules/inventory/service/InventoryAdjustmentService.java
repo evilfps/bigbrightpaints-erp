@@ -9,6 +9,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditService;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.retry.annotation.Backoff;
@@ -58,6 +61,7 @@ public class InventoryAdjustmentService {
   private final InventoryMovementRepository inventoryMovementRepository;
   private final FinishedGoodBatchRepository finishedGoodBatchRepository;
   private final AccountingFacade accountingFacade;
+  private final AuditService auditService;
   private final ReferenceNumberService referenceNumberService;
   private final CompanyClock companyClock;
   private final FinishedGoodsService finishedGoodsService;
@@ -73,6 +77,7 @@ public class InventoryAdjustmentService {
       InventoryMovementRepository inventoryMovementRepository,
       FinishedGoodBatchRepository finishedGoodBatchRepository,
       AccountingFacade accountingFacade,
+      AuditService auditService,
       ReferenceNumberService referenceNumberService,
       CompanyClock companyClock,
       FinishedGoodsService finishedGoodsService,
@@ -84,6 +89,7 @@ public class InventoryAdjustmentService {
     this.inventoryMovementRepository = inventoryMovementRepository;
     this.finishedGoodBatchRepository = finishedGoodBatchRepository;
     this.accountingFacade = accountingFacade;
+    this.auditService = auditService;
     this.referenceNumberService = referenceNumberService;
     this.companyClock = companyClock;
     this.finishedGoodsService = finishedGoodsService;
@@ -276,6 +282,7 @@ public class InventoryAdjustmentService {
     movements.forEach(movement -> movement.setJournalEntryId(journalEntry.id()));
     inventoryMovementRepository.saveAll(movements);
     InventoryAdjustment posted = adjustmentRepository.save(savedDraft);
+    logInventoryAdjustmentAuditEvent(posted, increaseInventory);
     return toDto(posted);
   }
 
@@ -554,5 +561,32 @@ public class InventoryAdjustmentService {
 
   private String resolveCurrentUser() {
     return SecurityActorResolver.resolveActorWithSystemProcessFallback();
+  }
+
+  private void logInventoryAdjustmentAuditEvent(
+      InventoryAdjustment adjustment, boolean increaseInventory) {
+    if (adjustment == null || adjustment.getCompany() == null || adjustment.getCompany().getId() == null) {
+      return;
+    }
+    Map<String, String> metadata = new HashMap<>();
+    metadata.put("resourceType", "INVENTORY");
+    metadata.put("referenceType", "INVENTORY_ADJUSTMENT");
+    metadata.put("adjustmentDirection", increaseInventory ? "INCREASE" : "DECREASE");
+    if (adjustment.getReferenceNumber() != null) {
+      metadata.put("referenceNumber", adjustment.getReferenceNumber());
+    }
+    if (adjustment.getId() != null) {
+      metadata.put("adjustmentId", adjustment.getId().toString());
+    }
+    if (adjustment.getJournalEntryId() != null) {
+      metadata.put("journalEntryId", adjustment.getJournalEntryId().toString());
+    }
+    if (adjustment.getTotalAmount() != null) {
+      metadata.put("totalAmount", adjustment.getTotalAmount().toPlainString());
+    }
+    if (adjustment.getLines() != null) {
+      metadata.put("lineCount", Integer.toString(adjustment.getLines().size()));
+    }
+    auditService.logSuccess(AuditEvent.INVENTORY_ADJUSTMENT, metadata);
   }
 }

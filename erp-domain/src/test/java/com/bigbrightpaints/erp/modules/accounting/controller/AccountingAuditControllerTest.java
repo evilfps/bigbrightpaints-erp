@@ -11,6 +11,9 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import com.bigbrightpaints.erp.core.auditaccess.AuditAccessService;
 import com.bigbrightpaints.erp.core.auditaccess.AuditFeedFilter;
@@ -194,5 +197,31 @@ class AccountingAuditControllerTest {
     assertThat(body).isNotNull();
     assertThat(body.data()).isEqualTo(expected);
     verify(auditAccessService).getAccountingTransactionDetail(17L);
+  }
+
+  @Test
+  void listEvents_usesCategoryAsModuleWhenModuleIsOmitted() {
+    AuditAccessService auditAccessService = mock(AuditAccessService.class);
+    AccountingAuditController controller = new AccountingAuditController(auditAccessService);
+    PageResponse<AuditFeedItemDto> expected = PageResponse.of(List.of(), 0, 0, 50);
+    AuditFeedFilter expectedFilter =
+        new AuditFeedFilter(null, null, "INVENTORY", null, null, null, null, null, 0, 50);
+    when(auditAccessService.queryAccountingFeed(expectedFilter)).thenReturn(expected);
+
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    request.setParameter("category", "INVENTORY");
+    RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+    try {
+      ApiResponse<PageResponse<AuditFeedItemDto>> body =
+          controller
+              .listEvents(null, null, null, null, null, null, null, null, 0, 50)
+              .getBody();
+
+      assertThat(body).isNotNull();
+      assertThat(body.data()).isEqualTo(expected);
+      verify(auditAccessService).queryAccountingFeed(expectedFilter);
+    } finally {
+      RequestContextHolder.resetRequestAttributes();
+    }
   }
 }

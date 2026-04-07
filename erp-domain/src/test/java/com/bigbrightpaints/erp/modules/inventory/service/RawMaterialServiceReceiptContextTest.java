@@ -29,6 +29,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
@@ -199,6 +200,7 @@ class RawMaterialServiceReceiptContextTest {
     assertThat(savedMovement.getJournalEntryId()).isNull();
     assertThat(result.journalEntryId()).isNull();
     assertThat(result.batch()).isNotNull();
+    verify(auditService).logSuccess(eq(AuditEvent.GOODS_RECEIPT), any());
     verifyNoInteractions(accountingFacade);
   }
 

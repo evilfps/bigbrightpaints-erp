@@ -57,6 +57,8 @@ public enum AuditEvent {
   // Business Operations
   REFERENCE_GENERATED("Business reference generated"),
   ORDER_NUMBER_GENERATED("Order number generated"),
+  INVENTORY_ADJUSTMENT("Inventory adjustment posted"),
+  GOODS_RECEIPT("Goods receipt recorded"),
   JOURNAL_ENTRY_POSTED("Journal entry posted"),
   JOURNAL_ENTRY_REVERSED("Journal entry reversed"),
   DISPATCH_CONFIRMED("Dispatch confirmed"),

@@ -3607,6 +3607,7 @@ public class SalesCoreEngine {
     }
     metadata.put("alreadyDispatched", Boolean.toString(alreadyDispatched));
     metadata.put("dispatchOverridesApplied", Boolean.toString(hasOverrides));
+    metadata.put("resourceType", "INVENTORY");
     if (StringUtils.hasText(overrideReason)) {
       metadata.put("dispatchOverrideReason", overrideReason.trim());
     }
