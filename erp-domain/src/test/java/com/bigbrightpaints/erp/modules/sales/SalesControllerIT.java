@@ -892,8 +892,6 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     HttpHeaders salesHeaders = authenticatedHeaders(loginToken(SALES_EMAIL, SALES_PASSWORD));
     HttpHeaders adminHeaders = authenticatedHeaders(loginToken());
     Long dealerId = createDealer(adminHeaders, "Override Dealer");
-    Map<?, ?> order = createSalesOrder(salesHeaders, dealerId);
-    Long orderId = ((Number) order.get("id")).longValue();
 
     ResponseEntity<Map> createResponse =
         rest.exchange(
@@ -903,12 +901,10 @@ public class SalesControllerIT extends AbstractIntegrationTest {
                 Map.of(
                     "dealerId",
                     dealerId,
-                    "salesOrderId",
-                    orderId,
-                    "dispatchAmount",
+                    "requestedAmount",
                     new BigDecimal("500.00"),
                     "reason",
-                    "Need dispatch override for urgent order"),
+                    "Need temporary headroom for urgent order"),
                 salesHeaders),
             Map.class);
     assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -934,9 +930,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
                 Map.of(
                     "dealerId",
                     dealerId,
-                    "salesOrderId",
-                    orderId,
-                    "dispatchAmount",
+                    "requestedAmount",
                     new BigDecimal("450.00"),
                     "reason",
                     "Second override candidate"),
@@ -955,6 +949,55 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     assertThat(rejectResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     Map<?, ?> rejectedData = (Map<?, ?>) rejectResponse.getBody().get("data");
     assertThat(rejectedData.get("status")).isEqualTo("REJECTED");
+  }
+
+  @Test
+  void sales_order_create_allows_over_limit_when_approved_override_covers_headroom() {
+    HttpHeaders salesHeaders = authenticatedHeaders(loginToken(SALES_EMAIL, SALES_PASSWORD));
+    HttpHeaders adminHeaders = authenticatedHeaders(loginToken());
+    Long dealerId = createDealer(adminHeaders, "Headroom Dealer");
+    Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    Dealer dealer = dealerRepository.findByCompanyAndId(company, dealerId).orElseThrow();
+    dealer.setCreditLimit(new BigDecimal("100.00"));
+    dealerRepository.saveAndFlush(dealer);
+
+    ResponseEntity<Map> createOverrideResponse =
+        rest.exchange(
+            "/api/v1/credit/override-requests",
+            HttpMethod.POST,
+            new HttpEntity<>(
+                Map.of(
+                    "dealerId",
+                    dealerId,
+                    "requestedAmount",
+                    new BigDecimal("200.00"),
+                    "reason",
+                    "Temporary headroom for high-value order"),
+                salesHeaders),
+            Map.class);
+    assertThat(createOverrideResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    Long overrideRequestId =
+        ((Number) ((Map<?, ?>) createOverrideResponse.getBody().get("data")).get("id")).longValue();
+
+    ResponseEntity<Map> approveResponse =
+        rest.exchange(
+            "/api/v1/credit/override-requests/" + overrideRequestId + "/approve",
+            HttpMethod.POST,
+            new HttpEntity<>(Map.of("reason", "Approved after review"), adminHeaders),
+            Map.class);
+    assertThat(approveResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    ResponseEntity<Map> createOrderResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS,
+            HttpMethod.POST,
+            new HttpEntity<>(salesOrderPayload(dealerId), salesHeaders),
+            Map.class);
+    assertThat(createOrderResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(createOrderResponse.getBody()).isNotNull();
+    Map<?, ?> orderData = (Map<?, ?>) createOrderResponse.getBody().get("data");
+    assertThat(orderData).isNotNull();
+    assertThat(orderData.get("id")).isNotNull();
   }
 
   @Test

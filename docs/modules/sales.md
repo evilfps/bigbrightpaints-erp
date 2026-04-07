@@ -76,9 +76,9 @@ Stock and dispatch execution truth is documented separately in [inventory.md](in
 
 | Route | Method | Roles | Purpose |
 | --- | --- | --- | --- |
-| `/api/v1/credit/override-requests` | POST | ADMIN, FACTORY, SALES | Request per-dispatch credit override |
+| `/api/v1/credit/override-requests` | POST | ADMIN, FACTORY, SALES | Create temporary dealer headroom override (`201 Created`) |
 | `/api/v1/credit/override-requests` | GET | ADMIN, ACCOUNTING | List override requests |
-| `/api/v1/credit/override-requests/{id}/approve` | POST | ADMIN, ACCOUNTING | Approve override |
+| `/api/v1/credit/override-requests/{id}/approve` | POST | ADMIN, ACCOUNTING | Approve override (adds effective headroom for credit checks until expiry) |
 | `/api/v1/credit/override-requests/{id}/reject` | POST | ADMIN, ACCOUNTING | Reject override |
 
 ### Dealer Self-Service Portal — `DealerPortalController` (`/api/v1/dealer-portal/**`)
@@ -178,12 +178,13 @@ Durable credit-limit increase requests:
 
 ### `CreditLimitOverrideService`
 
-Per-dispatch credit-limit override requests:
+Temporary credit headroom override requests:
 
-- Created when a dispatch would exceed the dealer's credit limit
-- Linked to a specific packaging slip and/or sales order
-- Calculates headroom gap and validates the override amount
-- Approval allows the dispatch to proceed despite credit limit breach
+- Created when a dealer needs temporary headroom beyond base credit limit
+- Canonical request payload uses `requestedAmount` (legacy `dispatchAmount` remains as an alias)
+- May optionally bind to a specific packaging slip and/or sales order context
+- Calculates required headroom from current exposure + requested amount vs base credit limit
+- Approval raises effective credit headroom consumed by canonical order credit checks
 - Has expiry behavior (`EXPIRED` status for stale requests)
 
 ### `DunningService`
@@ -236,7 +237,7 @@ Provides dashboard data: active dealer count, order counts bucketed by status (o
 | `CreditLimitRequestCreateRequest` | Credit limit increase request (dealerId, amount, reason) |
 | `CreditLimitRequestDto` | Credit limit request response with status |
 | `CreditLimitRequestDecisionRequest` | Approval/rejection decision with reason |
-| `CreditLimitOverrideRequestCreateRequest` | Per-dispatch override request (slip/order, override amount, reason) |
+| `CreditLimitOverrideRequestCreateRequest` | Temporary headroom override request (`dealerId`, `requestedAmount`, `reason`; optional `salesOrderId` / `packagingSlipId`) |
 | `CreditLimitOverrideRequestDto` | Override request response |
 | `CreditLimitOverrideDecisionRequest` | Override approval/rejection |
 

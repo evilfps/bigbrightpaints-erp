@@ -128,7 +128,10 @@ public class SalesController {
         description = "Order created (legacy contract-compatible response)"),
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
         responseCode = "201",
-        description = "Order created for draft-lifecycle requests with paymentTerms/finishedGoodId")
+        description = "Order created for draft-lifecycle requests with paymentTerms/finishedGoodId"),
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(
+        responseCode = "422",
+        description = "Credit limit exceeded and no approved override covers required headroom")
   })
   public ResponseEntity<ApiResponse<SalesOrderDto>> createOrder(
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,

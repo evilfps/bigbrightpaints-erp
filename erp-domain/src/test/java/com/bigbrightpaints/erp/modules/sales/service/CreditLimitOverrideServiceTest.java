@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.sales.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -30,6 +31,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitOverrideDecisionRequest;
+import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitOverrideRequestCreateRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.CreditLimitOverrideRequestDto;
 
 @ExtendWith(MockitoExtension.class)
@@ -159,6 +161,37 @@ class CreditLimitOverrideServiceTest {
     assertThat(response.status()).isEqualTo("REJECTED");
     assertThat(request.getReason()).contains("[CREDIT_LIMIT_EXCEPTION_REJECTED]");
     assertThat(request.getReason()).contains("Rejected via legacy decision payload");
+  }
+
+  @Test
+  void createRequest_acceptsCanonicalRequestedAmountWithoutDispatchContext() {
+    Dealer dealer = new Dealer();
+    dealer.setCompany(company);
+    dealer.setName("Dealer One");
+    dealer.setCreditLimit(new BigDecimal("1000.00"));
+    org.springframework.test.util.ReflectionTestUtils.setField(dealer, "id", 42L);
+
+    when(dealerRepository.findByCompanyAndId(company, 42L)).thenReturn(Optional.of(dealer));
+    when(dealerLedgerService.currentBalance(42L)).thenReturn(new BigDecimal("900.00"));
+    when(creditLimitOverrideRequestRepository.save(any(CreditLimitOverrideRequest.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    CreditLimitOverrideRequestDto response =
+        service.createRequest(
+            new CreditLimitOverrideRequestCreateRequest(
+                42L,
+                null,
+                null,
+                new BigDecimal("200.00"),
+                null,
+                "Large order requires temporary headroom",
+                null),
+            "sales@bbp.com");
+
+    assertThat(response.status()).isEqualTo("PENDING");
+    assertThat(response.requestedAmount()).isEqualByComparingTo("200.00");
+    assertThat(response.dispatchAmount()).isEqualByComparingTo("200.00");
+    assertThat(response.requiredHeadroom()).isEqualByComparingTo("100.00");
   }
 
   @Test

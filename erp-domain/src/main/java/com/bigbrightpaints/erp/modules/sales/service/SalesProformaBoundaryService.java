@@ -48,6 +48,7 @@ final class SalesProformaBoundaryService {
   private final FinishedGoodBatchRepository finishedGoodBatchRepository;
   private final FactoryTaskRepository factoryTaskRepository;
   private final CompanyClock companyClock;
+  private final CreditLimitOverrideService creditLimitOverrideService;
 
   SalesProformaBoundaryService(
       DealerRepository dealerRepository,
@@ -56,7 +57,8 @@ final class SalesProformaBoundaryService {
       FinishedGoodRepository finishedGoodRepository,
       FinishedGoodBatchRepository finishedGoodBatchRepository,
       FactoryTaskRepository factoryTaskRepository,
-      CompanyClock companyClock) {
+      CompanyClock companyClock,
+      CreditLimitOverrideService creditLimitOverrideService) {
     this.dealerRepository = dealerRepository;
     this.dealerLedgerService = dealerLedgerService;
     this.salesOrderRepository = salesOrderRepository;
@@ -64,6 +66,7 @@ final class SalesProformaBoundaryService {
     this.finishedGoodBatchRepository = finishedGoodBatchRepository;
     this.factoryTaskRepository = factoryTaskRepository;
     this.companyClock = companyClock;
+    this.creditLimitOverrideService = creditLimitOverrideService;
   }
 
   String normalizePaymentMode(String rawMode) {
@@ -150,19 +153,24 @@ final class SalesProformaBoundaryService {
                 excludeOrderId));
     BigDecimal currentExposure = outstandingBalance.add(pendingOrderExposure);
     BigDecimal orderAmount = safe(proformaAmount);
+    BigDecimal approvedHeadroom =
+        safe(creditLimitOverrideService.approvedHeadroomForDealer(company, lockedDealer));
+    BigDecimal effectiveCreditLimit = creditLimit.add(approvedHeadroom);
     BigDecimal projectedExposure = currentExposure.add(orderAmount);
-    if (projectedExposure.compareTo(creditLimit) <= 0) {
+    if (projectedExposure.compareTo(effectiveCreditLimit) <= 0) {
       return;
     }
-    BigDecimal requiredHeadroom = projectedExposure.subtract(creditLimit).max(BigDecimal.ZERO);
+    BigDecimal requiredHeadroom =
+        projectedExposure.subtract(effectiveCreditLimit).max(BigDecimal.ZERO);
     CreditLimitExceededException ex =
         new CreditLimitExceededException(
             String.format(
                 "%s payment mode would exceed dealer %s credit posture. Limit %.2f, outstanding"
-                    + " %.2f, pending %.2f, attempted proforma %.2f",
+                    + " %.2f, approved headroom %.2f, pending %.2f, attempted proforma %.2f",
                 normalizedPaymentMode,
                 lockedDealer.getName(),
                 creditLimit,
+                approvedHeadroom,
                 outstandingBalance,
                 pendingOrderExposure,
                 orderAmount));
@@ -173,6 +181,8 @@ final class SalesProformaBoundaryService {
         .withDetail("pendingOrderExposure", pendingOrderExposure)
         .withDetail("currentExposure", currentExposure)
         .withDetail("creditLimit", creditLimit)
+        .withDetail("approvedHeadroom", approvedHeadroom)
+        .withDetail("effectiveCreditLimit", effectiveCreditLimit)
         .withDetail("orderAmount", orderAmount)
         .withDetail("projectedExposure", projectedExposure)
         .withDetail("requiredHeadroom", requiredHeadroom)

@@ -35,6 +35,8 @@ The system currently exposes these major host prefixes:
    - These two surfaces must not share controllers or RBAC guards.
 
 2. **Dealer self-service is read-mostly with explicit write exceptions.** The dealer portal allows dealers to view orders, invoices, statements, and aging, and to submit credit limit requests and support tickets. Mutation operations are limited to dealer-initiated actions (credit requests, support tickets) and are routed through dedicated dealer-portal controllers rather than shared admin endpoints.
+   - Dealer identity on `/api/v1/dealer-portal/**` is always resolved from the authenticated principal (never caller-supplied `dealerId`).
+   - Credit override approvals remain internal (`/api/v1/credit/override-requests/**`) and are not exposed as dealer-portal mutations.
 
 3. **Role-action matrices enforce host ownership.** `PortalRoleActionMatrix` defines role predicates for portal controllers (`ADMIN_OR_ACCOUNTING` for internal, `DEALER_ONLY` for self-service). These predicates are applied at the controller class level via `@PreAuthorize`.
 

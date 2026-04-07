@@ -60,6 +60,7 @@ class SalesProformaBoundaryServiceTest {
   @Mock private FactoryTaskRepository factoryTaskRepository;
 
   @Mock private CompanyClock companyClock;
+  @Mock private CreditLimitOverrideService creditLimitOverrideService;
 
   private SalesProformaBoundaryService service;
   private Company company;
@@ -74,7 +75,8 @@ class SalesProformaBoundaryServiceTest {
             finishedGoodRepository,
             finishedGoodBatchRepository,
             factoryTaskRepository,
-            companyClock);
+            companyClock,
+            creditLimitOverrideService);
     company = new Company();
     company.setName("BigBright");
     company.setCode("BBP");
@@ -159,8 +161,25 @@ class SalesProformaBoundaryServiceTest {
                     .containsEntry("outstandingBalance", new BigDecimal("650.00"))
                     .containsEntry("pendingOrderExposure", new BigDecimal("300.00"))
                     .containsEntry("projectedExposure", new BigDecimal("1150.00"))
+                    .containsEntry("approvedHeadroom", BigDecimal.ZERO)
+                    .containsEntry("effectiveCreditLimit", new BigDecimal("1000.00"))
                     .containsEntry("requiredHeadroom", new BigDecimal("150.00"))
                     .containsEntry("approvalRequired", true));
+  }
+
+  @Test
+  void enforceCreditPosture_allowsOverflowWhenApprovedHeadroomCoversRequiredGap() {
+    Dealer dealer = dealer(420L, "Dealer Override", new BigDecimal("1000.00"));
+    dealer.setReceivableAccount(account());
+    when(dealerRepository.lockByCompanyAndId(company, 420L)).thenReturn(Optional.of(dealer));
+    when(dealerLedgerService.currentBalance(420L)).thenReturn(new BigDecimal("650.00"));
+    when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(
+            eq(company), eq(dealer), any(), eq(77L)))
+        .thenReturn(new BigDecimal("300.00"));
+    when(creditLimitOverrideService.approvedHeadroomForDealer(company, dealer))
+        .thenReturn(new BigDecimal("200.00"));
+
+    service.enforceCreditPosture(company, dealer, new BigDecimal("200.00"), "CREDIT", 77L);
   }
 
   @Test

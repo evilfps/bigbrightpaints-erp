@@ -40,6 +40,9 @@ Rules:
 - `POST /api/v1/sales/orders` returns `201 Created` when the request opts into the
   draft lifecycle contract (`paymentTerms` present and/or any item includes
   `finishedGoodId`); legacy payloads continue to receive `200 OK`.
+- `POST /api/v1/sales/orders` returns `422 Unprocessable Entity` when dealer
+  credit posture would be exceeded and no approved override headroom can cover
+  the request.
 - `SalesOrderRequest` now accepts `paymentTerms` and
   `SalesOrderItemRequest.finishedGoodId`.
 - Order search treats `orderNumber` as a case-insensitive contains filter.
@@ -75,10 +78,19 @@ Rules:
 ## Credit And Commercial Approval
 
 - credit reads and request APIs under `/api/v1/credit/**`
+- canonical override mutation routes:
+  - `POST /api/v1/credit/override-requests` (`201 Created`)
+  - `POST /api/v1/credit/override-requests/{id}/approve` (`200 OK`)
+  - `POST /api/v1/credit/override-requests/{id}/reject` (`200 OK`)
 
 Rules:
 
 - Sales can start or follow commercial credit workflows.
+- Canonical override create payload uses `requestedAmount` + `reason` and may
+  include `dealerId`, `salesOrderId`, and/or `packagingSlipId` for identity
+  resolution context.
+- `dispatchAmount` is a legacy alias for `requestedAmount` and should not be
+  used by new clients.
 - Sales must not surface accounting settlement, journal reversal, or period
   close as a workaround for credit issues.
 

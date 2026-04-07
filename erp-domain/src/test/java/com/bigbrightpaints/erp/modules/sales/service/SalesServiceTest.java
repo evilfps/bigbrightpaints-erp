@@ -4292,7 +4292,8 @@ class SalesServiceTest {
             finishedGoodRepository,
             finishedGoodBatchRepository,
             factoryTaskRepository,
-            companyClock);
+            companyClock,
+            creditLimitOverrideService);
 
     SalesOrder order = new SalesOrder();
     order.setCompany(company);

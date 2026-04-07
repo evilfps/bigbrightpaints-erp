@@ -54,6 +54,9 @@ Rules:
 
 - Support requests are dealer-originated but resolved outside this portal.
 - Credit requests are self-service submissions only.
+- Dealer identity is always resolved from the authenticated dealer principal on
+  `/api/v1/dealer-portal/**`; dealer-client must not send a `dealerId` in
+  dealer-portal credit-request payloads.
 - Approval, override, and final finance correction stay in internal portals.
 
 ## Forbidden From Dealer Portal

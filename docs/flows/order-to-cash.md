@@ -74,9 +74,9 @@ Dealer-directory compatibility rules:
 | List Credit Requests | GET | `/api/v1/credit/limit-requests` | ADMIN, SALES | List requests |
 | Approve Credit Request | POST | `/api/v1/credit/limit-requests/{id}/approve` | ADMIN, ACCOUNTING | Approve (increments limit) |
 | Reject Credit Request | POST | `/api/v1/credit/limit-requests/{id}/reject` | ADMIN, ACCOUNTING | Reject request |
-| Create Override Request | POST | `/api/v1/credit/override-requests` | ADMIN, FACTORY, SALES | Per-dispatch override |
+| Create Override Request | POST | `/api/v1/credit/override-requests` | ADMIN, FACTORY, SALES | Temporary dealer headroom override (`201 Created`) |
 | List Override Requests | GET | `/api/v1/credit/override-requests` | ADMIN, ACCOUNTING | List overrides |
-| Approve Override | POST | `/api/v1/credit/override-requests/{id}/approve` | ADMIN, ACCOUNTING | Approve override |
+| Approve Override | POST | `/api/v1/credit/override-requests/{id}/approve` | ADMIN, ACCOUNTING | Approve override (effective headroom raised until expiry) |
 | Reject Override | POST | `/api/v1/credit/override-requests/{id}/reject` | ADMIN, ACCOUNTING | Reject override |
 
 ### Dispatch (Inventory Module) — `DispatchController` (`/api/v1/dispatch/**`)
@@ -95,12 +95,12 @@ Dealer-directory compatibility rules:
 2. **Dealer must not be on dunning hold** — dealer status must not be ON_HOLD
 3. **All order items must reference valid products** — product exists and is sales-ready
 4. **Order number must be unique** — per company, enforced at database level
-5. **Idempotency key recommended** — `Idempotency-Key` or `X-Idempotency-Key` header accepted
+5. **Idempotency key required for safe retries** — canonical `Idempotency-Key` header (`X-Idempotency-Key` is rejected fail-closed)
 
 ### Order Confirmation Preconditions
 
 1. **Order must be in valid status** — DRAFT, RESERVED, or PENDING_PRODUCTION
-2. **Credit limit must allow** — credit used (outstanding + pending) < credit limit for credit-mode orders
+2. **Credit posture must allow** — credit-mode orders pass when base limit plus approved override headroom covers outstanding + pending + requested total; otherwise `422` is returned
 3. **Stock must be available** — RESERVED status or explicit override request exists; draft-lifecycle confirms reserve finished-goods stock during confirmation
 4. **No dunning hold on dealer** — dealer status must not be ON_HOLD
 
@@ -149,8 +149,9 @@ Generate order number → Save order → [Optional: Reserve stock] →
 - Order number format: configurable, unique per company
 - Stock reservation occurs if all items available → RESERVED
 - Stock shortage triggers → PENDING_PRODUCTION
-- Credit check fires for credit-mode orders
-- Idempotency key supported (canonical + legacy resolution)
+- Credit check fails with `422` only when no approved override headroom can cover the request
+- Approved credit overrides raise effective dealer headroom until expiry
+- Idempotency key supported via canonical `Idempotency-Key`
 
 ### 4.3 Order Confirmation Lifecycle
 

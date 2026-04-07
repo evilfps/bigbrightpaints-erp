@@ -314,7 +314,8 @@ public class SalesCoreEngine {
             finishedGoodRepository,
             finishedGoodBatchRepository,
             factoryTaskRepository,
-            companyClock);
+            companyClock,
+            creditLimitOverrideService);
   }
 
   /* Dealers */

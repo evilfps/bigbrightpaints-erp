@@ -32,4 +32,16 @@ public interface CreditLimitOverrideRequestRepository
 
   Optional<CreditLimitOverrideRequest> findByCompanyAndPackagingSlipAndStatus(
       Company company, PackagingSlip packagingSlip, String status);
+
+  @Query(
+      """
+      select request
+      from CreditLimitOverrideRequest request
+      where request.company = :company
+        and request.dealer = :dealer
+        and upper(trim(request.status)) = 'APPROVED'
+      order by request.createdAt desc
+      """)
+  List<CreditLimitOverrideRequest> findApprovedByCompanyAndDealerOrderByCreatedAtDesc(
+      @Param("company") Company company, @Param("dealer") Dealer dealer);
 }

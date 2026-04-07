@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 public record CreditLimitOverrideRequestDto(
     Long id,
     UUID publicId,
@@ -11,6 +13,11 @@ public record CreditLimitOverrideRequestDto(
     String dealerName,
     Long packagingSlipId,
     Long salesOrderId,
+    @Schema(description = "Canonical requested amount approved for temporary headroom")
+    BigDecimal requestedAmount,
+    @Schema(
+        description = "Legacy alias of requestedAmount maintained for compatibility",
+        deprecated = true)
     BigDecimal dispatchAmount,
     BigDecimal currentExposure,
     BigDecimal creditLimit,
