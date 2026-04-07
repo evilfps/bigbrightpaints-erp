@@ -24,6 +24,9 @@ public class SalesOrderItem extends VersionedEntity {
   @Column(name = "product_code", nullable = false)
   private String productCode;
 
+  @Column(name = "finished_good_id")
+  private Long finishedGoodId;
+
   private String description;
 
   @Column(nullable = false)
@@ -73,6 +76,14 @@ public class SalesOrderItem extends VersionedEntity {
 
   public void setProductCode(String productCode) {
     this.productCode = productCode;
+  }
+
+  public Long getFinishedGoodId() {
+    return finishedGoodId;
+  }
+
+  public void setFinishedGoodId(Long finishedGoodId) {
+    this.finishedGoodId = finishedGoodId;
   }
 
   public String getDescription() {

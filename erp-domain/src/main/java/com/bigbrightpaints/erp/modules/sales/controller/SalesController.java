@@ -126,8 +126,11 @@ public class SalesController {
       @Valid @RequestBody SalesOrderRequest request) {
     SalesOrderRequest resolved =
         applyOrderIdempotencyKey(request, idempotencyKey, legacyIdempotencyKey);
-    return ResponseEntity.ok(
-        ApiResponse.success("Order created", salesOrderCrudService.createOrder(resolved)));
+    SalesOrderDto created = salesOrderCrudService.createOrder(resolved);
+    if (usesDraftLifecycleContract(resolved)) {
+      return ResponseEntity.status(201).body(ApiResponse.success("Order created", created));
+    }
+    return ResponseEntity.ok(ApiResponse.success("Order created", created));
   }
 
   @PutMapping("/sales/orders/{id}")
@@ -210,7 +213,8 @@ public class SalesController {
         request.gstRate(),
         request.gstInclusive(),
         resolvedKey,
-        request.paymentMode());
+        request.paymentMode(),
+        request.paymentTerms());
   }
 
   private String combineCancellationReason(String reasonCode, String reason) {
@@ -240,6 +244,13 @@ public class SalesController {
           .withDetail("field", fieldName)
           .withDetail("value", raw);
     }
+  }
+
+  private boolean usesDraftLifecycleContract(SalesOrderRequest request) {
+    if (request == null) {
+      return false;
+    }
+    return request.usesFinishedGoodSelection() || StringUtils.hasText(request.paymentTerms());
   }
 
   /* Promotions */

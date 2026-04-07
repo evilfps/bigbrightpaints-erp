@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 class SalesOrderDtoContractTest {
 
   @Test
-  void record_exposesPaymentModeField() {
+  void record_exposesPaymentModeAndTermsFields() {
     SalesOrderDto dto =
         new SalesOrderDto(
             10L,
@@ -30,11 +30,13 @@ class SalesOrderDtoContractTest {
             "INR",
             "Dealer",
             "HYBRID",
+            "CUSTOM_120",
             "trace-10",
             Instant.parse("2026-03-09T00:00:00Z"),
             List.of(),
             List.of());
 
     assertThat(dto.paymentMode()).isEqualTo("HYBRID");
+    assertThat(dto.paymentTerms()).isEqualTo("CUSTOM_120");
   }
 }

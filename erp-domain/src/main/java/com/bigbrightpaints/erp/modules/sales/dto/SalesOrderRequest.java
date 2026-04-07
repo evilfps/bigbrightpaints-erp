@@ -20,7 +20,8 @@ public record SalesOrderRequest(
     BigDecimal gstRate,
     Boolean gstInclusive,
     String idempotencyKey,
-    String paymentMode) {
+    String paymentMode,
+    String paymentTerms) {
   private static final String DEFAULT_PAYMENT_MODE = "CREDIT";
   private static final String LEGACY_HYBRID_PAYMENT_MODE = "SPLIT";
   private static final String HYBRID_PAYMENT_MODE = "HYBRID";
@@ -45,6 +46,32 @@ public record SalesOrderRequest(
         gstRate,
         gstInclusive,
         idempotencyKey,
+        null,
+        null);
+  }
+
+  public SalesOrderRequest(
+      Long dealerId,
+      BigDecimal totalAmount,
+      String currency,
+      String notes,
+      List<@Valid SalesOrderItemRequest> items,
+      String gstTreatment,
+      BigDecimal gstRate,
+      Boolean gstInclusive,
+      String idempotencyKey,
+      String paymentMode) {
+    this(
+        dealerId,
+        totalAmount,
+        currency,
+        notes,
+        items,
+        gstTreatment,
+        gstRate,
+        gstInclusive,
+        idempotencyKey,
+        paymentMode,
         null);
   }
 
@@ -94,13 +121,17 @@ public record SalesOrderRequest(
             .add(dealerId == null ? "null" : dealerId)
             .add(totalAmount)
             .addUpperToken(currency);
+    String normalizedPaymentTerms = IdempotencyUtils.normalizeUpperToken(paymentTerms);
+    if (!normalizedPaymentTerms.isBlank()) {
+      signatureBuilder.addUpperToken(paymentTerms);
+    }
     if (includeDefaultPaymentModeSegment || !DEFAULT_PAYMENT_MODE.equals(normalizedPaymentMode)) {
       signatureBuilder.add(normalizedPaymentMode);
     }
     if (items != null) {
       for (SalesOrderItemRequest item : items) {
         signatureBuilder.add(
-            IdempotencyUtils.normalizeUpperToken(item.productCode())
+            itemIdempotencyToken(item)
                 + ':'
                 + item.quantity()
                 + ':'
@@ -116,5 +147,22 @@ public record SalesOrderRequest(
       return DEFAULT_PAYMENT_MODE;
     }
     return normalized;
+  }
+
+  public boolean usesFinishedGoodSelection() {
+    return items != null && items.stream().anyMatch(SalesOrderItemRequest::hasFinishedGoodId);
+  }
+
+  private String itemIdempotencyToken(SalesOrderItemRequest item) {
+    if (item == null) {
+      return "";
+    }
+    if (item.hasProductCode()) {
+      return IdempotencyUtils.normalizeUpperToken(item.normalizedProductCode());
+    }
+    if (item.hasFinishedGoodId()) {
+      return "FG#" + item.finishedGoodId();
+    }
+    return "";
   }
 }

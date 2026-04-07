@@ -22,6 +22,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.bigbrightpaints.erp.core.fixture.E2eFixtureCatalog;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
+import com.bigbrightpaints.erp.modules.inventory.domain.FinishedGoodRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
@@ -48,6 +49,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
   @Autowired private CompanyRepository companyRepository;
   @Autowired private DealerRepository dealerRepository;
   @Autowired private SalesOrderRepository salesOrderRepository;
+  @Autowired private FinishedGoodRepository finishedGoodRepository;
 
   @BeforeEach
   void seed() {
@@ -188,6 +190,39 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     orderReq.put("items", List.of(lineItem));
     orderReq.put("gstTreatment", "NONE");
     orderReq.put("gstRate", null);
+    return orderReq;
+  }
+
+  private Long resolveFinishedGoodId() {
+    Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    return finishedGoodRepository
+        .findByCompanyAndProductCode(company, E2eFixtureCatalog.ORDER_PRIMARY_SKU)
+        .orElseThrow()
+        .getId();
+  }
+
+  private Map<String, Object> salesOrderPayloadWithFinishedGoodId(
+      Long dealerId, Long finishedGoodId, String paymentTerms) {
+    BigDecimal unitPrice = new BigDecimal("100.00");
+    BigDecimal quantity = new BigDecimal("2");
+    BigDecimal expectedTotal = unitPrice.multiply(quantity);
+
+    Map<String, Object> lineItem = new HashMap<>();
+    lineItem.put("finishedGoodId", finishedGoodId);
+    lineItem.put("description", "Finished good lifecycle test line item");
+    lineItem.put("quantity", quantity);
+    lineItem.put("unitPrice", unitPrice);
+    lineItem.put("gstRate", BigDecimal.ZERO);
+
+    Map<String, Object> orderReq = new HashMap<>();
+    orderReq.put("dealerId", dealerId);
+    orderReq.put("totalAmount", expectedTotal);
+    orderReq.put("currency", "INR");
+    orderReq.put("notes", "Lifecycle test order");
+    orderReq.put("items", List.of(lineItem));
+    orderReq.put("gstTreatment", "NONE");
+    orderReq.put("gstRate", null);
+    orderReq.put("paymentTerms", paymentTerms);
     return orderReq;
   }
 
@@ -602,6 +637,117 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     assertThat(backslashResults.getContent())
         .contains(backslashOrder.getId())
         .doesNotContain(backslashDistractorOrder.getId());
+  }
+
+  @Test
+  void sales_order_lifecycle_supports_finished_good_ids_payment_terms_and_timeline_search() {
+    HttpHeaders headers = authenticatedHeaders(loginToken(SALES_EMAIL, SALES_PASSWORD));
+    Long dealerId = createDealer(headers, "Lifecycle Dealer");
+    Long finishedGoodId = resolveFinishedGoodId();
+
+    ResponseEntity<Map> createResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS,
+            HttpMethod.POST,
+            new HttpEntity<>(
+                salesOrderPayloadWithFinishedGoodId(dealerId, finishedGoodId, "CUSTOM_120"), headers),
+            Map.class);
+    assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    Map<?, ?> createdData = (Map<?, ?>) createResponse.getBody().get("data");
+    Long orderId = ((Number) createdData.get("id")).longValue();
+    assertThat(createdData.get("status")).isEqualTo("DRAFT");
+    assertThat(createdData.get("paymentTerms")).isEqualTo("CUSTOM_120");
+
+    ResponseEntity<Map> updateResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS + "/" + orderId,
+            HttpMethod.PUT,
+            new HttpEntity<>(
+                salesOrderPayloadWithFinishedGoodId(dealerId, finishedGoodId, "NET_45"), headers),
+            Map.class);
+    assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> updatedData = (Map<?, ?>) updateResponse.getBody().get("data");
+    assertThat(updatedData.get("status")).isEqualTo("DRAFT");
+    assertThat(updatedData.get("paymentTerms")).isEqualTo("NET_45");
+
+    ResponseEntity<Map> confirmResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS + "/" + orderId + "/confirm",
+            HttpMethod.POST,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(confirmResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> confirmedData = (Map<?, ?>) confirmResponse.getBody().get("data");
+    assertThat(confirmedData.get("status")).isEqualTo("CONFIRMED");
+
+    ResponseEntity<Map> timelineResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS + "/" + orderId + "/timeline",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(timelineResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> timeline =
+        (List<Map<String, Object>>) timelineResponse.getBody().get("data");
+    assertThat(timeline).isNotEmpty();
+    assertThat(timeline).extracting(entry -> entry.get("status")).contains("DRAFT", "CONFIRMED");
+    assertThat(timeline).allSatisfy(entry -> assertThat(entry).containsKeys("actor", "timestamp"));
+
+    ResponseEntity<Map> searchResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDER_SEARCH + "?dealerId=" + dealerId + "&status=CONFIRMED",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(searchResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> searchContent =
+        (List<Map<String, Object>>) ((Map<?, ?>) searchResponse.getBody().get("data")).get("content");
+    assertThat(searchContent).extracting(entry -> ((Number) entry.get("id")).longValue()).contains(orderId);
+
+    ResponseEntity<Map> cancelResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS + "/" + orderId + "/cancel",
+            HttpMethod.POST,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(cancelResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> cancelledData = (Map<?, ?>) cancelResponse.getBody().get("data");
+    assertThat(cancelledData.get("status")).isEqualTo("CANCELLED");
+  }
+
+  @Test
+  void draft_lifecycle_order_delete_soft_deletes_and_hides_from_default_listing() {
+    HttpHeaders headers = authenticatedHeaders(loginToken(SALES_EMAIL, SALES_PASSWORD));
+    Long dealerId = createDealer(headers, "Delete Lifecycle Dealer");
+    Long finishedGoodId = resolveFinishedGoodId();
+
+    ResponseEntity<Map> createResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS,
+            HttpMethod.POST,
+            new HttpEntity<>(
+                salesOrderPayloadWithFinishedGoodId(dealerId, finishedGoodId, "NET_45"), headers),
+            Map.class);
+    assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    Long orderId = ((Number) ((Map<?, ?>) createResponse.getBody().get("data")).get("id")).longValue();
+
+    ResponseEntity<Void> deleteResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS + "/" + orderId,
+            HttpMethod.DELETE,
+            new HttpEntity<>(headers),
+            Void.class);
+    assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+    ResponseEntity<Map> listResponse =
+        rest.exchange(
+            ErpApiRoutes.SALES_ORDERS, HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+    assertThat(listResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> listed = (List<Map<String, Object>>) listResponse.getBody().get("data");
+    assertThat(listed).extracting(entry -> ((Number) entry.get("id")).longValue()).doesNotContain(orderId);
   }
 
   @Test

@@ -2,6 +2,8 @@ package com.bigbrightpaints.erp.modules.sales.dto;
 
 import java.time.Instant;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public record SalesOrderStatusHistoryDto(
     Long id,
     String fromStatus,
@@ -9,4 +11,20 @@ public record SalesOrderStatusHistoryDto(
     String reasonCode,
     String reason,
     String changedBy,
-    Instant changedAt) {}
+    Instant changedAt) {
+
+  @JsonProperty("status")
+  public String status() {
+    return toStatus;
+  }
+
+  @JsonProperty("actor")
+  public String actor() {
+    return changedBy;
+  }
+
+  @JsonProperty("timestamp")
+  public Instant timestamp() {
+    return changedAt;
+  }
+}

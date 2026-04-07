@@ -75,6 +75,9 @@ public class SalesOrder extends VersionedEntity {
   @Column(name = "payment_mode", nullable = false, length = 32)
   private String paymentMode = "CREDIT";
 
+  @Column(name = "payment_terms", length = 128)
+  private String paymentTerms;
+
   // Idempotency markers to prevent double posting
   @Column(name = "sales_journal_entry_id")
   private Long salesJournalEntryId;
@@ -247,6 +250,14 @@ public class SalesOrder extends VersionedEntity {
 
   public void setPaymentMode(String paymentMode) {
     this.paymentMode = paymentMode;
+  }
+
+  public String getPaymentTerms() {
+    return paymentTerms;
+  }
+
+  public void setPaymentTerms(String paymentTerms) {
+    this.paymentTerms = paymentTerms;
   }
 
   public Instant getCreatedAt() {

@@ -224,4 +224,27 @@ class SalesOrderRequestTest {
     assertThat(request.resolveLegacySplitReplayIdempotencyKey())
         .isEqualTo(DigestUtils.sha256Hex("7|100|INR|SPLIT|FG-1:2:10"));
   }
+
+  @Test
+  void resolveIdempotencyKey_supportsFinishedGoodIdSelectorWhenProductCodeMissing() {
+    SalesOrderItemRequest item =
+        new SalesOrderItemRequest(
+            77L, null, "Item", new BigDecimal("2"), new BigDecimal("10"), BigDecimal.ZERO);
+    SalesOrderRequest request =
+        new SalesOrderRequest(
+            7L,
+            new BigDecimal("100"),
+            "INR",
+            null,
+            List.of(item),
+            "NONE",
+            BigDecimal.ZERO,
+            false,
+            null,
+            "CREDIT",
+            "CUSTOM_120");
+
+    assertThat(request.resolveIdempotencyKey()).isNotBlank();
+    assertThat(request.usesFinishedGoodSelection()).isTrue();
+  }
 }

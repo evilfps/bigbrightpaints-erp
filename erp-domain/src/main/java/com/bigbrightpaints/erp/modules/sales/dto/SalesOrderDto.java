@@ -20,7 +20,50 @@ public record SalesOrderDto(
     String currency,
     String dealerName,
     String paymentMode,
+    String paymentTerms,
     String traceId,
     Instant createdAt,
     List<SalesOrderItemDto> items,
-    List<SalesOrderStatusHistoryDto> timeline) {}
+    List<SalesOrderStatusHistoryDto> timeline) {
+
+  public SalesOrderDto(
+      Long id,
+      UUID publicId,
+      String orderNumber,
+      String status,
+      BigDecimal totalAmount,
+      BigDecimal subtotalAmount,
+      BigDecimal gstTotal,
+      BigDecimal gstRate,
+      String gstTreatment,
+      boolean gstInclusive,
+      BigDecimal gstRoundingAdjustment,
+      String currency,
+      String dealerName,
+      String paymentMode,
+      String traceId,
+      Instant createdAt,
+      List<SalesOrderItemDto> items,
+      List<SalesOrderStatusHistoryDto> timeline) {
+    this(
+        id,
+        publicId,
+        orderNumber,
+        status,
+        totalAmount,
+        subtotalAmount,
+        gstTotal,
+        gstRate,
+        gstTreatment,
+        gstInclusive,
+        gstRoundingAdjustment,
+        currency,
+        dealerName,
+        paymentMode,
+        null,
+        traceId,
+        createdAt,
+        items,
+        timeline);
+  }
+}
