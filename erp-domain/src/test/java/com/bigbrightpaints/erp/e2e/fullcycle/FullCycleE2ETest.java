@@ -235,7 +235,7 @@ public class FullCycleE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
-    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
     // 3. Verify RM stock increased and AP journal
     assertThat(rm.getCurrentStock()).isGreaterThan(BigDecimal.ZERO);
@@ -339,7 +339,7 @@ public class FullCycleE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(grReq, headers),
             Map.class);
-    assertThat(grResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(grResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Long goodsReceiptId = ((Number) requireData(grResp, "goods receipt").get("id")).longValue();
 
     return new PurchaseWorkflowIds(purchaseOrderId, goodsReceiptId);

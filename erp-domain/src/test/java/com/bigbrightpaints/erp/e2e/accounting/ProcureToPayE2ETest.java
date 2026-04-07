@@ -134,7 +134,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
-    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
     Long purchaseId = ((Number) purchaseData.get("id")).longValue();
 
@@ -198,6 +198,66 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
   }
 
   @Test
+  @DisplayName(
+      "GST-bearing purchase invoice succeeds when fresh tenant and supplier state metadata are"
+          + " missing")
+  void purchaseInvoiceSucceedsWhenStateMetadataMissing() {
+    company.setStateCode(null);
+    companyRepository.saveAndFlush(company);
+
+    LocalDate entryDate = TestDateUtils.safeDate(company);
+    Long supplierId =
+        createSupplierWithoutStateCode(
+            "P2P GST Fallback Supplier", "P2P-GST-FALLBACK-" + shortSuffix(), "27ABCDE1234F1Z5");
+    Long rawMaterialId =
+        createRawMaterial(
+            "P2P GST Fallback Material", "RM-GST-FALLBACK-" + shortSuffix(), inventory.getId());
+
+    PurchaseWorkflowIds workflow =
+        createPurchaseOrderAndReceipt(
+            supplierId, rawMaterialId, new BigDecimal("5"), new BigDecimal("10.00"), entryDate);
+
+    Map<String, Object> line = new HashMap<>();
+    line.put("rawMaterialId", rawMaterialId);
+    line.put("quantity", new BigDecimal("5"));
+    line.put("costPerUnit", new BigDecimal("10.00"));
+
+    Map<String, Object> purchaseReq = new HashMap<>();
+    purchaseReq.put("supplierId", supplierId);
+    purchaseReq.put("invoiceNumber", "INV-GST-FALLBACK-" + shortSuffix());
+    purchaseReq.put("invoiceDate", entryDate);
+    purchaseReq.put("purchaseOrderId", workflow.purchaseOrderId());
+    purchaseReq.put("goodsReceiptId", workflow.goodsReceiptId());
+    purchaseReq.put("lines", List.of(line));
+
+    ResponseEntity<Map> purchaseResp =
+        rest.exchange(
+            "/api/v1/purchasing/raw-material-purchases",
+            HttpMethod.POST,
+            new HttpEntity<>(purchaseReq, headers),
+            Map.class);
+
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
+    Long purchaseId = ((Number) purchaseData.get("id")).longValue();
+    RawMaterialPurchase persistedPurchase = purchaseRepository.findById(purchaseId).orElseThrow();
+    assertThat(persistedPurchase.getJournalEntry()).isNotNull();
+
+    ResponseEntity<Map> supplierDetailResp =
+        rest.exchange(
+            "/api/v1/suppliers/" + supplierId,
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(supplierDetailResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<String, Object> supplierData = (Map<String, Object>) supplierDetailResp.getBody().get("data");
+    assertThat(String.valueOf(supplierData.get("stateCode"))).isEqualTo("27");
+
+    Company refreshed = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    assertThat(refreshed.getStateCode()).isNull();
+  }
+
+  @Test
   @DisplayName("Purchase tax computed balances inventory + tax to payable")
   void purchaseComputedTax_BalancesJournalTotals() {
     LocalDate entryDate = TestDateUtils.safeDate(company);
@@ -237,7 +297,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
-    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
     Long purchaseId = ((Number) purchaseData.get("id")).longValue();
 
@@ -286,7 +346,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
-    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
     Long purchaseId = ((Number) purchaseData.get("id")).longValue();
 
@@ -425,7 +485,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
-    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
     Long purchaseId = ((Number) purchaseData.get("id")).longValue();
 
@@ -491,7 +551,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
-    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
     Long purchaseId = ((Number) purchaseData.get("id")).longValue();
 
@@ -561,7 +621,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
-    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
     Long purchaseId = ((Number) purchaseData.get("id")).longValue();
 
@@ -653,7 +713,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
-    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
     Long purchaseId = ((Number) purchaseData.get("id")).longValue();
 
@@ -725,7 +785,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
-    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
     Long purchaseId = ((Number) purchaseData.get("id")).longValue();
 
@@ -798,7 +858,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
-    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
     Long purchaseId = ((Number) purchaseData.get("id")).longValue();
 
@@ -878,7 +938,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
-    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
     Long purchaseId = ((Number) purchaseData.get("id")).longValue();
 
@@ -902,7 +962,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(returnReq, headers),
             Map.class);
-    assertThat(returnResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(returnResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
     RawMaterial afterReturn = rawMaterialRepository.findById(rawMaterialId).orElseThrow();
     assertThat(afterReturn.getCurrentStock()).isEqualByComparingTo(new BigDecimal("6"));
@@ -969,7 +1029,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
-    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
     ResponseEntity<Map> afterResp =
         rest.exchange(
@@ -1021,7 +1081,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
-    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
     Long purchaseId = ((Number) purchaseData.get("id")).longValue();
 
@@ -1044,7 +1104,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(returnReq, headers),
             Map.class);
-    assertThat(returnResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(returnResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
     BigDecimal afterReturnInput = amount(gstReturn(period), "inputTax");
     assertThat(afterPurchaseInput.subtract(afterReturnInput)).isEqualByComparingTo(taxAmount);
@@ -1117,6 +1177,39 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     Map<String, Object> supplierDetailData =
         (Map<String, Object>) supplierDetailResp.getBody().get("data");
     assertThat(supplierDetailData).containsKey("outstandingBalance");
+
+    ResponseEntity<Map> approveResp =
+        rest.exchange(
+            "/api/v1/suppliers/" + supplierId + "/approve",
+            HttpMethod.POST,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(approveResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    ResponseEntity<Map> activateResp =
+        rest.exchange(
+            "/api/v1/suppliers/" + supplierId + "/activate",
+            HttpMethod.POST,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(activateResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    return supplierId;
+  }
+
+  private Long createSupplierWithoutStateCode(String name, String code, String gstNumber) {
+    Map<String, Object> req = new HashMap<>();
+    req.put("name", name);
+    req.put("code", code);
+    req.put("contactEmail", "p2p-" + shortSuffix() + "@bbp.com");
+    req.put("creditLimit", new BigDecimal("25000.00"));
+    req.put("gstNumber", gstNumber);
+    ResponseEntity<Map> resp =
+        rest.exchange(
+            "/api/v1/suppliers", HttpMethod.POST, new HttpEntity<>(req, headers), Map.class);
+    assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    Map<String, Object> data = (Map<String, Object>) resp.getBody().get("data");
+    Long supplierId = ((Number) data.get("id")).longValue();
 
     ResponseEntity<Map> approveResp =
         rest.exchange(
@@ -1246,7 +1339,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(grReq, headers),
             Map.class);
-    assertThat(grResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(grResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> grData = (Map<String, Object>) grResp.getBody().get("data");
     return ((Number) grData.get("id")).longValue();
   }

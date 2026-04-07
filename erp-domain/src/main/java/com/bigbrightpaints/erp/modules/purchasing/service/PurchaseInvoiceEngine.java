@@ -241,8 +241,11 @@ public class PurchaseInvoiceEngine {
     BigDecimal totalCgst = BigDecimal.ZERO;
     BigDecimal totalSgst = BigDecimal.ZERO;
     BigDecimal totalIgst = BigDecimal.ZERO;
-    String companyStateCode = company.getStateCode();
-    String supplierStateCode = supplier.getStateCode();
+    String companyStateCode = resolveCompanyStateCode(company);
+    String supplierStateCode = resolveSupplierStateCode(supplier);
+    if (!StringUtils.hasText(supplier.getStateCode()) && StringUtils.hasText(supplierStateCode)) {
+      supplier.setStateCode(supplierStateCode);
+    }
     Map<Long, BigDecimal> inventoryDebits = new HashMap<>();
     List<PurchaseLineCalc> computedLines = new ArrayList<>();
     boolean hasTaxableLines = false;
@@ -671,10 +674,16 @@ public class PurchaseInvoiceEngine {
       BigDecimal taxAmount,
       String sourceStateCode,
       String supplierStateCode) {
-    GstService.GstBreakdown lineBreakdown =
-        gstService.splitTaxAmount(taxableAmount, taxAmount, sourceStateCode, supplierStateCode);
-    if (lineBreakdown != null) {
-      return lineBreakdown;
+    try {
+      GstService.GstBreakdown lineBreakdown =
+          gstService.splitTaxAmount(taxableAmount, taxAmount, sourceStateCode, supplierStateCode);
+      if (lineBreakdown != null) {
+        return lineBreakdown;
+      }
+    } catch (ApplicationException ex) {
+      if (!isMissingStateMetadataError(ex)) {
+        throw ex;
+      }
     }
     return new GstService.GstBreakdown(
         currency(taxableAmount),
@@ -761,6 +770,44 @@ public class PurchaseInvoiceEngine {
 
   private String clean(String value) {
     return StringUtils.hasText(value) ? value.trim() : null;
+  }
+
+  private String resolveCompanyStateCode(Company company) {
+    if (company == null) {
+      return null;
+    }
+    return gstService.normalizeStateCode(company.getStateCode());
+  }
+
+  private String resolveSupplierStateCode(Supplier supplier) {
+    if (supplier == null) {
+      return null;
+    }
+    String explicit = gstService.normalizeStateCode(supplier.getStateCode());
+    if (StringUtils.hasText(explicit)) {
+      return explicit;
+    }
+    String inferred = inferStateCodeFromGstNumber(supplier.getGstNumber());
+    return gstService.normalizeStateCode(inferred);
+  }
+
+  private String inferStateCodeFromGstNumber(String gstNumber) {
+    if (!StringUtils.hasText(gstNumber)) {
+      return null;
+    }
+    String normalized = gstNumber.trim().toUpperCase(java.util.Locale.ROOT);
+    if (normalized.length() < 2) {
+      return null;
+    }
+    return normalized.substring(0, 2);
+  }
+
+  private boolean isMissingStateMetadataError(ApplicationException ex) {
+    if (ex == null || ex.getErrorCode() != ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD) {
+      return false;
+    }
+    return ex.getMessage() != null
+        && ex.getMessage().contains("State codes are required for GST decisioning");
   }
 
   private void transitionPurchaseOrderStatus(

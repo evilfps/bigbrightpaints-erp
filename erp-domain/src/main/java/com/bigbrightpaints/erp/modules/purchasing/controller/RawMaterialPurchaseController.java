@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.purchasing.controller;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -45,7 +46,7 @@ public class RawMaterialPurchaseController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<RawMaterialPurchaseResponse>> createPurchase(
       @Valid @RequestBody RawMaterialPurchaseRequest request) {
-    return ResponseEntity.ok(
+    return ResponseEntity.status(HttpStatus.CREATED).body(
         ApiResponse.success(
             "Raw material purchase recorded", purchasingService.createPurchase(request)));
   }
@@ -54,7 +55,7 @@ public class RawMaterialPurchaseController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<JournalEntryDto>> recordPurchaseReturn(
       @Valid @RequestBody PurchaseReturnRequest request) {
-    return ResponseEntity.ok(
+    return ResponseEntity.status(HttpStatus.CREATED).body(
         ApiResponse.success(
             "Purchase return recorded", purchasingService.recordPurchaseReturn(request)));
   }

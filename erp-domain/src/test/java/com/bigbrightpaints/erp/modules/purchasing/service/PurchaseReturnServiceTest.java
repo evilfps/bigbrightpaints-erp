@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -146,6 +147,13 @@ class PurchaseReturnServiceTest {
                         .PURCHASE_RETURN),
                 eq("PR-30")))
         .thenReturn(List.of());
+    lenient()
+        .when(gstService.normalizeStateCode(any()))
+        .thenAnswer(
+            invocation -> {
+              String raw = invocation.getArgument(0);
+              return raw == null ? null : raw.trim().toUpperCase(java.util.Locale.ROOT);
+            });
   }
 
   @Test
@@ -689,6 +697,87 @@ class PurchaseReturnServiceTest {
 
     assertThat(result).isNull();
     verify(movementRepository, never()).saveAll(any());
+  }
+
+  @Test
+  void recordPurchaseReturn_fallsBackToInterStateGstWhenCompanyStateMissing() {
+    company.setStateCode(null);
+    supplier.setStateCode(null);
+    supplier.setGstNumber("27ABCDE1234F1Z5");
+    purchase.setInvoiceNumber("PI-30");
+    purchase.setTaxAmount(new BigDecimal("4.00"));
+    purchase.getLines().getFirst().setTaxAmount(new BigDecimal("4.00"));
+
+    Account payable = new Account();
+    ReflectionTestUtils.setField(payable, "id", 40L);
+    supplier.setPayableAccount(payable);
+
+    RawMaterialMovement existingMovement = new RawMaterialMovement();
+    existingMovement.setRawMaterial(material);
+    existingMovement.setReferenceId("PR-30");
+    existingMovement.setReferenceType(InventoryReference.PURCHASE_RETURN);
+    existingMovement.setQuantity(BigDecimal.ONE);
+    existingMovement.setUnitCost(new BigDecimal("5.00"));
+
+    when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+            company, InventoryReference.PURCHASE_RETURN, "PR-30"))
+        .thenReturn(List.of(existingMovement));
+    when(gstService.splitTaxAmount(any(), any(), eq((String) null), eq("27")))
+        .thenThrow(
+            new ApplicationException(
+                ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                "State codes are required for GST decisioning"));
+    when(accountingFacade.postPurchaseReturn(
+            eq(10L),
+            eq("PR-30"),
+            eq(LocalDate.of(2026, 3, 9)),
+            eq("Damaged - Resin to Supplier 10"),
+            eq(Map.of(200L, new BigDecimal("5.00"))),
+            any(),
+            any(),
+            eq(new BigDecimal("6.00"))))
+        .thenReturn(
+            journalEntryDto(
+                915L, "PR-30", LocalDate.of(2026, 3, 9), "Damaged - Resin to Supplier 10"));
+    when(journalCorrectionMetadataService.findByCompanyAndId(company, 915L))
+        .thenReturn(Optional.empty());
+
+    JournalEntryDto result =
+        purchaseReturnService.recordPurchaseReturn(
+            new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                BigDecimal.ONE,
+                new BigDecimal("5.00"),
+                "PR-30",
+                LocalDate.of(2026, 3, 9),
+                "Damaged"));
+
+    assertThat(result.id()).isEqualTo(915L);
+    assertThat(supplier.getStateCode()).isEqualTo("27");
+    ArgumentCaptor<Map> taxCreditCaptor = ArgumentCaptor.forClass(Map.class);
+    ArgumentCaptor<com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest.GstBreakdown>
+        gstBreakdownCaptor = ArgumentCaptor.forClass(
+            com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest.GstBreakdown.class);
+    verify(accountingFacade)
+        .postPurchaseReturn(
+            eq(10L),
+            eq("PR-30"),
+            eq(LocalDate.of(2026, 3, 9)),
+            eq("Damaged - Resin to Supplier 10"),
+            eq(Map.of(200L, new BigDecimal("5.00"))),
+            taxCreditCaptor.capture(),
+            gstBreakdownCaptor.capture(),
+            eq(new BigDecimal("6.00")));
+    assertThat(taxCreditCaptor.getValue()).isNotNull();
+    assertThat(taxCreditCaptor.getValue()).containsKey(null);
+    assertThat(new BigDecimal(String.valueOf(taxCreditCaptor.getValue().get(null))))
+        .isEqualByComparingTo(new BigDecimal("1.00"));
+    assertThat(gstBreakdownCaptor.getValue()).isNotNull();
+    assertThat(gstBreakdownCaptor.getValue().igst()).isGreaterThan(BigDecimal.ZERO);
+    assertThat(gstBreakdownCaptor.getValue().cgst()).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(gstBreakdownCaptor.getValue().sgst()).isEqualByComparingTo(BigDecimal.ZERO);
   }
 
   @Test

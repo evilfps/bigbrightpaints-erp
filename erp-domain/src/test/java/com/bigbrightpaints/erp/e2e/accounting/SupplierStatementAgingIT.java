@@ -106,7 +106,7 @@ class SupplierStatementAgingIT extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
-    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
     Long purchaseId = ((Number) purchaseData.get("id")).longValue();
 
@@ -314,7 +314,7 @@ class SupplierStatementAgingIT extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(grReq, headers),
             Map.class);
-    assertThat(grResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(grResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> grData = (Map<String, Object>) grResp.getBody().get("data");
     Long goodsReceiptId = ((Number) grData.get("id")).longValue();
 

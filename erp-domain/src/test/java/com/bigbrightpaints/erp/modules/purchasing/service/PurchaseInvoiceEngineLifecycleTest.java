@@ -29,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryDto;
@@ -221,6 +222,13 @@ class PurchaseInvoiceEngineLifecycleTest {
                     invocation.getArgument(1),
                     BigDecimal.ZERO,
                     GstService.TaxType.INTRA_STATE));
+    lenient()
+        .when(gstService.normalizeStateCode(any()))
+        .thenAnswer(
+            invocation -> {
+              String raw = invocation.getArgument(0);
+              return raw == null ? null : raw.trim().toUpperCase(java.util.Locale.ROOT);
+            });
 
     lenient()
         .when(
@@ -299,7 +307,7 @@ class PurchaseInvoiceEngineLifecycleTest {
             "invoice",
             30L,
             40L,
-            BigDecimal.ZERO,
+            null,
             List.of(
                 new RawMaterialPurchaseLineRequest(
                     20L,
@@ -543,6 +551,48 @@ class PurchaseInvoiceEngineLifecycleTest {
     assertThat(response.id()).isEqualTo(600L);
     assertThat(goodsReceipt.getStatusEnum()).isEqualTo(GoodsReceiptStatus.INVOICED);
     verify(movementRepository, never()).saveAll(any());
+  }
+
+  @Test
+  @DisplayName(
+      "createPurchase falls back to inter-state GST split when company state metadata is missing")
+  void createPurchase_fallsBackToInterStateGstWhenCompanyStateMissing() {
+    company.setStateCode(null);
+    supplier.setStateCode(null);
+    supplier.setGstNumber("27ABCDE1234F1Z5");
+    when(goodsReceiptRepository.findByPurchaseOrder(purchaseOrder))
+        .thenReturn(List.of(goodsReceipt));
+    when(gstService.splitTaxAmount(any(), any(), eq((String) null), eq("27")))
+        .thenThrow(
+            new ApplicationException(
+                ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
+                "State codes are required for GST decisioning"));
+
+    RawMaterialPurchaseRequest request =
+        new RawMaterialPurchaseRequest(
+            10L,
+            "INV-40",
+            LocalDate.of(2026, 3, 2),
+            "invoice",
+            30L,
+            40L,
+            BigDecimal.ZERO,
+            List.of(
+                new RawMaterialPurchaseLineRequest(
+                    20L,
+                    null,
+                    new BigDecimal("10.0000"),
+                    "KG",
+                    new BigDecimal("12.50"),
+                    null,
+                    null,
+                    "line")));
+
+    RawMaterialPurchaseResponse response = purchaseInvoiceEngine.createPurchase(request);
+
+    assertThat(response.id()).isEqualTo(600L);
+    assertThat(supplier.getStateCode()).isEqualTo("27");
+    verify(gstService).splitTaxAmount(any(), any(), eq((String) null), eq("27"));
   }
 
   @Test

@@ -248,9 +248,13 @@ public class PurchaseReturnService {
     if (taxAmount.compareTo(BigDecimal.ZERO) > 0) {
       taxCredits = new HashMap<>();
       taxCredits.put(null, taxAmount);
+      String companyStateCode = resolveCompanyStateCode(company);
+      String supplierStateCode = resolveSupplierStateCode(supplier);
+      if (!StringUtils.hasText(supplier.getStateCode()) && StringUtils.hasText(supplierStateCode)) {
+        supplier.setStateCode(supplierStateCode);
+      }
       GstService.GstBreakdown split =
-          gstService.splitTaxAmount(
-              lineNet, taxAmount, company.getStateCode(), supplier.getStateCode());
+          splitTaxAmountSafe(lineNet, taxAmount, companyStateCode, supplierStateCode);
       gstBreakdown =
           new JournalCreationRequest.GstBreakdown(
               lineNet, split.cgst(), split.sgst(), split.igst());
@@ -305,12 +309,14 @@ public class PurchaseReturnService {
     if (taxAmount.compareTo(BigDecimal.ZERO) > 0) {
       taxCredits = new HashMap<>();
       taxCredits.put(null, taxAmount);
+      Company company = companyContextService.requireCurrentCompany();
+      String companyStateCode = resolveCompanyStateCode(company);
+      String supplierStateCode = resolveSupplierStateCode(supplier);
+      if (!StringUtils.hasText(supplier.getStateCode()) && StringUtils.hasText(supplierStateCode)) {
+        supplier.setStateCode(supplierStateCode);
+      }
       GstService.GstBreakdown split =
-          gstService.splitTaxAmount(
-              lineNet,
-              taxAmount,
-              companyContextService.requireCurrentCompany().getStateCode(),
-              supplier.getStateCode());
+          splitTaxAmountSafe(lineNet, taxAmount, companyStateCode, supplierStateCode);
       gstBreakdown =
           new JournalCreationRequest.GstBreakdown(
               lineNet, split.cgst(), split.sgst(), split.igst());
@@ -677,5 +683,67 @@ public class PurchaseReturnService {
   private String returnMemo(RawMaterial material, Supplier supplier, String reason) {
     String prefix = StringUtils.hasText(reason) ? reason.trim() : "Purchase return";
     return prefix + " - " + material.getName() + " to " + supplier.getName();
+  }
+
+  private GstService.GstBreakdown splitTaxAmountSafe(
+      BigDecimal taxableAmount,
+      BigDecimal taxAmount,
+      String sourceStateCode,
+      String supplierStateCode) {
+    try {
+      GstService.GstBreakdown lineBreakdown =
+          gstService.splitTaxAmount(taxableAmount, taxAmount, sourceStateCode, supplierStateCode);
+      if (lineBreakdown != null) {
+        return lineBreakdown;
+      }
+    } catch (ApplicationException ex) {
+      if (!isMissingStateMetadataError(ex)) {
+        throw ex;
+      }
+    }
+    return new GstService.GstBreakdown(
+        currency(taxableAmount),
+        BigDecimal.ZERO,
+        BigDecimal.ZERO,
+        currency(taxAmount),
+        GstService.TaxType.INTER_STATE);
+  }
+
+  private String resolveCompanyStateCode(Company company) {
+    if (company == null) {
+      return null;
+    }
+    return gstService.normalizeStateCode(company.getStateCode());
+  }
+
+  private String resolveSupplierStateCode(Supplier supplier) {
+    if (supplier == null) {
+      return null;
+    }
+    String explicit = gstService.normalizeStateCode(supplier.getStateCode());
+    if (StringUtils.hasText(explicit)) {
+      return explicit;
+    }
+    String inferred = inferStateCodeFromGstNumber(supplier.getGstNumber());
+    return gstService.normalizeStateCode(inferred);
+  }
+
+  private String inferStateCodeFromGstNumber(String gstNumber) {
+    if (!StringUtils.hasText(gstNumber)) {
+      return null;
+    }
+    String normalized = gstNumber.trim().toUpperCase(java.util.Locale.ROOT);
+    if (normalized.length() < 2) {
+      return null;
+    }
+    return normalized.substring(0, 2);
+  }
+
+  private boolean isMissingStateMetadataError(ApplicationException ex) {
+    if (ex == null || ex.getErrorCode() != ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD) {
+      return false;
+    }
+    return ex.getMessage() != null
+        && ex.getMessage().contains("State codes are required for GST decisioning");
   }
 }

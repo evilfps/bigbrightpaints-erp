@@ -109,7 +109,7 @@ public class PurchasingWorkflowController {
       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
       @Valid @RequestBody GoodsReceiptRequest request) {
     GoodsReceiptRequest resolved = applyIdempotencyKey(request, idempotencyKey);
-    return ResponseEntity.ok(
+    return ResponseEntity.status(HttpStatus.CREATED).body(
         ApiResponse.success(
             "Goods receipt recorded", purchasingService.createGoodsReceipt(resolved)));
   }
