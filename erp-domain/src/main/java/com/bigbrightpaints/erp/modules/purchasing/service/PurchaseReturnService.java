@@ -14,6 +14,7 @@ import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalCorrectionType;
@@ -61,6 +62,8 @@ public class PurchaseReturnService {
   private final CompanyClock companyClock;
   private final GstService gstService;
   private final PurchaseReturnAllocationService allocationService;
+  private final IdempotencyReservationService idempotencyReservationService =
+      new IdempotencyReservationService();
 
   public PurchaseReturnService(
       CompanyContextService companyContextService,
@@ -159,6 +162,11 @@ public class PurchaseReturnService {
 
   @Transactional
   public JournalEntryDto recordPurchaseReturn(PurchaseReturnRequest request) {
+    return recordPurchaseReturn(request, null);
+  }
+
+  @Transactional
+  public JournalEntryDto recordPurchaseReturn(PurchaseReturnRequest request, String idempotencyKey) {
     Company company = companyContextService.requireCurrentCompany();
     Supplier supplier = purchasingLookupService.requireSupplier(company, request.supplierId());
     RawMaterialPurchase purchase =
@@ -194,10 +202,7 @@ public class PurchaseReturnService {
     BigDecimal taxAmount = computeReturnTax(purchase, material, quantity);
     BigDecimal totalAmount = currency(lineNet.add(taxAmount));
     String memo = returnMemo(material, supplier, request.reason());
-    String reference =
-        StringUtils.hasText(request.referenceNumber())
-            ? request.referenceNumber().trim()
-            : referenceNumberService.purchaseReturnReference(company, supplier);
+    String reference = resolveReturnReference(company, supplier, request, idempotencyKey);
     LocalDate returnDate =
         request.returnDate() != null ? request.returnDate() : companyClock.today(company);
 
@@ -657,6 +662,31 @@ public class PurchaseReturnService {
     BigDecimal allocatedTax = purchaseTax.multiply(allocationRatio);
     BigDecimal taxPerUnit = allocatedTax.divide(materialLineQty, 6, RoundingMode.HALF_UP);
     return currency(taxPerUnit.multiply(returnQuantity));
+  }
+
+  private String resolveReturnReference(
+      Company company,
+      Supplier supplier,
+      PurchaseReturnRequest request,
+      String idempotencyKeyHeader) {
+    String explicitReference =
+        StringUtils.hasText(request.referenceNumber()) ? request.referenceNumber().trim() : null;
+    String canonicalIdempotencyKey = idempotencyReservationService.normalizeKey(idempotencyKeyHeader);
+    if (!StringUtils.hasText(canonicalIdempotencyKey)) {
+      return StringUtils.hasText(explicitReference)
+          ? explicitReference
+          : referenceNumberService.purchaseReturnReference(company, supplier);
+    }
+    String requiredIdempotencyKey =
+        idempotencyReservationService.requireKey(canonicalIdempotencyKey, "purchase returns");
+    if (StringUtils.hasText(explicitReference) && !requiredIdempotencyKey.equals(explicitReference)) {
+      throw new ApplicationException(
+              ErrorCode.VALIDATION_INVALID_INPUT,
+              "referenceNumber must match Idempotency-Key for purchase returns")
+          .withDetail("referenceNumber", explicitReference)
+          .withDetail("idempotencyKey", requiredIdempotencyKey);
+    }
+    return requiredIdempotencyKey;
   }
 
   private BigDecimal positive(BigDecimal value, String field) {

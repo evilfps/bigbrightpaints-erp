@@ -477,6 +477,77 @@ class PurchaseReturnServiceTest {
   }
 
   @Test
+  void recordPurchaseReturn_rejectsMismatchedReferenceWhenHeaderIdempotencyProvided() {
+    PurchaseReturnRequest request =
+        new PurchaseReturnRequest(
+            10L,
+            30L,
+            20L,
+            BigDecimal.ONE,
+            new BigDecimal("5.00"),
+            "PR-EXPLICIT-30",
+            LocalDate.of(2026, 3, 9),
+            "Damaged");
+
+    assertThatThrownBy(() -> purchaseReturnService.recordPurchaseReturn(request, "header-idem-30"))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT);
+              assertThat(ex).hasMessageContaining("referenceNumber must match Idempotency-Key");
+            });
+
+    verifyNoInteractions(accountingFacade);
+  }
+
+  @Test
+  void recordPurchaseReturn_replaysUsingCanonicalHeaderIdempotencyKey() {
+    purchase.setInvoiceNumber("PI-30");
+
+    RawMaterialMovement existingMovement = new RawMaterialMovement();
+    existingMovement.setRawMaterial(material);
+    existingMovement.setReferenceId("return-idem-30");
+    existingMovement.setReferenceType(InventoryReference.PURCHASE_RETURN);
+    existingMovement.setQuantity(BigDecimal.ONE);
+    existingMovement.setUnitCost(new BigDecimal("5.00"));
+
+    when(movementRepository.findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+            company, InventoryReference.PURCHASE_RETURN, "return-idem-30"))
+        .thenReturn(List.of(existingMovement));
+    when(accountingFacade.postPurchaseReturn(
+            eq(10L),
+            eq("return-idem-30"),
+            eq(LocalDate.of(2026, 3, 9)),
+            eq("Damaged - Resin to Supplier 10"),
+            eq(Map.of(200L, new BigDecimal("5.00"))),
+            eq(null),
+            eq(null),
+            eq(new BigDecimal("5.00"))))
+        .thenReturn(
+            journalEntryDto(
+                930L, "return-idem-30", LocalDate.of(2026, 3, 9), "Damaged - Resin to Supplier 10"));
+    when(journalCorrectionMetadataService.findByCompanyAndId(company, 930L))
+        .thenReturn(Optional.empty());
+
+    JournalEntryDto replay =
+        purchaseReturnService.recordPurchaseReturn(
+            new PurchaseReturnRequest(
+                10L,
+                30L,
+                20L,
+                BigDecimal.ONE,
+                new BigDecimal("5.00"),
+                null,
+                LocalDate.of(2026, 3, 9),
+                "Damaged"),
+            "return-idem-30");
+
+    assertThat(replay.id()).isEqualTo(930L);
+    verify(rawMaterialRepository, never()).deductStockIfSufficient(any(), any());
+    verify(allocationService, never()).applyPurchaseReturnQuantity(any(), any(), any());
+  }
+
+  @Test
   void recordPurchaseReturn_replayRelinksExistingMovementsAndCorrectionMetadata() {
     Account payable = new Account();
     ReflectionTestUtils.setField(payable, "id", 40L);

@@ -1,6 +1,6 @@
 # Idempotency and Errors
 
-Last reviewed: 2026-04-06
+Last reviewed: 2026-04-07
 
 ## Idempotency rules
 
@@ -10,6 +10,10 @@ Last reviewed: 2026-04-06
 - `POST /api/v1/purchasing/goods-receipts` and
   `POST /api/v1/inventory/raw-materials/adjustments` accept only
   `Idempotency-Key`.
+- `POST /api/v1/purchasing/raw-material-purchases` and
+  `POST /api/v1/purchasing/raw-material-purchases/returns` accept only
+  `Idempotency-Key`. Replaying the same key returns the original purchase
+  invoice or purchase return result without duplicate stock/AP posting.
 - `POST /api/v1/accounting/receipts/dealer`,
   `POST /api/v1/accounting/receipts/dealer/hybrid`,
   `POST /api/v1/accounting/settlements/dealers`,
@@ -25,9 +29,10 @@ Last reviewed: 2026-04-06
   `referenceNumber`, and `idempotencyKey`. Reusing a correction reference for a
   different purchase or invoice is a new action, not a safe retry.
 - Frontend should send `Idempotency-Key`, not `X-Idempotency-Key`. Legacy
-  headers are not part of the frontend contract. Accounting settlement and
-  receipt routes reject `X-Idempotency-Key` with a `400` validation error and
-  details that point back to the canonical header and path.
+  headers are not part of the frontend contract. Accounting settlement/receipt
+  routes and purchasing invoice/return write routes reject
+  `X-Idempotency-Key` with a `400` validation error and details that point
+  back to the canonical header and path.
 - Reversal requests should never mint a second endpoint for cascade behavior;
   use the canonical reverse path with explicit payload fields.
 

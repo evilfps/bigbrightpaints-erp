@@ -31,6 +31,12 @@ public class PurchaseInvoiceService {
   }
 
   public RawMaterialPurchaseResponse createPurchase(RawMaterialPurchaseRequest request) {
-    return purchaseInvoiceEngine.createPurchase(request);
+    return createPurchase(request, null);
   }
+
+  public RawMaterialPurchaseResponse createPurchase(
+      RawMaterialPurchaseRequest request, String idempotencyKey) {
+    return purchaseInvoiceEngine.createPurchase(request, idempotencyKey);
+  }
+
 }

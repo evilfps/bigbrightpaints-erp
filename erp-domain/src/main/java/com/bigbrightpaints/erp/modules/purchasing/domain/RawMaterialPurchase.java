@@ -68,6 +68,12 @@ public class RawMaterialPurchase extends VersionedEntity {
   @Column(name = "memo")
   private String memo;
 
+  @Column(name = "idempotency_key", length = 128)
+  private String idempotencyKey;
+
+  @Column(name = "idempotency_hash", length = 64)
+  private String idempotencyHash;
+
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
 
@@ -198,6 +204,22 @@ public class RawMaterialPurchase extends VersionedEntity {
 
   public void setMemo(String memo) {
     this.memo = memo;
+  }
+
+  public String getIdempotencyKey() {
+    return idempotencyKey;
+  }
+
+  public void setIdempotencyKey(String idempotencyKey) {
+    this.idempotencyKey = idempotencyKey;
+  }
+
+  public String getIdempotencyHash() {
+    return idempotencyHash;
+  }
+
+  public void setIdempotencyHash(String idempotencyHash) {
+    this.idempotencyHash = idempotencyHash;
   }
 
   public Instant getCreatedAt() {

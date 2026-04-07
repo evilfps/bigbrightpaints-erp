@@ -983,6 +983,265 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
   }
 
   @Test
+  @DisplayName(
+      "Purchase invoice replay with canonical Idempotency-Key returns original purchase without"
+          + " duplicate posting")
+  void purchaseInvoiceReplayUsesCanonicalIdempotencyHeader() {
+    LocalDate entryDate = TestDateUtils.safeDate(company);
+    Long supplierId = createSupplier("P2P Invoice Replay Supplier", "INV-REPLAY-" + shortSuffix());
+    Long rawMaterialId =
+        createRawMaterial("Invoice Replay Material", "RM-INV-REPLAY-" + shortSuffix(), inventory.getId());
+    BigDecimal quantity = new BigDecimal("7");
+    BigDecimal unitCost = new BigDecimal("9.00");
+    PurchaseWorkflowIds workflow =
+        createPurchaseOrderAndReceipt(supplierId, rawMaterialId, quantity, unitCost, entryDate);
+    GoodsReceipt goodsReceipt =
+        goodsReceiptRepository.findById(workflow.goodsReceiptId()).orElseThrow();
+    int receiptMovementsBeforeReplay =
+        rawMaterialMovementRepository
+            .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company, InventoryReference.GOODS_RECEIPT, goodsReceipt.getReceiptNumber())
+            .size();
+
+    Map<String, Object> line = new HashMap<>();
+    line.put("rawMaterialId", rawMaterialId);
+    line.put("quantity", quantity);
+    line.put("costPerUnit", unitCost);
+
+    String invoiceNumber = "INV-REPLAY-" + shortSuffix();
+    Map<String, Object> purchaseReq = new HashMap<>();
+    purchaseReq.put("supplierId", supplierId);
+    purchaseReq.put("invoiceNumber", invoiceNumber);
+    purchaseReq.put("invoiceDate", entryDate);
+    purchaseReq.put("purchaseOrderId", workflow.purchaseOrderId());
+    purchaseReq.put("goodsReceiptId", workflow.goodsReceiptId());
+    purchaseReq.put("lines", List.of(line));
+
+    String idempotencyKey = "purch-invoice-" + shortSuffix();
+    HttpHeaders purchaseHeaders = headersWithIdempotencyKey(idempotencyKey);
+
+    ResponseEntity<Map> firstResponse =
+        rest.exchange(
+            "/api/v1/purchasing/raw-material-purchases",
+            HttpMethod.POST,
+            new HttpEntity<>(purchaseReq, purchaseHeaders),
+            Map.class);
+    ResponseEntity<Map> replayResponse =
+        rest.exchange(
+            "/api/v1/purchasing/raw-material-purchases",
+            HttpMethod.POST,
+            new HttpEntity<>(purchaseReq, purchaseHeaders),
+            Map.class);
+
+    assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    assertThat(replayResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    Long firstPurchaseId =
+        ((Number) ((Map<String, Object>) firstResponse.getBody().get("data")).get("id")).longValue();
+    Long replayPurchaseId =
+        ((Number) ((Map<String, Object>) replayResponse.getBody().get("data")).get("id")).longValue();
+    assertThat(replayPurchaseId).isEqualTo(firstPurchaseId);
+    assertThat(purchaseRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isPresent();
+    assertThat(purchaseRepository.findByCompanyAndInvoiceNumberIgnoreCase(company, invoiceNumber)).isPresent();
+
+    int receiptMovementsAfterReplay =
+        rawMaterialMovementRepository
+            .findByRawMaterialCompanyAndReferenceTypeAndReferenceId(
+                company, InventoryReference.GOODS_RECEIPT, goodsReceipt.getReceiptNumber())
+            .size();
+    assertThat(receiptMovementsAfterReplay).isEqualTo(receiptMovementsBeforeReplay);
+  }
+
+  @Test
+  @DisplayName("Purchase invoice rejects X-Idempotency-Key legacy header")
+  void purchaseInvoiceRejectsLegacyIdempotencyHeader() {
+    LocalDate entryDate = TestDateUtils.safeDate(company);
+    Long supplierId = createSupplier("P2P Invoice Legacy Supplier", "INV-LEGACY-" + shortSuffix());
+    Long rawMaterialId =
+        createRawMaterial("Invoice Legacy Material", "RM-INV-LEGACY-" + shortSuffix(), inventory.getId());
+    BigDecimal quantity = new BigDecimal("4");
+    BigDecimal unitCost = new BigDecimal("11.00");
+    PurchaseWorkflowIds workflow =
+        createPurchaseOrderAndReceipt(supplierId, rawMaterialId, quantity, unitCost, entryDate);
+
+    String invoiceNumber = "INV-LEGACY-" + shortSuffix();
+    Map<String, Object> purchaseReq = new HashMap<>();
+    purchaseReq.put("supplierId", supplierId);
+    purchaseReq.put("invoiceNumber", invoiceNumber);
+    purchaseReq.put("invoiceDate", entryDate);
+    purchaseReq.put("purchaseOrderId", workflow.purchaseOrderId());
+    purchaseReq.put("goodsReceiptId", workflow.goodsReceiptId());
+    purchaseReq.put(
+        "lines",
+        List.of(
+            Map.of(
+                "rawMaterialId",
+                rawMaterialId,
+                "quantity",
+                quantity,
+                "costPerUnit",
+                unitCost)));
+
+    HttpHeaders legacyHeaders = headersWithLegacyIdempotencyKey("legacy-invoice-" + shortSuffix());
+    ResponseEntity<Map> response =
+        rest.exchange(
+            "/api/v1/purchasing/raw-material-purchases",
+            HttpMethod.POST,
+            new HttpEntity<>(purchaseReq, legacyHeaders),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+    assertThat(data.get("message"))
+        .isEqualTo("X-Idempotency-Key is not supported for purchase invoices; use Idempotency-Key");
+    assertThat(purchaseRepository.findByCompanyAndInvoiceNumberIgnoreCase(company, invoiceNumber)).isEmpty();
+  }
+
+  @Test
+  @DisplayName(
+      "Purchase return replay with canonical Idempotency-Key returns original reversal without"
+          + " duplicate stock effects")
+  void purchaseReturnReplayUsesCanonicalIdempotencyHeader() {
+    LocalDate entryDate = TestDateUtils.safeDate(company);
+    Long supplierId = createSupplier("P2P Return Replay Supplier", "RET-REPLAY-" + shortSuffix());
+    Long rawMaterialId =
+        createRawMaterial("Return Replay Material", "RM-RET-REPLAY-" + shortSuffix(), inventory.getId());
+    BigDecimal purchaseQty = new BigDecimal("10");
+    BigDecimal unitCost = new BigDecimal("8.00");
+    PurchaseWorkflowIds workflow =
+        createPurchaseOrderAndReceipt(supplierId, rawMaterialId, purchaseQty, unitCost, entryDate);
+
+    Map<String, Object> purchaseReq = new HashMap<>();
+    purchaseReq.put("supplierId", supplierId);
+    purchaseReq.put("invoiceNumber", "INV-RET-REPLAY-" + shortSuffix());
+    purchaseReq.put("invoiceDate", entryDate);
+    purchaseReq.put("purchaseOrderId", workflow.purchaseOrderId());
+    purchaseReq.put("goodsReceiptId", workflow.goodsReceiptId());
+    purchaseReq.put(
+        "lines",
+        List.of(
+            Map.of(
+                "rawMaterialId",
+                rawMaterialId,
+                "quantity",
+                purchaseQty,
+                "costPerUnit",
+                unitCost)));
+
+    ResponseEntity<Map> purchaseResp =
+        rest.exchange(
+            "/api/v1/purchasing/raw-material-purchases",
+            HttpMethod.POST,
+            new HttpEntity<>(purchaseReq, headers),
+            Map.class);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    Long purchaseId = ((Number) ((Map<String, Object>) purchaseResp.getBody().get("data")).get("id")).longValue();
+
+    String returnIdempotencyKey = "purch-return-" + shortSuffix();
+    HttpHeaders returnHeaders = headersWithIdempotencyKey(returnIdempotencyKey);
+    Map<String, Object> returnReq = new HashMap<>();
+    returnReq.put("supplierId", supplierId);
+    returnReq.put("purchaseId", purchaseId);
+    returnReq.put("rawMaterialId", rawMaterialId);
+    returnReq.put("quantity", new BigDecimal("4"));
+    returnReq.put("unitCost", unitCost);
+    returnReq.put("returnDate", entryDate);
+    returnReq.put("reason", "P2P return replay test");
+
+    ResponseEntity<Map> firstReturnResp =
+        rest.exchange(
+            "/api/v1/purchasing/raw-material-purchases/returns",
+            HttpMethod.POST,
+            new HttpEntity<>(returnReq, returnHeaders),
+            Map.class);
+    ResponseEntity<Map> replayReturnResp =
+        rest.exchange(
+            "/api/v1/purchasing/raw-material-purchases/returns",
+            HttpMethod.POST,
+            new HttpEntity<>(returnReq, returnHeaders),
+            Map.class);
+
+    assertThat(firstReturnResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    assertThat(replayReturnResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    Long firstJournalId =
+        ((Number) ((Map<String, Object>) firstReturnResp.getBody().get("data")).get("id")).longValue();
+    Long replayJournalId =
+        ((Number) ((Map<String, Object>) replayReturnResp.getBody().get("data")).get("id")).longValue();
+    assertThat(replayJournalId).isEqualTo(firstJournalId);
+
+    RawMaterial afterReturn = rawMaterialRepository.findById(rawMaterialId).orElseThrow();
+    assertThat(afterReturn.getCurrentStock()).isEqualByComparingTo(new BigDecimal("6"));
+    List<RawMaterialMovement> returnMovements =
+        rawMaterialMovementRepository.findByReferenceTypeAndReferenceId(
+            InventoryReference.PURCHASE_RETURN, returnIdempotencyKey);
+    assertThat(returnMovements).hasSize(1);
+  }
+
+  @Test
+  @DisplayName("Purchase return rejects X-Idempotency-Key legacy header")
+  void purchaseReturnRejectsLegacyIdempotencyHeader() {
+    LocalDate entryDate = TestDateUtils.safeDate(company);
+    Long supplierId = createSupplier("P2P Return Legacy Supplier", "RET-LEGACY-" + shortSuffix());
+    Long rawMaterialId =
+        createRawMaterial("Return Legacy Material", "RM-RET-LEGACY-" + shortSuffix(), inventory.getId());
+    BigDecimal purchaseQty = new BigDecimal("6");
+    BigDecimal unitCost = new BigDecimal("7.00");
+    PurchaseWorkflowIds workflow =
+        createPurchaseOrderAndReceipt(supplierId, rawMaterialId, purchaseQty, unitCost, entryDate);
+
+    Map<String, Object> purchaseReq = new HashMap<>();
+    purchaseReq.put("supplierId", supplierId);
+    purchaseReq.put("invoiceNumber", "INV-RET-LEGACY-" + shortSuffix());
+    purchaseReq.put("invoiceDate", entryDate);
+    purchaseReq.put("purchaseOrderId", workflow.purchaseOrderId());
+    purchaseReq.put("goodsReceiptId", workflow.goodsReceiptId());
+    purchaseReq.put(
+        "lines",
+        List.of(
+            Map.of(
+                "rawMaterialId",
+                rawMaterialId,
+                "quantity",
+                purchaseQty,
+                "costPerUnit",
+                unitCost)));
+
+    ResponseEntity<Map> purchaseResp =
+        rest.exchange(
+            "/api/v1/purchasing/raw-material-purchases",
+            HttpMethod.POST,
+            new HttpEntity<>(purchaseReq, headers),
+            Map.class);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    Long purchaseId = ((Number) ((Map<String, Object>) purchaseResp.getBody().get("data")).get("id")).longValue();
+
+    RawMaterial beforeReturn = rawMaterialRepository.findById(rawMaterialId).orElseThrow();
+    HttpHeaders legacyHeaders = headersWithLegacyIdempotencyKey("legacy-return-" + shortSuffix());
+    Map<String, Object> returnReq = new HashMap<>();
+    returnReq.put("supplierId", supplierId);
+    returnReq.put("purchaseId", purchaseId);
+    returnReq.put("rawMaterialId", rawMaterialId);
+    returnReq.put("quantity", BigDecimal.ONE);
+    returnReq.put("unitCost", unitCost);
+    returnReq.put("returnDate", entryDate);
+    returnReq.put("reason", "legacy header should fail");
+
+    ResponseEntity<Map> response =
+        rest.exchange(
+            "/api/v1/purchasing/raw-material-purchases/returns",
+            HttpMethod.POST,
+            new HttpEntity<>(returnReq, legacyHeaders),
+            Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+    assertThat(data.get("message"))
+        .isEqualTo("X-Idempotency-Key is not supported for purchase returns; use Idempotency-Key");
+
+    RawMaterial afterReturnAttempt = rawMaterialRepository.findById(rawMaterialId).orElseThrow();
+    assertThat(afterReturnAttempt.getCurrentStock()).isEqualByComparingTo(beforeReturn.getCurrentStock());
+  }
+
+  @Test
   @DisplayName("GST return includes input tax from purchase flow")
   void gstReturnIncludesInputTaxFromPurchases() {
     LocalDate entryDate = TestDateUtils.safeDate(company);
@@ -1481,6 +1740,13 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     HttpHeaders scoped = new HttpHeaders();
     scoped.putAll(headers);
     scoped.set("Idempotency-Key", idempotencyKey);
+    return scoped;
+  }
+
+  private HttpHeaders headersWithLegacyIdempotencyKey(String idempotencyKey) {
+    HttpHeaders scoped = new HttpHeaders();
+    scoped.putAll(headers);
+    scoped.set("X-Idempotency-Key", idempotencyKey);
     return scoped;
   }
 

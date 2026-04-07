@@ -292,6 +292,108 @@ class PurchaseInvoiceEngineLifecycleTest {
   }
 
   @Test
+  @DisplayName("createPurchase replays existing purchase for duplicate canonical Idempotency-Key")
+  void createPurchase_replaysExistingPurchaseForDuplicateIdempotencyKey() {
+    RawMaterialPurchase existing = new RawMaterialPurchase();
+    ReflectionTestUtils.setField(existing, "id", 611L);
+    existing.setCompany(company);
+    existing.setSupplier(supplier);
+    existing.setInvoiceNumber("INV-40");
+    existing.setInvoiceDate(LocalDate.of(2026, 3, 2));
+    existing.setMemo("invoice");
+    existing.setTotalAmount(new BigDecimal("125.00"));
+    existing.setTaxAmount(BigDecimal.ZERO);
+    existing.setOutstandingAmount(new BigDecimal("125.00"));
+    existing.setStatus("POSTED");
+    existing.setIdempotencyKey("purchase-idem-40");
+    RawMaterialPurchaseLine existingLine = new RawMaterialPurchaseLine();
+    existingLine.setPurchase(existing);
+    existingLine.setRawMaterial(rawMaterial);
+    existingLine.setQuantity(new BigDecimal("10.0000"));
+    existingLine.setUnit("KG");
+    existingLine.setCostPerUnit(new BigDecimal("12.50"));
+    existingLine.setLineTotal(new BigDecimal("125.00"));
+    existing.getLines().add(existingLine);
+    when(purchaseRepository.findWithLinesByCompanyAndIdempotencyKey(company, "purchase-idem-40"))
+        .thenReturn(Optional.of(existing));
+    when(purchaseRepository.save(existing)).thenReturn(existing);
+
+    RawMaterialPurchaseRequest request =
+        new RawMaterialPurchaseRequest(
+            10L,
+            "INV-40",
+            LocalDate.of(2026, 3, 2),
+            "invoice",
+            30L,
+            40L,
+            BigDecimal.ZERO,
+            List.of(
+                new RawMaterialPurchaseLineRequest(
+                    20L,
+                    null,
+                    new BigDecimal("10.0000"),
+                    "KG",
+                    new BigDecimal("12.50"),
+                    null,
+                    null,
+                    "line")));
+
+    RawMaterialPurchaseResponse replay =
+        purchaseInvoiceEngine.createPurchase(request, " purchase-idem-40 ");
+
+    assertThat(replay.id()).isEqualTo(existing.getId());
+    verify(accountingFacade, never())
+        .postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
+    verify(purchaseRepository, never()).lockByCompanyAndInvoiceNumberIgnoreCase(any(), any());
+  }
+
+  @Test
+  @DisplayName("createPurchase fails closed when canonical Idempotency-Key payload drifts")
+  void createPurchase_rejectsIdempotencyPayloadDrift() {
+    RawMaterialPurchase existing = new RawMaterialPurchase();
+    existing.setCompany(company);
+    existing.setInvoiceNumber("INV-40");
+    existing.setIdempotencyKey("purchase-idem-drift");
+    existing.setIdempotencyHash("stored-signature");
+    when(
+            purchaseRepository.findWithLinesByCompanyAndIdempotencyKey(
+                company, "purchase-idem-drift"))
+        .thenReturn(Optional.of(existing));
+
+    RawMaterialPurchaseRequest request =
+        new RawMaterialPurchaseRequest(
+            10L,
+            "INV-40",
+            LocalDate.of(2026, 3, 2),
+            "invoice",
+            30L,
+            40L,
+            BigDecimal.ZERO,
+            List.of(
+                new RawMaterialPurchaseLineRequest(
+                    20L,
+                    null,
+                    new BigDecimal("10.0000"),
+                    "KG",
+                    new BigDecimal("12.50"),
+                    null,
+                    null,
+                    "line")));
+
+    assertThatThrownBy(() -> purchaseInvoiceEngine.createPurchase(request, "purchase-idem-drift"))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            throwable -> {
+              ApplicationException ex = (ApplicationException) throwable;
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.CONCURRENCY_CONFLICT);
+            })
+        .hasMessageContaining("Idempotency key already used with different payload");
+
+    verify(accountingFacade, never())
+        .postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
+  }
+
+  @Test
   @DisplayName(
       "createPurchase transitions purchase order FULLY_RECEIVED -> INVOICED -> CLOSED when all GRNs"
           + " invoiced")

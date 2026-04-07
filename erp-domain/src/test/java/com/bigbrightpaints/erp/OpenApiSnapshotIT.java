@@ -914,6 +914,10 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     assertHeaderParameters(root, "/api/v1/inventory/adjustments", "post", "Idempotency-Key");
     assertHeaderParameters(
         root, "/api/v1/inventory/raw-materials/adjustments", "post", "Idempotency-Key");
+    assertHeaderParameters(
+        root, "/api/v1/purchasing/raw-material-purchases", "post", "Idempotency-Key");
+    assertHeaderParameters(
+        root, "/api/v1/purchasing/raw-material-purchases/returns", "post", "Idempotency-Key");
   }
 
   @Test

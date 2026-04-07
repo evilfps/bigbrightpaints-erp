@@ -251,6 +251,11 @@ public class PurchasingService {
   }
 
   public RawMaterialPurchaseResponse createPurchase(RawMaterialPurchaseRequest request) {
+    return createPurchase(request, null);
+  }
+
+  public RawMaterialPurchaseResponse createPurchase(
+      RawMaterialPurchaseRequest request, String idempotencyKey) {
     /*
      * JournalEntryDto entry = postPurchaseEntry(
      * request,
@@ -262,11 +267,15 @@ public class PurchasingService {
      * gstBreakdown);
      * purchase = purchaseRepository.save(purchase);
      */
-    return purchaseInvoiceService.createPurchase(request);
+    return purchaseInvoiceService.createPurchase(request, idempotencyKey);
   }
 
   public JournalEntryDto recordPurchaseReturn(PurchaseReturnRequest request) {
-    return purchaseReturnService.recordPurchaseReturn(request);
+    return recordPurchaseReturn(request, null);
+  }
+
+  public JournalEntryDto recordPurchaseReturn(PurchaseReturnRequest request, String idempotencyKey) {
+    return purchaseReturnService.recordPurchaseReturn(request, idempotencyKey);
   }
 
   public PurchaseReturnPreviewDto previewPurchaseReturn(PurchaseReturnRequest request) {

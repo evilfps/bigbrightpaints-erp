@@ -11,12 +11,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencySignatureBuilder;
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.core.util.MoneyUtils;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
@@ -75,6 +79,8 @@ public class PurchaseInvoiceEngine {
   private final GstService gstService;
   private final PurchaseResponseMapper responseMapper;
   private final PurchaseTaxPolicy purchaseTaxPolicy;
+  private final IdempotencyReservationService idempotencyReservationService =
+      new IdempotencyReservationService();
   private PurchaseOrderService purchaseOrderService;
 
   @Autowired
@@ -143,7 +149,57 @@ public class PurchaseInvoiceEngine {
 
   @Transactional
   public RawMaterialPurchaseResponse createPurchase(RawMaterialPurchaseRequest request) {
+    return createPurchase(request, null);
+  }
+
+  @Transactional
+  public RawMaterialPurchaseResponse createPurchase(
+      RawMaterialPurchaseRequest request, String idempotencyKey) {
     Company company = companyContextService.requireCurrentCompany();
+    String canonicalIdempotencyKey = normalizeIdempotencyKey(idempotencyKey);
+    List<RawMaterialPurchaseLineRequest> sortedLines =
+        request.lines().stream()
+            .sorted(Comparator.comparing(RawMaterialPurchaseLineRequest::rawMaterialId))
+            .toList();
+    String requestSignature =
+        StringUtils.hasText(canonicalIdempotencyKey)
+            ? buildPurchaseInvoiceSignature(request, sortedLines)
+            : null;
+
+    if (StringUtils.hasText(canonicalIdempotencyKey)) {
+      RawMaterialPurchase existing =
+          purchaseRepository
+              .findWithLinesByCompanyAndIdempotencyKey(company, canonicalIdempotencyKey)
+              .orElse(null);
+      if (existing != null) {
+        assertIdempotencyMatch(existing, requestSignature, canonicalIdempotencyKey);
+        return responseMapper.toPurchaseResponse(existing);
+      }
+    }
+
+    try {
+      return createPurchaseInternal(
+          request, company, sortedLines, canonicalIdempotencyKey, requestSignature);
+    } catch (RuntimeException ex) {
+      if (!StringUtils.hasText(canonicalIdempotencyKey)
+          || !isDataIntegrityViolation(ex)) {
+        throw ex;
+      }
+      RawMaterialPurchase concurrent =
+          purchaseRepository
+              .findWithLinesByCompanyAndIdempotencyKey(company, canonicalIdempotencyKey)
+              .orElseThrow(() -> ex);
+      assertIdempotencyMatch(concurrent, requestSignature, canonicalIdempotencyKey);
+      return responseMapper.toPurchaseResponse(concurrent);
+    }
+  }
+
+  private RawMaterialPurchaseResponse createPurchaseInternal(
+      RawMaterialPurchaseRequest request,
+      Company company,
+      List<RawMaterialPurchaseLineRequest> sortedLines,
+      String idempotencyKey,
+      String requestSignature) {
     Supplier supplier = purchasingLookupService.requireSupplier(company, request.supplierId());
     supplier.requireTransactionalUsage("post purchase invoices");
     if (supplier.getPayableAccount() == null) {
@@ -221,11 +277,6 @@ public class PurchaseInvoiceEngine {
 
     boolean taxProvided = request.taxAmount() != null;
     Set<Long> invoiceMaterialIds = new HashSet<>();
-
-    List<RawMaterialPurchaseLineRequest> sortedLines =
-        request.lines().stream()
-            .sorted(Comparator.comparing(RawMaterialPurchaseLineRequest::rawMaterialId))
-            .toList();
 
     Map<Long, RawMaterial> lockedMaterials = new HashMap<>();
     for (RawMaterialPurchaseLineRequest lineRequest : sortedLines) {
@@ -481,6 +532,8 @@ public class PurchaseInvoiceEngine {
     purchase.setJournalEntry(linkedJournal);
     purchase.setPurchaseOrder(purchaseOrder);
     purchase.setGoodsReceipt(goodsReceipt);
+    purchase.setIdempotencyKey(idempotencyKey);
+    purchase.setIdempotencyHash(requestSignature);
 
     for (PurchaseLineCalc lineCalc : computedLines) {
       RawMaterial rawMaterial = lineCalc.rawMaterial();
@@ -544,6 +597,71 @@ public class PurchaseInvoiceEngine {
       }
     }
     return responseMapper.toPurchaseResponse(purchase);
+  }
+
+  private String normalizeIdempotencyKey(String raw) {
+    String normalized = idempotencyReservationService.normalizeKey(raw);
+    if (!StringUtils.hasText(normalized)) {
+      return null;
+    }
+    return idempotencyReservationService.requireKey(normalized, "purchase invoices");
+  }
+
+  private String buildPurchaseInvoiceSignature(
+      RawMaterialPurchaseRequest request, List<RawMaterialPurchaseLineRequest> sortedLines) {
+    IdempotencySignatureBuilder signature =
+        IdempotencySignatureBuilder.create()
+            .add(request.supplierId() != null ? request.supplierId() : "")
+            .addToken(request.invoiceNumber())
+            .add(request.invoiceDate() != null ? request.invoiceDate() : "")
+            .add(request.purchaseOrderId() != null ? request.purchaseOrderId() : "")
+            .add(request.goodsReceiptId() != null ? request.goodsReceiptId() : "")
+            .addToken(request.memo())
+            .addAmount(request.taxAmount());
+
+    for (RawMaterialPurchaseLineRequest line : sortedLines) {
+      signature.add(
+          (line.rawMaterialId() != null ? line.rawMaterialId() : "")
+              + ":"
+              + IdempotencyUtils.normalizeToken(line.batchCode())
+              + ":"
+              + IdempotencyUtils.normalizeAmount(line.quantity())
+              + ":"
+              + IdempotencyUtils.normalizeToken(line.unit())
+              + ":"
+              + IdempotencyUtils.normalizeAmount(line.costPerUnit())
+              + ":"
+              + IdempotencyUtils.normalizeAmount(line.taxRate())
+              + ":"
+              + (line.taxInclusive() != null ? line.taxInclusive() : "")
+              + ":"
+              + IdempotencyUtils.normalizeToken(line.notes()));
+    }
+    return signature.buildHash();
+  }
+
+  private void assertIdempotencyMatch(
+      RawMaterialPurchase purchase, String expectedSignature, String idempotencyKey) {
+    idempotencyReservationService.assertAndRepairSignature(
+        purchase,
+        idempotencyKey,
+        expectedSignature,
+        RawMaterialPurchase::getIdempotencyHash,
+        RawMaterialPurchase::setIdempotencyHash,
+        purchaseRepository::save,
+        () ->
+            new ApplicationException(
+                    ErrorCode.CONCURRENCY_CONFLICT,
+                    "Idempotency key already used with different payload")
+                .withDetail("idempotencyKey", idempotencyKey)
+                .withDetail("invoiceNumber", purchase.getInvoiceNumber()));
+  }
+
+  private boolean isDataIntegrityViolation(Throwable error) {
+    if (error instanceof DataIntegrityViolationException) {
+      return true;
+    }
+    return idempotencyReservationService.isDataIntegrityViolation(error);
   }
 
   private List<RawMaterialMovement> requireGoodsReceiptMovementsReadyForInvoicing(
