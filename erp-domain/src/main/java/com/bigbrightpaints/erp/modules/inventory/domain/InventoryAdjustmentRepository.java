@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 
 public interface InventoryAdjustmentRepository extends JpaRepository<InventoryAdjustment, Long> {
+  @EntityGraph(attributePaths = {"lines", "lines.finishedGood"})
   List<InventoryAdjustment> findByCompanyOrderByAdjustmentDateDesc(Company company);
 
   Optional<InventoryAdjustment> findByCompanyAndId(Company company, Long id);

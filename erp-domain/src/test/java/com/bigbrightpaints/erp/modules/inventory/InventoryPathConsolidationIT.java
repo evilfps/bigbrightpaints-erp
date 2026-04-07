@@ -189,6 +189,71 @@ class InventoryPathConsolidationIT extends AbstractIntegrationTest {
     assertThat(adjustmentsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
   }
 
+  @Test
+  void inventoryAdjustmentsHistory_remainsReadableAfterCreate() {
+    ResponseEntity<Map> beforeCreateResponse =
+        rest.exchange(
+            "/api/v1/inventory/adjustments",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders()),
+            Map.class);
+    assertThat(beforeCreateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    Company company = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
+    FinishedGood fixtureFinishedGood =
+        finishedGoodRepository.findByCompanyAndProductCode(company, "FG-FIXTURE").orElseThrow();
+    assertThat(company.getDefaultCogsAccountId()).isNotNull();
+
+    String idempotencyKey = "INVPATH-ADJ-" + UUID.randomUUID();
+    Map<String, Object> createRequest =
+        Map.of(
+            "adjustmentDate", LocalDate.now().toString(),
+            "type", "DAMAGED",
+            "adjustmentAccountId", company.getDefaultCogsAccountId(),
+            "reason", "InventoryPathConsolidationIT read cycle",
+            "adminOverride", false,
+            "idempotencyKey", idempotencyKey,
+            "lines",
+                List.of(
+                    Map.of(
+                        "finishedGoodId", fixtureFinishedGood.getId(),
+                        "quantity", new BigDecimal("1.00"),
+                        "unitCost", new BigDecimal("12.50"),
+                        "note", "Regression proof row")));
+    HttpHeaders createHeaders = jsonHeaders();
+    createHeaders.set("Idempotency-Key", idempotencyKey);
+    ResponseEntity<Map> createResponse =
+        rest.exchange(
+            "/api/v1/inventory/adjustments",
+            HttpMethod.POST,
+            new HttpEntity<>(createRequest, createHeaders),
+            Map.class);
+    assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    Map<String, Object> createdAdjustment = responseDataMap(createResponse);
+    assertThat(createdAdjustment).containsKeys("referenceNumber", "lines");
+
+    ResponseEntity<Map> afterCreateResponse =
+        rest.exchange(
+            "/api/v1/inventory/adjustments",
+            HttpMethod.GET,
+            new HttpEntity<>(authHeaders()),
+            Map.class);
+    assertThat(afterCreateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    List<Map<String, Object>> rows = responseDataList(afterCreateResponse);
+    assertThat(rows)
+        .anySatisfy(
+            row -> {
+              assertThat(row.get("referenceNumber"))
+                  .isEqualTo(createdAdjustment.get("referenceNumber"));
+              List<Map<String, Object>> lines = castList(row.get("lines"));
+              assertThat(lines).isNotEmpty();
+              assertThat(lines.getFirst())
+                  .containsKeys(
+                      "finishedGoodId", "finishedGoodName", "quantity", "unitCost", "amount");
+            });
+  }
+
   private void seedRawMaterial(Company company) {
     RawMaterial material =
         rawMaterialRepository
