@@ -1,5 +1,6 @@
 package com.bigbrightpaints.erp.modules.invoice.domain;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -111,4 +112,22 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
       """)
   List<Invoice> lockOpenInvoicesForSettlement(
       @Param("company") Company company, @Param("dealer") Dealer dealer);
+
+  @Query(
+      """
+      select coalesce(sum(i.totalAmount), 0)
+      from Invoice i
+      where i.company = :company
+        and (i.status is null or upper(trim(i.status)) not in ('DRAFT', 'VOID', 'REVERSED'))
+      """)
+  BigDecimal sumTotalRevenueByCompany(@Param("company") Company company);
+
+  @Query(
+      """
+      select coalesce(sum(i.outstandingAmount), 0)
+      from Invoice i
+      where i.company = :company
+        and (i.status is null or upper(trim(i.status)) not in ('DRAFT', 'VOID', 'REVERSED', 'WRITTEN_OFF'))
+      """)
+  BigDecimal sumOutstandingReceivablesByCompany(@Param("company") Company company);
 }

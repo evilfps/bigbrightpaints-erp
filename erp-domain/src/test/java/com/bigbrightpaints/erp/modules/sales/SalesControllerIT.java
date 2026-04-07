@@ -113,8 +113,10 @@ public class SalesControllerIT extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(dealerReq, headers),
             Map.class);
-    assertThat(dResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(dResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<?, ?> dealerData = (Map<?, ?>) dResp.getBody().get("data");
+    assertThat(dealerData.get("arAccountId")).isNotNull();
+    assertThat(dealerData.get("arAccountId")).isInstanceOf(Number.class);
     return ((Number) dealerData.get("id")).longValue();
   }
 
@@ -203,16 +205,21 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     return salesOrderRepository.saveAndFlush(order);
   }
 
-  private long bucketCount(Map<?, ?> dashboardData, String bucket) {
-    Map<?, ?> buckets = (Map<?, ?>) dashboardData.get("orderStatusBuckets");
-    return longValue(buckets.get(bucket));
-  }
-
   private long longValue(Object value) {
     if (value instanceof Number number) {
       return number.longValue();
     }
     return Long.parseLong(String.valueOf(value));
+  }
+
+  private BigDecimal decimalValue(Object value) {
+    if (value instanceof BigDecimal decimal) {
+      return decimal;
+    }
+    if (value instanceof Number number) {
+      return BigDecimal.valueOf(number.doubleValue());
+    }
+    return new BigDecimal(String.valueOf(value));
   }
 
   private void assertFailureDataMessage(ResponseEntity<Map> response, String expectedMessage) {
@@ -233,6 +240,96 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.OK);
     List<?> list = (List<?>) listResp.getBody().get("data");
     assertThat(list).isNotEmpty();
+  }
+
+  @Test
+  void dealer_directory_search_and_dunning_hold_expose_expected_fields() {
+    HttpHeaders headers = authenticatedHeaders(loginToken(SALES_EMAIL, SALES_PASSWORD));
+    String suffix = String.valueOf(System.nanoTime());
+    String dealerName = "Dashboard Dealer " + suffix;
+
+    Map<String, Object> dealerReq = new HashMap<>();
+    dealerReq.put("name", dealerName);
+    dealerReq.put("companyName", dealerName + " Pvt Ltd");
+    dealerReq.put("contactEmail", "dealer-" + suffix + "@example.com");
+    dealerReq.put("contactPhone", "7777777777");
+    dealerReq.put("address", "Hold Street");
+    dealerReq.put("creditLimit", new BigDecimal("75000"));
+
+    ResponseEntity<Map> createResponse =
+        rest.exchange(
+            ErpApiRoutes.DEALER_DIRECTORY,
+            HttpMethod.POST,
+            new HttpEntity<>(dealerReq, headers),
+            Map.class);
+
+    assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    Map<?, ?> createdDealer = (Map<?, ?>) createResponse.getBody().get("data");
+    Long dealerId = ((Number) createdDealer.get("id")).longValue();
+    assertThat(createdDealer.get("arAccountId")).isInstanceOf(Number.class);
+
+    ResponseEntity<Map> directoryResponse =
+        rest.exchange(
+            ErpApiRoutes.DEALER_DIRECTORY + "?status=ALL",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(directoryResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> dealers = (List<Map<String, Object>>) directoryResponse.getBody().get("data");
+    Map<String, Object> dealerRow =
+        dealers.stream()
+            .filter(row -> row.get("id") != null && ((Number) row.get("id")).longValue() == dealerId)
+            .findFirst()
+            .orElseThrow();
+    assertThat(dealerRow).containsKeys("id", "name", "creditLimit", "outstandingBalance");
+
+    ResponseEntity<Map> searchResponse =
+        rest.exchange(
+            ErpApiRoutes.DEALER_DIRECTORY_SEARCH + "?query=" + suffix,
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(searchResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> searchRows = (List<Map<String, Object>>) searchResponse.getBody().get("data");
+    Map<String, Object> searchedDealer =
+        searchRows.stream()
+            .filter(
+                row ->
+                    row.get("name") != null
+                        && String.valueOf(row.get("name")).toUpperCase().contains(suffix))
+            .findFirst()
+            .orElseThrow();
+    assertThat(searchedDealer).containsKeys("id", "name", "creditLimit", "outstandingBalance");
+
+    ResponseEntity<Map> holdResponse =
+        rest.exchange(
+            ErpApiRoutes.DEALER_DIRECTORY + "/" + dealerId + "/dunning/hold",
+            HttpMethod.POST,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(holdResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> holdData = (Map<?, ?>) holdResponse.getBody().get("data");
+    assertThat(((Number) holdData.get("dealerId")).longValue()).isEqualTo(dealerId);
+    assertThat(holdData.get("status")).isEqualTo("ON_HOLD");
+
+    ResponseEntity<Map> onHoldDirectoryResponse =
+        rest.exchange(
+            ErpApiRoutes.DEALER_DIRECTORY + "?status=ON_HOLD",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(onHoldDirectoryResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> onHoldRows =
+        (List<Map<String, Object>>) onHoldDirectoryResponse.getBody().get("data");
+    assertThat(onHoldRows)
+        .anySatisfy(
+            row -> {
+              assertThat(((Number) row.get("id")).longValue()).isEqualTo(dealerId);
+              assertThat(row).containsKeys("creditLimit", "outstandingBalance");
+            });
   }
 
   @Test
@@ -511,10 +608,10 @@ public class SalesControllerIT extends AbstractIntegrationTest {
   void sales_dashboard_exposes_metrics_and_tracks_activity() {
     HttpHeaders salesHeaders = authenticatedHeaders(loginToken(SALES_EMAIL, SALES_PASSWORD));
     Map<?, ?> dashboardBefore = salesDashboardData(salesHeaders);
-    long pendingBefore = longValue(dashboardBefore.get("pendingCreditRequests"));
-    long dealersBefore = longValue(dashboardBefore.get("activeDealers"));
-    long ordersBefore = longValue(dashboardBefore.get("totalOrders"));
-    long inProgressBefore = bucketCount(dashboardBefore, "in_progress");
+    long recentOrdersBefore = longValue(dashboardBefore.get("recentOrdersCount"));
+    long pendingOrdersBefore = longValue(dashboardBefore.get("pendingOrders"));
+    BigDecimal revenueBefore = decimalValue(dashboardBefore.get("totalRevenue"));
+    BigDecimal receivablesBefore = decimalValue(dashboardBefore.get("totalReceivables"));
 
     HttpHeaders adminHeaders = authenticatedHeaders(loginToken());
     Long dealerId = createDealer(adminHeaders, "Dashboard Dealer");
@@ -523,17 +620,13 @@ public class SalesControllerIT extends AbstractIntegrationTest {
         salesHeaders, dealerId, new BigDecimal("1500.00"), "Dashboard metric credit request");
 
     Map<?, ?> dashboardAfter = salesDashboardData(salesHeaders);
-    assertThat(longValue(dashboardAfter.get("pendingCreditRequests"))).isEqualTo(pendingBefore + 1);
-    assertThat(longValue(dashboardAfter.get("activeDealers")))
-        .isGreaterThanOrEqualTo(dealersBefore + 1);
-    assertThat(longValue(dashboardAfter.get("totalOrders")))
-        .isGreaterThanOrEqualTo(ordersBefore + 1);
-    assertThat(bucketCount(dashboardAfter, "in_progress"))
-        .isGreaterThanOrEqualTo(inProgressBefore + 1);
-    @SuppressWarnings("unchecked")
-    Map<String, ?> buckets = (Map<String, ?>) dashboardAfter.get("orderStatusBuckets");
-    assertThat(buckets)
-        .containsKeys("open", "in_progress", "dispatched", "completed", "cancelled", "other");
+    assertThat(longValue(dashboardAfter.get("recentOrdersCount")))
+        .isGreaterThanOrEqualTo(recentOrdersBefore + 1);
+    assertThat(longValue(dashboardAfter.get("pendingOrders")))
+        .isGreaterThanOrEqualTo(pendingOrdersBefore + 1);
+    assertThat(decimalValue(dashboardAfter.get("totalRevenue"))).isGreaterThanOrEqualTo(revenueBefore);
+    assertThat(decimalValue(dashboardAfter.get("totalReceivables")))
+        .isGreaterThanOrEqualTo(receivablesBefore);
   }
 
   @Test

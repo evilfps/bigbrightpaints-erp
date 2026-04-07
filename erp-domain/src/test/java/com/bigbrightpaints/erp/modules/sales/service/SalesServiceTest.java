@@ -194,6 +194,7 @@ class SalesServiceTest {
     company.setDefaultTaxAccountId(5L);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(companyClock.today(any())).thenReturn(java.time.LocalDate.of(2026, 1, 27));
+    when(companyClock.now(any())).thenReturn(java.time.Instant.parse("2026-01-27T00:00:00Z"));
     when(invoiceRepository.findAllByCompanyAndSalesOrderId(eq(company), anyLong()))
         .thenReturn(List.of());
     lenient()
@@ -239,57 +240,38 @@ class SalesServiceTest {
   }
 
   @Test
-  void getDashboardReturnsDealerOrderAndPendingCreditRequestCounts() {
-    when(dealerRepository.countByCompanyAndStatusIgnoreCase(eq(company), anyString()))
-        .thenReturn(4L);
-    when(creditRequestRepository.countByCompanyAndStatusIgnoreCase(company, "PENDING"))
-        .thenReturn(2L);
-    when(salesOrderRepository.countByCompanyGroupedByNormalizedStatus(company))
-        .thenReturn(
-            List.of(
-                new Object[] {"BOOKED", 3L},
-                new Object[] {"pending_production", 5L},
-                new Object[] {"SHIPPED", 2L},
-                new Object[] {"COMPLETED", 1L},
-                new Object[] {"CANCELLED", 4L},
-                new Object[] {"UNKNOWN", 6L}));
+  void getDashboardReturnsRecentOrderRevenueReceivableAndPendingCounts() {
+    when(salesOrderRepository.countByCompanyAndCreatedAtGreaterThanEqual(eq(company), any()))
+        .thenReturn(11L);
+    when(invoiceRepository.sumTotalRevenueByCompany(company)).thenReturn(new BigDecimal("1250.75"));
+    when(invoiceRepository.sumOutstandingReceivablesByCompany(company))
+        .thenReturn(new BigDecimal("315.40"));
+    when(salesOrderRepository.countByCompanyAndNormalizedStatusIn(eq(company), any()))
+        .thenReturn(6L);
 
     SalesDashboardDto dashboard = salesService.getDashboard();
 
-    assertEquals(4L, dashboard.activeDealers());
-    assertEquals(21L, dashboard.totalOrders());
-    assertEquals(2L, dashboard.pendingCreditRequests());
-    assertEquals(3L, dashboard.orderStatusBuckets().get("open"));
-    assertEquals(5L, dashboard.orderStatusBuckets().get("in_progress"));
-    assertEquals(2L, dashboard.orderStatusBuckets().get("dispatched"));
-    assertEquals(1L, dashboard.orderStatusBuckets().get("completed"));
-    assertEquals(4L, dashboard.orderStatusBuckets().get("cancelled"));
-    assertEquals(6L, dashboard.orderStatusBuckets().get("other"));
+    assertEquals(11L, dashboard.recentOrdersCount());
+    assertEquals(new BigDecimal("1250.75"), dashboard.totalRevenue());
+    assertEquals(new BigDecimal("315.40"), dashboard.totalReceivables());
+    assertEquals(6L, dashboard.pendingOrders());
   }
 
   @Test
-  void getDashboardSkipsMalformedAggregateRowsAndKeepsDefaultBuckets() {
-    when(dealerRepository.countByCompanyAndStatusIgnoreCase(eq(company), anyString()))
+  void getDashboardDefaultsRevenueAndReceivablesWhenRepositoryReturnsNull() {
+    when(salesOrderRepository.countByCompanyAndCreatedAtGreaterThanEqual(eq(company), any()))
         .thenReturn(0L);
-    when(creditRequestRepository.countByCompanyAndStatusIgnoreCase(company, "PENDING"))
+    when(invoiceRepository.sumTotalRevenueByCompany(company)).thenReturn(null);
+    when(invoiceRepository.sumOutstandingReceivablesByCompany(company)).thenReturn(null);
+    when(salesOrderRepository.countByCompanyAndNormalizedStatusIn(eq(company), any()))
         .thenReturn(0L);
-    when(salesOrderRepository.countByCompanyGroupedByNormalizedStatus(company))
-        .thenReturn(
-            java.util.Arrays.asList(
-                null,
-                new Object[] {"BOOKED"},
-                new Object[] {"BOOKED", "not-a-number"},
-                new Object[] {null, 2L}));
 
     SalesDashboardDto dashboard = salesService.getDashboard();
 
-    assertEquals(2L, dashboard.totalOrders());
-    assertEquals(0L, dashboard.orderStatusBuckets().get("open"));
-    assertEquals(0L, dashboard.orderStatusBuckets().get("in_progress"));
-    assertEquals(0L, dashboard.orderStatusBuckets().get("dispatched"));
-    assertEquals(0L, dashboard.orderStatusBuckets().get("completed"));
-    assertEquals(0L, dashboard.orderStatusBuckets().get("cancelled"));
-    assertEquals(2L, dashboard.orderStatusBuckets().get("other"));
+    assertEquals(0L, dashboard.recentOrdersCount());
+    assertEquals(BigDecimal.ZERO, dashboard.totalRevenue());
+    assertEquals(BigDecimal.ZERO, dashboard.totalReceivables());
+    assertEquals(0L, dashboard.pendingOrders());
   }
 
   @Test

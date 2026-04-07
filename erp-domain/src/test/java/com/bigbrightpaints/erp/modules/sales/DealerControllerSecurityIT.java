@@ -230,8 +230,8 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
   }
 
   @Test
-  @DisplayName("Sales dealer directory redacts exact credit amounts on list surfaces")
-  void salesDealerDirectoryRedactsExactCreditAmounts() {
+  @DisplayName("Sales dealer directory includes credit amounts on list surfaces")
+  void salesDealerDirectoryIncludesCreditAmounts() {
     HttpHeaders headers = authHeaders(SALES_EMAIL, PASSWORD);
 
     ResponseEntity<Map> dealersResponse =
@@ -246,15 +246,15 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
 
     assertThat(dealersResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(salesAliasResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertDealerDirectoryPayloadRedacted(
+    assertDealerDirectoryPayloadIncludesCreditAmounts(
         (List<Map<String, Object>>) dealersResponse.getBody().get("data"));
-    assertDealerDirectoryPayloadRedacted(
+    assertDealerDirectoryPayloadIncludesCreditAmounts(
         (List<Map<String, Object>>) salesAliasResponse.getBody().get("data"));
   }
 
   @Test
-  @DisplayName("Sales dealer search redacts exact credit amounts but keeps credit status")
-  void salesDealerSearchRedactsExactCreditAmounts() {
+  @DisplayName("Sales dealer search includes exact credit amounts and credit status")
+  void salesDealerSearchIncludesCreditAmounts() {
     HttpHeaders headers = authHeaders(SALES_EMAIL, PASSWORD);
 
     ResponseEntity<Map> response =
@@ -272,7 +272,7 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
         .allSatisfy(
             row -> {
               assertThat(row).containsKey("creditStatus");
-              assertThat(row).doesNotContainKeys("creditLimit", "outstandingBalance");
+              assertThat(row).containsKeys("creditLimit", "outstandingBalance");
             });
   }
 
@@ -360,13 +360,13 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
     return dealerRepository.save(dealer);
   }
 
-  private void assertDealerDirectoryPayloadRedacted(List<Map<String, Object>> rows) {
+  private void assertDealerDirectoryPayloadIncludesCreditAmounts(List<Map<String, Object>> rows) {
     assertThat(rows)
         .isNotEmpty()
         .allSatisfy(
             row -> {
               assertThat(row).containsKey("creditStatus");
-              assertThat(row).doesNotContainKeys("creditLimit", "outstandingBalance");
+              assertThat(row).containsKeys("creditLimit", "outstandingBalance");
             });
   }
 }

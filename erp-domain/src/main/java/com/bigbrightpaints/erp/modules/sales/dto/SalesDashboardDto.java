@@ -1,9 +1,9 @@
 package com.bigbrightpaints.erp.modules.sales.dto;
 
-import java.util.Map;
+import java.math.BigDecimal;
 
 public record SalesDashboardDto(
-    long activeDealers,
-    long totalOrders,
-    Map<String, Long> orderStatusBuckets,
-    long pendingCreditRequests) {}
+    long recentOrdersCount,
+    BigDecimal totalRevenue,
+    BigDecimal totalReceivables,
+    long pendingOrders) {}

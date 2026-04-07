@@ -21,6 +21,8 @@ import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 
+import jakarta.transaction.Transactional;
+
 @Service
 public class DunningService {
 
@@ -48,16 +50,22 @@ public class DunningService {
     this.emailService = emailService;
   }
 
+  @Transactional
+  public boolean placeDealerOnHold(Long dealerId) {
+    Company company = companyContextService.requireCurrentCompany();
+    Dealer dealer = requireDealer(company, dealerId);
+    boolean alreadyOnHold = "ON_HOLD".equalsIgnoreCase(dealer.getStatus());
+    if (!alreadyOnHold) {
+      dealer.setStatus("ON_HOLD");
+      dealerRepository.save(dealer);
+    }
+    return !alreadyOnHold;
+  }
+
   public boolean evaluateDealerHold(
       Long dealerId, int overdueDaysThreshold, BigDecimal overdueAmountThreshold) {
     Company company = companyContextService.requireCurrentCompany();
-    Dealer dealer =
-        dealerRepository
-            .findByCompanyAndId(company, dealerId)
-            .orElseThrow(
-                () ->
-                    com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-                        "Dealer not found"));
+    Dealer dealer = requireDealer(company, dealerId);
     AgingSummaryResponse aging =
         statementService.dealerAging(dealerId, companyClock.today(company), null);
     BigDecimal overdue =
@@ -143,5 +151,14 @@ public class DunningService {
     } catch (RuntimeException ex) {
       log.warn("Failed to send dunning reminder email for dealer {}", dealer.getCode(), ex);
     }
+  }
+
+  private Dealer requireDealer(Company company, Long dealerId) {
+    return dealerRepository
+        .findByCompanyAndId(company, dealerId)
+        .orElseThrow(
+            () ->
+                com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
+                    "Dealer not found"));
   }
 }

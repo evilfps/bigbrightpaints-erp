@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -32,15 +31,17 @@ class DealerControllerTest {
   @Mock private DunningService dunningService;
 
   @Test
-  void holdIfOverdue_routesThroughDunningService() {
+  void placeDunningHold_routesThroughDunningService() {
     DealerController controller =
         new DealerController(dealerService, dealerImportService, dunningService);
+    when(dunningService.placeDealerOnHold(42L)).thenReturn(true);
     ResponseEntity<ApiResponse<Map<String, Object>>> response =
-        controller.holdIfOverdue(42L, 30, new BigDecimal("5000.00"));
+        controller.placeDunningHold(42L);
 
     assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
     assertThat(response.getBody()).isNotNull();
-    verify(dunningService).evaluateDealerHold(42L, 30, new BigDecimal("5000.00"));
+    assertThat(response.getBody().data()).containsEntry("status", "ON_HOLD");
+    verify(dunningService).placeDealerOnHold(42L);
   }
 
   @Test

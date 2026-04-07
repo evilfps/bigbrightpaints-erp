@@ -320,6 +320,11 @@ public class DealerService {
       BigDecimal outstandingBalance,
       BigDecimal pendingOrderExposure) {
     Account receivableAccount = dealer.getReceivableAccount();
+    BigDecimal resolvedCreditLimit =
+        dealer.getCreditLimit() != null ? dealer.getCreditLimit() : BigDecimal.ZERO;
+    BigDecimal resolvedOutstandingBalance =
+        outstandingBalance != null ? outstandingBalance : BigDecimal.ZERO;
+    Long accountId = receivableAccount != null ? receivableAccount.getId() : null;
     return new DealerResponse(
         dealer.getId(),
         dealer.getPublicId(),
@@ -329,7 +334,8 @@ public class DealerService {
         dealer.getEmail(),
         dealer.getPhone(),
         dealer.getAddress(),
-        receivableAccount != null ? receivableAccount.getId() : null,
+        accountId,
+        accountId,
         receivableAccount != null ? receivableAccount.getCode() : null,
         portalEmail,
         dealer.getGstNumber(),
@@ -337,6 +343,8 @@ public class DealerService {
         dealer.getGstRegistrationType(),
         dealer.getPaymentTerms(),
         dealer.getRegion(),
+        resolvedCreditLimit,
+        resolvedOutstandingBalance,
         resolveCreditStatus(dealer, outstandingBalance, pendingOrderExposure));
   }
 
@@ -386,11 +394,14 @@ public class DealerService {
               dealer.getName(),
               dealer.getCode(),
               receivableAccount != null ? receivableAccount.getId() : null,
+              receivableAccount != null ? receivableAccount.getId() : null,
               receivableAccount != null ? receivableAccount.getCode() : null,
               dealer.getStateCode(),
               dealer.getGstRegistrationType(),
               dealer.getPaymentTerms(),
               dealer.getRegion(),
+              dealer.getCreditLimit() != null ? dealer.getCreditLimit() : BigDecimal.ZERO,
+              outstandingBalance,
               dealerCreditStatus));
     }
     return resolved;

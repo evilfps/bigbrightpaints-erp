@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.modules.sales.domain;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -196,4 +197,16 @@ where o.company = :company
       group by upper(trim(coalesce(o.status, 'UNKNOWN')))
       """)
   List<Object[]> countByCompanyGroupedByNormalizedStatus(@Param("company") Company company);
+
+  long countByCompanyAndCreatedAtGreaterThanEqual(Company company, Instant createdAt);
+
+  @Query(
+      """
+      select count(o)
+      from SalesOrder o
+      where o.company = :company
+        and upper(trim(coalesce(o.status, ''))) in :statuses
+      """)
+  long countByCompanyAndNormalizedStatusIn(
+      @Param("company") Company company, @Param("statuses") Set<String> statuses);
 }

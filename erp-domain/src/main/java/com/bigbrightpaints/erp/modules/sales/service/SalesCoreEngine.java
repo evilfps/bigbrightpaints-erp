@@ -162,7 +162,6 @@ public class SalesCoreEngine {
           "COMPLETED");
   private static final Set<String> VALID_CREDIT_REQUEST_STATUSES =
       Set.of("PENDING", "APPROVED", "REJECTED");
-  private static final String CREDIT_REQUEST_STATUS_PENDING = "PENDING";
   private static final String DEFAULT_ORDER_PAYMENT_MODE =
       SalesProformaBoundaryService.DEFAULT_PAYMENT_MODE;
   private static final String LEGACY_HYBRID_PAYMENT_MODE = "SPLIT";
@@ -172,16 +171,11 @@ public class SalesCoreEngine {
   private static final String DISPATCH_REASON_CODE_TAX_OVERRIDE = "TAX_OVERRIDE";
   private static final String DISPATCH_REASON_CODE_LINE_OVERRIDE = "LINE_OVERRIDE";
   private static final String DISPATCH_REASON_CODE_COMPOSITE_OVERRIDE = "COMPOSITE_OVERRIDE";
-  private static final String DASHBOARD_BUCKET_OPEN = "open";
-  private static final String DASHBOARD_BUCKET_IN_PROGRESS = "in_progress";
-  private static final String DASHBOARD_BUCKET_DISPATCHED = "dispatched";
-  private static final String DASHBOARD_BUCKET_COMPLETED = "completed";
-  private static final String DASHBOARD_BUCKET_CANCELLED = "cancelled";
-  private static final String DASHBOARD_BUCKET_OTHER = "other";
-  private static final Set<String> DASHBOARD_OPEN_STATUSES =
-      Set.of(ORDER_STATUS_DRAFT, ORDER_STATUS_CONFIRMED);
-  private static final Set<String> DASHBOARD_IN_PROGRESS_STATUSES =
+  private static final int DASHBOARD_RECENT_ORDER_WINDOW_DAYS = 30;
+  private static final Set<String> DASHBOARD_PENDING_ORDER_STATUSES =
       Set.of(
+          ORDER_STATUS_DRAFT,
+          ORDER_STATUS_CONFIRMED,
           ORDER_STATUS_PROCESSING,
           ORDER_STATUS_RESERVED,
           ORDER_STATUS_PENDING_PRODUCTION,
@@ -189,12 +183,6 @@ public class SalesCoreEngine {
           ORDER_STATUS_READY_TO_SHIP,
           ORDER_STATUS_ON_HOLD,
           "BOOKED");
-  private static final Set<String> DASHBOARD_DISPATCHED_STATUSES =
-      Set.of(ORDER_STATUS_DISPATCHED, ORDER_STATUS_INVOICED, "SHIPPED", "FULFILLED");
-  private static final Set<String> DASHBOARD_COMPLETED_STATUSES =
-      Set.of(ORDER_STATUS_SETTLED, ORDER_STATUS_CLOSED, "COMPLETED");
-  private static final Set<String> DASHBOARD_CANCELLED_STATUSES =
-      Set.of(ORDER_STATUS_CANCELLED, ORDER_STATUS_REJECTED);
 
   private final CompanyContextService companyContextService;
   private final DealerRepository dealerRepository;
@@ -571,57 +559,20 @@ public class SalesCoreEngine {
   @Transactional(readOnly = true)
   public SalesDashboardDto getDashboard() {
     Company company = companyContextService.requireCurrentCompany();
-    long activeDealers =
-        dealerRepository.countByCompanyAndStatusIgnoreCase(
-            company, DealerProvisioningSupport.ACTIVE_STATUS);
-    long pendingCreditRequests =
-        creditRequestRepository.countByCompanyAndStatusIgnoreCase(
-            company, CREDIT_REQUEST_STATUS_PENDING);
-    Map<String, Long> orderStatusBuckets = initializeDashboardBuckets();
-    long totalOrders = 0L;
-    for (Object[] row : salesOrderRepository.countByCompanyGroupedByNormalizedStatus(company)) {
-      if (row == null || row.length < 2 || !(row[1] instanceof Number)) {
-        continue;
-      }
-      String status = row[0] != null ? row[0].toString() : "";
-      long count = ((Number) row[1]).longValue();
-      totalOrders += count;
-      String bucket = resolveDashboardOrderBucket(status);
-      orderStatusBuckets.merge(bucket, count, Long::sum);
-    }
+    Instant recentWindowStart =
+        companyClock.now(company).minusSeconds(24L * 60L * 60L * DASHBOARD_RECENT_ORDER_WINDOW_DAYS);
+    long recentOrdersCount =
+        salesOrderRepository.countByCompanyAndCreatedAtGreaterThanEqual(company, recentWindowStart);
+    BigDecimal totalRevenue = invoiceRepository.sumTotalRevenueByCompany(company);
+    BigDecimal totalReceivables = invoiceRepository.sumOutstandingReceivablesByCompany(company);
+    long pendingOrders =
+        salesOrderRepository.countByCompanyAndNormalizedStatusIn(
+            company, DASHBOARD_PENDING_ORDER_STATUSES);
     return new SalesDashboardDto(
-        activeDealers, totalOrders, Map.copyOf(orderStatusBuckets), pendingCreditRequests);
-  }
-
-  private Map<String, Long> initializeDashboardBuckets() {
-    Map<String, Long> buckets = new LinkedHashMap<>();
-    buckets.put(DASHBOARD_BUCKET_OPEN, 0L);
-    buckets.put(DASHBOARD_BUCKET_IN_PROGRESS, 0L);
-    buckets.put(DASHBOARD_BUCKET_DISPATCHED, 0L);
-    buckets.put(DASHBOARD_BUCKET_COMPLETED, 0L);
-    buckets.put(DASHBOARD_BUCKET_CANCELLED, 0L);
-    buckets.put(DASHBOARD_BUCKET_OTHER, 0L);
-    return buckets;
-  }
-
-  private String resolveDashboardOrderBucket(String status) {
-    String normalized = normalizeStatusToken(status);
-    if (DASHBOARD_OPEN_STATUSES.contains(normalized)) {
-      return DASHBOARD_BUCKET_OPEN;
-    }
-    if (DASHBOARD_IN_PROGRESS_STATUSES.contains(normalized)) {
-      return DASHBOARD_BUCKET_IN_PROGRESS;
-    }
-    if (DASHBOARD_DISPATCHED_STATUSES.contains(normalized)) {
-      return DASHBOARD_BUCKET_DISPATCHED;
-    }
-    if (DASHBOARD_COMPLETED_STATUSES.contains(normalized)) {
-      return DASHBOARD_BUCKET_COMPLETED;
-    }
-    if (DASHBOARD_CANCELLED_STATUSES.contains(normalized)) {
-      return DASHBOARD_BUCKET_CANCELLED;
-    }
-    return DASHBOARD_BUCKET_OTHER;
+        recentOrdersCount,
+        totalRevenue != null ? totalRevenue : BigDecimal.ZERO,
+        totalReceivables != null ? totalReceivables : BigDecimal.ZERO,
+        pendingOrders);
   }
 
   public SalesOrderDto createOrder(SalesOrderRequest request) {

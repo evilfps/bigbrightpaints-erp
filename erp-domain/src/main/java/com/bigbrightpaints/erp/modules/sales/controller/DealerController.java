@@ -1,9 +1,9 @@
 package com.bigbrightpaints.erp.modules.sales.controller;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -51,7 +51,7 @@ public class DealerController {
   @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
   public ResponseEntity<ApiResponse<DealerResponse>> createDealer(
       @Valid @RequestBody CreateDealerRequest request) {
-    return ResponseEntity.ok(
+    return ResponseEntity.status(HttpStatus.CREATED).body(
         ApiResponse.success("Dealer created", dealerService.createDealer(request)));
   }
 
@@ -94,16 +94,15 @@ public class DealerController {
 
   @PostMapping("/{dealerId}/dunning/hold")
   @PreAuthorize(PortalRoleActionMatrix.ADMIN_SALES_ACCOUNTING)
-  public ResponseEntity<ApiResponse<Map<String, Object>>> holdIfOverdue(
-      @PathVariable Long dealerId,
-      @RequestParam(defaultValue = "45") int overdueDays,
-      @RequestParam(defaultValue = "0") BigDecimal minAmount) {
-    boolean placed = dunningService.evaluateDealerHold(dealerId, overdueDays, minAmount);
+  public ResponseEntity<ApiResponse<Map<String, Object>>> placeDunningHold(@PathVariable Long dealerId) {
+    boolean placed = dunningService.placeDealerOnHold(dealerId);
     return ResponseEntity.ok(
         ApiResponse.success(
-            "Dunning evaluated",
+            "Dealer placed on dunning hold",
             Map.of(
                 "dealerId", dealerId,
-                "placedOnHold", placed)));
+                "dunningHeld", true,
+                "status", "ON_HOLD",
+                "alreadyOnHold", !placed)));
   }
 }
