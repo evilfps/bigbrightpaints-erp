@@ -95,6 +95,76 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
   }
 
   @Test
+  void brandCrudLifecycle_worksViaCatalogEndpoints() {
+    Map<String, Object> createPayload =
+        Map.of(
+            "name", "Endpoint Brand",
+            "logoUrl", "https://cdn.example.com/endpoint-brand.png",
+            "description", "Initial endpoint brand description",
+            "active", true);
+
+    ResponseEntity<Map> createResponse =
+        rest.exchange(
+            "/api/v1/catalog/brands",
+            HttpMethod.POST,
+            new HttpEntity<>(createPayload, adminHeaders),
+            Map.class);
+    assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<String, Object> created = data(createResponse);
+    Long brandId = ((Number) created.get("id")).longValue();
+    assertThat(created.get("name")).isEqualTo("Endpoint Brand");
+    assertThat(created.get("active")).isEqualTo(true);
+
+    ResponseEntity<Map> getResponse =
+        rest.exchange(
+            "/api/v1/catalog/brands/" + brandId,
+            HttpMethod.GET,
+            new HttpEntity<>(adminHeaders),
+            Map.class);
+    assertThat(getResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(data(getResponse).get("id")).isEqualTo(brandId.intValue());
+
+    Map<String, Object> updatePayload =
+        Map.of(
+            "name", "Endpoint Brand Updated",
+            "logoUrl", "https://cdn.example.com/endpoint-brand-updated.png",
+            "description", "Updated endpoint brand description",
+            "active", true);
+    ResponseEntity<Map> updateResponse =
+        rest.exchange(
+            "/api/v1/catalog/brands/" + brandId,
+            HttpMethod.PUT,
+            new HttpEntity<>(updatePayload, adminHeaders),
+            Map.class);
+    assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(data(updateResponse).get("name")).isEqualTo("Endpoint Brand Updated");
+
+    ResponseEntity<Map> deleteResponse =
+        rest.exchange(
+            "/api/v1/catalog/brands/" + brandId,
+            HttpMethod.DELETE,
+            new HttpEntity<>(adminHeaders),
+            Map.class);
+    assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(data(deleteResponse).get("active")).isEqualTo(false);
+
+    ResponseEntity<Map> listInactiveResponse =
+        rest.exchange(
+            "/api/v1/catalog/brands?active=false",
+            HttpMethod.GET,
+            new HttpEntity<>(adminHeaders),
+            Map.class);
+    assertThat(listInactiveResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    List<Map<String, Object>> inactiveBrands = listData(listInactiveResponse);
+    assertThat(inactiveBrands)
+        .anySatisfy(
+            brand -> {
+              assertThat(((Number) brand.get("id")).longValue()).isEqualTo(brandId);
+              assertThat(brand.get("active")).isEqualTo(false);
+            });
+  }
+
+  @Test
   void createItem_persistsFinishedGood_withStableCode_andComputedReadiness() {
     ProductionBrand brand = saveBrand("Premium Paints", true);
 
@@ -550,6 +620,12 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
   private Map<String, Object> data(ResponseEntity<Map> response) {
     assertThat(response.getBody()).isNotNull();
     return (Map<String, Object>) response.getBody().get("data");
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<Map<String, Object>> listData(ResponseEntity<Map> response) {
+    assertThat(response.getBody()).isNotNull();
+    return (List<Map<String, Object>>) response.getBody().get("data");
   }
 
   @SuppressWarnings("unchecked")
