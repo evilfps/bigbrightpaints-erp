@@ -629,7 +629,7 @@ public class ErpInvariantsSuiteIT extends AbstractIntegrationTest {
       throw new AssertionError("Invoice journal missing for credit note flow");
     }
 
-    String reference = "CN-O2C-" + invoice.getInvoiceNumber();
+    String reference = "CRN-O2C-" + invoice.getInvoiceNumber();
     Map<String, Object> creditReq = new HashMap<>();
     creditReq.put("invoiceId", invoiceId);
     creditReq.put("referenceNumber", reference);

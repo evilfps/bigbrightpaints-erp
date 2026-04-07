@@ -2,6 +2,7 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
@@ -33,6 +34,8 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepo
 class NotePostingService {
 
   private static final BigDecimal NOTE_AMOUNT_TOLERANCE = new BigDecimal("0.01");
+  private static final String CREDIT_NOTE_REFERENCE_PREFIX = "CRN-";
+  private static final String LEGACY_CREDIT_NOTE_REFERENCE_PREFIX = "CN-";
 
   private final CompanyContextService companyContextService;
   private final InvoiceRepository invoiceRepository;
@@ -96,7 +99,7 @@ class NotePostingService {
     String idempotencyKey =
         settlementReferenceService.resolveReceiptIdempotencyKey(
             request.idempotencyKey(), referenceNumber, "credit note");
-    String reference = StringUtils.hasText(referenceNumber) ? referenceNumber : idempotencyKey;
+    String reference = resolveCreditNoteReference(company, referenceNumber, idempotencyKey);
     LocalDate entryDate = request.entryDate() != null ? request.entryDate() : source.getEntryDate();
     JournalEntry existingEntry =
         journalReplayService.findExistingEntry(company, reference, idempotencyKey);
@@ -386,24 +389,163 @@ class NotePostingService {
   private List<JournalEntryRequest.JournalLineRequest> buildScaledReversalLines(
       JournalEntry source, BigDecimal ratio, String descriptionPrefix) {
     String resolvedPrefix = StringUtils.hasText(descriptionPrefix) ? descriptionPrefix : "";
-    return source.getLines().stream()
+    List<ScaledReversalLineDraft> scaledLines =
+        source.getLines().stream()
         .map(
             line -> {
-              BigDecimal scaledDebit =
-                  MoneyUtils.zeroIfNull(line.getDebit())
-                      .multiply(ratio)
-                      .setScale(2, RoundingMode.HALF_UP);
-              BigDecimal scaledCredit =
-                  MoneyUtils.zeroIfNull(line.getCredit())
-                      .multiply(ratio)
-                      .setScale(2, RoundingMode.HALF_UP);
-              return new JournalEntryRequest.JournalLineRequest(
+              BigDecimal rawReversalDebit = MoneyUtils.zeroIfNull(line.getCredit()).multiply(ratio);
+              BigDecimal rawReversalCredit = MoneyUtils.zeroIfNull(line.getDebit()).multiply(ratio);
+              return new ScaledReversalLineDraft(
                   line.getAccount().getId(),
                   resolvedPrefix + line.getDescription(),
-                  scaledCredit,
-                  scaledDebit);
+                  rawReversalDebit,
+                  rawReversalCredit);
             })
         .toList();
+    List<BigDecimal> debitAmounts =
+        rebalanceRoundedLineAmounts(
+            scaledLines.stream().map(ScaledReversalLineDraft::rawDebit).toList());
+    List<BigDecimal> creditAmounts =
+        rebalanceRoundedLineAmounts(
+            scaledLines.stream().map(ScaledReversalLineDraft::rawCredit).toList());
+    rebalanceLineTotals(debitAmounts, creditAmounts);
+    List<JournalEntryRequest.JournalLineRequest> rebalanced = new ArrayList<>(scaledLines.size());
+    for (int i = 0; i < scaledLines.size(); i++) {
+      ScaledReversalLineDraft line = scaledLines.get(i);
+      rebalanced.add(
+          new JournalEntryRequest.JournalLineRequest(
+              line.accountId(), line.description(), debitAmounts.get(i), creditAmounts.get(i)));
+    }
+    return rebalanced;
+  }
+
+  private List<BigDecimal> rebalanceRoundedLineAmounts(List<BigDecimal> rawAmounts) {
+    if (rawAmounts == null || rawAmounts.isEmpty()) {
+      return List.of();
+    }
+    List<BigDecimal> rounded = new ArrayList<>(rawAmounts.size());
+    BigDecimal targetTotal = BigDecimal.ZERO;
+    BigDecimal flooredTotal = BigDecimal.ZERO;
+    for (BigDecimal raw : rawAmounts) {
+      BigDecimal resolvedRaw = MoneyUtils.zeroIfNull(raw);
+      targetTotal = targetTotal.add(resolvedRaw);
+      BigDecimal floored = resolvedRaw.setScale(2, RoundingMode.DOWN);
+      flooredTotal = flooredTotal.add(floored);
+      rounded.add(floored);
+    }
+    targetTotal = targetTotal.setScale(2, RoundingMode.HALF_UP);
+    int centsToDistribute = targetTotal.subtract(flooredTotal).movePointRight(2).intValueExact();
+    if (centsToDistribute <= 0) {
+      return rounded;
+    }
+    List<Integer> rankedByRemainder = new ArrayList<>();
+    for (int i = 0; i < rawAmounts.size(); i++) {
+      rankedByRemainder.add(i);
+    }
+    rankedByRemainder.sort(
+        Comparator.<Integer, BigDecimal>comparing(
+                index -> rawAmounts.get(index).subtract(rounded.get(index)))
+            .reversed()
+            .thenComparing(Comparator.naturalOrder()));
+    for (int i = 0; i < centsToDistribute; i++) {
+      int index = rankedByRemainder.get(i % rankedByRemainder.size());
+      rounded.set(index, rounded.get(index).add(new BigDecimal("0.01")));
+    }
+    return rounded;
+  }
+
+  private void rebalanceLineTotals(List<BigDecimal> debitAmounts, List<BigDecimal> creditAmounts) {
+    BigDecimal totalDebit = sumAmounts(debitAmounts);
+    BigDecimal totalCredit = sumAmounts(creditAmounts);
+    BigDecimal delta = totalDebit.subtract(totalCredit);
+    if (delta.compareTo(BigDecimal.ZERO) == 0) {
+      return;
+    }
+    if (delta.compareTo(BigDecimal.ZERO) > 0) {
+      int index = findLargestPositiveAmountIndex(creditAmounts);
+      if (index < 0) {
+        throw new ApplicationException(
+            ErrorCode.VALIDATION_INVALID_INPUT, "Journal entry must include at least one credit");
+      }
+      creditAmounts.set(index, creditAmounts.get(index).add(delta));
+      return;
+    }
+    int index = findLargestPositiveAmountIndex(debitAmounts);
+    if (index < 0) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_INPUT, "Journal entry must include at least one debit");
+    }
+    debitAmounts.set(index, debitAmounts.get(index).add(delta.abs()));
+  }
+
+  private int findLargestPositiveAmountIndex(List<BigDecimal> amounts) {
+    int selected = -1;
+    BigDecimal selectedAmount = BigDecimal.ZERO;
+    for (int i = 0; i < amounts.size(); i++) {
+      BigDecimal amount = MoneyUtils.zeroIfNull(amounts.get(i));
+      if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+        continue;
+      }
+      if (selected < 0 || amount.compareTo(selectedAmount) > 0) {
+        selected = i;
+        selectedAmount = amount;
+      }
+    }
+    return selected;
+  }
+
+  private BigDecimal sumAmounts(List<BigDecimal> amounts) {
+    if (amounts == null || amounts.isEmpty()) {
+      return BigDecimal.ZERO;
+    }
+    return amounts.stream().map(MoneyUtils::zeroIfNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  private String resolveCreditNoteReference(
+      Company company, String providedReference, String idempotencyKey) {
+    if (StringUtils.hasText(providedReference)) {
+      return canonicalizeCreditNoteReference(providedReference.trim());
+    }
+    if (StringUtils.hasText(idempotencyKey)) {
+      return canonicalizeCreditNoteReference(idempotencyKey.trim());
+    }
+    return canonicalizeCreditNoteReference(
+        journalReferenceService.resolveJournalReference(company, null));
+  }
+
+  private String canonicalizeCreditNoteReference(String reference) {
+    String normalized = reference == null ? "" : reference.trim();
+    if (!StringUtils.hasText(normalized)) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_INPUT, "Credit note reference cannot be blank");
+    }
+    if (normalized.regionMatches(
+        true, 0, CREDIT_NOTE_REFERENCE_PREFIX, 0, CREDIT_NOTE_REFERENCE_PREFIX.length())) {
+      String suffix = normalized.substring(CREDIT_NOTE_REFERENCE_PREFIX.length()).trim();
+      if (!StringUtils.hasText(suffix)) {
+        throw new ApplicationException(
+            ErrorCode.VALIDATION_INVALID_INPUT, "Credit note reference must include a CRN suffix");
+      }
+      return CREDIT_NOTE_REFERENCE_PREFIX + suffix;
+    }
+    if (normalized.regionMatches(
+        true,
+        0,
+        LEGACY_CREDIT_NOTE_REFERENCE_PREFIX,
+        0,
+        LEGACY_CREDIT_NOTE_REFERENCE_PREFIX.length())) {
+      String suffix = normalized.substring(LEGACY_CREDIT_NOTE_REFERENCE_PREFIX.length()).trim();
+      if (!StringUtils.hasText(suffix)) {
+        throw new ApplicationException(
+            ErrorCode.VALIDATION_INVALID_INPUT, "Credit note reference must include a CRN suffix");
+      }
+      return CREDIT_NOTE_REFERENCE_PREFIX + suffix;
+    }
+    if (normalized.regionMatches(true, 0, "CRN", 0, 3)) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_INPUT, "Credit note reference must use CRN- prefix");
+    }
+    return CREDIT_NOTE_REFERENCE_PREFIX + normalized;
   }
 
   private JournalEntryDto dtoFrom(Company company, JournalEntry entry) {
@@ -413,4 +555,7 @@ class NotePostingService {
             : entry;
     return dtoMapperService.toJournalEntryDto(resolved);
   }
+
+  private record ScaledReversalLineDraft(
+      Long accountId, String description, BigDecimal rawDebit, BigDecimal rawCredit) {}
 }

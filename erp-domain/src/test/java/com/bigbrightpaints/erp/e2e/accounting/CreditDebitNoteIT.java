@@ -111,16 +111,17 @@ class CreditDebitNoteIT extends AbstractIntegrationTest {
   }
 
   @Test
-  @DisplayName("Credit note reverses canonical invoice journal and is idempotent by reference")
+  @DisplayName("Credit note normalizes legacy reference to CRN and is idempotent by reference")
   void creditNote_ReversesAndIdempotent() {
     Invoice invoice = createDispatchedInvoice(new BigDecimal("1"), new BigDecimal("150.00"));
-    String reference = "CN-" + invoice.getInvoiceNumber();
+    String submittedReference = "CN-" + invoice.getInvoiceNumber();
+    String canonicalReference = "CRN-" + invoice.getInvoiceNumber();
     Map<String, Object> payload =
         Map.of(
             "invoiceId",
             invoice.getId(),
             "referenceNumber",
-            reference,
+            submittedReference,
             "memo",
             "Credit for return");
 
@@ -139,20 +140,20 @@ class CreditDebitNoteIT extends AbstractIntegrationTest {
             new HttpEntity<>(payload, headers),
             Map.class);
     assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<String, Object> firstData = (Map<String, Object>) first.getBody().get("data");
+    Map<String, Object> secondData = (Map<String, Object>) second.getBody().get("data");
+    assertThat(firstData.get("referenceNumber")).isEqualTo(canonicalReference);
+    assertThat(secondData.get("referenceNumber")).isEqualTo(canonicalReference);
 
     JournalEntry note =
-        journalEntryRepository.findByCompanyAndReferenceNumber(company, reference).orElseThrow();
+        journalEntryRepository
+            .findByCompanyAndReferenceNumber(company, canonicalReference)
+            .orElseThrow();
     assertThat(note.getReversalOf()).isNotNull();
     assertThat(note.getReversalOf().getId()).isEqualTo(invoice.getJournalEntry().getId());
 
-    BigDecimal debits =
-        note.getLines().stream()
-            .map(line -> line.getDebit() != null ? line.getDebit() : BigDecimal.ZERO)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-    BigDecimal credits =
-        note.getLines().stream()
-            .map(line -> line.getCredit() != null ? line.getCredit() : BigDecimal.ZERO)
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal debits = sumDebits(note);
+    BigDecimal credits = sumCredits(note);
     assertThat(debits).isEqualByComparingTo(credits);
 
     Invoice refreshed = invoiceRepository.findById(invoice.getId()).orElseThrow();
@@ -195,7 +196,7 @@ class CreditDebitNoteIT extends AbstractIntegrationTest {
             Map.class);
     assertThat(settleResp.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-    String ref = "CN-OVER-" + invoice.getInvoiceNumber();
+    String ref = "CRN-OVER-" + invoice.getInvoiceNumber();
     Map<String, Object> creditReq =
         Map.of(
             "invoiceId",
@@ -234,6 +235,11 @@ class CreditDebitNoteIT extends AbstractIntegrationTest {
   }
 
   private Invoice createDispatchedInvoice(BigDecimal quantity, BigDecimal unitPrice) {
+    return createDispatchedInvoice(quantity, unitPrice, BigDecimal.ZERO, "NONE");
+  }
+
+  private Invoice createDispatchedInvoice(
+      BigDecimal quantity, BigDecimal unitPrice, BigDecimal gstRate, String gstTreatment) {
     Map<String, Object> lineItem =
         Map.of(
             "productCode",
@@ -245,8 +251,9 @@ class CreditDebitNoteIT extends AbstractIntegrationTest {
             "unitPrice",
             unitPrice,
             "gstRate",
-            BigDecimal.ZERO);
-    BigDecimal total = quantity.multiply(unitPrice);
+            gstRate);
+    BigDecimal lineSubtotal = quantity.multiply(unitPrice);
+    BigDecimal total = lineSubtotal;
     Map<String, Object> orderReq =
         Map.of(
             "dealerId",
@@ -258,7 +265,7 @@ class CreditDebitNoteIT extends AbstractIntegrationTest {
             "items",
             List.of(lineItem),
             "gstTreatment",
-            "NONE");
+            gstTreatment);
 
     ResponseEntity<Map> orderResp =
         rest.exchange(
@@ -443,6 +450,18 @@ class CreditDebitNoteIT extends AbstractIntegrationTest {
     request.put("driverName", "Driver " + referenceSeed);
     request.put("vehicleNumber", "MH12" + Math.abs(referenceSeed.hashCode()));
     request.put("challanReference", "CH-" + referenceSeed);
+  }
+
+  private BigDecimal sumDebits(JournalEntry entry) {
+    return entry.getLines().stream()
+        .map(line -> line.getDebit() != null ? line.getDebit() : BigDecimal.ZERO)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  private BigDecimal sumCredits(JournalEntry entry) {
+    return entry.getLines().stream()
+        .map(line -> line.getCredit() != null ? line.getCredit() : BigDecimal.ZERO)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
   }
 
   private Map<?, ?> requireData(ResponseEntity<Map> response, String action) {

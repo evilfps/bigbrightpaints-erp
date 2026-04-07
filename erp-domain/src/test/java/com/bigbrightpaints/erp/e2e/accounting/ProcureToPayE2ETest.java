@@ -587,6 +587,79 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
   }
 
   @Test
+  @DisplayName("Partial debit note rebalances rounded multi-line reversal journals")
+  void purchasePartialDebitNoteRebalancesRoundedMultiLineJournals() {
+    LocalDate entryDate = TestDateUtils.safeDate(company);
+    Long supplierId = createSupplier("P2P Rebalance Supplier", "DN-RB-" + shortSuffix());
+    Long rawMaterialId =
+        createRawMaterial("Rebalance Material", "RM-DN-RB-" + shortSuffix(), inventory.getId());
+
+    BigDecimal quantity = new BigDecimal("5");
+    BigDecimal costPerUnit = new BigDecimal("99.99");
+    BigDecimal taxRate = new BigDecimal("18.00");
+    PurchaseWorkflowIds workflow =
+        createPurchaseOrderAndReceipt(supplierId, rawMaterialId, quantity, costPerUnit, entryDate);
+
+    Map<String, Object> line = new HashMap<>();
+    line.put("rawMaterialId", rawMaterialId);
+    line.put("quantity", quantity);
+    line.put("costPerUnit", costPerUnit);
+    line.put("taxRate", taxRate);
+    line.put("taxInclusive", false);
+
+    String invoiceNumber = "INV-DN-RB-" + shortSuffix();
+    Map<String, Object> purchaseReq = new HashMap<>();
+    purchaseReq.put("supplierId", supplierId);
+    purchaseReq.put("invoiceNumber", invoiceNumber);
+    purchaseReq.put("invoiceDate", entryDate);
+    purchaseReq.put("purchaseOrderId", workflow.purchaseOrderId());
+    purchaseReq.put("goodsReceiptId", workflow.goodsReceiptId());
+    purchaseReq.put("lines", List.of(line));
+
+    ResponseEntity<Map> purchaseResp =
+        rest.exchange(
+            "/api/v1/purchasing/raw-material-purchases",
+            HttpMethod.POST,
+            new HttpEntity<>(purchaseReq, headers),
+            Map.class);
+    assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
+    Long purchaseId = ((Number) purchaseData.get("id")).longValue();
+
+    RawMaterialPurchase purchase = purchaseRepository.findById(purchaseId).orElseThrow();
+    BigDecimal sourceAmount = purchase.getOutstandingAmount();
+    BigDecimal taxComponent = purchase.getTaxAmount() != null ? purchase.getTaxAmount() : BigDecimal.ZERO;
+    BigDecimal inventoryComponent = sourceAmount.subtract(taxComponent);
+    BigDecimal debitAmount =
+        findRoundingImbalanceAmount(List.of(inventoryComponent, taxComponent), sourceAmount);
+    assertThat(debitAmount)
+        .as("fixture must include an amount that imbalances naive line rounding")
+        .isNotNull();
+
+    String reference = "DN-RB-" + shortSuffix();
+    Map<String, Object> debitNoteReq = new HashMap<>();
+    debitNoteReq.put("purchaseId", purchaseId);
+    debitNoteReq.put("amount", debitAmount);
+    debitNoteReq.put("referenceNumber", reference);
+    debitNoteReq.put("memo", "Partial debit note rounding rebalance");
+
+    ResponseEntity<Map> debitResp =
+        rest.exchange(
+            "/api/v1/accounting/debit-notes",
+            HttpMethod.POST,
+            new HttpEntity<>(debitNoteReq, headers),
+            Map.class);
+    assertThat(debitResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    JournalEntry note =
+        journalEntryRepository.findByCompanyAndReferenceNumber(company, reference).orElseThrow();
+    assertThat(sumDebits(note)).isEqualByComparingTo(sumCredits(note));
+
+    RawMaterialPurchase refreshed = purchaseRepository.findById(purchaseId).orElseThrow();
+    assertThat(refreshed.getOutstandingAmount()).isLessThan(sourceAmount);
+  }
+
+  @Test
   @DisplayName("Debit note is idempotent by reference for the same purchase")
   void purchaseDebitNoteIdempotentByReference() {
     LocalDate entryDate = TestDateUtils.safeDate(company);
@@ -1170,6 +1243,37 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     return entry.getLines().stream()
         .map(line -> safeAmount(line.getCredit()))
         .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  private BigDecimal sumDebits(JournalEntry entry) {
+    if (entry == null || entry.getLines() == null) {
+      return BigDecimal.ZERO;
+    }
+    return entry.getLines().stream()
+        .map(line -> safeAmount(line.getDebit()))
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  private BigDecimal findRoundingImbalanceAmount(
+      List<BigDecimal> sourceDebitComponents, BigDecimal sourceAmount) {
+    BigDecimal maxAmount = sourceAmount.setScale(2, RoundingMode.DOWN);
+    long maxCents = maxAmount.movePointRight(2).longValue();
+    for (long cents = 1; cents < maxCents; cents++) {
+      BigDecimal amount = BigDecimal.valueOf(cents, 2);
+      BigDecimal ratio = amount.divide(sourceAmount, 6, RoundingMode.HALF_UP);
+      BigDecimal scaledDebits =
+          sourceAmount.multiply(ratio).setScale(2, RoundingMode.HALF_UP);
+      BigDecimal scaledCredits =
+          sourceDebitComponents.stream()
+              .map(component -> safeAmount(component).multiply(ratio).setScale(2, RoundingMode.HALF_UP))
+              .reduce(BigDecimal.ZERO, BigDecimal::add);
+      if (scaledDebits.compareTo(BigDecimal.ZERO) > 0
+          && scaledCredits.compareTo(BigDecimal.ZERO) > 0
+          && scaledDebits.compareTo(scaledCredits) != 0) {
+        return amount;
+      }
+    }
+    return null;
   }
 
   private BigDecimal safeAmount(BigDecimal value) {

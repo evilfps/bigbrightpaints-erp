@@ -302,6 +302,11 @@ class CR_SalesReturnCreditNoteIdempotencyTest extends AbstractIntegrationTest {
             .toList();
     assertThat(journalIds).as("single credit note journal").hasSize(1);
     Long journalId = journalIds.getFirst();
+    assertThat(journalEntryRepository.findById(journalId))
+        .as("direct credit note reference is canonical")
+        .isPresent()
+        .get()
+        .satisfies(entry -> assertThat(entry.getReferenceNumber()).startsWith("CRN-"));
 
     Invoice refreshed =
         invoiceRepository.findByCompanyAndId(company, invoice.getId()).orElseThrow();
