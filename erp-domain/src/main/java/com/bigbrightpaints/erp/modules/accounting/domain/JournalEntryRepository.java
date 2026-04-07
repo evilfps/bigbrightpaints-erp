@@ -31,14 +31,41 @@ public interface JournalEntryRepository
   Page<JournalEntry> findByCompanyAndDealerOrderByEntryDateDesc(
       Company company, Dealer dealer, Pageable pageable);
 
-  @EntityGraph(attributePaths = {"lines", "lines.account"})
+  @EntityGraph(
+      attributePaths = {
+        "lines",
+        "lines.account",
+        "dealer",
+        "supplier",
+        "accountingPeriod",
+        "reversalOf",
+        "reversalEntry"
+      })
   Page<JournalEntry> findByCompanyOrderByEntryDateDescIdDesc(Company company, Pageable pageable);
 
-  @EntityGraph(attributePaths = {"lines", "lines.account"})
+  @EntityGraph(
+      attributePaths = {
+        "lines",
+        "lines.account",
+        "dealer",
+        "supplier",
+        "accountingPeriod",
+        "reversalOf",
+        "reversalEntry"
+      })
   Page<JournalEntry> findByCompanyAndDealerOrderByEntryDateDescIdDesc(
       Company company, Dealer dealer, Pageable pageable);
 
-  @EntityGraph(attributePaths = {"lines", "lines.account"})
+  @EntityGraph(
+      attributePaths = {
+        "lines",
+        "lines.account",
+        "dealer",
+        "supplier",
+        "accountingPeriod",
+        "reversalOf",
+        "reversalEntry"
+      })
   Page<JournalEntry> findByCompanyAndSupplierOrderByEntryDateDescIdDesc(
       Company company, Supplier supplier, Pageable pageable);
 
@@ -62,6 +89,16 @@ public interface JournalEntryRepository
   @EntityGraph(attributePaths = {"lines", "lines.account"})
   List<JournalEntry> findByCompanyAndReversalOf(Company company, JournalEntry reversalOf);
 
+  @EntityGraph(
+      attributePaths = {
+        "lines",
+        "lines.account",
+        "dealer",
+        "supplier",
+        "accountingPeriod",
+        "reversalOf",
+        "reversalEntry"
+      })
   // Find all related entries for cascade reversal (e.g., INV-001 finds INV-001-COGS, INV-001-TAX)
   List<JournalEntry> findByCompanyAndReferenceNumberStartingWith(
       Company company, String referencePrefix);

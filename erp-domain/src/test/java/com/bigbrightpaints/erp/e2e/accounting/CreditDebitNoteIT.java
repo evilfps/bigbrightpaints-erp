@@ -37,6 +37,7 @@ import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlip;
 import com.bigbrightpaints.erp.modules.inventory.domain.PackagingSlipRepository;
 import com.bigbrightpaints.erp.modules.inventory.service.FinishedGoodsService;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
+import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceLine;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrand;
 import com.bigbrightpaints.erp.modules.production.domain.ProductionBrandRepository;
@@ -275,6 +276,90 @@ class CreditDebitNoteIT extends AbstractIntegrationTest {
     assertThat(data.get("status")).isEqualTo("WRITTEN_OFF");
     assertThat(new BigDecimal(data.get("outstandingAmount").toString()))
         .isEqualByComparingTo(BigDecimal.ZERO);
+  }
+
+  @Test
+  @DisplayName("Sales return follow-up read returns 200 with posted CRN journal")
+  void salesReturn_followUpReadReturnsCreatedJournal() {
+    Invoice invoice = createDispatchedInvoice(new BigDecimal("2"), new BigDecimal("150.00"));
+    InvoiceLine invoiceLine = invoice.getLines().getFirst();
+
+    Map<String, Object> returnLine =
+        Map.of("invoiceLineId", invoiceLine.getId(), "quantity", new BigDecimal("1"));
+    Map<String, Object> salesReturnReq =
+        Map.of(
+            "invoiceId",
+            invoice.getId(),
+            "reason",
+            "Integration test sales return read",
+            "lines",
+            List.of(returnLine));
+
+    ResponseEntity<Map> postResp =
+        rest.exchange(
+            "/api/v1/accounting/sales/returns",
+            HttpMethod.POST,
+            new HttpEntity<>(salesReturnReq, headers),
+            Map.class);
+    assertThat(postResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> posted = (Map<?, ?>) postResp.getBody().get("data");
+    Long postedJournalId = ((Number) posted.get("id")).longValue();
+    assertThat(posted.get("referenceNumber").toString()).startsWith("CRN-");
+
+    ResponseEntity<Map> listResp =
+        rest.exchange(
+            "/api/v1/accounting/sales/returns",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    List<Map<String, Object>> rows = (List<Map<String, Object>>) listResp.getBody().get("data");
+    assertThat(rows)
+        .isNotEmpty()
+        .anySatisfy(
+            row -> {
+              assertThat(((Number) row.get("id")).longValue()).isEqualTo(postedJournalId);
+              assertThat(row.get("referenceNumber").toString()).startsWith("CRN-");
+            });
+  }
+
+  @Test
+  @DisplayName("Accrual follow-up read returns 200 with created journal entry")
+  void accrual_followUpReadReturnsCreatedJournal() {
+    Map<String, Object> accrualReq =
+        Map.of(
+            "debitAccountId",
+            discount.getId(),
+            "creditAccountId",
+            tax.getId(),
+            "amount",
+            new BigDecimal("275.00"),
+            "entryDate",
+            LocalDate.now(),
+            "memo",
+            "Integration test accrual read");
+
+    ResponseEntity<Map> postResp =
+        rest.exchange(
+            "/api/v1/accounting/accruals",
+            HttpMethod.POST,
+            new HttpEntity<>(accrualReq, headers),
+            Map.class);
+    assertThat(postResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Map<?, ?> posted = (Map<?, ?>) postResp.getBody().get("data");
+    Long postedJournalId = ((Number) posted.get("id")).longValue();
+
+    ResponseEntity<Map> listResp =
+        rest.exchange(
+            "/api/v1/accounting/journal-entries",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(listResp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    List<Map<String, Object>> rows = (List<Map<String, Object>>) listResp.getBody().get("data");
+    assertThat(rows)
+        .isNotEmpty()
+        .anySatisfy(row -> assertThat(((Number) row.get("id")).longValue()).isEqualTo(postedJournalId));
   }
 
   private Invoice createDispatchedInvoice(BigDecimal quantity, BigDecimal unitPrice) {
