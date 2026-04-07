@@ -6,7 +6,6 @@ import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -16,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 
+import com.bigbrightpaints.erp.modules.sales.dto.DealerDunningHoldResponse;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerImportResponse;
 import com.bigbrightpaints.erp.modules.sales.service.DealerImportService;
 import com.bigbrightpaints.erp.modules.sales.service.DealerService;
@@ -35,12 +35,13 @@ class DealerControllerTest {
     DealerController controller =
         new DealerController(dealerService, dealerImportService, dunningService);
     when(dunningService.placeDealerOnHold(42L)).thenReturn(true);
-    ResponseEntity<ApiResponse<Map<String, Object>>> response =
+    ResponseEntity<ApiResponse<DealerDunningHoldResponse>> response =
         controller.placeDunningHold(42L);
 
     assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
     assertThat(response.getBody()).isNotNull();
-    assertThat(response.getBody().data()).containsEntry("status", "ON_HOLD");
+    assertThat(response.getBody().data()).isNotNull();
+    assertThat(response.getBody().data().status()).isEqualTo("ON_HOLD");
     verify(dunningService).placeDealerOnHold(42L);
   }
 

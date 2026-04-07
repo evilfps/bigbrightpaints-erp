@@ -56,10 +56,10 @@ This flow is **behavior-first** and **code-grounded**. Where the backend is inco
 
 | Entrypoint | Method | Path | Actor | Purpose |
 | --- | --- | --- | --- | --- |
-| Create Dealer | POST | `/api/v1/dealers` | ADMIN, SALES, ACCOUNTING | Create dealer |
+| Create Dealer | POST | `/api/v1/dealers` | ADMIN, SALES, ACCOUNTING | Create dealer (`201 Created`) |
 | List Dealers | GET | `/api/v1/dealers` | ADMIN, SALES, ACCOUNTING | List dealers (default active-only; optional `status`, `page`, `size`) |
 | Update Dealer | PUT | `/api/v1/dealers/{dealerId}` | ADMIN, SALES, ACCOUNTING | Update dealer |
-| Dunning Hold | POST | `/api/v1/dealers/{dealerId}/dunning/hold` | ADMIN, SALES, ACCOUNTING | Evaluate dunning hold |
+| Dunning Hold | POST | `/api/v1/dealers/{dealerId}/dunning/hold` | ADMIN, SALES, ACCOUNTING | Explicit hold action (returns `dealerId`, `dunningHeld`, `status`, `alreadyOnHold`) |
 
 Dealer-directory compatibility rules:
 

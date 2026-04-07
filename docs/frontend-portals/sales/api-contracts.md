@@ -5,11 +5,23 @@ Last reviewed: 2026-04-07
 This file defines which backend surfaces sales can call directly and where the
 portal must stop.
 
+## Sales Dashboard
+
+- `GET /api/v1/sales/dashboard`
+
+Response contract (`ApiResponse<SalesDashboardDto>.data`):
+
+- `recentOrdersCount` (`integer`)
+- `totalRevenue` (`number`)
+- `totalReceivables` (`number`)
+- `pendingOrders` (`integer`)
+
 ## Dealer Master
 
 - `GET /api/v1/dealers?status=&page=&size=`
 - alias: `GET /api/v1/sales/dealers?status=&page=&size=`
 - `POST /api/v1/dealers`
+- `POST /api/v1/dealers/{dealerId}/dunning/hold`
 - dealer search and update endpoints under `/api/v1/dealers/**`
 
 Dealer screens own commercial identity, contacts, GST-visible business data,
@@ -24,6 +36,12 @@ Rules:
 - There is no dedicated `GET /api/v1/dealers/{dealerId}` read endpoint today;
   dealer detail screens must hydrate from directory/search payloads and update
   responses.
+- `POST /api/v1/dealers` returns `201 Created`.
+- `DealerResponse` and `DealerLookupResponse` include monetary fields
+  `creditLimit` and `outstandingBalance` (both numeric).
+- `POST /api/v1/dealers/{dealerId}/dunning/hold` is an explicit hold action
+  (no threshold query/body inputs) and returns `dealerId`, `dunningHeld`,
+  `status`, and `alreadyOnHold`.
 
 ## Order Lifecycle
 

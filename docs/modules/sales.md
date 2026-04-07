@@ -57,11 +57,11 @@ Stock and dispatch execution truth is documented separately in [inventory.md](in
 
 | Route | Method | Roles | Purpose |
 | --- | --- | --- | --- |
-| `/api/v1/dealers` | POST | ADMIN, SALES, ACCOUNTING | Create dealer |
+| `/api/v1/dealers` | POST | ADMIN, SALES, ACCOUNTING | Create dealer (`201 Created`) |
 | `/api/v1/dealers` | GET | ADMIN, SALES, ACCOUNTING | List dealers (default active-only; optional `status`, `page`, `size`) |
 | `/api/v1/dealers/search` | GET | ADMIN, SALES, ACCOUNTING | Search dealers with filters |
 | `/api/v1/dealers/{dealerId}` | PUT | ADMIN, SALES, ACCOUNTING | Update dealer |
-| `/api/v1/dealers/{dealerId}/dunning/hold` | POST | ADMIN, SALES, ACCOUNTING | Evaluate dunning hold |
+| `/api/v1/dealers/{dealerId}/dunning/hold` | POST | ADMIN, SALES, ACCOUNTING | Explicitly place dealer on hold (returns `dealerId`, `dunningHeld`, `status`, `alreadyOnHold`) |
 
 ### Credit Limit Request Routes — `CreditLimitRequestController` (`/api/v1/credit/limit-requests/**`)
 
@@ -191,7 +191,8 @@ Temporary credit headroom override requests:
 
 Overdue payment management:
 
-- `evaluateDealerHold()`: evaluates a single dealer's aging against thresholds and places on `ON_HOLD` if overdue
+- `placeDealerOnHold()`: explicit manual hold action for `POST /api/v1/dealers/{dealerId}/dunning/hold` (no threshold query/body inputs)
+- `evaluateDealerHold()`: evaluates a single dealer's aging against thresholds and places on `ON_HOLD` if overdue (internal/service-level behavior)
 - Scheduled daily automation: evaluates all dealers for the 45+ day aging bucket
 - Sends overdue reminder emails when hold is placed
 
@@ -201,7 +202,12 @@ High-level facade that delegates to `SalesCoreEngine` for order operations and `
 
 ### `SalesDashboardService`
 
-Provides dashboard data: active dealer count, order counts bucketed by status (open, in_progress, dispatched, completed, cancelled), pending credit request count.
+Provides sales dashboard contract fields via `SalesDashboardDto`:
+
+- `recentOrdersCount` (last 30-day order count)
+- `totalRevenue`
+- `totalReceivables`
+- `pendingOrders`
 
 ---
 
@@ -225,9 +231,10 @@ Provides dashboard data: active dealer count, order counts bucketed by status (o
 | DTO | Purpose |
 | --- | --- |
 | `CreateDealerRequest` | Dealer creation payload (name, email, phone, GST, credit limit, payment terms, region) |
-| `DealerResponse` | Full dealer response with outstanding balance, receivable account, portal email |
+| `DealerResponse` | Full dealer response including monetary fields (`creditLimit`, `outstandingBalance`) plus receivable account and portal email |
 | `DealerDto` | Simplified dealer view (legacy, used by `SalesCoreEngine`) |
-| `DealerLookupResponse` | Search result with credit status, receivable account info, payment terms |
+| `DealerLookupResponse` | Search result including monetary fields (`creditLimit`, `outstandingBalance`), credit status, receivable account info, and payment terms |
+| `DealerDunningHoldResponse` | Explicit hold-action response (`dealerId`, `dunningHeld`, `status`, `alreadyOnHold`) |
 | `DealerPortalCreditLimitRequestCreateRequest` | Dealer portal credit request payload (amount, reason) |
 
 ### Credit DTOs
@@ -361,7 +368,7 @@ These are temporary exceptions allowing a single dispatch to exceed the credit l
 
 ### Dunning
 
-- Manual evaluation: `POST /api/v1/dealers/{dealerId}/dunning/hold` with configurable overdue days and minimum amount thresholds
+- Manual action: `POST /api/v1/dealers/{dealerId}/dunning/hold` explicitly places the dealer in `ON_HOLD` and returns `dealerId`, `dunningHeld`, `status`, and `alreadyOnHold`
 - Automated daily: `DunningService` scheduled task evaluates all dealers against the 45+ day aging bucket
 - Effect: sets dealer status to `ON_HOLD` and sends overdue reminder email
 

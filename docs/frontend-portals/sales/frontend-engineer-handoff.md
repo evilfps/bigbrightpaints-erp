@@ -1,6 +1,6 @@
 # Sales Portal Frontend Engineer Handoff
 
-Last reviewed: 2026-04-02
+Last reviewed: 2026-04-07
 
 This document is the backend-to-frontend contract for the **Sales Portal**.
 
@@ -144,19 +144,19 @@ Use for header/tenant context.
 
 ```ts
 type SalesDashboardDto = {
-  activeDealers: number
-  totalOrders: number
-  orderStatusBuckets: Record<string, number>
-  pendingCreditRequests: number
+  recentOrdersCount: number
+  totalRevenue: number
+  totalReceivables: number
+  pendingOrders: number
 }
 ```
 
 Recommended FE landing cards:
 
-- active dealers
-- total orders
-- order status distribution
-- pending credit requests
+- recent orders
+- total revenue
+- total receivables
+- pending orders
 
 ---
 
@@ -184,6 +184,7 @@ type DealerResponse = {
   email: string
   phone: string
   address: string | null
+  arAccountId: number | null
   receivableAccountId: number | null
   receivableAccountCode: string | null
   portalEmail: string | null
@@ -192,6 +193,8 @@ type DealerResponse = {
   gstRegistrationType: string
   paymentTerms: string
   region: string | null
+  creditLimit: number
+  outstandingBalance: number
   creditStatus: string
 }
 
@@ -200,12 +203,15 @@ type DealerLookupResponse = {
   publicId: string
   name: string
   code: string
+  arAccountId: number | null
   receivableAccountId: number | null
   receivableAccountCode: string | null
   stateCode: string | null
   gstRegistrationType: string
   paymentTerms: string
   region: string | null
+  creditLimit: number
+  outstandingBalance: number
   creditStatus: string
 }
 
@@ -250,6 +256,7 @@ Important:
 ### Create dealer
 
 - `POST /api/v1/dealers`
+- returns `201 Created` with `ApiResponse<DealerResponse>`
 
 ### Update dealer
 
@@ -257,14 +264,17 @@ Important:
 
 ### Dunning hold action
 
-- `POST /api/v1/dealers/{dealerId}/dunning/hold?overdueDays=45&minAmount=0`
+- `POST /api/v1/dealers/{dealerId}/dunning/hold`
+- explicit action surface (no threshold query/body inputs)
 
 #### Response
 
 ```ts
 type DealerDunningHoldResponse = {
   dealerId: number
-  placedOnHold: boolean
+  dunningHeld: boolean
+  status: 'ON_HOLD'
+  alreadyOnHold: boolean
 }
 ```
 
