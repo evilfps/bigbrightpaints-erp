@@ -134,6 +134,36 @@ class AccountingEventStoreMetricsTest {
         .contains("\"idempotencyKey\":\"supplier-idempotency-key\"");
   }
 
+  @Test
+  void recordSettlementAllocated_persistsSettlementAllocatedEventType() {
+    AccountingEventStore store =
+        new AccountingEventStore(
+            eventRepository, eventPublisher, new ObjectMapper(), companyClock, null);
+    JournalEntry entry = buildJournalEntry();
+    when(eventRepository.getNextSequenceNumber(any(UUID.class))).thenReturn(5L);
+    when(eventRepository.save(any(AccountingEvent.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    store.recordSettlementAllocated(
+        entry,
+        "DEALER",
+        711L,
+        new BigDecimal("245.00"),
+        3,
+        "dealer-settlement-idempotency-key");
+
+    ArgumentCaptor<AccountingEvent> eventCaptor = ArgumentCaptor.forClass(AccountingEvent.class);
+    verify(eventRepository).save(eventCaptor.capture());
+    AccountingEvent persisted = eventCaptor.getValue();
+    assertThat(persisted.getEventType()).isEqualTo(AccountingEventType.SETTLEMENT_ALLOCATED);
+    assertThat(persisted.getJournalEntryId()).isEqualTo(entry.getId());
+    assertThat(persisted.getPayload())
+        .contains("\"partnerType\":\"DEALER\"")
+        .contains("\"partnerId\":711")
+        .contains("\"allocationCount\":3")
+        .contains("\"idempotencyKey\":\"dealer-settlement-idempotency-key\"");
+  }
+
   private JournalEntry buildJournalEntry() {
     Company company = new Company();
     ReflectionTestUtils.setField(company, "id", 10L);

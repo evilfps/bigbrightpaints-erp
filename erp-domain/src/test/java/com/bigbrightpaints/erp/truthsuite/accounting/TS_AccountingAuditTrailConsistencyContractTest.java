@@ -67,10 +67,18 @@ class TS_AccountingAuditTrailConsistencyContractTest {
   void receiptAndSupplierSettlementPathsEmitAccountingEventStorePartnerEvents() {
     TruthSuiteFileAssert.assertContains(
         DEALER_RECEIPT_POSTING_SERVICE, "recordDealerReceiptPostedEventSafe(");
+    TruthSuiteFileAssert.assertContains(
+        DEALER_RECEIPT_POSTING_SERVICE, "recordSettlementAllocatedEventSafe(");
     TruthSuiteFileAssert.assertContains(DEALER_SETTLEMENT_SERVICE, "recordDealerReceiptPostedEventSafe(");
+    TruthSuiteFileAssert.assertContains(
+        DEALER_SETTLEMENT_SERVICE, "recordSettlementAllocatedEventSafe(");
     TruthSuiteFileAssert.assertContains(
         SUPPLIER_PAYMENT_SERVICE, "recordSupplierPaymentPostedEventSafe(");
     TruthSuiteFileAssert.assertContains(
+        SUPPLIER_PAYMENT_SERVICE, "recordSettlementAllocatedEventSafe(");
+    TruthSuiteFileAssert.assertContains(
         SUPPLIER_SETTLEMENT_SERVICE, "recordSupplierPaymentPostedEventSafe(");
+    TruthSuiteFileAssert.assertContains(
+        SUPPLIER_SETTLEMENT_SERVICE, "recordSettlementAllocatedEventSafe(");
   }
 }

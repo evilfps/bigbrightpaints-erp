@@ -239,6 +239,43 @@ public class AccountingEventStore {
         idempotencyKey);
   }
 
+  @Transactional
+  public AccountingEvent recordSettlementAllocated(
+      JournalEntry entry,
+      String partnerType,
+      Long partnerId,
+      BigDecimal amount,
+      int allocationCount,
+      String idempotencyKey) {
+    if (entry == null) {
+      throw new IllegalArgumentException("entry is required");
+    }
+    UUID aggregateId =
+        entry.getPublicId() != null
+            ? entry.getPublicId()
+            : UUID.nameUUIDFromBytes(("JournalEntry-" + entry.getId()).getBytes());
+    AccountingEvent event = new AccountingEvent();
+    event.setCompany(entry.getCompany());
+    event.setEventType(AccountingEventType.SETTLEMENT_ALLOCATED);
+    event.setAggregateId(aggregateId);
+    event.setAggregateType("JournalEntry");
+    event.setSequenceNumber(eventRepository.getNextSequenceNumber(aggregateId));
+    event.setEffectiveDate(entry.getEntryDate());
+    event.setJournalEntryId(entry.getId());
+    event.setJournalReference(entry.getReferenceNumber());
+    event.setDescription(entry.getMemo());
+    event.setUserId(getCurrentUserId());
+    Map<String, Object> payload = new HashMap<>();
+    payload.put("partnerType", partnerType);
+    payload.put("partnerId", partnerId);
+    payload.put("amount", amount != null ? amount : BigDecimal.ZERO);
+    payload.put("allocationCount", Math.max(allocationCount, 0));
+    payload.put("idempotencyKey", idempotencyKey != null ? idempotencyKey : "");
+    payload.put("sourceModule", entry.getSourceModule());
+    event.setPayload(serializePayload(payload));
+    return saveWithSequenceRetry(event, aggregateId);
+  }
+
   private AccountingEvent recordPartnerPaymentEvent(
       JournalEntry entry,
       AccountingEventType eventType,

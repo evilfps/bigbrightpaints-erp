@@ -409,6 +409,20 @@ class DealerReceiptPostingService {
       settlementRows.add(row);
     }
     settlementAllocationRepository.saveAll(settlementRows);
+    if (!settlementRows.isEmpty()) {
+      BigDecimal totalAllocated =
+          settlementRows.stream()
+              .map(PartnerSettlementAllocation::getAllocationAmount)
+              .map(MoneyUtils::zeroIfNull)
+              .reduce(BigDecimal.ZERO, BigDecimal::add);
+      accountingAuditService.recordSettlementAllocatedEventSafe(
+          entry,
+          PartnerType.DEALER,
+          dealer.getId(),
+          totalAllocated,
+          settlementRows.size(),
+          idempotencyKey);
+    }
     for (PartnerSettlementAllocation row : settlementRows) {
       if (row.getInvoice() == null) {
         continue;
@@ -457,6 +471,20 @@ class DealerReceiptPostingService {
       remaining = remaining.subtract(applied);
     }
     settlementAllocationRepository.saveAll(settlementRows);
+    if (!settlementRows.isEmpty()) {
+      BigDecimal totalAllocated =
+          settlementRows.stream()
+              .map(PartnerSettlementAllocation::getAllocationAmount)
+              .map(MoneyUtils::zeroIfNull)
+              .reduce(BigDecimal.ZERO, BigDecimal::add);
+      accountingAuditService.recordSettlementAllocatedEventSafe(
+          entry,
+          PartnerType.DEALER,
+          dealer.getId(),
+          totalAllocated,
+          settlementRows.size(),
+          idempotencyKey);
+    }
     for (PartnerSettlementAllocation row : settlementRows) {
       String settlementRef = entry.getReferenceNumber() + "-INV-" + row.getInvoice().getId();
       invoiceSettlementPolicy.applySettlement(

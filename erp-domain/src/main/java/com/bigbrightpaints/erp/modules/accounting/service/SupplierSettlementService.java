@@ -368,6 +368,13 @@ class SupplierSettlementService {
     }
     accountingAuditService.recordSupplierPaymentPostedEventSafe(
         journalEntry, supplier.getId(), cashAmount, trimmedIdempotencyKey);
+    accountingAuditService.recordSettlementAllocatedEventSafe(
+        journalEntry,
+        PartnerType.SUPPLIER,
+        supplier.getId(),
+        totalApplied,
+        settlementRows.size(),
+        trimmedIdempotencyKey);
 
     List<PartnerSettlementResponse.Allocation> allocationSummaries =
         settlementOutcomeService.toSettlementAllocationSummaries(settlementRows);

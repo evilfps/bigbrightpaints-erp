@@ -373,6 +373,13 @@ class DealerSettlementService {
     }
     accountingAuditService.recordDealerReceiptPostedEventSafe(
         journalEntry, dealer.getId(), cashAmount, trimmedIdempotencyKey);
+    accountingAuditService.recordSettlementAllocatedEventSafe(
+        journalEntry,
+        PartnerType.DEALER,
+        dealer.getId(),
+        totalApplied,
+        settlementRows.size(),
+        trimmedIdempotencyKey);
 
     List<PartnerSettlementResponse.Allocation> allocationSummaries =
         settlementOutcomeService.toSettlementAllocationSummaries(settlementRows);

@@ -285,6 +285,20 @@ class SupplierPaymentService {
           journalReplayService.sanitizeIdempotencyLogValue(idempotencyKey));
       throw ex;
     }
+    if (!settlementRows.isEmpty()) {
+      BigDecimal totalAllocated =
+          settlementRows.stream()
+              .map(PartnerSettlementAllocation::getAllocationAmount)
+              .map(MoneyUtils::zeroIfNull)
+              .reduce(BigDecimal.ZERO, BigDecimal::add);
+      accountingAuditService.recordSettlementAllocatedEventSafe(
+          entry,
+          PartnerType.SUPPLIER,
+          supplier.getId(),
+          totalAllocated,
+          settlementRows.size(),
+          idempotencyKey);
+    }
     for (Map.Entry<Long, BigDecimal> entryState : remainingByPurchase.entrySet()) {
       RawMaterialPurchase purchase = purchaseById.get(entryState.getKey());
       if (purchase == null) {

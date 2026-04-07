@@ -184,6 +184,30 @@ public class AccountingAuditService {
     }
   }
 
+  void recordSettlementAllocatedEventSafe(
+      JournalEntry journalEntry,
+      PartnerType partnerType,
+      Long partnerId,
+      BigDecimal amount,
+      int allocationCount,
+      String idempotencyKey) {
+    if (journalEntry == null || partnerType == null) {
+      return;
+    }
+    validateSettlementEventPayloadCompatibility(journalEntry, "SETTLEMENT_ALLOCATED");
+    try {
+      accountingEventStore.recordSettlementAllocated(
+          journalEntry,
+          partnerType.name(),
+          partnerId,
+          amount,
+          allocationCount,
+          normalizeAuditValue(idempotencyKey));
+    } catch (Exception ex) {
+      handleAccountingEventTrailFailure("SETTLEMENT_ALLOCATED", journalEntry.getReferenceNumber(), ex);
+    }
+  }
+
   String resolveCurrentUsername() {
     return SecurityActorResolver.resolveActorWithSystemProcessFallback();
   }
