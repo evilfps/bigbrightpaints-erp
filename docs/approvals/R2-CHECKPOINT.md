@@ -61,7 +61,7 @@ Last reviewed: 2026-04-09
   - enterprise-policy-check confirms high-risk R2 controls are satisfied by this packet evidence
 - Artifacts/links:
   - parity logs: `artifacts/pr-ci-parity/logs/enterprise-policy-check.log`
-  - parity summary: `artifacts/pr-ci-parity/pr-merge-gate.json`
+- parity summary: `artifacts/pr-ci-parity/logs/pr-changed-coverage.log`
   - gate-fast changed coverage artifact: `artifacts/gate-fast/changed-coverage.json`
 
 ## Scope
