@@ -128,6 +128,23 @@ public class BankReconciliationSessionService {
     Set<Long> addIds = new LinkedHashSet<>(normalizeIds(request.addJournalLineIds()));
     addIds.addAll(matchedLineBankItemIds.keySet());
     Set<Long> removeIds = normalizeIds(request.removeJournalLineIds());
+    addIds.removeAll(removeIds);
+    Map<Long, BankReconciliationItem> persistedItemsByLineId =
+        itemRepository.findBySessionOrderByClearedAtAscIdAsc(session).stream()
+            .collect(
+                Collectors.toMap(
+                    item -> item.getJournalLine().getId(),
+                    item -> item,
+                    (existing, ignored) -> existing,
+                    LinkedHashMap::new));
+    assertNoDuplicateBankItemAssignmentsAgainstSessionState(
+        persistedItemsByLineId, matchedLineBankItemIds, addIds, removeIds);
+
+    if (!removeIds.isEmpty()) {
+      itemRepository.deleteBySessionAndJournalLineIdIn(session, removeIds);
+      itemRepository.flush();
+    }
+
     if (!addIds.isEmpty()) {
       List<JournalLine> lines = journalLineRepository.findAllById(addIds);
       if (lines.size() != addIds.size()) {
@@ -135,8 +152,9 @@ public class BankReconciliationSessionService {
             ErrorCode.VALIDATION_INVALID_REFERENCE, "One or more journal lines were not found");
       }
       Map<Long, BankReconciliationItem> existingItemsByLineId =
-          itemRepository.findBySessionAndJournalLineIdIn(session, addIds).stream()
-              .collect(Collectors.toMap(item -> item.getJournalLine().getId(), item -> item));
+          persistedItemsByLineId.entrySet().stream()
+              .filter(entry -> addIds.contains(entry.getKey()))
+              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
       String actor = resolveCurrentActor();
       for (JournalLine line : lines) {
         validateJournalLineForSession(company, session, line);
@@ -160,10 +178,6 @@ public class BankReconciliationSessionService {
         item.setClearedBy(actor);
         itemRepository.save(item);
       }
-    }
-
-    if (!removeIds.isEmpty()) {
-      itemRepository.deleteBySessionAndJournalLineIdIn(session, removeIds);
     }
 
     String note = normalizeNote(request.note());
@@ -563,6 +577,29 @@ public class BankReconciliationSessionService {
                 + currentLineId);
       }
     }
+  }
+
+  private void assertNoDuplicateBankItemAssignmentsAgainstSessionState(
+      Map<Long, BankReconciliationItem> persistedItemsByLineId,
+      Map<Long, Long> matchedLineBankItemIds,
+      Set<Long> addIds,
+      Set<Long> removeIds) {
+    Map<Long, Long> finalAssignments = new LinkedHashMap<>();
+    for (Map.Entry<Long, BankReconciliationItem> entry : persistedItemsByLineId.entrySet()) {
+      Long lineId = entry.getKey();
+      if (removeIds.contains(lineId)) {
+        continue;
+      }
+      finalAssignments.put(lineId, entry.getValue().getBankItemId());
+    }
+    for (Long lineId : addIds) {
+      Long resolvedBankItemId =
+          matchedLineBankItemIds.containsKey(lineId)
+              ? matchedLineBankItemIds.get(lineId)
+              : finalAssignments.get(lineId);
+      finalAssignments.put(lineId, resolvedBankItemId);
+    }
+    assertNoDuplicateBankItemAssignments(finalAssignments);
   }
 
   private Long normalizeMatchId(Long id, String fieldName) {

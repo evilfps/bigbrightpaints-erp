@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -167,8 +168,7 @@ class BankReconciliationSessionServiceTest {
             "100.00",
             "0.00");
     when(journalLineRepository.findAllById(Set.of(1001L))).thenReturn(List.of(lineToAdd));
-    when(itemRepository.findBySessionAndJournalLineIdIn(session, Set.of(1001L)))
-        .thenReturn(List.of());
+    when(itemRepository.findBySessionOrderByClearedAtAscIdAsc(session)).thenReturn(List.of());
 
     BankReconciliationSession detailed =
         session(20L, bankAccount, BankReconciliationSessionStatus.DRAFT);
@@ -256,11 +256,129 @@ class BankReconciliationSessionServiceTest {
   }
 
   @Test
+  void updateItems_rejectsBankItemAssignmentConflictingWithPersistedSessionItem() {
+    Account bankAccount = bankAccount(99L, "BANK", "Main Bank");
+    BankReconciliationSession session =
+        session(27L, bankAccount, BankReconciliationSessionStatus.IN_PROGRESS);
+    when(sessionRepository.findByCompanyAndId(company, 27L)).thenReturn(Optional.of(session));
+
+    JournalLine existingMatchedLine =
+        journalLine(
+            7701L,
+            company,
+            bankAccount,
+            "MATCHED-EXISTING",
+            LocalDate.of(2026, 3, 12),
+            "Existing matched line",
+            "25.00",
+            "0.00");
+    when(itemRepository.findBySessionOrderByClearedAtAscIdAsc(session))
+        .thenReturn(
+            List.of(
+                item(
+                    8701L,
+                    session,
+                    existingMatchedLine,
+                    "MATCHED-EXISTING",
+                    "25.00",
+                    "admin",
+                    9001L)));
+
+    assertThatThrownBy(
+            () ->
+                service.updateItems(
+                    27L,
+                    new BankReconciliationSessionItemsUpdateRequest(
+                        List.of(7702L),
+                        List.of(),
+                        null,
+                        List.of(
+                            new BankReconciliationSessionItemsUpdateRequest
+                                .BankStatementMatchRequest(9001L, null, 7702L)))))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Duplicate bankItemId assignment is not allowed")
+        .hasMessageContaining("bankItemId 9001");
+
+    verify(journalLineRepository, never()).findAllById(any());
+    verify(itemRepository, never()).deleteBySessionAndJournalLineIdIn(any(), any());
+    verify(itemRepository, never()).save(any(BankReconciliationItem.class));
+  }
+
+  @Test
+  void updateItems_allowsBankItemMoveWhenOriginalLineRemovedInSameRequest() {
+    Account bankAccount = bankAccount(99L, "BANK", "Main Bank");
+    BankReconciliationSession session =
+        session(28L, bankAccount, BankReconciliationSessionStatus.IN_PROGRESS);
+    when(sessionRepository.findByCompanyAndId(company, 28L)).thenReturn(Optional.of(session));
+
+    JournalLine sourceLine =
+        journalLine(
+            7801L,
+            company,
+            bankAccount,
+            "MATCH-SOURCE",
+            LocalDate.of(2026, 3, 12),
+            "Source matched line",
+            "40.00",
+            "0.00");
+    JournalLine targetLine =
+        journalLine(
+            7802L,
+            company,
+            bankAccount,
+            "MATCH-TARGET",
+            LocalDate.of(2026, 3, 13),
+            "Target matched line",
+            "40.00",
+            "0.00");
+
+    when(itemRepository.findBySessionOrderByClearedAtAscIdAsc(session))
+        .thenReturn(
+            List.of(item(8801L, session, sourceLine, "MATCH-SOURCE", "40.00", "admin", 9001L)));
+    when(journalLineRepository.findAllById(Set.of(7802L))).thenReturn(List.of(targetLine));
+
+    BankReconciliationSession detailed =
+        session(28L, bankAccount, BankReconciliationSessionStatus.IN_PROGRESS);
+    when(sessionRepository.findDetailedByCompanyAndId(company, 28L)).thenReturn(Optional.of(detailed));
+    when(itemRepository.findDetailedBySession(detailed))
+        .thenReturn(List.of(item(8802L, detailed, targetLine, "MATCH-TARGET", "40.00", "admin", 9001L)));
+    when(reconciliationService.reconcileBankAccount(
+            eq(99L),
+            eq(detailed.getStatementDate()),
+            eq(detailed.getStatementEndingBalance()),
+            eq(LocalDate.of(2026, 3, 1)),
+            eq(LocalDate.of(2026, 3, 31)),
+            eq(Set.of(7802L)),
+            eq(Collections.emptySet())))
+        .thenReturn(summary("0.00", "0.00", "0.00", true));
+
+    BankReconciliationSessionDetailDto response =
+        service.updateItems(
+            28L,
+            new BankReconciliationSessionItemsUpdateRequest(
+                List.of(7802L),
+                List.of(7801L),
+                "move existing bank item",
+                List.of(
+                    new BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest(
+                        9001L, null, 7802L))));
+
+    assertThat(response.matchedItems()).hasSize(1);
+    assertThat(response.matchedItems().get(0).journalLineId()).isEqualTo(7802L);
+    assertThat(response.matchedItems().get(0).bankItemId()).isEqualTo(9001L);
+    var persistenceOrder = inOrder(itemRepository);
+    persistenceOrder.verify(itemRepository).deleteBySessionAndJournalLineIdIn(session, Set.of(7801L));
+    persistenceOrder.verify(itemRepository).flush();
+    persistenceOrder.verify(itemRepository).save(any(BankReconciliationItem.class));
+  }
+
+  @Test
   void updateItems_acceptsMatchPayloadUsingJournalEntryIds() {
     Account bankAccount = bankAccount(99L, "BANK", "Main Bank");
     BankReconciliationSession session =
         session(26L, bankAccount, BankReconciliationSessionStatus.IN_PROGRESS);
     when(sessionRepository.findByCompanyAndId(company, 26L)).thenReturn(Optional.of(session));
+    when(itemRepository.findBySessionOrderByClearedAtAscIdAsc(session)).thenReturn(List.of());
 
     JournalLine matchedLine =
         journalLine(
@@ -277,8 +395,6 @@ class BankReconciliationSessionServiceTest {
             company, Set.of(journalEntryId), bankAccount.getId()))
         .thenReturn(List.of(matchedLine));
     when(journalLineRepository.findAllById(Set.of(7601L))).thenReturn(List.of(matchedLine));
-    when(itemRepository.findBySessionAndJournalLineIdIn(session, Set.of(7601L)))
-        .thenReturn(List.of());
 
     BankReconciliationSession detailed =
         session(26L, bankAccount, BankReconciliationSessionStatus.IN_PROGRESS);
@@ -542,7 +658,6 @@ class BankReconciliationSessionServiceTest {
     when(journalLineRepository.findAllById(Set.of(42L))).thenReturn(List.of(refLine));
 
     when(itemRepository.findJournalLineIdsBySession(saved)).thenReturn(Set.of(42L));
-    when(itemRepository.findBySessionAndJournalLineIdIn(saved, Set.of(42L))).thenReturn(List.of());
     when(itemRepository.findDetailedBySession(saved))
         .thenReturn(List.of(item(500L, saved, refLine, "CLR-LEG", "25.00", "admin")));
     when(reconciliationService.reconcileBankAccount(

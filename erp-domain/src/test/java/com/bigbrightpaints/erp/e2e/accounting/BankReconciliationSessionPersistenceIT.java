@@ -83,7 +83,7 @@ class BankReconciliationSessionPersistenceIT extends AbstractIntegrationTest {
     Account bankAccount = requireAccount(company, "CASH");
     Account revenueAccount = requireAccount(company, "REV");
     Account cogsAccount = requireAccount(company, "COGS");
-    LocalDate statementDate = LocalDate.of(2026, 3, 31);
+    LocalDate statementDate = currentStatementDate();
 
     BankReconciliationSessionSummaryDto started =
         sessionService.startSession(
@@ -185,7 +185,7 @@ class BankReconciliationSessionPersistenceIT extends AbstractIntegrationTest {
     Account bankAccount = requireAccount(company, "CASH");
     Account revenueAccount = requireAccount(company, "REV");
     Account cogsAccount = requireAccount(company, "COGS");
-    LocalDate statementDate = LocalDate.of(2026, 3, 31);
+    LocalDate statementDate = currentStatementDate();
 
     BankReconciliationSessionSummaryDto started =
         sessionService.startSession(
@@ -248,6 +248,157 @@ class BankReconciliationSessionPersistenceIT extends AbstractIntegrationTest {
         .isEmpty();
   }
 
+  @Test
+  void updateItems_rejectsBankItemAssignmentConflictingWithPersistedSessionState() {
+    Company company = useCompany("BRS-DUP-PERSISTED-CONFLICT");
+    Account bankAccount = requireAccount(company, "CASH");
+    Account revenueAccount = requireAccount(company, "REV");
+    Account cogsAccount = requireAccount(company, "COGS");
+    LocalDate statementDate = currentStatementDate();
+
+    BankReconciliationSessionSummaryDto started =
+        sessionService.startSession(
+            new BankReconciliationSessionCreateRequest(
+                bankAccount.getId(),
+                statementDate,
+                new BigDecimal("1000.00"),
+                null,
+                null,
+                null,
+                "persisted duplicate bank-item validation"));
+    Long sessionId = started.sessionId();
+
+    JournalEntryDto firstEntry =
+        createJournal(
+            bankAccount.getId(),
+            revenueAccount.getId(),
+            statementDate,
+            "Persisted duplicate first line",
+            new BigDecimal("120.00"),
+            BigDecimal.ZERO);
+    JournalEntryDto secondEntry =
+        createJournal(
+            bankAccount.getId(),
+            cogsAccount.getId(),
+            statementDate,
+            "Persisted duplicate second line",
+            BigDecimal.ZERO,
+            new BigDecimal("30.00"));
+
+    List<JournalLine> bankLines =
+        journalLineRepository.findPostedLinesForAccountByJournalEntryIds(
+            company, Set.of(firstEntry.id(), secondEntry.id()), bankAccount.getId());
+    assertThat(bankLines).hasSize(2);
+    Long firstLineId = bankLines.get(0).getId();
+    Long secondLineId = bankLines.get(1).getId();
+
+    sessionService.updateItems(
+        sessionId,
+        new BankReconciliationSessionItemsUpdateRequest(
+            List.of(firstLineId),
+            List.of(),
+            "persist first match",
+            List.of(
+                new BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest(
+                    99001L, null, firstLineId))));
+
+    assertThatThrownBy(
+            () ->
+                sessionService.updateItems(
+                    sessionId,
+                    new BankReconciliationSessionItemsUpdateRequest(
+                        List.of(secondLineId),
+                        List.of(),
+                        "conflict against persisted item",
+                        List.of(
+                            new BankReconciliationSessionItemsUpdateRequest
+                                .BankStatementMatchRequest(99001L, null, secondLineId)))))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Duplicate bankItemId assignment is not allowed")
+        .hasMessageContaining("bankItemId 99001");
+
+    BankReconciliationSession session =
+        sessionRepository.findByCompanyAndId(company, sessionId).orElseThrow();
+    List<BankReconciliationItem> persistedItems =
+        itemRepository.findBySessionAndJournalLineIdIn(session, Set.of(firstLineId, secondLineId));
+    assertThat(persistedItems).hasSize(1);
+    assertThat(persistedItems.getFirst().getJournalLine().getId()).isEqualTo(firstLineId);
+    assertThat(persistedItems.getFirst().getBankItemId()).isEqualTo(99001L);
+  }
+
+  @Test
+  void updateItems_allowsMovingBankItemAssignmentWithinSingleRequest() {
+    Company company = useCompany("BRS-MOVE-BANK-ITEM");
+    Account bankAccount = requireAccount(company, "CASH");
+    Account revenueAccount = requireAccount(company, "REV");
+    Account cogsAccount = requireAccount(company, "COGS");
+    LocalDate statementDate = currentStatementDate();
+
+    BankReconciliationSessionSummaryDto started =
+        sessionService.startSession(
+            new BankReconciliationSessionCreateRequest(
+                bankAccount.getId(),
+                statementDate,
+                new BigDecimal("1000.00"),
+                null,
+                null,
+                null,
+                "move bank-item validation"));
+    Long sessionId = started.sessionId();
+
+    JournalEntryDto firstEntry =
+        createJournal(
+            bankAccount.getId(),
+            revenueAccount.getId(),
+            statementDate,
+            "Move source line",
+            new BigDecimal("120.00"),
+            BigDecimal.ZERO);
+    JournalEntryDto secondEntry =
+        createJournal(
+            bankAccount.getId(),
+            cogsAccount.getId(),
+            statementDate,
+            "Move target line",
+            BigDecimal.ZERO,
+            new BigDecimal("30.00"));
+
+    List<JournalLine> bankLines =
+        journalLineRepository.findPostedLinesForAccountByJournalEntryIds(
+            company, Set.of(firstEntry.id(), secondEntry.id()), bankAccount.getId());
+    assertThat(bankLines).hasSize(2);
+    Long sourceLineId = bankLines.get(0).getId();
+    Long targetLineId = bankLines.get(1).getId();
+
+    sessionService.updateItems(
+        sessionId,
+        new BankReconciliationSessionItemsUpdateRequest(
+            List.of(sourceLineId),
+            List.of(),
+            "initial assignment",
+            List.of(
+                new BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest(
+                    88002L, null, sourceLineId))));
+
+    sessionService.updateItems(
+        sessionId,
+        new BankReconciliationSessionItemsUpdateRequest(
+            List.of(targetLineId),
+            List.of(sourceLineId),
+            "move assignment",
+            List.of(
+                new BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest(
+                    88002L, null, targetLineId))));
+
+    BankReconciliationSession session =
+        sessionRepository.findByCompanyAndId(company, sessionId).orElseThrow();
+    List<BankReconciliationItem> persistedItems =
+        itemRepository.findBySessionAndJournalLineIdIn(session, Set.of(sourceLineId, targetLineId));
+    assertThat(persistedItems).hasSize(1);
+    assertThat(persistedItems.getFirst().getJournalLine().getId()).isEqualTo(targetLineId);
+    assertThat(persistedItems.getFirst().getBankItemId()).isEqualTo(88002L);
+  }
+
   private Company useCompany(String companyCode) {
     CompanyContextHolder.setCompanyCode(companyCode);
     Company company = dataSeeder.ensureCompany(companyCode, companyCode + " Ltd");
@@ -280,5 +431,9 @@ class BankReconciliationSessionPersistenceIT extends AbstractIntegrationTest {
                     bankAccountId, memo + " bank line", bankDebit, bankCredit),
                 new JournalEntryRequest.JournalLineRequest(
                     counterAccountId, memo + " offset line", bankCredit, bankDebit))));
+  }
+
+  private LocalDate currentStatementDate() {
+    return LocalDate.now();
   }
 }

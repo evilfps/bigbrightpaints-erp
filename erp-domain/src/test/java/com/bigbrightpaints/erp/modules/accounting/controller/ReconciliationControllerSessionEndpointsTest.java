@@ -142,6 +142,53 @@ class ReconciliationControllerSessionEndpointsTest {
   }
 
   @Test
+  void updateBankReconciliationSessionItems_persistedConflictValidationReturnsBadRequest()
+      throws Exception {
+    BankReconciliationSessionService sessionService = mock(BankReconciliationSessionService.class);
+    when(sessionService.updateItems(
+            eq(21L), any(BankReconciliationSessionItemsUpdateRequest.class)))
+        .thenThrow(
+            new ApplicationException(
+                ErrorCode.VALIDATION_INVALID_INPUT,
+                "Duplicate bankItemId assignment is not allowed: bankItemId 9001 is assigned to"
+                    + " journalLineId 11 and 12"));
+
+    MockMvc mvc =
+        MockMvcBuilders.standaloneSetup(
+                controller(mock(ReconciliationService.class), sessionService))
+            .setControllerAdvice(new AccountingApplicationExceptionAdvice())
+            .build();
+
+    mvc.perform(
+            put("/api/v1/accounting/reconciliation/bank/sessions/21/items")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "addJournalLineIds":[12],
+                      "removeJournalLineIds":[],
+                      "note":"persisted conflict",
+                      "matches":[
+                        {"bankItemId":9001,"journalEntryId":null,"journalLineId":12}
+                      ]
+                    }
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(
+            jsonPath("$.message")
+                .value(
+                    "Duplicate bankItemId assignment is not allowed: bankItemId 9001 is assigned to"
+                        + " journalLineId 11 and 12"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_INPUT.getCode()))
+        .andExpect(
+            jsonPath("$.data.reason")
+                .value(
+                    "Duplicate bankItemId assignment is not allowed: bankItemId 9001 is assigned to"
+                        + " journalLineId 11 and 12"));
+  }
+
+  @Test
   void completeBankReconciliationSession_delegates() {
     BankReconciliationSessionService sessionService = mock(BankReconciliationSessionService.class);
     ReconciliationController controller =
