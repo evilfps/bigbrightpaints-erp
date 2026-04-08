@@ -1,9 +1,11 @@
 # Local Testing Confidence Ladder
 
 - `testing/local/confidence-lanes.json` is the authoritative lane contract. `scripts/validate_confidence_lanes.py` fail-closes if the repo stops declaring what local, PR, main, staging, and canary each must prove, or if the deployable-state / broken-test policy drifts.
-- Retired local helper workflows are no longer supported. Use manifest-backed commands: `commands.test` (alias `commands.gate-fast`, runs `bash scripts/gate_fast.sh`) for fast local confidence.
-- `commands.gate-fast` (`bash scripts/gate_fast.sh`) is the `pr` decision point: safe to merge. `commands.gate-core` (`bash scripts/gate_core.sh`) is the `main` decision point: safe to integrate.
-- `commands.strict-runtime-smoke-check` is the strict smoke probe once `backend-compose-v2` is up, `commands.verify-local` / `bash scripts/verify_local.sh` provide the release-local preflight guards, and `commands.release-proof` (`bash scripts/release_proof.sh`) now boots the approved strict compose runtime, runs strict smoke, then adds `gate-release`, targeted dispatch/accounting/runtime proof, deploy-hardening suites, and contract guards for the `staging`/deployable-state contract.
+- Retired helper scripts (`scripts/dev_smoke.sh`, `scripts/local_guard.sh`) stay retired. Use manifest-backed lane commands instead.
+- Local lane (`safe to continue coding`): `test-dev-smoke`, `test-local-guard` (`commands.test-dev-smoke`, `commands.test-local-guard`).
+- PR lane (`safe to merge`): `test-pr-ci` (`commands.test-pr-ci`, alias `commands.gate-fast`).
+- Main lane (`safe to integrate`): `test-baseline-core` (`commands.test-baseline-core`, alias `commands.gate-core`).
+- Staging lane (`safe to deploy`): `test-release-local` (`commands.test-release-local`, alias `commands.release-proof`) plus `commands.gate-release`; keep `commands.verify-local` and `commands.strict-runtime-smoke-check` for strict runtime/deployable-state evidence.
 - `Deployable` is concrete: app boots, migrations run, auth works, tenant isolation holds, one core O2C path works, one core P2P/accounting path works, health/readiness evidence is real, and rollback is possible.
 - Broken tests must be classified as `product-bug`, `bad-test`, or `infra-coupled` before they affect a lane. Quarantine is allowed only with owner, repro, start, expiry, classification, and `action=quarantine` metadata in `scripts/test_quarantine.txt`; otherwise the expected path is fix, delete, or demote.
 - Fast lanes remain reserved for stable, business-critical proof. Slow or infra-heavy evidence belongs in stronger lanes or advisory observation loops instead of the default developer loop.

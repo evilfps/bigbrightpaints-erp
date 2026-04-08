@@ -11,6 +11,16 @@ commands:
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn spotless:check
   spotless-apply: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn spotless:apply
+  test-dev-smoke: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Pdev-smoke test
+  test-local-guard: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Plocal-guard test
+  test-pr-ci: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_fast.sh
+  test-baseline-core: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_core.sh
+  test-release-local: >-
+    ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/release_proof.sh
   test: >-
     ROOT=$(git rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_fast.sh
   gate-fast: >-
