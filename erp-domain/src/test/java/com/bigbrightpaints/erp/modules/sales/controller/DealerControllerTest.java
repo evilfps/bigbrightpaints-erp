@@ -5,6 +5,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.util.List;
 
 import org.junit.jupiter.api.Tag;
@@ -17,6 +18,7 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import com.bigbrightpaints.erp.modules.sales.dto.DealerDunningHoldResponse;
 import com.bigbrightpaints.erp.modules.sales.dto.DealerImportResponse;
+import com.bigbrightpaints.erp.modules.sales.dto.DealerResponse;
 import com.bigbrightpaints.erp.modules.sales.service.DealerImportService;
 import com.bigbrightpaints.erp.modules.sales.service.DealerService;
 import com.bigbrightpaints.erp.modules.sales.service.DunningService;
@@ -67,5 +69,33 @@ class DealerControllerTest {
     assertThat(response.getBody()).isNotNull();
     assertThat(response.getBody().data()).isEqualTo(payload);
     verify(dealerImportService).importDealers(file);
+  }
+
+  @Test
+  void getDealer_routesThroughDealerService() {
+    DealerController controller =
+        new DealerController(dealerService, dealerImportService, dunningService);
+    DealerResponse payload =
+        new DealerResponse(
+            42L,
+            UUID.fromString("00000000-0000-0000-0000-000000000042"),
+            "D-42",
+            "Dealer 42",
+            "Dealer 42 Pvt Ltd",
+            "dealer42@bbp.com",
+            "9999999999",
+            "HQ",
+            7001L,
+            7001L,
+            "AR-D-42",
+            "dealer42@bbp.com");
+    when(dealerService.getDealer(42L)).thenReturn(payload);
+
+    ResponseEntity<ApiResponse<DealerResponse>> response = controller.getDealer(42L);
+
+    assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().data()).isEqualTo(payload);
+    verify(dealerService).getDealer(42L);
   }
 }

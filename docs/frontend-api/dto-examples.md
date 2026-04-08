@@ -152,7 +152,28 @@ GET /api/v1/dealers?status=ALL&page=0&size=50
 >   still stays `data: DealerResponse[]` without `content`, `totalPages`, or
 >   `totalElements`.
 
-> **Note**: There is no `GET /api/v1/dealers/{dealerId}` endpoint for fetching a single dealer by ID. Dealer details are available through the list endpoint with filters, or via search endpoints.
+### Dealer detail
+
+```json
+GET /api/v1/dealers/101
+{
+  "success": true,
+  "message": "Dealer detail",
+  "data": {
+    "id": 101,
+    "publicId": "11111111-2222-3333-4444-555555555555",
+    "code": "ACME01",
+    "name": "Acme Corporation",
+    "companyName": "Acme Corporation Pvt Ltd",
+    "email": "ops@acme.example",
+    "creditLimit": 1000000.0,
+    "outstandingBalance": 120000.0,
+    "creditStatus": "WITHIN_LIMIT"
+  }
+}
+```
+
+For missing dealers, `GET /api/v1/dealers/{dealerId}` returns `404 Not Found`.
 
 ## Sales orders (draft lifecycle contract)
 

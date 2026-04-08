@@ -20,6 +20,7 @@ Response contract (`ApiResponse<SalesDashboardDto>.data`):
 
 - `GET /api/v1/dealers?status=&page=&size=`
 - alias: `GET /api/v1/sales/dealers?status=&page=&size=`
+- `GET /api/v1/dealers/{dealerId}`
 - `POST /api/v1/dealers`
 - `POST /api/v1/dealers/{dealerId}/dunning/hold`
 - dealer search and update endpoints under `/api/v1/dealers/**`
@@ -33,9 +34,8 @@ Rules:
 - Send `status=ALL` to include non-active dealers in the directory.
 - When `page` and/or `size` are sent, the backend still returns a plain
   `DealerResponse[]` slice without total-count metadata.
-- There is no dedicated `GET /api/v1/dealers/{dealerId}` read endpoint today;
-  dealer detail screens must hydrate from directory/search payloads and update
-  responses.
+- `GET /api/v1/dealers/{dealerId}` returns dealer detail (`200`) and returns
+  `404` when the dealer id does not exist.
 - `POST /api/v1/dealers` returns `201 Created`.
 - `DealerResponse` and `DealerLookupResponse` include monetary fields
   `creditLimit` and `outstandingBalance` (both numeric).

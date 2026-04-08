@@ -14,6 +14,7 @@ Role target: `ROLE_SALES` (admin approvals remain `ROLE_ADMIN`).
 |---|---|---|---|---|
 | Dashboard | `GET /api/v1/sales/dashboard` | — | `ApiResponse<SalesDashboardDto>` | `ROLE_SALES` or `ROLE_ADMIN` |
 | Dealer create | `POST /api/v1/dealers` | `CreateDealerRequest` | `ApiResponse<DealerResponse>` | `ROLE_SALES` or `ROLE_ADMIN` |
+| Dealer detail | `GET /api/v1/dealers/{dealerId}` | — | `ApiResponse<DealerResponse>` | `ROLE_SALES` or `ROLE_ADMIN` |
 | Dealer update | `PUT /api/v1/dealers/{dealerId}` | `CreateDealerRequest` | `ApiResponse<DealerResponse>` | `ROLE_SALES` or `ROLE_ADMIN` |
 | Dealer dunning hold | `POST /api/v1/dealers/{dealerId}/dunning/hold` | — | `ApiResponse<DealerDunningHoldResponse>` | `ROLE_SALES` or `ROLE_ADMIN` |
 | Order create | `POST /api/v1/sales/orders` | `SalesOrderRequest` | `ApiResponse<SalesOrderDto>` (`201`/`200`) | `ROLE_SALES` or `ROLE_ADMIN` |

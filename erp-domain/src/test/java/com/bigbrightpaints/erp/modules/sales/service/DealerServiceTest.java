@@ -380,6 +380,43 @@ class DealerServiceTest {
   }
 
   @Test
+  void getDealer_returnsDealerPayloadWhenDealerExists() {
+    Dealer dealer = dealer("D-DETAIL", new BigDecimal("1000"), "WEST");
+    UserAccount portalUser = new UserAccount("dealer-detail@bbp.com", "TEST", "hash", "Dealer");
+    dealer.setPortalUser(portalUser);
+    Account receivableAccount = new Account();
+    ReflectionTestUtils.setField(receivableAccount, "id", 321L);
+    receivableAccount.setCode("AR-D-DETAIL");
+    dealer.setReceivableAccount(receivableAccount);
+    when(dealerRepository.findByCompanyAndId(company, 99L)).thenReturn(Optional.of(dealer));
+    when(dealerLedgerService.currentBalance(99L)).thenReturn(new BigDecimal("250"));
+    when(salesOrderRepository.sumPendingCreditExposureByCompanyAndDealer(
+            eq(company), eq(dealer), any(), eq(null)))
+        .thenReturn(new BigDecimal("100"));
+
+    var response = dealerService.getDealer(99L);
+
+    assertThat(response.id()).isEqualTo(99L);
+    assertThat(response.portalEmail()).isEqualTo("dealer-detail@bbp.com");
+    assertThat(response.receivableAccountCode()).isEqualTo("AR-D-DETAIL");
+    assertThat(response.outstandingBalance()).isEqualByComparingTo("250");
+    assertThat(response.creditStatus()).isEqualTo("WITHIN_LIMIT");
+  }
+
+  @Test
+  void getDealer_returnsNotFoundWhenDealerDoesNotExist() {
+    when(dealerRepository.findByCompanyAndId(company, 404L)).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> dealerService.getDealer(404L))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ENTITY_NOT_FOUND);
+              assertThat(ex.getMessage()).isEqualTo("Dealer not found");
+            });
+  }
+
+  @Test
   void creditUtilization_includesPendingExposureAndCreditStatus() {
     Dealer dealer = dealer("D-CREDIT", new BigDecimal("1000"), "WEST");
     when(dealerRepository.findByCompanyAndId(company, 1L)).thenReturn(Optional.of(dealer));

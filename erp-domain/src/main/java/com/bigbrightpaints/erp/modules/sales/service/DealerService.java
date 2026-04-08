@@ -181,6 +181,23 @@ public class DealerService {
   }
 
   @Transactional
+  public DealerResponse getDealer(Long dealerId) {
+    Company company = companyContextService.requireCurrentCompany();
+    Dealer dealer =
+        dealerRepository
+            .findByCompanyAndId(company, dealerId)
+            .orElseThrow(
+                () -> new ApplicationException(ErrorCode.BUSINESS_ENTITY_NOT_FOUND, "Dealer not found"));
+    BigDecimal outstandingBalance = dealerLedgerService.currentBalance(dealerId);
+    BigDecimal pendingOrderExposure = resolvePendingOrderExposure(dealer);
+    return toResponse(
+        dealer,
+        dealer.getPortalUser() != null ? dealer.getPortalUser().getEmail() : null,
+        outstandingBalance != null ? outstandingBalance : BigDecimal.ZERO,
+        pendingOrderExposure);
+  }
+
+  @Transactional
   public List<DealerLookupResponse> search(
       String query, String status, String region, String creditStatus) {
     Company company = companyContextService.requireCurrentCompany();

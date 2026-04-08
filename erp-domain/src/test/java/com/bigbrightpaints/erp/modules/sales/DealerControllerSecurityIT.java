@@ -253,6 +253,38 @@ class DealerControllerSecurityIT extends AbstractIntegrationTest {
   }
 
   @Test
+  @DisplayName("Sales can read dealer detail and missing dealer ids return not found")
+  void salesCanReadDealerDetailAndGetsNotFoundForMissingDealer() {
+    HttpHeaders headers = authHeaders(SALES_EMAIL, PASSWORD);
+
+    ResponseEntity<Map> existingResponse =
+        rest.exchange(
+            "/api/v1/dealers/" + dealerA.getId(), HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+    ResponseEntity<Map> missingResponse =
+        rest.exchange("/api/v1/dealers/999999", HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+
+    assertThat(existingResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(existingResponse.getBody()).isNotNull();
+    @SuppressWarnings("unchecked")
+    Map<String, Object> data = (Map<String, Object>) existingResponse.getBody().get("data");
+    assertThat(data).isNotNull();
+    assertThat(((Number) data.get("id")).longValue()).isEqualTo(dealerA.getId());
+    assertThat(missingResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+  }
+
+  @Test
+  @DisplayName("Dealer role cannot read backoffice dealer detail endpoint")
+  void dealerRoleCannotReadBackofficeDealerDetail() {
+    HttpHeaders headers = authHeaders(DEALER_A_EMAIL, PASSWORD);
+
+    ResponseEntity<Map> response =
+        rest.exchange(
+            "/api/v1/dealers/" + dealerA.getId(), HttpMethod.GET, new HttpEntity<>(headers), Map.class);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+  }
+
+  @Test
   @DisplayName("Sales dealer search includes exact credit amounts and credit status")
   void salesDealerSearchIncludesCreditAmounts() {
     HttpHeaders headers = authHeaders(SALES_EMAIL, PASSWORD);

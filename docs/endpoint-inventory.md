@@ -19,9 +19,9 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `b6ff970da9fc822d157f0398d590e3e5816d70250e3790b086e3d5c92e07911b`)
+- OpenAPI snapshot: `openapi.json` (sha256 `1981c782950a34c2b63cde5f6de1fca12e8fb0dacf49605c3c5b3511fa1f3a3c`)
 - OpenAPI total paths: `273`
-- OpenAPI total operations: `324`
+- OpenAPI total operations: `325`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
 - Hard-cut contract reminder: retired surfaces such as `/api/v1/auth/profile`, `/api/v1/accounting/journals/manual`, `/api/v1/accounting/journals/{entryId}/reverse`, and direct `/api/v1/accounting/periods/{periodId}/close` are intentionally absent from this inventory and must not be reintroduced in frontend or review docs.
 
@@ -195,7 +195,7 @@ Portal scope guardrail:
 - `GET, POST` `/api/v1/dealers`
 - `POST` `/api/v1/dealers/import`
 - `GET` `/api/v1/dealers/search`
-- `PUT` `/api/v1/dealers/{dealerId}`
+- `GET, PUT` `/api/v1/dealers/{dealerId}`
 - `POST` `/api/v1/dealers/{dealerId}/dunning/hold`
 
 ## `demo`

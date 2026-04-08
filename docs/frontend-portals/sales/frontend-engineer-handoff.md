@@ -249,9 +249,8 @@ Important:
 
 Important:
 
-- There is no dedicated `GET /api/v1/dealers/{dealerId}` fetch route today.
-  Dealer detail screens should hydrate from directory/search payloads and the
-  latest update response.
+- `GET /api/v1/dealers/{dealerId}` fetches dealer detail and returns `404` when
+  the dealer id is missing.
 
 ### Create dealer
 
@@ -261,6 +260,10 @@ Important:
 ### Update dealer
 
 - `PUT /api/v1/dealers/{dealerId}`
+
+### Dealer detail
+
+- `GET /api/v1/dealers/{dealerId}`
 
 ### Dunning hold action
 
