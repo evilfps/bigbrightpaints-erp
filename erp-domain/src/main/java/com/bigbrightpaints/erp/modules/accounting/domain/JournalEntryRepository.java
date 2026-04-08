@@ -66,8 +66,34 @@ public interface JournalEntryRepository
         "reversalOf",
         "reversalEntry"
       })
+  Page<JournalEntry> findByCompanyAndDealerAndSourceModuleIgnoreCaseOrderByEntryDateDescIdDesc(
+      Company company, Dealer dealer, String sourceModule, Pageable pageable);
+
+  @EntityGraph(
+      attributePaths = {
+        "lines",
+        "lines.account",
+        "dealer",
+        "supplier",
+        "accountingPeriod",
+        "reversalOf",
+        "reversalEntry"
+      })
   Page<JournalEntry> findByCompanyAndSupplierOrderByEntryDateDescIdDesc(
       Company company, Supplier supplier, Pageable pageable);
+
+  @EntityGraph(
+      attributePaths = {
+        "lines",
+        "lines.account",
+        "dealer",
+        "supplier",
+        "accountingPeriod",
+        "reversalOf",
+        "reversalEntry"
+      })
+  Page<JournalEntry> findByCompanyAndSupplierAndSourceModuleIgnoreCaseOrderByEntryDateDescIdDesc(
+      Company company, Supplier supplier, String sourceModule, Pageable pageable);
 
   @EntityGraph(
       attributePaths = {

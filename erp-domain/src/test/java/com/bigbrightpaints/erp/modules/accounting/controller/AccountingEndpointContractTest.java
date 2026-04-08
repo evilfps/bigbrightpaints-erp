@@ -704,6 +704,21 @@ class AccountingEndpointContractTest {
   }
 
   @Test
+  void journalEntries_withDealerAndSourceFilter_delegatesToJournalEntryService() {
+    JournalEntryService journalEntryService = mock(JournalEntryService.class);
+    List<JournalEntryDto> expected = List.of(expectedJournal(83L, "PACK-D-1"));
+    when(journalEntryService.listJournalEntries(19L, null, 2, 25, "PACKING")).thenReturn(expected);
+
+    ApiResponse<List<JournalEntryDto>> body =
+        newJournalController(mock(AccountingService.class), journalEntryService, null, null)
+            .journalEntries(19L, null, "PACKING", 2, 25)
+            .getBody();
+
+    assertThat(body).isNotNull();
+    assertThat(body.data()).isEqualTo(expected);
+  }
+
+  @Test
   void recordPayrollPayment_delegatesToAccountingFacade() {
     AccountingFacade accountingFacade = mock(AccountingFacade.class);
     PayrollPaymentRequest request =

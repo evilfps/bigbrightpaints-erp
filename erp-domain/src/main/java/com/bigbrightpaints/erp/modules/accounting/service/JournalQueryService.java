@@ -68,30 +68,32 @@ class JournalQueryService {
                   company, normalizedSourceModule, pageable)
               .getContent();
     } else if (dealerId != null) {
+      var dealer = accountResolutionService.requireDealer(company, dealerId);
       entries =
-          journalEntryRepository
-              .findByCompanyAndDealerOrderByEntryDateDescIdDesc(
-                  company, accountResolutionService.requireDealer(company, dealerId), pageable)
-              .getContent();
+          normalizedSourceModule != null
+              ? journalEntryRepository
+                  .findByCompanyAndDealerAndSourceModuleIgnoreCaseOrderByEntryDateDescIdDesc(
+                      company, dealer, normalizedSourceModule, pageable)
+                  .getContent()
+              : journalEntryRepository
+                  .findByCompanyAndDealerOrderByEntryDateDescIdDesc(company, dealer, pageable)
+                  .getContent();
     } else if (supplierId != null) {
+      var supplier = accountResolutionService.requireSupplier(company, supplierId);
       entries =
-          journalEntryRepository
-              .findByCompanyAndSupplierOrderByEntryDateDescIdDesc(
-                  company, accountResolutionService.requireSupplier(company, supplierId), pageable)
-              .getContent();
+          normalizedSourceModule != null
+              ? journalEntryRepository
+                  .findByCompanyAndSupplierAndSourceModuleIgnoreCaseOrderByEntryDateDescIdDesc(
+                      company, supplier, normalizedSourceModule, pageable)
+                  .getContent()
+              : journalEntryRepository
+                  .findByCompanyAndSupplierOrderByEntryDateDescIdDesc(company, supplier, pageable)
+                  .getContent();
     } else {
       entries =
           journalEntryRepository
               .findByCompanyOrderByEntryDateDescIdDesc(company, pageable)
               .getContent();
-    }
-    if (normalizedSourceModule != null && (dealerId != null || supplierId != null)) {
-      entries =
-          entries.stream()
-              .filter(
-                  entry ->
-                      normalizedSourceModule.equalsIgnoreCase(entry.getSourceModule()))
-              .toList();
     }
     return entries.stream()
         .map(
