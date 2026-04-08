@@ -20,7 +20,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodSnapshotRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodTrialBalanceLineRepository;
@@ -28,6 +30,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.DealerLedgerRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.accounting.service.CompanyScopedAccountingLookupService;
 import com.bigbrightpaints.erp.modules.accounting.service.DealerLedgerService;
@@ -195,6 +198,50 @@ class ReportServiceAccountStatementTest {
     assertThat(row.credit()).isEqualByComparingTo("30.00");
     assertThat(row.balance()).isEqualByComparingTo("25.00");
     assertThat(row.journalEntryId()).isNull();
+  }
+
+  @Test
+  void accountStatement_normalizesCreditNormalOpeningRunningAndClosingBalances() {
+    Account liability = new Account();
+    ReflectionTestUtils.setField(liability, "id", 44L);
+    liability.setCode("L-044");
+    liability.setName("Liability 044");
+    liability.setType(AccountType.LIABILITY);
+
+    LocalDate from = LocalDate.of(2026, 2, 1);
+    LocalDate to = LocalDate.of(2026, 2, 28);
+    when(accountingLookupService.requireAccount(company, 44L)).thenReturn(liability);
+    when(journalLineRepository.netBalanceUpTo(company, 44L, from.minusDays(1)))
+        .thenReturn(new BigDecimal("-50.00"));
+
+    JournalEntry firstEntry = new JournalEntry();
+    ReflectionTestUtils.setField(firstEntry, "id", 1001L);
+    firstEntry.setEntryDate(LocalDate.of(2026, 2, 5));
+    firstEntry.setReferenceNumber("JRN-1001");
+    JournalLine firstLine = new JournalLine();
+    firstLine.setJournalEntry(firstEntry);
+    firstLine.setDebit(new BigDecimal("20.00"));
+    firstLine.setCredit(BigDecimal.ZERO);
+
+    JournalEntry secondEntry = new JournalEntry();
+    ReflectionTestUtils.setField(secondEntry, "id", 1002L);
+    secondEntry.setEntryDate(LocalDate.of(2026, 2, 6));
+    secondEntry.setReferenceNumber("JRN-1002");
+    JournalLine secondLine = new JournalLine();
+    secondLine.setJournalEntry(secondEntry);
+    secondLine.setDebit(BigDecimal.ZERO);
+    secondLine.setCredit(new BigDecimal("30.00"));
+
+    when(journalLineRepository.findLinesForAccountBetween(company, 44L, from, to))
+        .thenReturn(List.of(firstLine, secondLine));
+
+    var report = reportService.accountStatement(44L, from, to);
+
+    assertThat(report.openingBalance()).isEqualByComparingTo("50.00");
+    assertThat(report.entries()).hasSize(2);
+    assertThat(report.entries().get(0).runningBalance()).isEqualByComparingTo("30.00");
+    assertThat(report.entries().get(1).runningBalance()).isEqualByComparingTo("60.00");
+    assertThat(report.closingBalance()).isEqualByComparingTo("60.00");
   }
 
   @Test

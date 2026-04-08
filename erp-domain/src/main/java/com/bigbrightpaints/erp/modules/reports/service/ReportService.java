@@ -686,8 +686,11 @@ public class ReportService {
     }
 
     Account account = accountingLookupService.requireAccount(company, accountId);
+    AccountType accountType = account.getType();
     BigDecimal openingBalance =
-        safe(journalLineRepository.netBalanceUpTo(company, accountId, from.minusDays(1)));
+        normalizeNetBalance(
+            journalLineRepository.netBalanceUpTo(company, accountId, from.minusDays(1)),
+            accountType);
     List<JournalLine> lines = journalLineRepository.findLinesForAccountBetween(company, accountId, from, to);
 
     BigDecimal runningBalance = openingBalance;
@@ -696,7 +699,8 @@ public class ReportService {
       JournalEntry entry = line.getJournalEntry();
       BigDecimal debit = safe(line.getDebit());
       BigDecimal credit = safe(line.getCredit());
-      runningBalance = runningBalance.add(debit).subtract(credit);
+      BigDecimal normalizedDelta = normalizeNetBalance(debit.subtract(credit), accountType);
+      runningBalance = runningBalance.add(normalizedDelta);
       entries.add(
           new AccountStatementLineDto(
               entry != null ? entry.getId() : null,
@@ -1458,6 +1462,14 @@ public class ReportService {
 
   private BigDecimal safe(BigDecimal value) {
     return value == null ? BigDecimal.ZERO : value;
+  }
+
+  private BigDecimal normalizeNetBalance(BigDecimal netBalance, AccountType accountType) {
+    BigDecimal normalized = safe(netBalance);
+    if (accountType != null && !accountType.isDebitNormalBalance()) {
+      return normalized.negate();
+    }
+    return normalized;
   }
 
   @Transactional(readOnly = true)

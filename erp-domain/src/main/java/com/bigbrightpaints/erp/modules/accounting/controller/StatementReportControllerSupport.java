@@ -153,7 +153,7 @@ public class StatementReportControllerSupport {
         report != null && report.movements() != null ? report.movements() : List.of();
     BigDecimal totalDebits = report != null ? report.totalDebits() : BigDecimal.ZERO;
     BigDecimal totalCredits = report != null ? report.totalCredits() : BigDecimal.ZERO;
-    BigDecimal netMovement = totalDebits.subtract(totalCredits);
+    BigDecimal netMovement = report != null ? report.netMovement() : BigDecimal.ZERO;
     return new AccountActivitySummaryResponse(
         report != null ? report.accountCode() : null,
         report != null ? report.accountName() : null,

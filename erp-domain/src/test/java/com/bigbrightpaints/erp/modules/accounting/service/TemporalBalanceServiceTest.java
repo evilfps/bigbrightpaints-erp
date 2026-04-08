@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +29,8 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodSnapsho
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodTrialBalanceLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountingPeriodTrialBalanceLineRepository;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
+import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -111,5 +114,52 @@ class TemporalBalanceServiceTest {
 
     assertThat(balance).isEqualByComparingTo("100.00");
     verify(journalLineRepository, never()).netBalanceUpTo(eq(company), eq(accountId), eq(asOfDate));
+  }
+
+  @Test
+  void getAccountActivity_normalizesCreditNormalBalancesAndNetMovement() {
+    LocalDate startDate = LocalDate.of(2026, 2, 1);
+    LocalDate endDate = LocalDate.of(2026, 2, 28);
+    Long accountId = 100L;
+
+    Account liabilityAccount = new Account();
+    liabilityAccount.setCode("LIAB-100");
+    liabilityAccount.setName("Liability 100");
+    liabilityAccount.setType(AccountType.LIABILITY);
+
+    JournalEntry firstEntry = new JournalEntry();
+    firstEntry.setEntryDate(LocalDate.of(2026, 2, 5));
+    firstEntry.setReferenceNumber("JRN-1");
+    JournalLine firstLine = new JournalLine();
+    firstLine.setJournalEntry(firstEntry);
+    firstLine.setDebit(new BigDecimal("10.00"));
+    firstLine.setCredit(BigDecimal.ZERO);
+
+    JournalEntry secondEntry = new JournalEntry();
+    secondEntry.setEntryDate(LocalDate.of(2026, 2, 6));
+    secondEntry.setReferenceNumber("JRN-2");
+    JournalLine secondLine = new JournalLine();
+    secondLine.setJournalEntry(secondEntry);
+    secondLine.setDebit(BigDecimal.ZERO);
+    secondLine.setCredit(new BigDecimal("25.00"));
+
+    when(accountRepository.findByCompanyAndId(eq(company), eq(accountId)))
+        .thenReturn(Optional.of(liabilityAccount));
+    when(journalLineRepository.netBalanceUpTo(eq(company), eq(accountId), eq(startDate.minusDays(1))))
+        .thenReturn(new BigDecimal("-50.00"));
+    when(journalLineRepository.findLinesForAccountBetween(eq(company), eq(accountId), eq(startDate), eq(endDate)))
+        .thenReturn(List.of(firstLine, secondLine));
+
+    TemporalBalanceService.AccountActivityReport report =
+        temporalBalanceService.getAccountActivity(accountId, startDate, endDate);
+
+    assertThat(report.openingBalance()).isEqualByComparingTo("50.00");
+    assertThat(report.closingBalance()).isEqualByComparingTo("65.00");
+    assertThat(report.totalDebits()).isEqualByComparingTo("10.00");
+    assertThat(report.totalCredits()).isEqualByComparingTo("25.00");
+    assertThat(report.netMovement()).isEqualByComparingTo("15.00");
+    assertThat(report.movements()).hasSize(2);
+    assertThat(report.movements().get(0).runningBalance()).isEqualByComparingTo("40.00");
+    assertThat(report.movements().get(1).runningBalance()).isEqualByComparingTo("65.00");
   }
 }

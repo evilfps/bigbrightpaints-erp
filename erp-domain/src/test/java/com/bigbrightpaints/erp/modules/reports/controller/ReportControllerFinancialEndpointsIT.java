@@ -158,6 +158,61 @@ class ReportControllerFinancialEndpointsIT extends AbstractIntegrationTest {
     assertThat(buckets).containsKeys("current", "days1to30", "days31to60", "days61to90");
   }
 
+  @Test
+  void creditNormalRevenueAccount_hasConsistentSignsAcrossStatementAndTemporalEndpoints() {
+    LocalDate fromDate = LocalDate.now().withDayOfMonth(1);
+    LocalDate toDate = LocalDate.now();
+    LocalDate openingAsOfDate = fromDate.minusDays(1);
+
+    Map<String, Object> statementData =
+        fetchDataMap(
+            String.format(
+                "/api/v1/reports/account-statement?accountId=%d&from=%s&to=%s",
+                revenueAccount.getId(), fromDate, toDate));
+    BigDecimal statementOpening = decimal(statementData.get("openingBalance"));
+    BigDecimal statementClosing = decimal(statementData.get("closingBalance"));
+
+    BigDecimal openingAsOf =
+        decimal(
+            fetchDataObject(
+                String.format(
+                    "/api/v1/accounting/accounts/%d/balance/as-of?date=%s",
+                    revenueAccount.getId(), openingAsOfDate)));
+    BigDecimal closingAsOf =
+        decimal(
+            fetchDataObject(
+                String.format(
+                    "/api/v1/accounting/accounts/%d/balance/as-of?date=%s",
+                    revenueAccount.getId(), toDate)));
+
+    Map<String, Object> compareData =
+        fetchDataMap(
+            String.format(
+                "/api/v1/accounting/accounts/%d/balance/compare?from=%s&to=%s",
+                revenueAccount.getId(), openingAsOfDate, toDate));
+    BigDecimal compareChange = decimal(compareData.get("change"));
+
+    Map<String, Object> activityData =
+        fetchDataMap(
+            String.format(
+                "/api/v1/accounting/accounts/%d/activity?from=%s&to=%s",
+                revenueAccount.getId(), fromDate, toDate));
+    BigDecimal activityOpening = decimal(activityData.get("openingBalance"));
+    BigDecimal activityClosing = decimal(activityData.get("closingBalance"));
+    BigDecimal activityNetMovement = decimal(activityData.get("netMovement"));
+    BigDecimal activityTotalDebits = decimal(activityData.get("totalDebits"));
+    BigDecimal activityTotalCredits = decimal(activityData.get("totalCredits"));
+
+    assertThat(statementOpening).isEqualByComparingTo(openingAsOf);
+    assertThat(statementClosing).isEqualByComparingTo(closingAsOf);
+    assertThat(activityOpening).isEqualByComparingTo(openingAsOf);
+    assertThat(activityClosing).isEqualByComparingTo(closingAsOf);
+    assertThat(compareChange).isEqualByComparingTo(statementClosing.subtract(statementOpening));
+    assertThat(activityNetMovement).isEqualByComparingTo(compareChange);
+    assertThat(activityTotalCredits).isGreaterThan(activityTotalDebits);
+    assertThat(activityNetMovement).isPositive();
+  }
+
   private void seedRevenueAndExpenseJournals() {
     LocalDate entryDate = LocalDate.now();
     postJournal(

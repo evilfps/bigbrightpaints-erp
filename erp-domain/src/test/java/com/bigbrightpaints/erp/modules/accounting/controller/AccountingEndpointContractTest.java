@@ -401,6 +401,7 @@ class AccountingEndpointContractTest {
             new BigDecimal("12.00"),
             new BigDecimal("20.00"),
             new BigDecimal("18.00"),
+            new BigDecimal("2.00"),
             List.of());
     when(temporalBalanceService.getAccountActivity(
             9L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31)))

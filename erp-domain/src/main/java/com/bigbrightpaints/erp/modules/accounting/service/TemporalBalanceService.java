@@ -206,10 +206,13 @@ public class TemporalBalanceService {
                 () ->
                     com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
                         "Account not found"));
+    AccountType accountType = account.getType();
 
     // Get opening balance (balance as of day before start)
     BigDecimal openingBalance =
-        journalLineRepository.netBalanceUpTo(company, accountId, startDate.minusDays(1));
+        normalizeNetBalance(
+            journalLineRepository.netBalanceUpTo(company, accountId, startDate.minusDays(1)),
+            accountType);
 
     // Get all movements in the period
     List<JournalLine> movements =
@@ -223,7 +226,7 @@ public class TemporalBalanceService {
       JournalEntry entry = line.getJournalEntry();
       BigDecimal debit = safe(line.getDebit());
       BigDecimal credit = safe(line.getCredit());
-      BigDecimal delta = debit.subtract(credit);
+      BigDecimal delta = normalizeNetBalance(debit.subtract(credit), accountType);
       runningBalance = runningBalance.add(delta);
       totalDebits = totalDebits.add(debit);
       totalCredits = totalCredits.add(credit);
@@ -239,6 +242,7 @@ public class TemporalBalanceService {
     }
 
     BigDecimal closingBalance = movements.isEmpty() ? openingBalance : runningBalance;
+    BigDecimal netMovement = normalizeNetBalance(totalDebits.subtract(totalCredits), accountType);
 
     return new AccountActivityReport(
         account.getCode(),
@@ -249,6 +253,7 @@ public class TemporalBalanceService {
         closingBalance,
         totalDebits,
         totalCredits,
+        netMovement,
         movementList);
   }
 
@@ -378,6 +383,7 @@ public class TemporalBalanceService {
       BigDecimal closingBalance,
       BigDecimal totalDebits,
       BigDecimal totalCredits,
+      BigDecimal netMovement,
       List<AccountMovement> movements) {}
 
   public record AccountMovement(

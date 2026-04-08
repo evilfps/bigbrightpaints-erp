@@ -44,10 +44,11 @@ class StatementReportControllerActivityContractTest {
             "Cash",
             LocalDate.of(2026, 2, 9),
             LocalDate.of(2026, 2, 10),
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
-            BigDecimal.ZERO,
+            new BigDecimal("80.00"),
+            new BigDecimal("100.00"),
+            new BigDecimal("10.00"),
+            new BigDecimal("30.00"),
+            new BigDecimal("20.00"),
             List.of());
     when(temporalBalanceService.getAccountActivity(
             1L, LocalDate.of(2026, 2, 9), LocalDate.of(2026, 2, 10)))
@@ -60,9 +61,9 @@ class StatementReportControllerActivityContractTest {
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).isNotNull();
     assertThat(response.getBody().data().accountCode()).isEqualTo("CASH");
-    assertThat(response.getBody().data().totalDebits()).isEqualByComparingTo("0");
-    assertThat(response.getBody().data().totalCredits()).isEqualByComparingTo("0");
-    assertThat(response.getBody().data().netMovement()).isEqualByComparingTo("0");
+    assertThat(response.getBody().data().totalDebits()).isEqualByComparingTo("10.00");
+    assertThat(response.getBody().data().totalCredits()).isEqualByComparingTo("30.00");
+    assertThat(response.getBody().data().netMovement()).isEqualByComparingTo("20.00");
     assertThat(response.getBody().data().transactionCount()).isEqualTo(0);
     verify(temporalBalanceService)
         .getAccountActivity(1L, LocalDate.of(2026, 2, 9), LocalDate.of(2026, 2, 10));
