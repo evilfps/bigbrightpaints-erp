@@ -16,6 +16,9 @@ public interface BankReconciliationItemRepository
   List<BankReconciliationItem> findBySessionOrderByClearedAtAscIdAsc(
       BankReconciliationSession session);
 
+  List<BankReconciliationItem> findBySessionAndJournalLineIdIn(
+      BankReconciliationSession session, Collection<Long> journalLineIds);
+
   @Query(
       """
       select item

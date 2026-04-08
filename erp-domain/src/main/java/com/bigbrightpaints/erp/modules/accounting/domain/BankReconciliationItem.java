@@ -22,10 +22,14 @@ import jakarta.persistence.UniqueConstraint;
 @Entity
 @Table(
     name = "bank_reconciliation_items",
-    uniqueConstraints =
-        @UniqueConstraint(
-            name = "uq_bank_recon_item_session_line",
-            columnNames = {"session_id", "journal_line_id"}))
+    uniqueConstraints = {
+      @UniqueConstraint(
+          name = "uq_bank_recon_item_session_line",
+          columnNames = {"session_id", "journal_line_id"}),
+      @UniqueConstraint(
+          name = "uq_bank_recon_item_session_bank_item",
+          columnNames = {"session_id", "bank_item_id"})
+    })
 public class BankReconciliationItem extends VersionedEntity {
 
   @Id
@@ -43,6 +47,9 @@ public class BankReconciliationItem extends VersionedEntity {
   @ManyToOne(optional = false, fetch = FetchType.LAZY)
   @JoinColumn(name = "journal_line_id")
   private JournalLine journalLine;
+
+  @Column(name = "bank_item_id")
+  private Long bankItemId;
 
   @Column(name = "reference_number", length = 128)
   private String referenceNumber;
@@ -89,6 +96,14 @@ public class BankReconciliationItem extends VersionedEntity {
 
   public void setJournalLine(JournalLine journalLine) {
     this.journalLine = journalLine;
+  }
+
+  public Long getBankItemId() {
+    return bankItemId;
+  }
+
+  public void setBankItemId(Long bankItemId) {
+    this.bankItemId = bankItemId;
   }
 
   public String getReferenceNumber() {

@@ -166,7 +166,7 @@ class BankReconciliationSessionServiceTest {
             "100.00",
             "0.00");
     when(journalLineRepository.findAllById(Set.of(1001L))).thenReturn(List.of(lineToAdd));
-    when(itemRepository.findJournalLineIdsBySession(session)).thenReturn(Set.of());
+    when(itemRepository.findBySessionAndJournalLineIdIn(session, Set.of(1001L))).thenReturn(List.of());
 
     BankReconciliationSession detailed =
         session(20L, bankAccount, BankReconciliationSessionStatus.DRAFT);
@@ -193,8 +193,9 @@ class BankReconciliationSessionServiceTest {
                 List.of(1001L), List.of(1002L), "updated note"));
 
     assertThat(response.sessionId()).isEqualTo(20L);
-    assertThat(response.clearedItems()).hasSize(1);
-    assertThat(response.clearedItems().get(0).journalLineId()).isEqualTo(1001L);
+    assertThat(response.matchedItems()).isEmpty();
+    assertThat(response.unmatchedItems()).hasSize(1);
+    assertThat(response.unmatchedItems().get(0).journalLineId()).isEqualTo(1001L);
 
     verify(itemRepository).save(any(BankReconciliationItem.class));
     verify(itemRepository).deleteBySessionAndJournalLineIdIn(session, Set.of(1002L));
@@ -246,14 +247,14 @@ class BankReconciliationSessionServiceTest {
             company, Set.of(journalEntryId), bankAccount.getId()))
         .thenReturn(List.of(matchedLine));
     when(journalLineRepository.findAllById(Set.of(7601L))).thenReturn(List.of(matchedLine));
-    when(itemRepository.findJournalLineIdsBySession(session)).thenReturn(Set.of());
+    when(itemRepository.findBySessionAndJournalLineIdIn(session, Set.of(7601L))).thenReturn(List.of());
 
     BankReconciliationSession detailed =
         session(26L, bankAccount, BankReconciliationSessionStatus.IN_PROGRESS);
     when(sessionRepository.findDetailedByCompanyAndId(company, 26L))
         .thenReturn(Optional.of(detailed));
     when(itemRepository.findDetailedBySession(detailed))
-        .thenReturn(List.of(item(8601L, detailed, matchedLine, "MATCH-01", "40.00", "admin")));
+        .thenReturn(List.of(item(8601L, detailed, matchedLine, "MATCH-01", "40.00", "admin", 1L)));
     when(reconciliationService.reconcileBankAccount(
             eq(99L),
             eq(detailed.getStatementDate()),
@@ -275,10 +276,16 @@ class BankReconciliationSessionServiceTest {
                     new BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest(
                         1L, journalEntryId, null))));
 
-    assertThat(response.clearedItems()).hasSize(1);
-    assertThat(response.clearedItems().get(0).journalLineId()).isEqualTo(7601L);
+    assertThat(response.matchedItems()).hasSize(1);
+    assertThat(response.matchedItems().get(0).journalLineId()).isEqualTo(7601L);
+    assertThat(response.matchedItems().get(0).bankItemId()).isEqualTo(1L);
+    assertThat(response.unmatchedItems()).isEmpty();
     verify(journalLineRepository)
         .findPostedLinesForAccountByJournalEntryIds(company, Set.of(journalEntryId), bankAccount.getId());
+    ArgumentCaptor<BankReconciliationItem> persistedItemCaptor =
+        ArgumentCaptor.forClass(BankReconciliationItem.class);
+    verify(itemRepository).save(persistedItemCaptor.capture());
+    assertThat(persistedItemCaptor.getValue().getBankItemId()).isEqualTo(1L);
   }
 
   @Test
@@ -372,7 +379,7 @@ class BankReconciliationSessionServiceTest {
   }
 
   @Test
-  void getSessionDetail_returnsClearedAndUnclearedBreakdown() {
+  void getSessionDetail_returnsMatchedAndUnmatchedBreakdown() {
     Account bankAccount = bankAccount(99L, "BANK", "Main Bank");
     AccountingPeriod period = new AccountingPeriod();
     ReflectionTestUtils.setField(period, "id", 5L);
@@ -398,7 +405,7 @@ class BankReconciliationSessionServiceTest {
             "70.00",
             "0.00");
     BankReconciliationItem clearedItem =
-        item(901L, session, clearedLine, "CLR-5001", "70.00", "admin");
+        item(901L, session, clearedLine, "CLR-5001", "70.00", "admin", 44L);
 
     when(sessionRepository.findDetailedByCompanyAndId(company, 88L))
         .thenReturn(Optional.of(session));
@@ -417,8 +424,60 @@ class BankReconciliationSessionServiceTest {
 
     assertThat(response.sessionId()).isEqualTo(88L);
     assertThat(response.accountingPeriodId()).isEqualTo(5L);
-    assertThat(response.clearedItems()).hasSize(1);
+    assertThat(response.matchedItems()).hasSize(1);
+    assertThat(response.matchedItems().get(0).bankItemId()).isEqualTo(44L);
+    assertThat(response.unmatchedItems()).isEmpty();
     assertThat(response.summary().balanced()).isTrue();
+  }
+
+  @Test
+  void getSessionDetail_includesSummaryUnclearedAsUnmatchedItems() {
+    Account bankAccount = bankAccount(99L, "BANK", "Main Bank");
+    BankReconciliationSession session =
+        session(89L, bankAccount, BankReconciliationSessionStatus.IN_PROGRESS);
+
+    when(sessionRepository.findDetailedByCompanyAndId(company, 89L))
+        .thenReturn(Optional.of(session));
+    when(itemRepository.findDetailedBySession(session)).thenReturn(List.of());
+    BankReconciliationSummaryDto summary =
+        new BankReconciliationSummaryDto(
+            99L,
+            "BANK",
+            "Main Bank",
+            LocalDate.of(2026, 3, 31),
+            new BigDecimal("1000.00"),
+            new BigDecimal("1000.00"),
+            new BigDecimal("15.00"),
+            BigDecimal.ZERO,
+            new BigDecimal("15.00"),
+            false,
+            List.of(
+                new BankReconciliationSummaryDto.BankReconciliationItemDto(
+                    6401L,
+                    "UNC-6401",
+                    LocalDate.of(2026, 3, 28),
+                    "Uncleared deposit",
+                    new BigDecimal("15.00"),
+                    BigDecimal.ZERO,
+                    new BigDecimal("15.00"))),
+            List.of());
+    when(reconciliationService.reconcileBankAccount(
+            eq(99L),
+            eq(session.getStatementDate()),
+            eq(session.getStatementEndingBalance()),
+            eq(LocalDate.of(2026, 3, 1)),
+            eq(LocalDate.of(2026, 3, 31)),
+            eq(Collections.emptySet()),
+            eq(Collections.emptySet())))
+        .thenReturn(summary);
+
+    BankReconciliationSessionDetailDto response = service.getSessionDetail(89L);
+
+    assertThat(response.matchedItems()).isEmpty();
+    assertThat(response.unmatchedItems()).hasSize(1);
+    assertThat(response.unmatchedItems().get(0).referenceNumber()).isEqualTo("UNC-6401");
+    assertThat(response.unmatchedItems().get(0).bankItemId()).isNull();
+    assertThat(response.unmatchedItems().get(0).journalEntryId()).isEqualTo(6401L);
   }
 
   @Test
@@ -449,7 +508,8 @@ class BankReconciliationSessionServiceTest {
         .thenReturn(List.of(refLine));
     when(journalLineRepository.findAllById(Set.of(42L))).thenReturn(List.of(refLine));
 
-    when(itemRepository.findJournalLineIdsBySession(saved)).thenReturn(Set.of(), Set.of(42L));
+    when(itemRepository.findJournalLineIdsBySession(saved)).thenReturn(Set.of(42L));
+    when(itemRepository.findBySessionAndJournalLineIdIn(saved, Set.of(42L))).thenReturn(List.of());
     when(itemRepository.findDetailedBySession(saved))
         .thenReturn(List.of(item(500L, saved, refLine, "CLR-LEG", "25.00", "admin")));
     when(reconciliationService.reconcileBankAccount(
@@ -562,11 +622,23 @@ class BankReconciliationSessionServiceTest {
       String reference,
       String amount,
       String clearedBy) {
+    return item(id, session, line, reference, amount, clearedBy, null);
+  }
+
+  private BankReconciliationItem item(
+      Long id,
+      BankReconciliationSession session,
+      JournalLine line,
+      String reference,
+      String amount,
+      String clearedBy,
+      Long bankItemId) {
     BankReconciliationItem item = new BankReconciliationItem();
     ReflectionTestUtils.setField(item, "id", id);
     item.setCompany(company);
     item.setSession(session);
     item.setJournalLine(line);
+    item.setBankItemId(bankItemId);
     item.setReferenceNumber(reference);
     item.setAmount(new BigDecimal(amount));
     item.setClearedBy(clearedBy);

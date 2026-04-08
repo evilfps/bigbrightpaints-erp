@@ -2,9 +2,11 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -121,8 +123,10 @@ public class BankReconciliationSessionService {
     BankReconciliationSession session = requireSession(company, sessionId);
     assertSessionInProgress(session);
 
+    Map<Long, Long> matchedLineBankItemIds =
+        resolveMatchedLineBankItemIds(company, session, request.matches());
     Set<Long> addIds = new LinkedHashSet<>(normalizeIds(request.addJournalLineIds()));
-    addIds.addAll(resolveMatchedJournalLineIds(company, session, request.matches()));
+    addIds.addAll(matchedLineBankItemIds.keySet());
     Set<Long> removeIds = normalizeIds(request.removeJournalLineIds());
     if (!addIds.isEmpty()) {
       List<JournalLine> lines = journalLineRepository.findAllById(addIds);
@@ -130,17 +134,27 @@ public class BankReconciliationSessionService {
         throw new ApplicationException(
             ErrorCode.VALIDATION_INVALID_REFERENCE, "One or more journal lines were not found");
       }
-      Set<Long> existingLineIds = itemRepository.findJournalLineIdsBySession(session);
+      Map<Long, BankReconciliationItem> existingItemsByLineId =
+          itemRepository.findBySessionAndJournalLineIdIn(session, addIds).stream()
+              .collect(Collectors.toMap(item -> item.getJournalLine().getId(), item -> item));
       String actor = resolveCurrentActor();
       for (JournalLine line : lines) {
         validateJournalLineForSession(company, session, line);
-        if (existingLineIds.contains(line.getId())) {
+        BankReconciliationItem existingItem = existingItemsByLineId.get(line.getId());
+        if (existingItem != null) {
+          if (matchedLineBankItemIds.containsKey(line.getId())
+              && !Objects.equals(
+                  existingItem.getBankItemId(), matchedLineBankItemIds.get(line.getId()))) {
+            existingItem.setBankItemId(matchedLineBankItemIds.get(line.getId()));
+            itemRepository.save(existingItem);
+          }
           continue;
         }
         BankReconciliationItem item = new BankReconciliationItem();
         item.setCompany(company);
         item.setSession(session);
         item.setJournalLine(line);
+        item.setBankItemId(matchedLineBankItemIds.get(line.getId()));
         item.setReferenceNumber(resolveReference(line));
         item.setAmount(resolveNetAmount(line));
         item.setClearedBy(actor);
@@ -251,8 +265,18 @@ public class BankReconciliationSessionService {
     Set<Long> clearedLineIds =
         items.stream().map(item -> item.getJournalLine().getId()).collect(Collectors.toSet());
     BankReconciliationSummaryDto summary = buildSummary(session, clearedLineIds, null, null);
-    List<BankReconciliationSessionDetailDto.ClearedItemDto> clearedItems =
-        items.stream().map(this::toClearedItem).toList();
+    List<BankReconciliationSessionDetailDto.StatementItemDto> matchedItems =
+        items.stream()
+            .filter(item -> item.getBankItemId() != null)
+            .map(this::toStatementItem)
+            .toList();
+    List<BankReconciliationSessionDetailDto.StatementItemDto> unmatchedItems = new ArrayList<>();
+    unmatchedItems.addAll(
+        items.stream().filter(item -> item.getBankItemId() == null).map(this::toStatementItem).toList());
+    unmatchedItems.addAll(
+        summary.unclearedDeposits().stream().map(this::toSummaryUnmatchedItem).toList());
+    unmatchedItems.addAll(
+        summary.unclearedChecks().stream().map(this::toSummaryUnmatchedItem).toList());
 
     return new BankReconciliationSessionDetailDto(
         session.getId(),
@@ -269,9 +293,8 @@ public class BankReconciliationSessionService {
         session.getCreatedAt(),
         session.getCompletedBy(),
         session.getCompletedAt(),
-        clearedItems,
-        summary.unclearedDeposits(),
-        summary.unclearedChecks(),
+        matchedItems,
+        unmatchedItems,
         summary);
   }
 
@@ -441,42 +464,86 @@ public class BankReconciliationSessionService {
     }
   }
 
-  private Set<Long> resolveMatchedJournalLineIds(
+  private Map<Long, Long> resolveMatchedLineBankItemIds(
       Company company,
       BankReconciliationSession session,
       List<BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest> matches) {
     if (matches == null || matches.isEmpty()) {
-      return Collections.emptySet();
+      return Collections.emptyMap();
     }
 
-    Set<Long> matchedLineIds =
-        normalizeIds(
-            matches.stream()
-                .map(BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest::journalLineId)
-                .toList());
+    Map<Long, Long> resolvedLineBankItemIds = new LinkedHashMap<>();
+    Map<Long, Long> bankItemByJournalEntryId = new LinkedHashMap<>();
+    for (BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest match : matches) {
+      if (match == null) {
+        continue;
+      }
+      Long bankItemId = normalizeMatchId(match.bankItemId(), "bankItemId");
+      Long journalLineId = normalizeMatchId(match.journalLineId(), "journalLineId");
+      Long journalEntryId = normalizeMatchId(match.journalEntryId(), "journalEntryId");
+      if (journalLineId != null) {
+        putResolvedMatch(resolvedLineBankItemIds, journalLineId, bankItemId);
+        continue;
+      }
+      if (journalEntryId == null) {
+        throw new ApplicationException(
+            ErrorCode.VALIDATION_INVALID_INPUT,
+            "Each bank statement match must include journalLineId or journalEntryId");
+      }
+      Long existing = bankItemByJournalEntryId.putIfAbsent(journalEntryId, bankItemId);
+      if (existing != null && !Objects.equals(existing, bankItemId)) {
+        throw new ApplicationException(
+            ErrorCode.VALIDATION_INVALID_INPUT,
+            "A journal entry cannot be matched to multiple bankItemId values");
+      }
+    }
 
-    Set<Long> journalEntryIds =
-        normalizeIds(
-            matches.stream()
-                .map(BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest::journalEntryId)
-                .toList());
+    Set<Long> journalEntryIds = bankItemByJournalEntryId.keySet();
     if (journalEntryIds.isEmpty()) {
-      return matchedLineIds;
+      return resolvedLineBankItemIds;
     }
-
     List<JournalLine> matchedLines =
         journalLineRepository.findPostedLinesForAccountByJournalEntryIds(
             company, journalEntryIds, session.getBankAccount().getId());
-    Set<Long> foundJournalEntryIds =
-        matchedLines.stream().map(line -> line.getJournalEntry().getId()).collect(Collectors.toSet());
-    if (!foundJournalEntryIds.containsAll(journalEntryIds)) {
+    Map<Long, List<JournalLine>> linesByJournalEntryId =
+        matchedLines.stream().collect(Collectors.groupingBy(line -> line.getJournalEntry().getId()));
+    if (!linesByJournalEntryId.keySet().containsAll(journalEntryIds)) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_REFERENCE,
           "One or more matched journal entries were not found for the session bank account");
     }
+    for (Map.Entry<Long, Long> entryMatch : bankItemByJournalEntryId.entrySet()) {
+      List<JournalLine> lines = linesByJournalEntryId.getOrDefault(entryMatch.getKey(), List.of());
+      if (entryMatch.getValue() != null && lines.size() > 1) {
+        throw new ApplicationException(
+            ErrorCode.VALIDATION_INVALID_INPUT,
+            "journalEntryId resolves multiple bank-account lines; use journalLineId when bankItemId is provided");
+      }
+      for (JournalLine line : lines) {
+        putResolvedMatch(resolvedLineBankItemIds, line.getId(), entryMatch.getValue());
+      }
+    }
+    return resolvedLineBankItemIds;
+  }
 
-    matchedLineIds.addAll(matchedLines.stream().map(JournalLine::getId).toList());
-    return matchedLineIds;
+  private void putResolvedMatch(Map<Long, Long> resolvedLineBankItemIds, Long journalLineId, Long bankItemId) {
+    Long existing = resolvedLineBankItemIds.putIfAbsent(journalLineId, bankItemId);
+    if (existing != null && !Objects.equals(existing, bankItemId)) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_INPUT,
+          "A journal line cannot be matched to multiple bankItemId values");
+    }
+  }
+
+  private Long normalizeMatchId(Long id, String fieldName) {
+    if (id == null) {
+      return null;
+    }
+    if (id <= 0L) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_INPUT, fieldName + " must be positive");
+    }
+    return id;
   }
 
   private String resolveReference(JournalLine line) {
@@ -575,13 +642,14 @@ public class BankReconciliationSessionService {
     return normalized;
   }
 
-  private BankReconciliationSessionDetailDto.ClearedItemDto toClearedItem(
+  private BankReconciliationSessionDetailDto.StatementItemDto toStatementItem(
       BankReconciliationItem item) {
     JournalLine line = item.getJournalLine();
     BigDecimal debit = line.getDebit() == null ? BigDecimal.ZERO : line.getDebit();
     BigDecimal credit = line.getCredit() == null ? BigDecimal.ZERO : line.getCredit();
-    return new BankReconciliationSessionDetailDto.ClearedItemDto(
+    return new BankReconciliationSessionDetailDto.StatementItemDto(
         item.getId(),
+        item.getBankItemId(),
         line.getId(),
         line.getJournalEntry() != null ? line.getJournalEntry().getId() : null,
         item.getReferenceNumber(),
@@ -592,5 +660,22 @@ public class BankReconciliationSessionService {
         debit.subtract(credit),
         item.getClearedAt(),
         item.getClearedBy());
+  }
+
+  private BankReconciliationSessionDetailDto.StatementItemDto toSummaryUnmatchedItem(
+      BankReconciliationSummaryDto.BankReconciliationItemDto item) {
+    return new BankReconciliationSessionDetailDto.StatementItemDto(
+        null,
+        null,
+        null,
+        item.journalEntryId(),
+        item.referenceNumber(),
+        item.entryDate(),
+        item.memo(),
+        item.debit(),
+        item.credit(),
+        item.netAmount(),
+        null,
+        null);
   }
 }

@@ -22,13 +22,13 @@ public record BankReconciliationSessionDetailDto(
     @JsonFormat(shape = JsonFormat.Shape.STRING) Instant createdAt,
     String completedBy,
     @JsonFormat(shape = JsonFormat.Shape.STRING) Instant completedAt,
-    List<ClearedItemDto> clearedItems,
-    List<BankReconciliationSummaryDto.BankReconciliationItemDto> unclearedDeposits,
-    List<BankReconciliationSummaryDto.BankReconciliationItemDto> unclearedChecks,
+    List<StatementItemDto> matchedItems,
+    List<StatementItemDto> unmatchedItems,
     BankReconciliationSummaryDto summary) {
 
-  public record ClearedItemDto(
+  public record StatementItemDto(
       Long itemId,
+      Long bankItemId,
       Long journalLineId,
       Long journalEntryId,
       String referenceNumber,
@@ -37,6 +37,6 @@ public record BankReconciliationSessionDetailDto(
       BigDecimal debit,
       BigDecimal credit,
       BigDecimal netAmount,
-      @JsonFormat(shape = JsonFormat.Shape.STRING) Instant clearedAt,
-      String clearedBy) {}
+      @JsonFormat(shape = JsonFormat.Shape.STRING) Instant matchedAt,
+      String matchedBy) {}
 }
