@@ -370,7 +370,8 @@ public class RawMaterialService {
       receiptMovement.setJournalEntryId(journalEntryId);
       movementRepository.save(receiptMovement);
     }
-    logGoodsReceiptAuditEvent(material, supplier, receiptMovement, effectiveContext, journalEntryId);
+    logGoodsReceiptAuditEvent(
+        material, supplier, receiptMovement, effectiveContext, journalEntryId);
     return new ReceiptResult(savedBatch, receiptMovement, journalEntryId);
   }
 
@@ -1108,7 +1109,9 @@ public class RawMaterialService {
 
   private void logInventoryAdjustmentAuditEvent(
       RawMaterialAdjustment adjustment, boolean increaseInventory) {
-    if (adjustment == null || adjustment.getCompany() == null || adjustment.getCompany().getId() == null) {
+    if (adjustment == null
+        || adjustment.getCompany() == null
+        || adjustment.getCompany().getId() == null) {
       return;
     }
     Map<String, String> metadata = new HashMap<>();

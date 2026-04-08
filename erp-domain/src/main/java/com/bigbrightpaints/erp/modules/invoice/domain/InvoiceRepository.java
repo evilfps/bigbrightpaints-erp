@@ -35,13 +35,13 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
   @Query(
       """
-      select distinct i.salesOrder.id
-      from Invoice i
-      where i.company = :company
-        and i.salesOrder is not null
-        and i.salesOrder.dealer = :dealer
-        and (i.status is null or upper(trim(i.status)) not in ('DRAFT', 'VOID', 'REVERSED', 'WRITTEN_OFF'))
-      """)
+select distinct i.salesOrder.id
+from Invoice i
+where i.company = :company
+  and i.salesOrder is not null
+  and i.salesOrder.dealer = :dealer
+  and (i.status is null or upper(trim(i.status)) not in ('DRAFT', 'VOID', 'REVERSED', 'WRITTEN_OFF'))
+""")
   Set<Long> findActiveSalesOrderIdsByCompanyAndDealer(
       @Param("company") Company company, @Param("dealer") Dealer dealer);
 
@@ -135,10 +135,10 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
   @Query(
       """
-      select coalesce(sum(i.outstandingAmount), 0)
-      from Invoice i
-      where i.company = :company
-        and (i.status is null or upper(trim(i.status)) not in ('DRAFT', 'VOID', 'REVERSED', 'WRITTEN_OFF'))
-      """)
+select coalesce(sum(i.outstandingAmount), 0)
+from Invoice i
+where i.company = :company
+  and (i.status is null or upper(trim(i.status)) not in ('DRAFT', 'VOID', 'REVERSED', 'WRITTEN_OFF'))
+""")
   BigDecimal sumOutstandingReceivablesByCompany(@Param("company") Company company);
 }

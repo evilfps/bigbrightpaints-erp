@@ -31,8 +31,8 @@ import com.bigbrightpaints.erp.modules.accounting.service.AgingReportService;
 import com.bigbrightpaints.erp.modules.admin.service.ExportApprovalService;
 import com.bigbrightpaints.erp.modules.reports.dto.AccountStatementLineDto;
 import com.bigbrightpaints.erp.modules.reports.dto.AccountStatementReportDto;
-import com.bigbrightpaints.erp.modules.reports.dto.BankReconciliationDashboardDto;
 import com.bigbrightpaints.erp.modules.reports.dto.BalanceSheetDto;
+import com.bigbrightpaints.erp.modules.reports.dto.BankReconciliationDashboardDto;
 import com.bigbrightpaints.erp.modules.reports.dto.GstReturnReportDto;
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryReconciliationDashboardDto;
 import com.bigbrightpaints.erp.modules.reports.dto.InventoryReconciliationItemDto;
@@ -148,8 +148,7 @@ class ReportControllerContractTest {
     ReportService reportService = mock(ReportService.class);
     ExportApprovalService exportApprovalService = mock(ExportApprovalService.class);
     ReportController controller = controller(reportService, exportApprovalService);
-    when(reportService.accountStatement(
-            55L, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28)))
+    when(reportService.accountStatement(55L, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28)))
         .thenReturn(
             new AccountStatementReportDto(
                 55L,
@@ -271,17 +270,11 @@ class ReportControllerContractTest {
                     new BigDecimal("10.00"),
                     false),
                 new SubledgerReconciliationDashboardDto.SubledgerControlSummary(
-                    new BigDecimal("300.00"),
-                    new BigDecimal("300.00"),
-                    BigDecimal.ZERO,
-                    true),
+                    new BigDecimal("300.00"), new BigDecimal("300.00"), BigDecimal.ZERO, true),
                 new BigDecimal("10.00"),
                 false),
             new InventoryReconciliationDashboardDto(
-                new BigDecimal("200.00"),
-                new BigDecimal("198.00"),
-                new BigDecimal("-2.00"),
-                false),
+                new BigDecimal("200.00"), new BigDecimal("198.00"), new BigDecimal("-2.00"), false),
             List.of());
     when(reportService.reconciliationDashboard(null, null)).thenReturn(expected);
 

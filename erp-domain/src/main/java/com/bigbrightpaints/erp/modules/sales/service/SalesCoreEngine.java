@@ -574,7 +574,9 @@ public class SalesCoreEngine {
   public SalesDashboardDto getDashboard() {
     Company company = companyContextService.requireCurrentCompany();
     Instant recentWindowStart =
-        companyClock.now(company).minusSeconds(24L * 60L * 60L * DASHBOARD_RECENT_ORDER_WINDOW_DAYS);
+        companyClock
+            .now(company)
+            .minusSeconds(24L * 60L * 60L * DASHBOARD_RECENT_ORDER_WINDOW_DAYS);
     long recentOrdersCount =
         salesOrderRepository.countByCompanyAndCreatedAtGreaterThanEqual(company, recentWindowStart);
     BigDecimal totalRevenue = invoiceRepository.sumTotalRevenueByCompany(company);
@@ -1059,7 +1061,8 @@ public class SalesCoreEngine {
     if (isDraftLifecycleOrder(order)
         && !ORDER_STATUS_DRAFT.equals(canonicalOrderStatus(order.getStatus()))) {
       throw new ApplicationException(
-              ErrorCode.BUSINESS_INVALID_STATE, "Draft-lifecycle orders can only be updated in DRAFT")
+              ErrorCode.BUSINESS_INVALID_STATE,
+              "Draft-lifecycle orders can only be updated in DRAFT")
           .withDetail("currentStatus", canonicalOrderStatus(order.getStatus()))
           .withDetail("requiredStatus", ORDER_STATUS_DRAFT);
     }
@@ -1166,7 +1169,8 @@ public class SalesCoreEngine {
     String currentStatus = canonicalOrderStatus(order.getStatus());
     if (isDraftLifecycleOrder(order) && !ORDER_STATUS_DRAFT.equals(currentStatus)) {
       throw new ApplicationException(
-              ErrorCode.BUSINESS_INVALID_STATE, "Draft-lifecycle orders can only be deleted in DRAFT")
+              ErrorCode.BUSINESS_INVALID_STATE,
+              "Draft-lifecycle orders can only be deleted in DRAFT")
           .withDetail("currentStatus", currentStatus)
           .withDetail("requiredStatus", ORDER_STATUS_DRAFT);
     }
@@ -3881,7 +3885,12 @@ public class SalesCoreEngine {
     }
     String actor = currentActorIdentity();
     recordOrderStatusHistory(
-        order, null, canonicalOrderStatus(order.getStatus()), "ORDER_CREATED", "Order created", actor);
+        order,
+        null,
+        canonicalOrderStatus(order.getStatus()),
+        "ORDER_CREATED",
+        "Order created",
+        actor);
   }
 
   private void transitionOrderStatus(
@@ -3941,7 +3950,9 @@ public class SalesCoreEngine {
       return;
     }
     String action =
-        StringUtils.hasText(history.getReasonCode()) ? history.getReasonCode() : "ORDER_STATUS_CHANGED";
+        StringUtils.hasText(history.getReasonCode())
+            ? history.getReasonCode()
+            : "ORDER_STATUS_CHANGED";
     Map<String, String> metadata = new LinkedHashMap<>();
     if (StringUtils.hasText(history.getFromStatus())) {
       metadata.put("fromStatus", history.getFromStatus());

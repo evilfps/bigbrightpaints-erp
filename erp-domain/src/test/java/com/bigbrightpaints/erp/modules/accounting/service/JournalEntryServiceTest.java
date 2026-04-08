@@ -59,7 +59,8 @@ class JournalEntryServiceTest {
   @Test
   void listJournalEntries_withSourceFilter_delegatesToJournalQueryService() {
     List<JournalEntryDto> expected = List.of(journalEntryDto(2002L, "PACK-2002"));
-    when(journalQueryService.listJournalEntries(null, null, 0, 100, "PACKING")).thenReturn(expected);
+    when(journalQueryService.listJournalEntries(null, null, 0, 100, "PACKING"))
+        .thenReturn(expected);
 
     assertThat(journalEntryService.listJournalEntries(null, null, 0, 100, "PACKING"))
         .isSameAs(expected);

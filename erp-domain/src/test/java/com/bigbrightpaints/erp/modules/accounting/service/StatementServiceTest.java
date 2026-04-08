@@ -23,7 +23,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
@@ -45,6 +44,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.purchasing.domain.SupplierRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 @ExtendWith(MockitoExtension.class)
 @Tag("critical")

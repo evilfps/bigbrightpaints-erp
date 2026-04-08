@@ -166,7 +166,8 @@ public class PurchaseReturnService {
   }
 
   @Transactional
-  public JournalEntryDto recordPurchaseReturn(PurchaseReturnRequest request, String idempotencyKey) {
+  public JournalEntryDto recordPurchaseReturn(
+      PurchaseReturnRequest request, String idempotencyKey) {
     Company company = companyContextService.requireCurrentCompany();
     Supplier supplier = purchasingLookupService.requireSupplier(company, request.supplierId());
     RawMaterialPurchase purchase =
@@ -671,7 +672,8 @@ public class PurchaseReturnService {
       String idempotencyKeyHeader) {
     String explicitReference =
         StringUtils.hasText(request.referenceNumber()) ? request.referenceNumber().trim() : null;
-    String canonicalIdempotencyKey = idempotencyReservationService.normalizeKey(idempotencyKeyHeader);
+    String canonicalIdempotencyKey =
+        idempotencyReservationService.normalizeKey(idempotencyKeyHeader);
     if (!StringUtils.hasText(canonicalIdempotencyKey)) {
       return StringUtils.hasText(explicitReference)
           ? explicitReference
@@ -679,7 +681,8 @@ public class PurchaseReturnService {
     }
     String requiredIdempotencyKey =
         idempotencyReservationService.requireKey(canonicalIdempotencyKey, "purchase returns");
-    if (StringUtils.hasText(explicitReference) && !requiredIdempotencyKey.equals(explicitReference)) {
+    if (StringUtils.hasText(explicitReference)
+        && !requiredIdempotencyKey.equals(explicitReference)) {
       throw new ApplicationException(
               ErrorCode.VALIDATION_INVALID_INPUT,
               "referenceNumber must match Idempotency-Key for purchase returns")

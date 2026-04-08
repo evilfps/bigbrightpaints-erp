@@ -22,6 +22,16 @@ public record PurchaseOrderStatusHistoryResponse(
       String reason,
       String changedBy,
       Instant changedAt) {
-    this(id, fromStatus, toStatus, reasonCode, reason, changedBy, changedAt, toStatus, changedAt, changedBy);
+    this(
+        id,
+        fromStatus,
+        toStatus,
+        reasonCode,
+        reason,
+        changedBy,
+        changedAt,
+        toStatus,
+        changedAt,
+        changedBy);
   }
 }

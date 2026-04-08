@@ -359,7 +359,8 @@ class CreditDebitNoteIT extends AbstractIntegrationTest {
     List<Map<String, Object>> rows = (List<Map<String, Object>>) listResp.getBody().get("data");
     assertThat(rows)
         .isNotEmpty()
-        .anySatisfy(row -> assertThat(((Number) row.get("id")).longValue()).isEqualTo(postedJournalId));
+        .anySatisfy(
+            row -> assertThat(((Number) row.get("id")).longValue()).isEqualTo(postedJournalId));
   }
 
   private Invoice createDispatchedInvoice(BigDecimal quantity, BigDecimal unitPrice) {

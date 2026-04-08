@@ -143,7 +143,8 @@ class SalesCoreEngineCoverageTest {
             companyClock,
             transactionManager,
             null);
-    ReflectionTestUtils.setField(engine, "enterpriseAuditTrailService", enterpriseAuditTrailService);
+    ReflectionTestUtils.setField(
+        engine, "enterpriseAuditTrailService", enterpriseAuditTrailService);
   }
 
   @Test

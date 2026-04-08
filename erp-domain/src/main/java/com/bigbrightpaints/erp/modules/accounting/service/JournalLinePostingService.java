@@ -169,8 +169,7 @@ class JournalLinePostingService {
         return WARN;
       }
       try {
-        return NormalBalanceConflictMode.valueOf(
-            configuredMode.trim().toUpperCase(Locale.ROOT));
+        return NormalBalanceConflictMode.valueOf(configuredMode.trim().toUpperCase(Locale.ROOT));
       } catch (IllegalArgumentException ex) {
         return WARN;
       }

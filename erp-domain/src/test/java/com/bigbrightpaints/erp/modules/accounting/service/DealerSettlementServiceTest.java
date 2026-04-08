@@ -47,8 +47,7 @@ class DealerSettlementServiceTest {
                         .filter(
                             type ->
                                 type.getPackageName()
-                                    .equals(
-                                        "com.bigbrightpaints.erp.modules.accounting.service"))
+                                    .equals("com.bigbrightpaints.erp.modules.accounting.service"))
                         .map(Class::getSimpleName))
             .filter(name -> name.contains("Settlement"))
             .filter(name -> !settlementWriteOwners.containsValue(name))

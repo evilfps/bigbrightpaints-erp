@@ -116,7 +116,8 @@ class InventoryPathConsolidationIT extends AbstractIntegrationTest {
     assertThat(summaryResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     List<Map<String, Object>> summaryRows = responseDataList(summaryResponse);
     assertThat(summaryRows).isNotEmpty();
-    assertThat(summaryRows.getFirst()).containsKeys("finishedGoodId", "totalStock", "reservedStock");
+    assertThat(summaryRows.getFirst())
+        .containsKeys("finishedGoodId", "totalStock", "reservedStock");
 
     ResponseEntity<Map> batchesResponse =
         rest.exchange(
@@ -207,19 +208,29 @@ class InventoryPathConsolidationIT extends AbstractIntegrationTest {
     String idempotencyKey = "INVPATH-ADJ-" + UUID.randomUUID();
     Map<String, Object> createRequest =
         Map.of(
-            "adjustmentDate", LocalDate.now().toString(),
-            "type", "DAMAGED",
-            "adjustmentAccountId", company.getDefaultCogsAccountId(),
-            "reason", "InventoryPathConsolidationIT read cycle",
-            "adminOverride", false,
-            "idempotencyKey", idempotencyKey,
+            "adjustmentDate",
+            LocalDate.now().toString(),
+            "type",
+            "DAMAGED",
+            "adjustmentAccountId",
+            company.getDefaultCogsAccountId(),
+            "reason",
+            "InventoryPathConsolidationIT read cycle",
+            "adminOverride",
+            false,
+            "idempotencyKey",
+            idempotencyKey,
             "lines",
-                List.of(
-                    Map.of(
-                        "finishedGoodId", fixtureFinishedGood.getId(),
-                        "quantity", new BigDecimal("1.00"),
-                        "unitCost", new BigDecimal("12.50"),
-                        "note", "Regression proof row")));
+            List.of(
+                Map.of(
+                    "finishedGoodId",
+                    fixtureFinishedGood.getId(),
+                    "quantity",
+                    new BigDecimal("1.00"),
+                    "unitCost",
+                    new BigDecimal("12.50"),
+                    "note",
+                    "Regression proof row")));
     HttpHeaders createHeaders = jsonHeaders();
     createHeaders.set("Idempotency-Key", idempotencyKey);
     ResponseEntity<Map> createResponse =
@@ -272,9 +283,7 @@ class InventoryPathConsolidationIT extends AbstractIntegrationTest {
                   return rawMaterialRepository.save(created);
                 });
 
-    rawMaterialBatchRepository
-        .findByRawMaterial(material)
-        .stream()
+    rawMaterialBatchRepository.findByRawMaterial(material).stream()
         .filter(batch -> "RM-INVPATH-BATCH".equals(batch.getBatchCode()))
         .findFirst()
         .orElseGet(

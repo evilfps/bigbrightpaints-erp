@@ -62,10 +62,11 @@ public class RawMaterialPurchaseController {
             legacyIdempotencyKeyHeader,
             "purchase invoices",
             CANONICAL_PURCHASE_INVOICE_PATH);
-    return ResponseEntity.status(HttpStatus.CREATED).body(
-        ApiResponse.success(
-            "Raw material purchase recorded",
-            purchasingService.createPurchase(request, idempotencyKey)));
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(
+            ApiResponse.success(
+                "Raw material purchase recorded",
+                purchasingService.createPurchase(request, idempotencyKey)));
   }
 
   @PostMapping("/returns")
@@ -81,10 +82,11 @@ public class RawMaterialPurchaseController {
             legacyIdempotencyKeyHeader,
             "purchase returns",
             CANONICAL_PURCHASE_RETURN_PATH);
-    return ResponseEntity.status(HttpStatus.CREATED).body(
-        ApiResponse.success(
-            "Purchase return recorded",
-            purchasingService.recordPurchaseReturn(request, idempotencyKey)));
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(
+            ApiResponse.success(
+                "Purchase return recorded",
+                purchasingService.recordPurchaseReturn(request, idempotencyKey)));
   }
 
   @PostMapping("/returns/preview")

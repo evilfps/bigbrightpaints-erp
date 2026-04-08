@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -62,8 +62,8 @@ public class DealerController {
   })
   public ResponseEntity<ApiResponse<DealerResponse>> createDealer(
       @Valid @RequestBody CreateDealerRequest request) {
-    return ResponseEntity.status(HttpStatus.CREATED).body(
-        ApiResponse.success("Dealer created", dealerService.createDealer(request)));
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(ApiResponse.success("Dealer created", dealerService.createDealer(request)));
   }
 
   @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -108,7 +108,8 @@ public class DealerController {
   @Operation(
       summary = "Place dealer on dunning hold",
       description =
-          "Explicitly places the dealer into ON_HOLD status and reports whether the hold was newly applied.")
+          "Explicitly places the dealer into ON_HOLD status and reports whether the hold was newly"
+              + " applied.")
   @ApiResponses({
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
         responseCode = "200",

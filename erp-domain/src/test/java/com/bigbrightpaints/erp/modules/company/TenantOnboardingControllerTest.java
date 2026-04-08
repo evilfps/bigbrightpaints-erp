@@ -127,7 +127,8 @@ class TenantOnboardingControllerTest extends AbstractIntegrationTest {
 
       List<Account> roots = accountRepository.findByCompanyAndParentIsNullOrderByCodeAsc(company);
       assertThat(roots).hasSizeGreaterThanOrEqualTo(6);
-      assertThat(roots).extracting(Account::getType)
+      assertThat(roots)
+          .extracting(Account::getType)
           .containsExactlyInAnyOrder(
               com.bigbrightpaints.erp.modules.accounting.domain.AccountType.ASSET,
               com.bigbrightpaints.erp.modules.accounting.domain.AccountType.LIABILITY,

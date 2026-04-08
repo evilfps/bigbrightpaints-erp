@@ -6,8 +6,6 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.bigbrightpaints.erp.core.exception.ApplicationException;
-import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.PartnerSettlementRequest;
@@ -65,17 +63,26 @@ class SettlementJournalLineDraftService {
     if (discountAccount != null) {
       lines.add(
           new JournalEntryRequest.JournalLineRequest(
-              discountAccount.getId(), "Settlement discount", totals.totalDiscount(), BigDecimal.ZERO));
+              discountAccount.getId(),
+              "Settlement discount",
+              totals.totalDiscount(),
+              BigDecimal.ZERO));
     }
     if (writeOffAccount != null) {
       lines.add(
           new JournalEntryRequest.JournalLineRequest(
-              writeOffAccount.getId(), "Settlement write-off", totals.totalWriteOff(), BigDecimal.ZERO));
+              writeOffAccount.getId(),
+              "Settlement write-off",
+              totals.totalWriteOff(),
+              BigDecimal.ZERO));
     }
     if (fxLossAccount != null) {
       lines.add(
           new JournalEntryRequest.JournalLineRequest(
-              fxLossAccount.getId(), "FX loss on settlement", totals.totalFxLoss(), BigDecimal.ZERO));
+              fxLossAccount.getId(),
+              "FX loss on settlement",
+              totals.totalFxLoss(),
+              BigDecimal.ZERO));
     }
     lines.add(
         new JournalEntryRequest.JournalLineRequest(
@@ -83,7 +90,10 @@ class SettlementJournalLineDraftService {
     if (fxGainAccount != null) {
       lines.add(
           new JournalEntryRequest.JournalLineRequest(
-              fxGainAccount.getId(), "FX gain on settlement", BigDecimal.ZERO, totals.totalFxGain()));
+              fxGainAccount.getId(),
+              "FX gain on settlement",
+              BigDecimal.ZERO,
+              totals.totalFxGain()));
     }
     return new SettlementLineDraft(lines, cashAmount);
   }
@@ -125,7 +135,10 @@ class SettlementJournalLineDraftService {
     if (fxLossAccount != null) {
       lines.add(
           new JournalEntryRequest.JournalLineRequest(
-              fxLossAccount.getId(), "FX loss on settlement", totals.totalFxLoss(), BigDecimal.ZERO));
+              fxLossAccount.getId(),
+              "FX loss on settlement",
+              totals.totalFxLoss(),
+              BigDecimal.ZERO));
     }
     if (cashAmount.compareTo(BigDecimal.ZERO) > 0) {
       Account cashAccount =
@@ -146,12 +159,18 @@ class SettlementJournalLineDraftService {
     if (writeOffAccount != null) {
       lines.add(
           new JournalEntryRequest.JournalLineRequest(
-              writeOffAccount.getId(), "Settlement write-off", BigDecimal.ZERO, totals.totalWriteOff()));
+              writeOffAccount.getId(),
+              "Settlement write-off",
+              BigDecimal.ZERO,
+              totals.totalWriteOff()));
     }
     if (fxGainAccount != null) {
       lines.add(
           new JournalEntryRequest.JournalLineRequest(
-              fxGainAccount.getId(), "FX gain on settlement", BigDecimal.ZERO, totals.totalFxGain()));
+              fxGainAccount.getId(),
+              "FX gain on settlement",
+              BigDecimal.ZERO,
+              totals.totalFxGain()));
     }
     return new SettlementLineDraft(lines, cashAmount);
   }

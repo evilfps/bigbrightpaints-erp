@@ -90,7 +90,8 @@ class ReportControllerCostingEndpointsIT extends AbstractIntegrationTest {
         castListOfMap(fetchDataObject("/api/v1/accounting/journal-entries?source=PACKING"));
     assertThat(packingJournals).isNotEmpty();
     List<Map<String, Object>> lines = castListOfMap(packingJournals.getFirst().get("lines"));
-    assertThat(lines).anySatisfy(line -> assertThat(line.get("accountCode")).isEqualTo(packagingInventoryCode));
+    assertThat(lines)
+        .anySatisfy(line -> assertThat(line.get("accountCode")).isEqualTo(packagingInventoryCode));
 
     Map<String, Object> costAllocation = fetchDataMap("/api/v1/reports/cost-allocation");
     assertThat(costAllocation).containsKeys("allocationRules", "amountsPerBatch", "totalAllocated");
@@ -98,14 +99,16 @@ class ReportControllerCostingEndpointsIT extends AbstractIntegrationTest {
 
     Map<String, Object> costBreakdown =
         fetchDataMap("/api/v1/reports/production-logs/" + productionLogId + "/cost-breakdown");
-    assertThat(costBreakdown).containsKeys("materialCost", "labourCost", "overheadCost", "totalCost");
+    assertThat(costBreakdown)
+        .containsKeys("materialCost", "labourCost", "overheadCost", "totalCost");
 
     List<Map<String, Object>> monthlyEntries =
         castListOfMap(fetchDataObject("/api/v1/reports/monthly-production-costs"));
     assertThat(monthlyEntries).isNotEmpty();
     assertThat(monthlyEntries.getFirst()).containsKeys("month", "totalCost");
 
-    List<Map<String, Object>> wastageEntries = castListOfMap(fetchDataObject("/api/v1/reports/wastage"));
+    List<Map<String, Object>> wastageEntries =
+        castListOfMap(fetchDataObject("/api/v1/reports/wastage"));
     assertThat(wastageEntries).isNotEmpty();
   }
 
@@ -262,7 +265,8 @@ class ReportControllerCostingEndpointsIT extends AbstractIntegrationTest {
             "email", ACCOUNTING_EMAIL,
             "password", PASSWORD,
             "companyCode", COMPANY_CODE);
-    ResponseEntity<Map> loginResponse = rest.postForEntity("/api/v1/auth/login", payload, Map.class);
+    ResponseEntity<Map> loginResponse =
+        rest.postForEntity("/api/v1/auth/login", payload, Map.class);
     assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
     HttpHeaders authHeaders = new HttpHeaders();

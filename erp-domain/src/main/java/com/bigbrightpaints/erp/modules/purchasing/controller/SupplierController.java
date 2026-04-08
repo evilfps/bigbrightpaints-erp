@@ -3,8 +3,8 @@ package com.bigbrightpaints.erp.modules.purchasing.controller;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -64,8 +64,8 @@ public class SupplierController {
   @ResponseStatus(HttpStatus.CREATED)
   public ResponseEntity<ApiResponse<SupplierResponse>> createSupplier(
       @Valid @RequestBody SupplierRequest request) {
-    return ResponseEntity.status(HttpStatus.CREATED).body(
-        ApiResponse.success("Supplier created", supplierService.createSupplier(request)));
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(ApiResponse.success("Supplier created", supplierService.createSupplier(request)));
   }
 
   @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

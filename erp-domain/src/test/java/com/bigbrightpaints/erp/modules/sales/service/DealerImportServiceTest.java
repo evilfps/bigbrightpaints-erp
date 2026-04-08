@@ -77,7 +77,8 @@ class DealerImportServiceTest {
             ignored -> {
               if (invocation.incrementAndGet() == 2) {
                 throw new ApplicationException(
-                    ErrorCode.VALIDATION_INVALID_INPUT, "Dealer already exists for this portal user");
+                    ErrorCode.VALIDATION_INVALID_INPUT,
+                    "Dealer already exists for this portal user");
               }
               return null;
             })
@@ -102,7 +103,8 @@ class DealerImportServiceTest {
 
   @Test
   void importDealers_rejectsCsvWithoutRequiredHeaders() {
-    MockMultipartFile file = csvFile("name,email,creditLimit,paymentTerms\nDealer,one@example.com,1000,NET_30\n");
+    MockMultipartFile file =
+        csvFile("name,email,creditLimit,paymentTerms\nDealer,one@example.com,1000,NET_30\n");
 
     assertThatThrownBy(() -> service.importDealers(file))
         .isInstanceOf(ApplicationException.class)

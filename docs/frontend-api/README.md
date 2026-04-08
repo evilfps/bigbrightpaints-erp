@@ -66,6 +66,15 @@ See [`docs/frontend-portals/README.md`](../frontend-portals/README.md) for detai
 | [accounting-reference-chains.md](./accounting-reference-chains.md) | Cross-document reference chains, audit trail, provenance fields |
 | [dto-examples.md](./dto-examples.md) | Sample request/response payloads for common operations |
 
+## Role-Oriented Handoff Files
+
+| Role | File |
+|---|---|
+| Admin (`ROLE_ADMIN`) | [admin-role.md](./admin-role.md) |
+| Accounting (`ROLE_ACCOUNTING`) | [accounting-role.md](./accounting-role.md) |
+| Sales (`ROLE_SALES`) | [sales-role.md](./sales-role.md) |
+| Dealer (`ROLE_DEALER`) | [dealer-role.md](./dealer-role.md) |
+
 ## Retired Routes
 
 The following routes are no longer part of the current frontend contract:

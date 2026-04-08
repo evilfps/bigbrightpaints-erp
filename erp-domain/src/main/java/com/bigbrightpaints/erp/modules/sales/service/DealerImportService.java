@@ -93,10 +93,13 @@ public class DealerImportService {
       throw ValidationUtils.invalidInput("CSV headers are required for dealer import");
     }
     Set<String> normalizedHeaders =
-        rawHeaderMap.keySet().stream().map(DealerImportService::normalizeHeader).collect(
-            java.util.stream.Collectors.toSet());
+        rawHeaderMap.keySet().stream()
+            .map(DealerImportService::normalizeHeader)
+            .collect(java.util.stream.Collectors.toSet());
     List<String> missing =
-        REQUIRED_HEADERS.stream().filter(required -> !normalizedHeaders.contains(required)).toList();
+        REQUIRED_HEADERS.stream()
+            .filter(required -> !normalizedHeaders.contains(required))
+            .toList();
     if (!missing.isEmpty()) {
       throw ValidationUtils.invalidInput(
           "CSV is missing required headers: " + String.join(", ", missing));
@@ -138,7 +141,8 @@ public class DealerImportService {
 
     BigDecimal creditLimit = parseDecimal(creditLimitValue, "creditLimit");
     DealerPaymentTerms paymentTerms = parsePaymentTerms(paymentTermsValue);
-    String resolvedCompanyName = StringUtils.hasText(companyName) ? companyName.trim() : name.trim();
+    String resolvedCompanyName =
+        StringUtils.hasText(companyName) ? companyName.trim() : name.trim();
     String resolvedContactPhone =
         StringUtils.hasText(contactPhone) ? contactPhone.trim() : "IMPORT-UNSPECIFIED";
 
@@ -195,8 +199,7 @@ public class DealerImportService {
       case "60", "NET60", "NET_60" -> DealerPaymentTerms.NET_60;
       case "90", "NET90", "NET_90" -> DealerPaymentTerms.NET_90;
       default ->
-          throw ValidationUtils.invalidInput(
-              "paymentTerms must be one of NET_30, NET_60, NET_90");
+          throw ValidationUtils.invalidInput("paymentTerms must be one of NET_30, NET_60, NET_90");
     };
   }
 

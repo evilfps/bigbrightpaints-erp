@@ -2,5 +2,5 @@ com.bigbrightpaints.erp.codered.CR_PurchasingToApAccountingTest
 com.bigbrightpaints.erp.codered.CR_PurchasingGrnPeriodCloseTest
 com.bigbrightpaints.erp.codered.CR_PeriodCloseAtomicityTest
 com.bigbrightpaints.erp.codered.CR_PeriodCloseDriftScansTest
-com.bigbrightpaints.erp.codered.CR_DealerReceiptSettlementAuditTrailTest
+com.bigbrightpaints.erp.codered.CR_ManualJournalSafetyTest
 com.bigbrightpaints.erp.codered.CR_SalesDispatchInvoiceAccounting

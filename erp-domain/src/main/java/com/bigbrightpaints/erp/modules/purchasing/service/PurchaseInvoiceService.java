@@ -38,5 +38,4 @@ public class PurchaseInvoiceService {
       RawMaterialPurchaseRequest request, String idempotencyKey) {
     return purchaseInvoiceEngine.createPurchase(request, idempotencyKey);
   }
-
 }

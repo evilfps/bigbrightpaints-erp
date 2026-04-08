@@ -30,7 +30,10 @@ public class InventoryBatchController {
   public ResponseEntity<ApiResponse<List<InventoryBatchMovementHistoryDto>>> getMovementHistory(
       @PathVariable Long id, @RequestParam(required = false) String batchType) {
     List<InventoryBatchMovementHistoryDto> movementHistory =
-        inventoryBatchTraceabilityService.getBatchMovementHistory(id, batchType).movements().stream()
+        inventoryBatchTraceabilityService
+            .getBatchMovementHistory(id, batchType)
+            .movements()
+            .stream()
             .map(
                 movement ->
                     new InventoryBatchMovementHistoryDto(

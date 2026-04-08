@@ -11,7 +11,7 @@ com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeAccountingPeriodPolicyExecu
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeAccountingPeriodServiceExecutableCoverageTest
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest
 com.bigbrightpaints.erp.truthsuite.runtime.TS_RuntimeAccountingReplayConflictExecutableCoverageTest
-com.bigbrightpaints.erp.codered.CR_DealerReceiptSettlementAuditTrailTest
+com.bigbrightpaints.erp.codered.CR_ManualJournalSafetyTest
 com.bigbrightpaints.erp.codered.CR_PeriodCloseAtomicityTest
 com.bigbrightpaints.erp.codered.CR_PeriodCloseDriftScansTest
 com.bigbrightpaints.erp.modules.accounting.service.AccountingFacadeTest
@@ -69,4 +69,4 @@ com.bigbrightpaints.erp.modules.inventory.controller.OpeningStockImportControlle
 com.bigbrightpaints.erp.modules.inventory.service.OpeningStockImportServiceTest
 com.bigbrightpaints.erp.modules.production.service.ProductionCatalogServiceBulkVariantRaceTest
 com.bigbrightpaints.erp.modules.production.service.SkuReadinessServiceTest
-com.bigbrightpaints.erp.regression.OpeningStockPostingRegressionIT
+com.bigbrightpaints.erp.modules.inventory.InventoryPathConsolidationIT

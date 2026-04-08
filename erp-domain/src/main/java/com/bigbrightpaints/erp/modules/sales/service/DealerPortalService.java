@@ -261,7 +261,8 @@ public class DealerPortalService {
     long pendingOrderCount = ((Number) aging.get("pendingOrderCount")).longValue();
     BigDecimal pendingOrderExposure = (BigDecimal) aging.get("pendingOrderExposure");
     List<SalesOrder> dealerOrders =
-        salesOrderRepository.findByCompanyAndDealerOrderByCreatedAtDesc(dealer.getCompany(), dealer);
+        salesOrderRepository.findByCompanyAndDealerOrderByCreatedAtDesc(
+            dealer.getCompany(), dealer);
     long orderCount = dealerOrders != null ? dealerOrders.size() : 0L;
 
     Map<String, Object> result = new LinkedHashMap<>();

@@ -9,9 +9,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import com.bigbrightpaints.erp.core.audit.AuditEvent;
-import com.bigbrightpaints.erp.core.audit.AuditService;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -22,6 +19,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
+import com.bigbrightpaints.erp.core.audit.AuditEvent;
+import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.idempotency.IdempotencyReservationService;
@@ -592,7 +591,9 @@ public class InventoryAdjustmentService {
 
   private void logInventoryAdjustmentAuditEvent(
       InventoryAdjustment adjustment, boolean increaseInventory) {
-    if (adjustment == null || adjustment.getCompany() == null || adjustment.getCompany().getId() == null) {
+    if (adjustment == null
+        || adjustment.getCompany() == null
+        || adjustment.getCompany().getId() == null) {
       return;
     }
     Map<String, String> metadata = new HashMap<>();

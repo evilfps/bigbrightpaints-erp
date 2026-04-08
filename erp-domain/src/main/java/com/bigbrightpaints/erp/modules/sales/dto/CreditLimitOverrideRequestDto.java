@@ -14,20 +14,22 @@ public record CreditLimitOverrideRequestDto(
     Long packagingSlipId,
     Long salesOrderId,
     @Schema(description = "Canonical requested amount approved for temporary headroom")
-    BigDecimal requestedAmount,
+        BigDecimal requestedAmount,
     @Schema(
-        description = "Legacy alias of requestedAmount maintained for compatibility",
-        deprecated = true)
-    BigDecimal dispatchAmount,
+            description = "Legacy alias of requestedAmount maintained for compatibility",
+            deprecated = true)
+        BigDecimal dispatchAmount,
     @Schema(
-        description =
-            "Dealer credit exposure snapshot at request time (outstanding ledger balance + pending-order exposure)")
-    BigDecimal currentExposure,
+            description =
+                "Dealer credit exposure snapshot at request time (outstanding ledger balance +"
+                    + " pending-order exposure)")
+        BigDecimal currentExposure,
     BigDecimal creditLimit,
     @Schema(
-        description =
-            "Temporary headroom required for approval under canonical order credit posture (outstanding + pending + requestedAmount - creditLimit)")
-    BigDecimal requiredHeadroom,
+            description =
+                "Temporary headroom required for approval under canonical order credit posture"
+                    + " (outstanding + pending + requestedAmount - creditLimit)")
+        BigDecimal requiredHeadroom,
     String status,
     String reason,
     String requestedBy,

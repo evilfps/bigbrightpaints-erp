@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
@@ -34,6 +33,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 @ExtendWith(MockitoExtension.class)
 class TemporalBalanceServiceTest {
@@ -145,9 +145,11 @@ class TemporalBalanceServiceTest {
 
     when(accountRepository.findByCompanyAndId(eq(company), eq(accountId)))
         .thenReturn(Optional.of(liabilityAccount));
-    when(journalLineRepository.netBalanceUpTo(eq(company), eq(accountId), eq(startDate.minusDays(1))))
+    when(journalLineRepository.netBalanceUpTo(
+            eq(company), eq(accountId), eq(startDate.minusDays(1))))
         .thenReturn(new BigDecimal("-50.00"));
-    when(journalLineRepository.findLinesForAccountBetween(eq(company), eq(accountId), eq(startDate), eq(endDate)))
+    when(journalLineRepository.findLinesForAccountBetween(
+            eq(company), eq(accountId), eq(startDate), eq(endDate)))
         .thenReturn(List.of(firstLine, secondLine));
 
     TemporalBalanceService.AccountActivityReport report =

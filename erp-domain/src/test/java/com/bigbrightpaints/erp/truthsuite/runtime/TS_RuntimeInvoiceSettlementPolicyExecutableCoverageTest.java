@@ -163,8 +163,7 @@ class TS_RuntimeInvoiceSettlementPolicyExecutableCoverageTest {
     assertThatThrownBy(() -> policy.applyPayment(writtenOff, new BigDecimal("1.00"), "PAY-WR"))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Cannot pay a void or written-off invoice");
-    assertThatThrownBy(
-            () -> policy.applySettlement(writtenOff, new BigDecimal("1.00"), "SET-WR"))
+    assertThatThrownBy(() -> policy.applySettlement(writtenOff, new BigDecimal("1.00"), "SET-WR"))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Cannot settle a void or written-off invoice");
 

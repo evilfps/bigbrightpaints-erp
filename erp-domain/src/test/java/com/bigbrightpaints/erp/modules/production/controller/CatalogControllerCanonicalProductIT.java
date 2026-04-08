@@ -187,9 +187,11 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
     assertThat(stringList(stage(item, "salesReady").get("blockers")))
         .contains("NO_FINISHED_GOOD_BATCH_STOCK");
     assertThat(stage(item, "accountingReady").get("ready")).isEqualTo(true);
-    assertMetadataAccountId(metadata(item), "fgValuationAccountId", company.getDefaultInventoryAccountId());
+    assertMetadataAccountId(
+        metadata(item), "fgValuationAccountId", company.getDefaultInventoryAccountId());
     assertMetadataAccountId(metadata(item), "fgCogsAccountId", company.getDefaultCogsAccountId());
-    assertMetadataAccountId(metadata(item), "fgRevenueAccountId", company.getDefaultRevenueAccountId());
+    assertMetadataAccountId(
+        metadata(item), "fgRevenueAccountId", company.getDefaultRevenueAccountId());
 
     ResponseEntity<Map> salesDetail =
         getCatalogItem(((Number) item.get("id")).longValue(), true, true, salesHeaders);
@@ -211,7 +213,8 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
     ProductionBrand brand = saveBrand("Override Accounts Brand", true);
     Account overrideInventory =
         ensureAccount("INV-OVR-" + shortId(), "Override Inventory", AccountType.ASSET);
-    Account overrideCogs = ensureAccount("COGS-OVR-" + shortId(), "Override COGS", AccountType.COGS);
+    Account overrideCogs =
+        ensureAccount("COGS-OVR-" + shortId(), "Override COGS", AccountType.COGS);
     Account overrideRevenue =
         ensureAccount("REV-OVR-" + shortId(), "Override Revenue", AccountType.REVENUE);
 
@@ -241,20 +244,23 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
     ProductionBrand brand = saveBrand("Wrong Type Override Brand", true);
     Account wrongInventory =
         ensureAccount("INV-WRONG-" + shortId(), "Wrong Inventory Type", AccountType.COGS);
-    Account wrongCogs = ensureAccount("COGS-WRONG-" + shortId(), "Wrong COGS Type", AccountType.ASSET);
+    Account wrongCogs =
+        ensureAccount("COGS-WRONG-" + shortId(), "Wrong COGS Type", AccountType.ASSET);
     Account wrongRevenue =
         ensureAccount("REV-WRONG-" + shortId(), "Wrong Revenue Type", AccountType.EXPENSE);
 
     Map<String, Object> wrongInventoryPayload =
         finishedGoodPayload(brand.getId(), "Wrong Inventory Override");
     wrongInventoryPayload.put("inventoryAccountId", wrongInventory.getId());
-    ResponseEntity<Map> wrongInventoryResponse = postCatalogItem(wrongInventoryPayload, adminHeaders);
+    ResponseEntity<Map> wrongInventoryResponse =
+        postCatalogItem(wrongInventoryPayload, adminHeaders);
     assertThat(wrongInventoryResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     assertThat(String.valueOf(errorData(wrongInventoryResponse).get("reason")))
         .contains("fgValuationAccountId")
         .contains("ASSET");
 
-    Map<String, Object> wrongCogsPayload = finishedGoodPayload(brand.getId(), "Wrong COGS Override");
+    Map<String, Object> wrongCogsPayload =
+        finishedGoodPayload(brand.getId(), "Wrong COGS Override");
     wrongCogsPayload.put("cogsAccountId", wrongCogs.getId());
     ResponseEntity<Map> wrongCogsResponse = postCatalogItem(wrongCogsPayload, adminHeaders);
     assertThat(wrongCogsResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -276,10 +282,13 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
   void updateItem_rejectsFinishedGoodOverrideAccountsOutsideCompanyScope() {
     ProductionBrand brand = saveBrand("Cross Company Override Brand", true);
     Map<String, Object> created =
-        data(postCatalogItem(finishedGoodPayload(brand.getId(), "Cross Company Override"), adminHeaders));
+        data(
+            postCatalogItem(
+                finishedGoodPayload(brand.getId(), "Cross Company Override"), adminHeaders));
     Long itemId = ((Number) created.get("id")).longValue();
 
-    Company foreignCompany = dataSeeder.ensureCompany("CAT-FOREIGN-" + shortId(), "Catalog Foreign Co");
+    Company foreignCompany =
+        dataSeeder.ensureCompany("CAT-FOREIGN-" + shortId(), "Catalog Foreign Co");
     Account foreignInventory =
         ensureAccountFor(
             foreignCompany, "INV-FOREIGN-" + shortId(), "Foreign Inventory", AccountType.ASSET);
@@ -289,7 +298,8 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> updateResponse = putCatalogItem(itemId, payload, adminHeaders);
     assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-    assertThat(String.valueOf(errorData(updateResponse).get("reason"))).contains("invalid account id");
+    assertThat(String.valueOf(errorData(updateResponse).get("reason")))
+        .contains("invalid account id");
   }
 
   @Test

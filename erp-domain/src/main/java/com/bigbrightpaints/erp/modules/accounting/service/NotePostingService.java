@@ -2,8 +2,8 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -104,8 +104,7 @@ class NotePostingService {
     JournalEntry existingEntry =
         journalReplayService.findExistingEntry(company, reference, idempotencyKey);
     BigDecimal sourceAmount = calculateControlAccountAmount(source, receivableAccountId);
-    BigDecimal creditedSoFar =
-        totalNoteAmount(company, source, "CREDIT_NOTE", receivableAccountId);
+    BigDecimal creditedSoFar = totalNoteAmount(company, source, "CREDIT_NOTE", receivableAccountId);
     BigDecimal remainingBySource = sourceAmount.subtract(creditedSoFar).max(BigDecimal.ZERO);
     BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(invoice.getOutstandingAmount());
     BigDecimal allowedAmount = remainingBySource.min(currentOutstanding).max(BigDecimal.ZERO);
@@ -222,8 +221,7 @@ class NotePostingService {
     JournalEntry existingEntry =
         journalReplayService.findExistingEntry(company, reference, idempotencyKey);
     BigDecimal sourceAmount = calculateControlAccountAmount(source, payableAccountId);
-    BigDecimal debitedSoFar =
-        totalNoteAmount(company, source, "DEBIT_NOTE", payableAccountId);
+    BigDecimal debitedSoFar = totalNoteAmount(company, source, "DEBIT_NOTE", payableAccountId);
     BigDecimal remainingBySource = sourceAmount.subtract(debitedSoFar).max(BigDecimal.ZERO);
     BigDecimal currentOutstanding = MoneyUtils.zeroIfNull(purchase.getOutstandingAmount());
     BigDecimal allowedAmount = remainingBySource.min(currentOutstanding).max(BigDecimal.ZERO);
@@ -308,7 +306,8 @@ class NotePostingService {
           .withDetail("outstandingAmount", MoneyUtils.zeroIfNull(currentOutstanding));
     }
     if (explicitAmountProvided
-        && resolvedAmount.subtract(MoneyUtils.zeroIfNull(allowedAmount))
+        && resolvedAmount
+                .subtract(MoneyUtils.zeroIfNull(allowedAmount))
                 .compareTo(NOTE_AMOUNT_TOLERANCE)
             > 0) {
       throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, overflowMessage)
@@ -362,7 +361,9 @@ class NotePostingService {
     }
     BigDecimal net =
         entry.getLines().stream()
-            .filter(line -> line.getAccount() != null && controlAccountId.equals(line.getAccount().getId()))
+            .filter(
+                line ->
+                    line.getAccount() != null && controlAccountId.equals(line.getAccount().getId()))
             .map(
                 line ->
                     MoneyUtils.zeroIfNull(line.getDebit())
@@ -391,17 +392,19 @@ class NotePostingService {
     String resolvedPrefix = StringUtils.hasText(descriptionPrefix) ? descriptionPrefix : "";
     List<ScaledReversalLineDraft> scaledLines =
         source.getLines().stream()
-        .map(
-            line -> {
-              BigDecimal rawReversalDebit = MoneyUtils.zeroIfNull(line.getCredit()).multiply(ratio);
-              BigDecimal rawReversalCredit = MoneyUtils.zeroIfNull(line.getDebit()).multiply(ratio);
-              return new ScaledReversalLineDraft(
-                  line.getAccount().getId(),
-                  resolvedPrefix + line.getDescription(),
-                  rawReversalDebit,
-                  rawReversalCredit);
-            })
-        .toList();
+            .map(
+                line -> {
+                  BigDecimal rawReversalDebit =
+                      MoneyUtils.zeroIfNull(line.getCredit()).multiply(ratio);
+                  BigDecimal rawReversalCredit =
+                      MoneyUtils.zeroIfNull(line.getDebit()).multiply(ratio);
+                  return new ScaledReversalLineDraft(
+                      line.getAccount().getId(),
+                      resolvedPrefix + line.getDescription(),
+                      rawReversalDebit,
+                      rawReversalCredit);
+                })
+            .toList();
     List<BigDecimal> debitAmounts =
         rebalanceRoundedLineAmounts(
             scaledLines.stream().map(ScaledReversalLineDraft::rawDebit).toList());

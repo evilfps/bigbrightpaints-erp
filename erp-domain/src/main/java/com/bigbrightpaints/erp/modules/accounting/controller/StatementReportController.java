@@ -130,7 +130,8 @@ public class StatementReportController {
 
   @GetMapping("/accounts/{accountId}/activity")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')")
-  public ResponseEntity<ApiResponse<StatementReportControllerSupport.AccountActivitySummaryResponse>>
+  public ResponseEntity<
+          ApiResponse<StatementReportControllerSupport.AccountActivitySummaryResponse>>
       getAccountActivity(
           @PathVariable Long accountId,
           @RequestParam(required = false) String startDate,

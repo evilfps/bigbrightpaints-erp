@@ -44,7 +44,8 @@ class SettlementTotalsValidationService {
       BigDecimal discount = normalizeNonNegative(allocation.discountAmount(), "discountAmount");
       BigDecimal writeOff = normalizeNonNegative(allocation.writeOffAmount(), "writeOffAmount");
       BigDecimal fxAdjustment = MoneyUtils.zeroIfNull(allocation.fxAdjustment());
-      SettlementAllocationApplication applicationType = resolveSettlementApplicationType(allocation);
+      SettlementAllocationApplication applicationType =
+          resolveSettlementApplicationType(allocation);
       if (applicationType.isUnapplied()
           && (discount.compareTo(BigDecimal.ZERO) > 0
               || writeOff.compareTo(BigDecimal.ZERO) > 0
@@ -75,7 +76,8 @@ class SettlementTotalsValidationService {
     Set<Long> seenInvoiceIds = new HashSet<>();
     Set<SettlementAllocationApplication> seenUnappliedApplications = new HashSet<>();
     for (SettlementAllocationRequest allocation : allocations) {
-      SettlementAllocationApplication applicationType = resolveSettlementApplicationType(allocation);
+      SettlementAllocationApplication applicationType =
+          resolveSettlementApplicationType(allocation);
       if (applicationType.isUnapplied()) {
         if (allocation.invoiceId() != null) {
           throw new ApplicationException(
@@ -122,7 +124,8 @@ class SettlementTotalsValidationService {
         throw new ApplicationException(
             ErrorCode.VALIDATION_INVALID_INPUT, "Supplier settlements cannot allocate to invoices");
       }
-      SettlementAllocationApplication applicationType = resolveSettlementApplicationType(allocation);
+      SettlementAllocationApplication applicationType =
+          resolveSettlementApplicationType(allocation);
       if (applicationType.isUnapplied()) {
         if (allocation.purchaseId() != null) {
           throw new ApplicationException(
@@ -175,7 +178,8 @@ class SettlementTotalsValidationService {
         totalFxLoss = totalFxLoss.add(fxAdjustment.abs());
       }
     }
-    return new SettlementTotals(totalApplied, totalDiscount, totalWriteOff, totalFxGain, totalFxLoss);
+    return new SettlementTotals(
+        totalApplied, totalDiscount, totalWriteOff, totalFxGain, totalFxLoss);
   }
 
   SettlementAllocationApplication resolveSettlementApplicationType(
@@ -192,7 +196,8 @@ class SettlementTotalsValidationService {
     return SettlementAllocationApplication.DOCUMENT;
   }
 
-  String encodeSettlementAllocationMemo(SettlementAllocationApplication applicationType, String memo) {
+  String encodeSettlementAllocationMemo(
+      SettlementAllocationApplication applicationType, String memo) {
     SettlementAllocationApplication resolved =
         applicationType != null ? applicationType : SettlementAllocationApplication.DOCUMENT;
     String visibleMemo = memo != null && !memo.isBlank() ? memo.trim() : null;

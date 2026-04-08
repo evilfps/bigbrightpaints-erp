@@ -17,8 +17,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -695,7 +695,8 @@ public class ReportService {
         normalizeNetBalance(
             journalLineRepository.netBalanceUpTo(company, accountId, from.minusDays(1)),
             accountType);
-    List<JournalLine> lines = journalLineRepository.findLinesForAccountBetween(company, accountId, from, to);
+    List<JournalLine> lines =
+        journalLineRepository.findLinesForAccountBetween(company, accountId, from, to);
 
     BigDecimal runningBalance = openingBalance;
     List<AccountStatementLineDto> entries = new ArrayList<>();
@@ -828,7 +829,8 @@ public class ReportService {
                 item -> {
                   BigDecimal systemQty = safe(item.quantityOnHand());
                   BigDecimal physicalQty =
-                      resolvePhysicalQuantity(item, systemQty, latestFinishedGoodCounts, latestRawMaterialCounts);
+                      resolvePhysicalQuantity(
+                          item, systemQty, latestFinishedGoodCounts, latestRawMaterialCounts);
                   BigDecimal variance = physicalQty.subtract(systemQty);
                   return new InventoryReconciliationItemDto(
                       item.inventoryItemId(),
@@ -877,7 +879,8 @@ public class ReportService {
   }
 
   private List<Long> inventoryReconciliationItemIds(
-      List<InventoryValuationQueryService.InventoryItemSnapshot> snapshotItems, boolean finishedGoods) {
+      List<InventoryValuationQueryService.InventoryItemSnapshot> snapshotItems,
+      boolean finishedGoods) {
     InventoryValuationQueryService.InventoryTypeBucket expectedType =
         finishedGoods
             ? InventoryValuationQueryService.InventoryTypeBucket.FINISHED_GOOD
@@ -965,7 +968,8 @@ public class ReportService {
     BigDecimal inventoryVariance = physicalInventoryValue.subtract(ledgerInventoryValue);
 
     BigDecimal bankLedgerBalance = safe(bankAccount.getBalance());
-    BigDecimal bankStatementBalance = statementBalance != null ? statementBalance : bankLedgerBalance;
+    BigDecimal bankStatementBalance =
+        statementBalance != null ? statementBalance : bankLedgerBalance;
     BigDecimal bankVariance = bankLedgerBalance.subtract(bankStatementBalance);
 
     boolean inventoryBalanced = inventoryVariance.abs().compareTo(BALANCE_TOLERANCE) <= 0;
@@ -995,10 +999,7 @@ public class ReportService {
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, true));
 
     return new ReconciliationDashboardDto(
-        bankSummary,
-        subledgerSummary,
-        inventorySummary,
-        balanceWarnings());
+        bankSummary, subledgerSummary, inventorySummary, balanceWarnings());
   }
 
   private SubledgerReconciliationDashboardDto resolveSubledgerDashboardSummary(
@@ -1532,7 +1533,12 @@ public class ReportService {
             company, itemId, ProductionLogStatus.FULLY_PACKED);
     if (logs.isEmpty()) {
       return new ProductCostingReportDto(
-          itemId, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+          itemId,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO);
     }
 
     BigDecimal totalMaterial = BigDecimal.ZERO;
@@ -1551,18 +1557,27 @@ public class ReportService {
 
     if (totalPacked.compareTo(BigDecimal.ZERO) <= 0) {
       totalPacked =
-          logs.stream().map(ProductionLog::getMixedQuantity).map(this::safe).reduce(BigDecimal.ZERO, BigDecimal::add);
+          logs.stream()
+              .map(ProductionLog::getMixedQuantity)
+              .map(this::safe)
+              .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
     if (totalPacked.compareTo(BigDecimal.ZERO) <= 0) {
       return new ProductCostingReportDto(
-          itemId, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+          itemId,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO,
+          BigDecimal.ZERO);
     }
 
     BigDecimal materialPerUnit = totalMaterial.divide(totalPacked, 4, RoundingMode.HALF_UP);
     BigDecimal packagingPerUnit = totalPackaging.divide(totalPacked, 4, RoundingMode.HALF_UP);
     BigDecimal labourPerUnit = totalLabour.divide(totalPacked, 4, RoundingMode.HALF_UP);
     BigDecimal overheadPerUnit = totalOverhead.divide(totalPacked, 4, RoundingMode.HALF_UP);
-    BigDecimal totalUnitCost = materialPerUnit.add(packagingPerUnit).add(labourPerUnit).add(overheadPerUnit);
+    BigDecimal totalUnitCost =
+        materialPerUnit.add(packagingPerUnit).add(labourPerUnit).add(overheadPerUnit);
 
     return new ProductCostingReportDto(
         itemId, materialPerUnit, packagingPerUnit, labourPerUnit, overheadPerUnit, totalUnitCost);
@@ -1636,7 +1651,8 @@ public class ReportService {
         .map(
             entry ->
                 new MonthlyProductionCostEntryDto(
-                    entry.getKey().toString(), safe(entry.getValue()).setScale(2, RoundingMode.HALF_UP)))
+                    entry.getKey().toString(),
+                    safe(entry.getValue()).setScale(2, RoundingMode.HALF_UP)))
         .toList();
   }
 
@@ -1882,7 +1898,8 @@ public class ReportService {
       totalWastage = totalWastage.add(safe(log.getWastageQuantity()));
     }
 
-    BigDecimal totalCost = totalMaterialCost.add(totalLaborCost).add(totalOverheadCost).add(totalPackagingCost);
+    BigDecimal totalCost =
+        totalMaterialCost.add(totalLaborCost).add(totalOverheadCost).add(totalPackagingCost);
     BigDecimal avgCostPerLiter =
         totalLiters.compareTo(BigDecimal.ZERO) > 0
             ? totalCost.divide(totalLiters, 4, java.math.RoundingMode.HALF_UP)
@@ -1910,7 +1927,9 @@ public class ReportService {
   }
 
   private BigDecimal resolvePackagingCost(Company company, ProductionLog log) {
-    return packingRecordRepository.findByCompanyAndProductionLogOrderByPackedDateAscIdAsc(company, log).stream()
+    return packingRecordRepository
+        .findByCompanyAndProductionLogOrderByPackedDateAscIdAsc(company, log)
+        .stream()
         .map(PackingRecord::getPackagingCost)
         .map(this::safe)
         .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -1921,7 +1940,10 @@ public class ReportService {
       return BigDecimal.ZERO;
     }
     BigDecimal debitTotal =
-        entry.getLines().stream().map(JournalLine::getDebit).map(this::safe).reduce(BigDecimal.ZERO, BigDecimal::add);
+        entry.getLines().stream()
+            .map(JournalLine::getDebit)
+            .map(this::safe)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
     return debitTotal.setScale(2, RoundingMode.HALF_UP);
   }
 

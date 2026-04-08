@@ -7,16 +7,14 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.auth.domain.UserAccount;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
-import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.invoice.domain.Invoice;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceLine;
 import com.bigbrightpaints.erp.modules.invoice.domain.InvoiceRepository;
@@ -25,6 +23,9 @@ import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrder;
 import com.bigbrightpaints.erp.modules.sales.domain.SalesOrderRepository;
 import com.bigbrightpaints.erp.test.AbstractIntegrationTest;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 
 class InvoicePdfServiceHydrationIT extends AbstractIntegrationTest {
 
@@ -146,7 +147,8 @@ class InvoicePdfServiceHydrationIT extends AbstractIntegrationTest {
               assertThat(hydrated.getSalesOrder().getOrderNumber())
                   .isEqualTo(salesOrder.getOrderNumber());
               assertThat(hydrated.getLines()).hasSize(1);
-              assertThat(hydrated.getLines().getFirst().getDescription()).isEqualTo("Hydration Paint");
+              assertThat(hydrated.getLines().getFirst().getDescription())
+                  .isEqualTo("Hydration Paint");
             });
   }
 

@@ -11,8 +11,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -181,8 +181,7 @@ public class PurchaseInvoiceEngine {
       return createPurchaseInternal(
           request, company, sortedLines, canonicalIdempotencyKey, requestSignature);
     } catch (RuntimeException ex) {
-      if (!StringUtils.hasText(canonicalIdempotencyKey)
-          || !isDataIntegrityViolation(ex)) {
+      if (!StringUtils.hasText(canonicalIdempotencyKey) || !isDataIntegrityViolation(ex)) {
         throw ex;
       }
       RawMaterialPurchase concurrent =

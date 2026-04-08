@@ -93,10 +93,13 @@ public class SupplierImportService {
       throw ValidationUtils.invalidInput("CSV headers are required for supplier import");
     }
     Set<String> normalizedHeaders =
-        rawHeaderMap.keySet().stream().map(SupplierImportService::normalizeHeader).collect(
-            java.util.stream.Collectors.toSet());
+        rawHeaderMap.keySet().stream()
+            .map(SupplierImportService::normalizeHeader)
+            .collect(java.util.stream.Collectors.toSet());
     List<String> missing =
-        REQUIRED_HEADERS.stream().filter(required -> !normalizedHeaders.contains(required)).toList();
+        REQUIRED_HEADERS.stream()
+            .filter(required -> !normalizedHeaders.contains(required))
+            .toList();
     if (!missing.isEmpty()) {
       throw ValidationUtils.invalidInput(
           "CSV is missing required headers: " + String.join(", ", missing));
@@ -190,8 +193,7 @@ public class SupplierImportService {
       case "60", "NET60", "NET_60" -> SupplierPaymentTerms.NET_60;
       case "90", "NET90", "NET_90" -> SupplierPaymentTerms.NET_90;
       default ->
-          throw ValidationUtils.invalidInput(
-              "paymentTerms must be one of NET_30, NET_60, NET_90");
+          throw ValidationUtils.invalidInput("paymentTerms must be one of NET_30, NET_60, NET_90");
     };
   }
 

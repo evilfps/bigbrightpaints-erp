@@ -269,10 +269,8 @@ public class OpeningBalanceImportService {
 
       try {
         validateAccountReference(company, row.accountCode(), row.accountName(), row.accountType());
-        BigDecimal debitAmount =
-            row.debitAmount() != null ? row.debitAmount() : BigDecimal.ZERO;
-        BigDecimal creditAmount =
-            row.creditAmount() != null ? row.creditAmount() : BigDecimal.ZERO;
+        BigDecimal debitAmount = row.debitAmount() != null ? row.debitAmount() : BigDecimal.ZERO;
+        BigDecimal creditAmount = row.creditAmount() != null ? row.creditAmount() : BigDecimal.ZERO;
         validatedRows.add(
             new ValidatedOpeningBalanceRow(
                 row.rowNumber(),

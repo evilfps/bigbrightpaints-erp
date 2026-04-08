@@ -25,7 +25,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
@@ -60,6 +59,7 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 import com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService;
 import com.bigbrightpaints.erp.modules.sales.util.SalesOrderReference;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 @ExtendWith(MockitoExtension.class)
 @Tag("critical")
@@ -809,7 +809,8 @@ class AccountingFacadeTest {
             null,
             null,
             null);
-    when(accountingService.createManualJournalEntry(any(JournalEntryRequest.class), eq("MANUAL-XYZ")))
+    when(accountingService.createManualJournalEntry(
+            any(JournalEntryRequest.class), eq("MANUAL-XYZ")))
         .thenReturn(expected);
 
     JournalEntryDto actual = accountingFacade.createManualJournalEntry(request, "MANUAL-XYZ");

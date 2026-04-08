@@ -13,5 +13,6 @@ public record BankReconciliationSessionItemsUpdateRequest(
     this(addJournalLineIds, removeJournalLineIds, note, null);
   }
 
-  public record BankStatementMatchRequest(Long bankItemId, Long journalEntryId, Long journalLineId) {}
+  public record BankStatementMatchRequest(
+      Long bankItemId, Long journalEntryId, Long journalLineId) {}
 }

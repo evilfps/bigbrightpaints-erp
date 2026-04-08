@@ -19,7 +19,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
-import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -29,6 +28,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
@@ -145,12 +145,7 @@ class AccountingEventStoreMetricsTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     store.recordSettlementAllocated(
-        entry,
-        "DEALER",
-        711L,
-        new BigDecimal("245.00"),
-        3,
-        "dealer-settlement-idempotency-key");
+        entry, "DEALER", 711L, new BigDecimal("245.00"), 3, "dealer-settlement-idempotency-key");
 
     ArgumentCaptor<AccountingEvent> eventCaptor = ArgumentCaptor.forClass(AccountingEvent.class);
     verify(eventRepository).save(eventCaptor.capture());

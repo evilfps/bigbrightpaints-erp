@@ -119,7 +119,10 @@ class BankReconciliationSessionPersistenceIT extends AbstractIntegrationTest {
             company, Set.of(deposit.id(), withdrawal.id()), bankAccount.getId());
     assertThat(bankLines).hasSize(2);
     JournalLine matchedLine =
-        bankLines.stream().filter(line -> line.getDebit().compareTo(BigDecimal.ZERO) > 0).findFirst().orElseThrow();
+        bankLines.stream()
+            .filter(line -> line.getDebit().compareTo(BigDecimal.ZERO) > 0)
+            .findFirst()
+            .orElseThrow();
     JournalLine unmatchedLine =
         bankLines.stream()
             .filter(line -> line.getCredit().compareTo(BigDecimal.ZERO) > 0)
@@ -159,7 +162,8 @@ class BankReconciliationSessionPersistenceIT extends AbstractIntegrationTest {
 
     BankReconciliationSessionDetailDto completed =
         sessionService.completeSession(
-            sessionId, new BankReconciliationSessionCompletionRequest("complete with unmatched", null));
+            sessionId,
+            new BankReconciliationSessionCompletionRequest("complete with unmatched", null));
 
     assertThat(completed.status()).isEqualTo("COMPLETED");
     assertThat(completed.matchedItems())
@@ -228,17 +232,19 @@ class BankReconciliationSessionPersistenceIT extends AbstractIntegrationTest {
                         List.of(),
                         "duplicate bank-item",
                         List.of(
-                            new BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest(
-                                88001L, null, firstLineId),
-                            new BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest(
-                                88001L, null, secondLineId)))))
+                            new BankReconciliationSessionItemsUpdateRequest
+                                .BankStatementMatchRequest(88001L, null, firstLineId),
+                            new BankReconciliationSessionItemsUpdateRequest
+                                .BankStatementMatchRequest(88001L, null, secondLineId)))))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Duplicate bankItemId assignment is not allowed")
         .hasMessageContaining("bankItemId 88001");
 
     BankReconciliationSession session =
         sessionRepository.findByCompanyAndId(company, sessionId).orElseThrow();
-    assertThat(itemRepository.findBySessionAndJournalLineIdIn(session, Set.of(firstLineId, secondLineId)))
+    assertThat(
+            itemRepository.findBySessionAndJournalLineIdIn(
+                session, Set.of(firstLineId, secondLineId)))
         .isEmpty();
   }
 

@@ -5,9 +5,9 @@ import java.math.BigDecimal;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
-import com.bigbrightpaints.erp.core.idempotency.IdempotencyUtils;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -142,7 +142,8 @@ public class CompanyDefaultAccountsService {
               + " configured for "
               + operation);
     }
-    Account account = accountingLookupService.requireAccount(company, configuredCashAccount.getId());
+    Account account =
+        accountingLookupService.requireAccount(company, configuredCashAccount.getId());
     validateSettlementCashAccount(account, operation);
     return account.getId();
   }

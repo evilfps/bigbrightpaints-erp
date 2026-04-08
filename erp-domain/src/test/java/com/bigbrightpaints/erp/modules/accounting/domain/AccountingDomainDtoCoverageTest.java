@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
-import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
@@ -21,6 +20,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationApplic
 import com.bigbrightpaints.erp.modules.accounting.dto.SettlementAllocationRequest;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.purchasing.dto.PurchaseReturnPreviewDto;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 class AccountingDomainDtoCoverageTest {
 

@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
@@ -189,8 +189,7 @@ class DealerReceiptPostingService {
           journalReplayService.resolveReplayJournalEntry(
               idempotencyKey, existingEntry, existingAllocations);
       if (entry != null) {
-        journalReplayService.linkReferenceMapping(
-            company, idempotencyKey, entry, "DEALER_RECEIPT");
+        journalReplayService.linkReferenceMapping(company, idempotencyKey, entry, "DEALER_RECEIPT");
         settlementReplayValidationService.validateDealerReceiptIdempotency(
             idempotencyKey,
             dealer,

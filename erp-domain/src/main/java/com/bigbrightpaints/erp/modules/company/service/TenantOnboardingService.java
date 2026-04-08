@@ -388,25 +388,24 @@ public class TenantOnboardingService {
     blueprints.add(new AccountBlueprint("GST-IN", "GST Input", AccountType.ASSET, "AST-CUR"));
     blueprints.add(
         new AccountBlueprint("TDS-RECEIVABLE", "TDS Receivable", AccountType.ASSET, "AST-CUR"));
-    blueprints.add(
-        new AccountBlueprint("FIX-EQUIP", "Equipment", AccountType.ASSET, "AST-FIX"));
-    blueprints.add(
-        new AccountBlueprint("FIX-VEH", "Vehicles", AccountType.ASSET, "AST-FIX"));
+    blueprints.add(new AccountBlueprint("FIX-EQUIP", "Equipment", AccountType.ASSET, "AST-FIX"));
+    blueprints.add(new AccountBlueprint("FIX-VEH", "Vehicles", AccountType.ASSET, "AST-FIX"));
 
     blueprints.add(
         new AccountBlueprint("LIAB-CUR", "Current Liabilities", AccountType.LIABILITY, "LIAB"));
     blueprints.add(
         new AccountBlueprint("AP", "Accounts Payable", AccountType.LIABILITY, "LIAB-CUR"));
-    blueprints.add(new AccountBlueprint("GST-OUT", "GST Output", AccountType.LIABILITY, "LIAB-CUR"));
-    blueprints.add(new AccountBlueprint("GST-PAY", "GST Payable", AccountType.LIABILITY, "LIAB-CUR"));
+    blueprints.add(
+        new AccountBlueprint("GST-OUT", "GST Output", AccountType.LIABILITY, "LIAB-CUR"));
+    blueprints.add(
+        new AccountBlueprint("GST-PAY", "GST Payable", AccountType.LIABILITY, "LIAB-CUR"));
     blueprints.add(
         new AccountBlueprint("TAX-PAYABLE", "Tax Payable", AccountType.LIABILITY, "LIAB-CUR"));
     blueprints.add(
         new AccountBlueprint("TDS-PAYABLE", "TDS Payable", AccountType.LIABILITY, "LIAB-CUR"));
 
     blueprints.add(new AccountBlueprint("OWN-EQ", "Owner's Equity", AccountType.EQUITY, "EQ"));
-    blueprints.add(
-        new AccountBlueprint("RET-EARN", "Retained Earnings", AccountType.EQUITY, "EQ"));
+    blueprints.add(new AccountBlueprint("RET-EARN", "Retained Earnings", AccountType.EQUITY, "EQ"));
     blueprints.add(
         new AccountBlueprint("OPEN-BAL", "Opening Balance Equity", AccountType.EQUITY, "EQ"));
 
@@ -416,13 +415,17 @@ public class TenantOnboardingService {
     blueprints.add(
         new AccountBlueprint("SALES-RETURNS", "Sales Returns", AccountType.REVENUE, "REV"));
 
-    blueprints.add(new AccountBlueprint("FG-COGS", "Finished Goods COGS", AccountType.COGS, "COGS"));
+    blueprints.add(
+        new AccountBlueprint("FG-COGS", "Finished Goods COGS", AccountType.COGS, "COGS"));
     blueprints.add(
         new AccountBlueprint(
             "RM-CONSUMPTION", "Raw Material Consumption", AccountType.COGS, "COGS"));
     blueprints.add(
         new AccountBlueprint(
-            "DIRECT-MATERIAL-CONSUMPTION", "Direct Material Consumption", AccountType.COGS, "COGS"));
+            "DIRECT-MATERIAL-CONSUMPTION",
+            "Direct Material Consumption",
+            AccountType.COGS,
+            "COGS"));
 
     blueprints.add(new AccountBlueprint("OPEX", "Operating Expenses", AccountType.EXPENSE, "EXP"));
     blueprints.add(new AccountBlueprint("DISC", "Sales Discount", AccountType.EXPENSE, "OPEX"));

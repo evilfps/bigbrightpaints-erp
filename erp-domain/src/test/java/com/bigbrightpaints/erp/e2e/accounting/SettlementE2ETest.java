@@ -285,7 +285,8 @@ class SettlementE2ETest extends AbstractIntegrationTest {
     return invoiceRepository.saveAndFlush(created);
   }
 
-  private void assertBalancedReceiptJournal(Map<String, Object> journalData, BigDecimal expectedAmount) {
+  private void assertBalancedReceiptJournal(
+      Map<String, Object> journalData, BigDecimal expectedAmount) {
     List<Map<String, Object>> lines = (List<Map<String, Object>>) journalData.get("lines");
     assertThat(lines).isNotNull().hasSize(2);
 

@@ -22,7 +22,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
@@ -52,6 +51,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptRepository;
 import com.bigbrightpaints.erp.modules.purchasing.domain.GoodsReceiptStatus;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 @ExtendWith(MockitoExtension.class)
 class AccountingPeriodServicePolicyTest {
@@ -183,10 +183,7 @@ class AccountingPeriodServicePolicyTest {
             company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED))
         .thenReturn(0L);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(JournalEntryStatus.DRAFT)))
+            company, period.getStartDate(), period.getEndDate(), List.of(JournalEntryStatus.DRAFT)))
         .thenReturn(0L);
     when(reportService.inventoryReconciliation()).thenReturn(null);
     when(reconciliationService.reconcileSubledgersForPeriod(
@@ -269,10 +266,7 @@ class AccountingPeriodServicePolicyTest {
             company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED))
         .thenReturn(0L);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(JournalEntryStatus.DRAFT)))
+            company, period.getStartDate(), period.getEndDate(), List.of(JournalEntryStatus.DRAFT)))
         .thenReturn(0L);
     when(reportService.inventoryReconciliation()).thenReturn(null);
     when(reconciliationService.reconcileSubledgersForPeriod(
@@ -352,10 +346,7 @@ class AccountingPeriodServicePolicyTest {
             company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED))
         .thenReturn(0L);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(JournalEntryStatus.DRAFT)))
+            company, period.getStartDate(), period.getEndDate(), List.of(JournalEntryStatus.DRAFT)))
         .thenReturn(0L);
     when(reportService.inventoryReconciliation())
         .thenReturn(inventoryReconciliation(BigDecimal.ZERO));

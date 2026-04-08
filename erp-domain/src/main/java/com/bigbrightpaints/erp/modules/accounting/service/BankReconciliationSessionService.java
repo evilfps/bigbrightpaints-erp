@@ -272,7 +272,10 @@ public class BankReconciliationSessionService {
             .toList();
     List<BankReconciliationSessionDetailDto.StatementItemDto> unmatchedItems = new ArrayList<>();
     unmatchedItems.addAll(
-        items.stream().filter(item -> item.getBankItemId() == null).map(this::toStatementItem).toList());
+        items.stream()
+            .filter(item -> item.getBankItemId() == null)
+            .map(this::toStatementItem)
+            .toList());
     unmatchedItems.addAll(
         summary.unclearedDeposits().stream().map(this::toSummaryUnmatchedItem).toList());
     unmatchedItems.addAll(
@@ -507,7 +510,8 @@ public class BankReconciliationSessionService {
         journalLineRepository.findPostedLinesForAccountByJournalEntryIds(
             company, journalEntryIds, session.getBankAccount().getId());
     Map<Long, List<JournalLine>> linesByJournalEntryId =
-        matchedLines.stream().collect(Collectors.groupingBy(line -> line.getJournalEntry().getId()));
+        matchedLines.stream()
+            .collect(Collectors.groupingBy(line -> line.getJournalEntry().getId()));
     if (!linesByJournalEntryId.keySet().containsAll(journalEntryIds)) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_REFERENCE,
@@ -518,7 +522,8 @@ public class BankReconciliationSessionService {
       if (entryMatch.getValue() != null && lines.size() > 1) {
         throw new ApplicationException(
             ErrorCode.VALIDATION_INVALID_INPUT,
-            "journalEntryId resolves multiple bank-account lines; use journalLineId when bankItemId is provided");
+            "journalEntryId resolves multiple bank-account lines; use journalLineId when bankItemId"
+                + " is provided");
       }
       for (JournalLine line : lines) {
         putResolvedMatch(resolvedLineBankItemIds, line.getId(), entryMatch.getValue());
@@ -528,7 +533,8 @@ public class BankReconciliationSessionService {
     return resolvedLineBankItemIds;
   }
 
-  private void putResolvedMatch(Map<Long, Long> resolvedLineBankItemIds, Long journalLineId, Long bankItemId) {
+  private void putResolvedMatch(
+      Map<Long, Long> resolvedLineBankItemIds, Long journalLineId, Long bankItemId) {
     Long existing = resolvedLineBankItemIds.putIfAbsent(journalLineId, bankItemId);
     if (existing != null && !Objects.equals(existing, bankItemId)) {
       throw new ApplicationException(

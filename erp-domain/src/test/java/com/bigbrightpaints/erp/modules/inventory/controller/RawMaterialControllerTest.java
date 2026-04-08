@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -125,8 +124,7 @@ class RawMaterialControllerTest {
     RawMaterialController controller = controller();
     List<RawMaterialStockEntryDto> stockEntries =
         List.of(
-            new RawMaterialStockEntryDto(
-                11L, "RM-SUMMARY", "Summary", new BigDecimal("12.00")));
+            new RawMaterialStockEntryDto(11L, "RM-SUMMARY", "Summary", new BigDecimal("12.00")));
     when(rawMaterialService.listStockEntries()).thenReturn(stockEntries);
 
     assertThat(controller.stock().getBody()).isNotNull();

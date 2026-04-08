@@ -78,9 +78,7 @@ class SalesOrderSearchRepositoryImpl implements SalesOrderSearchRepository {
     List<Predicate> predicates = new ArrayList<>();
     predicates.add(cb.equal(root.get("company"), company));
     predicates.add(
-        cb.notEqual(
-            cb.upper(cb.trim(cb.coalesce(root.get("status"), cb.literal("")))),
-            "DELETED"));
+        cb.notEqual(cb.upper(cb.trim(cb.coalesce(root.get("status"), cb.literal("")))), "DELETED"));
 
     Predicate statusPredicate = buildStatusPredicate(root.get("status"), cb, status);
     if (statusPredicate != null) {

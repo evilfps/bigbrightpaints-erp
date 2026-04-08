@@ -692,7 +692,8 @@ class AccountingEndpointContractTest {
   void journalEntries_withSourceFilter_delegatesToJournalEntryService() {
     JournalEntryService journalEntryService = mock(JournalEntryService.class);
     List<JournalEntryDto> expected = List.of(expectedJournal(82L, "PACK-1"));
-    when(journalEntryService.listJournalEntries(null, null, 0, 100, "PACKING")).thenReturn(expected);
+    when(journalEntryService.listJournalEntries(null, null, 0, 100, "PACKING"))
+        .thenReturn(expected);
 
     ApiResponse<List<JournalEntryDto>> body =
         newJournalController(mock(AccountingService.class), journalEntryService, null, null)
@@ -1034,8 +1035,7 @@ class AccountingEndpointContractTest {
             mock(JournalReferenceMappingRepository.class));
     ArgumentCaptor<JournalEntryRequest> requestCaptor =
         ArgumentCaptor.forClass(JournalEntryRequest.class);
-    when(accountingService.createManualJournalEntry(
-            requestCaptor.capture(), eq("IDEMP-FACADE-1")))
+    when(accountingService.createManualJournalEntry(requestCaptor.capture(), eq("IDEMP-FACADE-1")))
         .thenReturn(expectedJournal(703L, "MANUAL-FACADE-1"));
 
     facade.createManualJournalEntry(

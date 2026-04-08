@@ -53,11 +53,11 @@ class JournalQueryServiceSourceFilterTest {
     entry.setSourceModule("FACTORY_PACKING");
     entry.setReferenceNumber("PACK-001");
     entry.setEntryDate(LocalDate.of(2026, 4, 1));
-    when(
-            journalEntryRepository.findByCompanyAndSourceModuleIgnoreCaseOrderByEntryDateDescIdDesc(
-                eq(company), eq("FACTORY_PACKING"), any()))
+    when(journalEntryRepository.findByCompanyAndSourceModuleIgnoreCaseOrderByEntryDateDescIdDesc(
+            eq(company), eq("FACTORY_PACKING"), any()))
         .thenReturn(new PageImpl<>(List.of(entry)));
-    when(accountingDtoMapperService.resolveDisplayReferenceNumber(company, entry)).thenReturn("PACK-001");
+    when(accountingDtoMapperService.resolveDisplayReferenceNumber(company, entry))
+        .thenReturn("PACK-001");
     JournalEntryDto dto =
         new JournalEntryDto(
             1L,
@@ -87,7 +87,8 @@ class JournalQueryServiceSourceFilterTest {
             null);
     when(accountingDtoMapperService.toJournalEntryDto(entry, "PACK-001")).thenReturn(dto);
 
-    List<JournalEntryDto> result = journalQueryService.listJournalEntries(null, null, 0, 20, "PACKING");
+    List<JournalEntryDto> result =
+        journalQueryService.listJournalEntries(null, null, 0, 20, "PACKING");
 
     assertThat(result).containsExactly(dto);
     verify(journalEntryRepository)
@@ -111,10 +112,9 @@ class JournalQueryServiceSourceFilterTest {
     entry.setSourceModule("FACTORY_PACKING");
     entry.setReferenceNumber("PACK-D-001");
     entry.setEntryDate(LocalDate.of(2026, 4, 2));
-    when(
-            journalEntryRepository
-                .findByCompanyAndDealerAndSourceModuleIgnoreCaseOrderByEntryDateDescIdDesc(
-                    eq(company), eq(dealer), eq("FACTORY_PACKING"), any()))
+    when(journalEntryRepository
+            .findByCompanyAndDealerAndSourceModuleIgnoreCaseOrderByEntryDateDescIdDesc(
+                eq(company), eq(dealer), eq("FACTORY_PACKING"), any()))
         .thenReturn(new PageImpl<>(List.of(entry)));
     JournalEntryDto dto =
         new JournalEntryDto(
@@ -143,10 +143,12 @@ class JournalQueryServiceSourceFilterTest {
             null,
             null,
             null);
-    when(accountingDtoMapperService.resolveDisplayReferenceNumber(company, entry)).thenReturn("PACK-D-001");
+    when(accountingDtoMapperService.resolveDisplayReferenceNumber(company, entry))
+        .thenReturn("PACK-D-001");
     when(accountingDtoMapperService.toJournalEntryDto(entry, "PACK-D-001")).thenReturn(dto);
 
-    List<JournalEntryDto> result = journalQueryService.listJournalEntries(11L, null, 0, 1, "PACKING");
+    List<JournalEntryDto> result =
+        journalQueryService.listJournalEntries(11L, null, 0, 1, "PACKING");
 
     assertThat(result).containsExactly(dto);
     verify(journalEntryRepository)
@@ -163,10 +165,9 @@ class JournalQueryServiceSourceFilterTest {
     entry.setSourceModule("FACTORY_PACKING");
     entry.setReferenceNumber("PACK-S-001");
     entry.setEntryDate(LocalDate.of(2026, 4, 3));
-    when(
-            journalEntryRepository
-                .findByCompanyAndSupplierAndSourceModuleIgnoreCaseOrderByEntryDateDescIdDesc(
-                    eq(company), eq(supplier), eq("FACTORY_PACKING"), any()))
+    when(journalEntryRepository
+            .findByCompanyAndSupplierAndSourceModuleIgnoreCaseOrderByEntryDateDescIdDesc(
+                eq(company), eq(supplier), eq("FACTORY_PACKING"), any()))
         .thenReturn(new PageImpl<>(List.of(entry)));
     JournalEntryDto dto =
         new JournalEntryDto(
@@ -195,10 +196,12 @@ class JournalQueryServiceSourceFilterTest {
             null,
             null,
             null);
-    when(accountingDtoMapperService.resolveDisplayReferenceNumber(company, entry)).thenReturn("PACK-S-001");
+    when(accountingDtoMapperService.resolveDisplayReferenceNumber(company, entry))
+        .thenReturn("PACK-S-001");
     when(accountingDtoMapperService.toJournalEntryDto(entry, "PACK-S-001")).thenReturn(dto);
 
-    List<JournalEntryDto> result = journalQueryService.listJournalEntries(null, 21L, 0, 1, "PACKING");
+    List<JournalEntryDto> result =
+        journalQueryService.listJournalEntries(null, 21L, 0, 1, "PACKING");
 
     assertThat(result).containsExactly(dto);
     verify(journalEntryRepository)

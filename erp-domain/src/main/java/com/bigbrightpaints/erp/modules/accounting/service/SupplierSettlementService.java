@@ -144,7 +144,8 @@ class SupplierSettlementService {
     if (!replayCandidate) {
       settlementTotalsValidationService.validateSupplierSettlementAllocations(allocations);
     }
-    SettlementTotals totals = settlementTotalsValidationService.computeSettlementTotals(allocations);
+    SettlementTotals totals =
+        settlementTotalsValidationService.computeSettlementTotals(allocations);
     String memo =
         StringUtils.hasText(request.memo())
             ? request.memo().trim()
@@ -220,7 +221,7 @@ class SupplierSettlementService {
           requestedEffectiveSettlementDate,
           memo,
           entry,
-            settlementJournalLineDraftService
+          settlementJournalLineDraftService
               .buildSupplierSettlementLines(company, request, payableAccount, totals, memo, false)
               .lines());
       return settlementOutcomeService.buildSupplierSettlementResponse(existingAllocations);

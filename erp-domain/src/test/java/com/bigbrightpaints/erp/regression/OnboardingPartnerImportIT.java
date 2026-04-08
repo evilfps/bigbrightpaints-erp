@@ -46,7 +46,8 @@ class OnboardingPartnerImportIT extends AbstractIntegrationTest {
     companyCode = "ONBOARD-IMP-" + shortId();
     company = dataSeeder.ensureCompany(companyCode, "Onboarding Imports " + shortId());
     String adminEmail = "onboarding-admin-" + shortId() + "@bbp.com";
-    dataSeeder.ensureUser(adminEmail, PASSWORD, "Onboarding Admin", companyCode, List.of("ROLE_ADMIN"));
+    dataSeeder.ensureUser(
+        adminEmail, PASSWORD, "Onboarding Admin", companyCode, List.of("ROLE_ADMIN"));
     adminHeaders = authHeaders(adminEmail, PASSWORD, companyCode);
   }
 
@@ -54,12 +55,14 @@ class OnboardingPartnerImportIT extends AbstractIntegrationTest {
   void guidedOnboardingPartnerImportsReturnCountsAndRowLevelErrors() {
     ResponseEntity<Map> accountsResponse =
         rest.exchange(
-            "/api/v1/accounting/accounts", HttpMethod.GET, new HttpEntity<>(adminHeaders), Map.class);
+            "/api/v1/accounting/accounts",
+            HttpMethod.GET,
+            new HttpEntity<>(adminHeaders),
+            Map.class);
 
     assertThat(accountsResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     @SuppressWarnings("unchecked")
-    List<Map<String, Object>> accounts =
-        (List<Map<String, Object>>) responseData(accountsResponse);
+    List<Map<String, Object>> accounts = (List<Map<String, Object>>) responseData(accountsResponse);
     assertThat(accounts).isNotEmpty();
 
     String dealerEmail = "dealer-" + shortId() + "@example.com";
@@ -79,7 +82,8 @@ class OnboardingPartnerImportIT extends AbstractIntegrationTest {
     assertThat(((Number) dealerPayload.get("successCount")).intValue()).isEqualTo(1);
     assertThat(((Number) dealerPayload.get("failureCount")).intValue()).isEqualTo(1);
     @SuppressWarnings("unchecked")
-    List<Map<String, Object>> dealerErrors = (List<Map<String, Object>>) dealerPayload.get("errors");
+    List<Map<String, Object>> dealerErrors =
+        (List<Map<String, Object>>) dealerPayload.get("errors");
     assertThat(dealerErrors).hasSize(1);
     assertThat(((Number) dealerErrors.getFirst().get("rowNumber")).longValue()).isEqualTo(2L);
     assertThat(String.valueOf(dealerErrors.getFirst().get("message")))
@@ -87,8 +91,7 @@ class OnboardingPartnerImportIT extends AbstractIntegrationTest {
         .contains("gstNumber: GST number must be a valid 15-character GSTIN")
         .contains("stateCode: State code must be exactly 2 characters");
     assertThat(dealerRepository.findByCompanyAndEmailIgnoreCase(company, dealerEmail)).isPresent();
-    assertThat(
-            dealerRepository.findByCompanyAndEmailIgnoreCase(company, "broken-at-example.com"))
+    assertThat(dealerRepository.findByCompanyAndEmailIgnoreCase(company, "broken-at-example.com"))
         .isNotPresent();
 
     String supplierCode = "SUP-" + shortId();
@@ -119,7 +122,8 @@ class OnboardingPartnerImportIT extends AbstractIntegrationTest {
         .contains("contactEmail: must be a well-formed email address")
         .contains("gstNumber: GST number must be a valid 15-character GSTIN")
         .contains("stateCode: State code must be exactly 2 characters");
-    assertThat(supplierRepository.findByCompanyAndCodeIgnoreCase(company, supplierCode)).isPresent();
+    assertThat(supplierRepository.findByCompanyAndCodeIgnoreCase(company, supplierCode))
+        .isPresent();
     assertThat(supplierRepository.findByCompanyAndCodeIgnoreCase(company, "SUP-BROKEN"))
         .isNotPresent();
 
@@ -153,7 +157,8 @@ class OnboardingPartnerImportIT extends AbstractIntegrationTest {
     @SuppressWarnings("unchecked")
     Map<String, Object> catalogItemsPage = (Map<String, Object>) responseData(catalogItemsResponse);
     @SuppressWarnings("unchecked")
-    List<Map<String, Object>> catalogItems = (List<Map<String, Object>>) catalogItemsPage.get("content");
+    List<Map<String, Object>> catalogItems =
+        (List<Map<String, Object>>) catalogItemsPage.get("content");
     assertThat(catalogItems).isNotEmpty();
     Map<String, Object> importedItem = catalogItems.getFirst();
     @SuppressWarnings("unchecked")
@@ -193,7 +198,8 @@ class OnboardingPartnerImportIT extends AbstractIntegrationTest {
   private HttpHeaders authHeaders(String email, String password, String tenantCode) {
     Map<String, Object> loginPayload =
         Map.of("email", email, "password", password, "companyCode", tenantCode);
-    ResponseEntity<Map> loginResponse = rest.postForEntity("/api/v1/auth/login", loginPayload, Map.class);
+    ResponseEntity<Map> loginResponse =
+        rest.postForEntity("/api/v1/auth/login", loginPayload, Map.class);
     assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     String token = String.valueOf(loginResponse.getBody().get("accessToken"));
 

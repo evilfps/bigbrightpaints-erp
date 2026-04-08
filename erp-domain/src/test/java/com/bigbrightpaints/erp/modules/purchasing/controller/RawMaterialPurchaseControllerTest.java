@@ -45,7 +45,8 @@ class RawMaterialPurchaseControllerTest {
     assertThatThrownBy(() -> controller.createPurchase(null, "legacy-001", purchaseRequest()))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("X-Idempotency-Key is not supported for purchase invoices");
-    verify(purchasingService, never()).createPurchase(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    verify(purchasingService, never())
+        .createPurchase(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
   }
 
   @Test
@@ -71,7 +72,8 @@ class RawMaterialPurchaseControllerTest {
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("X-Idempotency-Key is not supported for purchase returns");
     verify(purchasingService, never())
-        .recordPurchaseReturn(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        .recordPurchaseReturn(
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
   }
 
   @Test

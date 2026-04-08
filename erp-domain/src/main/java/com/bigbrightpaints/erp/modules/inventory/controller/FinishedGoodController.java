@@ -49,7 +49,8 @@ public class FinishedGoodController {
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_FACTORY','ROLE_SALES','ROLE_ACCOUNTING')")
   public ResponseEntity<ApiResponse<List<FinishedGoodBatchInventoryDto>>> listBatches(
       @PathVariable Long id) {
-    List<FinishedGoodBatchInventoryDto> batches = finishedGoodsService.listBatchesForFinishedGood(id);
+    List<FinishedGoodBatchInventoryDto> batches =
+        finishedGoodsService.listBatchesForFinishedGood(id);
     return ResponseEntity.ok(ApiResponse.success("Finished good batches", batches));
   }
 

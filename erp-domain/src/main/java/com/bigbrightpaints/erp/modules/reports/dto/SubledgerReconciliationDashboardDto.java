@@ -9,5 +9,8 @@ public record SubledgerReconciliationDashboardDto(
     boolean balanced) {
 
   public record SubledgerControlSummary(
-      BigDecimal controlBalance, BigDecimal subledgerTotal, BigDecimal difference, boolean balanced) {}
+      BigDecimal controlBalance,
+      BigDecimal subledgerTotal,
+      BigDecimal difference,
+      boolean balanced) {}
 }

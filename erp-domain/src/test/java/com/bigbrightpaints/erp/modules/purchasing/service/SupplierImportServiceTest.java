@@ -102,7 +102,8 @@ class SupplierImportServiceTest {
 
   @Test
   void importSuppliers_rejectsCsvWithoutRequiredHeaders() {
-    MockMultipartFile file = csvFile("name,email,paymentTerms\nSupplier One,one@example.com,NET_30\n");
+    MockMultipartFile file =
+        csvFile("name,email,paymentTerms\nSupplier One,one@example.com,NET_30\n");
 
     assertThatThrownBy(() -> service.importSuppliers(file))
         .isInstanceOf(ApplicationException.class)

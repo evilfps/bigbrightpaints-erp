@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -16,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
@@ -25,6 +23,7 @@ import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 @ExtendWith(MockitoExtension.class)
 class JournalLinePostingServiceTest {

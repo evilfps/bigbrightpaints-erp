@@ -19,11 +19,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.modules.sales.dto.PromotionDto;
+import com.bigbrightpaints.erp.modules.sales.dto.PromotionRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderItemRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderRequest;
 import com.bigbrightpaints.erp.modules.sales.dto.SalesOrderStatusHistoryDto;
-import com.bigbrightpaints.erp.modules.sales.dto.PromotionDto;
-import com.bigbrightpaints.erp.modules.sales.dto.PromotionRequest;
 import com.bigbrightpaints.erp.modules.sales.service.DealerService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesDashboardService;
 import com.bigbrightpaints.erp.modules.sales.service.SalesDispatchReconciliationService;

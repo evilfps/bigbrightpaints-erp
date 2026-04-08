@@ -52,8 +52,9 @@ public class InventoryAdjustmentController {
     validateRequest(resolved);
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(
-        ApiResponse.success(
-            "Inventory adjustment posted", inventoryAdjustmentService.createAdjustment(resolved)));
+            ApiResponse.success(
+                "Inventory adjustment posted",
+                inventoryAdjustmentService.createAdjustment(resolved)));
   }
 
   private InventoryAdjustmentRequest applyIdempotencyKey(

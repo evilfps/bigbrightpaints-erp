@@ -274,7 +274,8 @@ public class PurchasingService {
     return recordPurchaseReturn(request, null);
   }
 
-  public JournalEntryDto recordPurchaseReturn(PurchaseReturnRequest request, String idempotencyKey) {
+  public JournalEntryDto recordPurchaseReturn(
+      PurchaseReturnRequest request, String idempotencyKey) {
     return purchaseReturnService.recordPurchaseReturn(request, idempotencyKey);
   }
 

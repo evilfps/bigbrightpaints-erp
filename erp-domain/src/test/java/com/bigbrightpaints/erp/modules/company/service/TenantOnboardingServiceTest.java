@@ -479,7 +479,8 @@ class TenantOnboardingServiceTest {
 
     ArgumentCaptor<Company> savedCompanies = ArgumentCaptor.forClass(Company.class);
     verify(companyRepository, times(3)).save(savedCompanies.capture());
-    Company savedCompany = savedCompanies.getAllValues().get(savedCompanies.getAllValues().size() - 1);
+    Company savedCompany =
+        savedCompanies.getAllValues().get(savedCompanies.getAllValues().size() - 1);
     assertThat(savedCompany.getDefaultInventoryAccountId()).isNotNull();
     assertThat(savedCompany.getDefaultCogsAccountId()).isNotNull();
     assertThat(savedCompany.getDefaultRevenueAccountId()).isNotNull();

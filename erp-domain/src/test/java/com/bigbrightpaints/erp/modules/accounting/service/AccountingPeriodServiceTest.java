@@ -3,16 +3,16 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -27,7 +27,6 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
@@ -65,6 +64,7 @@ import com.bigbrightpaints.erp.modules.purchasing.domain.Supplier;
 import com.bigbrightpaints.erp.modules.reports.dto.TrialBalanceDto;
 import com.bigbrightpaints.erp.modules.reports.service.ReportService;
 import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 @ExtendWith(MockitoExtension.class)
 @Tag("critical")
@@ -575,10 +575,7 @@ class AccountingPeriodServiceTest {
             company, period.getStartDate(), period.getEndDate(), GoodsReceiptStatus.INVOICED))
         .thenReturn(0L);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(JournalEntryStatus.DRAFT)))
+            company, period.getStartDate(), period.getEndDate(), List.of(JournalEntryStatus.DRAFT)))
         .thenReturn(0L);
     when(reportService.inventoryReconciliation())
         .thenReturn(
@@ -741,7 +738,8 @@ class AccountingPeriodServiceTest {
     period.setStatus(AccountingPeriodStatus.LOCKED);
     ClosedPeriodPostingExceptionService exceptionService =
         org.mockito.Mockito.mock(ClosedPeriodPostingExceptionService.class);
-    ReflectionFieldAccess.setField(service, "closedPeriodPostingExceptionService", exceptionService);
+    ReflectionFieldAccess.setField(
+        service, "closedPeriodPostingExceptionService", exceptionService);
     when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 2))
         .thenReturn(Optional.of(period));
 
@@ -786,10 +784,7 @@ class AccountingPeriodServiceTest {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(accountingLookupService.requireAccountingPeriod(company, 99L)).thenReturn(period);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(JournalEntryStatus.DRAFT)))
+            company, period.getStartDate(), period.getEndDate(), List.of(JournalEntryStatus.DRAFT)))
         .thenReturn(0L);
     when(reportService.inventoryReconciliation())
         .thenReturn(
@@ -876,10 +871,7 @@ class AccountingPeriodServiceTest {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(accountingLookupService.requireAccountingPeriod(company, 100L)).thenReturn(period);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(JournalEntryStatus.DRAFT)))
+            company, period.getStartDate(), period.getEndDate(), List.of(JournalEntryStatus.DRAFT)))
         .thenReturn(0L);
     when(reportService.inventoryReconciliation())
         .thenReturn(
@@ -1052,10 +1044,7 @@ class AccountingPeriodServiceTest {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(accountingLookupService.requireAccountingPeriod(company, 199L)).thenReturn(period);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(JournalEntryStatus.DRAFT)))
+            company, period.getStartDate(), period.getEndDate(), List.of(JournalEntryStatus.DRAFT)))
         .thenReturn(0L);
     when(reportService.inventoryReconciliation())
         .thenReturn(
@@ -1235,10 +1224,7 @@ class AccountingPeriodServiceTest {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(accountingLookupService.requireAccountingPeriod(company, 200L)).thenReturn(period);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(JournalEntryStatus.DRAFT)))
+            company, period.getStartDate(), period.getEndDate(), List.of(JournalEntryStatus.DRAFT)))
         .thenReturn(0L);
     when(reportService.inventoryReconciliation())
         .thenReturn(
@@ -1469,7 +1455,8 @@ class AccountingPeriodServiceTest {
     ReflectionFieldAccess.setField(
         service, "accountingComplianceAuditService", accountingComplianceAuditService);
 
-    var dto = service.createOrUpdatePeriod(new AccountingPeriodRequest(2026, 7, CostingMethod.FIFO));
+    var dto =
+        service.createOrUpdatePeriod(new AccountingPeriodRequest(2026, 7, CostingMethod.FIFO));
 
     assertThat(dto.status()).isEqualTo("OPEN");
     verify(accountingComplianceAuditService)

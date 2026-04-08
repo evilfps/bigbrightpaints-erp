@@ -74,7 +74,8 @@ public interface RawMaterialPurchaseRepository extends JpaRepository<RawMaterial
   Optional<RawMaterialPurchase> findByCompanyAndInvoiceNumberIgnoreCase(
       Company company, String invoiceNumber);
 
-  Optional<RawMaterialPurchase> findByCompanyAndIdempotencyKey(Company company, String idempotencyKey);
+  Optional<RawMaterialPurchase> findByCompanyAndIdempotencyKey(
+      Company company, String idempotencyKey);
 
   @EntityGraph(
       attributePaths = {

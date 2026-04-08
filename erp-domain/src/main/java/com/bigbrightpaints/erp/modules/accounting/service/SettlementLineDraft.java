@@ -5,4 +5,5 @@ import java.util.List;
 
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
 
-record SettlementLineDraft(List<JournalEntryRequest.JournalLineRequest> lines, BigDecimal cashAmount) {}
+record SettlementLineDraft(
+    List<JournalEntryRequest.JournalLineRequest> lines, BigDecimal cashAmount) {}

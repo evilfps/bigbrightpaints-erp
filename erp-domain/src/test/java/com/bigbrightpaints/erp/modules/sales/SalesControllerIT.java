@@ -213,9 +213,7 @@ public class SalesControllerIT extends AbstractIntegrationTest {
     BigDecimal currentStock =
         finishedGood.getCurrentStock() == null ? BigDecimal.ZERO : finishedGood.getCurrentStock();
     BigDecimal reservedStock =
-        finishedGood.getReservedStock() == null
-            ? BigDecimal.ZERO
-            : finishedGood.getReservedStock();
+        finishedGood.getReservedStock() == null ? BigDecimal.ZERO : finishedGood.getReservedStock();
     BigDecimal availableStock = currentStock.subtract(reservedStock);
     if (availableStock.compareTo(requiredQuantity) >= 0) {
       return;
@@ -952,7 +950,8 @@ public class SalesControllerIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void sales_order_create_allows_over_limit_when_approved_override_covers_pending_exposure_headroom() {
+  void
+      sales_order_create_allows_over_limit_when_approved_override_covers_pending_exposure_headroom() {
     HttpHeaders salesHeaders = authenticatedHeaders(loginToken(SALES_EMAIL, SALES_PASSWORD));
     HttpHeaders adminHeaders = authenticatedHeaders(loginToken());
     Long dealerId = createDealer(adminHeaders, "Headroom Dealer");
@@ -977,7 +976,8 @@ public class SalesControllerIT extends AbstractIntegrationTest {
             HttpMethod.POST,
             new HttpEntity<>(salesOrderPayload(dealerId), salesHeaders),
             Map.class);
-    assertThat(blockedOrderWithoutOverride.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+    assertThat(blockedOrderWithoutOverride.getStatusCode())
+        .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
 
     ResponseEntity<Map> createOverrideResponse =
         rest.exchange(

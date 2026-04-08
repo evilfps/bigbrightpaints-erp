@@ -525,7 +525,10 @@ class PurchaseReturnServiceTest {
             eq(new BigDecimal("5.00"))))
         .thenReturn(
             journalEntryDto(
-                930L, "return-idem-30", LocalDate.of(2026, 3, 9), "Damaged - Resin to Supplier 10"));
+                930L,
+                "return-idem-30",
+                LocalDate.of(2026, 3, 9),
+                "Damaged - Resin to Supplier 10"));
     when(journalCorrectionMetadataService.findByCompanyAndId(company, 930L))
         .thenReturn(Optional.empty());
 
@@ -828,9 +831,12 @@ class PurchaseReturnServiceTest {
     assertThat(result.id()).isEqualTo(915L);
     assertThat(supplier.getStateCode()).isEqualTo("27");
     ArgumentCaptor<Map> taxCreditCaptor = ArgumentCaptor.forClass(Map.class);
-    ArgumentCaptor<com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest.GstBreakdown>
-        gstBreakdownCaptor = ArgumentCaptor.forClass(
-            com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest.GstBreakdown.class);
+    ArgumentCaptor<
+            com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest.GstBreakdown>
+        gstBreakdownCaptor =
+            ArgumentCaptor.forClass(
+                com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest.GstBreakdown
+                    .class);
     verify(accountingFacade)
         .postPurchaseReturn(
             eq(10L),

@@ -2,8 +2,7 @@ package com.bigbrightpaints.erp.modules.purchasing.dto;
 
 import java.util.List;
 
-public record SupplierImportResponse(
-    int successCount, int failureCount, List<ImportError> errors) {
+public record SupplierImportResponse(int successCount, int failureCount, List<ImportError> errors) {
 
   public SupplierImportResponse {
     errors = errors == null ? List.of() : List.copyOf(errors);

@@ -9,7 +9,8 @@ public record OpeningBalanceImportResponse(
     errors = errors == null ? List.of() : List.copyOf(errors);
   }
 
-  public OpeningBalanceImportResponse(int rowsProcessed, int accountsCreated, List<ImportError> errors) {
+  public OpeningBalanceImportResponse(
+      int rowsProcessed, int accountsCreated, List<ImportError> errors) {
     this(rowsProcessed, errors == null ? 0 : errors.size(), accountsCreated, errors);
   }
 

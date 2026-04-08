@@ -138,8 +138,7 @@ class CR_CatalogImportDeterminismIT extends AbstractIntegrationTest {
     assertThat(response.errors()).hasSize(1);
     CatalogImportResponse.ImportError error = response.errors().getFirst();
     assertThat(error.rowNumber()).isEqualTo(2L);
-    assertThat(error.message())
-        .contains("requires fgCogsAccountId to reference a COGS account");
+    assertThat(error.message()).contains("requires fgCogsAccountId to reference a COGS account");
     assertThat(productRepository.findByCompanyAndSkuCode(company, finishedSku)).isEmpty();
   }
 

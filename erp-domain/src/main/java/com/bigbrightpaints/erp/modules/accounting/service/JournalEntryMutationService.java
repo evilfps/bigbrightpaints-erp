@@ -285,7 +285,8 @@ class JournalEntryMutationService {
       BigDecimal roundingDelta = totalBaseDebit.subtract(totalBaseCredit);
       if (roundingDelta.compareTo(BigDecimal.ZERO) != 0) {
         roundingAdjustment =
-            journalLinePostingService.absorbRoundingDelta(roundingDelta, postedLines, accountDeltas);
+            journalLinePostingService.absorbRoundingDelta(
+                roundingDelta, postedLines, accountDeltas);
         totalBaseDebit =
             postedLines.stream()
                 .map(JournalLine::getDebit)

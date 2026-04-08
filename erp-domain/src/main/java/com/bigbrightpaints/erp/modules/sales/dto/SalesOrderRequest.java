@@ -131,11 +131,7 @@ public record SalesOrderRequest(
     if (items != null) {
       for (SalesOrderItemRequest item : items) {
         signatureBuilder.add(
-            itemIdempotencyToken(item)
-                + ':'
-                + item.quantity()
-                + ':'
-                + item.unitPrice());
+            itemIdempotencyToken(item) + ':' + item.quantity() + ':' + item.unitPrice());
       }
     }
     return signatureBuilder.buildHash();

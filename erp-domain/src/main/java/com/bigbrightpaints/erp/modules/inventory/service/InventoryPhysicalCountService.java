@@ -25,7 +25,8 @@ public class InventoryPhysicalCountService {
   private final CompanyClock companyClock;
 
   public InventoryPhysicalCountService(
-      InventoryPhysicalCountRepository inventoryPhysicalCountRepository, CompanyClock companyClock) {
+      InventoryPhysicalCountRepository inventoryPhysicalCountRepository,
+      CompanyClock companyClock) {
     this.inventoryPhysicalCountRepository = inventoryPhysicalCountRepository;
     this.companyClock = companyClock;
   }
@@ -67,7 +68,8 @@ public class InventoryPhysicalCountService {
   }
 
   @Transactional(readOnly = true)
-  public Map<Long, BigDecimal> latestFinishedGoodCounts(Company company, List<Long> finishedGoodIds) {
+  public Map<Long, BigDecimal> latestFinishedGoodCounts(
+      Company company, List<Long> finishedGoodIds) {
     return latestCounts(company, InventoryPhysicalCountTarget.FINISHED_GOOD, finishedGoodIds);
   }
 
@@ -101,7 +103,10 @@ public class InventoryPhysicalCountService {
 
   private Map<Long, BigDecimal> latestCounts(
       Company company, InventoryPhysicalCountTarget target, List<Long> inventoryItemIds) {
-    if (company == null || company.getId() == null || inventoryItemIds == null || inventoryItemIds.isEmpty()) {
+    if (company == null
+        || company.getId() == null
+        || inventoryItemIds == null
+        || inventoryItemIds.isEmpty()) {
       return Map.of();
     }
     List<Long> canonicalIds =
@@ -116,7 +121,8 @@ public class InventoryPhysicalCountService {
       if (candidate.getInventoryItemId() == null) {
         continue;
       }
-      latestByItemId.putIfAbsent(candidate.getInventoryItemId(), safeQuantity(candidate.getPhysicalQuantity()));
+      latestByItemId.putIfAbsent(
+          candidate.getInventoryItemId(), safeQuantity(candidate.getPhysicalQuantity()));
     }
     return latestByItemId;
   }

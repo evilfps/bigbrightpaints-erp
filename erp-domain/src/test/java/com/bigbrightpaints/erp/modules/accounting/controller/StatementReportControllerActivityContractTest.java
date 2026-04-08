@@ -55,8 +55,7 @@ class StatementReportControllerActivityContractTest {
         .thenReturn(report);
 
     ResponseEntity<ApiResponse<StatementReportControllerSupport.AccountActivitySummaryResponse>>
-        response =
-        controller.getAccountActivity(1L, null, null, "2026-02-09", "2026-02-10");
+        response = controller.getAccountActivity(1L, null, null, "2026-02-09", "2026-02-10");
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).isNotNull();

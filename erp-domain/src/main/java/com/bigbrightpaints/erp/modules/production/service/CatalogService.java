@@ -334,7 +334,9 @@ public class CatalogService {
       return request.metadata();
     }
     LinkedHashMap<String, Object> metadata =
-        request.metadata() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(request.metadata());
+        request.metadata() == null
+            ? new LinkedHashMap<>()
+            : new LinkedHashMap<>(request.metadata());
     putFinishedGoodAccountOverride(
         metadata, "cogsAccountId", FG_COGS_ACCOUNT_ID_KEY, request.cogsAccountId());
     putFinishedGoodAccountOverride(

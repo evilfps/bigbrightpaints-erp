@@ -7,8 +7,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
@@ -158,7 +158,8 @@ class DealerSettlementService {
     if (!replayCandidate) {
       settlementTotalsValidationService.validateDealerSettlementAllocations(allocations);
     }
-    SettlementTotals totals = settlementTotalsValidationService.computeSettlementTotals(allocations);
+    SettlementTotals totals =
+        settlementTotalsValidationService.computeSettlementTotals(allocations);
     String memo =
         StringUtils.hasText(request.memo())
             ? request.memo().trim()

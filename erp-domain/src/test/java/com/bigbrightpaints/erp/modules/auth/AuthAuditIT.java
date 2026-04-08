@@ -90,7 +90,8 @@ public class AuthAuditIT extends AbstractIntegrationTest {
   }
 
   @Test
-  void mfa_profile_changes_log_enrollment_activation_and_disable_events() throws InterruptedException {
+  void mfa_profile_changes_log_enrollment_activation_and_disable_events()
+      throws InterruptedException {
     String suffix = Long.toString(System.nanoTime());
     String companyCode = "AUTH-MFA-" + suffix;
     String email = "mfa-audit-" + suffix + "@bbp.com";

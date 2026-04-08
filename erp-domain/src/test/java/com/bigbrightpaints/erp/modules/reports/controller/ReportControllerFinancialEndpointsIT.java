@@ -106,7 +106,8 @@ class ReportControllerFinancialEndpointsIT extends AbstractIntegrationTest {
 
     Map<String, Object> profitLossData =
         fetchDataMap(
-            String.format("/api/v1/reports/profit-loss?startDate=%s&endDate=%s", startDate, endDate));
+            String.format(
+                "/api/v1/reports/profit-loss?startDate=%s&endDate=%s", startDate, endDate));
     assertThat(profitLossData).containsKeys("revenue", "operatingExpenses", "netIncome");
 
     Map<String, Object> balanceSheetData =
@@ -326,7 +327,8 @@ class ReportControllerFinancialEndpointsIT extends AbstractIntegrationTest {
             "email", ACCOUNTING_EMAIL,
             "password", PASSWORD,
             "companyCode", COMPANY_CODE);
-    ResponseEntity<Map> loginResponse = rest.postForEntity("/api/v1/auth/login", payload, Map.class);
+    ResponseEntity<Map> loginResponse =
+        rest.postForEntity("/api/v1/auth/login", payload, Map.class);
     assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
 
     HttpHeaders authHeaders = new HttpHeaders();

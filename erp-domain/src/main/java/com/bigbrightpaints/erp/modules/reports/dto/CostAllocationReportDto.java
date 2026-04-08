@@ -4,4 +4,6 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public record CostAllocationReportDto(
-    List<String> allocationRules, List<CostAllocationBatchDto> amountsPerBatch, BigDecimal totalAllocated) {}
+    List<String> allocationRules,
+    List<CostAllocationBatchDto> amountsPerBatch,
+    BigDecimal totalAllocated) {}

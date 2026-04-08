@@ -40,11 +40,14 @@ public class CreditLimitOverrideController {
   @Operation(summary = "Create credit limit override request")
   @ApiResponses({
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
-        responseCode = "201", description = "Override request created"),
+        responseCode = "201",
+        description = "Override request created"),
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
-        responseCode = "400", description = "Invalid override request payload"),
+        responseCode = "400",
+        description = "Invalid override request payload"),
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
-        responseCode = "403", description = "Forbidden")
+        responseCode = "403",
+        description = "Forbidden")
   })
   public ResponseEntity<ApiResponse<CreditLimitOverrideRequestDto>> createRequest(
       @Valid @RequestBody CreditLimitOverrideRequestCreateRequest request, Principal principal) {

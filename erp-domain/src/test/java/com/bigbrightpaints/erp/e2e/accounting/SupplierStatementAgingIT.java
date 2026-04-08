@@ -292,7 +292,8 @@ class SupplierStatementAgingIT extends AbstractIntegrationTest {
             new HttpEntity<>(headers),
             Map.class);
     assertThat(timelineResp.getStatusCode()).isEqualTo(HttpStatus.OK);
-    List<Map<String, Object>> timeline = (List<Map<String, Object>>) timelineResp.getBody().get("data");
+    List<Map<String, Object>> timeline =
+        (List<Map<String, Object>>) timelineResp.getBody().get("data");
     assertThat(timeline).isNotEmpty();
     assertThat(timeline)
         .allSatisfy(event -> assertThat(event).containsKeys("status", "timestamp", "actor"));

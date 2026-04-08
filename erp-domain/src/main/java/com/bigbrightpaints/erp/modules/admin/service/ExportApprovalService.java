@@ -10,11 +10,11 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
-import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventCommand;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventSource;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventStatus;
 import com.bigbrightpaints.erp.core.audittrail.EnterpriseAuditTrailService;
+import com.bigbrightpaints.erp.core.config.SystemSettingsService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
@@ -265,7 +265,10 @@ public class ExportApprovalService {
               + "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R"
               + " >> endobj\n"
               + "4 0 obj << /Length 60 >> stream\n"
-              + "BT /F1 12 Tf 20 100 Td (" + normalizedReportType + " export " + request.getId()
+              + "BT /F1 12 Tf 20 100 Td ("
+              + normalizedReportType
+              + " export "
+              + request.getId()
               + ") Tj ET\n"
               + "endstream endobj\n"
               + "xref\n0 5\n0000000000 65535 f \n"

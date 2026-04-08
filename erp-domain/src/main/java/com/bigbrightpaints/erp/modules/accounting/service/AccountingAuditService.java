@@ -113,8 +113,7 @@ public class AccountingAuditService {
     try {
       accountingEventStore.recordJournalEntryVoided(original, voidEntry, reason);
     } catch (Exception ex) {
-      handleAccountingEventTrailFailure(
-          "JOURNAL_ENTRY_VOIDED", original.getReferenceNumber(), ex);
+      handleAccountingEventTrailFailure("JOURNAL_ENTRY_VOIDED", original.getReferenceNumber(), ex);
     }
   }
 
@@ -204,7 +203,8 @@ public class AccountingAuditService {
           allocationCount,
           normalizeAuditValue(idempotencyKey));
     } catch (Exception ex) {
-      handleAccountingEventTrailFailure("SETTLEMENT_ALLOCATED", journalEntry.getReferenceNumber(), ex);
+      handleAccountingEventTrailFailure(
+          "SETTLEMENT_ALLOCATED", journalEntry.getReferenceNumber(), ex);
     }
   }
 

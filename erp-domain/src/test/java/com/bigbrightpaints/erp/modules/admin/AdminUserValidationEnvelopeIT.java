@@ -31,7 +31,11 @@ class AdminUserValidationEnvelopeIT extends AbstractIntegrationTest {
   @BeforeEach
   void setup() {
     dataSeeder.ensureUser(
-        ADMIN_EMAIL, ADMIN_PASSWORD, "Validation Envelope Admin", COMPANY_CODE, List.of("ROLE_ADMIN"));
+        ADMIN_EMAIL,
+        ADMIN_PASSWORD,
+        "Validation Envelope Admin",
+        COMPANY_CODE,
+        List.of("ROLE_ADMIN"));
   }
 
   @Test
@@ -76,7 +80,8 @@ class AdminUserValidationEnvelopeIT extends AbstractIntegrationTest {
             "email", ADMIN_EMAIL,
             "password", ADMIN_PASSWORD,
             "companyCode", COMPANY_CODE);
-    ResponseEntity<Map> loginResponse = rest.postForEntity("/api/v1/auth/login", loginBody, Map.class);
+    ResponseEntity<Map> loginResponse =
+        rest.postForEntity("/api/v1/auth/login", loginBody, Map.class);
     assertThat(loginResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(loginResponse.getBody()).isNotNull();
 

@@ -10,13 +10,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 @ExtendWith(MockitoExtension.class)
 class AccountHierarchyServiceTest {
@@ -38,7 +38,8 @@ class AccountHierarchyServiceTest {
     when(accountRepository.findByCompanyOrderByCodeAsc(company))
         .thenReturn(List.of(assets, currentAssets, cash, revenue));
 
-    AccountHierarchyService service = new AccountHierarchyService(accountRepository, companyContextService);
+    AccountHierarchyService service =
+        new AccountHierarchyService(accountRepository, companyContextService);
     List<AccountHierarchyService.AccountNode> tree = service.getChartOfAccountsTree();
 
     assertThat(tree).hasSize(2);
@@ -57,12 +58,7 @@ class AccountHierarchyServiceTest {
   }
 
   private Account account(
-      Long id,
-      Company company,
-      String code,
-      String name,
-      AccountType type,
-      Account parent) {
+      Long id, Company company, String code, String name, AccountType type, Account parent) {
     Account account = new Account();
     ReflectionFieldAccess.setField(account, "id", id);
     account.setCompany(company);

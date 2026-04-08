@@ -1,7 +1,7 @@
 package com.bigbrightpaints.erp.modules.accounting.controller;
 
-import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -53,10 +53,11 @@ public class ReconciliationController {
   public ResponseEntity<ApiResponse<BankReconciliationSessionSummaryDto>>
       startBankReconciliationSession(
           @Valid @RequestBody BankReconciliationSessionCreateRequest request) {
-    return ResponseEntity.status(HttpStatus.CREATED).body(
-        ApiResponse.success(
-            "Bank reconciliation session started",
-            bankReconciliationSessionService.startSession(request)));
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(
+            ApiResponse.success(
+                "Bank reconciliation session started",
+                bankReconciliationSessionService.startSession(request)));
   }
 
   @PutMapping("/reconciliation/bank/sessions/{sessionId}/items")

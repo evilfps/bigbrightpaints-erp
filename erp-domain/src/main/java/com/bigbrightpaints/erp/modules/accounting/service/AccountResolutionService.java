@@ -115,9 +115,13 @@ class AccountResolutionService {
       return false;
     }
     String code =
-        account.getCode() == null ? "" : account.getCode().trim().toUpperCase(java.util.Locale.ROOT);
+        account.getCode() == null
+            ? ""
+            : account.getCode().trim().toUpperCase(java.util.Locale.ROOT);
     String name =
-        account.getName() == null ? "" : account.getName().trim().toUpperCase(java.util.Locale.ROOT);
+        account.getName() == null
+            ? ""
+            : account.getName().trim().toUpperCase(java.util.Locale.ROOT);
     return isTokenMatch(code, "AR") || name.contains("ACCOUNTS RECEIVABLE");
   }
 
@@ -126,9 +130,13 @@ class AccountResolutionService {
       return false;
     }
     String code =
-        account.getCode() == null ? "" : account.getCode().trim().toUpperCase(java.util.Locale.ROOT);
+        account.getCode() == null
+            ? ""
+            : account.getCode().trim().toUpperCase(java.util.Locale.ROOT);
     String name =
-        account.getName() == null ? "" : account.getName().trim().toUpperCase(java.util.Locale.ROOT);
+        account.getName() == null
+            ? ""
+            : account.getName().trim().toUpperCase(java.util.Locale.ROOT);
     return isTokenMatch(code, "AP") || name.contains("ACCOUNTS PAYABLE");
   }
 

@@ -27,9 +27,9 @@ import com.bigbrightpaints.erp.modules.sales.service.DealerPortalService;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 
 /**
@@ -106,11 +106,14 @@ public class DealerPortalController {
   @Operation(summary = "Submit dealer credit-limit request")
   @ApiResponses({
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
-        responseCode = "201", description = "Credit-limit request submitted"),
+        responseCode = "201",
+        description = "Credit-limit request submitted"),
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
-        responseCode = "400", description = "Invalid credit-limit request payload"),
+        responseCode = "400",
+        description = "Invalid credit-limit request payload"),
     @io.swagger.v3.oas.annotations.responses.ApiResponse(
-        responseCode = "403", description = "Forbidden")
+        responseCode = "403",
+        description = "Forbidden")
   })
   public ResponseEntity<ApiResponse<CreditLimitRequestDto>> createCreditLimitRequest(
       @Valid @RequestBody DealerPortalCreditLimitRequestCreateRequest request) {

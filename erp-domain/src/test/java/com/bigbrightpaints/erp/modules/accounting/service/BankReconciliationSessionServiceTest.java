@@ -26,7 +26,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
@@ -53,6 +52,7 @@ import com.bigbrightpaints.erp.modules.accounting.dto.BankReconciliationSummaryD
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.shared.dto.PageResponse;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 @ExtendWith(MockitoExtension.class)
 class BankReconciliationSessionServiceTest {
@@ -167,7 +167,8 @@ class BankReconciliationSessionServiceTest {
             "100.00",
             "0.00");
     when(journalLineRepository.findAllById(Set.of(1001L))).thenReturn(List.of(lineToAdd));
-    when(itemRepository.findBySessionAndJournalLineIdIn(session, Set.of(1001L))).thenReturn(List.of());
+    when(itemRepository.findBySessionAndJournalLineIdIn(session, Set.of(1001L)))
+        .thenReturn(List.of());
 
     BankReconciliationSession detailed =
         session(20L, bankAccount, BankReconciliationSessionStatus.DRAFT);
@@ -242,10 +243,10 @@ class BankReconciliationSessionServiceTest {
                         List.of(),
                         null,
                         List.of(
-                            new BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest(
-                                9001L, null, 7601L),
-                            new BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest(
-                                9001L, null, 7602L)))))
+                            new BankReconciliationSessionItemsUpdateRequest
+                                .BankStatementMatchRequest(9001L, null, 7601L),
+                            new BankReconciliationSessionItemsUpdateRequest
+                                .BankStatementMatchRequest(9001L, null, 7602L)))))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Duplicate bankItemId assignment is not allowed")
         .hasMessageContaining("bankItemId 9001");
@@ -276,7 +277,8 @@ class BankReconciliationSessionServiceTest {
             company, Set.of(journalEntryId), bankAccount.getId()))
         .thenReturn(List.of(matchedLine));
     when(journalLineRepository.findAllById(Set.of(7601L))).thenReturn(List.of(matchedLine));
-    when(itemRepository.findBySessionAndJournalLineIdIn(session, Set.of(7601L))).thenReturn(List.of());
+    when(itemRepository.findBySessionAndJournalLineIdIn(session, Set.of(7601L)))
+        .thenReturn(List.of());
 
     BankReconciliationSession detailed =
         session(26L, bankAccount, BankReconciliationSessionStatus.IN_PROGRESS);
@@ -310,7 +312,8 @@ class BankReconciliationSessionServiceTest {
     assertThat(response.matchedItems().get(0).bankItemId()).isEqualTo(1L);
     assertThat(response.unmatchedItems()).isEmpty();
     verify(journalLineRepository)
-        .findPostedLinesForAccountByJournalEntryIds(company, Set.of(journalEntryId), bankAccount.getId());
+        .findPostedLinesForAccountByJournalEntryIds(
+            company, Set.of(journalEntryId), bankAccount.getId());
     ArgumentCaptor<BankReconciliationItem> persistedItemCaptor =
         ArgumentCaptor.forClass(BankReconciliationItem.class);
     verify(itemRepository).save(persistedItemCaptor.capture());
@@ -367,7 +370,8 @@ class BankReconciliationSessionServiceTest {
     BankReconciliationSession sessionNew =
         session(101L, bankA, BankReconciliationSessionStatus.COMPLETED);
     ReflectionFieldAccess.setField(sessionNew, "createdAt", Instant.parse("2026-03-20T10:00:00Z"));
-    ReflectionFieldAccess.setField(sessionNew, "completedAt", Instant.parse("2026-03-21T09:00:00Z"));
+    ReflectionFieldAccess.setField(
+        sessionNew, "completedAt", Instant.parse("2026-03-21T09:00:00Z"));
     BankReconciliationSession sessionOld =
         session(100L, bankB, BankReconciliationSessionStatus.DRAFT);
     ReflectionFieldAccess.setField(sessionOld, "createdAt", Instant.parse("2026-03-10T10:00:00Z"));

@@ -1045,11 +1045,7 @@ public class ProductionCatalogService {
     }
 
     return new ImportContext(
-        brandsByName,
-        productsBySku,
-        productsByBrandName,
-        new HashMap<>(),
-        new HashMap<>());
+        brandsByName, productsBySku, productsByBrandName, new HashMap<>(), new HashMap<>());
   }
 
   private void cacheBrand(ImportContext context, ProductionBrand brand) {

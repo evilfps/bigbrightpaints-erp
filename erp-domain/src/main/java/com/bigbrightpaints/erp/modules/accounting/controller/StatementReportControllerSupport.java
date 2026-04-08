@@ -195,11 +195,7 @@ public class StatementReportControllerSupport {
     TemporalBalanceService.BalanceComparison comparison =
         temporalBalanceService.compareBalances(accountId, fromDate, toDate);
     return new BalanceComparisonResponse(
-        fromDate,
-        comparison.balance1(),
-        toDate,
-        comparison.balance2(),
-        comparison.change());
+        fromDate, comparison.balance1(), toDate, comparison.balance2(), comparison.change());
   }
 
   private boolean isSalesReturnCreditNote(JournalEntryDto entry) {

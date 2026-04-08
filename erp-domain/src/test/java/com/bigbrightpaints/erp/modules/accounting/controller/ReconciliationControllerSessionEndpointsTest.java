@@ -6,8 +6,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -94,13 +94,16 @@ class ReconciliationControllerSessionEndpointsTest {
   }
 
   @Test
-  void updateBankReconciliationSessionItems_duplicateBankItemValidationReturnsBadRequest() throws Exception {
+  void updateBankReconciliationSessionItems_duplicateBankItemValidationReturnsBadRequest()
+      throws Exception {
     BankReconciliationSessionService sessionService = mock(BankReconciliationSessionService.class);
-    when(sessionService.updateItems(eq(21L), any(BankReconciliationSessionItemsUpdateRequest.class)))
+    when(sessionService.updateItems(
+            eq(21L), any(BankReconciliationSessionItemsUpdateRequest.class)))
         .thenThrow(
             new ApplicationException(
                 ErrorCode.VALIDATION_INVALID_INPUT,
-                "Duplicate bankItemId assignment is not allowed: bankItemId 9001 is assigned to journalLineId 11 and 12"));
+                "Duplicate bankItemId assignment is not allowed: bankItemId 9001 is assigned to"
+                    + " journalLineId 11 and 12"));
 
     MockMvc mvc =
         MockMvcBuilders.standaloneSetup(
@@ -125,9 +128,17 @@ class ReconciliationControllerSessionEndpointsTest {
                     """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.success").value(false))
-        .andExpect(jsonPath("$.message").value("Duplicate bankItemId assignment is not allowed: bankItemId 9001 is assigned to journalLineId 11 and 12"))
+        .andExpect(
+            jsonPath("$.message")
+                .value(
+                    "Duplicate bankItemId assignment is not allowed: bankItemId 9001 is assigned to"
+                        + " journalLineId 11 and 12"))
         .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_INPUT.getCode()))
-        .andExpect(jsonPath("$.data.reason").value("Duplicate bankItemId assignment is not allowed: bankItemId 9001 is assigned to journalLineId 11 and 12"));
+        .andExpect(
+            jsonPath("$.data.reason")
+                .value(
+                    "Duplicate bankItemId assignment is not allowed: bankItemId 9001 is assigned to"
+                        + " journalLineId 11 and 12"));
   }
 
   @Test

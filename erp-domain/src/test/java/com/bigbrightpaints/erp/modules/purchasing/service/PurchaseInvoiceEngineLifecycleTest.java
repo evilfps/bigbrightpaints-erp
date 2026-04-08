@@ -355,9 +355,7 @@ class PurchaseInvoiceEngineLifecycleTest {
     existing.setInvoiceNumber("INV-40");
     existing.setIdempotencyKey("purchase-idem-drift");
     existing.setIdempotencyHash("stored-signature");
-    when(
-            purchaseRepository.findWithLinesByCompanyAndIdempotencyKey(
-                company, "purchase-idem-drift"))
+    when(purchaseRepository.findWithLinesByCompanyAndIdempotencyKey(company, "purchase-idem-drift"))
         .thenReturn(Optional.of(existing));
 
     RawMaterialPurchaseRequest request =

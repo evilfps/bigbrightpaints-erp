@@ -69,7 +69,8 @@ class TS_AccountingAuditTrailConsistencyContractTest {
         DEALER_RECEIPT_POSTING_SERVICE, "recordDealerReceiptPostedEventSafe(");
     TruthSuiteFileAssert.assertContains(
         DEALER_RECEIPT_POSTING_SERVICE, "recordSettlementAllocatedEventSafe(");
-    TruthSuiteFileAssert.assertContains(DEALER_SETTLEMENT_SERVICE, "recordDealerReceiptPostedEventSafe(");
+    TruthSuiteFileAssert.assertContains(
+        DEALER_SETTLEMENT_SERVICE, "recordDealerReceiptPostedEventSafe(");
     TruthSuiteFileAssert.assertContains(
         DEALER_SETTLEMENT_SERVICE, "recordSettlementAllocatedEventSafe(");
     TruthSuiteFileAssert.assertContains(

@@ -27,6 +27,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+import com.bigbrightpaints.erp.core.audittrail.AuditActionEvent;
+import com.bigbrightpaints.erp.core.audittrail.AuditActionEventRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -34,8 +36,6 @@ import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.PartnerSettlementAllocationRepository;
-import com.bigbrightpaints.erp.core.audittrail.AuditActionEvent;
-import com.bigbrightpaints.erp.core.audittrail.AuditActionEventRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.inventory.domain.InventoryReference;
@@ -204,7 +204,9 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         .hasSize(1);
     assertThat(purchase.getJournalEntry()).isNotNull();
     JournalEntry settlementJournal =
-        journalEntryRepository.findByCompanyAndReferenceNumber(company, settlementRef).orElseThrow();
+        journalEntryRepository
+            .findByCompanyAndReferenceNumber(company, settlementRef)
+            .orElseThrow();
 
     AuditActionEvent purchaseAudit =
         awaitBusinessAuditEvent(
@@ -246,12 +248,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         "lines",
         List.of(
             Map.of(
-                "rawMaterialId",
-                rawMaterialId,
-                "quantity",
-                quantity,
-                "costPerUnit",
-                costPerUnit)));
+                "rawMaterialId", rawMaterialId, "quantity", quantity, "costPerUnit", costPerUnit)));
 
     ResponseEntity<Map> purchaseResp =
         rest.exchange(
@@ -270,7 +267,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             new HttpEntity<>(headers),
             Map.class);
     assertThat(goodsReceiptDetailResp.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Map<String, Object> receiptData = (Map<String, Object>) goodsReceiptDetailResp.getBody().get("data");
+    Map<String, Object> receiptData =
+        (Map<String, Object>) goodsReceiptDetailResp.getBody().get("data");
 
     assertThat(((Number) receiptData.get("supplierId")).longValue()).isEqualTo(supplierId);
     assertThat(((Number) receiptData.get("purchaseOrderId")).longValue())
@@ -353,7 +351,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             new HttpEntity<>(headers),
             Map.class);
     assertThat(supplierDetailResp.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Map<String, Object> supplierData = (Map<String, Object>) supplierDetailResp.getBody().get("data");
+    Map<String, Object> supplierData =
+        (Map<String, Object>) supplierDetailResp.getBody().get("data");
     assertThat(String.valueOf(supplierData.get("stateCode"))).isEqualTo("27");
 
     Company refreshed = companyRepository.findByCodeIgnoreCase(COMPANY_CODE).orElseThrow();
@@ -755,7 +754,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             new HttpEntity<>(headers),
             Map.class);
     assertThat(purchaseDetailResp.getStatusCode()).isEqualTo(HttpStatus.OK);
-    Map<String, Object> purchaseDetailData = (Map<String, Object>) purchaseDetailResp.getBody().get("data");
+    Map<String, Object> purchaseDetailData =
+        (Map<String, Object>) purchaseDetailResp.getBody().get("data");
     assertThat(new BigDecimal(purchaseDetailData.get("outstandingAmount").toString()))
         .isEqualByComparingTo(totalAmount.subtract(debitAmount));
     assertThat(((Map<String, Object>) purchaseDetailData.get("lifecycle")).get("workflowStatus"))
@@ -776,8 +776,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     assertThat(listedPurchases)
         .isNotEmpty()
         .anySatisfy(
-            listed ->
-                assertThat(((Number) listed.get("id")).longValue()).isEqualTo(purchaseId));
+            listed -> assertThat(((Number) listed.get("id")).longValue()).isEqualTo(purchaseId));
   }
 
   @Test
@@ -822,7 +821,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
 
     RawMaterialPurchase purchase = purchaseRepository.findById(purchaseId).orElseThrow();
     BigDecimal sourceAmount = purchase.getOutstandingAmount();
-    BigDecimal taxComponent = purchase.getTaxAmount() != null ? purchase.getTaxAmount() : BigDecimal.ZERO;
+    BigDecimal taxComponent =
+        purchase.getTaxAmount() != null ? purchase.getTaxAmount() : BigDecimal.ZERO;
     BigDecimal inventoryComponent = sourceAmount.subtract(taxComponent);
     BigDecimal debitAmount =
         findRoundingImbalanceAmount(List.of(inventoryComponent, taxComponent), sourceAmount);
@@ -1093,7 +1093,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     LocalDate entryDate = TestDateUtils.safeDate(company);
     Long supplierId = createSupplier("P2P Invoice Replay Supplier", "INV-REPLAY-" + shortSuffix());
     Long rawMaterialId =
-        createRawMaterial("Invoice Replay Material", "RM-INV-REPLAY-" + shortSuffix(), inventory.getId());
+        createRawMaterial(
+            "Invoice Replay Material", "RM-INV-REPLAY-" + shortSuffix(), inventory.getId());
     BigDecimal quantity = new BigDecimal("7");
     BigDecimal unitCost = new BigDecimal("9.00");
     PurchaseWorkflowIds workflow =
@@ -1139,12 +1140,16 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     assertThat(firstResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     assertThat(replayResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Long firstPurchaseId =
-        ((Number) ((Map<String, Object>) firstResponse.getBody().get("data")).get("id")).longValue();
+        ((Number) ((Map<String, Object>) firstResponse.getBody().get("data")).get("id"))
+            .longValue();
     Long replayPurchaseId =
-        ((Number) ((Map<String, Object>) replayResponse.getBody().get("data")).get("id")).longValue();
+        ((Number) ((Map<String, Object>) replayResponse.getBody().get("data")).get("id"))
+            .longValue();
     assertThat(replayPurchaseId).isEqualTo(firstPurchaseId);
-    assertThat(purchaseRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey)).isPresent();
-    assertThat(purchaseRepository.findByCompanyAndInvoiceNumberIgnoreCase(company, invoiceNumber)).isPresent();
+    assertThat(purchaseRepository.findByCompanyAndIdempotencyKey(company, idempotencyKey))
+        .isPresent();
+    assertThat(purchaseRepository.findByCompanyAndInvoiceNumberIgnoreCase(company, invoiceNumber))
+        .isPresent();
 
     int receiptMovementsAfterReplay =
         rawMaterialMovementRepository
@@ -1160,7 +1165,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     LocalDate entryDate = TestDateUtils.safeDate(company);
     Long supplierId = createSupplier("P2P Invoice Legacy Supplier", "INV-LEGACY-" + shortSuffix());
     Long rawMaterialId =
-        createRawMaterial("Invoice Legacy Material", "RM-INV-LEGACY-" + shortSuffix(), inventory.getId());
+        createRawMaterial(
+            "Invoice Legacy Material", "RM-INV-LEGACY-" + shortSuffix(), inventory.getId());
     BigDecimal quantity = new BigDecimal("4");
     BigDecimal unitCost = new BigDecimal("11.00");
     PurchaseWorkflowIds workflow =
@@ -1176,13 +1182,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     purchaseReq.put(
         "lines",
         List.of(
-            Map.of(
-                "rawMaterialId",
-                rawMaterialId,
-                "quantity",
-                quantity,
-                "costPerUnit",
-                unitCost)));
+            Map.of("rawMaterialId", rawMaterialId, "quantity", quantity, "costPerUnit", unitCost)));
 
     HttpHeaders legacyHeaders = headersWithLegacyIdempotencyKey("legacy-invoice-" + shortSuffix());
     ResponseEntity<Map> response =
@@ -1196,7 +1196,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
     assertThat(data.get("message"))
         .isEqualTo("X-Idempotency-Key is not supported for purchase invoices; use Idempotency-Key");
-    assertThat(purchaseRepository.findByCompanyAndInvoiceNumberIgnoreCase(company, invoiceNumber)).isEmpty();
+    assertThat(purchaseRepository.findByCompanyAndInvoiceNumberIgnoreCase(company, invoiceNumber))
+        .isEmpty();
   }
 
   @Test
@@ -1207,7 +1208,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     LocalDate entryDate = TestDateUtils.safeDate(company);
     Long supplierId = createSupplier("P2P Return Replay Supplier", "RET-REPLAY-" + shortSuffix());
     Long rawMaterialId =
-        createRawMaterial("Return Replay Material", "RM-RET-REPLAY-" + shortSuffix(), inventory.getId());
+        createRawMaterial(
+            "Return Replay Material", "RM-RET-REPLAY-" + shortSuffix(), inventory.getId());
     BigDecimal purchaseQty = new BigDecimal("10");
     BigDecimal unitCost = new BigDecimal("8.00");
     PurchaseWorkflowIds workflow =
@@ -1223,12 +1225,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         "lines",
         List.of(
             Map.of(
-                "rawMaterialId",
-                rawMaterialId,
-                "quantity",
-                purchaseQty,
-                "costPerUnit",
-                unitCost)));
+                "rawMaterialId", rawMaterialId, "quantity", purchaseQty, "costPerUnit", unitCost)));
 
     ResponseEntity<Map> purchaseResp =
         rest.exchange(
@@ -1237,7 +1234,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
     assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-    Long purchaseId = ((Number) ((Map<String, Object>) purchaseResp.getBody().get("data")).get("id")).longValue();
+    Long purchaseId =
+        ((Number) ((Map<String, Object>) purchaseResp.getBody().get("data")).get("id")).longValue();
 
     String returnIdempotencyKey = "purch-return-" + shortSuffix();
     HttpHeaders returnHeaders = headersWithIdempotencyKey(returnIdempotencyKey);
@@ -1266,9 +1264,11 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     assertThat(firstReturnResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     assertThat(replayReturnResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Long firstJournalId =
-        ((Number) ((Map<String, Object>) firstReturnResp.getBody().get("data")).get("id")).longValue();
+        ((Number) ((Map<String, Object>) firstReturnResp.getBody().get("data")).get("id"))
+            .longValue();
     Long replayJournalId =
-        ((Number) ((Map<String, Object>) replayReturnResp.getBody().get("data")).get("id")).longValue();
+        ((Number) ((Map<String, Object>) replayReturnResp.getBody().get("data")).get("id"))
+            .longValue();
     assertThat(replayJournalId).isEqualTo(firstJournalId);
 
     RawMaterial afterReturn = rawMaterialRepository.findById(rawMaterialId).orElseThrow();
@@ -1285,7 +1285,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     LocalDate entryDate = TestDateUtils.safeDate(company);
     Long supplierId = createSupplier("P2P Return Legacy Supplier", "RET-LEGACY-" + shortSuffix());
     Long rawMaterialId =
-        createRawMaterial("Return Legacy Material", "RM-RET-LEGACY-" + shortSuffix(), inventory.getId());
+        createRawMaterial(
+            "Return Legacy Material", "RM-RET-LEGACY-" + shortSuffix(), inventory.getId());
     BigDecimal purchaseQty = new BigDecimal("6");
     BigDecimal unitCost = new BigDecimal("7.00");
     PurchaseWorkflowIds workflow =
@@ -1301,12 +1302,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         "lines",
         List.of(
             Map.of(
-                "rawMaterialId",
-                rawMaterialId,
-                "quantity",
-                purchaseQty,
-                "costPerUnit",
-                unitCost)));
+                "rawMaterialId", rawMaterialId, "quantity", purchaseQty, "costPerUnit", unitCost)));
 
     ResponseEntity<Map> purchaseResp =
         rest.exchange(
@@ -1315,7 +1311,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             new HttpEntity<>(purchaseReq, headers),
             Map.class);
     assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-    Long purchaseId = ((Number) ((Map<String, Object>) purchaseResp.getBody().get("data")).get("id")).longValue();
+    Long purchaseId =
+        ((Number) ((Map<String, Object>) purchaseResp.getBody().get("data")).get("id")).longValue();
 
     RawMaterial beforeReturn = rawMaterialRepository.findById(rawMaterialId).orElseThrow();
     HttpHeaders legacyHeaders = headersWithLegacyIdempotencyKey("legacy-return-" + shortSuffix());
@@ -1341,7 +1338,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         .isEqualTo("X-Idempotency-Key is not supported for purchase returns; use Idempotency-Key");
 
     RawMaterial afterReturnAttempt = rawMaterialRepository.findById(rawMaterialId).orElseThrow();
-    assertThat(afterReturnAttempt.getCurrentStock()).isEqualByComparingTo(beforeReturn.getCurrentStock());
+    assertThat(afterReturnAttempt.getCurrentStock())
+        .isEqualByComparingTo(beforeReturn.getCurrentStock());
   }
 
   @Test
@@ -1663,7 +1661,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             new HttpEntity<>(headers),
             Map.class);
     assertThat(timelineResp.getStatusCode()).isEqualTo(HttpStatus.OK);
-    List<Map<String, Object>> timeline = (List<Map<String, Object>>) timelineResp.getBody().get("data");
+    List<Map<String, Object>> timeline =
+        (List<Map<String, Object>>) timelineResp.getBody().get("data");
     assertThat(timeline).isNotEmpty();
     assertThat(timeline)
         .allSatisfy(
@@ -1775,11 +1774,12 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     for (long cents = 1; cents < maxCents; cents++) {
       BigDecimal amount = BigDecimal.valueOf(cents, 2);
       BigDecimal ratio = amount.divide(sourceAmount, 6, RoundingMode.HALF_UP);
-      BigDecimal scaledDebits =
-          sourceAmount.multiply(ratio).setScale(2, RoundingMode.HALF_UP);
+      BigDecimal scaledDebits = sourceAmount.multiply(ratio).setScale(2, RoundingMode.HALF_UP);
       BigDecimal scaledCredits =
           sourceDebitComponents.stream()
-              .map(component -> safeAmount(component).multiply(ratio).setScale(2, RoundingMode.HALF_UP))
+              .map(
+                  component ->
+                      safeAmount(component).multiply(ratio).setScale(2, RoundingMode.HALF_UP))
               .reduce(BigDecimal.ZERO, BigDecimal::add);
       if (scaledDebits.compareTo(BigDecimal.ZERO) > 0
           && scaledCredits.compareTo(BigDecimal.ZERO) > 0

@@ -227,7 +227,8 @@ class JournalReversalService {
       if (sanitizedReason != null) {
         auditMetadata.put("reason", sanitizedReason);
       }
-      accountingAuditService.recordJournalEntryVoidedEventSafe(entry, reversalEntry, sanitizedReason);
+      accountingAuditService.recordJournalEntryVoidedEventSafe(
+          entry, reversalEntry, sanitizedReason);
       accountingAuditService.logAuditSuccessAfterCommit(
           AuditEvent.JOURNAL_ENTRY_REVERSED, auditMetadata);
       if (accountingComplianceAuditService != null) {

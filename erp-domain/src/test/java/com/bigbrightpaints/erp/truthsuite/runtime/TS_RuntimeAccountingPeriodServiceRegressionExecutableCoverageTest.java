@@ -162,10 +162,7 @@ class TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(accountingLookupService.requireAccountingPeriod(company, 31L)).thenReturn(period);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(JournalEntryStatus.DRAFT)))
+            company, period.getStartDate(), period.getEndDate(), List.of(JournalEntryStatus.DRAFT)))
         .thenReturn(0L);
     when(reportService.inventoryReconciliation())
         .thenReturn(
@@ -269,10 +266,7 @@ class TS_RuntimeAccountingPeriodServiceRegressionExecutableCoverageTest {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(accountingLookupService.requireAccountingPeriod(company, 32L)).thenReturn(period);
     when(journalEntryRepository.countByCompanyAndEntryDateBetweenAndStatusIn(
-            company,
-            period.getStartDate(),
-            period.getEndDate(),
-            List.of(JournalEntryStatus.DRAFT)))
+            company, period.getStartDate(), period.getEndDate(), List.of(JournalEntryStatus.DRAFT)))
         .thenReturn(0L);
     when(reportService.inventoryReconciliation())
         .thenReturn(

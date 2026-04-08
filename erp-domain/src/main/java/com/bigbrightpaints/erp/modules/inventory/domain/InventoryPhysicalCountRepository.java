@@ -8,7 +8,8 @@ import org.springframework.data.repository.query.Param;
 
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 
-public interface InventoryPhysicalCountRepository extends JpaRepository<InventoryPhysicalCount, Long> {
+public interface InventoryPhysicalCountRepository
+    extends JpaRepository<InventoryPhysicalCount, Long> {
 
   @Query(
       """

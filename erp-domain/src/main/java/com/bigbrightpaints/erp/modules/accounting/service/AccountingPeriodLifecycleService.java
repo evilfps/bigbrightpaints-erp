@@ -35,8 +35,7 @@ final class AccountingPeriodLifecycleService {
     this.companyContextService = companyContextService;
     this.accountingLookupService = accountingLookupService;
     this.companyClock = companyClock;
-    this.auditServiceSupplier =
-        auditServiceSupplier != null ? auditServiceSupplier : () -> null;
+    this.auditServiceSupplier = auditServiceSupplier != null ? auditServiceSupplier : () -> null;
   }
 
   List<AccountingPeriodDto> listPeriods() {
@@ -75,7 +74,8 @@ final class AccountingPeriodLifecycleService {
     }
     Company company = companyContextService.requireCurrentCompany();
     Optional<AccountingPeriod> existing =
-        accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, request.year(), request.month());
+        accountingPeriodRepository.lockByCompanyAndYearAndMonth(
+            company, request.year(), request.month());
     boolean createdNew = existing.isEmpty();
     AccountingPeriod period =
         existing.orElseGet(
@@ -102,8 +102,7 @@ final class AccountingPeriodLifecycleService {
           saved.getStatus() != null ? saved.getStatus().name() : null,
           "Period opened");
     }
-    if (auditService != null
-        && beforeCostingMethod != saved.getCostingMethod()) {
+    if (auditService != null && beforeCostingMethod != saved.getCostingMethod()) {
       auditService.recordCostingMethodChange(
           company, saved, beforeCostingMethod, saved.getCostingMethod());
     }
@@ -131,8 +130,7 @@ final class AccountingPeriodLifecycleService {
     CostingMethod beforeCostingMethod = period.getCostingMethod();
     period.setCostingMethod(resolveCostingMethodOrDefault(request.costingMethod()));
     AccountingPeriod saved = accountingPeriodRepository.save(period);
-    if (auditService != null
-        && beforeCostingMethod != saved.getCostingMethod()) {
+    if (auditService != null && beforeCostingMethod != saved.getCostingMethod()) {
       auditService.recordCostingMethodChange(
           company, saved, beforeCostingMethod, saved.getCostingMethod());
     }

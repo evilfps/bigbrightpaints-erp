@@ -1313,8 +1313,7 @@ public class OpenApiSnapshotIT extends AbstractIntegrationTest {
     JsonNode responses = operation.path("responses");
     assertThat(responses.has(expectedResponseCode))
         .withFailMessage(
-            "Expected %s response for %s %s",
-            expectedResponseCode, method.toUpperCase(), path)
+            "Expected %s response for %s %s", expectedResponseCode, method.toUpperCase(), path)
         .isTrue();
 
     JsonNode response = responses.path(expectedResponseCode);

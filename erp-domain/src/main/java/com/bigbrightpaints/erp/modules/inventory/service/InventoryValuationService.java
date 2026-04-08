@@ -217,7 +217,8 @@ public class InventoryValuationService {
   }
 
   private CostingMethod resolveActiveMethod(FinishedGood finishedGood, Company company) {
-    Company resolvedCompany = company != null ? company : finishedGood != null ? finishedGood.getCompany() : null;
+    Company resolvedCompany =
+        company != null ? company : finishedGood != null ? finishedGood.getCompany() : null;
     if (resolvedCompany == null || costingMethodService == null || companyClock == null) {
       return null;
     }
