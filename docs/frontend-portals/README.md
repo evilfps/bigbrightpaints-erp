@@ -5,6 +5,8 @@ Older tracker-style notes under `docs/frontend-update-v2/` are delta/history
 references only. They are not a second source of truth for routing, API
 ownership, or portal placement.
 
+Last reviewed: 2026-04-08
+
 Exact portal folders:
 - `superadmin`
 - `tenant-admin`
@@ -23,6 +25,71 @@ Each folder must carry the same file set:
 - `role-boundaries.md`
 - `states-and-errors.md`
 - `playwright-journeys.md`
+
+## Canonical Portal Navigation Map
+
+Use this map to navigate every active portal contract surface from this README.
+
+### Superadmin
+
+- [README](./superadmin/README.md)
+- [routes](./superadmin/routes.md)
+- [api-contracts](./superadmin/api-contracts.md)
+- [workflows](./superadmin/workflows.md)
+- [role-boundaries](./superadmin/role-boundaries.md)
+- [states-and-errors](./superadmin/states-and-errors.md)
+- [playwright-journeys](./superadmin/playwright-journeys.md)
+
+### Tenant Admin
+
+- [README](./tenant-admin/README.md)
+- [routes](./tenant-admin/routes.md)
+- [api-contracts](./tenant-admin/api-contracts.md)
+- [workflows](./tenant-admin/workflows.md)
+- [role-boundaries](./tenant-admin/role-boundaries.md)
+- [states-and-errors](./tenant-admin/states-and-errors.md)
+- [playwright-journeys](./tenant-admin/playwright-journeys.md)
+
+### Accounting
+
+- [README](./accounting/README.md)
+- [routes](./accounting/routes.md)
+- [api-contracts](./accounting/api-contracts.md)
+- [workflows](./accounting/workflows.md)
+- [role-boundaries](./accounting/role-boundaries.md)
+- [states-and-errors](./accounting/states-and-errors.md)
+- [playwright-journeys](./accounting/playwright-journeys.md)
+
+### Sales
+
+- [README](./sales/README.md)
+- [routes](./sales/routes.md)
+- [api-contracts](./sales/api-contracts.md)
+- [workflows](./sales/workflows.md)
+- [role-boundaries](./sales/role-boundaries.md)
+- [states-and-errors](./sales/states-and-errors.md)
+- [playwright-journeys](./sales/playwright-journeys.md)
+- [frontend-engineer-handoff (reference-only)](./sales/frontend-engineer-handoff.md)
+
+### Factory
+
+- [README](./factory/README.md)
+- [routes](./factory/routes.md)
+- [api-contracts](./factory/api-contracts.md)
+- [workflows](./factory/workflows.md)
+- [role-boundaries](./factory/role-boundaries.md)
+- [states-and-errors](./factory/states-and-errors.md)
+- [playwright-journeys](./factory/playwright-journeys.md)
+
+### Dealer Client
+
+- [README](./dealer-client/README.md)
+- [routes](./dealer-client/routes.md)
+- [api-contracts](./dealer-client/api-contracts.md)
+- [workflows](./dealer-client/workflows.md)
+- [role-boundaries](./dealer-client/role-boundaries.md)
+- [states-and-errors](./dealer-client/states-and-errors.md)
+- [playwright-journeys](./dealer-client/playwright-journeys.md)
 
 ## Non-negotiable current-state rules
 
