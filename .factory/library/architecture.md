@@ -64,6 +64,7 @@ Retired routes should be absent or explicitly fail closed. Do not leave a second
 - **`ApplicationException` + `ErrorCode` remain the business error contract.**
 - **Accounting is the financial truth boundary.** Other modules may initiate business flows, but accounting owns journals, settlements, period control, and reconciliation truth.
 - **Idempotency is mandatory on write surfaces.** Reject stale headers and parallel fallback replay schemes.
+- **Cross-request audit correlation is explicit.** When one business flow spans multiple HTTP requests and must remain traceable as one flow, the caller/test harness must propagate a shared `X-Correlation-Id`; validators should prove related audit rows reuse that exact value.
 - **Role/host boundaries are part of the contract.** Admin/control-plane, operational/factory, sales/commercial, and dealer/self-service surfaces must stay explicit.
 - **Docs/OpenAPI/tests/CI are part of the architecture.** A cleanup is incomplete if these still teach contradictory truths.
 

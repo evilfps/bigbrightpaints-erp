@@ -23,6 +23,7 @@ This surface proves bootability and runtime boundary correctness, not the full b
 - **Type:** Maven integration/regression/truthsuite proofs
 - **Working directory:** `erp-domain/`
 - **Primary tool:** `mvn`
+- **Correlation rule:** when one O2C/P2P proof spans multiple HTTP requests but must emit one flow-stable audit correlation id, reuse the same `X-Correlation-Id` header across every request in that flow and verify the audit read surface returns that exact value on the related rows
 
 This surface proves the risky business seams the strict runtime smoke does not cover cleanly yet.
 
