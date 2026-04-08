@@ -60,11 +60,12 @@ public class JournalController {
   public ResponseEntity<ApiResponse<List<JournalEntryDto>>> journalEntries(
       @RequestParam(required = false) Long dealerId,
       @RequestParam(required = false) Long supplierId,
+      @RequestParam(required = false, name = "source") String source,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "100") int size) {
     return ResponseEntity.ok(
         ApiResponse.success(
-            journalEntryService.listJournalEntries(dealerId, supplierId, page, size)));
+            journalEntryService.listJournalEntries(dealerId, supplierId, page, size, source)));
   }
 
   @GetMapping("/journals")

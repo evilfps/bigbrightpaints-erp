@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public record CostBreakdownDto(
     Long productionLogId,
     String productionCode,
@@ -18,4 +20,20 @@ public record CostBreakdownDto(
     Instant producedAt,
     CostComponentTraceDto costComponents,
     List<PackedBatchTraceDto> packedBatches,
-    List<RawMaterialTraceDto> rawMaterialTrace) {}
+    List<RawMaterialTraceDto> rawMaterialTrace) {
+
+  @JsonProperty("materialCost")
+  public BigDecimal materialCost() {
+    return materialCostTotal;
+  }
+
+  @JsonProperty("labourCost")
+  public BigDecimal labourCost() {
+    return laborCostTotal;
+  }
+
+  @JsonProperty("overheadCost")
+  public BigDecimal overheadCost() {
+    return overheadCostTotal;
+  }
+}

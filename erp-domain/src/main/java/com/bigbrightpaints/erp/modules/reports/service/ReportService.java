@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -48,6 +49,7 @@ import com.bigbrightpaints.erp.modules.factory.domain.PackingRecord;
 import com.bigbrightpaints.erp.modules.factory.domain.PackingRecordRepository;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLog;
 import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogRepository;
+import com.bigbrightpaints.erp.modules.factory.domain.ProductionLogStatus;
 import com.bigbrightpaints.erp.modules.factory.dto.CostBreakdownDto;
 import com.bigbrightpaints.erp.modules.factory.dto.CostComponentTraceDto;
 import com.bigbrightpaints.erp.modules.factory.dto.MonthlyProductionCostDto;
@@ -1300,6 +1302,122 @@ public class ReportService {
   }
 
   @Transactional(readOnly = true)
+  public ProductCostingReportDto productCosting(Long itemId) {
+    Company company = companyContextService.requireCurrentCompany();
+    List<ProductionLog> logs =
+        productionLogRepository.findByCompanyAndProduct_IdAndStatusOrderByProducedAtDesc(
+            company, itemId, ProductionLogStatus.FULLY_PACKED);
+    if (logs.isEmpty()) {
+      return new ProductCostingReportDto(
+          itemId, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+    }
+
+    BigDecimal totalMaterial = BigDecimal.ZERO;
+    BigDecimal totalLabour = BigDecimal.ZERO;
+    BigDecimal totalOverhead = BigDecimal.ZERO;
+    BigDecimal totalPackaging = BigDecimal.ZERO;
+    BigDecimal totalPacked = BigDecimal.ZERO;
+
+    for (ProductionLog log : logs) {
+      totalMaterial = totalMaterial.add(safe(log.getMaterialCostTotal()));
+      totalLabour = totalLabour.add(safe(log.getLaborCostTotal()));
+      totalOverhead = totalOverhead.add(safe(log.getOverheadCostTotal()));
+      totalPackaging = totalPackaging.add(resolvePackagingCost(company, log));
+      totalPacked = totalPacked.add(safe(log.getTotalPackedQuantity()));
+    }
+
+    if (totalPacked.compareTo(BigDecimal.ZERO) <= 0) {
+      totalPacked =
+          logs.stream().map(ProductionLog::getMixedQuantity).map(this::safe).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+    if (totalPacked.compareTo(BigDecimal.ZERO) <= 0) {
+      return new ProductCostingReportDto(
+          itemId, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+    }
+
+    BigDecimal materialPerUnit = totalMaterial.divide(totalPacked, 4, RoundingMode.HALF_UP);
+    BigDecimal packagingPerUnit = totalPackaging.divide(totalPacked, 4, RoundingMode.HALF_UP);
+    BigDecimal labourPerUnit = totalLabour.divide(totalPacked, 4, RoundingMode.HALF_UP);
+    BigDecimal overheadPerUnit = totalOverhead.divide(totalPacked, 4, RoundingMode.HALF_UP);
+    BigDecimal totalUnitCost = materialPerUnit.add(packagingPerUnit).add(labourPerUnit).add(overheadPerUnit);
+
+    return new ProductCostingReportDto(
+        itemId, materialPerUnit, packagingPerUnit, labourPerUnit, overheadPerUnit, totalUnitCost);
+  }
+
+  @Transactional(readOnly = true)
+  public CostAllocationReportDto costAllocationReport() {
+    Company company = companyContextService.requireCurrentCompany();
+    List<CostAllocationBatchDto> amountsPerBatch = new ArrayList<>();
+
+    List<JournalEntry> varianceEntries =
+        journalEntryRepository.findByCompanyAndSourceModuleIgnoreCaseOrderByEntryDateDescIdDesc(
+            company, "FACTORY_COST_VARIANCE");
+    for (JournalEntry entry : varianceEntries) {
+      amountsPerBatch.add(
+          new CostAllocationBatchDto(
+              resolveBatchCode(entry.getReferenceNumber()),
+              resolvePeriodKey(entry.getReferenceNumber()),
+              resolveJournalAmount(entry),
+              entry.getEntryDate(),
+              entry.getId()));
+    }
+
+    List<JournalEntry> directAllocationEntries =
+        journalEntryRepository.findByCompanyAndSourceModuleIgnoreCaseOrderByEntryDateDescIdDesc(
+            company, "FACTORY_COST_ALLOCATION");
+    for (JournalEntry entry : directAllocationEntries) {
+      amountsPerBatch.add(
+          new CostAllocationBatchDto(
+              resolveBatchCode(entry.getReferenceNumber()),
+              resolvePeriodKey(entry.getReferenceNumber()),
+              resolveJournalAmount(entry),
+              entry.getEntryDate(),
+              entry.getId()));
+    }
+
+    amountsPerBatch.sort(Comparator.comparing(CostAllocationBatchDto::entryDate).reversed());
+    BigDecimal totalAllocated =
+        amountsPerBatch.stream()
+            .map(CostAllocationBatchDto::allocatedAmount)
+            .map(this::safe)
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+    return new CostAllocationReportDto(
+        List.of("PERIOD_CLOSE_VARIANCE_BY_PRODUCTION_VOLUME", "DIRECT_BATCH_ALLOCATION"),
+        amountsPerBatch,
+        totalAllocated.setScale(2, RoundingMode.HALF_UP));
+  }
+
+  @Transactional(readOnly = true)
+  public List<MonthlyProductionCostEntryDto> monthlyProductionCosts() {
+    Company company = companyContextService.requireCurrentCompany();
+    ZoneId zone = companyClock.zoneId(company);
+    Map<YearMonth, BigDecimal> totalsByMonth = new LinkedHashMap<>();
+    List<ProductionLog> logs =
+        productionLogRepository.findByCompanyAndStatusOrderByProducedAtAsc(
+            company, ProductionLogStatus.FULLY_PACKED);
+
+    for (ProductionLog log : logs) {
+      YearMonth month = YearMonth.from(log.getProducedAt().atZone(zone));
+      BigDecimal total =
+          safe(log.getMaterialCostTotal())
+              .add(safe(log.getLaborCostTotal()))
+              .add(safe(log.getOverheadCostTotal()))
+              .add(resolvePackagingCost(company, log));
+      totalsByMonth.merge(month, total, BigDecimal::add);
+    }
+
+    return totalsByMonth.entrySet().stream()
+        .sorted(Map.Entry.<YearMonth, BigDecimal>comparingByKey().reversed())
+        .map(
+            entry ->
+                new MonthlyProductionCostEntryDto(
+                    entry.getKey().toString(), safe(entry.getValue()).setScale(2, RoundingMode.HALF_UP)))
+        .toList();
+  }
+
+  @Transactional(readOnly = true)
   public List<WastageReportDto> wastageReport() {
     Company company = companyContextService.requireCurrentCompany();
     List<ProductionLog> logs =
@@ -1529,6 +1647,7 @@ public class ReportService {
     BigDecimal totalMaterialCost = BigDecimal.ZERO;
     BigDecimal totalLaborCost = BigDecimal.ZERO;
     BigDecimal totalOverheadCost = BigDecimal.ZERO;
+    BigDecimal totalPackagingCost = BigDecimal.ZERO;
     BigDecimal totalWastage = BigDecimal.ZERO;
 
     for (ProductionLog log : logs) {
@@ -1536,10 +1655,11 @@ public class ReportService {
       totalMaterialCost = totalMaterialCost.add(safe(log.getMaterialCostTotal()));
       totalLaborCost = totalLaborCost.add(safe(log.getLaborCostTotal()));
       totalOverheadCost = totalOverheadCost.add(safe(log.getOverheadCostTotal()));
+      totalPackagingCost = totalPackagingCost.add(resolvePackagingCost(company, log));
       totalWastage = totalWastage.add(safe(log.getWastageQuantity()));
     }
 
-    BigDecimal totalCost = totalMaterialCost.add(totalLaborCost).add(totalOverheadCost);
+    BigDecimal totalCost = totalMaterialCost.add(totalLaborCost).add(totalOverheadCost).add(totalPackagingCost);
     BigDecimal avgCostPerLiter =
         totalLiters.compareTo(BigDecimal.ZERO) > 0
             ? totalCost.divide(totalLiters, 4, java.math.RoundingMode.HALF_UP)
@@ -1564,5 +1684,48 @@ public class ReportService {
         avgCostPerLiter,
         totalWastage,
         wastagePercentage);
+  }
+
+  private BigDecimal resolvePackagingCost(Company company, ProductionLog log) {
+    return packingRecordRepository.findByCompanyAndProductionLogOrderByPackedDateAscIdAsc(company, log).stream()
+        .map(PackingRecord::getPackagingCost)
+        .map(this::safe)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+  }
+
+  private BigDecimal resolveJournalAmount(JournalEntry entry) {
+    if (entry == null || entry.getLines() == null) {
+      return BigDecimal.ZERO;
+    }
+    BigDecimal debitTotal =
+        entry.getLines().stream().map(JournalLine::getDebit).map(this::safe).reduce(BigDecimal.ZERO, BigDecimal::add);
+    return debitTotal.setScale(2, RoundingMode.HALF_UP);
+  }
+
+  private String resolveBatchCode(String referenceNumber) {
+    if (referenceNumber == null || referenceNumber.isBlank()) {
+      return "UNKNOWN";
+    }
+    String normalized = referenceNumber.trim();
+    if (normalized.startsWith("CVAR-")) {
+      String withoutPrefix = normalized.substring("CVAR-".length());
+      int suffixIdx = withoutPrefix.lastIndexOf('-');
+      return suffixIdx > 0 ? withoutPrefix.substring(0, suffixIdx) : withoutPrefix;
+    }
+    if (normalized.startsWith("CAL-")) {
+      return normalized.substring("CAL-".length());
+    }
+    return normalized;
+  }
+
+  private String resolvePeriodKey(String referenceNumber) {
+    if (referenceNumber == null || !referenceNumber.startsWith("CVAR-")) {
+      return null;
+    }
+    int suffixIdx = referenceNumber.lastIndexOf('-');
+    if (suffixIdx < 0 || suffixIdx == referenceNumber.length() - 1) {
+      return null;
+    }
+    return referenceNumber.substring(suffixIdx + 1);
   }
 }

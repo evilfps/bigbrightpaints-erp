@@ -69,6 +69,23 @@ public interface JournalEntryRepository
   Page<JournalEntry> findByCompanyAndSupplierOrderByEntryDateDescIdDesc(
       Company company, Supplier supplier, Pageable pageable);
 
+  @EntityGraph(
+      attributePaths = {
+        "lines",
+        "lines.account",
+        "dealer",
+        "supplier",
+        "accountingPeriod",
+        "reversalOf",
+        "reversalEntry"
+      })
+  Page<JournalEntry> findByCompanyAndSourceModuleIgnoreCaseOrderByEntryDateDescIdDesc(
+      Company company, String sourceModule, Pageable pageable);
+
+  @EntityGraph(attributePaths = {"lines", "lines.account"})
+  List<JournalEntry> findByCompanyAndSourceModuleIgnoreCaseOrderByEntryDateDescIdDesc(
+      Company company, String sourceModule);
+
   @EntityGraph(attributePaths = {"lines", "lines.account"})
   Optional<JournalEntry> findById(Long id);
 

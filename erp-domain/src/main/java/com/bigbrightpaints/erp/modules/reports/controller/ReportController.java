@@ -242,16 +242,32 @@ public class ReportController {
     return ResponseEntity.ok(ApiResponse.success(reportService.wastageReport()));
   }
 
+  @GetMapping("/reports/product-costing")
+  public ResponseEntity<ApiResponse<ProductCostingReportDto>> productCosting(
+      @RequestParam Long itemId) {
+    return ResponseEntity.ok(ApiResponse.success(reportService.productCosting(itemId)));
+  }
+
+  @GetMapping("/reports/cost-allocation")
+  public ResponseEntity<ApiResponse<CostAllocationReportDto>> costAllocationReport() {
+    return ResponseEntity.ok(ApiResponse.success(reportService.costAllocationReport()));
+  }
+
   @GetMapping("/reports/production-logs/{id}/cost-breakdown")
   public ResponseEntity<ApiResponse<CostBreakdownDto>> costBreakdown(@PathVariable Long id) {
     return ResponseEntity.ok(ApiResponse.success(reportService.costBreakdown(id)));
   }
 
-  @GetMapping("/reports/monthly-production-costs")
-  public ResponseEntity<ApiResponse<MonthlyProductionCostDto>> monthlyProductionCosts(
+  @GetMapping(value = "/reports/monthly-production-costs", params = {"year", "month"})
+  public ResponseEntity<ApiResponse<MonthlyProductionCostDto>> monthlyProductionCostsByPeriod(
       @RequestParam Integer year, @RequestParam Integer month) {
     return ResponseEntity.ok(
         ApiResponse.success(reportService.monthlyProductionCosts(year, month)));
+  }
+
+  @GetMapping("/reports/monthly-production-costs")
+  public ResponseEntity<ApiResponse<List<MonthlyProductionCostEntryDto>>> monthlyProductionCosts() {
+    return ResponseEntity.ok(ApiResponse.success(reportService.monthlyProductionCosts()));
   }
 
   @PostMapping("/exports/request")

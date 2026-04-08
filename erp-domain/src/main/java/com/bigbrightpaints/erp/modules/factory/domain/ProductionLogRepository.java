@@ -26,6 +26,12 @@ public interface ProductionLogRepository extends JpaRepository<ProductionLog, Lo
   List<ProductionLog> findByCompanyAndProducedAtBetween(
       Company company, Instant start, Instant end);
 
+  List<ProductionLog> findByCompanyAndProduct_IdAndStatusOrderByProducedAtDesc(
+      Company company, Long productId, ProductionLogStatus status);
+
+  List<ProductionLog> findByCompanyAndStatusOrderByProducedAtAsc(
+      Company company, ProductionLogStatus status);
+
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("SELECT pl FROM ProductionLog pl WHERE pl.company = :company AND pl.id = :id")
   Optional<ProductionLog> lockByCompanyAndId(

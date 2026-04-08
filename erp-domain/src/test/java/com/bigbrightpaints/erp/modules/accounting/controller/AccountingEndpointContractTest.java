@@ -676,11 +676,26 @@ class AccountingEndpointContractTest {
   void journalEntries_delegatesToJournalEntryService() {
     JournalEntryService journalEntryService = mock(JournalEntryService.class);
     List<JournalEntryDto> expected = List.of(expectedJournal(81L, "JRN-81"));
-    when(journalEntryService.listJournalEntries(1L, 2L, 3, 4)).thenReturn(expected);
+    when(journalEntryService.listJournalEntries(1L, 2L, 3, 4, null)).thenReturn(expected);
 
     ApiResponse<List<JournalEntryDto>> body =
         newJournalController(mock(AccountingService.class), journalEntryService, null, null)
-            .journalEntries(1L, 2L, 3, 4)
+            .journalEntries(1L, 2L, null, 3, 4)
+            .getBody();
+
+    assertThat(body).isNotNull();
+    assertThat(body.data()).isEqualTo(expected);
+  }
+
+  @Test
+  void journalEntries_withSourceFilter_delegatesToJournalEntryService() {
+    JournalEntryService journalEntryService = mock(JournalEntryService.class);
+    List<JournalEntryDto> expected = List.of(expectedJournal(82L, "PACK-1"));
+    when(journalEntryService.listJournalEntries(null, null, 0, 100, "PACKING")).thenReturn(expected);
+
+    ApiResponse<List<JournalEntryDto>> body =
+        newJournalController(mock(AccountingService.class), journalEntryService, null, null)
+            .journalEntries(null, null, "PACKING", 0, 100)
             .getBody();
 
     assertThat(body).isNotNull();

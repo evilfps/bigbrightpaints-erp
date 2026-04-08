@@ -3,6 +3,7 @@ package com.bigbrightpaints.erp.modules.accounting.service;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -24,6 +25,11 @@ import com.bigbrightpaints.erp.shared.dto.PageResponse;
 @Service
 class JournalQueryService {
 
+  private static final Map<String, String> SOURCE_ALIASES =
+      Map.of(
+          "PACKING", "FACTORY_PACKING",
+          "COST_ALLOCATION", "FACTORY_COST_VARIANCE");
+
   private final CompanyContextService companyContextService;
   private final JournalEntryRepository journalEntryRepository;
   private final AccountingDtoMapperService accountingDtoMapperService;
@@ -41,6 +47,11 @@ class JournalQueryService {
   }
 
   List<JournalEntryDto> listJournalEntries(Long dealerId, Long supplierId, int page, int size) {
+    return listJournalEntries(dealerId, supplierId, page, size, null);
+  }
+
+  List<JournalEntryDto> listJournalEntries(
+      Long dealerId, Long supplierId, int page, int size, String source) {
     if (dealerId != null && supplierId != null) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_INPUT, "Only one of dealerId or supplierId can be provided");
@@ -48,8 +59,15 @@ class JournalQueryService {
     Company company = companyContextService.requireCurrentCompany();
     int safeSize = Math.max(1, Math.min(size, 200));
     PageRequest pageable = PageRequest.of(Math.max(page, 0), safeSize);
+    String normalizedSourceModule = normalizeSourceModule(source);
     List<JournalEntry> entries;
-    if (dealerId != null) {
+    if (dealerId == null && supplierId == null && normalizedSourceModule != null) {
+      entries =
+          journalEntryRepository
+              .findByCompanyAndSourceModuleIgnoreCaseOrderByEntryDateDescIdDesc(
+                  company, normalizedSourceModule, pageable)
+              .getContent();
+    } else if (dealerId != null) {
       entries =
           journalEntryRepository
               .findByCompanyAndDealerOrderByEntryDateDescIdDesc(
@@ -66,6 +84,14 @@ class JournalQueryService {
           journalEntryRepository
               .findByCompanyOrderByEntryDateDescIdDesc(company, pageable)
               .getContent();
+    }
+    if (normalizedSourceModule != null && (dealerId != null || supplierId != null)) {
+      entries =
+          entries.stream()
+              .filter(
+                  entry ->
+                      normalizedSourceModule.equalsIgnoreCase(entry.getSourceModule()))
+              .toList();
     }
     return entries.stream()
         .map(
@@ -142,7 +168,8 @@ class JournalQueryService {
     if (sourceModule == null || sourceModule.isBlank()) {
       return null;
     }
-    return sourceModule.trim().toUpperCase(Locale.ROOT);
+    String normalized = sourceModule.trim().toUpperCase(Locale.ROOT);
+    return SOURCE_ALIASES.getOrDefault(normalized, normalized);
   }
 
   private Specification<JournalEntry> byJournalCompany(Company company) {

@@ -41,7 +41,12 @@ public class JournalEntryService {
 
   public List<JournalEntryDto> listJournalEntries(
       Long dealerId, Long supplierId, int page, int size) {
-    return journalQueryService.listJournalEntries(dealerId, supplierId, page, size);
+    return journalQueryService.listJournalEntries(dealerId, supplierId, page, size, null);
+  }
+
+  public List<JournalEntryDto> listJournalEntries(
+      Long dealerId, Long supplierId, int page, int size, String source) {
+    return journalQueryService.listJournalEntries(dealerId, supplierId, page, size, source);
   }
 
   public List<JournalEntryDto> listJournalEntries(Long dealerId) {
