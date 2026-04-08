@@ -1,7 +1,7 @@
 ---
 name: mission-analysis-worker
 description: Planning helper for mission artifact research, validation-contract drafting, and codebase flow analysis.
-model: custom:gpt-5.4(high)
+model: inherit
 reasoningEffort: high
 ---
 # Mission Analysis Worker

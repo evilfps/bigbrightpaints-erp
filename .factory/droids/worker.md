@@ -1,10 +1,7 @@
 ---
 name: worker
-description: >-
-  General-purpose worker droid for delegating tasks. Use for non-trivial tasks
-  that benefit from parallel execution, such as code exploration, Q&A, research,
-  analysis.
-model: custom:gpt-5.4(high)
+description: General-purpose worker droid for delegating tasks. Use for non-trivial tasks that benefit from parallel execution, such as code exploration, Q&A, research, analysis.
+model: inherit
 reasoningEffort: high
 ---
 # Worker Droid

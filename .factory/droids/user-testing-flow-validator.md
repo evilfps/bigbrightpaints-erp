@@ -1,8 +1,7 @@
 ---
 name: user-testing-flow-validator
-description: >-
-  Test validation contract assertions through real user surface during mission validation. Used only within missions.
-model: inherit
+description: Test validation contract assertions through real user surface during mission validation. Used only within missions.
+model: gpt-5.4-mini
 reasoningEffort: medium
 ---
 # User Testing Flow Validator
