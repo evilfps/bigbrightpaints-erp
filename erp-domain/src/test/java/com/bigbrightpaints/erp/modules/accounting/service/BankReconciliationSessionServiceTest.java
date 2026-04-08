@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -223,6 +224,34 @@ class BankReconciliationSessionServiceTest {
                         List.of(888L), List.of(), null)))
         .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("does not belong to the session bank account");
+  }
+
+  @Test
+  void updateItems_rejectsDuplicateBankItemAssignmentsAcrossJournalLines() {
+    Account bankAccount = bankAccount(99L, "BANK", "Main Bank");
+    BankReconciliationSession session =
+        session(20L, bankAccount, BankReconciliationSessionStatus.IN_PROGRESS);
+    when(sessionRepository.findByCompanyAndId(company, 20L)).thenReturn(Optional.of(session));
+
+    assertThatThrownBy(
+            () ->
+                service.updateItems(
+                    20L,
+                    new BankReconciliationSessionItemsUpdateRequest(
+                        List.of(7601L, 7602L),
+                        List.of(),
+                        null,
+                        List.of(
+                            new BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest(
+                                9001L, null, 7601L),
+                            new BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest(
+                                9001L, null, 7602L)))))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Duplicate bankItemId assignment is not allowed")
+        .hasMessageContaining("bankItemId 9001");
+
+    verify(journalLineRepository, never()).findAllById(any());
+    verify(itemRepository, never()).save(any(BankReconciliationItem.class));
   }
 
   @Test

@@ -500,6 +500,7 @@ public class BankReconciliationSessionService {
 
     Set<Long> journalEntryIds = bankItemByJournalEntryId.keySet();
     if (journalEntryIds.isEmpty()) {
+      assertNoDuplicateBankItemAssignments(resolvedLineBankItemIds);
       return resolvedLineBankItemIds;
     }
     List<JournalLine> matchedLines =
@@ -523,6 +524,7 @@ public class BankReconciliationSessionService {
         putResolvedMatch(resolvedLineBankItemIds, line.getId(), entryMatch.getValue());
       }
     }
+    assertNoDuplicateBankItemAssignments(resolvedLineBankItemIds);
     return resolvedLineBankItemIds;
   }
 
@@ -532,6 +534,28 @@ public class BankReconciliationSessionService {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_INPUT,
           "A journal line cannot be matched to multiple bankItemId values");
+    }
+  }
+
+  private void assertNoDuplicateBankItemAssignments(Map<Long, Long> resolvedLineBankItemIds) {
+    Map<Long, Long> lineByBankItemId = new LinkedHashMap<>();
+    for (Map.Entry<Long, Long> lineAssignment : resolvedLineBankItemIds.entrySet()) {
+      Long bankItemId = lineAssignment.getValue();
+      if (bankItemId == null) {
+        continue;
+      }
+      Long currentLineId = lineAssignment.getKey();
+      Long existingLineId = lineByBankItemId.putIfAbsent(bankItemId, currentLineId);
+      if (existingLineId != null && !Objects.equals(existingLineId, currentLineId)) {
+        throw new ApplicationException(
+            ErrorCode.VALIDATION_INVALID_INPUT,
+            "Duplicate bankItemId assignment is not allowed: bankItemId "
+                + bankItemId
+                + " is assigned to journalLineId "
+                + existingLineId
+                + " and "
+                + currentLineId);
+      }
     }
   }
 

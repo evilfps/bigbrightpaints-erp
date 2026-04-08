@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.e2e.accounting;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -13,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -171,6 +173,73 @@ class BankReconciliationSessionPersistenceIT extends AbstractIntegrationTest {
                 item.journalLineId() != null
                     && item.journalLineId().equals(unmatchedLine.getId())
                     && item.bankItemId() == null);
+  }
+
+  @Test
+  void updateItems_rejectsDuplicateBankItemAssignmentsBeforePersistence() {
+    Company company = useCompany("BRS-DUP-BANK-ITEM");
+    Account bankAccount = requireAccount(company, "CASH");
+    Account revenueAccount = requireAccount(company, "REV");
+    Account cogsAccount = requireAccount(company, "COGS");
+    LocalDate statementDate = LocalDate.of(2026, 3, 31);
+
+    BankReconciliationSessionSummaryDto started =
+        sessionService.startSession(
+            new BankReconciliationSessionCreateRequest(
+                bankAccount.getId(),
+                statementDate,
+                new BigDecimal("1000.00"),
+                null,
+                null,
+                null,
+                "duplicate bank-item validation"));
+    Long sessionId = started.sessionId();
+
+    JournalEntryDto deposit =
+        createJournal(
+            bankAccount.getId(),
+            revenueAccount.getId(),
+            statementDate,
+            "Duplicate deposit",
+            new BigDecimal("120.00"),
+            BigDecimal.ZERO);
+    JournalEntryDto withdrawal =
+        createJournal(
+            bankAccount.getId(),
+            cogsAccount.getId(),
+            statementDate,
+            "Duplicate withdrawal",
+            BigDecimal.ZERO,
+            new BigDecimal("30.00"));
+
+    List<JournalLine> bankLines =
+        journalLineRepository.findPostedLinesForAccountByJournalEntryIds(
+            company, Set.of(deposit.id(), withdrawal.id()), bankAccount.getId());
+    assertThat(bankLines).hasSize(2);
+    Long firstLineId = bankLines.get(0).getId();
+    Long secondLineId = bankLines.get(1).getId();
+
+    assertThatThrownBy(
+            () ->
+                sessionService.updateItems(
+                    sessionId,
+                    new BankReconciliationSessionItemsUpdateRequest(
+                        List.of(firstLineId, secondLineId),
+                        List.of(),
+                        "duplicate bank-item",
+                        List.of(
+                            new BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest(
+                                88001L, null, firstLineId),
+                            new BankReconciliationSessionItemsUpdateRequest.BankStatementMatchRequest(
+                                88001L, null, secondLineId)))))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("Duplicate bankItemId assignment is not allowed")
+        .hasMessageContaining("bankItemId 88001");
+
+    BankReconciliationSession session =
+        sessionRepository.findByCompanyAndId(company, sessionId).orElseThrow();
+    assertThat(itemRepository.findBySessionAndJournalLineIdIn(session, Set.of(firstLineId, secondLineId)))
+        .isEmpty();
   }
 
   private Company useCompany(String companyCode) {

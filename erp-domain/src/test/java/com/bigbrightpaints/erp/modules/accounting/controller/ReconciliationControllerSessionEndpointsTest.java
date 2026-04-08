@@ -1,10 +1,14 @@
 package com.bigbrightpaints.erp.modules.accounting.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
@@ -13,9 +17,12 @@ import java.time.LocalDate;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.accounting.dto.BankReconciliationSessionCompletionRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.BankReconciliationSessionCreateRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.BankReconciliationSessionDetailDto;
@@ -84,6 +91,43 @@ class ReconciliationControllerSessionEndpointsTest {
     assertThat(body.message()).isEqualTo("Bank reconciliation session updated");
     assertThat(body.data()).isEqualTo(expected);
     verify(sessionService).updateItems(21L, request);
+  }
+
+  @Test
+  void updateBankReconciliationSessionItems_duplicateBankItemValidationReturnsBadRequest() throws Exception {
+    BankReconciliationSessionService sessionService = mock(BankReconciliationSessionService.class);
+    when(sessionService.updateItems(eq(21L), any(BankReconciliationSessionItemsUpdateRequest.class)))
+        .thenThrow(
+            new ApplicationException(
+                ErrorCode.VALIDATION_INVALID_INPUT,
+                "Duplicate bankItemId assignment is not allowed: bankItemId 9001 is assigned to journalLineId 11 and 12"));
+
+    MockMvc mvc =
+        MockMvcBuilders.standaloneSetup(
+                controller(mock(ReconciliationService.class), sessionService))
+            .setControllerAdvice(new AccountingApplicationExceptionAdvice())
+            .build();
+
+    mvc.perform(
+            put("/api/v1/accounting/reconciliation/bank/sessions/21/items")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "addJournalLineIds":[11,12],
+                      "removeJournalLineIds":[],
+                      "note":"duplicate bank item",
+                      "matches":[
+                        {"bankItemId":9001,"journalEntryId":null,"journalLineId":11},
+                        {"bankItemId":9001,"journalEntryId":null,"journalLineId":12}
+                      ]
+                    }
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.message").value("Duplicate bankItemId assignment is not allowed: bankItemId 9001 is assigned to journalLineId 11 and 12"))
+        .andExpect(jsonPath("$.data.code").value(ErrorCode.VALIDATION_INVALID_INPUT.getCode()))
+        .andExpect(jsonPath("$.data.reason").value("Duplicate bankItemId assignment is not allowed: bankItemId 9001 is assigned to journalLineId 11 and 12"));
   }
 
   @Test
