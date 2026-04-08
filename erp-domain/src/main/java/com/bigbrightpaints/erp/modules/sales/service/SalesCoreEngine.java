@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -47,6 +48,7 @@ import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventCommand;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventSource;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventStatus;
+import com.bigbrightpaints.erp.core.audittrail.AuditCorrelationIdResolver;
 import com.bigbrightpaints.erp.core.audittrail.EnterpriseAuditTrailService;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.CreditLimitExceededException;
@@ -3966,6 +3968,12 @@ public class SalesCoreEngine {
     if (order.getDealer() != null && order.getDealer().getId() != null) {
       metadata.put("dealerId", order.getDealer().getId().toString());
     }
+    UUID correlationId =
+        AuditCorrelationIdResolver.resolveCorrelationId(
+            AuditCorrelationIdResolver.currentRequest(),
+            order.getTraceId(),
+            order.getOrderNumber(),
+            order.getId() != null ? "SALES_ORDER:" + order.getId() : null);
     AuditActionEventCommand command =
         new AuditActionEventCommand(
             order.getCompany(),
@@ -3979,7 +3987,7 @@ public class SalesCoreEngine {
             null,
             order.getTotalAmount(),
             order.getCurrency(),
-            null,
+            correlationId,
             null,
             null,
             null,

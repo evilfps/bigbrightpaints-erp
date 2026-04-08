@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -143,6 +144,13 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
     h.setContentType(MediaType.APPLICATION_JSON);
     h.set("X-Company-Code", COMPANY_CODE);
     return h;
+  }
+
+  private HttpHeaders headersWithCorrelationId(HttpHeaders baseHeaders, UUID correlationId) {
+    HttpHeaders scoped = new HttpHeaders();
+    scoped.putAll(baseHeaders);
+    scoped.set("X-Correlation-Id", correlationId.toString());
+    return scoped;
   }
 
   private void ensureTestAccounts() {
@@ -515,12 +523,14 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
 
     PackagingSlip slip = reserveSlip(company, orderId);
     Map<String, Object> dispatchReq = dispatchRequestForSlip(slip, "dispatch-cogs");
+    UUID flowCorrelationId = UUID.randomUUID();
+    HttpHeaders dispatchHeaders = headersWithCorrelationId(headers, flowCorrelationId);
 
     ResponseEntity<Map> response =
         rest.exchange(
             "/api/v1/dispatch/confirm",
             HttpMethod.POST,
-            new HttpEntity<>(dispatchReq, headers),
+            new HttpEntity<>(dispatchReq, dispatchHeaders),
             Map.class);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -534,7 +544,7 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
     AuditActionEvent dispatchAudit =
         awaitBusinessAuditEvent(
             company.getId(), "SALES", "DISPATCH_CONFIRMED", "SALES_ORDER", orderId.toString());
-    assertThat(dispatchAudit.getCorrelationId()).isNotNull();
+    assertThat(dispatchAudit.getCorrelationId()).isEqualTo(flowCorrelationId);
 
     AuditActionEvent arJournalAudit =
         awaitBusinessAuditEvent(
@@ -550,8 +560,10 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
             "SYSTEM_JOURNAL_CREATED",
             "JOURNAL_ENTRY",
             dispatchedSlip.getCogsJournalEntryId().toString());
-    assertThat(arJournalAudit.getCorrelationId()).isNotNull();
-    assertThat(cogsJournalAudit.getCorrelationId()).isNotNull();
+    assertThat(arJournalAudit.getCorrelationId()).isEqualTo(flowCorrelationId);
+    assertThat(cogsJournalAudit.getCorrelationId()).isEqualTo(flowCorrelationId);
+    assertThat(arJournalAudit.getCorrelationId()).isEqualTo(dispatchAudit.getCorrelationId());
+    assertThat(cogsJournalAudit.getCorrelationId()).isEqualTo(dispatchAudit.getCorrelationId());
   }
 
   @Test

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -19,6 +20,7 @@ import org.springframework.util.StringUtils;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventCommand;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventSource;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventStatus;
+import com.bigbrightpaints.erp.core.audittrail.AuditCorrelationIdResolver;
 import com.bigbrightpaints.erp.core.audittrail.EnterpriseAuditTrailService;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
@@ -174,6 +176,12 @@ public class SalesOrderAutoCloseService {
     if (order.getDealer() != null && order.getDealer().getId() != null) {
       metadata.put("dealerId", order.getDealer().getId().toString());
     }
+    UUID correlationId =
+        AuditCorrelationIdResolver.resolveCorrelationId(
+            AuditCorrelationIdResolver.currentRequest(),
+            order.getTraceId(),
+            order.getOrderNumber(),
+            order.getId() != null ? "SALES_ORDER:" + order.getId() : null);
     AuditActionEventCommand command =
         new AuditActionEventCommand(
             order.getCompany(),
@@ -187,7 +195,7 @@ public class SalesOrderAutoCloseService {
             null,
             order.getTotalAmount(),
             order.getCurrency(),
-            null,
+            correlationId,
             null,
             null,
             null,

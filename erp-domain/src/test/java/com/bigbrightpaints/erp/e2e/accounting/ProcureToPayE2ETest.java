@@ -114,6 +114,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     BigDecimal totalAmount = quantity.multiply(costPerUnit);
     PurchaseWorkflowIds workflow =
         createPurchaseOrderAndReceipt(supplierId, rawMaterialId, quantity, costPerUnit, entryDate);
+    UUID flowCorrelationId = UUID.randomUUID();
+    HttpHeaders purchaseHeaders = headersWithCorrelationId(headers, flowCorrelationId);
     GoodsReceipt goodsReceipt =
         goodsReceiptRepository.findById(workflow.goodsReceiptId()).orElseThrow();
     int receiptMovementsBefore =
@@ -139,7 +141,7 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
         rest.exchange(
             "/api/v1/purchasing/raw-material-purchases",
             HttpMethod.POST,
-            new HttpEntity<>(purchaseReq, headers),
+            new HttpEntity<>(purchaseReq, purchaseHeaders),
             Map.class);
     assertThat(purchaseResp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     Map<String, Object> purchaseData = (Map<String, Object>) purchaseResp.getBody().get("data");
@@ -178,7 +180,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     settlementReq.put("settlementDate", entryDate);
     settlementReq.put("referenceNumber", settlementRef);
     settlementReq.put("allocations", List.of(allocation));
-    HttpHeaders settlementHeaders = headersWithIdempotencyKey(settlementRef);
+    HttpHeaders settlementHeaders =
+        headersWithCorrelationId(headersWithIdempotencyKey(settlementRef), flowCorrelationId);
 
     ResponseEntity<Map> settleResp =
         rest.exchange(
@@ -222,8 +225,9 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             "SETTLEMENT_JOURNAL_CREATED",
             "JOURNAL_ENTRY",
             settlementJournal.getId().toString());
-    assertThat(purchaseAudit.getCorrelationId()).isNotNull();
-    assertThat(settlementAudit.getCorrelationId()).isNotNull();
+    assertThat(purchaseAudit.getCorrelationId()).isEqualTo(flowCorrelationId);
+    assertThat(settlementAudit.getCorrelationId()).isEqualTo(flowCorrelationId);
+    assertThat(settlementAudit.getCorrelationId()).isEqualTo(purchaseAudit.getCorrelationId());
   }
 
   @Test
@@ -1843,6 +1847,13 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     HttpHeaders scoped = new HttpHeaders();
     scoped.putAll(headers);
     scoped.set("Idempotency-Key", idempotencyKey);
+    return scoped;
+  }
+
+  private HttpHeaders headersWithCorrelationId(HttpHeaders baseHeaders, UUID correlationId) {
+    HttpHeaders scoped = new HttpHeaders();
+    scoped.putAll(baseHeaders);
+    scoped.set("X-Correlation-Id", correlationId.toString());
     return scoped;
   }
 

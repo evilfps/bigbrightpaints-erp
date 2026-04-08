@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventCommand;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventSource;
 import com.bigbrightpaints.erp.core.audittrail.AuditActionEventStatus;
+import com.bigbrightpaints.erp.core.audittrail.AuditCorrelationIdResolver;
 import com.bigbrightpaints.erp.core.audittrail.EnterpriseAuditTrailService;
 import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
@@ -381,6 +382,14 @@ public class AccountingComplianceAuditService {
       String currency,
       Map<String, String> metadata) {
     HttpServletRequest request = currentRequest();
+    UUID correlationId =
+        AuditCorrelationIdResolver.resolveCorrelationId(
+            request,
+            referenceNumber,
+            metadata != null ? metadata.get("sourceReference") : null,
+            metadata != null ? metadata.get("journalSource") : null,
+            entityType,
+            entityId);
     enterpriseAuditTrailService.recordBusinessEvent(
         new AuditActionEventCommand(
             company,
@@ -394,7 +403,7 @@ public class AccountingComplianceAuditService {
             null,
             amount,
             currency,
-            parseUuid(header(request, "X-Correlation-Id")),
+            correlationId,
             header(request, "X-Request-Id"),
             resolveTraceId(request),
             resolveClientIp(request),
@@ -516,17 +525,6 @@ public class AccountingComplianceAuditService {
 
   private String header(HttpServletRequest request, String name) {
     return request == null ? null : trimToNull(request.getHeader(name));
-  }
-
-  private UUID parseUuid(String value) {
-    if (!StringUtils.hasText(value)) {
-      return null;
-    }
-    try {
-      return UUID.fromString(value.trim());
-    } catch (IllegalArgumentException ex) {
-      return null;
-    }
   }
 
   private String trimToNull(String value) {
