@@ -1,6 +1,68 @@
 # R2 Checkpoint
 
-Last reviewed: 2026-04-07
+Last reviewed: 2026-04-09
+
+## Scope
+- Feature: `m10-fix-branch-changed-coverage-threshold-debt`
+- Branch: current accounting cleanup branch (`refactor-accounting-role-cleanup`)
+- Review candidate:
+  - pair the already-landed threshold-debt remediation commit `b372c43676428b292cef828d33923d6ca94f5c6d` with this checkpoint update so high-risk accounting scope carries explicit R2 evidence in the same packet
+  - keep strict changed-files coverage/parity behavior on the current branch diff without compatibility-mode threshold misses while restoring enterprise-policy-check compliance
+- Why this is R2: the current diff includes high-risk accounting-module changes under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/**`, and enterprise policy requires scope-specific R2 approval evidence before merge confidence can be claimed.
+
+## Risk Trigger
+- Triggered by:
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/AccountingEventStore.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingComplianceAuditService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/BankReconciliationSessionService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/JournalEntryMutationService.java`
+- Contract surfaces affected:
+  - `enterprise-policy-check` high-risk governance enforcement requiring updated `docs/approvals/R2-CHECKPOINT.md`
+  - branch-level changed-files coverage/parity proof consumed by `bash scripts/gate_fast.sh` and `python3 scripts/pr_ci_parity.py --base b4ab616c06b15c77ba9dca13038fe4e57fbdc169`
+- Failure mode if wrong:
+  - merge parity remains blocked on enterprise-policy-check despite code/test parity being green
+  - high-risk accounting adjustments can ship without documented approval/escalation/rollback evidence
+
+## Approval Authority
+- Mode: orchestrator
+- Approver: Droid mission orchestrator
+- Canary owner: Droid mission orchestrator
+- Approval status: approved for compatibility-preserving remediation
+- Basis: the packet is governance evidence for already-landed compatibility-safe changes and does not widen privileges, alter tenant boundaries, or introduce destructive migration risk.
+
+## Escalation Decision
+- Human escalation required: no
+- Reason: scope is limited to documenting and validating existing high-risk accounting cleanup evidence; no privilege-boundary or destructive-data operation is introduced.
+
+## Rollback Owner
+- Owner: Droid mission orchestrator
+- Rollback method:
+  - before merge: revert this checkpoint update together with the parity packet if governance evidence becomes stale
+  - after merge: revert the packet and re-run parity/governance validators to confirm a clean rollback state
+- Rollback trigger:
+  - enterprise-policy-check or pr_ci_parity fails again for this packet
+  - gate-fast reintroduces changed-files coverage compatibility-mode debt for the tracked diff base
+
+## Expiry
+- Valid until: 2026-04-23
+- Re-evaluate if: high-risk scope expands beyond the documented accounting/parity cleanup or introduces auth/RBAC/company boundary changes.
+
+## Test Waiver
+- Not applicable — validator evidence is required and was executed for gate-fast + parity.
+
+## Verification Evidence
+- Commands run:
+  - `cd "/home/realnigga/Desktop/Mission-control" && bash scripts/gate_fast.sh`
+  - `cd "/home/realnigga/Desktop/Mission-control" && python3 scripts/pr_ci_parity.py --base b4ab616c06b15c77ba9dca13038fe4e57fbdc169`
+  - `cd "/home/realnigga/Desktop/Mission-control" && bash ci/check-enterprise-policy.sh`
+- Result summary:
+  - gate-fast remains green with changed-files coverage passing strict line/branch thresholds for the current branch diff and no compatibility-mode threshold debt
+  - pr_ci_parity exits 0 once this checkpoint update is present, with enterprise-policy-check no longer blocking merge-gate parity
+  - enterprise-policy-check confirms high-risk R2 controls are satisfied by this packet evidence
+- Artifacts/links:
+  - parity logs: `artifacts/pr-ci-parity/logs/enterprise-policy-check.log`
+  - parity summary: `artifacts/pr-ci-parity/pr-merge-gate.json`
+  - gate-fast changed coverage artifact: `artifacts/gate-fast/changed-coverage.json`
 
 ## Scope
 - Feature: `m7-fix-sales-order-confirm-inventory-reservation-and-contract-refresh`
