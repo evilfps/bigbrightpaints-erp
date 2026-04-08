@@ -356,7 +356,8 @@ public class AccountingEventStore {
     event.setJournalReference(original.getReferenceNumber());
     event.setDescription(reason);
     event.setUserId(getCurrentUserId());
-    event.setCorrelationId(resolveFlowCorrelationId(correctionEntry, original.getSourceReference()));
+    event.setCorrelationId(
+        resolveFlowCorrelationId(correctionEntry, original.getSourceReference()));
     Map<String, Object> payload = new HashMap<>();
     payload.put("correctionEntryId", correctionEntry.getId());
     payload.put("correctionReference", correctionEntry.getReferenceNumber());

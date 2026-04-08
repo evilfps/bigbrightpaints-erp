@@ -246,7 +246,8 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
             row -> {
               assertThat(row).isInstanceOf(Map.class);
               Map<?, ?> eventTrailRow = (Map<?, ?>) row;
-              assertThat(eventTrailRow.get("correlationId")).isEqualTo(flowCorrelationId.toString());
+              assertThat(eventTrailRow.get("correlationId"))
+                  .isEqualTo(flowCorrelationId.toString());
             });
     List<?> settlementSpecificRows =
         settlementEventTrail.stream()
