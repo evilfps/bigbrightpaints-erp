@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -64,7 +64,7 @@ class AccountHierarchyServiceTest {
       AccountType type,
       Account parent) {
     Account account = new Account();
-    ReflectionTestUtils.setField(account, "id", id);
+    ReflectionFieldAccess.setField(account, "id", id);
     account.setCompany(company);
     account.setCode(code);
     account.setName(name);

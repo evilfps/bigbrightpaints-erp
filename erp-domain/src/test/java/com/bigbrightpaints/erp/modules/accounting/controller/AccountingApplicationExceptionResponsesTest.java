@@ -13,7 +13,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
@@ -108,7 +108,7 @@ class AccountingApplicationExceptionResponsesTest {
   @Test
   void determineHttpStatus_defaultsToInternalServerErrorWhenErrorCodeIsNull() {
     HttpStatus status =
-        ReflectionTestUtils.invokeMethod(
+        ReflectionFieldAccess.invokeMethod(
             AccountingApplicationExceptionResponses.class, "determineHttpStatus", (Object) null);
 
     assertThat(status).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);

@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
@@ -73,14 +73,14 @@ class StatementServiceTest {
             settlementAllocationRepository,
             companyClock);
     company = new Company();
-    ReflectionTestUtils.setField(company, "id", 88L);
+    ReflectionFieldAccess.setField(company, "id", 88L);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
   }
 
   @Test
   void dealerStatement_rejectsFromAfterTo() {
     Dealer dealer = new Dealer();
-    ReflectionTestUtils.setField(dealer, "id", 5L);
+    ReflectionFieldAccess.setField(dealer, "id", 5L);
     when(dealerRepository.findByCompanyAndId(company, 5L)).thenReturn(Optional.of(dealer));
     when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 12));
 
@@ -101,7 +101,7 @@ class StatementServiceTest {
   @Test
   void supplierStatement_rejectsFromAfterTo() {
     Supplier supplier = new Supplier();
-    ReflectionTestUtils.setField(supplier, "id", 9L);
+    ReflectionFieldAccess.setField(supplier, "id", 9L);
     when(supplierRepository.findByCompanyAndId(company, 9L)).thenReturn(Optional.of(supplier));
     when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 2, 12));
 
@@ -122,7 +122,7 @@ class StatementServiceTest {
   @Test
   void dealerAging_rejectsMalformedBuckets() {
     Dealer dealer = new Dealer();
-    ReflectionTestUtils.setField(dealer, "id", 12L);
+    ReflectionFieldAccess.setField(dealer, "id", 12L);
     when(dealerRepository.findByCompanyAndId(company, 12L)).thenReturn(Optional.of(dealer));
 
     assertThatThrownBy(
@@ -134,7 +134,7 @@ class StatementServiceTest {
   @Test
   void supplierAging_rejectsTrueOverlappingBuckets() {
     Supplier supplier = new Supplier();
-    ReflectionTestUtils.setField(supplier, "id", 13L);
+    ReflectionFieldAccess.setField(supplier, "id", 13L);
     when(supplierRepository.findByCompanyAndId(company, 13L)).thenReturn(Optional.of(supplier));
 
     assertThatThrownBy(
@@ -147,7 +147,7 @@ class StatementServiceTest {
   void supplierAging_allowsLegacyTouchingBoundaryBuckets() {
     Supplier supplier = new Supplier();
     supplier.setName("Supplier");
-    ReflectionTestUtils.setField(supplier, "id", 14L);
+    ReflectionFieldAccess.setField(supplier, "id", 14L);
     when(supplierRepository.findByCompanyAndId(company, 14L)).thenReturn(Optional.of(supplier));
     when(supplierLedgerRepository
             .findByCompanyAndSupplierAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
@@ -165,7 +165,7 @@ class StatementServiceTest {
   void dealerAging_acceptsStrictlyOrderedOpenEndedFinalBucket() {
     Dealer dealer = new Dealer();
     dealer.setName("Dealer");
-    ReflectionTestUtils.setField(dealer, "id", 21L);
+    ReflectionFieldAccess.setField(dealer, "id", 21L);
     when(dealerRepository.findByCompanyAndId(company, 21L)).thenReturn(Optional.of(dealer));
     when(dealerLedgerRepository
             .findByCompanyAndDealerAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
@@ -183,7 +183,7 @@ class StatementServiceTest {
   void dealerAging_overloadUsesProvidedDealerWithoutRepositoryReload() {
     Dealer dealer = new Dealer();
     dealer.setName("Dealer Direct");
-    ReflectionTestUtils.setField(dealer, "id", 211L);
+    ReflectionFieldAccess.setField(dealer, "id", 211L);
     when(dealerLedgerRepository
             .findByCompanyAndDealerAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
                 company, dealer, LocalDate.of(2026, 2, 12)))
@@ -199,7 +199,7 @@ class StatementServiceTest {
   void dealerStatement_usesAggregateOpeningWithoutLoadingAllPriorRows() {
     Dealer dealer = new Dealer();
     dealer.setName("Dealer Aggregate");
-    ReflectionTestUtils.setField(dealer, "id", 51L);
+    ReflectionFieldAccess.setField(dealer, "id", 51L);
     when(dealerRepository.findByCompanyAndId(company, 51L)).thenReturn(Optional.of(dealer));
 
     LocalDate from = LocalDate.of(2026, 2, 1);
@@ -225,7 +225,7 @@ class StatementServiceTest {
   void supplierStatement_usesAggregateOpeningWithoutLoadingAllPriorRows() {
     Supplier supplier = new Supplier();
     supplier.setName("Supplier Aggregate");
-    ReflectionTestUtils.setField(supplier, "id", 61L);
+    ReflectionFieldAccess.setField(supplier, "id", 61L);
     when(supplierRepository.findByCompanyAndId(company, 61L)).thenReturn(Optional.of(supplier));
 
     LocalDate from = LocalDate.of(2026, 2, 1);
@@ -252,7 +252,7 @@ class StatementServiceTest {
   void dealerAging_prefiltersByAsOfInRepositoryQuery() {
     Dealer dealer = new Dealer();
     dealer.setName("Dealer Aging");
-    ReflectionTestUtils.setField(dealer, "id", 71L);
+    ReflectionFieldAccess.setField(dealer, "id", 71L);
     when(dealerRepository.findByCompanyAndId(company, 71L)).thenReturn(Optional.of(dealer));
     when(dealerLedgerRepository
             .findByCompanyAndDealerAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
@@ -271,7 +271,7 @@ class StatementServiceTest {
   void dealerAging_ignoresFutureDatedEntriesIfRepositoryLeaksThem() {
     Dealer dealer = new Dealer();
     dealer.setName("Dealer Future Guard");
-    ReflectionTestUtils.setField(dealer, "id", 72L);
+    ReflectionFieldAccess.setField(dealer, "id", 72L);
     when(dealerRepository.findByCompanyAndId(company, 72L)).thenReturn(Optional.of(dealer));
 
     LocalDate asOf = LocalDate.of(2026, 2, 12);
@@ -301,7 +301,7 @@ class StatementServiceTest {
   void supplierAging_ignoresFutureDatedEntriesIfRepositoryLeaksThem() {
     Supplier supplier = new Supplier();
     supplier.setName("Supplier Future Guard");
-    ReflectionTestUtils.setField(supplier, "id", 73L);
+    ReflectionFieldAccess.setField(supplier, "id", 73L);
     when(supplierRepository.findByCompanyAndId(company, 73L)).thenReturn(Optional.of(supplier));
 
     LocalDate asOf = LocalDate.of(2026, 2, 12);
@@ -329,7 +329,7 @@ class StatementServiceTest {
   void dealerAging_overcreditDoesNotCreateNegativeBucketAmount() {
     Dealer dealer = new Dealer();
     dealer.setName("Dealer Overcredit Clamp");
-    ReflectionTestUtils.setField(dealer, "id", 74L);
+    ReflectionFieldAccess.setField(dealer, "id", 74L);
     when(dealerRepository.findByCompanyAndId(company, 74L)).thenReturn(Optional.of(dealer));
 
     LocalDate asOf = LocalDate.of(2026, 2, 12);
@@ -368,11 +368,11 @@ class StatementServiceTest {
   void dealerOverdueInvoices_returnsOnlyPositiveOverdueLedgerInvoices() {
     Dealer dealer = new Dealer();
     dealer.setName("Dealer Overdue");
-    ReflectionTestUtils.setField(dealer, "id", 76L);
+    ReflectionFieldAccess.setField(dealer, "id", 76L);
 
     LocalDate asOf = LocalDate.of(2026, 2, 12);
     DealerLedgerEntry overdue = new DealerLedgerEntry();
-    ReflectionTestUtils.setField(overdue, "id", 1L);
+    ReflectionFieldAccess.setField(overdue, "id", 1L);
     overdue.setEntryDate(asOf.minusDays(20));
     overdue.setDueDate(asOf.minusDays(5));
     overdue.setInvoiceNumber("INV-001");
@@ -382,7 +382,7 @@ class StatementServiceTest {
     overdue.setPaymentStatus("PARTIAL");
 
     DealerLedgerEntry current = new DealerLedgerEntry();
-    ReflectionTestUtils.setField(current, "id", 2L);
+    ReflectionFieldAccess.setField(current, "id", 2L);
     current.setEntryDate(asOf.minusDays(3));
     current.setDueDate(asOf);
     current.setInvoiceNumber("INV-002");
@@ -392,7 +392,7 @@ class StatementServiceTest {
     current.setPaymentStatus("UNPAID");
 
     DealerLedgerEntry paid = new DealerLedgerEntry();
-    ReflectionTestUtils.setField(paid, "id", 3L);
+    ReflectionFieldAccess.setField(paid, "id", 3L);
     paid.setEntryDate(asOf.minusDays(30));
     paid.setDueDate(asOf.minusDays(15));
     paid.setInvoiceNumber("INV-003");
@@ -418,11 +418,11 @@ class StatementServiceTest {
   void dealerOverdueInvoices_netsUnappliedCreditsAgainstOldestInvoiceRows() {
     Dealer dealer = new Dealer();
     dealer.setName("Dealer Credit Netting");
-    ReflectionTestUtils.setField(dealer, "id", 77L);
+    ReflectionFieldAccess.setField(dealer, "id", 77L);
 
     LocalDate asOf = LocalDate.of(2026, 2, 12);
     DealerLedgerEntry overdue = new DealerLedgerEntry();
-    ReflectionTestUtils.setField(overdue, "id", 1L);
+    ReflectionFieldAccess.setField(overdue, "id", 1L);
     overdue.setEntryDate(asOf.minusDays(20));
     overdue.setDueDate(asOf.minusDays(5));
     overdue.setInvoiceNumber("INV-010");
@@ -432,7 +432,7 @@ class StatementServiceTest {
     overdue.setPaymentStatus("PARTIAL");
 
     DealerLedgerEntry current = new DealerLedgerEntry();
-    ReflectionTestUtils.setField(current, "id", 2L);
+    ReflectionFieldAccess.setField(current, "id", 2L);
     current.setEntryDate(asOf.minusDays(3));
     current.setDueDate(asOf.plusDays(7));
     current.setInvoiceNumber("INV-011");
@@ -442,7 +442,7 @@ class StatementServiceTest {
     current.setPaymentStatus("UNPAID");
 
     DealerLedgerEntry unappliedCredit = new DealerLedgerEntry();
-    ReflectionTestUtils.setField(unappliedCredit, "id", 3L);
+    ReflectionFieldAccess.setField(unappliedCredit, "id", 3L);
     unappliedCredit.setEntryDate(asOf.minusDays(1));
     unappliedCredit.setDebit(BigDecimal.ZERO);
     unappliedCredit.setCredit(new BigDecimal("250.00"));
@@ -464,14 +464,14 @@ class StatementServiceTest {
   void dealerInvoiceHelpers_doNotDoubleNetAllocatedSettlementCredits() {
     Dealer dealer = new Dealer();
     dealer.setName("Dealer Settled Invoice");
-    ReflectionTestUtils.setField(dealer, "id", 78L);
+    ReflectionFieldAccess.setField(dealer, "id", 78L);
 
     LocalDate asOf = LocalDate.of(2026, 2, 12);
     JournalEntry receiptJournal = new JournalEntry();
-    ReflectionTestUtils.setField(receiptJournal, "id", 901L);
+    ReflectionFieldAccess.setField(receiptJournal, "id", 901L);
 
     DealerLedgerEntry overdue = new DealerLedgerEntry();
-    ReflectionTestUtils.setField(overdue, "id", 1L);
+    ReflectionFieldAccess.setField(overdue, "id", 1L);
     overdue.setEntryDate(asOf.minusDays(20));
     overdue.setDueDate(asOf.minusDays(5));
     overdue.setInvoiceNumber("INV-020");
@@ -481,7 +481,7 @@ class StatementServiceTest {
     overdue.setPaymentStatus("PARTIAL");
 
     DealerLedgerEntry allocatedReceipt = new DealerLedgerEntry();
-    ReflectionTestUtils.setField(allocatedReceipt, "id", 2L);
+    ReflectionFieldAccess.setField(allocatedReceipt, "id", 2L);
     allocatedReceipt.setEntryDate(asOf.minusDays(2));
     allocatedReceipt.setDebit(BigDecimal.ZERO);
     allocatedReceipt.setCredit(new BigDecimal("250.00"));
@@ -514,7 +514,7 @@ class StatementServiceTest {
   void supplierAging_overcreditDoesNotCreateNegativeBucketAmount() {
     Supplier supplier = new Supplier();
     supplier.setName("Supplier Overcredit Clamp");
-    ReflectionTestUtils.setField(supplier, "id", 75L);
+    ReflectionFieldAccess.setField(supplier, "id", 75L);
     when(supplierRepository.findByCompanyAndId(company, 75L)).thenReturn(Optional.of(supplier));
 
     LocalDate asOf = LocalDate.of(2026, 2, 12);
@@ -552,7 +552,7 @@ class StatementServiceTest {
   void dealerStatementPdf_returnsRealPdfBytes() {
     Dealer dealer = new Dealer();
     dealer.setName("Dealer PDF");
-    ReflectionTestUtils.setField(dealer, "id", 31L);
+    ReflectionFieldAccess.setField(dealer, "id", 31L);
     when(dealerRepository.findByCompanyAndId(company, 31L)).thenReturn(Optional.of(dealer));
 
     LocalDate from = LocalDate.of(2026, 2, 1);
@@ -573,7 +573,7 @@ class StatementServiceTest {
   void supplierAgingPdf_returnsRealPdfBytes() {
     Supplier supplier = new Supplier();
     supplier.setName("Supplier PDF");
-    ReflectionTestUtils.setField(supplier, "id", 41L);
+    ReflectionFieldAccess.setField(supplier, "id", 41L);
     when(supplierRepository.findByCompanyAndId(company, 41L)).thenReturn(Optional.of(supplier));
     when(supplierLedgerRepository
             .findByCompanyAndSupplierAndEntryDateLessThanEqualOrderByEntryDateAscIdAsc(
@@ -590,7 +590,7 @@ class StatementServiceTest {
   void dealerStatementPdf_containsStatementPayloadText() {
     Dealer dealer = new Dealer();
     dealer.setName("Dealer Ledger Text");
-    ReflectionTestUtils.setField(dealer, "id", 91L);
+    ReflectionFieldAccess.setField(dealer, "id", 91L);
     when(dealerRepository.findByCompanyAndId(company, 91L)).thenReturn(Optional.of(dealer));
 
     LocalDate from = LocalDate.of(2026, 2, 1);
@@ -628,7 +628,7 @@ class StatementServiceTest {
   void supplierAgingPdf_containsAgingPayloadText() {
     Supplier supplier = new Supplier();
     supplier.setName("Supplier Aging Text");
-    ReflectionTestUtils.setField(supplier, "id", 92L);
+    ReflectionFieldAccess.setField(supplier, "id", 92L);
     when(supplierRepository.findByCompanyAndId(company, 92L)).thenReturn(Optional.of(supplier));
 
     SupplierLedgerEntry row = new SupplierLedgerEntry();

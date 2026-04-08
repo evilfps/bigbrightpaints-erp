@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
@@ -61,7 +61,7 @@ class TemporalBalanceServiceTest {
             journalLineRepository,
             companyClock);
     company = new Company();
-    ReflectionTestUtils.setField(company, "id", 1L);
+    ReflectionFieldAccess.setField(company, "id", 1L);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
   }
 
@@ -92,10 +92,10 @@ class TemporalBalanceServiceTest {
 
     AccountingPeriod closedPeriod = new AccountingPeriod();
     closedPeriod.setStatus(AccountingPeriodStatus.CLOSED);
-    ReflectionTestUtils.setField(closedPeriod, "id", 11L);
+    ReflectionFieldAccess.setField(closedPeriod, "id", 11L);
 
     AccountingPeriodSnapshot snapshot = new AccountingPeriodSnapshot();
-    ReflectionTestUtils.setField(snapshot, "id", 99L);
+    ReflectionFieldAccess.setField(snapshot, "id", 99L);
 
     AccountingPeriodTrialBalanceLine line = new AccountingPeriodTrialBalanceLine();
     line.setAccountId(accountId);

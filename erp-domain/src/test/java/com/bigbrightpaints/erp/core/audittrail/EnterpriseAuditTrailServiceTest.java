@@ -98,6 +98,23 @@ class EnterpriseAuditTrailServiceTest {
   }
 
   @Test
+  void recordBusinessEvent_dispatchesSynchronouslyWhenAsyncIsDisabled() {
+    EnterpriseAuditTrailService service = newService();
+    EnterpriseAuditTrailService selfProxy = mock(EnterpriseAuditTrailService.class);
+    doNothing().when(selfProxy).recordBusinessEventSync(any(), any());
+    setField(service, "self", selfProxy);
+    setField(service, "businessEventAsyncEnabled", false);
+
+    Company company = new Company();
+    setField(company, "id", 6L);
+
+    service.recordBusinessEvent(command(company, null));
+
+    verify(selfProxy).recordBusinessEventSync(any(AuditActionEventCommand.class), any());
+    verify(selfProxy, times(0)).recordBusinessEventAsync(any(AuditActionEventCommand.class), any());
+  }
+
+  @Test
   void recordBusinessEventAsync_prefersProvidedActorSnapshot() {
     EnterpriseAuditTrailService service = newService();
 

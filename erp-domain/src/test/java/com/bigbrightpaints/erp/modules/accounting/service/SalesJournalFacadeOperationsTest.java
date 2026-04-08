@@ -19,7 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
@@ -61,7 +61,7 @@ class SalesJournalFacadeOperationsTest {
             journalReferenceMappingRepository,
             accountingLookupService);
     company = new Company();
-    ReflectionTestUtils.setField(company, "id", 1L);
+    ReflectionFieldAccess.setField(company, "id", 1L);
     company.setCode("BBP");
     lenient().when(companyClock.today(company)).thenReturn(LocalDate.of(2026, 3, 31));
   }
@@ -170,7 +170,7 @@ class SalesJournalFacadeOperationsTest {
 
   private JournalEntry journalEntry(Long id, String referenceNumber) {
     JournalEntry entry = new JournalEntry();
-    ReflectionTestUtils.setField(entry, "id", id);
+    ReflectionFieldAccess.setField(entry, "id", id);
     entry.setCompany(company);
     entry.setReferenceNumber(referenceNumber);
     return entry;

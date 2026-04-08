@@ -25,7 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountType;
@@ -1649,12 +1649,12 @@ class AccountingAuditTrailServiceTest {
     entry.setStatus("VOIDED");
 
     SalesOrder order = new SalesOrder();
-    ReflectionTestUtils.setField(order, "id", 1001L);
+    ReflectionFieldAccess.setField(order, "id", 1001L);
     order.setCompany(scopedCompany);
     order.setOrderNumber("SO-1001");
 
     PackagingSlip slip = new PackagingSlip();
-    ReflectionTestUtils.setField(slip, "id", 1002L);
+    ReflectionFieldAccess.setField(slip, "id", 1002L);
     slip.setSalesOrder(order);
     slip.setSlipNumber("PS-1002");
     slip.setStatus("DISPATCHED");
@@ -1663,34 +1663,34 @@ class AccountingAuditTrailServiceTest {
         .thenReturn(List.of(slip));
 
     Invoice invoice = new Invoice();
-    ReflectionTestUtils.setField(invoice, "id", 1003L);
+    ReflectionFieldAccess.setField(invoice, "id", 1003L);
     invoice.setCompany(scopedCompany);
     invoice.setSalesOrder(order);
     invoice.setInvoiceNumber("INV-1003");
     invoice.setStatus("ISSUED");
 
     RawMaterialPurchase purchase = new RawMaterialPurchase();
-    ReflectionTestUtils.setField(purchase, "id", 1004L);
+    ReflectionFieldAccess.setField(purchase, "id", 1004L);
     purchase.setCompany(scopedCompany);
     purchase.setInvoiceNumber("PINV-1004");
     purchase.setStatus("POSTED");
 
     PartnerSettlementAllocation invoiceAllocation = new PartnerSettlementAllocation();
-    ReflectionTestUtils.setField(invoiceAllocation, "id", 1005L);
+    ReflectionFieldAccess.setField(invoiceAllocation, "id", 1005L);
     invoiceAllocation.setInvoice(invoice);
     invoiceAllocation.setIdempotencyKey("settlement-invoice");
     JournalEntry invoiceSettlementEntry = new JournalEntry();
-    ReflectionTestUtils.setField(invoiceSettlementEntry, "id", 2005L);
+    ReflectionFieldAccess.setField(invoiceSettlementEntry, "id", 2005L);
     invoiceSettlementEntry.setReferenceNumber("SET-1005");
     invoiceSettlementEntry.setStatus("POSTED");
     invoiceAllocation.setJournalEntry(invoiceSettlementEntry);
 
     PartnerSettlementAllocation purchaseAllocation = new PartnerSettlementAllocation();
-    ReflectionTestUtils.setField(purchaseAllocation, "id", 1006L);
+    ReflectionFieldAccess.setField(purchaseAllocation, "id", 1006L);
     purchaseAllocation.setPurchase(purchase);
     purchaseAllocation.setIdempotencyKey("settlement-purchase");
     JournalEntry purchaseSettlementEntry = new JournalEntry();
-    ReflectionTestUtils.setField(purchaseSettlementEntry, "id", 2006L);
+    ReflectionFieldAccess.setField(purchaseSettlementEntry, "id", 2006L);
     purchaseSettlementEntry.setReferenceNumber("SUP-SET-1006");
     purchaseSettlementEntry.setStatus("POSTED");
     purchaseAllocation.setJournalEntry(purchaseSettlementEntry);

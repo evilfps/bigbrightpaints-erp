@@ -27,7 +27,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
@@ -122,7 +122,7 @@ class AccountingPeriodServiceTest {
             accountingFacadeProvider,
             periodCloseHook,
             snapshotService);
-    ReflectionTestUtils.setField(
+    ReflectionFieldAccess.setField(
         service, "closedPeriodPostingExceptionService", closedPeriodPostingExceptionService);
   }
 
@@ -341,7 +341,7 @@ class AccountingPeriodServiceTest {
   void approvePeriodClose_closesAndCapturesSnapshotWhenNetIncomeZero() {
     Company company = company(1L, "ACME");
     AccountingPeriod period = openPeriod(company, 2026, 2);
-    ReflectionTestUtils.setField(period, "id", 31L);
+    ReflectionFieldAccess.setField(period, "id", 31L);
     PeriodCloseRequest pending = pendingCloseRequest(company, period, 501L, "maker.user");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(accountingPeriodRepository.lockByCompanyAndId(company, 31L))
@@ -381,7 +381,7 @@ class AccountingPeriodServiceTest {
   void approvePeriodClose_createsNextPeriodWithOpenedAuditEvent() {
     Company company = company(1L, "ACME");
     AccountingPeriod period = openPeriod(company, 2026, 2);
-    ReflectionTestUtils.setField(period, "id", 311L);
+    ReflectionFieldAccess.setField(period, "id", 311L);
     PeriodCloseRequest pending = pendingCloseRequest(company, period, 511L, "maker.user");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(accountingPeriodRepository.lockByCompanyAndId(company, 311L))
@@ -400,7 +400,7 @@ class AccountingPeriodServiceTest {
     when(periodCloseRequestRepository.save(pending)).thenReturn(pending);
     when(accountingPeriodRepository.findByCompanyAndYearAndMonth(company, 2026, 3))
         .thenReturn(Optional.empty());
-    ReflectionTestUtils.setField(
+    ReflectionFieldAccess.setField(
         service, "accountingComplianceAuditService", accountingComplianceAuditService);
     authenticate("checker.user", "ROLE_ADMIN");
 
@@ -424,7 +424,7 @@ class AccountingPeriodServiceTest {
   void approvePeriodClose_allowsSuperAdminAuthority() {
     Company company = company(1L, "ACME");
     AccountingPeriod period = openPeriod(company, 2026, 2);
-    ReflectionTestUtils.setField(period, "id", 310L);
+    ReflectionFieldAccess.setField(period, "id", 310L);
     PeriodCloseRequest pending = pendingCloseRequest(company, period, 510L, "maker.user");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(accountingPeriodRepository.lockByCompanyAndId(company, 310L))
@@ -458,7 +458,7 @@ class AccountingPeriodServiceTest {
   void approvePeriodClose_setsClosingJournalEntryIdWhenNetIncomeNonZero() {
     Company company = company(1L, "ACME");
     AccountingPeriod period = openPeriod(company, 2026, 2);
-    ReflectionTestUtils.setField(period, "id", 32L);
+    ReflectionFieldAccess.setField(period, "id", 32L);
     PeriodCloseRequest pending = pendingCloseRequest(company, period, 502L, "maker.user");
     JournalEntry closingEntry = journalEntryWithId(444L);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
@@ -498,7 +498,7 @@ class AccountingPeriodServiceTest {
   void approvePeriodClose_usesPendingForceWhenRequestForceFlagIsMissing() {
     Company company = company(1L, "ACME");
     AccountingPeriod period = openPeriod(company, 2026, 2);
-    ReflectionTestUtils.setField(period, "id", 321L);
+    ReflectionFieldAccess.setField(period, "id", 321L);
     PeriodCloseRequest pending = pendingCloseRequest(company, period, 521L, "maker.user");
     pending.setForceRequested(true);
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
@@ -532,7 +532,7 @@ class AccountingPeriodServiceTest {
   void approvePeriodClose_uninvoicedReceiptsPreventCloseAndSnapshotCapture() {
     Company company = company(1L, "ACME");
     AccountingPeriod period = openPeriod(company, 2026, 2);
-    ReflectionTestUtils.setField(period, "id", 33L);
+    ReflectionFieldAccess.setField(period, "id", 33L);
     PeriodCloseRequest pending = pendingCloseRequest(company, period, 503L, "maker.user");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(accountingPeriodRepository.lockByCompanyAndId(company, 33L))
@@ -560,7 +560,7 @@ class AccountingPeriodServiceTest {
     Company company = company(1L, "ACME");
     company.setEnabledModules(new LinkedHashSet<>(List.of(CompanyModule.HR_PAYROLL.name())));
     AccountingPeriod period = openPeriod(company, 2026, 2);
-    ReflectionTestUtils.setField(period, "id", 34L);
+    ReflectionFieldAccess.setField(period, "id", 34L);
     PeriodCloseRequest pending = pendingCloseRequest(company, period, 504L, "maker.user");
     period.setBankReconciled(true);
     period.setInventoryCounted(true);
@@ -671,7 +671,7 @@ class AccountingPeriodServiceTest {
   void rejectPeriodClose_marksPendingRequestRejectedAndClearsApprovalNote() {
     Company company = company(1L, "ACME");
     AccountingPeriod period = openPeriod(company, 2026, 2);
-    ReflectionTestUtils.setField(period, "id", 35L);
+    ReflectionFieldAccess.setField(period, "id", 35L);
     PeriodCloseRequest pending = pendingCloseRequest(company, period, 505L, "maker.user");
     pending.setApprovalNote("stale approval");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
@@ -698,7 +698,7 @@ class AccountingPeriodServiceTest {
   void rejectPeriodClose_requiresNoteWhenRequestPayloadIsMissing() {
     Company company = company(1L, "ACME");
     AccountingPeriod period = openPeriod(company, 2026, 2);
-    ReflectionTestUtils.setField(period, "id", 351L);
+    ReflectionFieldAccess.setField(period, "id", 351L);
     PeriodCloseRequest pending = pendingCloseRequest(company, period, 551L, "maker.user");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(accountingPeriodRepository.lockByCompanyAndId(company, 351L))
@@ -741,7 +741,7 @@ class AccountingPeriodServiceTest {
     period.setStatus(AccountingPeriodStatus.LOCKED);
     ClosedPeriodPostingExceptionService exceptionService =
         org.mockito.Mockito.mock(ClosedPeriodPostingExceptionService.class);
-    ReflectionTestUtils.setField(service, "closedPeriodPostingExceptionService", exceptionService);
+    ReflectionFieldAccess.setField(service, "closedPeriodPostingExceptionService", exceptionService);
     when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 2))
         .thenReturn(Optional.of(period));
 
@@ -995,7 +995,7 @@ class AccountingPeriodServiceTest {
     Company company = company(1L, "ACME");
     AccountingPeriod period = openPeriod(company, 2026, 2);
     period.setStatus(AccountingPeriodStatus.CLOSED);
-    ReflectionTestUtils.setField(service, "closedPeriodPostingExceptionService", null);
+    ReflectionFieldAccess.setField(service, "closedPeriodPostingExceptionService", null);
 
     when(accountingPeriodRepository.lockByCompanyAndYearAndMonth(company, 2026, 2))
         .thenReturn(Optional.of(period));
@@ -1389,7 +1389,7 @@ class AccountingPeriodServiceTest {
         .thenReturn(Optional.empty());
     when(accountingPeriodRepository.save(any(AccountingPeriod.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
-    ReflectionTestUtils.setField(
+    ReflectionFieldAccess.setField(
         service, "accountingComplianceAuditService", accountingComplianceAuditService);
 
     AccountingPeriod created = service.ensurePeriod(company, LocalDate.of(2026, 2, 9));
@@ -1427,7 +1427,7 @@ class AccountingPeriodServiceTest {
             });
     when(accountingPeriodRepository.findByCompanyOrderByYearDescMonthDesc(company))
         .thenAnswer(invocation -> persisted);
-    ReflectionTestUtils.setField(
+    ReflectionFieldAccess.setField(
         service, "accountingComplianceAuditService", accountingComplianceAuditService);
 
     assertThat(service.listPeriods()).hasSize(3);
@@ -1466,7 +1466,7 @@ class AccountingPeriodServiceTest {
         .thenReturn(Optional.empty());
     when(accountingPeriodRepository.save(any(AccountingPeriod.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
-    ReflectionTestUtils.setField(
+    ReflectionFieldAccess.setField(
         service, "accountingComplianceAuditService", accountingComplianceAuditService);
 
     var dto = service.createOrUpdatePeriod(new AccountingPeriodRequest(2026, 7, CostingMethod.FIFO));
@@ -1562,7 +1562,7 @@ class AccountingPeriodServiceTest {
     company.setCode(code);
     company.setName(code + " Pvt");
     company.setTimezone("Asia/Kolkata");
-    ReflectionTestUtils.setField(company, "id", id);
+    ReflectionFieldAccess.setField(company, "id", id);
     return company;
   }
 
@@ -1581,7 +1581,7 @@ class AccountingPeriodServiceTest {
 
   private JournalEntry journalEntryWithId(Long id) {
     JournalEntry entry = new JournalEntry();
-    ReflectionTestUtils.setField(entry, "id", id);
+    ReflectionFieldAccess.setField(entry, "id", id);
     return entry;
   }
 
@@ -1590,7 +1590,7 @@ class AccountingPeriodServiceTest {
     dealer.setCompany(company);
     dealer.setCode(code);
     dealer.setName(code + " Dealer");
-    ReflectionTestUtils.setField(dealer, "id", id);
+    ReflectionFieldAccess.setField(dealer, "id", id);
     return dealer;
   }
 
@@ -1599,14 +1599,14 @@ class AccountingPeriodServiceTest {
     supplier.setCompany(company);
     supplier.setCode(code);
     supplier.setName(code + " Supplier");
-    ReflectionTestUtils.setField(supplier, "id", id);
+    ReflectionFieldAccess.setField(supplier, "id", id);
     return supplier;
   }
 
   private PeriodCloseRequest pendingCloseRequest(
       Company company, AccountingPeriod period, Long requestId, String requestedBy) {
     PeriodCloseRequest request = new PeriodCloseRequest();
-    ReflectionTestUtils.setField(request, "id", requestId);
+    ReflectionFieldAccess.setField(request, "id", requestId);
     request.setCompany(company);
     request.setAccountingPeriod(period);
     request.setStatus(PeriodCloseRequestStatus.PENDING);

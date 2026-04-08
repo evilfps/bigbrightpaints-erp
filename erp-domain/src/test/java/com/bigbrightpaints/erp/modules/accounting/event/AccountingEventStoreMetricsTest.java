@@ -19,7 +19,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -166,11 +166,11 @@ class AccountingEventStoreMetricsTest {
 
   private JournalEntry buildJournalEntry() {
     Company company = new Company();
-    ReflectionTestUtils.setField(company, "id", 10L);
+    ReflectionFieldAccess.setField(company, "id", 10L);
     company.setCode("ACME");
 
     Account debitAccount = new Account();
-    ReflectionTestUtils.setField(debitAccount, "id", 101L);
+    ReflectionFieldAccess.setField(debitAccount, "id", 101L);
     debitAccount.setCompany(company);
     debitAccount.setCode("1000");
     debitAccount.setName("Cash");
@@ -178,7 +178,7 @@ class AccountingEventStoreMetricsTest {
     debitAccount.setBalance(new BigDecimal("1000.00"));
 
     Account creditAccount = new Account();
-    ReflectionTestUtils.setField(creditAccount, "id", 202L);
+    ReflectionFieldAccess.setField(creditAccount, "id", 202L);
     creditAccount.setCompany(company);
     creditAccount.setCode("2000");
     creditAccount.setName("Revenue");
@@ -198,10 +198,10 @@ class AccountingEventStoreMetricsTest {
     creditLine.setDescription("Credit line");
 
     JournalEntry entry = new JournalEntry();
-    ReflectionTestUtils.setField(entry, "id", 77L);
-    ReflectionTestUtils.setField(
+    ReflectionFieldAccess.setField(entry, "id", 77L);
+    ReflectionFieldAccess.setField(
         entry, "publicId", UUID.fromString("11111111-1111-1111-1111-111111111111"));
-    ReflectionTestUtils.setField(entry, "lines", List.of(debitLine, creditLine));
+    ReflectionFieldAccess.setField(entry, "lines", List.of(debitLine, creditLine));
     entry.setCompany(company);
     entry.setReferenceNumber("JRN-77");
     entry.setEntryDate(LocalDate.of(2026, 3, 3));

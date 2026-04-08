@@ -25,7 +25,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
@@ -105,7 +105,7 @@ class AccountingFacadeTest {
             journalReferenceResolver,
             journalReferenceMappingRepository);
     company = new Company();
-    ReflectionTestUtils.setField(company, "id", 1L);
+    ReflectionFieldAccess.setField(company, "id", 1L);
     company.setBaseCurrency("INR");
     lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
     lenient().when(companyClock.today(company)).thenReturn(LocalDate.of(2024, 4, 9));
@@ -142,7 +142,7 @@ class AccountingFacadeTest {
     receivable.setCode("AR");
     dealer.setReceivableAccount(receivable);
     Long dealerId = 10L;
-    ReflectionTestUtils.setField(dealer, "id", dealerId);
+    ReflectionFieldAccess.setField(dealer, "id", dealerId);
 
     when(companyEntityLookup.requireDealer(eq(company), eq(dealerId))).thenReturn(dealer);
 
@@ -271,7 +271,7 @@ class AccountingFacadeTest {
     Account payable = new Account();
     payable.setCode("AP");
     payable.setName("Accounts Payable");
-    ReflectionTestUtils.setField(payable, "id", 301L);
+    ReflectionFieldAccess.setField(payable, "id", 301L);
     supplier.setStatus(SupplierStatus.ACTIVE);
     supplier.setPayableAccount(payable);
     when(supplierRepository.findByCompanyAndIdWithPayableAccount(eq(company), eq(supplierId)))
@@ -321,7 +321,7 @@ class AccountingFacadeTest {
             null);
     when(accountingService.createStandardJournal(any())).thenReturn(created);
     JournalEntry saved = new JournalEntry();
-    ReflectionTestUtils.setField(saved, "id", 915L);
+    ReflectionFieldAccess.setField(saved, "id", 915L);
     saved.setReferenceNumber(canonicalReference);
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(915L))).thenReturn(saved);
 
@@ -355,7 +355,7 @@ class AccountingFacadeTest {
         .thenReturn(baseReference);
 
     JournalEntry existing = new JournalEntry();
-    ReflectionTestUtils.setField(existing, "id", 777L);
+    ReflectionFieldAccess.setField(existing, "id", 777L);
     existing.setReferenceNumber(baseReference);
     existing.setEntryDate(LocalDate.of(2026, 1, 14));
     existing.setStatus("POSTED");
@@ -412,7 +412,7 @@ class AccountingFacadeTest {
     supplier.setName("Blocked Supplier");
     supplier.setStatus(SupplierStatus.SUSPENDED);
     Account payable = new Account();
-    ReflectionTestUtils.setField(payable, "id", 302L);
+    ReflectionFieldAccess.setField(payable, "id", 302L);
     supplier.setPayableAccount(payable);
     when(supplierRepository.findByCompanyAndIdWithPayableAccount(eq(company), eq(supplierId)))
         .thenReturn(Optional.of(supplier));
@@ -452,7 +452,7 @@ class AccountingFacadeTest {
     Account payable = new Account();
     payable.setCode("AP");
     payable.setName("Accounts Payable");
-    ReflectionTestUtils.setField(payable, "id", 303L);
+    ReflectionFieldAccess.setField(payable, "id", 303L);
     supplier.setPayableAccount(payable);
     when(supplierRepository.findByCompanyAndIdWithPayableAccount(eq(company), eq(supplierId)))
         .thenReturn(Optional.of(supplier));
@@ -499,7 +499,7 @@ class AccountingFacadeTest {
             null);
     when(accountingService.createStandardJournal(any())).thenReturn(created);
     JournalEntry saved = new JournalEntry();
-    ReflectionTestUtils.setField(saved, "id", 910L);
+    ReflectionFieldAccess.setField(saved, "id", 910L);
     saved.setReferenceNumber(canonicalReference);
     when(companyEntityLookup.requireJournalEntry(eq(company), eq(910L))).thenReturn(saved);
     when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(
@@ -529,14 +529,14 @@ class AccountingFacadeTest {
     Account receivable = new Account();
     receivable.setCode("AR");
     receivable.setName("Accounts Receivable");
-    ReflectionTestUtils.setField(receivable, "id", 701L);
+    ReflectionFieldAccess.setField(receivable, "id", 701L);
     dealer.setReceivableAccount(receivable);
     when(companyEntityLookup.requireDealer(eq(company), eq(dealerId))).thenReturn(dealer);
 
     String orderNumber = "SO-1001";
     String canonicalReference = SalesOrderReference.invoiceReference(orderNumber);
     JournalEntry existing = new JournalEntry();
-    ReflectionTestUtils.setField(existing, "id", 777L);
+    ReflectionFieldAccess.setField(existing, "id", 777L);
     existing.setReferenceNumber(canonicalReference);
     existing.setEntryDate(LocalDate.of(2026, 1, 5));
     existing.setStatus("POSTED");
@@ -600,14 +600,14 @@ class AccountingFacadeTest {
     Account receivable = new Account();
     receivable.setCode("AR");
     receivable.setName("Accounts Receivable");
-    ReflectionTestUtils.setField(receivable, "id", 702L);
+    ReflectionFieldAccess.setField(receivable, "id", 702L);
     dealer.setReceivableAccount(receivable);
     when(companyEntityLookup.requireDealer(eq(company), eq(dealerId))).thenReturn(dealer);
 
     String orderNumber = "SO-1002";
     String canonicalReference = SalesOrderReference.invoiceReference(orderNumber);
     JournalEntry existing = new JournalEntry();
-    ReflectionTestUtils.setField(existing, "id", 888L);
+    ReflectionFieldAccess.setField(existing, "id", 888L);
     existing.setReferenceNumber(canonicalReference);
     existing.setEntryDate(LocalDate.of(2026, 1, 6));
     existing.setStatus("POSTED");
@@ -668,14 +668,14 @@ class AccountingFacadeTest {
     Account receivable = new Account();
     receivable.setCode("AR");
     receivable.setName("Accounts Receivable");
-    ReflectionTestUtils.setField(receivable, "id", 703L);
+    ReflectionFieldAccess.setField(receivable, "id", 703L);
     dealer.setReceivableAccount(receivable);
     when(companyEntityLookup.requireDealer(eq(company), eq(dealerId))).thenReturn(dealer);
 
     String orderNumber = "SO-1003";
     String canonicalReference = SalesOrderReference.invoiceReference(orderNumber);
     JournalEntry existing = new JournalEntry();
-    ReflectionTestUtils.setField(existing, "id", 889L);
+    ReflectionFieldAccess.setField(existing, "id", 889L);
     existing.setReferenceNumber(canonicalReference);
     existing.setEntryDate(LocalDate.of(2026, 1, 7));
     existing.setStatus("POSTED");
@@ -1170,7 +1170,7 @@ class AccountingFacadeTest {
 
   private JournalEntry journalEntry(Long id, String referenceNumber) {
     JournalEntry entry = new JournalEntry();
-    ReflectionTestUtils.setField(entry, "id", id);
+    ReflectionFieldAccess.setField(entry, "id", id);
     entry.setCompany(company);
     entry.setReferenceNumber(referenceNumber);
     return entry;

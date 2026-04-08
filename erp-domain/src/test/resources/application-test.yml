@@ -26,6 +26,9 @@ sentry:
   dsn: ""
 
 erp:
+  audit:
+    business:
+      async-enabled: false
   auto-approval:
     enabled: false
   security:

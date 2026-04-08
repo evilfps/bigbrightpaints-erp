@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalEntryRequest;
@@ -67,7 +67,7 @@ class AccountingDomainDtoCoverageTest {
     exception.setApprovedBy("admin");
     UUID existingPublicId = UUID.randomUUID();
     Instant approvedAt = Instant.parse("2026-03-12T09:15:00Z");
-    ReflectionTestUtils.setField(exception, "publicId", existingPublicId);
+    ReflectionFieldAccess.setField(exception, "publicId", existingPublicId);
     exception.setApprovedAt(approvedAt);
 
     exception.prePersist();

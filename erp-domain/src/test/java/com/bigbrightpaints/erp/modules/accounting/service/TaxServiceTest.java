@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
@@ -308,7 +308,7 @@ class TaxServiceTest {
     postedInvoiceLine.setCgstAmount(new BigDecimal("9.00"));
     postedInvoiceLine.setSgstAmount(new BigDecimal("9.00"));
     postedInvoiceLine.setIgstAmount(BigDecimal.ZERO);
-    ReflectionTestUtils.setField(postedInvoice, "lines", List.of(postedInvoiceLine));
+    ReflectionFieldAccess.setField(postedInvoice, "lines", List.of(postedInvoiceLine));
 
     Invoice draftInvoice = new Invoice();
     draftInvoice.setStatus("DRAFT");
@@ -321,7 +321,7 @@ class TaxServiceTest {
     draftInvoiceLine.setCgstAmount(new BigDecimal("90.00"));
     draftInvoiceLine.setSgstAmount(new BigDecimal("90.00"));
     draftInvoiceLine.setIgstAmount(BigDecimal.ZERO);
-    ReflectionTestUtils.setField(draftInvoice, "lines", List.of(draftInvoiceLine));
+    ReflectionFieldAccess.setField(draftInvoice, "lines", List.of(draftInvoiceLine));
 
     RawMaterialPurchase postedPurchase = new RawMaterialPurchase();
     postedPurchase.setStatus("POSTED");

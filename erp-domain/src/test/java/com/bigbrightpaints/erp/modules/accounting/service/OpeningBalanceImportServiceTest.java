@@ -23,7 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -89,7 +89,7 @@ class OpeningBalanceImportServiceTest {
         .thenAnswer(
             invocation -> {
               OpeningBalanceImport importRecord = invocation.getArgument(0);
-              ReflectionTestUtils.setField(importRecord, "id", 101L);
+              ReflectionFieldAccess.setField(importRecord, "id", 101L);
               return importRecord;
             });
     when(openingBalanceImportRepository.save(any(OpeningBalanceImport.class)))
@@ -166,7 +166,7 @@ class OpeningBalanceImportServiceTest {
         .thenAnswer(
             invocation -> {
               OpeningBalanceImport importRecord = invocation.getArgument(0);
-              ReflectionTestUtils.setField(importRecord, "id", 102L);
+              ReflectionFieldAccess.setField(importRecord, "id", 102L);
               return importRecord;
             });
     when(openingBalanceImportRepository.save(any(OpeningBalanceImport.class)))
@@ -206,7 +206,7 @@ class OpeningBalanceImportServiceTest {
         .thenAnswer(
             invocation -> {
               OpeningBalanceImport importRecord = invocation.getArgument(0);
-              ReflectionTestUtils.setField(importRecord, "id", 1021L);
+              ReflectionFieldAccess.setField(importRecord, "id", 1021L);
               return importRecord;
             });
     when(openingBalanceImportRepository.save(any(OpeningBalanceImport.class)))
@@ -245,7 +245,7 @@ class OpeningBalanceImportServiceTest {
         .thenAnswer(
             invocation -> {
               Account created = invocation.getArgument(0);
-              ReflectionTestUtils.setField(created, "id", 44L);
+              ReflectionFieldAccess.setField(created, "id", 44L);
               return created;
             });
 
@@ -253,7 +253,7 @@ class OpeningBalanceImportServiceTest {
         .thenAnswer(
             invocation -> {
               OpeningBalanceImport importRecord = invocation.getArgument(0);
-              ReflectionTestUtils.setField(importRecord, "id", 103L);
+              ReflectionFieldAccess.setField(importRecord, "id", 103L);
               return importRecord;
             });
     when(openingBalanceImportRepository.save(any(OpeningBalanceImport.class)))
@@ -342,7 +342,7 @@ class OpeningBalanceImportServiceTest {
         .thenAnswer(
             invocation -> {
               OpeningBalanceImport importRecord = invocation.getArgument(0);
-              ReflectionTestUtils.setField(importRecord, "id", 104L);
+              ReflectionFieldAccess.setField(importRecord, "id", 104L);
               return importRecord;
             });
     when(openingBalanceImportRepository.save(any(OpeningBalanceImport.class)))
@@ -378,7 +378,7 @@ class OpeningBalanceImportServiceTest {
 
   private Account existingAccount(Long id, String code, String name, AccountType type) {
     Account account = new Account();
-    ReflectionTestUtils.setField(account, "id", id);
+    ReflectionFieldAccess.setField(account, "id", id);
     account.setCode(code);
     account.setName(name);
     account.setType(type);

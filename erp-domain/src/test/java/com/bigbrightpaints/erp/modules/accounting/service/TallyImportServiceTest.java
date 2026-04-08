@@ -21,7 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -84,7 +84,7 @@ class TallyImportServiceTest {
         .thenAnswer(
             invocation -> {
               TallyImport record = invocation.getArgument(0);
-              ReflectionTestUtils.setField(record, "id", 401L);
+              ReflectionFieldAccess.setField(record, "id", 401L);
               return record;
             });
     when(tallyImportRepository.save(any(TallyImport.class)))
@@ -215,7 +215,7 @@ class TallyImportServiceTest {
 
   private Account account(Long id, String code, String name, AccountType type) {
     Account account = new Account();
-    ReflectionTestUtils.setField(account, "id", id);
+    ReflectionFieldAccess.setField(account, "id", id);
     account.setCode(code);
     account.setName(name);
     account.setType(type);

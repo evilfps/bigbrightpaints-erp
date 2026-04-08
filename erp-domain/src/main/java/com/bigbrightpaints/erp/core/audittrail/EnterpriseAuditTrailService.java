@@ -73,6 +73,9 @@ public class EnterpriseAuditTrailService {
 
   @Autowired @Lazy private EnterpriseAuditTrailService self;
 
+  @Value("${erp.audit.business.async-enabled:true}")
+  private boolean businessEventAsyncEnabled = true;
+
   @Value("${erp.audit.business.retry.max-attempts:4}")
   private int businessEventRetryMaxAttempts = 4;
 
@@ -116,12 +119,24 @@ public class EnterpriseAuditTrailService {
                 : resolveCurrentActor().orElse(null))
             : null;
     EnterpriseAuditTrailService dispatcher = self != null ? self : this;
-    dispatcher.recordBusinessEventAsync(command, actorSnapshot);
+    if (businessEventAsyncEnabled) {
+      dispatcher.recordBusinessEventAsync(command, actorSnapshot);
+      return;
+    }
+    dispatcher.recordBusinessEventSync(command, actorSnapshot);
   }
 
   @Async
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void recordBusinessEventAsync(AuditActionEventCommand command, UserAccount actorSnapshot) {
+    persistBusinessEventWithRetry(command, actorSnapshot);
+  }
+
+  public void recordBusinessEventSync(AuditActionEventCommand command, UserAccount actorSnapshot) {
+    persistBusinessEventWithRetry(command, actorSnapshot);
+  }
+
+  private void persistBusinessEventWithRetry(
+      AuditActionEventCommand command, UserAccount actorSnapshot) {
     if (command == null || command.company() == null) {
       return;
     }

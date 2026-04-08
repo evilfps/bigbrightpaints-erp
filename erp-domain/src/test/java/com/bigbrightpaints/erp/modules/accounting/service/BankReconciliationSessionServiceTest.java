@@ -26,7 +26,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
@@ -85,7 +85,7 @@ class BankReconciliationSessionServiceTest {
             referenceNumberService);
 
     company = new Company();
-    ReflectionTestUtils.setField(company, "id", 7L);
+    ReflectionFieldAccess.setField(company, "id", 7L);
     company.setCode("ACME");
     company.setTimezone("Asia/Kolkata");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
@@ -106,8 +106,8 @@ class BankReconciliationSessionServiceTest {
     saved.setStatementDate(LocalDate.of(2026, 3, 31));
     saved.setStatementEndingBalance(new BigDecimal("1500.00"));
     saved.setNote("March statement");
-    ReflectionTestUtils.setField(saved, "id", 11L);
-    ReflectionTestUtils.setField(saved, "createdAt", Instant.parse("2026-03-31T08:00:00Z"));
+    ReflectionFieldAccess.setField(saved, "id", 11L);
+    ReflectionFieldAccess.setField(saved, "createdAt", Instant.parse("2026-03-31T08:00:00Z"));
     when(sessionRepository.save(any(BankReconciliationSession.class))).thenReturn(saved);
 
     BankReconciliationSummaryDto summary = summary("10.00", "5.00", "1.00", false);
@@ -321,7 +321,7 @@ class BankReconciliationSessionServiceTest {
   void completeSession_marksCompletedAndConfirmsPeriodWhenLinked() {
     Account bankAccount = bankAccount(99L, "BANK", "Main Bank");
     AccountingPeriod period = new AccountingPeriod();
-    ReflectionTestUtils.setField(period, "id", 61L);
+    ReflectionFieldAccess.setField(period, "id", 61L);
     period.setCompany(company);
     period.setYear(2026);
     period.setMonth(3);
@@ -366,11 +366,11 @@ class BankReconciliationSessionServiceTest {
 
     BankReconciliationSession sessionNew =
         session(101L, bankA, BankReconciliationSessionStatus.COMPLETED);
-    ReflectionTestUtils.setField(sessionNew, "createdAt", Instant.parse("2026-03-20T10:00:00Z"));
-    ReflectionTestUtils.setField(sessionNew, "completedAt", Instant.parse("2026-03-21T09:00:00Z"));
+    ReflectionFieldAccess.setField(sessionNew, "createdAt", Instant.parse("2026-03-20T10:00:00Z"));
+    ReflectionFieldAccess.setField(sessionNew, "completedAt", Instant.parse("2026-03-21T09:00:00Z"));
     BankReconciliationSession sessionOld =
         session(100L, bankB, BankReconciliationSessionStatus.DRAFT);
-    ReflectionTestUtils.setField(sessionOld, "createdAt", Instant.parse("2026-03-10T10:00:00Z"));
+    ReflectionFieldAccess.setField(sessionOld, "createdAt", Instant.parse("2026-03-10T10:00:00Z"));
 
     Page<BankReconciliationSession> page =
         new PageImpl<>(
@@ -411,7 +411,7 @@ class BankReconciliationSessionServiceTest {
   void getSessionDetail_returnsMatchedAndUnmatchedBreakdown() {
     Account bankAccount = bankAccount(99L, "BANK", "Main Bank");
     AccountingPeriod period = new AccountingPeriod();
-    ReflectionTestUtils.setField(period, "id", 5L);
+    ReflectionFieldAccess.setField(period, "id", 5L);
     period.setCompany(company);
     period.setYear(2026);
     period.setMonth(3);
@@ -420,8 +420,8 @@ class BankReconciliationSessionServiceTest {
     BankReconciliationSession session =
         session(88L, bankAccount, BankReconciliationSessionStatus.COMPLETED);
     session.setAccountingPeriod(period);
-    ReflectionTestUtils.setField(session, "createdAt", Instant.parse("2026-03-31T12:00:00Z"));
-    ReflectionTestUtils.setField(session, "completedAt", Instant.parse("2026-03-31T12:30:00Z"));
+    ReflectionFieldAccess.setField(session, "createdAt", Instant.parse("2026-03-31T12:00:00Z"));
+    ReflectionFieldAccess.setField(session, "completedAt", Instant.parse("2026-03-31T12:30:00Z"));
 
     JournalLine clearedLine =
         journalLine(
@@ -517,7 +517,7 @@ class BankReconciliationSessionServiceTest {
 
     BankReconciliationSession saved =
         session(77L, bankAccount, BankReconciliationSessionStatus.DRAFT);
-    ReflectionTestUtils.setField(saved, "createdAt", Instant.parse("2026-03-31T08:00:00Z"));
+    ReflectionFieldAccess.setField(saved, "createdAt", Instant.parse("2026-03-31T08:00:00Z"));
     when(sessionRepository.save(any(BankReconciliationSession.class))).thenReturn(saved);
     when(sessionRepository.findByCompanyAndId(company, 77L)).thenReturn(Optional.of(saved));
     when(sessionRepository.findDetailedByCompanyAndId(company, 77L)).thenReturn(Optional.of(saved));
@@ -597,7 +597,7 @@ class BankReconciliationSessionServiceTest {
   private BankReconciliationSession session(
       Long id, Account bankAccount, BankReconciliationSessionStatus status) {
     BankReconciliationSession session = new BankReconciliationSession();
-    ReflectionTestUtils.setField(session, "id", id);
+    ReflectionFieldAccess.setField(session, "id", id);
     session.setCompany(company);
     session.setBankAccount(bankAccount);
     session.setStatus(status);
@@ -611,7 +611,7 @@ class BankReconciliationSessionServiceTest {
 
   private Account bankAccount(Long id, String code, String name) {
     Account account = new Account();
-    ReflectionTestUtils.setField(account, "id", id);
+    ReflectionFieldAccess.setField(account, "id", id);
     account.setCode(code);
     account.setName(name);
     account.setType(AccountType.ASSET);
@@ -628,7 +628,7 @@ class BankReconciliationSessionServiceTest {
       String debit,
       String credit) {
     JournalEntry entry = new JournalEntry();
-    ReflectionTestUtils.setField(entry, "id", lineId + 10000);
+    ReflectionFieldAccess.setField(entry, "id", lineId + 10000);
     entry.setCompany(company);
     entry.setReferenceNumber(reference);
     entry.setEntryDate(entryDate);
@@ -636,7 +636,7 @@ class BankReconciliationSessionServiceTest {
     entry.setStatus("POSTED");
 
     JournalLine line = new JournalLine();
-    ReflectionTestUtils.setField(line, "id", lineId);
+    ReflectionFieldAccess.setField(line, "id", lineId);
     line.setJournalEntry(entry);
     line.setAccount(account);
     line.setDebit(new BigDecimal(debit));
@@ -663,7 +663,7 @@ class BankReconciliationSessionServiceTest {
       String clearedBy,
       Long bankItemId) {
     BankReconciliationItem item = new BankReconciliationItem();
-    ReflectionTestUtils.setField(item, "id", id);
+    ReflectionFieldAccess.setField(item, "id", id);
     item.setCompany(company);
     item.setSession(session);
     item.setJournalLine(line);

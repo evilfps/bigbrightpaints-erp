@@ -22,7 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
@@ -136,7 +136,7 @@ class AccountingPeriodServicePolicyTest {
   void approvePeriodClose_allowsLockedToClosedWhenReasonProvided() {
     Company company = company(1L, "POLICY");
     AccountingPeriod period = openPeriod(company, 2026, 2);
-    ReflectionTestUtils.setField(period, "id", 10L);
+    ReflectionFieldAccess.setField(period, "id", 10L);
     period.setStatus(AccountingPeriodStatus.LOCKED);
     PeriodCloseRequest pending = pendingCloseRequest(company, period, 700L, "maker.user");
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
@@ -169,7 +169,7 @@ class AccountingPeriodServicePolicyTest {
   void approvePeriodClose_failsClosedWhenChecklistControlIsUnresolved() {
     Company company = company(1L, "POLICY");
     AccountingPeriod period = openPeriod(company, 2026, 2);
-    ReflectionTestUtils.setField(period, "id", 10L);
+    ReflectionFieldAccess.setField(period, "id", 10L);
     PeriodCloseRequest pending = pendingCloseRequest(company, period, 701L, "maker.user");
     period.setBankReconciled(true);
     period.setInventoryCounted(true);
@@ -255,7 +255,7 @@ class AccountingPeriodServicePolicyTest {
   void approvePeriodClose_reportsUnresolvedControlsInDeterministicPolicyOrder() {
     Company company = company(1L, "POLICY");
     AccountingPeriod period = openPeriod(company, 2026, 2);
-    ReflectionTestUtils.setField(period, "id", 11L);
+    ReflectionFieldAccess.setField(period, "id", 11L);
     PeriodCloseRequest pending = pendingCloseRequest(company, period, 702L, "maker.user");
     period.setBankReconciled(true);
     period.setInventoryCounted(true);
@@ -331,7 +331,7 @@ class AccountingPeriodServicePolicyTest {
   void approvePeriodClose_failsWhenCorrectionJournalLinkageIsMissing() {
     Company company = company(1L, "POLICY");
     AccountingPeriod period = openPeriod(company, 2026, 2);
-    ReflectionTestUtils.setField(period, "id", 12L);
+    ReflectionFieldAccess.setField(period, "id", 12L);
     PeriodCloseRequest pending = pendingCloseRequest(company, period, 703L, "maker.user");
     period.setBankReconciled(true);
     period.setInventoryCounted(true);
@@ -528,7 +528,7 @@ class AccountingPeriodServicePolicyTest {
     company.setCode(code);
     company.setName(code + " Pvt");
     company.setTimezone("Asia/Kolkata");
-    ReflectionTestUtils.setField(company, "id", id);
+    ReflectionFieldAccess.setField(company, "id", id);
     return company;
   }
 
@@ -553,7 +553,7 @@ class AccountingPeriodServicePolicyTest {
     request.setRequestedBy(requestedBy);
     request.setRequestNote("close request");
     request.setRequestedAt(Instant.parse("2026-02-28T10:15:30Z"));
-    ReflectionTestUtils.setField(request, "id", id);
+    ReflectionFieldAccess.setField(request, "id", id);
     return request;
   }
 
