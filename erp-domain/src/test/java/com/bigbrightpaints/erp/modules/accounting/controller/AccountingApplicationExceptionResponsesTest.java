@@ -17,7 +17,6 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
-import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 @Tag("critical")
 class AccountingApplicationExceptionResponsesTest {
@@ -106,11 +105,16 @@ class AccountingApplicationExceptionResponsesTest {
   }
 
   @Test
-  void determineHttpStatus_defaultsToInternalServerErrorWhenErrorCodeIsNull() {
-    HttpStatus status =
-        ReflectionFieldAccess.invokeMethod(
-            AccountingApplicationExceptionResponses.class, "determineHttpStatus", (Object) null);
+  void mappedStatus_defaultsToInternalServerErrorForUnknownErrorCode() {
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    request.setRequestURI("/api/v1/accounting/journal-entries");
+    ApplicationException ex = new ApplicationException(ErrorCode.UNKNOWN_ERROR, "boom");
 
-    assertThat(status).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+    ResponseEntity<ApiResponse<Map<String, Object>>> response =
+        AccountingApplicationExceptionResponses.mappedStatus(ex, request);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().data()).containsEntry("path", "/api/v1/accounting/journal-entries");
   }
 }
