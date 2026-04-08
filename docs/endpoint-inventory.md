@@ -19,7 +19,7 @@ Portal scope guardrail:
 ## Canonical API contract gate
 
 - Canonical machine contract source: repo-root `openapi.json`.
-- OpenAPI snapshot: `openapi.json` (sha256 `5a377418cf93c1d28708adb29e2b06be0a8b64626f52d0ee5fb90f1e237879b4`)
+- OpenAPI snapshot: `openapi.json` (sha256 `fdaa12ba862cbeecbb1c6a2dd3a0cffec3c00c59a9d414235722c02349233b37`)
 - OpenAPI total paths: `271`
 - OpenAPI total operations: `322`
 - Guard remediation flow: if parity drifts, regenerate this inventory from canonical `openapi.json`, then rerun `bash scripts/guard_openapi_contract_drift.sh` and `bash scripts/guard_accounting_portal_scope_contract.sh`.
