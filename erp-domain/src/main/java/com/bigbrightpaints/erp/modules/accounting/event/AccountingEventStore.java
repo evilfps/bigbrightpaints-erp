@@ -17,10 +17,12 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.bigbrightpaints.erp.core.audittrail.AuditCorrelationIdResolver;
 import com.bigbrightpaints.erp.core.security.SecurityActorResolver;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
@@ -73,7 +75,7 @@ public class AccountingEventStore {
   @Transactional
   public List<AccountingEvent> recordJournalEntryPosted(
       JournalEntry entry, Map<Long, BigDecimal> balancesBefore) {
-    UUID correlationId = UUID.randomUUID();
+    UUID correlationId = resolveFlowCorrelationId(entry);
     List<AccountingEvent> events = new ArrayList<>();
     String userId = getCurrentUserId();
 
@@ -265,6 +267,7 @@ public class AccountingEventStore {
     event.setJournalReference(entry.getReferenceNumber());
     event.setDescription(entry.getMemo());
     event.setUserId(getCurrentUserId());
+    event.setCorrelationId(resolveFlowCorrelationId(entry, idempotencyKey, partnerType));
     Map<String, Object> payload = new HashMap<>();
     payload.put("partnerType", partnerType);
     payload.put("partnerId", partnerId);
@@ -301,6 +304,7 @@ public class AccountingEventStore {
     event.setJournalReference(entry.getReferenceNumber());
     event.setDescription(entry.getMemo());
     event.setUserId(getCurrentUserId());
+    event.setCorrelationId(resolveFlowCorrelationId(entry, idempotencyKey, partnerType));
     Map<String, Object> payload = new HashMap<>();
     payload.put("partnerType", partnerType);
     payload.put("partnerId", partnerId);
@@ -352,6 +356,7 @@ public class AccountingEventStore {
     event.setJournalReference(original.getReferenceNumber());
     event.setDescription(reason);
     event.setUserId(getCurrentUserId());
+    event.setCorrelationId(resolveFlowCorrelationId(correctionEntry, original.getSourceReference()));
     Map<String, Object> payload = new HashMap<>();
     payload.put("correctionEntryId", correctionEntry.getId());
     payload.put("correctionReference", correctionEntry.getReferenceNumber());
@@ -423,6 +428,28 @@ public class AccountingEventStore {
 
   private String getCurrentUserId() {
     return SecurityActorResolver.resolveActorWithSystemProcessFallback();
+  }
+
+  private UUID resolveFlowCorrelationId(JournalEntry entry, String... additionalKeys) {
+    List<String> fallbackKeys = new ArrayList<>();
+    if (entry != null) {
+      appendCorrelationFallback(fallbackKeys, entry.getSourceReference());
+      appendCorrelationFallback(fallbackKeys, entry.getSourceModule());
+    }
+    if (additionalKeys != null) {
+      for (String additionalKey : additionalKeys) {
+        appendCorrelationFallback(fallbackKeys, additionalKey);
+      }
+    }
+    return AuditCorrelationIdResolver.resolveCorrelationId(
+        AuditCorrelationIdResolver.currentRequest(), fallbackKeys.toArray(String[]::new));
+  }
+
+  private void appendCorrelationFallback(List<String> fallbackKeys, String value) {
+    if (!StringUtils.hasText(value)) {
+      return;
+    }
+    fallbackKeys.add(value.trim());
   }
 
   private void incrementJournalsCreatedMetric(Company company) {

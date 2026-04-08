@@ -564,6 +564,26 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
     assertThat(cogsJournalAudit.getCorrelationId()).isEqualTo(flowCorrelationId);
     assertThat(arJournalAudit.getCorrelationId()).isEqualTo(dispatchAudit.getCorrelationId());
     assertThat(cogsJournalAudit.getCorrelationId()).isEqualTo(dispatchAudit.getCorrelationId());
+
+    List<?> arEventTrail = transactionEventTrail(dispatchedSlip.getJournalEntryId());
+    assertThat(arEventTrail).isNotEmpty();
+    assertThat(arEventTrail)
+        .allSatisfy(
+            row -> {
+              assertThat(row).isInstanceOf(Map.class);
+              assertThat(((Map<?, ?>) row).get("correlationId"))
+                  .isEqualTo(flowCorrelationId.toString());
+            });
+
+    List<?> cogsEventTrail = transactionEventTrail(dispatchedSlip.getCogsJournalEntryId());
+    assertThat(cogsEventTrail).isNotEmpty();
+    assertThat(cogsEventTrail)
+        .allSatisfy(
+            row -> {
+              assertThat(row).isInstanceOf(Map.class);
+              assertThat(((Map<?, ?>) row).get("correlationId"))
+                  .isEqualTo(flowCorrelationId.toString());
+            });
   }
 
   @Test
@@ -1438,6 +1458,20 @@ public class OrderFulfillmentE2ETest extends AbstractIntegrationTest {
       return new BigDecimal(str);
     }
     return BigDecimal.ZERO;
+  }
+
+  private List<?> transactionEventTrail(Long journalEntryId) {
+    ResponseEntity<Map> response =
+        rest.exchange(
+            "/api/v1/accounting/audit/transactions/" + journalEntryId,
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    Map<?, ?> data =
+        requireData(response, "fetch accounting audit transaction detail for " + journalEntryId);
+    Object eventTrail = data.get("eventTrail");
+    assertThat(eventTrail).isInstanceOf(List.class);
+    return (List<?>) eventTrail;
   }
 
   private AuditActionEvent awaitBusinessAuditEvent(

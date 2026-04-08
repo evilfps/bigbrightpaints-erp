@@ -228,6 +228,45 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
     assertThat(purchaseAudit.getCorrelationId()).isEqualTo(flowCorrelationId);
     assertThat(settlementAudit.getCorrelationId()).isEqualTo(flowCorrelationId);
     assertThat(settlementAudit.getCorrelationId()).isEqualTo(purchaseAudit.getCorrelationId());
+
+    List<?> purchaseEventTrail = transactionEventTrail(purchase.getJournalEntry().getId());
+    assertThat(purchaseEventTrail).isNotEmpty();
+    assertThat(purchaseEventTrail)
+        .allSatisfy(
+            row -> {
+              assertThat(row).isInstanceOf(Map.class);
+              assertThat(((Map<?, ?>) row).get("correlationId"))
+                  .isEqualTo(flowCorrelationId.toString());
+            });
+
+    List<?> settlementEventTrail = transactionEventTrail(settlementJournal.getId());
+    assertThat(settlementEventTrail).isNotEmpty();
+    assertThat(settlementEventTrail)
+        .allSatisfy(
+            row -> {
+              assertThat(row).isInstanceOf(Map.class);
+              Map<?, ?> eventTrailRow = (Map<?, ?>) row;
+              assertThat(eventTrailRow.get("correlationId")).isEqualTo(flowCorrelationId.toString());
+            });
+    List<?> settlementSpecificRows =
+        settlementEventTrail.stream()
+            .filter(Map.class::isInstance)
+            .map(row -> (Map<?, ?>) row)
+            .filter(
+                row -> {
+                  String eventType = String.valueOf(row.get("eventType"));
+                  return "SUPPLIER_PAYMENT_POSTED".equals(eventType)
+                      || "SETTLEMENT_ALLOCATED".equals(eventType);
+                })
+            .toList();
+    assertThat(settlementSpecificRows).isNotEmpty();
+    assertThat(settlementSpecificRows)
+        .allSatisfy(
+            row -> {
+              assertThat(row).isInstanceOf(Map.class);
+              assertThat(((Map<?, ?>) row).get("correlationId"))
+                  .isEqualTo(flowCorrelationId.toString());
+            });
   }
 
   @Test
@@ -1825,6 +1864,23 @@ class ProcureToPayE2ETest extends AbstractIntegrationTest {
 
   private BigDecimal gstOutputTax(YearMonth period) {
     return amount(gstReturn(period), "outputTax");
+  }
+
+  private List<?> transactionEventTrail(Long journalEntryId) {
+    ResponseEntity<Map> response =
+        rest.exchange(
+            "/api/v1/accounting/audit/transactions/" + journalEntryId,
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            Map.class);
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    Object body = response.getBody();
+    assertThat(body).isInstanceOf(Map.class);
+    Object data = ((Map<?, ?>) body).get("data");
+    assertThat(data).isInstanceOf(Map.class);
+    Object eventTrail = ((Map<?, ?>) data).get("eventTrail");
+    assertThat(eventTrail).isInstanceOf(List.class);
+    return (List<?>) eventTrail;
   }
 
   private HttpHeaders authHeaders() {
