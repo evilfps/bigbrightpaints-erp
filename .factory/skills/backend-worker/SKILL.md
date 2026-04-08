@@ -60,7 +60,7 @@ None.
    - Create new focused service classes
    - Move methods from the god service to appropriate new services
    - Make the extracted service the canonical owner of the migrated behavior; deleting wrapper shells is not enough if real logic still lives behind `super` calls or dependency hops back into the god class
-   - If a surviving public service only forwards into the new owner, delete that delegating wrapper method and move tests onto the collaborator/public behavior; do not keep `ReflectionTestUtils.invokeMethod(...)` coverage for retired wrappers
+   - If a surviving public service only forwards into the new owner, delete that delegating wrapper method and move tests onto the collaborator/public behavior; do not keep reflection-based private-method invocation coverage (`ReflectionTestUtils.invokeMethod(...)`, `ReflectionFieldAccess.invokeMethod(...)`, or equivalent helpers) for retired wrappers
    - Delete the retired service/helper/test files once the new owner is live; a renamed monolith or compatibility shim still in the production write path does not count as a completed hard cut
    - Update the god service to delegate to the new services only as a thin facade/shim if needed; do not leave business logic ownership in the god service
    - Update all controllers and other services that call the moved methods
@@ -111,6 +111,8 @@ If `docs/frontend-api/*` changes, verify the examples against the live DTO/contr
 For this mission, canonical docs are the default frontend contract artifact. Do not update `.factory/library/frontend-handoff.md` or `.factory/library/frontend-v2.md` unless the feature, mission artifacts, or the user explicitly requires those internal handoff files.
 
 If the packet is docs-only, use the docs-only lane: run `bash ci/lint-knowledgebase.sh` and skip runtime/scrutiny validators unless the packet also changes code, config, schema, scripts, OpenAPI, or test behavior. If you intentionally run broader validation anyway, explain why in the handoff and do not claim docs-only procedure compliance by default.
+
+If docs, approvals, or R2 checkpoint files cite PR parity evidence, reference only artifact paths that actually exist under `artifacts/pr-ci-parity/**` (or other verified outputs on disk). Verify every cited evidence path exists before committing docs; do not invent placeholder files like `pr-merge-gate.json`.
 
 If your feature adds or changes frontend-facing API endpoints or contracts and the mission still expects an internal handoff artifact, update `.factory/library/frontend-handoff.md` with:
 1. **Endpoint map**: Every new/changed endpoint (method, path, auth, request/response types)
