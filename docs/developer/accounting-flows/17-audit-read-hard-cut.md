@@ -38,8 +38,8 @@ Optional query params:
 Notes:
 
 - this surface is tenant-admin/accounting only
-- omit `module` or use `module=ACCOUNTING`
-- non-accounting module values are not a supported way to query this surface
+- omit `module` to default to `ACCOUNTING`, or pass `module=ACCOUNTING`
+- non-accounting module values (including `INVENTORY`, `SALES`, `EXPORT`, `AUTH`, `ADMIN`, `SUPERADMIN`, `CHANGELOG`, and `COMPANIES`) are rejected by the accounting-visibility policy and return an empty result
 
 ### 2. Tenant-admin review feed
 
@@ -64,9 +64,10 @@ Optional query params:
 
 Notes:
 
-- this surface is tenant-admin only
+- this surface is tenant-admin only and queries the full tenant-wide merged feed
 - use `module=ACCOUNTING` for accounting-labelled rows
 - use `module=BUSINESS` for non-accounting business rows such as reference/order/dispatch activity
+- this is the only canonical surface that exposes non-accounting module rows; the accounting audit feed (`/api/v1/accounting/audit/events`) restricts visibility to accounting modules only
 
 ### 3. Accounting transaction audit feed
 

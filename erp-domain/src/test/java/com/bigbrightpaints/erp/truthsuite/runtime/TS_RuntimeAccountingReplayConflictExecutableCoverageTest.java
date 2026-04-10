@@ -23,18 +23,13 @@ import com.bigbrightpaints.erp.modules.accounting.service.SettlementService;
 class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
 
   private static final Path ACCOUNTING_SERVICE_SOURCE =
-      Path.of(
-          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingService.java");
+      sourcePath("AccountingService.java");
   private static final Path JOURNAL_ENTRY_SERVICE_SOURCE =
-      Path.of(
-          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/JournalEntryService.java");
+      sourcePath("JournalEntryService.java");
   private static final Path SETTLEMENT_SERVICE_SOURCE =
-      Path.of(
-          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/SettlementService.java");
+      sourcePath("SettlementService.java");
   private static final Path SETTLEMENT_SUPPORT_SOURCE =
-      Path.of(
-          "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/"
-              + settlementSupportFileName());
+      sourcePath(settlementSupportFileName());
 
   @Test
   void accountingService_hides_legacy_replay_helper_surface() {
@@ -130,5 +125,19 @@ class TS_RuntimeAccountingReplayConflictExecutableCoverageTest {
 
   private static String settlementSupportFileName() {
     return settlementSupportName() + ".java";
+  }
+
+  private static Path sourcePath(String fileName) {
+    return Path.of(
+        "src",
+        "main",
+        "java",
+        "com",
+        "bigbrightpaints",
+        "erp",
+        "modules",
+        "accounting",
+        "service",
+        fileName);
   }
 }

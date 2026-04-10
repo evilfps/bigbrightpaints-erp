@@ -2,24 +2,24 @@
 
 Every route below belongs to the external dealer shell only.
 
-| UI route | Purpose | Backend contract family |
+| UI route | Purpose | Backend endpoint |
 | --- | --- | --- |
-| `/dealer/dashboard` | Dealer summary, open orders, open invoices, overdue aging, support shortcuts. | dealer portal dashboard reads |
-| `/dealer/orders` | Dealer order list with status filters. | dealer portal order reads |
-| `/dealer/orders/:orderId` | Dealer order detail, shipment status, and invoice readiness. | dealer portal order reads, dispatch read summary |
-| `/dealer/invoices` | Invoice list and payment-status tracking. | dealer portal invoice reads |
-| `/dealer/invoices/:invoiceId` | Invoice detail and download or print actions where allowed. | dealer portal invoice reads |
-| `/dealer/ledger` | Dealer ledger read with running balance. | dealer portal finance reads |
-| `/dealer/aging` | Aging buckets and overdue insight. | dealer portal finance reads |
-| `/dealer/support` | Support ticket list and new support request flow. | dealer portal support endpoints |
-| `/dealer/support/:ticketId` | Support detail and threaded updates where allowed. | dealer portal support endpoints |
-| `/dealer/credit-requests` | Credit request list and current exposure view. | dealer portal credit endpoints |
-| `/dealer/credit-requests/new` | Self-service credit request submission. | dealer portal credit endpoints |
+| `/dealer/dashboard` | Dealer summary, order counts, credit exposure, payment status. | `GET /api/v1/dealer-portal/dashboard` |
+| `/dealer/orders` | Dealer order list with status filters (read-only). | `GET /api/v1/dealer-portal/orders` |
+| `/dealer/invoices` | Invoice list and payment-status tracking. | `GET /api/v1/dealer-portal/invoices` |
+| `/dealer/invoices/:invoiceId` | Invoice PDF or download view for a selected invoice. | `GET /api/v1/dealer-portal/invoices/{invoiceId}/pdf` |
+| `/dealer/ledger` | Dealer ledger read with running balance. | `GET /api/v1/dealer-portal/ledger` |
+| `/dealer/aging` | Aging buckets and overdue insight. | `GET /api/v1/dealer-portal/aging` |
+| `/dealer/support` | Support ticket list and new support request flow. | `GET, POST /api/v1/dealer-portal/support/tickets` |
+| `/dealer/support/:ticketId` | Support ticket detail and thread history. | `GET /api/v1/dealer-portal/support/tickets/{ticketId}` |
+| `/dealer/credit-requests/new` | Self-service credit-limit increase request. | `POST /api/v1/dealer-portal/credit-limit-requests` |
 
 Route rules:
 
 - No internal dealer-master edit screens in this folder.
 - No accounting settlement or approval screens in this folder.
+- Dealer orders are read-only; order creation and mutation happen internally via
+  sales or admin portals.
 - If a route primarily serves internal staff, it belongs in sales or accounting,
   not here.
 - Dealer invoice list, detail, and PDF/download actions stay here even though

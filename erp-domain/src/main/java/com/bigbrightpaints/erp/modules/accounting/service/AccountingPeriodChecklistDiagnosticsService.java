@@ -63,7 +63,7 @@ final class AccountingPeriodChecklistDiagnosticsService {
         journalEntryRepository.findByCompanyAndEntryDateBetweenOrderByEntryDateAsc(
             company, period.getStartDate(), period.getEndDate());
     var inventory = reportService.inventoryReconciliation();
-    ReconciliationServiceCore.PeriodReconciliationResult periodReconciliation =
+    ReconciliationService.PeriodReconciliationResult periodReconciliation =
         reconciliationService.reconcileSubledgersForPeriod(
             period.getStartDate(), period.getEndDate());
     com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto gstReconciliation = null;

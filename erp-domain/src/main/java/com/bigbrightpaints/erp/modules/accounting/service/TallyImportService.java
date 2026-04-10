@@ -729,8 +729,15 @@ public class TallyImportService {
     try {
       return IdempotencyUtils.sha256Hex(file.getBytes());
     } catch (Exception ex) {
-      return Integer.toHexString(
-          file.getOriginalFilename() != null ? file.getOriginalFilename().hashCode() : 0);
+      String fallback =
+          Integer.toHexString(
+              file.getOriginalFilename() != null ? file.getOriginalFilename().hashCode() : 0);
+      log.warn(
+          "Failed to compute SHA-256 hash for uploaded Tally file; falling back to weak hash"
+              + " (filename='{}'): {}",
+          file.getOriginalFilename(),
+          ex.toString());
+      return fallback;
     }
   }
 
@@ -757,6 +764,7 @@ public class TallyImportService {
     try {
       return objectMapper.writeValueAsString(values);
     } catch (Exception ex) {
+      log.warn("Failed to serialize string list for Tally import record: {}", ex.toString());
       return null;
     }
   }
@@ -775,6 +783,7 @@ public class TallyImportService {
           .map(String::trim)
           .collect(Collectors.toList());
     } catch (Exception ex) {
+      log.warn("Failed to deserialize string list from Tally import record JSON: {}", ex.toString());
       return List.of();
     }
   }
@@ -786,6 +795,10 @@ public class TallyImportService {
     try {
       return objectMapper.writeValueAsString(errors);
     } catch (Exception ex) {
+      log.warn(
+          "Failed to serialize {} import error(s) for Tally import record: {}",
+          errors.size(),
+          ex.toString());
       return null;
     }
   }
@@ -797,6 +810,8 @@ public class TallyImportService {
     try {
       return objectMapper.readValue(errorsJson, new TypeReference<List<ImportError>>() {});
     } catch (Exception ex) {
+      log.warn(
+          "Failed to deserialize import errors from Tally import record JSON: {}", ex.toString());
       return List.of();
     }
   }

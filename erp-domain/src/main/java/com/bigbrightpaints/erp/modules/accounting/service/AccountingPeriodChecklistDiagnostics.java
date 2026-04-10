@@ -11,7 +11,7 @@ import com.bigbrightpaints.erp.modules.reports.dto.TrialBalanceDto;
 
 record AccountingPeriodChecklistDiagnostics(
     ReconciliationSummaryDto inventory,
-    ReconciliationServiceCore.PeriodReconciliationResult periodReconciliation,
+    ReconciliationService.PeriodReconciliationResult periodReconciliation,
     GstReconciliationDto gstReconciliation,
     long openReconciliationDiscrepancies,
     TrialBalanceDto trialBalance,

@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,7 +57,6 @@ import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepan
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyType;
 import com.bigbrightpaints.erp.modules.accounting.domain.SupplierLedgerRepository;
-import com.bigbrightpaints.erp.modules.accounting.dto.BankReconciliationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerBalanceView;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
@@ -233,19 +233,15 @@ class ReconciliationServiceTest {
             company, 99L, LocalDate.of(2026, 2, 1), LocalDate.of(2026, 2, 28)))
         .thenReturn(List.of(depositLine, checkLine, clearedLine));
 
-    BankReconciliationRequest request =
-        new BankReconciliationRequest(
+    var result =
+        reconciliationService.reconcileBankAccount(
             99L,
             LocalDate.of(2026, 2, 28),
             new BigDecimal("900.00"),
             LocalDate.of(2026, 2, 1),
             LocalDate.of(2026, 2, 28),
-            List.of("CLR-1"),
-            null,
-            null,
-            null);
-
-    var result = reconciliationService.reconcileBankAccount(request);
+            Set.of(),
+            Set.of("CLR-1"));
 
     assertThat(result.outstandingDeposits()).isEqualByComparingTo("300.00");
     assertThat(result.outstandingChecks()).isEqualByComparingTo("200.00");

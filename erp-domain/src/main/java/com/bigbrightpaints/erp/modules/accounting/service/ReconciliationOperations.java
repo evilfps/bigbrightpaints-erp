@@ -18,7 +18,6 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
@@ -45,7 +44,6 @@ import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepan
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.ReconciliationDiscrepancyType;
 import com.bigbrightpaints.erp.modules.accounting.domain.SupplierLedgerRepository;
-import com.bigbrightpaints.erp.modules.accounting.dto.BankReconciliationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.BankReconciliationSummaryDto;
 import com.bigbrightpaints.erp.modules.accounting.dto.DealerBalanceView;
 import com.bigbrightpaints.erp.modules.accounting.dto.GstReconciliationDto;
@@ -55,6 +53,14 @@ import com.bigbrightpaints.erp.modules.accounting.dto.ReconciliationDiscrepancyD
 import com.bigbrightpaints.erp.modules.accounting.dto.ReconciliationDiscrepancyListResponse;
 import com.bigbrightpaints.erp.modules.accounting.dto.ReconciliationDiscrepancyResolveRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.SupplierBalanceView;
+import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService.DealerDiscrepancy;
+import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService.InterCompanyReconciliationItem;
+import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService.InterCompanyReconciliationReport;
+import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService.PeriodReconciliationResult;
+import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService.ReconciliationResult;
+import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService.SubledgerReconciliationReport;
+import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService.SupplierDiscrepancy;
+import com.bigbrightpaints.erp.modules.accounting.service.ReconciliationService.SupplierReconciliationResult;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.domain.CompanyRepository;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
@@ -67,12 +73,12 @@ import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.domain.DealerRepository;
 
 /**
- * Service for reconciling GL accounts with sub-ledgers.
+ * Internal reconciliation operations backing {@link ReconciliationService}.
  * Used to detect discrepancies between AR/AP accounts and dealer/supplier ledgers.
  */
-public class ReconciliationServiceCore {
+final class ReconciliationOperations {
 
-  private static final Logger log = LoggerFactory.getLogger(ReconciliationServiceCore.class);
+  private static final Logger log = LoggerFactory.getLogger(ReconciliationOperations.class);
   private static final BigDecimal TOLERANCE = new BigDecimal("0.01");
 
   private final CompanyContextService companyContextService;
@@ -91,7 +97,7 @@ public class ReconciliationServiceCore {
   private final ReportService reportService;
   private final ObjectProvider<AccountingFacade> accountingFacadeProvider;
 
-  public ReconciliationServiceCore(
+  ReconciliationOperations(
       CompanyContextService companyContextService,
       CompanyRepository companyRepository,
       AccountRepository accountRepository,
@@ -128,8 +134,7 @@ public class ReconciliationServiceCore {
    * Reconcile AR GL account balance with sum of dealer ledger balances.
    * Returns discrepancies if any.
    */
-  @Transactional(readOnly = true)
-  public ReconciliationResult reconcileArWithDealerLedger() {
+  ReconciliationResult reconcileArWithDealerLedger() {
     Company company = companyContextService.requireCurrentCompany();
     List<Account> allAccounts = accountRepository.findByCompanyOrderByCodeAsc(company);
     List<Dealer> dealers = dealerRepository.findByCompanyOrderByNameAsc(company);
@@ -195,8 +200,7 @@ public class ReconciliationServiceCore {
   /**
    * Reconcile AP GL account balance with sum of supplier ledger balances.
    */
-  @Transactional(readOnly = true)
-  public SupplierReconciliationResult reconcileApWithSupplierLedger() {
+  SupplierReconciliationResult reconcileApWithSupplierLedger() {
     Company company = companyContextService.requireCurrentCompany();
     List<Account> allAccounts = accountRepository.findByCompanyOrderByCodeAsc(company);
     List<Supplier> suppliers =
@@ -267,24 +271,7 @@ public class ReconciliationServiceCore {
         suppliers.size());
   }
 
-  @Transactional(readOnly = true)
-  public BankReconciliationSummaryDto reconcileBankAccount(BankReconciliationRequest request) {
-    if (request == null) {
-      throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Bank reconciliation request is required");
-    }
-    return reconcileBankAccount(
-        request.bankAccountId(),
-        request.statementDate(),
-        request.statementEndingBalance(),
-        request.startDate(),
-        request.endDate(),
-        Collections.emptySet(),
-        normalizeReferences(request.clearedReferences()));
-  }
-
-  @Transactional(readOnly = true)
-  public BankReconciliationSummaryDto reconcileBankAccount(
+  BankReconciliationSummaryDto reconcileBankAccount(
       Long bankAccountId,
       LocalDate statementDate,
       BigDecimal statementEndingBalanceInput,
@@ -406,8 +393,7 @@ public class ReconciliationServiceCore {
         unclearedChecks);
   }
 
-  @Transactional
-  public SubledgerReconciliationReport reconcileSubledgerBalances() {
+  SubledgerReconciliationReport reconcileSubledgerBalances() {
     Company company = companyContextService.requireCurrentCompany();
     ReconciliationResult dealerReconciliation = reconcileArWithDealerLedger();
     SupplierReconciliationResult supplierReconciliation = reconcileApWithSupplierLedger();
@@ -422,13 +408,11 @@ public class ReconciliationServiceCore {
         dealerReconciliation, supplierReconciliation, combinedVariance, reconciled);
   }
 
-  @Transactional(readOnly = true)
-  public GstReconciliationDto generateGstReconciliation(YearMonth period) {
+  GstReconciliationDto generateGstReconciliation(YearMonth period) {
     return taxService.generateGstReconciliation(period);
   }
 
-  @Transactional(readOnly = true)
-  public InterCompanyReconciliationReport interCompanyReconcile(Long companyAId, Long companyBId) {
+  InterCompanyReconciliationReport interCompanyReconcile(Long companyAId, Long companyBId) {
     Company activeCompany = companyContextService.requireCurrentCompany();
     Long activeCompanyId = activeCompany != null ? activeCompany.getId() : null;
     if (activeCompanyId == null) {
@@ -528,8 +512,7 @@ public class ReconciliationServiceCore {
         unmatchedItems.isEmpty());
   }
 
-  @Transactional(readOnly = true)
-  public PeriodReconciliationResult reconcileSubledgersForPeriod(
+  PeriodReconciliationResult reconcileSubledgersForPeriod(
       java.time.LocalDate start, java.time.LocalDate end) {
     Company company = companyContextService.requireCurrentCompany();
     if (start == null || end == null) {
@@ -772,8 +755,7 @@ public class ReconciliationServiceCore {
     return isReferenceCleared(reference, clearedReferences);
   }
 
-  @Transactional(readOnly = true)
-  public ReconciliationDiscrepancyListResponse listDiscrepancies(
+  ReconciliationDiscrepancyListResponse listDiscrepancies(
       ReconciliationDiscrepancyStatus status, ReconciliationDiscrepancyType type) {
     Company company = companyContextService.requireCurrentCompany();
     List<ReconciliationDiscrepancy> items =
@@ -787,8 +769,7 @@ public class ReconciliationServiceCore {
         items.stream().map(this::toDto).toList(), openCount, resolvedCount);
   }
 
-  @Transactional
-  public ReconciliationDiscrepancyDto resolveDiscrepancy(
+  ReconciliationDiscrepancyDto resolveDiscrepancy(
       Long discrepancyId, ReconciliationDiscrepancyResolveRequest request) {
     ValidationUtils.requireNotNull(discrepancyId, "discrepancyId");
     ValidationUtils.requireNotNull(request, "request");
@@ -1072,8 +1053,7 @@ public class ReconciliationServiceCore {
     return base + " - " + note;
   }
 
-  @Transactional
-  public void syncPeriodDiscrepancies(
+  void syncPeriodDiscrepancies(
       Company company,
       AccountingPeriod period,
       PeriodReconciliationResult periodReconciliation,
@@ -1324,80 +1304,4 @@ public class ReconciliationServiceCore {
   private BigDecimal safe(BigDecimal value) {
     return value == null ? BigDecimal.ZERO : value;
   }
-
-  // Result DTOs
-  public record ReconciliationResult(
-      BigDecimal glArBalance,
-      BigDecimal dealerLedgerTotal,
-      BigDecimal variance,
-      boolean isReconciled,
-      List<DealerDiscrepancy> discrepancies,
-      int arAccountCount,
-      int dealerCount) {}
-
-  public record DealerDiscrepancy(
-      Long dealerId,
-      String dealerCode,
-      String dealerName,
-      BigDecimal outstandingBalance,
-      BigDecimal ledgerBalance,
-      BigDecimal variance) {}
-
-  public record SupplierReconciliationResult(
-      BigDecimal glApBalance,
-      BigDecimal supplierLedgerTotal,
-      BigDecimal variance,
-      boolean isReconciled,
-      List<SupplierDiscrepancy> discrepancies,
-      int apAccountCount,
-      int supplierCount) {}
-
-  public record SupplierDiscrepancy(
-      Long supplierId,
-      String supplierCode,
-      String supplierName,
-      BigDecimal outstandingBalance,
-      BigDecimal ledgerBalance,
-      BigDecimal variance) {}
-
-  public record PeriodReconciliationResult(
-      java.time.LocalDate startDate,
-      java.time.LocalDate endDate,
-      BigDecimal glArNet,
-      BigDecimal dealerLedgerNet,
-      BigDecimal arVariance,
-      boolean arReconciled,
-      BigDecimal glApNet,
-      BigDecimal supplierLedgerNet,
-      BigDecimal apVariance,
-      boolean apReconciled) {}
-
-  public record SubledgerReconciliationReport(
-      ReconciliationResult dealerReconciliation,
-      SupplierReconciliationResult supplierReconciliation,
-      BigDecimal combinedVariance,
-      boolean reconciled) {}
-
-  public record InterCompanyReconciliationReport(
-      Long companyAId,
-      String companyACode,
-      Long companyBId,
-      String companyBCode,
-      List<InterCompanyReconciliationItem> matchedItems,
-      List<InterCompanyReconciliationItem> unmatchedItems,
-      BigDecimal totalDiscrepancyAmount,
-      boolean reconciled) {}
-
-  public record InterCompanyReconciliationItem(
-      Long receivableCompanyId,
-      String receivableCompanyCode,
-      Long payableCompanyId,
-      String payableCompanyCode,
-      Long receivableDealerId,
-      Long payableSupplierId,
-      BigDecimal receivableAmount,
-      BigDecimal payableAmount,
-      BigDecimal discrepancyAmount,
-      boolean matched,
-      boolean counterpartyMissing) {}
 }

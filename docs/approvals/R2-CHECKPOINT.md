@@ -3,198 +3,70 @@
 Last reviewed: 2026-04-09
 
 ## Scope
-- Feature: `m10-fix-branch-changed-coverage-threshold-debt`
-- Branch: current accounting cleanup branch (`refactor-accounting-role-cleanup`)
+- Feature: `refactor-accounting-role-cleanup` integration review
+- Branch: `refactor-accounting-role-cleanup` (base: `894023e51`)
+- PR: pending
 - Review candidate:
-  - pair the already-landed threshold-debt remediation commit `b372c43676428b292cef828d33923d6ca94f5c6d` with this checkpoint update so high-risk accounting scope carries explicit R2 evidence in the same packet
-  - keep strict changed-files coverage/parity behavior on the current branch diff without compatibility-mode threshold misses while restoring enterprise-policy-check compliance
-- Why this is R2: the current diff includes high-risk accounting-module changes under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/**`, and enterprise policy requires scope-specific R2 approval evidence before merge confidence can be claimed.
+  - keep the accounting audit visibility narrowing so the accounting audit feed remains `ACCOUNTING`-only at runtime
+  - keep the reconciliation cleanup direction by replacing the inheritance-only `ReconciliationServiceCore` split with `ReconciliationService` plus `ReconciliationOperations`, and by removing the leftover legacy request shim
+  - keep the Tally import observability hardening and the docs/runtime corrections that now match the integrated branch truth
+- Why this is R2: the current diff changes high-risk accounting runtime surfaces under `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/**` and `erp-domain/src/main/java/com/bigbrightpaints/erp/core/auditaccess/**`, so merge confidence still requires explicit evidence and rollback posture.
 
 ## Risk Trigger
 - Triggered by:
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/event/AccountingEventStore.java`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/AccountingComplianceAuditService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/auditaccess/AuditVisibilityPolicy.java`
   - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/BankReconciliationSessionService.java`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/JournalEntryMutationService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/ReconciliationService.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/ReconciliationOperations.java`
+  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/service/TallyImportService.java`
 - Contract surfaces affected:
-  - `enterprise-policy-check` high-risk governance enforcement requiring updated `docs/approvals/R2-CHECKPOINT.md`
-  - branch-level changed-files coverage/parity proof consumed by `bash scripts/gate_fast.sh` and `python3 scripts/pr_ci_parity.py --base b4ab616c06b15c77ba9dca13038fe4e57fbdc169`
+  - accounting audit read visibility for the accounting audit events feed
+  - reconciliation runtime behavior and bank-reconciliation session flow after removal of the legacy request bridge
+  - Tally import observability on previously silent fallback/error-swallowing paths
+  - branch-level policy and changed-files coverage evidence consumed by `bash ci/check-enterprise-policy.sh` and `bash scripts/gate_fast.sh`
 - Failure mode if wrong:
-  - merge parity remains blocked on enterprise-policy-check despite code/test parity being green
-  - high-risk accounting adjustments can ship without documented approval/escalation/rollback evidence
+  - accounting audit visibility widens again beyond the intended accounting-only scope
+  - reconciliation cleanup leaves dead legacy paths or regresses the current explicit bank-reconciliation flow
+  - Tally import failures remain opaque to operators
+  - reviewers get misleading merge confidence from stale governance evidence
 
 ## Approval Authority
 - Mode: orchestrator
 - Approver: Droid mission orchestrator
 - Canary owner: Droid mission orchestrator
-- Approval status: approved for compatibility-preserving remediation
-- Basis: the packet is governance evidence for already-landed compatibility-safe changes and does not widen privileges, alter tenant boundaries, or introduce destructive migration risk.
+- Approval status: branch-local integration candidate pending PR review
+- Basis: the repo is still pre-deployment with no external users, so current-state hard-cut cleanup is acceptable, but this branch still changes accounting runtime and audit visibility and therefore keeps explicit evidence in the same lane.
 
 ## Escalation Decision
 - Human escalation required: no
-- Reason: scope is limited to documenting and validating existing high-risk accounting cleanup evidence; no privilege-boundary or destructive-data operation is introduced.
+- Reason: the lane tightens visibility and removes legacy cleanup debt without widening tenant boundaries or introducing destructive migration work; standard code review remains the merge gate.
 
 ## Rollback Owner
 - Owner: Droid mission orchestrator
 - Rollback method:
-  - before merge: revert this checkpoint update together with the parity packet if governance evidence becomes stale
-  - after merge: revert the packet and re-run parity/governance validators to confirm a clean rollback state
+  - before merge: revert the integrated packet stack together if audit, reconciliation, Tally, or docs truth becomes disputed
+  - after merge: revert the packet stack and re-run compile, targeted accounting tests, docs lint, enterprise policy, and gate-fast to confirm rollback parity
 - Rollback trigger:
-  - enterprise-policy-check or pr_ci_parity fails again for this packet
-  - gate-fast reintroduces changed-files coverage compatibility-mode debt for the tracked diff base
+  - audit visibility no longer stays accounting-only
+  - reconciliation session flow or checklist diagnostics regress after the cleanup extraction
+  - Tally import diagnostics become silent again
+  - enterprise policy or gate-fast fails on the integrated lane
 
 ## Expiry
 - Valid until: 2026-04-23
-- Re-evaluate if: high-risk scope expands beyond the documented accounting/parity cleanup or introduces auth/RBAC/company boundary changes.
-
-## Test Waiver
-- Not applicable — validator evidence is required and was executed for gate-fast + parity.
+- Re-evaluate if: the lane expands beyond audit, reconciliation, Tally, and docs cleanup or introduces auth/RBAC/company-boundary changes.
 
 ## Verification Evidence
 - Commands run:
-  - `cd "/home/realnigga/Desktop/Mission-control" && bash scripts/gate_fast.sh`
-  - `cd "/home/realnigga/Desktop/Mission-control" && python3 scripts/pr_ci_parity.py --base b4ab616c06b15c77ba9dca13038fe4e57fbdc169`
-  - `cd "/home/realnigga/Desktop/Mission-control" && bash ci/check-enterprise-policy.sh`
+  - `cd erp-domain && mvn -B -ntp -DskipTests compile`
+  - `cd erp-domain && mvn -B -ntp -Djacoco.skip=true -Dtest='AuditVisibilityPolicyTest,ReconciliationServiceTest,BankReconciliationSessionServiceTest,TallyImportServiceTest,AccountingPeriodServiceTest,TS_AccountingPeriodCloseChecklistSafetyContractTest' test`
+  - `bash ci/lint-knowledgebase.sh`
+  - `bash ci/check-enterprise-policy.sh`
+  - `bash scripts/gate_fast.sh`
 - Result summary:
-  - gate-fast remains green with changed-files coverage passing strict line/branch thresholds for the current branch diff and no compatibility-mode threshold debt
-  - pr_ci_parity exits 0 once this checkpoint update is present, with enterprise-policy-check no longer blocking merge-gate parity
-  - enterprise-policy-check confirms high-risk R2 controls are satisfied by this packet evidence
-- Artifacts/links:
-  - parity logs: `artifacts/pr-ci-parity/logs/enterprise-policy-check.log`
-  - parity summary: `artifacts/pr-ci-parity/logs/pr-changed-coverage.log`
-  - gate-fast changed coverage artifact: `artifacts/gate-fast/changed-coverage.json`
-
-## Scope
-- Feature: `m7-fix-sales-order-confirm-inventory-reservation-and-contract-refresh`
-- Branch: current sales-order remediation branch
-- Review candidate:
-  - keep Flyway v2 migration `erp-domain/src/main/resources/db/migration_v2/V179__sales_order_lifecycle_payment_terms_finished_good.sql` as the canonical schema source for `sales_orders.payment_terms` and `sales_order_items.finished_good_id`
-  - enforce draft-lifecycle confirmation reservation semantics in `SalesCoreEngine.confirmOrder()` so confirm reserves inventory and fails closed when reservation is incomplete
-  - refresh public contract surfaces (`openapi.json`, canonical sales docs, endpoint inventory metadata) so published DTO/status semantics match runtime behavior
-- Why this is R2: the packet relies on and validates an active `migration_v2` schema addition and updates runtime behavior that depends on those columns.
-
-## Risk Trigger
-- Triggered by:
-  - `erp-domain/src/main/resources/db/migration_v2/V179__sales_order_lifecycle_payment_terms_finished_good.sql` (active migration lane scope)
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/service/SalesCoreEngine.java`
-  - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/sales/controller/SalesController.java`
-  - `openapi.json`
-- Contract surfaces affected:
-  - sales order create payload/response fields (`paymentTerms`, `finishedGoodId`)
-  - order confirmation reservation behavior and cancellation release path for draft-lifecycle orders
-  - published OpenAPI response semantics for `POST /api/v1/sales/orders` and timeline alias fields
-- Failure mode if wrong:
-  - draft lifecycle orders can confirm without owning stock reservations
-  - cancellation may not release meaningful reservations for draft-lifecycle orders
-  - generated clients/frontend packets can drift from runtime if OpenAPI/docs remain stale
-
-## Approval Authority
-- Mode: orchestrator
-- Approver: Droid mission orchestrator
-- Canary owner: Droid mission orchestrator
-- Approval status: approved for compatibility-preserving remediation
-- Basis: the migration scope is additive/compatibility-preserving and runtime changes tighten correctness without widening privileges or crossing tenant boundaries.
-
-## Escalation Decision
-- Human escalation required: no
-- Reason: no privilege widening, tenant-boundary expansion, or destructive DDL is introduced; remediation is bounded by regression and contract guards.
-
-## Rollback Owner
-- Owner: Droid mission orchestrator
-- Rollback method:
-  - before merge: revert the reservation/contract/doc packet together
-  - after merge: revert packet plus restore from backup/PITR if data backfill behavior must be undone
-- Rollback trigger:
-  - sales confirm/cancel lifecycle regression on draft-lifecycle orders
-  - openapi drift guard or gate-fast regression after merge
-
-## Expiry
-- Valid until: 2026-04-21
-- Re-evaluate if: the packet expands into auth/RBAC/tenant-boundary changes or introduces destructive migration rewrites.
-
-## Test Waiver
-- Not applicable — runtime, contract, and governance surfaces changed and validator evidence is required.
-
-## Verification Evidence
-- Commands run:
-  - `cd "/home/realnigga/Desktop/Mission-control/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='SalesServiceTest,SalesControllerIT' test`
-  - `ROOT="/home/realnigga/Desktop/Mission-control" && cd "$ROOT/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest=OpenApiSnapshotIT -Derp.openapi.snapshot.verify=true -Derp.openapi.snapshot.refresh=true test`
-  - `cd "/home/realnigga/Desktop/Mission-control" && bash scripts/guard_openapi_contract_drift.sh`
-  - `cd "/home/realnigga/Desktop/Mission-control" && bash scripts/gate_fast.sh`
-  - `cd "/home/realnigga/Desktop/Mission-control" && bash ci/check-codex-review-guidelines.sh`
-  - `cd "/home/realnigga/Desktop/Mission-control" && bash ci/check-enterprise-policy.sh`
-- Result summary:
-  - draft-lifecycle confirm now reserves stock and fails closed when reservation-backed slip state is missing; lifecycle tests cover reserve-on-confirm plus release-on-cancel behavior
-  - OpenAPI snapshot and canonical docs (`docs/endpoint-inventory.md`, `docs/frontend-portals/sales/api-contracts.md`, and `docs/frontend-portals/sales/frontend-engineer-handoff.md`) reflect `paymentTerms`, `finishedGoodId`, timeline aliases, and create-order HTTP 200 and 201 semantics
-  - governance checkpoint now records migration-v2 risk handling and verification proof for V179 scope
-
----
-
-## Scope
-- Feature: `m3-fix-packaging-slip-backfill-v2`
-- Branch: current accounting cleanup branch
-- Review candidate:
-  - move the packaging-slip invoice-link backfill off the inactive legacy migration tree and onto the active Flyway v2 track as `erp-domain/src/main/resources/db/migration_v2/V177__backfill_packaging_slip_invoice_links.sql`
-  - delete the stale legacy-track V167 packaging-slip backfill copy
-  - add a truth-suite contract proving the legacy file is gone and the active migration still contains the canonical backfill SQL
-- Why this is R2: the packet changes `erp-domain/src/main/resources/db/migration_v2`, which is a high-risk enterprise-policy path. It affects upgrade-path data repair for dispatch/invoice linkage after the packaging-slip hard cut.
-
-## Risk Trigger
-- Triggered by:
-  - `erp-domain/src/main/resources/db/migration_v2/V177__backfill_packaging_slip_invoice_links.sql`
-  - `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_PackagingSlipInvoiceLinkV2MigrationContractTest.java`
-- Contract surfaces affected:
-  - persisted `packaging_slips.invoice_id` backfill for upgraded tenants running Flyway v2
-  - dispatch/invoice/read-model linkage proofs that now rely on the active migration track instead of the retired legacy track
-  - Flyway version-history safety, because active v2 version `V167` is already occupied by ERP-37 and must not be mutated
-- Failure mode if wrong:
-  - upgraded tenants can retain null `packaging_slips.invoice_id` values even though current dispatch/invoice truth exists
-  - dispatch and invoice read models can drift for historical rows after the hard cut
-  - mutating active `V167` history instead of issuing a new v2 migration would risk Flyway checksum validation failures on existing databases
-
-## Approval Authority
-- Mode: orchestrator
-- Approver: Droid mission orchestrator
-- Canary owner: Droid mission orchestrator
-- Approval status: approved for branch-local remediation
-- Basis: this is a compatibility-preserving upgrade-path backfill with no privilege widening, tenant-boundary change, or destructive schema rewrite. The risk is bounded by targeted v2 migration proofs plus the branch gate.
-
-## Escalation Decision
-- Human escalation required: no
-- Reason: the packet keeps runtime behavior on the canonical hard-cut path and repairs historical data on the active migration lane without widening access or introducing irreversible destructive DDL.
-
-## Rollback Owner
-- Owner: Droid mission orchestrator
-- Rollback method:
-  - before merge: revert the local migration/test/doc packet together
-  - after merge: revert the packet only alongside a pre-`V177` snapshot/PITR restore, or keep the backfill-compatible runtime live
-- Rollback trigger:
-  - Flyway v2 validation or migration boot fails after `V177`
-  - historical dispatch/invoice linkage proofs regress under `MIGRATION_SET=v2`
-  - packaging-slip invoice links drift again for upgraded data
-
-## Expiry
-- Valid until: 2026-04-20
-- Re-evaluate if: the packet starts changing active tenant-control/auth/accounting runtime code or rewrites any already-active Flyway version on the v2 track.
-
-## Test Waiver
-- Not applicable — migration, docs, and test evidence changed, and targeted validators were run.
-
-## Verification Evidence
-- Commands run:
-  - `ROOT=$(git -C "/home/realnigga/Desktop/Mission-control" rev-parse --show-toplevel) && cd "$ROOT" && bash scripts/gate_fast.sh`
-  - `cd "/home/realnigga/Desktop/Mission-control/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='CR_PackingRouteHardCutIT,OrderFulfillmentE2ETest,InvoiceServiceTest' test`
-  - `find "/home/realnigga/Desktop/Mission-control/erp-domain/src/main/resources" -name '*backfill_packaging_slip_invoice_links.sql'`
-  - `cd "/home/realnigga/Desktop/Mission-control/erp-domain" && MIGRATION_SET=v2 mvn -q -DspotlessFiles='src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_PackagingSlipInvoiceLinkV2MigrationContractTest.java' spotless:check`
-  - `cd "/home/realnigga/Desktop/Mission-control/erp-domain" && MIGRATION_SET=v2 mvn -Djacoco.skip=true -Dtest='TS_PackagingSlipInvoiceLinkV2MigrationContractTest,CR_PackingRouteHardCutIT,OrderFulfillmentE2ETest,InvoiceServiceTest' test`
-  - `cd "/home/realnigga/Desktop/Mission-control" && bash ci/check-codex-review-guidelines.sh`
-  - `cd "/home/realnigga/Desktop/Mission-control" && bash ci/check-enterprise-policy.sh`
-  - `cd "/home/realnigga/Desktop/Mission-control" && bash scripts/gate_fast.sh`
-- Result summary:
-  - the only remaining packaging-slip invoice-link backfill file resolves under `erp-domain/src/main/resources/db/migration_v2`, and the legacy-track copy is gone
-  - the new truth-suite migration contract passes, the targeted dispatch/invoice proof pack passes under Flyway v2 with 67 migrations applied, and the review/policy guards pass after the runbook + R2 updates
-  - the packet intentionally uses new v2 version `V177` because active version `V167` is already in use on the main branch; this preserves Flyway history/checksum safety while moving the backfill onto the active track
-- Artifacts/links:
-  - repo checkout: current repository worktree
-  - active migration: `erp-domain/src/main/resources/db/migration_v2/V177__backfill_packaging_slip_invoice_links.sql`
-  - truth-suite proof: `erp-domain/src/test/java/com/bigbrightpaints/erp/truthsuite/o2c/TS_PackagingSlipInvoiceLinkV2MigrationContractTest.java`
+  - compile passed on the integrated lane after stacking audit, reconciliation, Tally, and docs packets
+  - targeted audit, reconciliation, checklist, and Tally tests passed for the kept code paths
+  - knowledgebase lint and enterprise-policy-check passed with the integrated docs and governance updates
+  - gate-fast returned OK for the current branch diff, but changed-files coverage finished in compatibility mode because branch coverage was `109/126 = 0.865`, below the strict `0.90` threshold
+- Artifact note:
+  - changed-files coverage evidence is recorded inline in this checkpoint; no local artifact path is required for lint or review

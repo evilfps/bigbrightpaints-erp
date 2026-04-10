@@ -44,7 +44,6 @@ import com.bigbrightpaints.erp.modules.accounting.domain.BankReconciliationSessi
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
-import com.bigbrightpaints.erp.modules.accounting.dto.BankReconciliationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.BankReconciliationSessionCompletionRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.BankReconciliationSessionCreateRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.BankReconciliationSessionDetailDto;
@@ -872,73 +871,6 @@ class BankReconciliationSessionServiceTest {
     assertThat(response.unmatchedItems().get(0).referenceNumber()).isEqualTo("UNC-6401");
     assertThat(response.unmatchedItems().get(0).bankItemId()).isNull();
     assertThat(response.unmatchedItems().get(0).journalEntryId()).isEqualTo(6401L);
-  }
-
-  @Test
-  void reconcileLegacy_delegatesToSessionLifecycleAndReturnsSummary() {
-    Account bankAccount = bankAccount(99L, "BANK", "Main Bank");
-    when(accountRepository.findByCompanyAndId(company, 99L)).thenReturn(Optional.of(bankAccount));
-    when(referenceNumberService.nextJournalReference(company)).thenReturn("JRN-LEGACY-1");
-
-    BankReconciliationSession saved =
-        session(77L, bankAccount, BankReconciliationSessionStatus.DRAFT);
-    ReflectionFieldAccess.setField(saved, "createdAt", Instant.parse("2026-03-31T08:00:00Z"));
-    when(sessionRepository.save(any(BankReconciliationSession.class))).thenReturn(saved);
-    when(sessionRepository.findByCompanyAndId(company, 77L)).thenReturn(Optional.of(saved));
-    when(sessionRepository.findDetailedByCompanyAndId(company, 77L)).thenReturn(Optional.of(saved));
-
-    JournalLine refLine =
-        journalLine(
-            42L,
-            company,
-            bankAccount,
-            "CLR-LEG",
-            LocalDate.of(2026, 3, 29),
-            "Legacy",
-            "25.00",
-            "0.00");
-    when(journalLineRepository.findLinesForAccountBetween(
-            company, 99L, LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31)))
-        .thenReturn(List.of(refLine));
-    when(journalLineRepository.findAllById(Set.of(42L))).thenReturn(List.of(refLine));
-
-    when(itemRepository.findJournalLineIdsBySession(saved)).thenReturn(Set.of(42L));
-    when(itemRepository.findDetailedBySession(saved))
-        .thenReturn(List.of(item(500L, saved, refLine, "CLR-LEG", "25.00", "admin")));
-    when(reconciliationService.reconcileBankAccount(
-            eq(99L),
-            eq(LocalDate.of(2026, 3, 31)),
-            eq(new BigDecimal("1000.00")),
-            eq(LocalDate.of(2026, 3, 1)),
-            eq(LocalDate.of(2026, 3, 31)),
-            eq(Collections.emptySet()),
-            eq(Collections.emptySet())))
-        .thenReturn(summary("10.00", "0.00", "1.00", false));
-    when(reconciliationService.reconcileBankAccount(
-            eq(99L),
-            eq(LocalDate.of(2026, 3, 31)),
-            eq(new BigDecimal("1000.00")),
-            eq(LocalDate.of(2026, 3, 1)),
-            eq(LocalDate.of(2026, 3, 31)),
-            eq(Set.of(42L)),
-            eq(Collections.emptySet())))
-        .thenReturn(summary("0.00", "0.00", "0.00", true));
-
-    BankReconciliationSummaryDto response =
-        service.reconcileLegacy(
-            new BankReconciliationRequest(
-                99L,
-                LocalDate.of(2026, 3, 31),
-                new BigDecimal("1000.00"),
-                LocalDate.of(2026, 3, 1),
-                LocalDate.of(2026, 3, 31),
-                List.of("CLR-LEG"),
-                null,
-                false,
-                "legacy"));
-
-    assertThat(response.balanced()).isTrue();
-    verify(itemRepository).save(any(BankReconciliationItem.class));
   }
 
   private BankReconciliationSummaryDto summary(

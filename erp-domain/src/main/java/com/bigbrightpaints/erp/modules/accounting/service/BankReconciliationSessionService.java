@@ -39,7 +39,6 @@ import com.bigbrightpaints.erp.modules.accounting.domain.BankReconciliationSessi
 import com.bigbrightpaints.erp.modules.accounting.domain.BankReconciliationSessionStatus;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLineRepository;
-import com.bigbrightpaints.erp.modules.accounting.dto.BankReconciliationRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.BankReconciliationSessionCompletionRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.BankReconciliationSessionCreateRequest;
 import com.bigbrightpaints.erp.modules.accounting.dto.BankReconciliationSessionDetailDto;
@@ -340,89 +339,6 @@ public class BankReconciliationSessionService {
         matchedItems,
         unmatchedItems,
         summary);
-  }
-
-  @Transactional
-  public BankReconciliationSummaryDto reconcileLegacy(BankReconciliationRequest request) {
-    ValidationUtils.requireNotNull(request, "request");
-
-    BankReconciliationSessionCreateRequest createRequest =
-        new BankReconciliationSessionCreateRequest(
-            request.bankAccountId(),
-            request.statementDate(),
-            request.statementEndingBalance(),
-            request.startDate(),
-            request.endDate(),
-            request.accountingPeriodId(),
-            request.note());
-    BankReconciliationSessionSummaryDto sessionSummary = startSession(createRequest);
-
-    BankReconciliationSessionItemsUpdateRequest updateRequest =
-        new BankReconciliationSessionItemsUpdateRequest(
-            resolveJournalLineIds(
-                sessionSummary.sessionId(),
-                request.clearedReferences(),
-                request.startDate(),
-                request.endDate()),
-            Collections.emptyList(),
-            request.note());
-    updateItems(sessionSummary.sessionId(), updateRequest);
-
-    if (Boolean.TRUE.equals(request.markAsComplete())) {
-      completeSession(
-          sessionSummary.sessionId(),
-          new BankReconciliationSessionCompletionRequest(
-              request.note(), request.accountingPeriodId()));
-    }
-
-    return buildSummary(
-        requireSession(companyContextService.requireCurrentCompany(), sessionSummary.sessionId()),
-        null,
-        request.startDate(),
-        request.endDate());
-  }
-
-  private List<Long> resolveJournalLineIds(
-      Long sessionId,
-      Collection<String> clearedReferences,
-      LocalDate startDate,
-      LocalDate endDate) {
-    if (clearedReferences == null || clearedReferences.isEmpty()) {
-      return List.of();
-    }
-    BankReconciliationSession session =
-        requireSession(companyContextService.requireCurrentCompany(), sessionId);
-    LocalDate start = startDate != null ? startDate : session.getStatementDate().withDayOfMonth(1);
-    LocalDate end = endDate != null ? endDate : session.getStatementDate();
-    if (start.isAfter(end)) {
-      throw ValidationUtils.invalidInput("startDate must be on or before endDate");
-    }
-
-    Set<String> normalizedRefs =
-        clearedReferences.stream()
-            .filter(Objects::nonNull)
-            .map(String::trim)
-            .filter(StringUtils::hasText)
-            .collect(Collectors.toSet());
-    if (normalizedRefs.isEmpty()) {
-      return List.of();
-    }
-
-    List<JournalLine> lines =
-        journalLineRepository.findLinesForAccountBetween(
-            session.getCompany(), session.getBankAccount().getId(), start, end);
-
-    return lines.stream()
-        .filter(
-            line -> {
-              String ref = resolveReference(line);
-              return StringUtils.hasText(ref)
-                  && normalizedRefs.stream()
-                      .anyMatch(candidate -> candidate.equalsIgnoreCase(ref.trim()));
-            })
-        .map(JournalLine::getId)
-        .distinct()
-        .toList();
   }
 
   private BankReconciliationSessionSummaryDto toSummary(

@@ -339,14 +339,14 @@ The current canonical audit read surfaces are:
 
 | Surface | Endpoint | Description |
 |---|---|---|
-| Accounting audit feed | `/api/v1/accounting/audit/events` | Paginated business-event feed (supports `module` and `category` query aliases for module filtering; requires ROLE_ADMIN or ROLE_ACCOUNTING) |
+| Accounting audit feed | `/api/v1/accounting/audit/events` | Paginated business-event feed restricted to the accounting module; accepts `module` and `category` query params but enforces accounting-visibility policy so non-accounting values return no rows (requires ROLE_ADMIN or ROLE_ACCOUNTING) |
 | Accounting audit transactions | `/api/v1/accounting/audit/transactions` | Paginated list of accounting transactions with filters (requires ROLE_ADMIN or ROLE_ACCOUNTING) |
 | Accounting audit transactions (detail) | `/api/v1/accounting/audit/transactions/{journalEntryId}` | Single transaction audit detail by journal entry ID (requires ROLE_ADMIN or ROLE_ACCOUNTING) |
 | Admin audit feed | `/api/v1/admin/audit/events` | Tenant-admin audit-event feed for approval/admin surfaces |
 | Platform audit feed | `/api/v1/superadmin/audit/platform-events` | Super-admin control-plane audit feed |
-| ML events audit | `/api/v1/audit/ml-events` | Machine learning/analytics audit events (requires ROLE_ADMIN) |
+| ML events audit | `/api/v1/audit/ml-events` | Machine learning/analytics interaction telemetry — not an accounting surface (requires ROLE_ADMIN) |
 
-> **Deprecated**: `/api/v1/accounting/audit/digest` is deprecated and should not be used for new integrations. Use `/api/v1/accounting/audit/events` or `/api/v1/accounting/audit/transactions` instead.
+> **Removed**: `/api/v1/accounting/audit/digest` and `/api/v1/accounting/audit-trail` were hard-removed in the audit unification hard-cut. Use `/api/v1/accounting/audit/events` or `/api/v1/accounting/audit/transactions` instead.
 
 For more details on audit-surface ownership, see [core-audit-runtime-settings.md](../modules/core-audit-runtime-settings.md) and [AUDIT_TRAIL_OWNERSHIP.md](../AUDIT_TRAIL_OWNERSHIP.md).
 

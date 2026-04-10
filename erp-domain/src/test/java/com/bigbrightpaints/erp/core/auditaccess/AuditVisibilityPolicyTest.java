@@ -62,16 +62,15 @@ class AuditVisibilityPolicyTest {
   }
 
   @Test
-  void isAccountingModule_matchesIgnoringCase() {
+  void isAccountingModule_matchesOnlyAccountingIgnoringCase() {
     AuditVisibilityPolicy policy =
         new AuditVisibilityPolicy(mock(CompanyRepository.class), mock(AuthScopeService.class));
 
     assertThat(policy.isAccountingModule("ACCOUNTING")).isTrue();
     assertThat(policy.isAccountingModule("accounting")).isTrue();
-    assertThat(policy.isAccountingModule("INVENTORY")).isTrue();
-    assertThat(policy.isAccountingModule("inventory")).isTrue();
-    assertThat(policy.isAccountingModule("sales")).isTrue();
-    assertThat(policy.isAccountingModule("EXPORT")).isTrue();
+    assertThat(policy.isAccountingModule("INVENTORY")).isFalse();
+    assertThat(policy.isAccountingModule("SALES")).isFalse();
+    assertThat(policy.isAccountingModule("EXPORT")).isFalse();
   }
 
   private CompanyRepository.CompanyCodeProjection projection(Long id, String code) {

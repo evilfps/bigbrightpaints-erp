@@ -204,11 +204,12 @@ Rules:
 - Dealer receipt requires `dealerId`, `cashAccountId`, `amount`, and
   `allocations`. Hybrid receipt uses `dealerId`, `incomingLines`,
   `referenceNumber`, and `memo`.
-- Dealer settlement requires `dealerId`, `settlementDate`, allocation rows, and
-  optional `payments`, `discountAccountId`, `writeOffAccountId`, FX accounts,
-  and `referenceNumber`.
-- Supplier settlement requires `supplierId`, `settlementDate`, allocation rows,
-  and optional discount, write-off, FX, and reference fields.
+- Dealer and supplier settlements both use `PartnerSettlementRequest` with
+  `partnerType` (`DEALER` or `SUPPLIER`), `partnerId`, `settlementDate`,
+  `allocations`, and optional `cashAccountId`, `discountAccountId`,
+  `writeOffAccountId`, `fxGainAccountId`, `fxLossAccountId`,
+  `unappliedAmountApplication`, `referenceNumber`, `memo`,
+  `idempotencyKey`, and `adminOverride`.
 - Auto-settle requests use `amount`, optional `cashAccountId`,
   `referenceNumber`, `memo`, and `idempotencyKey`.
 - Reports and CSV exports stay inside accountant-facing flows.
