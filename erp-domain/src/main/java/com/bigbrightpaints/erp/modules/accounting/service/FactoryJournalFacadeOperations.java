@@ -72,7 +72,7 @@ class FactoryJournalFacadeOperations {
     Optional<JournalEntry> existing =
         journalEntryRepository.findByCompanyAndReferenceNumber(company, resolvedReference);
     if (existing.isPresent()) {
-      log.info("Packing journal already exists for reference: {}", resolvedReference);
+      log.info("Packing journal already exists");
       return AccountingFacadeJournalSupport.toSimpleDto(existing.orElseThrow());
     }
 
@@ -93,7 +93,7 @@ class FactoryJournalFacadeOperations {
             null,
             Boolean.FALSE);
 
-    log.info("Posting packing journal: reference={}, lines={}", resolvedReference, lines.size());
+    log.info("Posting packing journal");
     return accountingService.createStandardJournal(request);
   }
 
@@ -119,7 +119,7 @@ class FactoryJournalFacadeOperations {
     BigDecimal overheadAmount = overheadCost != null ? overheadCost : BigDecimal.ZERO;
     BigDecimal totalAmount = laborAmount.add(overheadAmount);
     if (totalAmount.compareTo(BigDecimal.ZERO) <= 0) {
-      log.warn("Skipping cost allocation journal for {} - zero amount", batchCode);
+      log.warn("Skipping cost allocation journal because total amount is zero");
       return null;
     }
 
@@ -132,7 +132,7 @@ class FactoryJournalFacadeOperations {
     Optional<JournalEntry> existing =
         journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
     if (existing.isPresent()) {
-      log.info("Cost allocation journal already exists for reference: {}", reference);
+      log.info("Cost allocation journal already exists");
       return AccountingFacadeJournalSupport.toSimpleDto(existing.orElseThrow());
     }
 
@@ -176,11 +176,7 @@ class FactoryJournalFacadeOperations {
             null,
             Boolean.FALSE);
 
-    log.info(
-        "Posting cost allocation journal: reference={}, batch={}, amount={}",
-        reference,
-        batchCode,
-        totalAmount);
+    log.info("Posting cost allocation journal");
     return accountingService.createStandardJournal(request);
   }
 
@@ -202,7 +198,7 @@ class FactoryJournalFacadeOperations {
     Objects.requireNonNull(cost, "Cost is required");
 
     if (cost.compareTo(BigDecimal.ZERO) <= 0) {
-      log.warn("Skipping COGS journal for {} - zero cost", referenceId);
+      log.warn("Skipping COGS journal because cost is zero");
       return null;
     }
 
@@ -214,7 +210,7 @@ class FactoryJournalFacadeOperations {
     Optional<JournalEntry> existing =
         journalReferenceResolver.findExistingEntry(company, reference);
     if (existing.isPresent()) {
-      log.info("COGS journal already exists for reference: {}", reference);
+      log.info("COGS journal already exists");
       return AccountingFacadeJournalSupport.toSimpleDto(existing.orElseThrow());
     }
 
@@ -246,7 +242,7 @@ class FactoryJournalFacadeOperations {
             null,
             Boolean.FALSE);
 
-    log.info("Posting COGS journal: reference={}, cost={}", reference, cost);
+    log.info("Posting COGS journal");
     return accountingService.createStandardJournal(request);
   }
 
@@ -274,7 +270,7 @@ class FactoryJournalFacadeOperations {
     Optional<JournalEntry> existing =
         journalReferenceResolver.findExistingEntry(company, reference);
     if (existing.isPresent()) {
-      log.info("COGS journal already exists for reference: {}", reference);
+      log.info("COGS journal already exists");
       return AccountingFacadeJournalSupport.toSimpleDto(existing.orElseThrow());
     }
 
@@ -295,7 +291,7 @@ class FactoryJournalFacadeOperations {
             null,
             Boolean.FALSE);
 
-    log.info("Posting consolidated COGS journal: reference={}, lines={}", reference, lines.size());
+    log.info("Posting consolidated COGS journal");
     return accountingService.createStandardJournal(request);
   }
 
@@ -325,7 +321,7 @@ class FactoryJournalFacadeOperations {
     BigDecimal totalAmount = laborAmount.add(overheadAmount);
     if (laborAmount.compareTo(BigDecimal.ZERO) == 0
         && overheadAmount.compareTo(BigDecimal.ZERO) == 0) {
-      log.info("Skipping variance allocation journal for {} - zero variance", batchCode);
+      log.info("Skipping variance allocation journal because total variance is zero");
       return null;
     }
 
@@ -339,7 +335,7 @@ class FactoryJournalFacadeOperations {
     Optional<JournalEntry> existing =
         journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
     if (existing.isPresent()) {
-      log.info("Cost variance journal already exists for reference: {}", reference);
+      log.info("Cost variance journal already exists");
       return AccountingFacadeJournalSupport.toSimpleDto(existing.orElseThrow());
     }
 
@@ -401,11 +397,7 @@ class FactoryJournalFacadeOperations {
             null,
             Boolean.FALSE);
 
-    log.info(
-        "Posting cost variance journal: reference={}, batch={}, amount={}",
-        reference,
-        batchCode,
-        totalAmount);
+    log.info("Posting cost variance journal");
     return accountingService.createStandardJournal(request);
   }
 

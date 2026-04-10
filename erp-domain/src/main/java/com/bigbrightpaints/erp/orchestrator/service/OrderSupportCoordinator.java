@@ -73,7 +73,7 @@ class OrderSupportCoordinator {
                   companyClock.today(company).plusDays(1),
                   "Auto-generated from orchestrator");
           factoryService.createPlan(request);
-          log.info("Queued production plan for order {}", orderId);
+          log.info("Queued production plan for requested order");
         });
   }
 
@@ -123,11 +123,7 @@ class OrderSupportCoordinator {
                         orderAutoApprovalStateRepository.save(
                             new OrderAutoApprovalState(companyId, orderId));
                       } catch (DataIntegrityViolationException ex) {
-                        log.warn(
-                            "Auto-approval state already exists for order {} in company {};"
-                                + " retrying fetch",
-                            orderId,
-                            companyId);
+                        log.warn("Auto-approval state already exists; retrying fetch");
                       }
                       return orderAutoApprovalStateRepository
                           .findByCompanyCodeAndOrderId(companyId, orderId)

@@ -773,8 +773,6 @@ class AccountingAuditTrailServiceTest {
         .thenReturn(List.of());
     when(invoiceRepository.findByCompanyAndJournalEntry(company, entry))
         .thenReturn(Optional.of(invoice));
-    when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, 394L))
-        .thenReturn(List.of(invoice, otherInvoice));
     when(rawMaterialPurchaseRepository.findByCompanyAndJournalEntry(company, entry))
         .thenReturn(Optional.empty());
     when(packagingSlipRepository.findAllByCompanyAndSalesOrderId(company, 394L))
@@ -905,8 +903,6 @@ class AccountingAuditTrailServiceTest {
       historicalInvoice.setCompany(company);
       historicalInvoice.setSalesOrder(order);
       historicalInvoice.setStatus(historicalStatus);
-      when(invoiceRepository.findAllByCompanyAndSalesOrderId(company, 395L))
-          .thenReturn(List.of(invoice, historicalInvoice));
 
       AccountingTransactionAuditDetailDto detail = service.transactionDetail(195L);
 

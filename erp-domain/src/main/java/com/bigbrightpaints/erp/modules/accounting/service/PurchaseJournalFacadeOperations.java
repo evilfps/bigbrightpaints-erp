@@ -167,10 +167,10 @@ class PurchaseJournalFacadeOperations {
           .withDetail("supplierName", supplier.getName());
     }
 
-    String reference =
-        StringUtils.hasText(referenceNumber)
-            ? referenceNumber.trim()
-            : referenceNumberService.purchaseReference(company, supplier, invoiceNumber);
+    String reference = normalizeOptionalReference(referenceNumber);
+    if (reference == null) {
+      reference = referenceNumberService.purchaseReference(company, supplier, invoiceNumber);
+    }
     if (!StringUtils.hasText(reference)) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_INVALID_REFERENCE, "Purchase journal reference is required");
@@ -180,7 +180,7 @@ class PurchaseJournalFacadeOperations {
     Optional<JournalEntry> existing =
         journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
     if (existing.isPresent()) {
-      log.info("Purchase journal already exists for reference: {}", reference);
+      log.info("Purchase journal already exists");
       return AccountingFacadeJournalSupport.toSimpleDto(existing.orElseThrow());
     }
 
@@ -199,7 +199,7 @@ class PurchaseJournalFacadeOperations {
     }
 
     BigDecimal taxTotal =
-        taxSupport.appendPurchaseTaxLines(company, lines, taxLines, gstBreakdown, resolvedMemo);
+        taxSupport.appendPurchaseTaxLines(lines, taxLines, gstBreakdown, resolvedMemo);
     if (inventoryTotal.add(taxTotal).compareTo(totalAmount.abs()) != 0) {
       throw new ApplicationException(
               ErrorCode.VALIDATION_INVALID_INPUT,
@@ -233,11 +233,7 @@ class PurchaseJournalFacadeOperations {
             supplier.getId(),
             Boolean.FALSE);
 
-    log.info(
-        "Posting purchase journal: reference={}, supplier={}, amount={}",
-        reference,
-        supplier.getName(),
-        totalAmount);
+    log.info("Posting purchase journal");
 
     JournalEntryDto entry = accountingService.createStandardJournal(request);
     JournalEntry saved = accountingLookupService.requireJournalEntry(company, entry.id());
@@ -311,16 +307,21 @@ class PurchaseJournalFacadeOperations {
 
     Company company = companyContextService.requireCurrentCompany();
     Supplier supplier = requireSupplier(company, supplierId);
-    String reference =
-        StringUtils.hasText(referenceNumber)
-            ? referenceNumber.trim()
-            : referenceNumberService.purchaseReturnReference(company, supplier);
+    String reference = normalizeOptionalReference(referenceNumber);
+    if (reference == null) {
+      reference = referenceNumberService.purchaseReturnReference(company, supplier);
+    }
+    if (!StringUtils.hasText(reference)) {
+      throw new ApplicationException(
+          ErrorCode.VALIDATION_INVALID_REFERENCE, "Purchase return reference is required");
+    }
+    reference = reference.trim();
 
     Optional<JournalEntry> existing =
         journalEntryRepository.findByCompanyAndReferenceNumber(company, reference);
     if (existing.isPresent()) {
       JournalEntry existingEntry = existing.orElseThrow();
-      log.info("Purchase return journal already exists for entry {}", existingEntry.getId());
+      log.info("Purchase return journal already exists");
       return AccountingFacadeJournalSupport.toSimpleDto(existingEntry);
     }
 
@@ -350,7 +351,7 @@ class PurchaseJournalFacadeOperations {
     totalCredits =
         totalCredits.add(
             taxSupport.appendPurchaseReturnTaxLines(
-                company, lines, taxCredits, gstBreakdown, resolvedMemo));
+                lines, taxCredits, gstBreakdown, resolvedMemo));
 
     if (totalAmount.subtract(totalCredits).abs().compareTo(BALANCE_TOLERANCE) > 0) {
       throw new ApplicationException(
@@ -375,7 +376,7 @@ class PurchaseJournalFacadeOperations {
             supplier.getId(),
             Boolean.FALSE);
 
-    log.info("Posting purchase return journal for supplier {}", supplier.getId());
+    log.info("Posting purchase return journal");
 
     return accountingService.createStandardJournal(request);
   }
@@ -410,5 +411,12 @@ class PurchaseJournalFacadeOperations {
             () ->
                 new ApplicationException(ErrorCode.BUSINESS_ENTITY_NOT_FOUND, "Supplier not found")
                     .withDetail("supplierId", supplierId));
+  }
+
+  private String normalizeOptionalReference(String referenceNumber) {
+    if (!StringUtils.hasText(referenceNumber)) {
+      return null;
+    }
+    return referenceNumber.trim();
   }
 }

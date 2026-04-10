@@ -25,7 +25,6 @@ final class AccountingFacadeTaxSupport {
   }
 
   void appendSalesTaxLines(
-      Company company,
       List<JournalEntryRequest.JournalLineRequest> lines,
       Map<Long, BigDecimal> taxLines,
       JournalCreationRequest.GstBreakdown gstBreakdown,
@@ -51,7 +50,6 @@ final class AccountingFacadeTaxSupport {
   }
 
   BigDecimal appendPurchaseTaxLines(
-      Company company,
       List<JournalEntryRequest.JournalLineRequest> lines,
       Map<Long, BigDecimal> taxLines,
       JournalCreationRequest.GstBreakdown gstBreakdown,
@@ -81,7 +79,6 @@ final class AccountingFacadeTaxSupport {
   }
 
   BigDecimal appendPurchaseReturnTaxLines(
-      Company company,
       List<JournalEntryRequest.JournalLineRequest> lines,
       Map<Long, BigDecimal> taxCredits,
       JournalCreationRequest.GstBreakdown gstBreakdown,

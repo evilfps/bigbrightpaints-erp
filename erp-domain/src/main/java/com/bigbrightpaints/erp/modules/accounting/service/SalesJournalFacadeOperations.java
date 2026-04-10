@@ -223,8 +223,7 @@ class SalesJournalFacadeOperations {
           });
     }
 
-    taxSupport.appendSalesTaxLines(
-        company, lines, taxLines, gstBreakdown, resolvedMemo, orderNumber);
+    taxSupport.appendSalesTaxLines(lines, taxLines, gstBreakdown, resolvedMemo, orderNumber);
 
     BigDecimal totalDebits = AccountingFacadeJournalSupport.calculateTotalDebits(lines);
     BigDecimal totalCredits = AccountingFacadeJournalSupport.calculateTotalCredits(lines);
@@ -265,11 +264,7 @@ class SalesJournalFacadeOperations {
       return replay;
     }
 
-    log.info(
-        "Posting sales journal: reference={}, dealer={}, amount={}",
-        requestReference,
-        dealer.getName(),
-        totalAmount);
+    log.info("Posting sales journal");
 
     JournalEntryDto created = accountingService.createStandardJournal(request);
     if (created != null && created.id() != null) {

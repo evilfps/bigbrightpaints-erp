@@ -743,10 +743,10 @@ public class TenantRuntimeEnforcementService {
   }
 
   private boolean isMutatingRequest(String requestMethod) {
-    if (!StringUtils.hasText(requestMethod)) {
+    String normalizedMethod = normalizeRequestMethod(requestMethod);
+    if (normalizedMethod == null) {
       return true;
     }
-    String normalizedMethod = requestMethod.trim().toUpperCase(Locale.ROOT);
     return switch (normalizedMethod) {
       case "GET", "HEAD", "OPTIONS", "TRACE" -> false;
       default -> true;
@@ -758,7 +758,8 @@ public class TenantRuntimeEnforcementService {
     if (!policyControlPrivilegedActor) {
       return false;
     }
-    if (!StringUtils.hasText(requestMethod) || !"PUT".equalsIgnoreCase(requestMethod.trim())) {
+    String normalizedMethod = normalizeRequestMethod(requestMethod);
+    if (!"PUT".equals(normalizedMethod)) {
       return false;
     }
     if (!StringUtils.hasText(requestPath)) {
@@ -803,11 +804,19 @@ public class TenantRuntimeEnforcementService {
     if (StringUtils.hasText(requestPath)) {
       metadata.put("requestPath", requestPath.trim());
     }
-    if (StringUtils.hasText(requestMethod)) {
-      metadata.put("requestMethod", requestMethod.trim().toUpperCase());
+    String normalizedMethod = normalizeRequestMethod(requestMethod);
+    if (normalizedMethod != null) {
+      metadata.put("requestMethod", normalizedMethod);
     }
     auditService.logAuthFailure(
         AuditEvent.ACCESS_DENIED, normalizeActor(actor), rejection.companyCode, metadata);
+  }
+
+  private String normalizeRequestMethod(String requestMethod) {
+    if (!StringUtils.hasText(requestMethod)) {
+      return null;
+    }
+    return requestMethod.trim().toUpperCase(Locale.ROOT);
   }
 
   private Long resolveActiveUsers(String companyCode) {

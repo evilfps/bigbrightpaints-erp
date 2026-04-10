@@ -102,8 +102,6 @@ final class AccountingAuditTrailReferenceChainService {
         List<PackagingSlip> slips =
             packagingSlipRepository.findAllByCompanyAndSalesOrderId(
                 invoice.getCompany(), invoice.getSalesOrder().getId());
-        int salesOrderInvoiceCount =
-            hasExplicitInvoiceLinks(slips) ? 0 : resolveCurrentSalesOrderInvoiceCount(invoice);
         chain.add(
             BusinessDocumentTruths.reference(
                 "SOURCE_ORDER",

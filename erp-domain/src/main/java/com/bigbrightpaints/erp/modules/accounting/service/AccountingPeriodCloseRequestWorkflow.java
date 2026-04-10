@@ -271,10 +271,11 @@ final class AccountingPeriodCloseRequestWorkflow {
   }
 
   private String normalizeRequiredNote(String note, String message) {
-    if (!StringUtils.hasText(note)) {
+    String normalized = note == null ? null : note.trim();
+    if (!StringUtils.hasText(normalized)) {
       throw new ApplicationException(ErrorCode.VALIDATION_INVALID_INPUT, message);
     }
-    return note.trim();
+    return normalized;
   }
 
   private void assertMakerCheckerBoundary(PeriodCloseRequest request, String reviewer) {
