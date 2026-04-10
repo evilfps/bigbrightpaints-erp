@@ -1,6 +1,5 @@
 package com.bigbrightpaints.erp.orchestrator.service;
 
-import java.math.BigDecimal;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -82,14 +81,13 @@ class OrderIntegrationCoordinator {
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
-  IntegrationCoordinator.AutoApprovalResult autoApproveOrder(
-      String orderId, BigDecimal amount, String companyId) {
-    return autoApproveOrder(orderId, amount, companyId, null, null);
+  IntegrationCoordinator.AutoApprovalResult autoApproveOrder(String orderId, String companyId) {
+    return autoApproveOrder(orderId, companyId, null, null);
   }
 
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   IntegrationCoordinator.AutoApprovalResult autoApproveOrder(
-      String orderId, BigDecimal amount, String companyId, String traceId, String idempotencyKey) {
+      String orderId, String companyId, String traceId, String idempotencyKey) {
     String normalizedCompanyId = supportService.normalizeCompanyId(companyId);
     if (normalizedCompanyId == null) {
       log.warn("Cannot auto-approve order without a company context");
@@ -163,8 +161,7 @@ class OrderIntegrationCoordinator {
               .ifPresent(
                   orderId -> {
                     IntegrationCoordinator.AutoApprovalResult result =
-                        autoApproveOrder(
-                            String.valueOf(orderId), null, companyId, traceId, idempotencyKey);
+                        autoApproveOrder(String.valueOf(orderId), companyId, traceId, idempotencyKey);
                     log.info(
                         "Resumed auto-approval for order {} after plan completion; status={},"
                             + " awaitingProduction={}{}",
@@ -207,7 +204,7 @@ class OrderIntegrationCoordinator {
               yield new IntegrationCoordinator.AutoApprovalResult("CANCELLED", false);
             }
             case "READY_TO_SHIP" ->
-                autoApproveOrder(orderId, null, companyId, traceId, idempotencyKey);
+                autoApproveOrder(orderId, companyId, traceId, idempotencyKey);
             case "SHIPPED", "DISPATCHED", "FULFILLED", "COMPLETED" ->
                 throw new ApplicationException(
                         ErrorCode.BUSINESS_INVALID_STATE,

@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -24,6 +25,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -140,6 +142,36 @@ class JwtAuthenticationFilterRoleHierarchyTest {
     filter.doFilter(request, response, filterChain);
 
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    verify(filterChain).doFilter(request, response);
+  }
+
+  @Test
+  void doFilter_skipsAuthenticationWhenBearerTokenIsMissing()
+      throws ServletException, IOException {
+    MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/private");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    verifyNoInteractions(tokenService, userDetailsService, blacklistService, roleHierarchyProvider);
+    verify(filterChain).doFilter(request, response);
+  }
+
+  @Test
+  void doFilter_keepsExistingAuthenticationWhenSecurityContextIsAlreadyPopulated()
+      throws ServletException, IOException {
+    Authentication existing =
+        new UsernamePasswordAuthenticationToken(
+            "existing@bbp.com", "n/a", List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+    SecurityContextHolder.getContext().setAuthentication(existing);
+    MockHttpServletRequest request = requestWithBearer("valid-token");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isSameAs(existing);
+    verifyNoInteractions(tokenService, userDetailsService, blacklistService, roleHierarchyProvider);
     verify(filterChain).doFilter(request, response);
   }
 

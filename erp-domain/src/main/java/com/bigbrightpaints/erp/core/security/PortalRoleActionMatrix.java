@@ -12,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
  * Explicit role/action matrix for the tenant-facing portal surfaces touched in the mission.
  */
 public final class PortalRoleActionMatrix {
+  private static final String SALES_PROMOTIONS_PATH = "/api/v1/sales/promotions";
 
   public static final String DEALER_ONLY = "hasAuthority('ROLE_DEALER')";
   public static final String ADMIN_ONLY = "hasAuthority('ROLE_ADMIN')";
@@ -44,35 +45,37 @@ public final class PortalRoleActionMatrix {
     if (authentication == null || request == null) {
       return null;
     }
+    boolean dealer = hasAuthority(authentication, "ROLE_DEALER");
+    boolean accounting = hasAuthority(authentication, "ROLE_ACCOUNTING");
+    boolean sales = hasAuthority(authentication, "ROLE_SALES");
+    boolean factory = hasAuthority(authentication, "ROLE_FACTORY");
     String path = normalizePath(request.getRequestURI());
     if (!StringUtils.hasText(path)) {
       return null;
     }
     if (FINANCIAL_DISPATCH_PATHS.contains(path)) {
-      if (hasAuthority(authentication, "ROLE_FACTORY")) {
+      if (factory) {
         return "Use the factory dispatch workspace to confirm the shipment. Accounting will"
             + " complete the final dispatch posting.";
       }
-      if (hasAuthority(authentication, "ROLE_SALES")) {
+      if (sales) {
         return "Accounting must complete the final dispatch posting after the shipment is"
             + " confirmed.";
       }
     }
-    if ("/api/v1/sales/promotions".equals(path) && hasAuthority(authentication, "ROLE_DEALER")) {
+    if (dealer && SALES_PROMOTIONS_PATH.equals(path)) {
       return "Dealer access is limited to your own portal records and exports.";
     }
-    if (path.startsWith("/api/v1/dispatch/") && hasAuthority(authentication, "ROLE_ACCOUNTING")) {
+    if (accounting && path.startsWith("/api/v1/dispatch/")) {
       return "Factory must complete shipment confirmation from the dispatch workspace."
           + " Accounting can reconcile downstream order markers only after dispatch is"
           + " confirmed.";
     }
-    if (path.startsWith("/api/v1/dispatch/") && hasAuthority(authentication, "ROLE_SALES")) {
+    if (sales && path.startsWith("/api/v1/dispatch/")) {
       return "Factory must complete shipment confirmation and challan details from the dispatch"
           + " workspace.";
     }
-    if (path.startsWith("/api/v1/credit/override-requests/")
-        && (hasAuthority(authentication, "ROLE_SALES")
-            || hasAuthority(authentication, "ROLE_FACTORY"))) {
+    if ((sales || factory) && path.startsWith("/api/v1/credit/override-requests/")) {
       return "An admin or accountant must review this credit limit override request.";
     }
     return null;

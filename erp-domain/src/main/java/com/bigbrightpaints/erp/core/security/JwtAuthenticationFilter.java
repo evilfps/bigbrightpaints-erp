@@ -56,76 +56,66 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
-    String token = resolveToken(request);
-    if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+    if (SecurityContextHolder.getContext().getAuthentication() == null) {
       try {
-        Claims claims = tokenService.parse(token);
-
-        // Check if token is blacklisted
-        String tokenId = claims.getId();
-        if (tokenId != null && blacklistService.isTokenBlacklisted(tokenId)) {
-          logger.warn(
-              "Attempted use of blacklisted token - JTI: {}, User: {}, IP: {}",
-              tokenId,
-              claims.getSubject(),
-              request.getRemoteAddr());
-          filterChain.doFilter(request, response);
-          return;
+        ValidatedToken validatedToken = resolveValidatedToken(request);
+        if (validatedToken != null) {
+          installAuthentication(validatedToken, request);
         }
-
-        // Check if user's tokens are revoked
-        String userId = claims.getSubject();
-        Instant issuedAt = resolveTokenIssuedAt(claims);
-        if (issuedAt != null && blacklistService.isUserTokenRevoked(userId, issuedAt)) {
-          logger.warn(
-              "Attempted use of revoked user token - User: {}, IP: {}",
-              userId,
-              request.getRemoteAddr());
-          filterChain.doFilter(request, response);
-          return;
-        }
-
-        request.setAttribute("jwtClaims", claims);
-        UserPrincipal principal =
-            (UserPrincipal) userDetailsService.loadUserByUsername(claims.getSubject());
-        if (!principal.isEnabled()) {
-          logger.warn(
-              "Attempted use of token for disabled user - User: {}, IP: {}",
-              claims.getSubject(),
-              request.getRemoteAddr());
-          filterChain.doFilter(request, response);
-          return;
-        }
-        if (!principal.isAccountNonLocked()) {
-          logger.warn(
-              "Attempted use of token for locked user - User: {}, IP: {}",
-              claims.getSubject(),
-              request.getRemoteAddr());
-          filterChain.doFilter(request, response);
-          return;
-        }
-        Collection<? extends GrantedAuthority> effectiveAuthorities = resolveAuthorities(principal);
-        UsernamePasswordAuthenticationToken authentication =
-            new UsernamePasswordAuthenticationToken(principal, token, effectiveAuthorities);
-        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-
       } catch (ExpiredJwtException e) {
-        logger.debug(
-            "JWT token expired - User: {}, IP: {}",
-            e.getClaims().getSubject(),
-            request.getRemoteAddr());
+        logger.debug("JWT token expired");
       } catch (MalformedJwtException e) {
-        logger.warn("Malformed JWT token - IP: {}", request.getRemoteAddr());
+        logger.warn("Malformed JWT token");
       } catch (SignatureException e) {
-        logger.warn("Invalid JWT signature - IP: {}", request.getRemoteAddr());
+        logger.warn("Invalid JWT signature");
       } catch (UnsupportedJwtException e) {
-        logger.warn("Unsupported JWT token - IP: {}", request.getRemoteAddr());
+        logger.warn("Unsupported JWT token");
       } catch (Exception e) {
-        logger.error("JWT authentication error - IP: {}", request.getRemoteAddr(), e);
+        logger.error("JWT authentication error", e);
       }
     }
     filterChain.doFilter(request, response);
+  }
+
+  private ValidatedToken resolveValidatedToken(HttpServletRequest request) {
+    String token = resolveToken(request);
+    if (!StringUtils.hasText(token)) {
+      return null;
+    }
+    return new ValidatedToken(token, tokenService.parse(token));
+  }
+
+  private void installAuthentication(ValidatedToken validatedToken, HttpServletRequest request) {
+    Claims claims = validatedToken.claims();
+    String tokenId = claims.getId();
+    if (tokenId != null && blacklistService.isTokenBlacklisted(tokenId)) {
+      logger.warn("Attempted use of blacklisted token");
+      return;
+    }
+
+    String userId = claims.getSubject();
+    Instant issuedAt = resolveTokenIssuedAt(claims);
+    if (issuedAt != null && blacklistService.isUserTokenRevoked(userId, issuedAt)) {
+      logger.warn("Attempted use of revoked user token");
+      return;
+    }
+
+    request.setAttribute("jwtClaims", claims);
+    UserPrincipal principal = (UserPrincipal) userDetailsService.loadUserByUsername(userId);
+    if (!principal.isEnabled()) {
+      logger.warn("Attempted use of token for disabled user");
+      return;
+    }
+    if (!principal.isAccountNonLocked()) {
+      logger.warn("Attempted use of token for locked user");
+      return;
+    }
+    Collection<? extends GrantedAuthority> effectiveAuthorities = resolveAuthorities(principal);
+    UsernamePasswordAuthenticationToken authentication =
+        new UsernamePasswordAuthenticationToken(
+            principal, validatedToken.rawToken(), effectiveAuthorities);
+    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+    SecurityContextHolder.getContext().setAuthentication(authentication);
   }
 
   private Collection<? extends GrantedAuthority> resolveAuthorities(UserPrincipal principal) {
@@ -156,4 +146,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     Date issuedAt = claims.getIssuedAt();
     return issuedAt != null ? issuedAt.toInstant() : null;
   }
+
+  private record ValidatedToken(String rawToken, Claims claims) {}
 }
