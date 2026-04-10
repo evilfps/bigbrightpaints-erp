@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockMultipartFile;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.security.CompanyContextHolder;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.AccountRepository;
@@ -101,7 +102,7 @@ class CR_CatalogImportDeterminismIT extends AbstractIntegrationTest {
             null);
 
     assertThatThrownBy(() -> productionCatalogService.createCatalogItem(request))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(ApplicationException.class)
         .hasMessageContaining("Production brand not found");
     CompanyContextHolder.clear();
   }

@@ -297,8 +297,7 @@ class CatalogControllerCanonicalProductIT extends AbstractIntegrationTest {
 
     ResponseEntity<Map> updateResponse = putCatalogItem(itemId, payload, adminHeaders);
     assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-    assertThat(String.valueOf(errorData(updateResponse).get("reason")))
-        .contains("invalid account id");
+    assertThat(String.valueOf(errorData(updateResponse).get("reason"))).contains("Account not found");
   }
 
   @Test

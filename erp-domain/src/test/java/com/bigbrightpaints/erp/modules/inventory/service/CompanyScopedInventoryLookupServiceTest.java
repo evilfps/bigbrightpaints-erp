@@ -92,8 +92,10 @@ class CompanyScopedInventoryLookupServiceTest {
     when(rawMaterialRepository.lockByCompanyAndId(company, 99L)).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> lookupService.lockActiveRawMaterial(company, 99L))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Raw material not found: id=99");
+        .isInstanceOf(ApplicationException.class)
+        .matches(
+            ex -> ((ApplicationException) ex).getErrorCode() == ErrorCode.VALIDATION_INVALID_REFERENCE)
+        .hasMessageContaining("Raw material not found");
   }
 
   @Test
@@ -155,8 +157,10 @@ class CompanyScopedInventoryLookupServiceTest {
     when(finishedGoodRepository.lockByCompanyAndId(company, 404L)).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> lookupService.lockActiveFinishedGood(company, 404L))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Finished good not found: id=404");
+        .isInstanceOf(ApplicationException.class)
+        .matches(
+            ex -> ((ApplicationException) ex).getErrorCode() == ErrorCode.VALIDATION_INVALID_REFERENCE)
+        .hasMessageContaining("Finished good not found");
   }
 
   private RawMaterial rawMaterial(Long id, String sku) {
