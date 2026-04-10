@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Field;
 import java.util.List;
@@ -22,7 +23,12 @@ import org.springframework.web.context.request.ServletWebRequest;
 import com.bigbrightpaints.erp.core.audit.AuditEvent;
 import com.bigbrightpaints.erp.core.audit.AuditService;
 import com.bigbrightpaints.erp.core.audit.IntegrationFailureMetadataSchema;
+import com.bigbrightpaints.erp.modules.accounting.dto.JournalCreationRequest;
 import com.bigbrightpaints.erp.shared.dto.ApiResponse;
+
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Path;
 
 class GlobalExceptionHandlerTest {
 
@@ -262,6 +268,63 @@ class GlobalExceptionHandlerTest {
     assertThat(body).isNotNull();
     assertThat(body.message()).isEqualTo("Invalid option provided");
     assertThat(body.data()).containsEntry("reason", "Invalid option provided");
+  }
+
+  @Test
+  void creditLimitExceeded_returnsUnprocessableEntityWithAllowlistedDetails() throws Exception {
+    GlobalExceptionHandler handler = new GlobalExceptionHandler();
+    setActiveProfile(handler, "prod");
+
+    CreditLimitExceededException ex =
+        (CreditLimitExceededException)
+            new CreditLimitExceededException("Dealer credit limit exceeded")
+                .withDetail(
+                    "breakdown",
+                    new JournalCreationRequest.GstBreakdown(
+                        null, null, null, null));
+
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    request.setRequestURI("/api/v1/accounting/settlements/dealers");
+
+    ResponseEntity<ApiResponse<Map<String, Object>>> response =
+        handler.handleCreditLimitExceeded(ex, request);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().message()).isEqualTo("Dealer credit limit exceeded");
+    assertThat(response.getBody().data())
+        .containsEntry("code", ErrorCode.BUSINESS_LIMIT_EXCEEDED.getCode())
+        .containsEntry("message", "Dealer credit limit exceeded")
+        .containsEntry("reason", "Dealer credit limit exceeded")
+        .containsKey("traceId")
+        .containsKey("path");
+  }
+
+  @Test
+  void constraintViolation_returnsFieldLevelErrors() {
+    GlobalExceptionHandler handler = new GlobalExceptionHandler();
+    @SuppressWarnings("unchecked")
+    ConstraintViolation<Object> violation = mock(ConstraintViolation.class);
+    Path path = mock(Path.class);
+    when(path.toString()).thenReturn("request.amount");
+    when(violation.getPropertyPath()).thenReturn(path);
+    when(violation.getMessage()).thenReturn("must be positive");
+
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    request.setRequestURI("/api/v1/accounting/journals");
+
+    ResponseEntity<ApiResponse<Map<String, Object>>> response =
+        handler.handleConstraintViolation(
+            new ConstraintViolationException(java.util.Set.of(violation)), request);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertThat(response.getBody()).isNotNull();
+    assertThat(response.getBody().data())
+        .containsEntry("code", ErrorCode.VALIDATION_INVALID_INPUT.getCode())
+        .containsKey("errors");
+    @SuppressWarnings("unchecked")
+    Map<String, String> errors = (Map<String, String>) response.getBody().data().get("errors");
+    assertThat(errors).containsEntry("amount", "must be positive");
   }
 
   @Test

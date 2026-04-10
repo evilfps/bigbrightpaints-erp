@@ -113,3 +113,5 @@ com.bigbrightpaints.erp.modules.inventory.service.PackagingSlipServiceTest
 com.bigbrightpaints.erp.shared.dto.TruthRailsSharedDtoContractTest
 com.bigbrightpaints.erp.orchestrator.service.EventPublisherServiceTest
 com.bigbrightpaints.erp.orchestrator.service.IntegrationCoordinatorTest
+com.bigbrightpaints.erp.orchestrator.service.OrderIntegrationCoordinatorTest
+com.bigbrightpaints.erp.orchestrator.service.OrderSupportCoordinatorTest

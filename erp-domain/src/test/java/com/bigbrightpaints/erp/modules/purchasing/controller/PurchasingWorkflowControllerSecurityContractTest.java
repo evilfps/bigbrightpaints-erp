@@ -21,7 +21,7 @@ class PurchasingWorkflowControllerSecurityContractTest {
         "hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')");
     assertPreAuthorize(
         PurchasingWorkflowController.class.getMethod(
-            "createGoodsReceipt", String.class, String.class, GoodsReceiptRequest.class),
+            "createGoodsReceipt", String.class, GoodsReceiptRequest.class),
         "hasAnyAuthority('ROLE_ADMIN','ROLE_ACCOUNTING')");
     assertPreAuthorize(
         PurchasingWorkflowController.class.getMethod("approvePurchaseOrder", Long.class),

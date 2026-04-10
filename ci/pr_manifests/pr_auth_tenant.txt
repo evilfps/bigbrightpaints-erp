@@ -54,6 +54,7 @@ com.bigbrightpaints.erp.core.notification.EmailServiceTest
 com.bigbrightpaints.erp.core.audittrail.EnterpriseAuditTrailServiceTest
 com.bigbrightpaints.erp.core.audit.JournalEntryPostedAuditListenerTest
 com.bigbrightpaints.erp.core.exception.CoreFallbackExceptionHandlerTest
+com.bigbrightpaints.erp.core.security.JwtAuthenticationFilterRoleHierarchyTest
 com.bigbrightpaints.erp.core.security.PortalRoleActionMatrixTest
 com.bigbrightpaints.erp.modules.rbac.controller.RoleControllerSecurityContractTest
 com.bigbrightpaints.erp.modules.rbac.config.RbacSynchronizationConfigTest

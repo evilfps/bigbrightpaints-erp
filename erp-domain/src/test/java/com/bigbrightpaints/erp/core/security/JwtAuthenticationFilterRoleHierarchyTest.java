@@ -37,6 +37,10 @@ import com.bigbrightpaints.erp.modules.auth.service.UserAccountDetailsService;
 import com.bigbrightpaints.erp.modules.rbac.domain.Role;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.UnsupportedJwtException;
+import io.jsonwebtoken.security.SignatureException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 
@@ -146,6 +150,58 @@ class JwtAuthenticationFilterRoleHierarchyTest {
   }
 
   @Test
+  void doFilter_skipsAuthenticationForBlacklistedToken() throws ServletException, IOException {
+    Claims claims = claimsWithId("jti-4");
+    when(tokenService.parse("valid-token")).thenReturn(claims);
+    when(blacklistService.isTokenBlacklisted("jti-4")).thenReturn(true);
+
+    MockHttpServletRequest request = requestWithBearer("valid-token");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    verifyNoInteractions(userDetailsService, roleHierarchyProvider);
+    verify(filterChain).doFilter(request, response);
+  }
+
+  @Test
+  void doFilter_skipsAuthenticationForRevokedUserToken() throws ServletException, IOException {
+    Claims claims = claims("user@bbp.com", "jti-5", Instant.parse("2026-01-01T00:00:00Z"));
+    when(tokenService.parse("valid-token")).thenReturn(claims);
+    when(blacklistService.isTokenBlacklisted("jti-5")).thenReturn(false);
+    when(blacklistService.isUserTokenRevoked(eq("user@bbp.com"), any())).thenReturn(true);
+
+    MockHttpServletRequest request = requestWithBearer("valid-token");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    verifyNoInteractions(userDetailsService, roleHierarchyProvider);
+    verify(filterChain).doFilter(request, response);
+  }
+
+  @Test
+  void doFilter_skipsAuthenticationForDisabledUser() throws ServletException, IOException {
+    Claims claims = claims("user@bbp.com", "jti-6", Instant.parse("2026-01-01T00:00:00Z"));
+    UserPrincipal principal = principalWithRole("user@bbp.com", "ROLE_ADMIN");
+    principal.getUser().setEnabled(false);
+    when(tokenService.parse("valid-token")).thenReturn(claims);
+    when(blacklistService.isTokenBlacklisted("jti-6")).thenReturn(false);
+    when(blacklistService.isUserTokenRevoked(eq("user@bbp.com"), any())).thenReturn(false);
+    when(userDetailsService.loadUserByUsername("user@bbp.com")).thenReturn(principal);
+
+    MockHttpServletRequest request = requestWithBearer("valid-token");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    verify(filterChain).doFilter(request, response);
+  }
+
+  @Test
   void doFilter_skipsAuthenticationWhenBearerTokenIsMissing()
       throws ServletException, IOException {
     MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/private");
@@ -155,6 +211,77 @@ class JwtAuthenticationFilterRoleHierarchyTest {
 
     assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     verifyNoInteractions(tokenService, userDetailsService, blacklistService, roleHierarchyProvider);
+    verify(filterChain).doFilter(request, response);
+  }
+
+  @Test
+  void doFilter_swallowExpiredTokenFailures() throws ServletException, IOException {
+    when(tokenService.parse("valid-token"))
+        .thenThrow(new ExpiredJwtException(null, null, "expired"));
+
+    MockHttpServletRequest request = requestWithBearer("valid-token");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    verifyNoInteractions(userDetailsService, blacklistService, roleHierarchyProvider);
+    verify(filterChain).doFilter(request, response);
+  }
+
+  @Test
+  void doFilter_swallowMalformedTokenFailures() throws ServletException, IOException {
+    when(tokenService.parse("valid-token")).thenThrow(new MalformedJwtException("malformed"));
+
+    MockHttpServletRequest request = requestWithBearer("valid-token");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    verifyNoInteractions(userDetailsService, blacklistService, roleHierarchyProvider);
+    verify(filterChain).doFilter(request, response);
+  }
+
+  @Test
+  void doFilter_swallowInvalidSignatureFailures() throws ServletException, IOException {
+    when(tokenService.parse("valid-token")).thenThrow(new SignatureException("bad-signature"));
+
+    MockHttpServletRequest request = requestWithBearer("valid-token");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    verifyNoInteractions(userDetailsService, blacklistService, roleHierarchyProvider);
+    verify(filterChain).doFilter(request, response);
+  }
+
+  @Test
+  void doFilter_swallowUnsupportedTokenFailures() throws ServletException, IOException {
+    when(tokenService.parse("valid-token")).thenThrow(new UnsupportedJwtException("unsupported"));
+
+    MockHttpServletRequest request = requestWithBearer("valid-token");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    verifyNoInteractions(userDetailsService, blacklistService, roleHierarchyProvider);
+    verify(filterChain).doFilter(request, response);
+  }
+
+  @Test
+  void doFilter_swallowUnexpectedJwtFailures() throws ServletException, IOException {
+    when(tokenService.parse("valid-token")).thenThrow(new IllegalStateException("boom"));
+
+    MockHttpServletRequest request = requestWithBearer("valid-token");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+
+    filter.doFilter(request, response, filterChain);
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    verifyNoInteractions(userDetailsService, blacklistService, roleHierarchyProvider);
     verify(filterChain).doFilter(request, response);
   }
 
@@ -180,6 +307,12 @@ class JwtAuthenticationFilterRoleHierarchyTest {
     when(claims.getSubject()).thenReturn(subject);
     when(claims.getId()).thenReturn(tokenId);
     when(claims.getIssuedAt()).thenReturn(Date.from(issuedAt));
+    return claims;
+  }
+
+  private Claims claimsWithId(String tokenId) {
+    Claims claims = mock(Claims.class);
+    when(claims.getId()).thenReturn(tokenId);
     return claims;
   }
 
