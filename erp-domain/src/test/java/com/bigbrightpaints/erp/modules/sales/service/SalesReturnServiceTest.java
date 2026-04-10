@@ -3285,6 +3285,41 @@ class SalesReturnServiceTest {
   }
 
   @Test
+  void loadReturnMovements_skipsOverflowingInvoiceLineIds() {
+    FinishedGood fg = new FinishedGood();
+    fg.setCompany(company);
+    fg.setProductCode("FG-RET-OVERFLOW");
+    setField(fg, "id", 6121L);
+
+    InventoryMovement overflowingLine = new InventoryMovement();
+    overflowingLine.setFinishedGood(fg);
+    overflowingLine.setReferenceType("SALES_RETURN");
+    overflowingLine.setReferenceId("INV-HISTORY-OVERFLOW:92233720368547758070");
+    overflowingLine.setQuantity(new BigDecimal("3.00"));
+
+    when(inventoryMovementRepository
+            .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdOrderByCreatedAtAsc(
+                company, "SALES_RETURN", "INV-HISTORY-OVERFLOW"))
+        .thenReturn(List.of());
+    when(inventoryMovementRepository
+            .findByFinishedGood_CompanyAndReferenceTypeAndReferenceIdStartingWithOrderByCreatedAtAsc(
+                company, "SALES_RETURN", "INV-HISTORY-OVERFLOW:"))
+        .thenReturn(List.of(overflowingLine));
+
+    Object summary = invokeLoadReturnMovements(company, "INV-HISTORY-OVERFLOW");
+
+    @SuppressWarnings("unchecked")
+    Map<Long, BigDecimal> byLine =
+        (Map<Long, BigDecimal>) invokeRecordAccessor(summary, "byInvoiceLineId");
+    @SuppressWarnings("unchecked")
+    Map<Long, BigDecimal> byFinishedGood =
+        (Map<Long, BigDecimal>) invokeRecordAccessor(summary, "byFinishedGoodId");
+
+    assertThat(byLine).isEmpty();
+    assertThat(byFinishedGood).containsEntry(6121L, new BigDecimal("3.00"));
+  }
+
+  @Test
   void loadReturnMovements_skipsNullMetadataAndEmptyLineSuffixes() {
     FinishedGood validFg = new FinishedGood();
     validFg.setCompany(company);

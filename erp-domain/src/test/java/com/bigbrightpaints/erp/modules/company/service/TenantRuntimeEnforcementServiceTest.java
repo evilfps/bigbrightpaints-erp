@@ -157,6 +157,14 @@ class TenantRuntimeEnforcementServiceTest {
   }
 
   @Test
+  void parsePositiveInt_returnsFallbackWhenValueOverflowsInteger() {
+    Integer parsed =
+        ReflectionTestUtils.invokeMethod(service, "parsePositiveInt", "2147483648", 3);
+
+    assertThat(parsed).isEqualTo(3);
+  }
+
+  @Test
   void completeRequest_ignoresNullAndNotAdmittedHandles() {
     admissionService.completeRequest(null, 503);
     admissionService.completeRequest(

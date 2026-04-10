@@ -523,6 +523,35 @@ class InvoiceServiceTest {
   }
 
   @Test
+  void isSlipLinkedToInvoice_returnsTrueOnlyForMatchingInvoiceId() {
+    PackagingSlip slip = new PackagingSlip();
+    slip.setInvoiceId(91L);
+    Invoice invoice = new Invoice();
+    ReflectionTestUtils.setField(invoice, "id", 91L);
+
+    Boolean linked =
+        ReflectionTestUtils.invokeMethod(invoiceService, "isSlipLinkedToInvoice", slip, invoice);
+
+    assertThat(linked).isTrue();
+  }
+
+  @Test
+  void isSlipLinkedToInvoice_returnsFalseForMissingOrDifferentInvoiceId() {
+    PackagingSlip slip = new PackagingSlip();
+    slip.setInvoiceId(91L);
+    Invoice invoice = new Invoice();
+    ReflectionTestUtils.setField(invoice, "id", 92L);
+
+    Boolean linked =
+        ReflectionTestUtils.invokeMethod(invoiceService, "isSlipLinkedToInvoice", slip, invoice);
+
+    assertThat(linked).isFalse();
+    Boolean missingInvoice =
+        ReflectionTestUtils.invokeMethod(invoiceService, "isSlipLinkedToInvoice", slip, null);
+    assertThat(missingInvoice).isFalse();
+  }
+
+  @Test
   void listInvoices_batchesLinkedReferenceLookupsForPage() {
     when(companyContextService.requireCurrentCompany()).thenReturn(company);
     when(invoiceRepository.findIdsByCompanyOrderByIssueDateDescIdDesc(

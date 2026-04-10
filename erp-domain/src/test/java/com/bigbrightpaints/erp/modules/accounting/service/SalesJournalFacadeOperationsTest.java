@@ -9,7 +9,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -22,13 +24,16 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
 import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntryRepository;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMapping;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalReferenceMappingRepository;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
+import com.bigbrightpaints.erp.modules.sales.domain.Dealer;
 import com.bigbrightpaints.erp.modules.sales.service.CompanyScopedSalesLookupService;
+import com.bigbrightpaints.erp.modules.sales.util.SalesOrderReference;
 import com.bigbrightpaints.erp.test.support.ReflectionFieldAccess;
 
 @ExtendWith(MockitoExtension.class)
@@ -166,6 +171,116 @@ class SalesJournalFacadeOperationsTest {
         .thenReturn(Optional.of(entry));
 
     assertThat(operations.resolveReservedSalesJournalEntry(company, "SO-203")).contains(entry);
+  }
+
+  @Test
+  void postSalesJournal_doesNotTreatCanonicalAliasAsSeparateLookup() {
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(any(), any()))
+        .thenReturn(Optional.empty());
+
+    Dealer dealer = new Dealer();
+    ReflectionFieldAccess.setField(dealer, "id", 7L);
+    dealer.setName("Dealer Seven");
+    Account receivable = new Account();
+    ReflectionFieldAccess.setField(receivable, "id", 77L);
+    dealer.setReceivableAccount(receivable);
+    when(salesLookupService.requireDealer(company, 7L)).thenReturn(dealer);
+
+    String canonicalReference = SalesOrderReference.invoiceReference("SO-777");
+    JournalEntry existing = journalEntry(3001L, canonicalReference);
+    when(journalReferenceResolver.findExistingEntry(company, canonicalReference))
+        .thenReturn(Optional.of(existing));
+    when(accountingService.createStandardJournal(any())).thenReturn(null);
+
+    operations.postSalesJournal(
+        7L,
+        "SO-777",
+        LocalDate.of(2026, 4, 10),
+        "Replay sales journal",
+        Map.of(88L, new BigDecimal("100.00")),
+        null,
+        new BigDecimal("100.00"),
+        "  " + canonicalReference + "  ");
+
+    verify(journalReferenceResolver).findExistingEntry(company, canonicalReference);
+    verify(journalReferenceResolver, never())
+        .findExistingEntry(company, "  " + canonicalReference + "  ");
+  }
+
+  @Test
+  void postSalesJournal_skipsAliasLookupWhenReferenceNumberIsBlank() {
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(any(), any()))
+        .thenReturn(Optional.empty());
+
+    Dealer dealer = new Dealer();
+    ReflectionFieldAccess.setField(dealer, "id", 8L);
+    dealer.setName("Dealer Eight");
+    Account receivable = new Account();
+    ReflectionFieldAccess.setField(receivable, "id", 78L);
+    dealer.setReceivableAccount(receivable);
+    when(salesLookupService.requireDealer(company, 8L)).thenReturn(dealer);
+
+    String canonicalReference = SalesOrderReference.invoiceReference("SO-778");
+    when(journalReferenceResolver.findExistingEntry(company, canonicalReference))
+        .thenReturn(Optional.empty());
+    when(journalReferenceMappingRepository.reserveReferenceMapping(
+            eq(company.getId()),
+            eq(canonicalReference),
+            eq(canonicalReference),
+            eq("SALES_JOURNAL"),
+            any()))
+        .thenReturn(1);
+    when(accountingService.createStandardJournal(any())).thenReturn(null);
+
+    operations.postSalesJournal(
+        8L,
+        "SO-778",
+        LocalDate.of(2026, 4, 10),
+        "Blank alias journal",
+        Map.of(88L, new BigDecimal("100.00")),
+        null,
+        new BigDecimal("100.00"),
+        "   ");
+
+    verify(journalReferenceResolver).findExistingEntry(company, canonicalReference);
+    verify(journalReferenceResolver, never()).findExistingEntry(company, "");
+  }
+
+  @Test
+  void postSalesJournal_looksUpDistinctTrimmedAliasReference() {
+    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    when(journalReferenceMappingRepository.findByCompanyAndLegacyReferenceIgnoreCase(any(), any()))
+        .thenReturn(Optional.empty());
+
+    Dealer dealer = new Dealer();
+    ReflectionFieldAccess.setField(dealer, "id", 9L);
+    dealer.setName("Dealer Nine");
+    Account receivable = new Account();
+    ReflectionFieldAccess.setField(receivable, "id", 79L);
+    dealer.setReceivableAccount(receivable);
+    when(salesLookupService.requireDealer(company, 9L)).thenReturn(dealer);
+
+    String canonicalReference = SalesOrderReference.invoiceReference("SO-779");
+    JournalEntry existing = journalEntry(3002L, "LEG-779");
+    when(journalReferenceResolver.findExistingEntry(company, canonicalReference))
+        .thenReturn(Optional.empty());
+    when(journalReferenceResolver.findExistingEntry(company, "LEG-779")).thenReturn(Optional.of(existing));
+    when(accountingService.createStandardJournal(any())).thenReturn(null);
+
+    operations.postSalesJournal(
+        9L,
+        "SO-779",
+        LocalDate.of(2026, 4, 10),
+        "Distinct alias journal",
+        Map.of(89L, new BigDecimal("100.00")),
+        null,
+        new BigDecimal("100.00"),
+        "  LEG-779  ");
+
+    verify(journalReferenceResolver).findExistingEntry(company, canonicalReference);
+    verify(journalReferenceResolver).findExistingEntry(company, "LEG-779");
   }
 
   private JournalEntry journalEntry(Long id, String referenceNumber) {

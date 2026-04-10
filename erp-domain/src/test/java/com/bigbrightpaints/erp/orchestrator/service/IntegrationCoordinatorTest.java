@@ -403,6 +403,26 @@ class IntegrationCoordinatorTest {
   }
 
   @Test
+  void autoApproveOrderReturnsPendingProductionWhenCompanyContextMissingAndAmountPresent() {
+    IntegrationCoordinator.AutoApprovalResult result =
+        integrationCoordinator.autoApproveOrder(String.valueOf(ORDER_ID), new BigDecimal("1500"), " ");
+
+    assertThat(result.orderStatus()).isEqualTo("PENDING_PRODUCTION");
+    assertThat(result.awaitingProduction()).isTrue();
+    verifyNoInteractions(salesService, finishedGoodsService, factoryService);
+  }
+
+  @Test
+  void autoApproveOrderReturnsPendingProductionWhenCompanyContextMissingAndAmountAbsent() {
+    IntegrationCoordinator.AutoApprovalResult result =
+        integrationCoordinator.autoApproveOrder(String.valueOf(ORDER_ID), null, null);
+
+    assertThat(result.orderStatus()).isEqualTo("PENDING_PRODUCTION");
+    assertThat(result.awaitingProduction()).isTrue();
+    verifyNoInteractions(salesService, finishedGoodsService, factoryService);
+  }
+
+  @Test
   void health_omitsEmployeeCountWhenHrPayrollPaused() {
     company.setEnabledModules(Set.of("PORTAL"));
     CompanyContextHolder.setCompanyCode(COMPANY_ID);
@@ -647,6 +667,30 @@ class IntegrationCoordinatorTest {
     assertThrows(
         ApplicationException.class,
         () -> disabled.generatePayroll(LocalDate.now(), new BigDecimal("1000"), COMPANY_ID));
+    verifyNoInteractions(hrService);
+  }
+
+  @Test
+  void generatePayrollReturnsDeprecatedErrorWithNormalizedContextDetails() {
+    ApplicationException ex =
+        assertThrows(
+            ApplicationException.class,
+            () ->
+                integrationCoordinator.generatePayroll(
+                    LocalDate.of(2026, 4, 10),
+                    new BigDecimal("1000.50"),
+                    "  " + COMPANY_ID + "  ",
+                    "trace-payroll-42",
+                    "idem-payroll-42"));
+
+    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.BUSINESS_CONSTRAINT_VIOLATION);
+    assertThat(ex.getDetails())
+        .containsEntry("canonicalPath", "/api/v1/payroll/runs")
+        .containsEntry("payrollDate", LocalDate.of(2026, 4, 10))
+        .containsEntry("totalAmount", new BigDecimal("1000.50"))
+        .containsEntry("companyId", COMPANY_ID)
+        .containsEntry("traceId", "trace-payroll-42")
+        .containsEntry("idempotencyKey", "idem-payroll-42");
     verifyNoInteractions(hrService);
   }
 

@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
@@ -43,8 +44,8 @@ class OrderNumberServiceTest {
 
   @BeforeEach
   void setup() {
-    when(txManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-    when(companyClock.today(any())).thenReturn(LocalDate.of(2024, 1, 1));
+    lenient().when(txManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+    lenient().when(companyClock.today(any())).thenReturn(LocalDate.of(2024, 1, 1));
     orderNumberService =
         new OrderNumberService(orderSequenceRepository, auditService, txManager, companyClock);
     lenient()
@@ -134,5 +135,14 @@ class OrderNumberServiceTest {
     }
 
     verify(orderSequenceRepository).findByCompanyAndFiscalYear(eq(company), eq(2024));
+  }
+
+  @Test
+  void parseSequence_returnsZeroWhenSuffixOverflowsLong() {
+    long parsed =
+        ReflectionTestUtils.invokeMethod(
+            orderNumberService, "parseSequence", "C1-2024-92233720368547758070");
+
+    assertThat(parsed).isZero();
   }
 }

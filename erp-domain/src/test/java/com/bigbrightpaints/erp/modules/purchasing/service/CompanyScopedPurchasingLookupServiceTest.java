@@ -14,6 +14,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.core.exception.ErrorCode;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchase;
 import com.bigbrightpaints.erp.modules.purchasing.domain.RawMaterialPurchaseRepository;
@@ -54,8 +56,13 @@ class CompanyScopedPurchasingLookupServiceTest {
     when(supplierRepository.findByCompanyAndId(company, 99L)).thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> lookupService.requireSupplier(company, 99L))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Supplier not found: id=99");
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_REFERENCE);
+              assertThat(ex.getMessage()).isEqualTo("Supplier not found");
+              assertThat(ex.getDetails()).containsEntry("id", 99L);
+            });
   }
 
   @Test
@@ -74,7 +81,12 @@ class CompanyScopedPurchasingLookupServiceTest {
         .thenReturn(Optional.empty());
 
     assertThatThrownBy(() -> lookupService.requireRawMaterialPurchase(company, 123L))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Raw material purchase not found: id=123");
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_INVALID_REFERENCE);
+              assertThat(ex.getMessage()).isEqualTo("Raw material purchase not found");
+              assertThat(ex.getDetails()).containsEntry("id", 123L);
+            });
   }
 }

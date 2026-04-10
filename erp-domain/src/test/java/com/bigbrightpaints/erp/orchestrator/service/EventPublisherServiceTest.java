@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -16,12 +18,15 @@ import static org.mockito.Mockito.when;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -37,6 +42,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.bigbrightpaints.erp.core.util.CompanyClock;
+import com.bigbrightpaints.erp.core.util.CompanyTime;
 import com.bigbrightpaints.erp.modules.company.domain.Company;
 import com.bigbrightpaints.erp.modules.company.service.CompanyContextService;
 import com.bigbrightpaints.erp.orchestrator.event.DomainEvent;
@@ -48,6 +55,8 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 @ExtendWith(MockitoExtension.class)
 class EventPublisherServiceTest {
 
+  private static final Instant TEST_NOW = Instant.parse("2026-04-10T17:17:00Z");
+
   @Mock private OutboxEventRepository outboxEventRepository;
 
   @Mock private RabbitTemplate rabbitTemplate;
@@ -55,6 +64,17 @@ class EventPublisherServiceTest {
   @Mock private ObjectMapper objectMapper;
 
   @Mock private CompanyContextService companyContextService;
+
+  @Mock private CompanyClock companyClock;
+
+  @BeforeEach
+  void setUpCompanyTime() {
+    new CompanyTime(companyClock);
+    lenient().when(companyClock.now(nullable(Company.class))).thenReturn(TEST_NOW);
+    lenient()
+        .when(companyClock.today(nullable(Company.class)))
+        .thenReturn(LocalDate.ofInstant(TEST_NOW, ZoneOffset.UTC));
+  }
 
   private EventPublisherService service() {
     return new EventPublisherService(
@@ -186,12 +206,11 @@ class EventPublisherServiceTest {
         .when(rabbitTemplate)
         .convertAndSend("bbp.orchestrator.events", "OrderApprovedEvent", "{\"ok\":true}");
 
-    Instant before = Instant.now();
     service.publishPendingEvents();
 
     assertThat(retryEntity.getStatus()).isEqualTo(OutboxEvent.Status.PENDING);
     assertThat(retryEntity.getRetryCount()).isEqualTo(1);
-    assertThat(retryEntity.getNextAttemptAt()).isAfter(before);
+    assertThat(retryEntity.getNextAttemptAt()).isEqualTo(TEST_NOW.plusSeconds(30));
 
     // Ensure mutex is released even when publish fails
     AtomicBoolean mutex =
@@ -221,14 +240,13 @@ class EventPublisherServiceTest {
         .when(rabbitTemplate)
         .convertAndSend("bbp.orchestrator.events", "OrderApprovedEvent", "{\"ok\":true}");
 
-    Instant before = Instant.now();
     service.publishPendingEvents();
 
     assertThat(publishingEntity.getStatus()).isEqualTo(OutboxEvent.Status.PUBLISHING);
     assertThat(publishingEntity.getRetryCount()).isZero();
     assertThat(publishingEntity.getLastError()).startsWith("AMBIGUOUS_PUBLISH:");
     assertThat(publishingEntity.getLastError()).endsWith(RuntimeException.class.getName());
-    assertThat(publishingEntity.getNextAttemptAt()).isAfter(before);
+    assertThat(publishingEntity.getNextAttemptAt()).isEqualTo(TEST_NOW.plusSeconds(300));
   }
 
   @Test
@@ -278,9 +296,9 @@ class EventPublisherServiceTest {
     EventPublisherService service = service();
     UUID staleId = UUID.randomUUID();
     OutboxEvent stalePublishingSnapshot = pendingEvent(staleId);
-    stalePublishingSnapshot.markPublishingUntil(Instant.now().minusSeconds(5));
+    stalePublishingSnapshot.markPublishingUntil(TEST_NOW.minusSeconds(5));
     OutboxEvent stalePublishingEntity = pendingEvent(staleId);
-    stalePublishingEntity.markPublishingUntil(Instant.now().minusSeconds(5));
+    stalePublishingEntity.markPublishingUntil(TEST_NOW.minusSeconds(5));
 
     when(outboxEventRepository
             .findTop10ByStatusAndDeadLetterFalseAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
@@ -295,13 +313,12 @@ class EventPublisherServiceTest {
     when(outboxEventRepository.saveAndFlush(any(OutboxEvent.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
-    Instant before = Instant.now();
     service.publishPendingEvents();
 
     assertThat(stalePublishingEntity.getStatus()).isEqualTo(OutboxEvent.Status.PUBLISHING);
     assertThat(stalePublishingEntity.getRetryCount()).isZero();
     assertThat(stalePublishingEntity.getLastError()).startsWith("STALE_LEASE_UNCERTAIN:");
-    assertThat(stalePublishingEntity.getNextAttemptAt()).isAfter(before);
+    assertThat(stalePublishingEntity.getNextAttemptAt()).isEqualTo(TEST_NOW.plusSeconds(300));
   }
 
   @Test
@@ -342,9 +359,9 @@ class EventPublisherServiceTest {
         .saveAndFlush(any(OutboxEvent.class));
     doAnswer(
             invocation -> {
-              stalePublishingSnapshot.markPublishingUntil(Instant.now().minusSeconds(1));
+              stalePublishingSnapshot.markPublishingUntil(TEST_NOW.minusSeconds(1));
               stalePublishingSnapshot.setVersion(sharedPublishingEntity.getVersion());
-              sharedPublishingEntity.markPublishingUntil(Instant.now().minusSeconds(1));
+              sharedPublishingEntity.markPublishingUntil(TEST_NOW.minusSeconds(1));
               publisherB.publishPendingEvents();
               return null;
             })
@@ -367,11 +384,11 @@ class EventPublisherServiceTest {
     OutboxEvent stalePublishingSnapshot = pendingEvent(staleId);
     stalePublishingSnapshot.deferPublishing("AMBIGUOUS_PUBLISH:ack lost", 1);
     ReflectionTestUtils.setField(
-        stalePublishingSnapshot, "nextAttemptAt", Instant.now().minusSeconds(1));
+        stalePublishingSnapshot, "nextAttemptAt", TEST_NOW.minusSeconds(1));
     OutboxEvent stalePublishingEntity = pendingEvent(staleId);
     stalePublishingEntity.deferPublishing("AMBIGUOUS_PUBLISH:ack lost", 1);
     ReflectionTestUtils.setField(
-        stalePublishingEntity, "nextAttemptAt", Instant.now().minusSeconds(1));
+        stalePublishingEntity, "nextAttemptAt", TEST_NOW.minusSeconds(1));
 
     when(outboxEventRepository
             .findTop10ByStatusAndDeadLetterFalseAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
@@ -412,10 +429,10 @@ class EventPublisherServiceTest {
     EventPublisherService service = service();
     OutboxEvent staleWithoutId =
         new OutboxEvent("SalesOrder", "42", "OrderApprovedEvent", "{\"ok\":true}");
-    staleWithoutId.markPublishingUntil(Instant.now().minusSeconds(1));
+    staleWithoutId.markPublishingUntil(TEST_NOW.minusSeconds(1));
     UUID staleId = UUID.randomUUID();
     OutboxEvent staleWithId = pendingEvent(staleId);
-    staleWithId.markPublishingUntil(Instant.now().minusSeconds(1));
+    staleWithId.markPublishingUntil(TEST_NOW.minusSeconds(1));
 
     when(outboxEventRepository
             .findTop10ByStatusAndDeadLetterFalseAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
@@ -442,7 +459,7 @@ class EventPublisherServiceTest {
     when(outboxEventRepository.findByIdForUpdate(eventId)).thenReturn(Optional.of(pendingEntity));
 
     com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-        service, "reclaimStalePublishing", eventId, pendingEntity.getVersion(), Instant.now());
+        service, "reclaimStalePublishing", eventId, pendingEntity.getVersion(), TEST_NOW);
 
     verify(outboxEventRepository, never()).saveAndFlush(any(OutboxEvent.class));
   }
@@ -452,12 +469,12 @@ class EventPublisherServiceTest {
     EventPublisherService service = service();
     UUID eventId = UUID.randomUUID();
     OutboxEvent publishingEntity = pendingEvent(eventId);
-    publishingEntity.markPublishingUntil(Instant.now().plusSeconds(120));
+    publishingEntity.markPublishingUntil(TEST_NOW.plusSeconds(120));
     when(outboxEventRepository.findByIdForUpdate(eventId))
         .thenReturn(Optional.of(publishingEntity));
 
     com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-        service, "reclaimStalePublishing", eventId, publishingEntity.getVersion(), Instant.now());
+        service, "reclaimStalePublishing", eventId, publishingEntity.getVersion(), TEST_NOW);
 
     verify(outboxEventRepository, never()).saveAndFlush(any(OutboxEvent.class));
   }
@@ -468,12 +485,12 @@ class EventPublisherServiceTest {
     UUID eventId = UUID.randomUUID();
     OutboxEvent publishingEntity = pendingEvent(eventId);
     publishingEntity.setVersion(7L);
-    publishingEntity.markPublishingUntil(Instant.now().minusSeconds(5));
+    publishingEntity.markPublishingUntil(TEST_NOW.minusSeconds(5));
     when(outboxEventRepository.findByIdForUpdate(eventId))
         .thenReturn(Optional.of(publishingEntity));
 
     com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-        service, "reclaimStalePublishing", eventId, null, Instant.now());
+        service, "reclaimStalePublishing", eventId, null, TEST_NOW);
 
     verify(outboxEventRepository, never()).saveAndFlush(any(OutboxEvent.class));
     assertThat(publishingEntity.getLastError()).isNull();
@@ -645,7 +662,7 @@ class EventPublisherServiceTest {
     ReflectionTestUtils.setField(nullNextAttemptPending, "nextAttemptAt", null);
     OutboxEvent futureAttemptPending = pendingEvent(UUID.randomUUID());
     ReflectionTestUtils.setField(
-        futureAttemptPending, "nextAttemptAt", Instant.now().plusSeconds(60));
+        futureAttemptPending, "nextAttemptAt", TEST_NOW.plusSeconds(60));
 
     Boolean deadLetterPublishable =
         com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
@@ -667,7 +684,7 @@ class EventPublisherServiceTest {
     EventPublisherService service = service();
     UUID eventId = UUID.randomUUID();
     OutboxEvent deadLetterPublishingEntity = pendingEvent(eventId);
-    deadLetterPublishingEntity.markPublishingUntil(Instant.now().minusSeconds(5));
+    deadLetterPublishingEntity.markPublishingUntil(TEST_NOW.minusSeconds(5));
     ReflectionTestUtils.setField(deadLetterPublishingEntity, "deadLetter", true);
     when(outboxEventRepository.findByIdForUpdate(eventId))
         .thenReturn(Optional.of(deadLetterPublishingEntity));
@@ -677,7 +694,7 @@ class EventPublisherServiceTest {
         "reclaimStalePublishing",
         eventId,
         deadLetterPublishingEntity.getVersion(),
-        Instant.now());
+        TEST_NOW);
 
     verify(outboxEventRepository, never()).saveAndFlush(any(OutboxEvent.class));
   }
@@ -730,7 +747,7 @@ class EventPublisherServiceTest {
 
     Boolean leaseDue =
         com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
-            service, "isLeaseDue", event, Instant.now());
+            service, "isLeaseDue", event, TEST_NOW);
 
     assertThat(leaseDue).isTrue();
   }

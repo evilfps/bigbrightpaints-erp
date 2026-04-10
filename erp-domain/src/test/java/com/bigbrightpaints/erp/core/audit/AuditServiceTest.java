@@ -297,6 +297,21 @@ class AuditServiceTest {
         .containsEntry("authCompanyResolution", "UNRESOLVED");
   }
 
+  @Test
+  void parseNumericToken_returnsNullWhenAllDigitValueOverflowsLong() {
+    Long parsed =
+        ReflectionTestUtils.invokeMethod(auditService, "parseNumericToken", "92233720368547758070");
+
+    assertThat(parsed).isNull();
+  }
+
+  @Test
+  void parseNumericToken_parsesTrimmedDigitValue() {
+    Long parsed = ReflectionTestUtils.invokeMethod(auditService, "parseNumericToken", " 42 ");
+
+    assertThat(parsed).isEqualTo(42L);
+  }
+
   private AuditService createService() {
     AuditService service = new AuditService();
     ReflectionTestUtils.setField(service, "auditLogRepository", auditLogRepository);

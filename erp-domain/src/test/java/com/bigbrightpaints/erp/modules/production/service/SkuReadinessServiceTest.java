@@ -102,6 +102,16 @@ class SkuReadinessServiceTest {
   }
 
   @Test
+  void metadataLong_returnsNullWhenNumericStringOverflowsLong() {
+    ProductionProduct product = finishedGoodProduct("FG-OVERFLOW");
+    product.setMetadata(Map.of("wipAccountId", "92233720368547758070"));
+
+    Long parsed = ReflectionTestUtils.invokeMethod(service, "metadataLong", product, "wipAccountId");
+
+    assertThat(parsed).isNull();
+  }
+
+  @Test
   void forSku_finishedGoodWithoutMirrorAccounts_reportsInventoryProductionAndSalesBlockers() {
     ProductionProduct product = finishedGoodProduct("FG-2");
     FinishedGood finishedGood = finishedGood("FG-2", null, null, null, null);
