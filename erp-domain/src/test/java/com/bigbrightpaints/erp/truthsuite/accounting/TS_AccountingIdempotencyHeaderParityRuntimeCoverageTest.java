@@ -26,7 +26,7 @@ import com.bigbrightpaints.erp.modules.accounting.service.AccountingFacade;
 class TS_AccountingIdempotencyHeaderParityRuntimeCoverageTest {
 
   @Test
-  void recordDealerReceipt_noBodyAndNoHeaders_clearsIdempotencyKeyOnCopiedRequest() {
+  void recordDealerReceipt_noBodyAndNoHeaders_preservesOriginalRequest() {
     AccountingFacade accountingFacade = mock(AccountingFacade.class);
     SettlementController controller = newController(accountingFacade);
     DealerReceiptRequest request = dealerReceiptRequest(null);
@@ -37,7 +37,7 @@ class TS_AccountingIdempotencyHeaderParityRuntimeCoverageTest {
     ArgumentCaptor<DealerReceiptRequest> captor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
     verify(accountingFacade).recordDealerReceipt(captor.capture());
-    assertThat(captor.getValue()).isNotSameAs(request);
+    assertThat(captor.getValue()).isSameAs(request);
     assertThat(captor.getValue().idempotencyKey()).isNull();
   }
 
@@ -58,7 +58,7 @@ class TS_AccountingIdempotencyHeaderParityRuntimeCoverageTest {
   }
 
   @Test
-  void recordDealerReceipt_bodyKeyWithoutCanonicalHeader_isCleared() {
+  void recordDealerReceipt_bodyKeyWithoutCanonicalHeader_isPreserved() {
     AccountingFacade accountingFacade = mock(AccountingFacade.class);
     SettlementController controller = newController(accountingFacade);
     DealerReceiptRequest request = dealerReceiptRequest("body-001");
@@ -69,8 +69,8 @@ class TS_AccountingIdempotencyHeaderParityRuntimeCoverageTest {
     ArgumentCaptor<DealerReceiptRequest> captor =
         ArgumentCaptor.forClass(DealerReceiptRequest.class);
     verify(accountingFacade).recordDealerReceipt(captor.capture());
-    assertThat(captor.getValue()).isNotSameAs(request);
-    assertThat(captor.getValue().idempotencyKey()).isNull();
+    assertThat(captor.getValue()).isSameAs(request);
+    assertThat(captor.getValue().idempotencyKey()).isEqualTo("body-001");
   }
 
   @Test
@@ -91,7 +91,7 @@ class TS_AccountingIdempotencyHeaderParityRuntimeCoverageTest {
 
     assertThat(captured.get(0)).isNotSameAs(nonBlankHeaderRequest);
     assertThat(captured.get(0).idempotencyKey()).isEqualTo("hdr-trim-001");
-    assertThat(captured.get(1)).isNotSameAs(blankHeaderRequest);
+    assertThat(captured.get(1)).isSameAs(blankHeaderRequest);
     assertThat(captured.get(1).idempotencyKey()).isNull();
   }
 
