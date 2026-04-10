@@ -282,6 +282,17 @@ class LeaveServiceTest {
     assertThat(extremeRange).isGreaterThan(BigDecimal.ZERO);
   }
 
+  @Test
+  void normalizeLeaveType_rejectsBlankInput() {
+    assertThatThrownBy(
+            () -> ReflectionTestUtils.invokeMethod(leaveService, "normalizeLeaveType", "   "))
+        .isInstanceOf(ApplicationException.class)
+        .satisfies(
+            ex ->
+                assertThat(((ApplicationException) ex).getErrorCode())
+                    .isEqualTo(ErrorCode.VALIDATION_INVALID_INPUT));
+  }
+
   @AfterEach
   void tearDown() {
     ReflectionTestUtils.setField(CompanyTime.class, "companyClock", null);
