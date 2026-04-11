@@ -695,7 +695,8 @@ public class SalesCoreEngine {
     String paymentMode = normalizeOrderPaymentMode(request.paymentMode());
     boolean gstInclusive = Boolean.TRUE.equals(request.gstInclusive());
     Dealer dealer =
-        salesProformaBoundaryService.resolveDealerForProforma(company, request.dealerId());
+        salesProformaBoundaryService.resolveDealerForProforma(
+            company, request.dealerId(), paymentMode);
     List<PricedOrderLine> items =
         resolveOrderItems(company, request.items(), gstTreatment, orderLevelRate);
     SalesOrder order = new SalesOrder();
@@ -1081,7 +1082,8 @@ public class SalesCoreEngine {
             ? request.dealerId()
             : order.getDealer() != null ? order.getDealer().getId() : null;
     Dealer dealer =
-        salesProformaBoundaryService.resolveDealerForProforma(order.getCompany(), dealerId);
+        salesProformaBoundaryService.resolveDealerForProforma(
+            order.getCompany(), dealerId, paymentMode);
     List<PricedOrderLine> items =
         resolveOrderItems(order.getCompany(), request.items(), gstTreatment, orderLevelRate);
     order.setDealer(dealer);
