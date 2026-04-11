@@ -855,6 +855,52 @@ class PurchaseReturnServiceTest {
   }
 
   @Test
+  void splitTaxAmountSafe_fallsBackToInterStateIgstWhenSplitterReturnsNull() {
+    when(gstService.splitTaxAmount(
+            new BigDecimal("100.00"), new BigDecimal("18.00"), "KA", "MH"))
+        .thenReturn(null);
+    when(gstService.resolveTaxType("KA", "MH", false)).thenReturn(GstService.TaxType.INTER_STATE);
+
+    GstService.GstBreakdown breakdown =
+        ReflectionTestUtils.invokeMethod(
+            purchaseReturnService,
+            "splitTaxAmountSafe",
+            new BigDecimal("100.00"),
+            new BigDecimal("18.00"),
+            "KA",
+            "MH");
+
+    assertThat(breakdown).isNotNull();
+    assertThat(breakdown.taxType()).isEqualTo(GstService.TaxType.INTER_STATE);
+    assertThat(breakdown.cgst()).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(breakdown.sgst()).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(breakdown.igst()).isEqualByComparingTo("18.00");
+  }
+
+  @Test
+  void splitTaxAmountSafe_fallsBackToIntraStateSplitWhenSplitterReturnsNull() {
+    when(gstService.splitTaxAmount(
+            new BigDecimal("100.00"), new BigDecimal("18.00"), "KA", "KA"))
+        .thenReturn(null);
+    when(gstService.resolveTaxType("KA", "KA", false)).thenReturn(GstService.TaxType.INTRA_STATE);
+
+    GstService.GstBreakdown breakdown =
+        ReflectionTestUtils.invokeMethod(
+            purchaseReturnService,
+            "splitTaxAmountSafe",
+            new BigDecimal("100.00"),
+            new BigDecimal("18.00"),
+            "KA",
+            "KA");
+
+    assertThat(breakdown).isNotNull();
+    assertThat(breakdown.taxType()).isEqualTo(GstService.TaxType.INTRA_STATE);
+    assertThat(breakdown.cgst()).isEqualByComparingTo("9.00");
+    assertThat(breakdown.sgst()).isEqualByComparingTo("9.00");
+    assertThat(breakdown.igst()).isEqualByComparingTo(BigDecimal.ZERO);
+  }
+
+  @Test
   void recordPurchaseReturn_usesTrimmedExplicitReferenceWithoutAutoNumberLookup() {
     Account payable = new Account();
     ReflectionTestUtils.setField(payable, "id", 40L);

@@ -27,6 +27,7 @@ import com.bigbrightpaints.erp.core.exception.GlobalExceptionHandler;
 import com.bigbrightpaints.erp.modules.accounting.domain.Account;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalEntry;
 import com.bigbrightpaints.erp.modules.accounting.domain.JournalLine;
+import com.bigbrightpaints.erp.modules.accounting.domain.PartnerType;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingAuditService;
 
 class IntegrationFailureMetadataSchemaContractTest {
@@ -84,6 +85,74 @@ class IntegrationFailureMetadataSchemaContractTest {
         .containsEntry("eventTrailOperation", "JOURNAL_ENTRY_POSTED")
         .containsEntry("policy", "BEST_EFFORT")
         .containsEntry(IntegrationFailureMetadataSchema.KEY_ERROR_CATEGORY, "VALIDATION");
+  }
+
+  @Test
+  void dealerReceiptSettlementEventBestEffortUsesFailureMarkerWhenPayloadValidationFails() {
+    AuditService auditService = mock(AuditService.class);
+    com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore accountingEventStore =
+        mock(com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore.class);
+    AccountingAuditService service =
+        new AccountingAuditService(
+            mock(ApplicationEventPublisher.class), auditService, accountingEventStore);
+    ReflectionTestUtils.setField(service, "strictAccountingEventTrail", false);
+
+    com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
+        service,
+        "recordDealerReceiptPostedEventSafe",
+        oversizedSettlementJournalEntry("SETTLE-OVERSIZE-1"),
+        10L,
+        BigDecimal.ONE,
+        "dealer-idem-1");
+
+    verifyNoInteractions(accountingEventStore);
+    assertBestEffortFailureMetadata(auditService, "DEALER_RECEIPT_POSTED");
+  }
+
+  @Test
+  void supplierPaymentSettlementEventBestEffortUsesFailureMarkerWhenPayloadValidationFails() {
+    AuditService auditService = mock(AuditService.class);
+    com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore accountingEventStore =
+        mock(com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore.class);
+    AccountingAuditService service =
+        new AccountingAuditService(
+            mock(ApplicationEventPublisher.class), auditService, accountingEventStore);
+    ReflectionTestUtils.setField(service, "strictAccountingEventTrail", false);
+
+    com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
+        service,
+        "recordSupplierPaymentPostedEventSafe",
+        oversizedSettlementJournalEntry("SETTLE-OVERSIZE-2"),
+        20L,
+        BigDecimal.ONE,
+        "supplier-idem-1");
+
+    verifyNoInteractions(accountingEventStore);
+    assertBestEffortFailureMetadata(auditService, "SUPPLIER_PAYMENT_POSTED");
+  }
+
+  @Test
+  void settlementAllocatedEventBestEffortUsesFailureMarkerWhenPayloadValidationFails() {
+    AuditService auditService = mock(AuditService.class);
+    com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore accountingEventStore =
+        mock(com.bigbrightpaints.erp.modules.accounting.event.AccountingEventStore.class);
+    AccountingAuditService service =
+        new AccountingAuditService(
+            mock(ApplicationEventPublisher.class), auditService, accountingEventStore);
+    ReflectionTestUtils.setField(service, "strictAccountingEventTrail", false);
+
+    com.bigbrightpaints.erp.test.support.ReflectionFieldAccess.invokeMethod(
+        service,
+        "recordSettlementAllocatedEventSafe",
+        oversizedSettlementJournalEntry("SETTLE-OVERSIZE-3"),
+        PartnerType.DEALER,
+        30L,
+        BigDecimal.ONE,
+        1,
+        "alloc-idem-1");
+
+    verifyNoInteractions(accountingEventStore);
+    assertBestEffortFailureMetadata(auditService, "SETTLEMENT_ALLOCATED");
   }
 
   @Test
@@ -173,6 +242,30 @@ class IntegrationFailureMetadataSchemaContractTest {
     assertThat(metadata.get(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTING_VERSION))
         .isNotBlank();
     assertThat(metadata.get(IntegrationFailureMetadataSchema.KEY_ALERT_ROUTE)).isNotBlank();
+  }
+
+  private void assertBestEffortFailureMetadata(AuditService auditService, String operation) {
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<Map<String, String>> metadataCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(auditService).logFailure(eq(AuditEvent.INTEGRATION_FAILURE), metadataCaptor.capture());
+    assertThat(metadataCaptor.getValue())
+        .containsEntry("eventTrailOperation", operation)
+        .containsEntry("policy", "BEST_EFFORT")
+        .containsEntry(IntegrationFailureMetadataSchema.KEY_ERROR_CATEGORY, "VALIDATION");
+  }
+
+  private JournalEntry oversizedSettlementJournalEntry(String referenceNumber) {
+    JournalEntry journalEntry = new JournalEntry();
+    journalEntry.setReferenceNumber(referenceNumber);
+    journalEntry.setMemo("x".repeat(600));
+    JournalLine line = new JournalLine();
+    Account account = new Account();
+    account.setCode("4000");
+    line.setAccount(account);
+    line.setDescription("ok");
+    line.setDebit(BigDecimal.ONE);
+    journalEntry.addLine(line);
+    return journalEntry;
   }
 
   private AccountingAuditService buildAccountingAuditService(AuditService auditService) {

@@ -195,7 +195,7 @@ class PurchaseInvoiceEngineLifecycleTest {
     movement.setQuantity(new BigDecimal("10.0000"));
     movement.setUnitCost(new BigDecimal("12.50"));
 
-    when(companyContextService.requireCurrentCompany()).thenReturn(company);
+    lenient().when(companyContextService.requireCurrentCompany()).thenReturn(company);
     lenient().when(purchasingLookupService.requireSupplier(company, 10L)).thenReturn(supplier);
     lenient()
         .when(purchaseRepository.lockByCompanyAndInvoiceNumberIgnoreCase(company, "INV-40"))
@@ -697,6 +697,54 @@ class PurchaseInvoiceEngineLifecycleTest {
     verify(gstService).splitTaxAmount(any(), any(), eq((String) null), eq("27"));
     verify(accountingFacade, never())
         .postPurchaseJournal(any(), any(), any(), any(), any(), any(), any(), any(), any());
+  }
+
+  @Test
+  @DisplayName("splitTaxAmountSafe falls back to IGST when splitter returns null for inter-state")
+  void splitTaxAmountSafe_fallsBackToInterStateIgstWhenSplitterReturnsNull() {
+    when(gstService.splitTaxAmount(
+            new BigDecimal("100.00"), new BigDecimal("18.00"), "KA", "MH"))
+        .thenReturn(null);
+    when(gstService.resolveTaxType("KA", "MH", false)).thenReturn(GstService.TaxType.INTER_STATE);
+
+    GstService.GstBreakdown breakdown =
+        ReflectionTestUtils.invokeMethod(
+            purchaseInvoiceEngine,
+            "splitTaxAmountSafe",
+            new BigDecimal("100.00"),
+            new BigDecimal("18.00"),
+            "KA",
+            "MH");
+
+    assertThat(breakdown).isNotNull();
+    assertThat(breakdown.taxType()).isEqualTo(GstService.TaxType.INTER_STATE);
+    assertThat(breakdown.cgst()).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(breakdown.sgst()).isEqualByComparingTo(BigDecimal.ZERO);
+    assertThat(breakdown.igst()).isEqualByComparingTo("18.00");
+  }
+
+  @Test
+  @DisplayName("splitTaxAmountSafe falls back to CGST SGST split when splitter returns null")
+  void splitTaxAmountSafe_fallsBackToIntraStateSplitWhenSplitterReturnsNull() {
+    when(gstService.splitTaxAmount(
+            new BigDecimal("100.00"), new BigDecimal("18.00"), "KA", "KA"))
+        .thenReturn(null);
+    when(gstService.resolveTaxType("KA", "KA", false)).thenReturn(GstService.TaxType.INTRA_STATE);
+
+    GstService.GstBreakdown breakdown =
+        ReflectionTestUtils.invokeMethod(
+            purchaseInvoiceEngine,
+            "splitTaxAmountSafe",
+            new BigDecimal("100.00"),
+            new BigDecimal("18.00"),
+            "KA",
+            "KA");
+
+    assertThat(breakdown).isNotNull();
+    assertThat(breakdown.taxType()).isEqualTo(GstService.TaxType.INTRA_STATE);
+    assertThat(breakdown.cgst()).isEqualByComparingTo("9.00");
+    assertThat(breakdown.sgst()).isEqualByComparingTo("9.00");
+    assertThat(breakdown.igst()).isEqualByComparingTo(BigDecimal.ZERO);
   }
 
   @Test

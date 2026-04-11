@@ -284,15 +284,14 @@ public class LeaveService {
     balance.setLeaveType(policy.getLeaveType());
     balance.setBalanceYear(year);
 
-    long previousYear = (long) year - 1L;
-    BigDecimal carryForward =
-        previousYear < Integer.MIN_VALUE || previousYear > Integer.MAX_VALUE
-            ? BigDecimal.ZERO
-            : leaveBalanceRepository
-                .findByCompanyAndEmployeeAndLeaveTypeAndBalanceYear(
-                    company, employee, policy.getLeaveType(), (int) previousYear)
-                .map(previous -> previous.getRemaining().min(policy.getCarryForwardLimit()))
-                .orElse(BigDecimal.ZERO);
+    BigDecimal carryForward = BigDecimal.ZERO;
+    if (year != Integer.MIN_VALUE) {
+      carryForward =
+          leaveBalanceRepository.findByCompanyAndEmployeeAndLeaveTypeAndBalanceYear(
+              company, employee, policy.getLeaveType(), year - 1)
+              .map(previous -> previous.getRemaining().min(policy.getCarryForwardLimit()))
+              .orElse(BigDecimal.ZERO);
+    }
 
     balance.setCarryForwardApplied(carryForward);
     balance.setOpeningBalance(carryForward);

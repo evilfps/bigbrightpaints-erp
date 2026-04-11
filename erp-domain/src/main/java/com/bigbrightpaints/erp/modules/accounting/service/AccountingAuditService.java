@@ -158,8 +158,8 @@ public class AccountingAuditService {
     if (journalEntry == null) {
       return;
     }
-    validateSettlementEventPayloadCompatibility(journalEntry, "DEALER_RECEIPT_POSTED");
     try {
+      validateSettlementEventPayloadCompatibility(journalEntry, "DEALER_RECEIPT_POSTED");
       accountingEventStore.recordDealerReceiptPosted(
           journalEntry, dealerId, amount, normalizeAuditValue(idempotencyKey));
     } catch (Exception ex) {
@@ -173,8 +173,8 @@ public class AccountingAuditService {
     if (journalEntry == null) {
       return;
     }
-    validateSettlementEventPayloadCompatibility(journalEntry, "SUPPLIER_PAYMENT_POSTED");
     try {
+      validateSettlementEventPayloadCompatibility(journalEntry, "SUPPLIER_PAYMENT_POSTED");
       accountingEventStore.recordSupplierPaymentPosted(
           journalEntry, supplierId, amount, normalizeAuditValue(idempotencyKey));
     } catch (Exception ex) {
@@ -193,8 +193,8 @@ public class AccountingAuditService {
     if (journalEntry == null || partnerType == null) {
       return;
     }
-    validateSettlementEventPayloadCompatibility(journalEntry, "SETTLEMENT_ALLOCATED");
     try {
+      validateSettlementEventPayloadCompatibility(journalEntry, "SETTLEMENT_ALLOCATED");
       accountingEventStore.recordSettlementAllocated(
           journalEntry,
           partnerType.name(),
