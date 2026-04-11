@@ -131,6 +131,7 @@ public class EnterpriseAuditTrailService {
     persistBusinessEventWithRetry(command, actorSnapshot);
   }
 
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void recordBusinessEventSync(AuditActionEventCommand command, UserAccount actorSnapshot) {
     persistBusinessEventWithRetry(command, actorSnapshot);
   }

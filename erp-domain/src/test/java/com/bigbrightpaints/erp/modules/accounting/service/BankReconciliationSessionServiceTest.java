@@ -185,7 +185,7 @@ class BankReconciliationSessionServiceTest {
             eq(detailed.getStatementEndingBalance()),
             eq(LocalDate.of(2026, 3, 1)),
             eq(LocalDate.of(2026, 3, 31)),
-            eq(Set.of(1001L)),
+            eq(Collections.emptySet()),
             eq(Collections.emptySet())))
         .thenReturn(summary("100.00", "0.00", "0.00", true));
 
@@ -598,7 +598,7 @@ class BankReconciliationSessionServiceTest {
             eq(detailed.getStatementEndingBalance()),
             eq(LocalDate.of(2026, 3, 1)),
             eq(LocalDate.of(2026, 3, 31)),
-            eq(Set.of(8201L)),
+            eq(Collections.emptySet()),
             eq(Collections.emptySet())))
         .thenReturn(summary("0.00", "0.00", "0.00", true));
 
@@ -872,6 +872,77 @@ class BankReconciliationSessionServiceTest {
     assertThat(response.unmatchedItems().get(0).referenceNumber()).isEqualTo("UNC-6401");
     assertThat(response.unmatchedItems().get(0).bankItemId()).isNull();
     assertThat(response.unmatchedItems().get(0).journalEntryId()).isEqualTo(6401L);
+  }
+
+  @Test
+  void getSessionDetail_excludesPersistedUnmatchedItemsFromClearedSummarySet() {
+    Account bankAccount = bankAccount(99L, "BANK", "Main Bank");
+    BankReconciliationSession session =
+        session(90L, bankAccount, BankReconciliationSessionStatus.IN_PROGRESS);
+
+    JournalLine unmatchedLine =
+        journalLine(
+            5101L,
+            company,
+            bankAccount,
+            "UNMATCHED-5101",
+            LocalDate.of(2026, 3, 27),
+            "Unmatched",
+            "25.00",
+            "0.00");
+    BankReconciliationItem unmatchedItem =
+        item(902L, session, unmatchedLine, "UNMATCHED-5101", "25.00", "admin");
+
+    when(sessionRepository.findDetailedByCompanyAndId(company, 90L))
+        .thenReturn(Optional.of(session));
+    when(itemRepository.findDetailedBySession(session)).thenReturn(List.of(unmatchedItem));
+    BankReconciliationSummaryDto summary =
+        new BankReconciliationSummaryDto(
+            99L,
+            "BANK",
+            "Main Bank",
+            LocalDate.of(2026, 3, 31),
+            new BigDecimal("1000.00"),
+            new BigDecimal("1000.00"),
+            new BigDecimal("25.00"),
+            BigDecimal.ZERO,
+            new BigDecimal("25.00"),
+            false,
+            List.of(
+                new BankReconciliationSummaryDto.BankReconciliationItemDto(
+                    5101L,
+                    "UNMATCHED-5101",
+                    LocalDate.of(2026, 3, 27),
+                    "Unmatched",
+                    new BigDecimal("25.00"),
+                    BigDecimal.ZERO,
+                    new BigDecimal("25.00"))),
+            List.of());
+    when(reconciliationService.reconcileBankAccount(
+            eq(99L),
+            eq(session.getStatementDate()),
+            eq(session.getStatementEndingBalance()),
+            eq(LocalDate.of(2026, 3, 1)),
+            eq(LocalDate.of(2026, 3, 31)),
+            eq(Collections.emptySet()),
+            eq(Collections.emptySet())))
+        .thenReturn(summary);
+
+    BankReconciliationSessionDetailDto response = service.getSessionDetail(90L);
+
+    assertThat(response.matchedItems()).isEmpty();
+    assertThat(response.unmatchedItems()).hasSize(2);
+    assertThat(response.unmatchedItems().get(0).journalLineId()).isEqualTo(5101L);
+    assertThat(response.unmatchedItems().get(0).bankItemId()).isNull();
+    verify(reconciliationService)
+        .reconcileBankAccount(
+            eq(99L),
+            eq(session.getStatementDate()),
+            eq(session.getStatementEndingBalance()),
+            eq(LocalDate.of(2026, 3, 1)),
+            eq(LocalDate.of(2026, 3, 31)),
+            eq(Collections.emptySet()),
+            eq(Collections.emptySet()));
   }
 
   private BankReconciliationSummaryDto summary(

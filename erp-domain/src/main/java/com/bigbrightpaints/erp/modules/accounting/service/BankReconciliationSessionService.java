@@ -305,7 +305,10 @@ public class BankReconciliationSessionService {
 
     List<BankReconciliationItem> items = itemRepository.findDetailedBySession(session);
     Set<Long> clearedLineIds =
-        items.stream().map(item -> item.getJournalLine().getId()).collect(Collectors.toSet());
+        items.stream()
+            .filter(item -> item.getBankItemId() != null)
+            .map(item -> item.getJournalLine().getId())
+            .collect(Collectors.toSet());
     BankReconciliationSummaryDto summary = buildSummary(session, clearedLineIds, null, null);
     List<BankReconciliationSessionDetailDto.StatementItemDto> matchedItems =
         items.stream()

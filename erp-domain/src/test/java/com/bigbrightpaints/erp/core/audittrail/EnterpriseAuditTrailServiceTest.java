@@ -27,6 +27,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -129,6 +131,18 @@ class EnterpriseAuditTrailServiceTest {
 
     verify(selfProxy).recordBusinessEventSync(any(AuditActionEventCommand.class), any());
     verify(selfProxy, times(0)).recordBusinessEventAsync(any(AuditActionEventCommand.class), any());
+  }
+
+  @Test
+  void recordBusinessEventSync_runsInRequiresNewTransaction() throws Exception {
+    Method method =
+        EnterpriseAuditTrailService.class.getDeclaredMethod(
+            "recordBusinessEventSync", AuditActionEventCommand.class, UserAccount.class);
+
+    Transactional transactional = method.getAnnotation(Transactional.class);
+
+    assertThat(transactional).isNotNull();
+    assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRES_NEW);
   }
 
   @Test
