@@ -131,9 +131,25 @@ public class EnterpriseAuditTrailService {
     persistBusinessEventWithRetry(command, actorSnapshot);
   }
 
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void recordBusinessEventSync(AuditActionEventCommand command, UserAccount actorSnapshot) {
-    persistBusinessEventWithRetry(command, actorSnapshot);
+    if (command == null || command.company() == null) {
+      return;
+    }
+    EnterpriseAuditTrailService dispatcher = self != null ? self : this;
+    try {
+      dispatcher.recordBusinessEventSyncTransactional(command, actorSnapshot);
+    } catch (Exception ex) {
+      enqueueBusinessEventRetry(command, actorSnapshot, 1, ex);
+    }
+  }
+
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void recordBusinessEventSyncTransactional(
+      AuditActionEventCommand command, UserAccount actorSnapshot) {
+    if (command == null || command.company() == null) {
+      return;
+    }
+    persistBusinessEvent(command, actorSnapshot);
   }
 
   private void persistBusinessEventWithRetry(

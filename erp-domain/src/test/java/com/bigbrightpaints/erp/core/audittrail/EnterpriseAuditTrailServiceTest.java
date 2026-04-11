@@ -1,6 +1,7 @@
 package com.bigbrightpaints.erp.core.audittrail;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
@@ -134,12 +135,37 @@ class EnterpriseAuditTrailServiceTest {
   }
 
   @Test
-  void recordBusinessEventSync_runsInRequiresNewTransaction() throws Exception {
-    Method method =
+  void recordBusinessEventSync_queuesRetryWhenSynchronousWriteFails() {
+    EnterpriseAuditTrailService service = newService();
+    Company company = new Company();
+    setField(company, "id", 8L);
+
+    when(auditActionEventRepository.save(any(AuditActionEvent.class)))
+        .thenThrow(new RuntimeException("db unavailable"));
+    when(auditActionEventRetryRepository.save(any(AuditActionEventRetry.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    assertThatCode(() -> service.recordBusinessEventSync(command(company, null), null))
+        .doesNotThrowAnyException();
+
+    verify(auditActionEventRepository).save(any(AuditActionEvent.class));
+    verify(auditActionEventRetryRepository).save(any(AuditActionEventRetry.class));
+  }
+
+  @Test
+  void recordBusinessEventSyncTransactional_runsInRequiresNewTransaction() throws Exception {
+    Method outerMethod =
         EnterpriseAuditTrailService.class.getDeclaredMethod(
             "recordBusinessEventSync", AuditActionEventCommand.class, UserAccount.class);
+    Method innerMethod =
+        EnterpriseAuditTrailService.class.getDeclaredMethod(
+            "recordBusinessEventSyncTransactional",
+            AuditActionEventCommand.class,
+            UserAccount.class);
 
-    Transactional transactional = method.getAnnotation(Transactional.class);
+    assertThat(outerMethod.getAnnotation(Transactional.class)).isNull();
+
+    Transactional transactional = innerMethod.getAnnotation(Transactional.class);
 
     assertThat(transactional).isNotNull();
     assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRES_NEW);
