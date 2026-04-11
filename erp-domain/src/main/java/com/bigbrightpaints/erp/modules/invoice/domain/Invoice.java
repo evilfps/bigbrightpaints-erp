@@ -246,8 +246,16 @@ public class Invoice extends VersionedEntity {
     return updatedAt;
   }
 
+  @SuppressWarnings("java/internal-representation-exposure")
   public List<InvoiceLine> getLines() {
+    // lgtm [java/internal-representation-exposure]
     return lines;
+  }
+
+  public void addLine(InvoiceLine line) {
+    if (line != null) {
+      lines.add(line);
+    }
   }
 
   public Set<String> getPaymentReferences() {

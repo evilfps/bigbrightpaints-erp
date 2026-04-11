@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -687,6 +688,7 @@ public class SuperAdminTenantControlPlaneService {
 
   private boolean isSharedAcrossCompanies(UserAccount user) {
     // Auth v2 hard-cut binds each account to exactly one tenant company.
+    Objects.requireNonNull(user, "User account is required");
     return false;
   }
 

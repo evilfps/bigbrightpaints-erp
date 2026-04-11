@@ -43,6 +43,7 @@ public class DealerLedgerService extends AbstractPartnerLedgerService<Dealer, De
   }
 
   @Transactional
+  @Override
   public void recordLedgerEntry(Dealer dealer, LedgerContext context) {
     super.recordLedgerEntry(dealer, context);
   }

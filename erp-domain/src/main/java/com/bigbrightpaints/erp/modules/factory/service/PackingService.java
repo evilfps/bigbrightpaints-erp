@@ -266,7 +266,7 @@ public class PackingService {
 
     savedRecord.setFinishedGoodBatch(finishedGoodBatch);
     packingRecordRepository.save(savedRecord);
-    log.getPackingRecords().add(savedRecord);
+    log.addPackingRecord(savedRecord);
 
     return new PackingLineExecution(savedRecord, lineQuantity);
   }

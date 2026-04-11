@@ -1039,7 +1039,11 @@ public class SalesReturnService {
         dispatchMovements.getOrDefault(finishedGood.getId(), java.util.List.of());
     if (movements.isEmpty()) {
       throw com.bigbrightpaints.erp.core.validation.ValidationUtils.invalidInput(
-          "Return requires dispatch cost layers for " + finishedGood.getProductCode());
+          "Return requires dispatch cost layers for "
+              + finishedGood.getProductCode()
+              + (invoiceLine != null && invoiceLine.getId() != null
+                  ? " on invoice line " + invoiceLine.getId()
+                  : ""));
     }
     BigDecimal remaining = quantity;
     BigDecimal costTotal = BigDecimal.ZERO;

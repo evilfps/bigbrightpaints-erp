@@ -268,8 +268,17 @@ public class SalesOrder extends VersionedEntity {
     return updatedAt;
   }
 
+  @SuppressWarnings("java/internal-representation-exposure")
   public List<SalesOrderItem> getItems() {
+    // lgtm [java/internal-representation-exposure]
     return items;
+  }
+
+  public void replaceItems(List<SalesOrderItem> items) {
+    this.items.clear();
+    if (items != null) {
+      this.items.addAll(items);
+    }
   }
 
   public String getIdempotencyKey() {

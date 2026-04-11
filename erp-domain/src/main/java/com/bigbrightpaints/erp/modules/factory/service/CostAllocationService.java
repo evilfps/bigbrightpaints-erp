@@ -155,7 +155,6 @@ public class CostAllocationService {
 
     BigDecimal laborVariance = laborCost.subtract(appliedLabor);
     BigDecimal overheadVariance = overheadCost.subtract(appliedOverhead);
-    BigDecimal totalVariance = laborVariance.add(overheadVariance);
 
     if (laborVariance.compareTo(BigDecimal.ZERO) == 0
         && overheadVariance.compareTo(BigDecimal.ZERO) == 0) {

@@ -108,6 +108,7 @@ public interface SalesOrderRepository
       @Param("company") Company company, @Param("id") Long id);
 
   @EntityGraph(attributePaths = {"company", "dealer"})
+  @Override
   List<SalesOrder> findAll();
 
   Optional<SalesOrder> findByCompanyAndIdempotencyKey(Company company, String idempotencyKey);

@@ -371,7 +371,8 @@ public class ProductionCatalogService {
   private ProcessOutcome processCatalogRowWithRetry(
       Company company, ImportRow importRow, ImportContext context) {
     RuntimeException lastError = null;
-    for (int attempt = 1; attempt <= 2; attempt++) {
+    int attemptsRemaining = 2;
+    while (attemptsRemaining > 0) {
       try {
         ProcessOutcome outcome =
             rowTransactionTemplate.execute(status -> upsertProduct(company, importRow, context));
@@ -383,7 +384,8 @@ public class ProductionCatalogService {
       } catch (RuntimeException ex) {
         lastError = ex;
         evictRowCache(company, importRow, context);
-        if (!isRetryableImportFailure(ex) || attempt == 2) {
+        attemptsRemaining--;
+        if (!isRetryableImportFailure(ex) || attemptsRemaining == 0) {
           throw ex;
         }
       }
@@ -591,27 +593,6 @@ public class ProductionCatalogService {
           fieldName + " is required");
     }
     return cleaned;
-  }
-
-  private UUID buildVariantGroupId(
-      Company company,
-      ProductionBrand brand,
-      String productFamilyName,
-      String itemClass,
-      String unitOfMeasure,
-      String hsnCode,
-      List<String> colors,
-      List<String> sizes) {
-    String fingerprint =
-        String.join(
-            "|",
-            String.valueOf(company != null ? company.getId() : null),
-            String.valueOf(brand != null ? brand.getId() : null),
-            sanitizeSegment(productFamilyName),
-            sanitizeSegment(itemClass),
-            sanitizeSegment(unitOfMeasure),
-            sanitizeSegment(hsnCode));
-    return UUID.nameUUIDFromBytes(fingerprint.getBytes(StandardCharsets.UTF_8));
   }
 
   private String buildDeterministicSku(
@@ -1244,7 +1225,11 @@ public class ProductionCatalogService {
     if (last.isPresent()) {
       Matcher matcher = SEQUENCE_PATTERN.matcher(last.get().getSkuCode());
       if (matcher.matches()) {
-        nextSeq = Integer.parseInt(matcher.group(1)) + 1;
+        try {
+          nextSeq = Integer.parseInt(matcher.group(1)) + 1;
+        } catch (NumberFormatException ex) {
+          nextSeq = 1;
+        }
       }
     }
     return normalizedPrefix + "-" + String.format("%03d", nextSeq);
@@ -1386,7 +1371,7 @@ public class ProductionCatalogService {
       material.setGstRate(percent(product.getGstRate()));
     }
     com.bigbrightpaints.erp.modules.inventory.domain.MaterialType materialType =
-        resolveRawMaterialMaterialType(product, material, itemClassHint);
+        resolveRawMaterialMaterialType(material, itemClassHint);
     if (materialType != null && material.getMaterialType() != materialType) {
       material.setMaterialType(materialType);
     }
@@ -1761,7 +1746,7 @@ public class ProductionCatalogService {
 
   private com.bigbrightpaints.erp.modules.inventory.domain.MaterialType
       resolveRawMaterialMaterialType(
-          ProductionProduct product, RawMaterial material, String itemClassHint) {
+          RawMaterial material, String itemClassHint) {
     if (StringUtils.hasText(itemClassHint)) {
       return ITEM_CLASS_PACKAGING_RAW_MATERIAL.equals(normalizeItemClass(itemClassHint))
           ? com.bigbrightpaints.erp.modules.inventory.domain.MaterialType.PACKAGING

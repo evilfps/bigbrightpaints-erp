@@ -145,7 +145,7 @@ public class DealerService {
           scopedAccountBootstrapService.provisionTenantAccount(
               company, contactEmail, dealer.getName(), List.of(dealerRole));
     }
-    portalUser.getRoles().add(roleService.ensureRoleExists("ROLE_DEALER"));
+    portalUser.addRole(roleService.ensureRoleExists("ROLE_DEALER"));
     portalUser.setCompany(company);
     portalUser = userAccountRepository.save(portalUser);
 

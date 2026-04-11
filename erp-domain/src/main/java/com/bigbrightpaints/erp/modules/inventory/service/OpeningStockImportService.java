@@ -427,7 +427,7 @@ public class OpeningStockImportService {
   }
 
   private String normalizeIdempotencyKey(String idempotencyKey) {
-    String resolved = StringUtils.hasText(idempotencyKey) ? idempotencyKey.trim() : null;
+    String resolved = StringUtils.trimWhitespace(idempotencyKey);
     if (!StringUtils.hasText(resolved)) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
@@ -441,8 +441,7 @@ public class OpeningStockImportService {
   }
 
   private String normalizeOpeningStockBatchKey(String openingStockBatchKey) {
-    String resolved =
-        StringUtils.hasText(openingStockBatchKey) ? openingStockBatchKey.trim() : null;
+    String resolved = StringUtils.trimWhitespace(openingStockBatchKey);
     if (!StringUtils.hasText(resolved)) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
@@ -844,7 +843,8 @@ public class OpeningStockImportService {
     if (!StringUtils.hasText(code)) {
       return "COMPANY";
     }
-    String normalized = code.trim().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
+    String normalized =
+        StringUtils.trimWhitespace(code).toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
     return normalized.isBlank() ? "COMPANY" : normalized;
   }
 
@@ -910,9 +910,7 @@ public class OpeningStockImportService {
 
   private OpeningMovementResult handleFinishedGood(Company company, OpeningRow row) {
     String sku = requirePreparedSku(row);
-    SkuReadinessDto readiness =
-        requireOpeningStockReady(
-            company, sku, row, SkuReadinessService.ExpectedStockType.FINISHED_GOOD);
+    requireOpeningStockReady(company, sku, row, SkuReadinessService.ExpectedStockType.FINISHED_GOOD);
     FinishedGood finishedGood =
         finishedGoodRepository
             .findByCompanyAndProductCode(company, sku)

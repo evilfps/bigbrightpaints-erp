@@ -695,8 +695,7 @@ public class SalesCoreEngine {
     String paymentMode = normalizeOrderPaymentMode(request.paymentMode());
     boolean gstInclusive = Boolean.TRUE.equals(request.gstInclusive());
     Dealer dealer =
-        salesProformaBoundaryService.resolveDealerForProforma(
-            company, request.dealerId(), paymentMode);
+        salesProformaBoundaryService.resolveDealerForProforma(company, request.dealerId());
     List<PricedOrderLine> items =
         resolveOrderItems(company, request.items(), gstTreatment, orderLevelRate);
     SalesOrder order = new SalesOrder();
@@ -1082,8 +1081,7 @@ public class SalesCoreEngine {
             ? request.dealerId()
             : order.getDealer() != null ? order.getDealer().getId() : null;
     Dealer dealer =
-        salesProformaBoundaryService.resolveDealerForProforma(
-            order.getCompany(), dealerId, paymentMode);
+        salesProformaBoundaryService.resolveDealerForProforma(order.getCompany(), dealerId);
     List<PricedOrderLine> items =
         resolveOrderItems(order.getCompany(), request.items(), gstTreatment, orderLevelRate);
     order.setDealer(dealer);
@@ -1597,7 +1595,7 @@ public class SalesCoreEngine {
           }
           if (cogsJournalEntryId == null) {
             cogsJournalEntryId =
-                resolveCogsMarkerForReconciliation(company, order, singleActiveSlip, null);
+                resolveCogsMarkerForReconciliation(order, singleActiveSlip, null);
           }
           if (invoiceId == null && salesJournalEntryId == null && cogsJournalEntryId == null) {
             // Avoid destructive cleanup when no slip-level anchors are available yet.
@@ -1630,7 +1628,7 @@ public class SalesCoreEngine {
   }
 
   private Long resolveCogsMarkerForReconciliation(
-      Company company, SalesOrder order, PackagingSlip slip, Long resolvedCogsJournalId) {
+      SalesOrder order, PackagingSlip slip, Long resolvedCogsJournalId) {
     Long cogsJournalEntryId = resolvedCogsJournalId;
     if (cogsJournalEntryId != null || slip == null) {
       return cogsJournalEntryId;
@@ -1785,7 +1783,7 @@ public class SalesCoreEngine {
       GstTreatment gstTreatment,
       BigDecimal orderLevelRate,
       boolean gstInclusive) {
-    order.getItems().clear();
+    order.replaceItems(List.of());
     if (requests == null || requests.isEmpty()) {
       order.setSubtotalAmount(BigDecimal.ZERO);
       order.setGstTotal(BigDecimal.ZERO);
@@ -1814,7 +1812,7 @@ public class SalesCoreEngine {
       items.add(item);
       subtotal = subtotal.add(lineSubtotal);
     }
-    order.getItems().addAll(items);
+    order.replaceItems(items);
 
     BigDecimal rawSubtotal = subtotal; // capture original (possibly GST-inclusive) subtotal
     BigDecimal taxTotal = BigDecimal.ZERO;
@@ -2726,11 +2724,11 @@ public class SalesCoreEngine {
           dealerLedgerService.syncInvoiceLedger(existingInvoice, null);
         }
         boolean slipUpdated = false;
-        if (slip.getInvoiceId() == null && existingInvoiceId != null) {
+        if (slip.getInvoiceId() == null) {
           slip.setInvoiceId(existingInvoiceId);
           slipUpdated = true;
         }
-        if (slip.getJournalEntryId() == null && existingJeId != null) {
+        if (slip.getJournalEntryId() == null) {
           slip.setJournalEntryId(existingJeId);
           slipUpdated = true;
         }
@@ -2742,7 +2740,7 @@ public class SalesCoreEngine {
           packagingSlipRepository.save(slip);
         }
         Long cogsMarkerForReconciliation =
-            resolveCogsMarkerForReconciliation(company, order, slip, existingCogsJournalId);
+            resolveCogsMarkerForReconciliation(order, slip, existingCogsJournalId);
         boolean orderUpdated =
             reconcileOrderLevelDispatchMarkers(
                 order,
@@ -3359,8 +3357,9 @@ public class SalesCoreEngine {
             ? LocalDate.ofInstant(slip.getDispatchedAt(), ZoneId.of(company.getTimezone()))
             : currentDate(company);
 
+    Objects.requireNonNull(company, "Company is required for dispatch confirmation");
     Long cogsJournalId = null;
-    if (postings != null && !postings.isEmpty()) {
+    if (!postings.isEmpty()) {
       Map<String, BigDecimal> cogsCostByPair = new HashMap<>();
       Map<String, Long[]> cogsAccountsByPair = new HashMap<>();
       for (FinishedGoodsService.DispatchPosting posting : postings) {
@@ -3544,7 +3543,7 @@ public class SalesCoreEngine {
       invoice.setNotes("Dispatch " + slipNumber);
       for (InvoiceLine line : invoiceLines) {
         line.setInvoice(invoice);
-        invoice.getLines().add(line);
+        invoice.addLine(line);
       }
     }
     if (arJournalEntryId != null

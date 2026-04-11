@@ -44,6 +44,7 @@ public class SupplierLedgerService
   }
 
   @Transactional
+  @Override
   public void recordLedgerEntry(Supplier supplier, LedgerContext context) {
     Objects.requireNonNull(supplier, "Partner is required for ledger entry");
     Objects.requireNonNull(context, "Ledger context is required");

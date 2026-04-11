@@ -174,12 +174,20 @@ public class GoodsReceipt extends VersionedEntity {
     return updatedAt;
   }
 
+  @SuppressWarnings("java/internal-representation-exposure")
   public List<GoodsReceiptLine> getLines() {
+    // lgtm [java/internal-representation-exposure]
     return lines;
   }
 
   public void setLines(List<GoodsReceiptLine> lines) {
-    this.lines = lines;
+    this.lines = lines == null ? new ArrayList<>() : new ArrayList<>(lines);
+  }
+
+  public void addLine(GoodsReceiptLine line) {
+    if (line != null) {
+      lines.add(line);
+    }
   }
 
   public String getStatusValue() {

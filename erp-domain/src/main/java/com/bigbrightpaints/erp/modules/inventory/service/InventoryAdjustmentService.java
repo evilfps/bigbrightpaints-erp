@@ -312,7 +312,7 @@ public class InventoryAdjustmentService {
     line.setUnitCost(lineRequest.unitCost());
     line.setAmount(BigDecimal.ZERO);
     line.setNote(lineRequest.note());
-    adjustment.getLines().add(line);
+    adjustment.addLine(line);
     return line;
   }
 

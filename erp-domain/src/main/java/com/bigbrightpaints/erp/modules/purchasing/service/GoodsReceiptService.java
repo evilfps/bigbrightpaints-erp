@@ -317,7 +317,7 @@ public class GoodsReceiptService {
       line.setCostPerUnit(costPerUnit);
       line.setLineTotal(lineTotal);
       line.setNotes(clean(lineRequest.notes()));
-      receipt.getLines().add(line);
+      receipt.addLine(line);
     }
 
     for (Map.Entry<Long, PurchaseOrderLine> entry : orderLinesByMaterial.entrySet()) {

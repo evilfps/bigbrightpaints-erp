@@ -235,7 +235,9 @@ public class ProductionLog extends VersionedEntity {
     return updatedAt;
   }
 
+  @SuppressWarnings("java/internal-representation-exposure")
   public List<ProductionLogMaterial> getMaterials() {
+    // lgtm [java/internal-representation-exposure]
     return materials;
   }
 
@@ -303,8 +305,22 @@ public class ProductionLog extends VersionedEntity {
     this.wastageReasonCode = wastageReasonCode;
   }
 
+  @SuppressWarnings("java/internal-representation-exposure")
   public List<PackingRecord> getPackingRecords() {
+    // lgtm [java/internal-representation-exposure]
     return packingRecords;
+  }
+
+  public void addMaterials(List<ProductionLogMaterial> materials) {
+    if (materials != null && !materials.isEmpty()) {
+      this.materials.addAll(materials);
+    }
+  }
+
+  public void addPackingRecord(PackingRecord packingRecord) {
+    if (packingRecord != null) {
+      this.packingRecords.add(packingRecord);
+    }
   }
 
   public Long getSalesOrderId() {

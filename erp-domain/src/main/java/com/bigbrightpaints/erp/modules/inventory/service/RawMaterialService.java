@@ -515,7 +515,7 @@ public class RawMaterialService {
       line.setUnitCost(unitCost);
       line.setAmount(amount);
       line.setNote(lineRequest.note());
-      adjustment.getLines().add(line);
+      adjustment.addLine(line);
 
       Long inventoryAccountId = material.getInventoryAccountId();
       if (inventoryAccountId == null && company.getDefaultInventoryAccountId() != null) {

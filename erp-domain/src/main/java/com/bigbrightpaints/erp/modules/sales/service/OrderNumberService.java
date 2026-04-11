@@ -61,7 +61,7 @@ public class OrderNumberService {
                   return formatOrderNumber(company.getCode(), fiscalYear, nextNumber);
                 });
         if (orderNumber != null) {
-          auditOrderNumber(company, fiscalYear, parseSequence(orderNumber), orderNumber);
+          auditOrderNumber(company, fiscalYear, orderNumber);
           return orderNumber;
         }
       } catch (DataIntegrityViolationException | OptimisticLockingFailureException ex) {
@@ -119,7 +119,7 @@ public class OrderNumberService {
     }
   }
 
-  private void auditOrderNumber(Company company, int fiscalYear, long value, String orderNumber) {
+  private void auditOrderNumber(Company company, int fiscalYear, String orderNumber) {
     Map<String, String> metadata = new HashMap<>();
     metadata.put("sequenceKey", "ORDER-" + company.getCode() + "-" + fiscalYear);
     metadata.put("orderNumber", orderNumber);

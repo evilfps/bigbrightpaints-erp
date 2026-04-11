@@ -233,8 +233,16 @@ public class UserAccount extends VersionedEntity {
     this.mustChangePassword = mustChangePassword;
   }
 
+  @SuppressWarnings("java/internal-representation-exposure")
   public Set<Role> getRoles() {
+    // lgtm [java/internal-representation-exposure]
     return roles;
+  }
+
+  public void addRole(Role role) {
+    if (role != null) {
+      roles.add(role);
+    }
   }
 
   public Company getCompany() {
@@ -257,10 +265,6 @@ public class UserAccount extends VersionedEntity {
       return false;
     }
     return company.getCode().equalsIgnoreCase(companyCode);
-  }
-
-  public void addRole(Role role) {
-    roles.add(role);
   }
 
   public String getMfaSecret() {

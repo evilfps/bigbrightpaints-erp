@@ -318,7 +318,7 @@ public class InvoiceService {
     DocumentLifecycleDto lifecycle =
         BusinessDocumentTruths.invoiceLifecycle(invoice.getStatus(), invoice.getJournalEntry());
     List<LinkedBusinessReferenceDto> linkedReferences =
-        buildLinkedReferences(invoice, lifecycle, linkedReferenceContext);
+        buildLinkedReferences(invoice, linkedReferenceContext);
     Dealer dealer = invoice.getDealer();
     return new InvoiceDto(
         invoice.getId(),
@@ -352,7 +352,6 @@ public class InvoiceService {
 
   private List<LinkedBusinessReferenceDto> buildLinkedReferences(
       Invoice invoice,
-      DocumentLifecycleDto lifecycle,
       LinkedReferenceContext linkedReferenceContext) {
     List<LinkedBusinessReferenceDto> linkedReferences = new ArrayList<>();
     SalesOrder salesOrder = invoice.getSalesOrder();
@@ -361,10 +360,6 @@ public class InvoiceService {
           linkedReferenceContext
               .packagingSlipsBySalesOrderId()
               .getOrDefault(salesOrder.getId(), List.of());
-      int salesOrderInvoiceCount =
-          linkedReferenceContext
-              .currentInvoiceCountsBySalesOrderId()
-              .getOrDefault(salesOrder.getId(), defaultCurrentInvoiceCount(invoice));
       linkedReferences.add(
           BusinessDocumentTruths.reference(
               "SOURCE_ORDER",

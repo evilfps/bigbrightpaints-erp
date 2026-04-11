@@ -167,11 +167,19 @@ public class RawMaterialAdjustment extends VersionedEntity {
     this.createdBy = createdBy;
   }
 
+  @SuppressWarnings("java/internal-representation-exposure")
   public List<RawMaterialAdjustmentLine> getLines() {
+    // lgtm [java/internal-representation-exposure]
     return lines;
   }
 
   public void setLines(List<RawMaterialAdjustmentLine> lines) {
-    this.lines = lines;
+    this.lines = lines == null ? new ArrayList<>() : new ArrayList<>(lines);
+  }
+
+  public void addLine(RawMaterialAdjustmentLine line) {
+    if (line != null) {
+      lines.add(line);
+    }
   }
 }

@@ -190,6 +190,9 @@ public class CompanyService {
   @Transactional
   public CompanyDto update(Long id, CompanyRequest request, Set<Company> allowedCompanies) {
     requireSuperAdminForTenantConfigurationUpdate();
+    if (log.isTraceEnabled() && allowedCompanies != null) {
+      log.trace("Tenant update request carried {} allowed companies", allowedCompanies.size());
+    }
     Company company =
         repository
             .findById(id)
@@ -605,9 +608,12 @@ public class CompanyService {
       metadata.put("targetCompanyCode", company.getCode());
       metadata.put("targetCompanyId", String.valueOf(company.getId()));
       metadata.put("resetEmail", resetEmail);
+      String normalizedSupportReason = StringUtils.trimWhitespace(supportReason);
       metadata.put(
           "supportReason",
-          StringUtils.hasText(supportReason) ? supportReason.trim() : "support-reset-requested");
+          StringUtils.hasText(normalizedSupportReason)
+              ? normalizedSupportReason
+              : "support-reset-requested");
       auditService.logSuccess(AuditEvent.ACCESS_GRANTED, metadata);
     } else {
       auditAuthorityDecision(
@@ -1081,17 +1087,21 @@ public class CompanyService {
     metadata.put("actor", resolveActor(authentication));
     metadata.put("reason", LIFECYCLE_SUPER_ADMIN_REQUIRED_REASON);
     metadata.put("tenantScope", resolveTenantScope(authentication));
+    String normalizedTargetCompanyCode = StringUtils.trimWhitespace(targetCompanyCode);
     if (companyId != null) {
       metadata.put("targetCompanyId", String.valueOf(companyId));
     }
-    if (StringUtils.hasText(targetCompanyCode)) {
-      metadata.put("targetCompanyCode", targetCompanyCode.trim());
+    if (StringUtils.hasText(normalizedTargetCompanyCode)) {
+      metadata.put("targetCompanyCode", normalizedTargetCompanyCode);
     }
     metadata.put(LIFECYCLE_STATE_METADATA_KEY, requestedState.name());
     metadata.put(LIFECYCLE_REASON_METADATA_KEY, lifecycleReason);
     metadata.put(LIFECYCLE_EVIDENCE_METADATA_KEY, LIFECYCLE_EVIDENCE_VALUE);
     auditService.logAuthFailure(
-        AuditEvent.ACCESS_DENIED, resolveActor(authentication), targetCompanyCode, metadata);
+        AuditEvent.ACCESS_DENIED,
+        resolveActor(authentication),
+        normalizedTargetCompanyCode,
+        metadata);
   }
 
   private void auditAuthorityDecision(

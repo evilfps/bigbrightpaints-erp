@@ -150,7 +150,7 @@ public class PurchaseOrderService {
       line.setCostPerUnit(costPerUnit);
       line.setLineTotal(lineTotal);
       line.setNotes(clean(lineRequest.notes()));
-      purchaseOrder.getLines().add(line);
+      purchaseOrder.addLine(line);
     }
 
     PurchaseOrder saved = purchaseOrderRepository.save(purchaseOrder);

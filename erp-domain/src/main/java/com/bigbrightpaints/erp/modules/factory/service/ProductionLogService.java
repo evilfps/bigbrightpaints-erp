@@ -312,7 +312,7 @@ public class ProductionLogService {
     Map<Long, BigDecimal> accountTotals = new HashMap<>();
     for (ProductionLogRequest.MaterialUsageRequest usage : usages) {
       MaterialConsumption consumption = consumeMaterial(company, log, usage);
-      log.getMaterials().addAll(consumption.materials());
+      log.addMaterials(consumption.materials());
       totalCost = totalCost.add(consumption.totalCost());
       accountTotals.merge(
           consumption.inventoryAccountId(), consumption.totalCost(), BigDecimal::add);

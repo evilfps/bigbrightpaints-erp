@@ -362,14 +362,14 @@ public class DealerPortalService {
   }
 
   private String resolveAuthenticatedEmail(UserAccount authenticatedUser, Authentication auth) {
-    String email = authenticatedUser != null ? authenticatedUser.getEmail() : null;
+    String email = authenticatedUser == null ? null : authenticatedUser.getEmail();
     if (!StringUtils.hasText(email)) {
-      email = auth.getName();
+      email = auth == null ? null : auth.getName();
     }
     if (!StringUtils.hasText(email)) {
       throw new AccessDeniedException("No authenticated user identity");
     }
-    return email.trim();
+    return StringUtils.trimWhitespace(email);
   }
 
   private Dealer resolveSingleDealerOrNull(List<Dealer> candidates, String identity) {

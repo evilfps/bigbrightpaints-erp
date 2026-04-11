@@ -99,7 +99,7 @@ public class ModuleGatingInterceptor implements HandlerInterceptor {
     if (!StringUtils.hasText(path)) {
       return null;
     }
-    String normalized = path.trim();
+    String normalized = StringUtils.trimWhitespace(path);
     while (normalized.endsWith("/") && normalized.length() > 1) {
       normalized = normalized.substring(0, normalized.length() - 1);
     }

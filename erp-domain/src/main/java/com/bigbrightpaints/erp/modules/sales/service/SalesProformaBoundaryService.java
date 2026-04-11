@@ -93,7 +93,7 @@ final class SalesProformaBoundaryService {
     return true;
   }
 
-  Dealer resolveDealerForProforma(Company company, Long dealerId, String paymentMode) {
+  Dealer resolveDealerForProforma(Company company, Long dealerId) {
     if (dealerId == null) {
       return null;
     }

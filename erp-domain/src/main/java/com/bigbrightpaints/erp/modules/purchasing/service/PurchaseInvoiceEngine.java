@@ -270,9 +270,7 @@ public class PurchaseInvoiceEngine {
       receiptUnits.put(materialId, line.getUnit());
       receiptLinesByMaterial.put(materialId, line);
     }
-    List<RawMaterialMovement> goodsReceiptMovements =
-        requireGoodsReceiptMovementsReadyForInvoicing(
-            company, goodsReceipt, receiptLinesByMaterial);
+    requireGoodsReceiptMovementsReadyForInvoicing(company, goodsReceipt, receiptLinesByMaterial);
 
     boolean taxProvided = request.taxAmount() != null;
     Set<Long> invoiceMaterialIds = new HashSet<>();
@@ -559,7 +557,7 @@ public class PurchaseInvoiceEngine {
       line.setSgstAmount(lineCalc.sgstAmount());
       line.setIgstAmount(lineCalc.igstAmount());
       line.setNotes(lineCalc.notes());
-      purchase.getLines().add(line);
+      purchase.addLine(line);
     }
 
     purchase = purchaseRepository.save(purchase);

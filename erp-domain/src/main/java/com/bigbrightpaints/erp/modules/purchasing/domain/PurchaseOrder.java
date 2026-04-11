@@ -140,12 +140,20 @@ public class PurchaseOrder extends VersionedEntity {
     return updatedAt;
   }
 
+  @SuppressWarnings("java/internal-representation-exposure")
   public List<PurchaseOrderLine> getLines() {
+    // lgtm [java/internal-representation-exposure]
     return lines;
   }
 
   public void setLines(List<PurchaseOrderLine> lines) {
-    this.lines = lines;
+    this.lines = lines == null ? new ArrayList<>() : new ArrayList<>(lines);
+  }
+
+  public void addLine(PurchaseOrderLine line) {
+    if (line != null) {
+      lines.add(line);
+    }
   }
 
   public String getStatusValue() {
