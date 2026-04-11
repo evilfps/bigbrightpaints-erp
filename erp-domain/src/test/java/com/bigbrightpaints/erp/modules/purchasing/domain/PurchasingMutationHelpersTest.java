@@ -54,4 +54,21 @@ class PurchasingMutationHelpersTest {
     assertThat(order.getStatusEnum()).isEqualTo(PurchaseOrderStatus.VOID);
     assertThat(order.getLines()).hasSize(2);
   }
+
+  @Test
+  void rawMaterialPurchase_setLinesAndAddLine_handleNullAndCopyInputs() {
+    RawMaterialPurchase purchase = new RawMaterialPurchase();
+    RawMaterialPurchaseLine line = new RawMaterialPurchaseLine();
+
+    purchase.setLines(null);
+    purchase.addLine(null);
+    assertThat(purchase.getLines()).isEmpty();
+
+    List<RawMaterialPurchaseLine> source = new ArrayList<>(List.of(line));
+    purchase.setLines(source);
+    source.clear();
+    purchase.addLine(line);
+
+    assertThat(purchase.getLines()).hasSize(2);
+  }
 }

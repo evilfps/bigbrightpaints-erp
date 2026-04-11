@@ -43,6 +43,7 @@ com.bigbrightpaints.erp.modules.accounting.service.SettlementReplayValidationSer
 com.bigbrightpaints.erp.modules.accounting.service.OpeningBalanceImportServiceTest
 com.bigbrightpaints.erp.modules.accounting.service.TallyImportServiceTest
 com.bigbrightpaints.erp.core.audit.AuditServiceTest
+com.bigbrightpaints.erp.core.audit.IntegrationFailureMetadataSchemaContractTest
 com.bigbrightpaints.erp.core.audittrail.AuditCorrelationIdResolverTest
 com.bigbrightpaints.erp.core.auditaccess.AccountingTransactionAuditReadAdapterTest
 com.bigbrightpaints.erp.core.auditaccess.AuditEventClassifierTest

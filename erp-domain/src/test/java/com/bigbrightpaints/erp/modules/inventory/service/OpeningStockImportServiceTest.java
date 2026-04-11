@@ -846,6 +846,14 @@ class OpeningStockImportServiceTest {
               assertThat(ex.getMessage())
                   .isEqualTo("Idempotency key is required for opening stock imports");
             });
+    assertThatThrownBy(() -> importOpeningStock(file, null))
+        .isInstanceOfSatisfying(
+            ApplicationException.class,
+            ex -> {
+              assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD);
+              assertThat(ex.getMessage())
+                  .isEqualTo("Idempotency key is required for opening stock imports");
+            });
   }
 
   @Test

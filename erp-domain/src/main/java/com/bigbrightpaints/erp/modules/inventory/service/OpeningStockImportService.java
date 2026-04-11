@@ -427,7 +427,7 @@ public class OpeningStockImportService {
   }
 
   private String normalizeIdempotencyKey(String idempotencyKey) {
-    String resolved = idempotencyKey.trim();
+    String resolved = idempotencyKey == null ? null : idempotencyKey.trim();
     if (!StringUtils.hasText(resolved)) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,
@@ -441,7 +441,7 @@ public class OpeningStockImportService {
   }
 
   private String normalizeOpeningStockBatchKey(String openingStockBatchKey) {
-    String resolved = openingStockBatchKey.trim();
+    String resolved = openingStockBatchKey == null ? null : openingStockBatchKey.trim();
     if (!StringUtils.hasText(resolved)) {
       throw new ApplicationException(
           ErrorCode.VALIDATION_MISSING_REQUIRED_FIELD,

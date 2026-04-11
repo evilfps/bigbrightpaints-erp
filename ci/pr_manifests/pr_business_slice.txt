@@ -55,6 +55,7 @@ FinishedGoodsDispatchEngineCoverageTest
 FinishedGoodsReservationEngineTest
 FinishedGoodsServiceTest
 com.bigbrightpaints.erp.modules.inventory.service.InventoryBatchTraceabilityServiceTest
+com.bigbrightpaints.erp.modules.inventory.domain.InventoryMutationHelpersTest
 InventoryValuationServiceTest
 com.bigbrightpaints.erp.modules.inventory.RawMaterialAndProductUpdateIT
 com.bigbrightpaints.erp.modules.inventory.controller.FinishedGoodControllerTest
@@ -74,6 +75,7 @@ PurchaseResponseMapperTest
 PurchaseReturnIdempotencyRegressionIT
 PurchaseReturnServiceTest
 com.bigbrightpaints.erp.modules.purchasing.controller.SupplierControllerRoleVisibilityTest
+com.bigbrightpaints.erp.modules.purchasing.domain.PurchasingMutationHelpersTest
 com.bigbrightpaints.erp.modules.purchasing.service.SupplierServiceTest
 PurchasingServiceGoodsReceiptTest
 PurchasingServiceTest
@@ -81,6 +83,7 @@ RawMaterialPurchaseControllerTest
 RawMaterialServiceReceiptContextTest
 SalesControllerIdempotencyHeaderTest
 SalesControllerIT
+com.bigbrightpaints.erp.modules.production.service.ProductionCatalogServiceRetryPolicyTest
 com.bigbrightpaints.erp.modules.sales.service.OrderNumberServiceTest
 com.bigbrightpaints.erp.modules.sales.service.SalesOrderAutoCloseServiceTest
 SalesCoreEngineCoverageTest

@@ -588,10 +588,15 @@ class ProductionCatalogServiceRetryPolicyTest {
     Class<?> importContextClass =
         Class.forName(ProductionCatalogService.class.getName() + "$ImportContext");
     Constructor<?> constructor =
-        importContextClass.getDeclaredConstructor(Map.class, Map.class, Map.class, Map.class);
+        importContextClass.getDeclaredConstructor(
+            Map.class, Map.class, Map.class, Map.class, Map.class);
     constructor.setAccessible(true);
     return constructor.newInstance(
-        brandsByName, productsBySku, productsByBrandName, validatedRawMaterialInventoryAccounts);
+        brandsByName,
+        productsBySku,
+        productsByBrandName,
+        validatedRawMaterialInventoryAccounts,
+        new HashMap<Long, Long>());
   }
 
   private Object newImportRow(

@@ -488,7 +488,11 @@ def main() -> int:
                 results["pr-changed-coverage"].changed_coverage_summary = relpath(changed_coverage_output)
                 coverage_summary = load_json(changed_coverage_output)
                 compatible_failure, compatibility_reason = changed_coverage_failure_is_compatible(coverage_summary)
-                if results["pr-changed-coverage"].result == "failure" and compatible_failure:
+                if (
+                    results["pr-changed-coverage"].result == "failure"
+                    and coverage_baseline_applied
+                    and compatible_failure
+                ):
                     print(
                         "[pr-changed-coverage] WARN: thresholds were not met but coverage mapping is complete; "
                         "recording compatibility-mode success for long-lived diff parity."
