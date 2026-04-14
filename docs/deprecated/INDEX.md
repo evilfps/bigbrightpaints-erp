@@ -154,13 +154,7 @@ The following historical docs remain in the repo for reference but are **not** t
 
 | Document | Status | Replacement |
 | --- | --- | --- |
-| [docs/frontend-handoff-platform.md](../frontend-handoff-platform.md) | Reference only (superseded) | Use [docs/frontend-portals/README.md](../frontend-portals/README.md) and [docs/frontend-api/README.md](../frontend-api/README.md) |
-| [docs/frontend-handoff-operations.md](../frontend-handoff-operations.md) | Reference only (superseded) | Use [docs/frontend-portals/README.md](../frontend-portals/README.md) and [docs/frontend-api/README.md](../frontend-api/README.md) |
-| [docs/frontend-handoff-commercial.md](../frontend-handoff-commercial.md) | Reference only (superseded) | Use [docs/frontend-portals/README.md](../frontend-portals/README.md) and [docs/frontend-api/README.md](../frontend-api/README.md) |
-| [docs/frontend-handoff-finance.md](../frontend-handoff-finance.md) | Reference only (superseded) | Use [docs/frontend-portals/README.md](../frontend-portals/README.md) and [docs/frontend-api/README.md](../frontend-api/README.md) |
-| [docs/accounting-portal-frontend-engineer-handoff.md](../accounting-portal-frontend-engineer-handoff.md) | Reference only (historical deep handoff) | Use [docs/frontend-portals/accounting/README.md](../frontend-portals/accounting/README.md) and [docs/frontend-api/README.md](../frontend-api/README.md) |
 | [docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md](../ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md) | Reference only (retained scope lock) | Use [docs/frontend-portals/accounting/README.md](../frontend-portals/accounting/README.md) and [docs/frontend-api/README.md](../frontend-api/README.md) for current portal ownership and API boundary truth |
-| [docs/accounting-portal-endpoint-map.md](../accounting-portal-endpoint-map.md) | Reference only (curated parity snapshot) | Use [docs/frontend-portals/accounting/README.md](../frontend-portals/accounting/README.md), [docs/frontend-api/README.md](../frontend-api/README.md), and `openapi.json` for current contract truth |
 | [docs/AUDIT_TRAIL_OWNERSHIP.md](../AUDIT_TRAIL_OWNERSHIP.md) | Reference only (narrow change-control contract) | Use [docs/modules/core-audit-runtime-settings.md](../modules/core-audit-runtime-settings.md) for the canonical audit ownership overview |
 | [docs/workflows/admin-and-tenant-management.md](../workflows/admin-and-tenant-management.md) | Reference only (superseded) | Use [docs/flows/tenant-admin-management.md](../flows/tenant-admin-management.md) |
 | [docs/workflows/manufacturing-and-packaging.md](../workflows/manufacturing-and-packaging.md) | Reference only (superseded) | Use [docs/flows/manufacturing-packing.md](../flows/manufacturing-packing.md) |

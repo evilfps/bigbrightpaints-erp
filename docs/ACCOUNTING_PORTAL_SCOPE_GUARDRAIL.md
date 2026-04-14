@@ -19,14 +19,14 @@ This invariant protects route ownership, API contract coverage, QA scope, and re
 
 Any scope change must be applied in one atomic change set with explicit evidence:
 
-1. Updated portal endpoint map and frontend handoff docs for every affected portal.
+1. Updated canonical portal and frontend API docs for every affected portal.
 2. Updated `docs/endpoint-inventory.md` module mapping and examples.
 3. Added packet evidence covering rationale, impact, and verification plan.
 
 ## Required References
 
-- `docs/accounting-portal-endpoint-map.md`
-- `docs/accounting-portal-frontend-engineer-handoff.md`
+- `docs/frontend-portals/accounting/README.md`
+- `docs/frontend-api/README.md`
 - `docs/endpoint-inventory.md`
 
 ## Fail-Closed Policy

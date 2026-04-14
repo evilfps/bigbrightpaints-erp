@@ -10,8 +10,8 @@ Updated: 2026-04-08
 Related behavior contract:
 - `docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md`
 - `docs/AUDIT_TRAIL_OWNERSHIP.md`
-- `docs/accounting-portal-endpoint-map.md`
-- `docs/accounting-portal-frontend-engineer-handoff.md`
+- `docs/frontend-portals/accounting/README.md`
+- `docs/frontend-api/README.md`
 
 Portal scope guardrail:
 - HR, PURCHASING, INVENTORY, and REPORTS come under the Accounting portal in frontend scope.

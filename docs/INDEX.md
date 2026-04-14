@@ -104,17 +104,9 @@ The seeded ADR set covers multi-tenant auth scoping (ADR-002), outbox/idempotenc
 | Factory | [docs/frontend-portals/factory/](frontend-portals/factory/) | Production logs, packing, dispatch execution |
 | Dealer Client | [docs/frontend-portals/dealer-client/](frontend-portals/dealer-client/) | Self-service portal, own orders/invoices/ledger |
 
-## Legacy Frontend Handoff (Reference Only)
+## Frontend Handoff
 
-> **⚠️ These documents are NON-CANONICAL / REFERENCE ONLY.** The canonical frontend documentation is now at `docs/frontend-portals/` and `docs/frontend-api/` above. These older handoff files are retained for reference but should not be used as the source of truth.
-
-| Document | Status |
-| --- | --- |
-| [docs/frontend-handoff-platform.md](frontend-handoff-platform.md) | Reference only — superseded by `docs/frontend-portals/` and `docs/frontend-api/` |
-| [docs/frontend-handoff-operations.md](frontend-handoff-operations.md) | Reference only — superseded by `docs/frontend-portals/` and `docs/frontend-api/` |
-| [docs/frontend-handoff-commercial.md](frontend-handoff-commercial.md) | Reference only — superseded by `docs/frontend-portals/` and `docs/frontend-api/` |
-| [docs/frontend-handoff-finance.md](frontend-handoff-finance.md) | Reference only — superseded by `docs/frontend-portals/` and `docs/frontend-api/` |
-| [docs/accounting-portal-frontend-engineer-handoff.md](accounting-portal-frontend-engineer-handoff.md) | Reference only — superseded by `docs/frontend-portals/accounting/` |
+> Canonical frontend documentation lives in `docs/frontend-portals/` and `docs/frontend-api/`. Older duplicate handoff files were removed after the portal/api trees became the sole source of truth.
 
 ## Historical Workflow Guides (Reference Only)
 
@@ -172,6 +164,5 @@ The following docs remain in the repo for reference but are **not** part of the 
 | [developer-guide.md](developer-guide.md) | Non-canonical — superseded by the module packets and flow packets in the docs tree |
 | [ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md](ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md) | Reference only — retained accounting-portal scope lock; use `docs/frontend-portals/accounting/README.md` and `docs/frontend-api/README.md` for current portal truth |
 | [AUDIT_TRAIL_OWNERSHIP.md](AUDIT_TRAIL_OWNERSHIP.md) | Reference only — retained audit de-dup/change-control contract; use `docs/modules/core-audit-runtime-settings.md` for the canonical audit ownership overview |
-| [accounting-portal-endpoint-map.md](accounting-portal-endpoint-map.md) | Reference only — curated parity snapshot; use `docs/frontend-portals/accounting/README.md`, `docs/frontend-api/README.md`, and `openapi.json` for current contract truth |
 | [endpoint-inventory.md](endpoint-inventory.md) | Reference only; use `openapi.json` and module packets as primary truth |
 | [migration-guide.md](migration-guide.md) | Retired reference only — current migration rollout guidance lives in `docs/runbooks/migrations.md`; the legacy CSV/Tally appendix is archival |

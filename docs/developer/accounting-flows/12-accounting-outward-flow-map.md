@@ -22,8 +22,8 @@ flowchart LR
     ACC["AccountingController"] --> SET["SettlementService"]
     ACC --> STM["StatementService"]
     ACC --> TMP["TemporalBalanceService"]
-    ACC --> PAY["PayrollController"]
-    PAY --> AENG["AccountingCoreEngineCore.processPayrollBatchPayment"]
+    ACC --> PAY["JournalController.recordPayrollPayment"]
+    PAY --> AENG["PayrollAccountingService.recordPayrollPayment"]
     CAT["CatalogController"] --> PCS["ProductionCatalogService"]
 
     CLR["CreditLimitRequestController"] --> CLS["CreditLimitRequestService"]
@@ -94,15 +94,15 @@ flowchart LR
 
 - entrypoints:
   - `HrPayrollController.postPayroll`
-  - `AccountingController.recordPayrollPayment`
-  - `PayrollController.processBatchPayment`
+  - `JournalController.recordPayrollPayment`
+  - `JournalController.recordPayrollPayment`
 - canonical path:
   - HR run lifecycle
   - `PayrollPostingService.postPayrollToAccounting`
   - `AccountingFacade.postPayrollRun`
   - accounting payment journal record
 - why it matters:
-  - HR owns run lifecycle, but accounting still exposes a narrower batch-payment seam
+  - HR owns run lifecycle, while accounting owns the payment-clearing journal seam after posting
 
 ### Admin -> Public Changelog
 
@@ -141,7 +141,7 @@ flowchart LR
   - `DealerController`
   - `AccountingController`
   - `ReportController`
-- payroll has one canonical HR lifecycle plus a narrower accounting batch-payment seam
+- payroll has one canonical HR lifecycle plus a separate accounting payment-clearing seam
 - changelog is global, not tenant-scoped, so it is adjacent to accounting operations but not owned by accounting truth
 
 ## Review Hotspots
@@ -153,5 +153,5 @@ flowchart LR
 - `DealerPortalService`
 - `StatementService`
 - `PayrollPostingService`
-- `PayrollController`
+- `JournalController`
 - `ChangelogService`

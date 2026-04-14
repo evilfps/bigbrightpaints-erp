@@ -51,7 +51,9 @@ This packet is hard-cut.
 
 - [../catalog-consolidation/README.md](../catalog-consolidation/README.md)
   Catalog surface cleanup packet for the surviving item-entry contract.
-- [../../accounting-portal-frontend-engineer-handoff.md](../../accounting-portal-frontend-engineer-handoff.md)
-  Frontend/API handoff that must stay aligned with this flow.
+- [../../frontend-portals/accounting/README.md](../../frontend-portals/accounting/README.md)
+  Canonical accounting portal handoff that must stay aligned with this flow.
+- [../../frontend-api/README.md](../../frontend-api/README.md)
+  Canonical frontend API contract index for current route and DTO truth.
 - [../../endpoint-inventory.md](../../endpoint-inventory.md)
   OpenAPI-derived route inventory that must match runtime truth.

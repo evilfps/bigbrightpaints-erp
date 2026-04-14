@@ -9,9 +9,9 @@
 - `modules/hr/domain`
   Purpose for this slice: payroll run and payroll run line truth, including journal linkage.
 - `modules/accounting/controller`
-  Purpose for this slice: accounting-owned payroll payment and batch-payment entrypoints.
-- `modules/accounting/internal`
-  Purpose for this slice: actual payroll journal and payment posting logic.
+  Purpose for this slice: accounting-owned payroll payment entrypoint.
+- `modules/accounting/service`
+  Purpose for this slice: payroll journal and payment posting logic.
 
 ## Canonical Workflow Graph
 
@@ -23,8 +23,8 @@ flowchart LR
     PPS --> AF["AccountingFacade.postPayrollRun"]
     AF --> ENG["AccountingCoreEngineCore"]
 
-    APC["AccountingController.recordPayrollPayment"] --> PAY["AccountingFacade.recordPayrollPayment"]
-    BATCH["PayrollController.processBatchPayment"] --> BENG["AccountingCoreEngineCore.processPayrollBatchPayment"]
+    APC["JournalController.recordPayrollPayment"] --> PAY["AccountingFacade.recordPayrollPayment"]
+    PAY --> BENG["PayrollAccountingService.recordPayrollPayment"]
     LEG["HrController /payroll-runs"] --> GONE["410 GONE alias guard"]
 ```
 
@@ -63,14 +63,13 @@ flowchart LR
 ### Payroll Payment
 
 - entry:
-  - `AccountingController.recordPayrollPayment`
-  - `PayrollController.processBatchPayment`
+  - `JournalController.recordPayrollPayment`
 - canonical path:
   - record payment against posted payroll journal
-  - or process accounting-side batch payment directly
+  - persist the clearing journal on the accounting host
 - key distinction:
   - `recordPayrollPayment` is the canonical journal payment path
-  - `processPayrollBatchPayment` is a narrower accounting shortcut
+  - HR still owns create/calculate/approve/post/mark-paid sequencing
 
 ### Legacy Alias Behavior
 
@@ -90,7 +89,7 @@ flowchart LR
 
 ## Duplicates and Bad Paths
 
-- HR owns canonical payroll lifecycle, but accounting still exposes `PayrollController.processBatchPayment`
+- HR owns canonical payroll lifecycle, while accounting owns only the payment-clearing journal seam
 - module ownership is path-sensitive:
   - `/api/v1/payroll/**` is `HR_PAYROLL`
   - `/api/v1/accounting/payroll/**` is treated as `ACCOUNTING`
@@ -103,6 +102,6 @@ flowchart LR
 - `HrController.legacyPayrollRunsGone`
 - `PayrollPostingService.postPayrollToAccounting`
 - `PayrollPostingService.markAsPaid`
-- `PayrollController.processBatchPayment`
-- `AccountingCoreEngineCore.processPayrollBatchPayment`
+- `JournalController.recordPayrollPayment`
+- `PayrollAccountingService.recordPayrollPayment`
 - `AccountingFacade.postPayrollRun`

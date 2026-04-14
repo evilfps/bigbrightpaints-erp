@@ -61,7 +61,7 @@
 ## Duplicates and Bad Paths
 
 - retired accounting catalog host was removed because it overlapped canonical catalog ownership
-- `PayrollController` overlaps HR payroll lifecycle and accounting single-payment path
+- payroll payment recording is now isolated to the canonical accounting payment seam in `JournalController` and `PayrollAccountingService`
 - `CompanyAccountingSettingsService.requirePayrollDefaults/updatePayrollDefaults` look latent compared with the live tax-account path
 - `RawMaterialService` exposes shortcut flows while warning that purchasing is canonical
 - `ProductionCatalogService` mutates product, raw-material, and finished-good truth together and is a strong ownership seam
@@ -74,4 +74,4 @@
 - `OpeningBalanceImportService.postOpeningBalanceJournal`
 - `TallyImportService.importTallyXml`
 - `CompanyDefaultAccountsService.updateDefaults`
-- `AccountingCoreEngineCore.processPayrollBatchPayment`
+- `PayrollAccountingService.recordPayrollPayment`

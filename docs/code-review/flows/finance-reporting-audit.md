@@ -6,7 +6,7 @@ This review covers finance bootstrap/configuration, account/default-account gove
 
 Primary evidence:
 
-- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/{AccountingController,AccountingAuditController,AccountingConfigurationController,OpeningBalanceImportController,TallyImportController,PayrollController}.java`
+- `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/accounting/controller/{AccountingController,AccountingAuditController,AccountingConfigurationController,JournalController,OpeningBalanceImportController,TallyImportController}.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/controller/HrPayrollController.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/reports/controller/ReportController.java`
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/core/audittrail/web/EnterpriseAuditTrailController.java`
@@ -21,7 +21,7 @@ Primary evidence:
 - `erp-domain/src/main/java/com/bigbrightpaints/erp/modules/purchasing/service/{GoodsReceiptService,PurchaseInvoiceEngine}.java`
 - `erp-domain/src/main/resources/{application.yml,application-prod.yml}`
 - `erp-domain/src/main/resources/db/migration_v2/{V2__accounting_core.sql,V7__enterprise_audit_ml_events.sql,V32__gst_component_tracking_fields.sql,V42__bank_reconciliation_sessions.sql,V43__reconciliation_discrepancies.sql,V44__period_close_requests.sql}`
-- Tests: `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/{CriticalAccountingAxesIT,PayrollBatchPaymentIT,ReconciliationControlsIT}.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/reports/ReportExportApprovalIT.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/AccountingExportGovernanceIT.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/core/audittrail/EnterpriseAuditTrailServiceTest.java`, and `erp-domain/src/test/java/com/bigbrightpaints/erp/codered/CR_Reports_AsOfBalancesStable_AfterLatePostingIT.java`
+- Tests: `erp-domain/src/test/java/com/bigbrightpaints/erp/e2e/accounting/{CriticalAccountingAxesIT,ReconciliationControlsIT}.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/reports/ReportExportApprovalIT.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/modules/accounting/controller/{AccountingEndpointContractTest,AccountingExportGovernanceIT}.java`, `erp-domain/src/test/java/com/bigbrightpaints/erp/core/audittrail/EnterpriseAuditTrailServiceTest.java`, and `erp-domain/src/test/java/com/bigbrightpaints/erp/codered/{CR_PayrollIdempotencyConcurrencyTest,CR_Reports_AsOfBalancesStable_AfterLatePostingIT}.java`
 
 Supporting runtime evidence was degraded in this session: `curl -i http://localhost:8081/actuator/health` returned HTTP `404` with `"No static resource actuator/health."`, so this review relies on static inspection plus existing integration/regression coverage. Baseline suite `mvn test -Pgate-fast -Djacoco.skip=true` passed before drafting.
 
@@ -48,7 +48,7 @@ Planning notes:
 | Journal posting and finance operations | `GET/POST /api/v1/accounting/accounts`, `GET/POST /api/v1/accounting/journal-entries`, `GET /api/v1/accounting/journals`, `POST /api/v1/accounting/journal-entries/{id}/reverse`, `POST /api/v1/accounting/{receipts/dealer,receipts/dealer/hybrid,settlements/dealers,dealers/{dealerId}/auto-settle,payroll/payments,suppliers/payments,settlements/suppliers,suppliers/{supplierId}/auto-settle,credit-notes,debit-notes,accruals,bad-debts/write-off}`, `POST /api/v1/accounting/inventory/{landed-cost,revaluation,wip-adjustment}` | `AccountingController` | One controller fronts general GL posting, settlements, bad-debt/credit/debit adjustments, payroll payment, and finance-led inventory journals. |
 | Tax, period, and month-end controls | `GET /api/v1/accounting/gst/{return,reconciliation}`, `GET/POST/PUT /api/v1/accounting/periods`, `POST /api/v1/accounting/periods/{id}/{request-close,approve-close,reject-close,reopen}`, `GET/POST /api/v1/accounting/month-end/checklist{/{periodId}}` | `AccountingController` | Period close is a maker-checker path; direct close is not part of the frontend contract. |
 | Reconciliation and statements | `POST/PUT/GET /api/v1/accounting/reconciliation/bank/sessions{/**}`, `GET /api/v1/accounting/reconciliation/{subledger,discrepancies,inter-company}`, `POST /api/v1/accounting/reconciliation/discrepancies/{id}/resolve`, `GET /api/v1/accounting/{statements,aging}/{dealers|suppliers}/{id}`, admin-only PDF variants | `ReconciliationController`, `StatementReportController` | Covers AR/AP/bank/GST/inter-company reconciliation plus partner statement and aging exports via the session-based bank reconciliation contract. |
-| Payroll lifecycle and accounting | `GET/POST /api/v1/payroll/runs{,/weekly,/monthly}`, `POST /api/v1/payroll/runs/{id}/{calculate,approve,post,mark-paid}`, `GET /api/v1/payroll/summary/**`, `POST /api/v1/accounting/payroll/payments/batch`, `POST /api/v1/accounting/payroll/payments` | `HrPayrollController`, `PayrollController`, `AccountingController` | HR owns run creation/approval/post/mark-paid; accounting also exposes a one-call batch payroll path and explicit payroll-payment journal path. |
+| Payroll lifecycle and accounting | `GET/POST /api/v1/payroll/runs{,/weekly,/monthly}`, `POST /api/v1/payroll/runs/{id}/{calculate,approve,post,mark-paid}`, `GET /api/v1/payroll/summary/**`, `POST /api/v1/accounting/payroll/payments` | `HrPayrollController`, `JournalController` | HR owns run creation/approval/post/mark-paid; accounting owns the canonical payroll-payment journal path after posting. |
 | Financial reporting and export approval | `GET /api/v1/reports/{balance-sheet,profit-loss,trial-balance,inventory-valuation,gst-return,inventory-reconciliation,reconciliation-dashboard,aged-debtors}`, `POST /api/v1/exports/request`, `GET /api/v1/exports/{requestId}/download` | `ReportController` | Reporting is admin/accounting scoped; export approval is a separate request/download workflow rather than the only way to see report data. |
 | Accounting and enterprise audit | `GET /api/v1/accounting/audit/{events,transactions,transactions/{journalEntryId}}`, `GET /api/v1/admin/audit/events`, `GET /api/v1/superadmin/audit/platform-events`, `POST/GET /api/v1/audit/ml-events` | `AccountingAuditController`, `AdminAuditController`, `SuperAdminAuditController`, `EnterpriseAuditTrailController` | Canonical audit reads are now role-scoped: tenant accounting/admin feeds, tenant-admin-only review feed, and a platform-only superadmin feed. |
 | Temporal/as-of finance queries | `GET /api/v1/accounting/accounts/{accountId}/balance/as-of`, `GET /api/v1/accounting/trial-balance/as-of`, `GET /api/v1/accounting/accounts/{accountId}/activity`, `GET /api/v1/accounting/accounts/{accountId}/compare-balances` | `AccountingController` | These routes bypass the generic report query layer and use `TemporalBalanceService` directly. |
@@ -177,9 +177,9 @@ Return and reconciliation logic is line-aware rather than only GL-aware:
 
 `CriticalAccountingAxesIT` proves GST return deltas reflect both posted sales tax and posted purchase input tax, and that returns reduce the reported output tax posture.
 
-### 6. Payroll accounting has a canonical HR lifecycle plus a finance shortcut
+### 6. Payroll accounting has a canonical HR lifecycle plus an accounting payment seam
 
-There are two materially different payroll-to-GL flows.
+There are two linked payroll-to-GL steps.
 
 #### Canonical HR payroll lifecycle
 
@@ -195,16 +195,16 @@ There are two materially different payroll-to-GL flows.
 - payroll-posted audit metadata must include run type, period, `journalEntryId`, posting date, gross pay, advances, deductions, and net pay,
 - mark-paid requires a payment journal first, and that payment journal becomes the canonical payment reference for all run lines.
 
-`AccountingCoreEngineCore.recordPayrollPayment(...)` adds another hard invariant: the payment amount must exactly match the `SALARY-PAYABLE` amount from the posted payroll journal. Partial or mismatched payroll settlement is rejected.
+`PayrollAccountingService.recordPayrollPayment(...)` adds another hard invariant: the payment amount must exactly match the `SALARY-PAYABLE` amount from the posted payroll journal. Partial or mismatched payroll settlement is rejected.
 
-#### Accounting batch payroll shortcut
+#### Accounting payment recording seam
 
-`POST /api/v1/accounting/payroll/payments/batch` is a one-call path in `AccountingCoreEngineCore.processPayrollBatchPayment(...)`.
+`POST /api/v1/accounting/payroll/payments` is the canonical accounting-host payment-journal path.
 
-- It creates a `PayrollRun`, persists `PayrollRunLine`s, posts the payroll journal, optionally posts employer-contribution journals, and then marks the run `PAID` immediately.
-- `PayrollBatchPaymentIT` proves this path creates both the payroll run and the linked journal in one transaction.
+- It records the payment journal only after a payroll run has already been posted.
+- `CR_PayrollIdempotencyConcurrencyTest` and `AccountingEndpointContractTest` cover the canonical payment-recording seam and replay behavior.
 
-This is operationally convenient for contractor/weekly batch disbursement, but it is not the same governance model as the HR approve/post/mark-paid sequence.
+This keeps payroll creation and approval inside HR while accounting owns the financial clearing entry.
 
 ### 7. The repo has three distinct audit surfaces
 
@@ -319,7 +319,7 @@ So production correctness currently depends on keeping the inventory-accounting 
 | Period-close maker/checker | `PeriodCloseRequest`, `assertMakerCheckerBoundary(...)` | A single actor requesting and approving the same close. | The public `/close` endpoint still exists and can mislead clients even though it always fails. |
 | Month-end checklist gates | `assertChecklistComplete(...)`, `assertNoUninvoicedReceipts(...)` | Closing periods with unreconciled balances, open discrepancies, unposted docs, or uninvoiced GRNs. | Forced close can override parts of the checklist; the override itself becomes a governance event to inspect. |
 | Persisted discrepancy workflow | `reconciliation_discrepancies`, `resolveDiscrepancy(...)` | Losing track of reconciliation exceptions or resolving them without journal evidence. | `ACKNOWLEDGED` resolution documents the issue without actually fixing the ledger. |
-| Payroll posting/payment invariants | `PayrollPostingService`, `recordPayrollPayment(...)` | Posting payroll before approval, marking payroll paid without a payment journal, or paying an amount that does not match `SALARY-PAYABLE`. | The batch payroll endpoint intentionally bypasses the longer HR approval lifecycle. |
+| Payroll posting/payment invariants | `PayrollPostingService`, `recordPayrollPayment(...)` | Posting payroll before approval, marking payroll paid without a payment journal, or paying an amount that does not match `SALARY-PAYABLE`. | Payroll stays split between the HR lifecycle and the accounting payment-journal seam, so both links must remain consistent. |
 | Closed-period snapshot requirement | `ReportQuerySupport`, `TemporalBalanceService` | Rebuilding closed-period reports from mutable live journals instead of frozen snapshots. | Open-period `AS_OF` behavior still depends on the generic report-query implementation, which has its own edge cases. |
 | Export approval gate | `ExportApprovalService`, `SystemSettingsService` | Unapproved export downloads through the explicit request/download workflow. | Direct report JSON responses and admin-only PDF/CSV exports are outside this gate. |
 | Consent-aware ML audit identity | `EnterpriseAuditTrailService.resolveMlIdentity(...)` | Storing raw user identity in ML telemetry when the actor has not opted in. | Business events still preserve actor identity; only ML telemetry is consent-anonymized. |
@@ -332,7 +332,7 @@ So production correctness currently depends on keeping the inventory-accounting 
 | --- | --- | --- |
 | Accounting period | Effective workflow is `OPEN -> PENDING close request -> APPROVED close request -> CLOSED`, with reopen only by `ROLE_SUPER_ADMIN`. | `AccountingPeriodService`, `AccountingPeriodServiceCore`, `V44__period_close_requests.sql` |
 | Export request | `PENDING -> APPROVED|REJECTED`; download is blocked only when approval-required is enabled. | `ExportApprovalService`, `ReportExportApprovalIT` |
-| Payroll run | Canonical HR flow is `DRAFT/CREATED -> CALCULATED -> APPROVED -> POSTED -> PAID`; accounting batch payroll jumps directly to a paid run. | `HrPayrollController`, `PayrollPostingService`, `PayrollBatchPaymentIT` |
+| Payroll run | Canonical HR flow is `DRAFT/CREATED -> CALCULATED -> APPROVED -> POSTED -> PAID`, with payment clearing recorded separately on the accounting host. | `HrPayrollController`, `PayrollPostingService`, `CR_PayrollIdempotencyConcurrencyTest` |
 | Reconciliation discrepancy | Starts `OPEN`, then moves to `ACKNOWLEDGED`, `ADJUSTED`, or `RESOLVED` depending on resolution type. | `ReconciliationServiceCore`, `V43__reconciliation_discrepancies.sql` |
 | Audit retry item | Business-audit retry rows are transient repair objects, not durable business truth. | `EnterpriseAuditTrailService`, `EnterpriseAuditTrailServiceTest` |
 
@@ -343,7 +343,6 @@ So production correctness currently depends on keeping the inventory-accounting 
 - **Manual journals:** explicit `idempotencyKey` is copied into the posting request.
 - **Inventory-accounting listener:** builds deterministic references from GRN reference plus `movementId`.
 - **Payroll payment:** reference number plus existing payment-journal parity checks prevent conflicting replay.
-- **Batch payroll:** caller reference or generated payroll payment reference becomes the replay handle.
 - **Export approval:** request IDs govern the approval/download workflow, but there is no content-hash replay control because the endpoint is approval metadata, not file generation.
 
 ## Side effects, integrations, and recovery behavior
@@ -367,7 +366,6 @@ Recovery posture is strongest where explicit replay anchors exist (imports, jour
 | resolved | API / workflow drift | Direct period close is removed from the public controller surface; frontend close flows must use `/request-close` + `/approve-close` and the service-level maker-checker path. | `AccountingController`, `AccountingPeriodService` | The public route no longer competes with the approved maker-checker workflow. |
 | high | reporting correctness | `ReportQuerySupport.resolveWindow(...)` back-fills period start/end dates for `AS_OF` requests when a period exists, while `BalanceSheetReportQueryService` and `TrialBalanceReportQueryService` aggregate `summarizeByAccountWithin(...)` for non-snapshot windows instead of always aggregating up to `asOfDate`. | `ReportQuerySupport`, `BalanceSheetReportQueryService`, `TrialBalanceReportQueryService` | Once period rows are seeded, `?date=` report calls have a latent risk of behaving like period activity instead of cumulative as-of balances. |
 | resolved | audit hard-cut cleanup | Canonical audit feeds are now role-scoped on `GET /api/v1/accounting/audit/events`, `GET /api/v1/admin/audit/events`, and `GET /api/v1/superadmin/audit/platform-events`; the broken shared business-events route is removed. | `AccountingAuditController`, `AdminAuditController`, `SuperAdminAuditController`, `AuditAccessService` | Finance/compliance audit readers now have explicit tenant/accounting/platform surfaces instead of a broken shared endpoint. |
-| high | segregation of duties | `processPayrollBatchPayment(...)` creates payroll runs, journals, and a paid state in one call, bypassing the stronger `calculate -> approve -> post -> mark-paid` HR workflow. | `PayrollController`, `AccountingCoreEngineCore.processPayrollBatchPayment(...)`, `PayrollBatchPaymentIT` | Finance convenience can undercut maker/checker expectations for payroll if the shortcut becomes the default operational path. |
 | medium | export governance gap | Export approval is optional, and even when enabled it only gates the explicit request/download flow; direct report JSON endpoints and admin-only PDF/CSV finance exports bypass it. | `ExportApprovalService`, `ReportController`, `AccountingController`, `ReportExportApprovalIT`, `AccountingExportGovernanceIT` | “Require export approval” is not a universal exfiltration control for privileged users. |
 | medium | audit consistency / eventual visibility | Enterprise business audit persistence is async and retry-based; persistent failures are retried, but the system does not block the originating business action waiting for audit durability. | `EnterpriseAuditTrailService`, `EnterpriseAuditTrailServiceTest` | Fresh actions may not appear immediately in audit queries, and a persistent outage can still create audit gaps after retries exhaust. |
 | medium | observability gap | Local runtime exposes the app on `8081`, but the expected actuator health endpoint is not present there. | `curl -i http://localhost:8081/actuator/health` response, `application-prod.yml` management config | Reviewers/operators cannot use the usual local health probe for quick confidence and may over-trust static analysis or stale test results. |
@@ -394,7 +392,7 @@ Recovery posture is strongest where explicit replay anchors exist (imports, jour
 
 - `CriticalAccountingAxesIT` proves GST output/input tax movement, sub-ledger reconciliation parity, and reference-alias idempotency across sales journals.
 - `ReconciliationControlsIT` proves zero-variance AR/AP and inventory reconciliation in the seeded-company happy path.
-- `PayrollBatchPaymentIT` proves the accounting batch-payroll shortcut creates both payroll-run rows and a posted journal in one flow.
+- `CR_PayrollIdempotencyConcurrencyTest` proves the payroll payment seam stays idempotent around posted payroll journals and mark-paid retries.
 - `ReportExportApprovalIT` proves export request approval gating and also proves the deliberate bypass when `exportApprovalRequired=false`.
 - `AccountingExportGovernanceIT` proves admin-only access and export-audit metadata for direct finance CSV/PDF endpoints.
 - `EnterpriseAuditTrailServiceTest` proves blank audit HMAC key rejection, async retry persistence, retry expiry after max attempts, and exclusive upper-bound date filtering.

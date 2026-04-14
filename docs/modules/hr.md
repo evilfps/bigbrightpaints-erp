@@ -117,7 +117,7 @@ The posting creates:
 ### HR → Accounting (Payment Recording Seam)
 Payroll payment is recorded on the accounting host after bank payment:
 
-1. Payment journal created at `/api/v1/accounting/payroll/payments/batch`
+1. Payment journal created at `/api/v1/accounting/payroll/payments`
 2. HR module marks payroll as PAID via `PayrollPostingService.markAsPaid()`
 3. Payment reference is linked back to the payroll run
 
@@ -215,7 +215,7 @@ This is the canonical current state — there is no plan to enable by default.
 
 Payroll is not fully self-contained — it depends on the accounting module for:
 - **Payroll posting**: `PayrollPostingService` → `AccountingFacade.postPayrollRun()`
-- **Payroll payment**: Bank payment reference recording via accounting journal (`/api/v1/accounting/payroll/payments/batch`)
+- **Payroll payment**: Bank payment reference recording via the canonical accounting payroll-payment journal surface (`/api/v1/accounting/payroll/payments`)
 
 There is no replacement for this seam — this is the canonical design. The HR module calculates payroll, but accounting owns the financial truth.
 
@@ -248,5 +248,5 @@ The module does **not** currently support:
 - [docs/workflows/payroll.md](../workflows/payroll.md) — operational workflow guide (historical reference)
 - [docs/developer/accounting-flows/00-accounting-module-map.md](../developer/accounting-flows/00-accounting-module-map.md) — accounting module (payroll posting seam)
 - [erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md) — source module definition
-- [docs/frontend-handoff-finance.md](../frontend-handoff-finance.md) — Finance frontend handoff (HR/payroll payloads, RBAC)
+- [docs/frontend-portals/accounting/README.md](../frontend-portals/accounting/README.md) - Accounting frontend handoff (HR and payroll accounting payloads, RBAC)
 - [docs/deprecated/INDEX.md](../deprecated/INDEX.md) — Deprecated surfaces registry (legacy /hr/payroll-runs endpoints)

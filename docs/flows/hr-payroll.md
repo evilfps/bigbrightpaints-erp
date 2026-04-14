@@ -200,7 +200,7 @@ HR Module → AccountingFacade.postPayrollRun()
 ### 4.6 Payroll Payment Seam (Accounting → HR)
 
 ```
-1. Accounting creates payment journal: /api/v1/accounting/payroll/payments/batch
+1. Accounting creates payment journal: /api/v1/accounting/payroll/payments
 2. HR marks run as PAID via: POST /api/v1/payroll/runs/{id}/mark-paid
 3. Payment reference linked back to payroll run
 ```
@@ -292,7 +292,7 @@ The payroll flow itself does not publish events that trigger downstream listener
 - [docs/modules/MODULE-INVENTORY.md](../modules/MODULE-INVENTORY.md) — Module inventory
 - [docs/flows/FLOW-INVENTORY.md](FLOW-INVENTORY.md) — Flow inventory
 - [docs/workflows/payroll.md](../workflows/payroll.md) — Historical operational guide
-- [docs/frontend-handoff-finance.md](../frontend-handoff-finance.md) — Finance frontend handoff (HR/payroll payloads, RBAC)
+- [docs/frontend-portals/accounting/README.md](../frontend-portals/accounting/README.md) - Accounting frontend handoff (HR and payroll accounting payloads, RBAC)
 - [docs/deprecated/INDEX.md](../deprecated/INDEX.md) — Deprecated surfaces registry (legacy /hr/payroll-runs endpoints)
 
 ### Relevant ADRs

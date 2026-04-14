@@ -55,8 +55,8 @@
 
 - `openapi.json`
 - `docs/endpoint-inventory.md`
-- `docs/accounting-portal-endpoint-map.md`
-- `docs/accounting-portal-frontend-engineer-handoff.md`
+- `docs/frontend-portals/accounting/README.md`
+- `docs/frontend-api/README.md`
 - `docs/code-review/flows/finance-reporting-audit.md`
 - `docs/code-review/executable-specs/03-lane-accounting-truth-boundary/EXEC-SPEC.md`
 

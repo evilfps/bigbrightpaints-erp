@@ -53,13 +53,13 @@ class HrPayrollModulePauseIT extends AbstractIntegrationTest {
             "/api/v1/payroll/runs", HttpMethod.GET, new HttpEntity<>(tenantHeaders), Map.class);
     assertThat(payrollRuns.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
-    ResponseEntity<Map> payrollBatchPayment =
+    ResponseEntity<Map> payrollPayment =
         rest.exchange(
-            "/api/v1/accounting/payroll/payments/batch",
+            "/api/v1/accounting/payroll/payments",
             HttpMethod.POST,
             new HttpEntity<>(Map.of(), tenantHeaders),
             Map.class);
-    assertThat(payrollBatchPayment.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(payrollPayment.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
     ResponseEntity<Map> workforce =
         rest.exchange(

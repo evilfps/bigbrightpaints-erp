@@ -21,7 +21,7 @@ This guide covers payroll run creation through accounting posting and payment cl
 - Payroll run list/detail: `GET /api/v1/payroll/runs`, `GET /api/v1/payroll/runs/{id}`
 - Weekly/monthly run views: `GET /api/v1/payroll/runs/weekly`, `GET /api/v1/payroll/runs/monthly`
 - Summary checks: `GET /api/v1/payroll/summary/current-week`, `GET /api/v1/payroll/summary/current-month`
-- Batch payment posting (accounting side): `POST /api/v1/accounting/payroll/payments/batch`
+- Payroll payment journal recording (accounting side): `POST /api/v1/accounting/payroll/payments`
 
 ## Troubleshooting Quick Notes
 

@@ -33,7 +33,7 @@ This review is based on static inspection of the Spring Boot backend under `erp-
 
 | Module | Primary controller surfaces | Representative code references |
 | --- | --- | --- |
-| accounting | `/api/v1/accounting`, `/api/v1/accounting/configuration`, `/api/v1/accounting/payroll`, `/api/v1/migration` | `modules/accounting/controller/AccountingController.java`, `AccountingConfigurationController.java`, `PayrollController.java`, `TallyImportController.java` |
+| accounting | `/api/v1/accounting`, `/api/v1/accounting/configuration`, `/api/v1/accounting/payroll/payments`, `/api/v1/migration` | `modules/accounting/controller/AccountingController.java`, `AccountingConfigurationController.java`, `JournalController.java`, `TallyImportController.java` |
 | admin | `/api/v1/admin`, `/api/v1/admin/users`, `/api/v1/changelog` | `modules/admin/controller/AdminSettingsController.java`, `AdminUserController.java`, `ChangelogController.java` |
 | auth | `/api/v1/auth`, `/api/v1/auth/mfa` | `modules/auth/controller/AuthController.java`, `MfaController.java` |
 | company | `/api/v1/companies`, `/api/v1/superadmin`, `/api/v1/superadmin/tenants` | `modules/company/controller/CompanyController.java`, `SuperAdminController.java`, `SuperAdminTenantOnboardingController.java` |

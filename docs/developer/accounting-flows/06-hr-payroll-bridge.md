@@ -9,8 +9,8 @@
 - `modules/hr/domain`
   Purpose: payroll run and payroll line truth with accounting linkage fields.
 - `modules/accounting/controller`
-  Purpose for this slice: single and batch payroll payment endpoints.
-- `modules/accounting/internal`
+  Purpose for this slice: canonical payroll payment endpoint.
+- `modules/accounting/service`
   Purpose for this slice: actual payroll journal/payment implementations.
 
 ## Canonical Workflow Graph
@@ -21,8 +21,8 @@ flowchart LR
     PS --> CALC["PayrollCalculationService"]
     PS --> POST["PayrollPostingService"]
     POST --> AF["AccountingFacade.postPayrollRun"]
-    ACC["AccountingController.recordPayrollPayment"] --> PAY["AccountingFacade.recordPayrollPayment"]
-    BATCH["PayrollController.processBatchPayment"] --> ENG["AccountingCoreEngineCore.processPayrollBatchPayment"]
+    ACC["JournalController.recordPayrollPayment"] --> PAY["AccountingFacade.recordPayrollPayment"]
+    PAY --> PAS["PayrollAccountingService.recordPayrollPayment"]
 ```
 
 ## Major Workflows
@@ -39,10 +39,10 @@ flowchart LR
 
 ### Payroll Payment
 
-- entry: `AccountingController.recordPayrollPayment`
+- entry: `JournalController.recordPayrollPayment`
 - canonical path:
   - `AccountingFacade.recordPayrollPayment`
-  - `AccountingCoreEngineCore.recordPayrollPayment`
+  - `PayrollAccountingService.recordPayrollPayment`
   - require posted payroll journal and salary-payable account
   - link payment journal to run
 
@@ -52,13 +52,6 @@ flowchart LR
 - key point:
   - HR updates line payment state, payment reference, payment date, and employee advances
   - accounting is not called here; it consumes the existing payment journal link
-
-### Batch Payroll Payment
-
-- entry: `PayrollController.processBatchPayment`
-- key point:
-  - accounting creates run + journals directly
-  - this path can bypass richer HR paid-finalization semantics
 
 ## What Works
 
@@ -71,14 +64,12 @@ flowchart LR
 - legacy alias `/api/v1/hr/payroll-runs` still exists as `GONE`
 - `PayrollRun` and `PayrollRunLine` still carry legacy compatibility fields and fallback getters
 - `PayrollPostingService` still accepts either `journalEntryId` or legacy relation linkage
-- batch payment path can set a run `PAID` without the full HR-side finalization data
-
 ## Review Hotspots
 
 - `PayrollPostingService.postPayrollToAccounting`
 - `PayrollPostingService.markAsPaid`
 - `PayrollCalculationService.calculatePayroll`
-- `AccountingCoreEngineCore.recordPayrollPayment`
-- `AccountingCoreEngineCore.processPayrollBatchPayment`
+- `PayrollAccountingService.recordPayrollPayment`
+- `PayrollAccountingService.recordPayrollPayment`
 - `PayrollRun`
 - `PayrollRunLine`
