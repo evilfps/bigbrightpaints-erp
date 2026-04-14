@@ -287,7 +287,7 @@ See [orchestrator.md](../modules/orchestrator.md) for the full event bridge map 
 - [docs/modules/sales.md](../modules/sales.md) — Sales module for dispatch boundary
 - [docs/modules/purchasing.md](../modules/purchasing.md) — Purchasing for GRN stock intake
 - [docs/flows/FLOW-INVENTORY.md](FLOW-INVENTORY.md) — Flow inventory
-- [docs/frontend-portals/factory/README.md](../frontend-portals/factory/README.md) - Factory frontend handoff (inventory payloads, RBAC)
+- [docs/frontend-portals/factory/README.md](../frontend-portals/factory/README.md) — Factory frontend handoff (inventory payloads, RBAC)
 - [docs/deprecated/INDEX.md](../deprecated/INDEX.md) — Deprecated surfaces registry (legacy dispatch paths, raw-material intake toggle)
 
 ---

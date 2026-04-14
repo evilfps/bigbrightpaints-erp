@@ -34,6 +34,10 @@ require_regex_match() {
     rg -q -- "$pattern" "$file" || fail "$message"
     return
   fi
+  if command -v perl >/dev/null 2>&1; then
+    perl -ne "exit 0 if /$pattern/; END { exit 1 }" "$file" || fail "$message"
+    return
+  fi
   grep -Eq -- "$pattern" "$file" || fail "$message"
 }
 
@@ -53,7 +57,7 @@ require_literal 'Updated `docs/endpoint-inventory.md` module mapping and example
 
 require_literal "docs/ACCOUNTING_PORTAL_SCOPE_GUARDRAIL.md" "$ENDPOINT_INVENTORY_DOC" \
   "endpoint inventory must reference the scope guardrail doc"
-for module in hr purchasing portal reports; do
+for module in hr purchasing inventory portal reports; do
   require_regex_match "\\| \`$module\` \\| [1-9][0-9]* \\|" "$ENDPOINT_INVENTORY_DOC" \
     "endpoint inventory summary missing required module row with non-zero path count: $module"
 done

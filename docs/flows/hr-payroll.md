@@ -292,7 +292,7 @@ The payroll flow itself does not publish events that trigger downstream listener
 - [docs/modules/MODULE-INVENTORY.md](../modules/MODULE-INVENTORY.md) — Module inventory
 - [docs/flows/FLOW-INVENTORY.md](FLOW-INVENTORY.md) — Flow inventory
 - [docs/workflows/payroll.md](../workflows/payroll.md) — Historical operational guide
-- [docs/frontend-portals/accounting/README.md](../frontend-portals/accounting/README.md) - Accounting frontend handoff (HR and payroll accounting payloads, RBAC)
+- [docs/frontend-portals/accounting/README.md](../frontend-portals/accounting/README.md) — Accounting frontend handoff (HR and payroll accounting payloads, RBAC)
 - [docs/deprecated/INDEX.md](../deprecated/INDEX.md) — Deprecated surfaces registry (legacy /hr/payroll-runs endpoints)
 
 ### Relevant ADRs

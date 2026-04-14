@@ -444,5 +444,5 @@ Both `FinishedGood.setCurrentStock()` and `RawMaterial.setCurrentStock()` reject
 - [docs/platform/config-feature-toggles.md](../platform/config-feature-toggles.md) — inventory-related configuration switches
 - [docs/modules/core-idempotency.md](core-idempotency.md) — shared idempotency infrastructure used by adjustments and opening stock
 - [docs/flows/inventory-management.md](../flows/inventory-management.md) — canonical inventory management flow (behavioral entrypoint)
-- [docs/frontend-portals/factory/README.md](../frontend-portals/factory/README.md) - Factory frontend handoff (inventory payloads, RBAC, stock operations)
+- [docs/frontend-portals/factory/README.md](../frontend-portals/factory/README.md) — Factory frontend handoff (inventory payloads, RBAC, stock operations)
 - [docs/deprecated/INDEX.md](../deprecated/INDEX.md) — Deprecated surfaces registry (legacy dispatch paths, raw-material intake)

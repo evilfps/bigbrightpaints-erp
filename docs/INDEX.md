@@ -107,6 +107,10 @@ The seeded ADR set covers multi-tenant auth scoping (ADR-002), outbox/idempotenc
 ## Frontend Handoff
 
 > Canonical frontend documentation lives in `docs/frontend-portals/` and `docs/frontend-api/`. Older duplicate handoff files were removed after the portal/api trees became the sole source of truth.
+>
+> If you encounter historical references to removed docs, repoint them as follows:
+> - `docs/accounting-portal-frontend-engineer-handoff.md` -> `docs/frontend-portals/accounting/`
+> - `docs/accounting-portal-endpoint-map.md` -> `docs/frontend-api/` and `docs/frontend-portals/accounting/`
 
 ## Historical Workflow Guides (Reference Only)
 

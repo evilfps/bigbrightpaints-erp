@@ -458,5 +458,5 @@ The GRN → purchase invoice relationship is one-to-many: a single GRN can be in
 - [docs/flows/procure-to-pay.md](../flows/procure-to-pay.md) — canonical procure-to-pay flow (behavioral entrypoint)
 - [docs/workflows/purchase-to-pay.md](../workflows/purchase-to-pay.md) — historical operational workflow guide (superseded by this packet)
 - [docs/developer/accounting-flows/03-purchasing-boundary.md](../developer/accounting-flows/03-purchasing-boundary.md) — internal truth-path documentation
-- [docs/frontend-portals/factory/README.md](../frontend-portals/factory/README.md) - Factory frontend handoff (procure-to-pay payloads, supplier management)
+- [docs/frontend-portals/factory/README.md](../frontend-portals/factory/README.md) — Factory frontend handoff (procure-to-pay payloads, supplier management)
 - [docs/deprecated/INDEX.md](../deprecated/INDEX.md) — Deprecated surfaces registry (PO idempotency, GRN headers)

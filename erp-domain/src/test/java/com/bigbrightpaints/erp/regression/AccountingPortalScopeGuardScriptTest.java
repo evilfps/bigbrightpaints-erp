@@ -159,6 +159,7 @@ class AccountingPortalScopeGuardScriptTest {
         |---|---:|---|
         | `hr` | 11 | /api/v1/hr/employees |
         | `purchasing` | 7 | /api/v1/purchasing/purchase-orders |
+        | `inventory` | 5 | /api/v1/inventory/adjustments |
         | `finished-goods` | 5 | /api/v1/finished-goods/stock-summary |
         | `portal` | 3 | /api/v1/portal/finance/ledger |
         | `reports` | %d | /api/v1/reports/inventory-valuation |

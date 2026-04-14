@@ -70,6 +70,5 @@ flowchart LR
 - `PayrollPostingService.markAsPaid`
 - `PayrollCalculationService.calculatePayroll`
 - `PayrollAccountingService.recordPayrollPayment`
-- `PayrollAccountingService.recordPayrollPayment`
 - `PayrollRun`
 - `PayrollRunLine`

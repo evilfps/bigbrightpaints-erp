@@ -95,7 +95,6 @@ flowchart LR
 - entrypoints:
   - `HrPayrollController.postPayroll`
   - `JournalController.recordPayrollPayment`
-  - `JournalController.recordPayrollPayment`
 - canonical path:
   - HR run lifecycle
   - `PayrollPostingService.postPayrollToAccounting`

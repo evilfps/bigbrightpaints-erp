@@ -61,8 +61,8 @@ Probe retired routes with the strongest actor that used to be allowed on them. A
 - `openapi.json`
 - `docs/endpoint-inventory.md`
 - `erp-domain/docs/endpoint_inventory.tsv`
-- `docs/accounting-portal-endpoint-map.md`
-- `docs/accounting-portal-frontend-engineer-handoff.md`
+- `docs/frontend-api/README.md`
+- `docs/frontend-portals/accounting/README.md`
 - `.factory/library/frontend-handoff.md`
 - touched workflow/code-review docs
 

@@ -53,8 +53,8 @@ None.
    - `docs/endpoint-inventory.md`
    - `erp-domain/docs/endpoint_inventory.tsv`
    - `.factory/library/frontend-handoff.md`
-   - `docs/accounting-portal-endpoint-map.md`
-   - `docs/accounting-portal-frontend-engineer-handoff.md`
+   - `docs/frontend-api/README.md`
+   - `docs/frontend-portals/accounting/README.md`
    - touched workflow/code-review docs
 3. If a touched doc would still describe a retired host or route after your code change, fix it now; do not defer it.
 4. Append a concise dated note to `.factory/library/remediation-log.md` when your feature removes duplicate-truth or dead code.

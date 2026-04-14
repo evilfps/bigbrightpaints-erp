@@ -248,5 +248,5 @@ The module does **not** currently support:
 - [docs/workflows/payroll.md](../workflows/payroll.md) — operational workflow guide (historical reference)
 - [docs/developer/accounting-flows/00-accounting-module-map.md](../developer/accounting-flows/00-accounting-module-map.md) — accounting module (payroll posting seam)
 - [erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md](../../erp-domain/src/main/java/com/bigbrightpaints/erp/modules/hr/AGENTS.md) — source module definition
-- [docs/frontend-portals/accounting/README.md](../frontend-portals/accounting/README.md) - Accounting frontend handoff (HR and payroll accounting payloads, RBAC)
+- [docs/frontend-portals/accounting/README.md](../frontend-portals/accounting/README.md) — Accounting frontend handoff (HR and payroll accounting payloads, RBAC)
 - [docs/deprecated/INDEX.md](../deprecated/INDEX.md) — Deprecated surfaces registry (legacy /hr/payroll-runs endpoints)

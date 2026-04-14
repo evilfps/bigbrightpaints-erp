@@ -547,6 +547,6 @@ names.
 - [docs/modules/core-security-error.md](core-security-error.md) — security filter chain and error contract
 - [docs/ARCHITECTURE.md](../ARCHITECTURE.md) — architecture reference
 - [docs/flows/order-to-cash.md](../flows/order-to-cash.md) — canonical order-to-cash flow (behavioral entrypoint)
-- [docs/frontend-portals/sales/README.md](../frontend-portals/sales/README.md) - Sales frontend handoff (order-to-cash payloads, hosts, RBAC, dealer self-service boundaries)
+- [docs/frontend-portals/sales/README.md](../frontend-portals/sales/README.md) — Sales frontend handoff (order-to-cash payloads, hosts, RBAC, dealer self-service boundaries)
 - [docs/adrs/ADR-006-portal-and-host-boundary-separation.md](../adrs/ADR-006-portal-and-host-boundary-separation.md) — Portal and host boundary separation (admin vs dealer self-service ownership)
 - [docs/deprecated/INDEX.md](../deprecated/INDEX.md) — Deprecated surfaces registry (legacy order statuses, dealer alias routes)
