@@ -103,6 +103,7 @@ All control-plane behavior stays under `/api/v1/superadmin/**`.
    - `CREDIT_REQUEST`: reason is required for approve/reject.
    - `CREDIT_LIMIT_OVERRIDE_REQUEST`: reason is required; `expiresAt` may be required by workflow policy.
    - `PAYROLL_RUN`: only approve is supported; reject fails validation.
+   - `PERIOD_CLOSE_REQUEST`: reason is required for approve/reject; workflow force posture remains request-owned.
 
 ## Lifecycle Flows
 

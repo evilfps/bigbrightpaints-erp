@@ -185,7 +185,8 @@ public class AdminApprovalService {
   }
 
   private AdminApprovalItemDto decidePeriodCloseItem(Long id, boolean approve, String reason) {
-    PeriodCloseRequestActionRequest action = new PeriodCloseRequestActionRequest(reason, null);
+    String decisionReason = requireReason(reason, approve ? "approve" : "reject");
+    PeriodCloseRequestActionRequest action = new PeriodCloseRequestActionRequest(decisionReason, null);
     if (approve) {
       accountingPeriodService.approvePeriodClose(id, action);
     } else {
@@ -390,6 +391,12 @@ public class AdminApprovalService {
     }
     if (StringUtils.hasText(request.getRequestedBy())) {
       summary = summary + " (requested by " + request.getRequestedBy().trim() + ")";
+    }
+    if (request.isForceRequested()) {
+      summary = summary + " (force requested)";
+    }
+    if (StringUtils.hasText(request.getRequestNote())) {
+      summary = summary + " (request note: " + request.getRequestNote().trim() + ")";
     }
     return decisionItem(
         AdminApprovalItemDto.OriginType.PERIOD_CLOSE_REQUEST,

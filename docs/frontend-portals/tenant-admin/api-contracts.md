@@ -152,6 +152,10 @@ Optional context fields (origin-dependent):
 - `requesterUserId`
 - `requesterEmail`
 
+Period-close row context:
+
+- `summary` includes request-maker context plus `force requested` and `request note` markers when present.
+
 Action endpoint rules:
 
 - `rejectEndpoint` is `null` for `PAYROLL_RUN` items (approve-only workflow).
@@ -185,7 +189,7 @@ Origin-specific decision constraints:
 - `CREDIT_REQUEST`: `APPROVE` or `REJECT`; `reason` required (nonblank) for both.
 - `CREDIT_LIMIT_OVERRIDE_REQUEST`: `APPROVE` or `REJECT`; `reason` required; `expiresAt` is used for override approval windows.
 - `PAYROLL_RUN`: only `APPROVE` is supported; `REJECT` fails validation.
-- `PERIOD_CLOSE_REQUEST`: `APPROVE` or `REJECT`; request `force` posture is preserved by workflow and not overridden by admin generic decisions.
+- `PERIOD_CLOSE_REQUEST`: `APPROVE` or `REJECT`; `reason` is required (nonblank) for both, and request `force` posture is preserved by workflow and not overridden by admin generic decisions.
 
 Response: `ApiResponse<AdminApprovalItemDto>` for the decided row.
 

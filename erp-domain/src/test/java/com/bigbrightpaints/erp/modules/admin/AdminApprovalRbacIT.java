@@ -208,6 +208,30 @@ class AdminApprovalRbacIT extends AbstractIntegrationTest {
   }
 
   @Test
+  void periodCloseGenericDecision_requiresReasonForApproveAndReject() {
+    HttpHeaders adminHeaders = authHeaders(ADMIN_EMAIL, PASSWORD);
+    long unknownPeriodId = 9_999_999L;
+
+    ResponseEntity<Map> approveWithoutReason =
+        rest.exchange(
+            "/api/v1/admin/approvals/PERIOD_CLOSE_REQUEST/" + unknownPeriodId + "/decisions",
+            HttpMethod.POST,
+            new HttpEntity<>(Map.of("decision", "APPROVE"), adminHeaders),
+            Map.class);
+    assertThat(approveWithoutReason.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertValidationFailure(approveWithoutReason, "reason is required to approve this approval");
+
+    ResponseEntity<Map> rejectWithoutReason =
+        rest.exchange(
+            "/api/v1/admin/approvals/PERIOD_CLOSE_REQUEST/" + unknownPeriodId + "/decisions",
+            HttpMethod.POST,
+            new HttpEntity<>(Map.of("decision", "REJECT", "reason", "   "), adminHeaders),
+            Map.class);
+    assertThat(rejectWithoutReason.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    assertValidationFailure(rejectWithoutReason, "reason is required to reject this approval");
+  }
+
+  @Test
   void creditRequestApprovalActionsAllowOnlyAdminOrAccounting() {
     HttpHeaders salesHeaders = authHeaders(SALES_EMAIL, PASSWORD);
     HttpHeaders accountingHeaders = authHeaders(ACCOUNTING_EMAIL, PASSWORD);

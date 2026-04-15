@@ -76,7 +76,7 @@ Supported `originType` values:
 Decision body (`AdminApprovalDecisionRequest`):
 
 - `decision`: `APPROVE` or `REJECT` (required)
-- `reason`: required for credit and credit-override decisions; optional for export/period-close
+- `reason`: required for credit, credit-override, and period-close decisions; optional for export
 - `expiresAt`: optional (used by credit override approval windows)
 
 Origin-specific rules:

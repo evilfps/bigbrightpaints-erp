@@ -23,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.bigbrightpaints.erp.core.exception.ApplicationException;
+import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequest;
 import com.bigbrightpaints.erp.modules.accounting.domain.PeriodCloseRequestRepository;
 import com.bigbrightpaints.erp.modules.accounting.dto.PeriodCloseRequestActionRequest;
 import com.bigbrightpaints.erp.modules.accounting.service.AccountingPeriodService;
@@ -103,6 +104,46 @@ class AdminApprovalServiceTest {
     verify(accountingPeriodService).approvePeriodClose(eq(77L), requestCaptor.capture());
     assertThat(requestCaptor.getValue().note()).isEqualTo("Close with workflow force policy");
     assertThat(requestCaptor.getValue().force()).isNull();
+  }
+
+  @Test
+  void decide_periodClose_requiresReason_forApproveAndReject() {
+    AdminApprovalDecisionRequest approveWithoutReason =
+        new AdminApprovalDecisionRequest(AdminApprovalDecisionRequest.Decision.APPROVE, " ", null);
+    AdminApprovalDecisionRequest rejectWithoutReason =
+        new AdminApprovalDecisionRequest(AdminApprovalDecisionRequest.Decision.REJECT, null, null);
+
+    assertThatThrownBy(() -> service.decide("PERIOD_CLOSE_REQUEST", 78L, approveWithoutReason))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("reason is required to approve this approval");
+    assertThatThrownBy(() -> service.decide("PERIOD_CLOSE_REQUEST", 79L, rejectWithoutReason))
+        .isInstanceOf(ApplicationException.class)
+        .hasMessageContaining("reason is required to reject this approval");
+    verify(accountingPeriodService, never())
+        .approvePeriodClose(any(Long.class), any(PeriodCloseRequestActionRequest.class));
+    verify(accountingPeriodService, never())
+        .rejectPeriodClose(any(Long.class), any(PeriodCloseRequestActionRequest.class));
+  }
+
+  @Test
+  void inbox_periodCloseItems_includeForceRequestedAndRequestNoteContext() {
+    PeriodCloseRequest request = new PeriodCloseRequest();
+    ReflectionTestUtils.setField(request, "id", 77L);
+    request.setRequestedBy("accounting-maker@bbp.com");
+    request.setForceRequested(true);
+    request.setRequestNote("Emergency close requested after reconciliation.");
+    request.setRequestedAt(Instant.parse("2026-04-15T08:40:00Z"));
+
+    when(periodCloseRequestRepository.findPendingByCompanyOrderByRequestedAtDesc(company))
+        .thenReturn(List.of(request));
+
+    AdminApprovalInboxResponse inbox = service.getInbox();
+
+    assertThat(inbox.items()).hasSize(1);
+    AdminApprovalItemDto item = inbox.items().getFirst();
+    assertThat(item.originType()).isEqualTo(AdminApprovalItemDto.OriginType.PERIOD_CLOSE_REQUEST);
+    assertThat(item.summary()).contains("force requested");
+    assertThat(item.summary()).contains("request note: Emergency close requested after reconciliation.");
   }
 
   @Test
